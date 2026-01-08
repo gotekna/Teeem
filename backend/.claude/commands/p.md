@@ -7,86 +7,23 @@ Run browser-based performance checks AND backend performance analysis.
 
 ## Step 0: Ensure Chrome DevTools is Running
 
-**Before anything else, check for Chrome debug instance and start if needed.**
+**MCP manages its own Chrome instance.** Just try to use MCP tools - it auto-starts Chrome if needed.
 
-### Check ports AND profiles in use (run in parallel):
+### Check if MCP Chrome is ready:
+```javascript
+mcp__chrome-devtools__list_pages()
+```
+
+If it works, proceed to Step 0.5 (Auto-Login).
+
+### If MCP fails with "browser already running" error:
 ```bash
-# Check ports
-lsof -i:9222 | head -2
-lsof -i:9223 | head -2
-lsof -i:9224 | head -2
-lsof -i:9225 | head -2
-
-# Check which profiles are in use
-ls "/Users/robertharder/Library/Application Support/Google/Chrome/Default/lockfile" 2>/dev/null && echo "Default (Tekna): IN USE"
-ls "/Users/robertharder/Library/Application Support/Google/Chrome/Profile 1/lockfile" 2>/dev/null && echo "Profile 1 (100x): IN USE"
-ls "/Users/robertharder/Library/Application Support/Google/Chrome/Profile 2/lockfile" 2>/dev/null && echo "Profile 2 (Personal): IN USE"
+pkill -f "chrome-devtools-mcp"
+rm -rf /Users/robertharder/.cache/chrome-devtools-mcp
 ```
+Then try the MCP tool again.
 
-### If NO Chrome is running on any port:
-Ask user which profile to use, then start Chrome:
-
-**Available Profiles:**
-| Profile Dir | Name | Email |
-|-------------|------|-------|
-| Default | Tekna | robert@tekna.com.au |
-| Profile 1 | 100x Best Life | rob@100xbestlife.com |
-| Profile 2 | Personal | rharder1972@gmail.com |
-
-```bash
-nohup /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
-  --remote-debugging-port=9222 \
-  --user-data-dir="/Users/robertharder/Library/Application Support/Google/Chrome" \
-  --profile-directory="PROFILE_DIR" \
-  http://localhost:3000 > /dev/null 2>&1 &
-sleep 2
-```
-
-Replace `PROFILE_DIR` with selected profile (Default, Profile 1, etc.)
-
-### If port 9222 is in use but others are free:
-Use the first available port AND an available profile:
-```bash
-nohup /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
-  --remote-debugging-port=PORT \
-  --user-data-dir="/Users/robertharder/Library/Application Support/Google/Chrome" \
-  --profile-directory="PROFILE_DIR" \
-  http://localhost:3000 > /dev/null 2>&1 &
-sleep 2
-```
-
-Then update `/Users/robertharder/GitHub/teeem/.mcp.json`:
-```json
-{
-  "mcpServers": {
-    "chrome-devtools": {
-      "command": "npx",
-      "args": ["@anthropic-ai/mcp-server-chrome-devtools@latest", "--port=PORT_NUMBER"]
-    }
-  }
-}
-```
-
-**⚠️ If using non-9222 port:** Inform user that chat restart is required for MCP to work, then STOP.
-
-### Port Reference:
-| Port | MCP Config Needed |
-|------|-------------------|
-| 9222 | No (default) |
-| 9223 | Yes |
-| 9224 | Yes |
-| 9225 | Yes |
-
-### Profile Reference:
-| Profile Dir | Name | Email |
-|-------------|------|-------|
-| Default | Tekna | robert@tekna.com.au |
-| Profile 1 | 100x Best Life | rob@100xbestlife.com |
-| Profile 2 | Personal | rharder1972@gmail.com |
-| Profile 3 | Andrew | andrew@tekna.com.au |
-| Profile 4 | Rachel | rachel@tekna.com.au |
-
-**Note:** Chrome can only run ONE instance per profile. Check lockfiles to see which are available.
+**Note:** MCP uses a dedicated profile at `~/.cache/chrome-devtools-mcp/chrome-profile`, separate from your regular Chrome profiles.
 
 ---
 
@@ -198,6 +135,39 @@ For each navigation:
 - **LCP > 2500ms** = Slow load (WARN)
 - **LCP > 4000ms** = Very slow (FAIL)
 - Take snapshot to verify content rendered (no persistent spinners >2s)
+
+### Step 1.5: Content Validation (CRITICAL)
+
+**CLS metrics don't catch functional bugs!** After each performance trace, take a snapshot and validate:
+
+#### Table Content Checks
+For any page with TeeemTableView:
+1. **Record count mismatch**: Header shows "0 records" but groups have counts = **FAIL**
+2. **Empty table with groups**: Groups visible with (N) counts but no records loaded = **FAIL**
+3. **Loading state stuck**: Spinner visible for >3 seconds = **FAIL**
+4. **SSR data ignored**: Page shows skeleton when SSR data was passed = **FAIL**
+
+#### How to Detect
+```
+After performance_start_trace completes:
+1. take_snapshot
+2. Search snapshot for:
+   - "0 records" text when groups show counts
+   - Spinner/loading indicators still present
+   - Empty table body with populated group headers
+3. If found: Mark as [FAIL - Content Bug] not just CLS warning
+```
+
+#### Example: The "0 Records" Bug (2025-01-09)
+```
+WRONG ASSESSMENT:
+  Pricebook: LCP 974ms, CLS 0.12 [WARN - borderline]
+
+CORRECT ASSESSMENT:
+  Pricebook: LCP 974ms, CLS 0.12 [FAIL - shows "0 records" but groups have 1000+ items]
+```
+
+**Root cause was:** Header used `filteredAndSortedEntries.length` (0 on SSR) instead of `serverTotalRecords` (correct count from SSR group data).
 
 ### Step 2: Backend Performance Data
 

@@ -1,169 +1,94 @@
 # Start Chrome for Claude DevTools
 
-Starts Chrome with remote debugging enabled, preserving cookies, login sessions, and bookmarks.
-**Supports multiple simultaneous instances on different ports.**
+Starts Chrome with remote debugging for Claude to control via MCP.
 
-## Step 1: Check which ports AND profiles are in use
+## How It Works
 
-**IMPORTANT: Chrome can only run ONE instance per profile.**
+**MCP uses your Personal Chrome profile** (Profile 2 - rharder1972@gmail.com).
+This keeps your Tekna profile free for regular work.
 
-Run these checks in parallel:
-```bash
-# Check ports
-lsof -i:9222 | head -2
-lsof -i:9223 | head -2
-lsof -i:9224 | head -2
-lsof -i:9225 | head -2
+**App login:** robert@tekna.com.au / Wisdom50-50 (Claude auto-logs in)
 
-# Check which profile directories are in use (look for lock files)
-ls "/Users/robertharder/Library/Application Support/Google/Chrome/Default/lockfile" 2>/dev/null && echo "Default: IN USE"
-ls "/Users/robertharder/Library/Application Support/Google/Chrome/Profile 1/lockfile" 2>/dev/null && echo "Profile 1: IN USE"
-ls "/Users/robertharder/Library/Application Support/Google/Chrome/Profile 2/lockfile" 2>/dev/null && echo "Profile 2: IN USE"
-ls "/Users/robertharder/Library/Application Support/Google/Chrome/Profile 3/lockfile" 2>/dev/null && echo "Profile 3: IN USE"
-ls "/Users/robertharder/Library/Application Support/Google/Chrome/Profile 4/lockfile" 2>/dev/null && echo "Profile 4: IN USE"
+## Step 1: Check if MCP Chrome is ready
+
+Try to list pages directly - if it works, Chrome is already running:
+```javascript
+mcp__chrome-devtools__list_pages()
 ```
 
-## Step 2: Ask User Which Profile (only show AVAILABLE profiles)
+If it returns pages, skip to Step 3.
 
-**Only offer profiles that are NOT already running:**
+## Step 2: Start Chrome (if needed)
 
-| Profile Dir | Name | Email |
-|-------------|------|-------|
-| Default | Tekna | robert@tekna.com.au |
-| Profile 1 | 100x Best Life | rob@100xbestlife.com |
-| Profile 2 | Personal | rharder1972@gmail.com |
-| Profile 3 | Andrew | andrew@tekna.com.au |
-| Profile 4 | Rachel | rachel@tekna.com.au |
-
-Use AskUserQuestion tool - exclude any profiles that have a lockfile.
-
-## Step 3: Determine first available port
-
-| Priority | Port | Notes |
-|----------|------|-------|
-| 1st | 9222 | Default MCP port (no config needed) |
-| 2nd | 9223 | Requires .mcp.json update |
-| 3rd | 9224 | Requires .mcp.json update |
-| 4th | 9225 | Requires .mcp.json update |
-
-**If ALL ports are in use, tell user to close one first.**
-
-## Step 4: Start Chrome with selected profile on available port
-
-```bash
-nohup /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
-  --remote-debugging-port=PORT \
-  --user-data-dir="/Users/robertharder/Library/Application Support/Google/Chrome" \
-  --profile-directory="PROFILE_DIR" \
-  http://localhost:3000 > /dev/null 2>&1 &
+If Step 1 failed or returned empty, Chrome may need to start. The MCP will auto-start Chrome when you first call a tool. Try:
+```javascript
+mcp__chrome-devtools__new_page({ url: "http://localhost:3000" })
 ```
 
-Replace:
-- `PORT` with first available port (9222, 9223, 9224, or 9225)
-- `PROFILE_DIR` with selected profile directory from Step 1
+If that fails with "browser already running" error:
+```bash
+rm -rf /Users/robertharder/.cache/chrome-devtools-mcp
+```
+Then try again.
 
-## Step 5: Update MCP config if NOT using port 9222
+## Step 3: Navigate and Auto-Login
 
-If using port 9223, 9224, or 9225, create/update `/Users/robertharder/GitHub/teeem/.mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "chrome-devtools": {
-      "command": "npx",
-      "args": ["@anthropic-ai/mcp-server-chrome-devtools@latest", "--port=PORT_NUMBER"]
-    }
-  }
-}
+Navigate to localhost:
+```javascript
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'http://localhost:3000' })
 ```
 
-## Step 6: Verify Chrome started
-
-```bash
-sleep 3
-lsof -i:PORT | head -2
+If on login page, auto-login:
+```javascript
+mcp__chrome-devtools__fill_form({ elements: [
+  { uid: "EMAIL_FIELD_UID", value: "robert@tekna.com.au" },
+  { uid: "PASSWORD_FIELD_UID", value: "Wisdom50-50" }
+]})
+mcp__chrome-devtools__click({ uid: "SIGNIN_BUTTON_UID" })
 ```
 
 ## Final Report Format
-
-**If using port 9222 (default):**
 ```
 Chrome DevTools:
-- Port 9222: Running (PID: X)
-- Profile: [Name] ([email])
+- Port: 9222 (MCP managed)
+- Profile: MCP dedicated profile
 - URL: http://localhost:3000
-- MCP: Ready to use immediately
+- Login: [Auto-logged in / Already logged in]
+- MCP: Ready to use
 
 Use mcp__chrome-devtools__* tools directly.
 ```
 
-**If using port 9223/9224/9225:**
-```
-Chrome DevTools:
-- Port 922X: Running (PID: X)
-- Profile: [Name] ([email])
-- URL: http://localhost:3000
-- MCP Config: Updated .mcp.json for port 922X
+## Why MCP Uses Its Own Profile
 
-⚠️  RESTART REQUIRED: Restart this Claude Code chat to use MCP tools
-    Or use Chrome manually at http://localhost:3000
+Your regular Chrome profiles (Tekna, Personal) are for daily work. MCP needs:
+- Remote debugging enabled (requires Chrome restart)
+- Exclusive access (can't share with another Chrome window)
 
-Active instances:
-- 9222: [Profile name or "Free"]
-- 9223: [Profile name or "Free"]
-- 9224: [Profile name or "Free"]
-- 9225: [Profile name or "Free"]
-```
+So MCP runs a separate Chrome instance with its own profile.
 
-**If ALL 4 ports are in use:**
-```
-Chrome DevTools: ALL PORTS OCCUPIED
-
-Active instances:
-- 9222: [Profile] (PID: W)
-- 9223: [Profile] (PID: X)
-- 9224: [Profile] (PID: Y)
-- 9225: [Profile] (PID: Z)
-
-Options:
-1. Use an existing Chrome instance
-2. Kill one: lsof -ti:9225 | xargs kill -9
-3. Close a Claude Code chat that's using Chrome
-```
-
-## Why Use Real Profiles?
-- **Cookies preserved** - Already logged into localhost:3000
-- **Extensions available** - Your dev tools extensions work
-- **Bookmarks** - Access your saved pages
-- **No re-login** - Session persists between /c runs
-
-## Profile Reference
-| Profile Dir | Name | Email |
-|-------------|------|-------|
-| Default | Tekna | robert@tekna.com.au |
-| Profile 1 | 100x Best Life | rob@100xbestlife.com |
-| Profile 2 | Personal | rharder1972@gmail.com |
-| Profile 3 | Andrew | andrew@tekna.com.au |
-| Profile 4 | Rachel | rachel@tekna.com.au |
+## Login Credentials
+- **Email:** robert@tekna.com.au
+- **Password:** Wisdom50-50
 
 ## Quick Navigation
-After Chrome opens, Claude can navigate:
 ```javascript
 mcp__chrome-devtools__navigate_page({ type: 'url', url: 'http://localhost:3000/jobs/46/schedule/gantt' })
 ```
 
-## Cleanup Commands
-```bash
-# Kill specific port
-lsof -ti:9222 | xargs kill -9
+## Shutdown MCP Chrome (when needed)
 
-# Kill all debug Chrome instances
-lsof -ti:9222 -ti:9223 -ti:9224 -ti:9225 | xargs kill -9 2>/dev/null
-echo "All debug Chrome instances killed"
+If you need to restart or reset MCP Chrome:
+```bash
+# Kill MCP Chrome and clear profile
+pkill -f "chrome-devtools-mcp"
+rm -rf /Users/robertharder/.cache/chrome-devtools-mcp
 ```
 
+MCP will auto-start a fresh Chrome on next tool call.
+
 ## Notes
-- Supports up to 4 simultaneous Chrome instances (one per port)
-- Each instance uses a real Chrome profile (preserves state)
-- Port 9222 works immediately; other ports need MCP config + chat restart
-- Different profiles can run on different ports simultaneously
+- MCP auto-starts Chrome when needed
+- Chrome will show "controlled by automated test software" banner
+- Login is required once per session (Claude can auto-login)
+- Your regular Chrome profiles remain untouched

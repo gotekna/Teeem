@@ -29,6 +29,8 @@ interface PricebookPageClientProps {
     totalRecords: number;
     displayValuesMap: Record<string, Record<number, string>>;
   } | null;
+  // SSR total count - for "20 of X records" display (prevents CLS from count change)
+  initialTotalCount?: number | null;
 }
 
 /**
@@ -47,6 +49,7 @@ export default function PricebookPageClient({
   initialView,
   initialViews,
   initialGroupCounts,
+  initialTotalCount,
 }: PricebookPageClientProps) {
   const router = useRouter();
 
@@ -149,6 +152,8 @@ export default function PricebookPageClient({
         preloadedViews={initialViews as unknown as SavedView[]}
         // SSR Group Counts - prevents CLS from group count loading
         initialGroupCounts={initialGroupCounts}
+        // SSR Total Count - prevents CLS from "20 records" → "5,285 records" text change
+        totalCount={initialTotalCount ?? undefined}
         // After refresh, autoFetchRecords takes over
         autoFetchRecords
       />

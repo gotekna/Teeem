@@ -425,6 +425,7 @@ export function ScheduleMasterTab() {
   const dataViewTemplateIdRef = React.useRef<number | null>(null);
   // ⚠️ DO NOT SIMPLIFY - Sync wrapper updates ref BEFORE state (v2711 fix)
   const setDataViewTemplateId = React.useCallback((id: number | null) => {
+    console.log("[v2711 DEBUG] setDataViewTemplateId called with:", id, "| prev ref:", dataViewTemplateIdRef.current);
     dataViewTemplateIdRef.current = id;
     setDataViewTemplateIdState(id);
   }, []);
@@ -938,6 +939,7 @@ export function ScheduleMasterTab() {
       // Templates and views are independent - views filter WITHIN the selected template
       // Without a template selected, initialFilters is empty and table shows 0 records
       // v2711: Use ref (not closure) to check CURRENT value after async await
+      console.log("[v2711 DEBUG] loadTemplates completed. dataViewTemplateIdRef.current =", dataViewTemplateIdRef.current);
       if (!dataViewTemplateIdRef.current && loadedTemplates.length > 0) {
         const autoSelectTemplate = loadedTemplates.find(t =>
           t.name.toLowerCase() === 'po schedule master'
@@ -945,9 +947,12 @@ export function ScheduleMasterTab() {
           t.name.toLowerCase().includes('schedule master')
         ) || loadedTemplates[0];
 
+        console.log("[v2711 DEBUG] Auto-selecting template:", autoSelectTemplate?.id, autoSelectTemplate?.name);
         if (autoSelectTemplate) {
           loadDataViewRows(autoSelectTemplate.id);
         }
+      } else {
+        console.log("[v2711 DEBUG] Skipping auto-select - ref already has value or no templates");
       }
 
       // Auto-select template for Gantt V2 (same priority as others)

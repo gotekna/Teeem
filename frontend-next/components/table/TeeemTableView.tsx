@@ -5596,11 +5596,13 @@ export default function TeeemTableView({
               </Button>
             ) : null}
             {/* Virtual scroll indicator - shown when table exceeds threshold */}
-            {filteredAndSortedEntries.length > VIRTUALIZATION_THRESHOLD && (
-              <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                Virtual scroll active
-              </span>
-            )}
+            {/* CLS FIX: Use visibility instead of display:none to reserve space and prevent layout shift */}
+            <span className={cn(
+              "text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded",
+              filteredAndSortedEntries.length <= VIRTUALIZATION_THRESHOLD && "invisible"
+            )}>
+              Virtual scroll active
+            </span>
           </div>
           {/* Totals in header - collapsible popover to avoid pushing table off screen */}
           {showTotals && Object.keys(columnTotals).length > 0 && (
