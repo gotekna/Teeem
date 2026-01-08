@@ -522,9 +522,17 @@ class Contact < ApplicationRecord
     email.present? || mobile_phone.present? || office_phone.present?
   end
 
+  # Return roles as an array (handles JSON string storage)
+  # SSoT: roles column is TEXT storing JSON like '["Employee"]'
+  def roles_array
+    return [] if roles.blank?
+    return roles if roles.is_a?(Array)
+    JSON.parse(roles) rescue []
+  end
+
   # Generic role checker
   def has_role?(role)
-    roles&.include?(role)
+    roles_array.include?(role)
   end
 
   # Specific role helpers

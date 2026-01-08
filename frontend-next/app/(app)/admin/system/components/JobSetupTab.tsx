@@ -73,6 +73,19 @@ interface JobType {
   color: string;
   position: number;
   active: boolean;
+  sm_schedule_master_template_id?: number | null;
+  schedule_template_summary?: {
+    template_id: number;
+    template_name: string;
+    version_id: number | null;
+    version_number: number | null;
+    row_count: number;
+  } | null;
+}
+
+interface ScheduleMasterTemplate {
+  id: number;
+  name: string;
 }
 
 interface JobStatus {
@@ -217,7 +230,11 @@ export function JobSetupTab() {
   const [formData, setFormData] = React.useState({
     name: "",
     color: "#3B82F6",
+    sm_schedule_master_template_id: null as number | null,
   });
+
+  // Schedule Master Templates state
+  const [scheduleTemplates, setScheduleTemplates] = React.useState<ScheduleMasterTemplate[]>([]);
 
   // Suburbs state
   const [suburbs, setSuburbs] = React.useState<Suburb[]>([]);

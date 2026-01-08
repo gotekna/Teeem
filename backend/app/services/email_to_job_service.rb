@@ -610,7 +610,7 @@ class EmailToJobService
 
       # Check if this contact is a sales agent
       # (they have 'sales' or 'agent' in their roles)
-      is_sales = contact.roles&.any? { |t| t.match?(/sales|agent/i) }
+      is_sales = contact.roles_array.any? { |t| t.match?(/sales|agent/i) }
 
       if is_sales
         # Link as external sales (avoid duplicates)
@@ -749,7 +749,7 @@ class EmailToJobService
       contact = Contact.find_by(email: participant_email)
 
       # Check if this person might be a sales agent
-      is_sales_agent = contact && contact.roles&.any? { |t| t.match?(/sales|agent/i) }
+      is_sales_agent = contact && contact.roles_array.any? { |t| t.match?(/sales|agent/i) }
 
       # Also check email domain for common sales/real estate patterns
       is_likely_sales = participant_email.match?(/@(realestate|ljhooker|century21|ray-white|bodable)/i)
