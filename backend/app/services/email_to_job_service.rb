@@ -749,9 +749,11 @@ class EmailToJobService
   def enrich_contact_with_company(person_contact, email, company_details, existing_company)
     result = { actions: [] }
 
-    # Skip if already linked to a company
+    # Skip if already linked to a company - but still return company_id for frontend
     if person_contact.primary_company_id.present?
       result[:skipped] = "Already linked to company"
+      result[:company_id] = person_contact.primary_company_id
+      result[:linked_to_company] = person_contact.primary_company&.display_name
       return result
     end
 
