@@ -417,6 +417,10 @@ import { useSorting } from './hooks/useSorting';
 import { useSelection } from './hooks/useSelection';
 import { useSearch } from './hooks/useSearch';
 
+// Layer 2: Table Context (enables child components to access state without prop drilling)
+import { TableProvider, createTableContextValue } from './context';
+import type { UseFilteringReturn, UseGroupingReturn, ProcessedData } from './hooks';
+
 // Helper functions and constants now imported from ./utils/table-utils:
 // - SYSTEM_GENERATED_TYPES, SYSTEM_COLUMN_BG
 // - isSystemGeneratedColumn, getCellTooltip
@@ -5567,11 +5571,159 @@ export default function TeeemTableView({
   // change, including initial load, causing redirect loops
 
   // ============================================================================
+  // TABLE CONTEXT - Enables child components to access state without prop drilling
+  // ============================================================================
+
+  // Create filtering adapter (wraps useFilterState into UseFilteringReturn format)
+  const filteringAdapter: UseFilteringReturn = useMemo(() => ({
+    state: {
+      filters: safeFilters,
+      baseFilters: baseFilters,
+      viewFilters: [], // Not exposed by useFilterState separately
+      userFilters: [], // Not exposed by useFilterState separately
+      hasUserFilters: hasUserFilters,
+      filterGroups: filterGroups,
+      interGroupLogic: interGroupLogic,
+      filterCount: safeFilters.length,
+      showFilters: showFilters,
+    },
+    actions: {
+      setBaseFilters: setBaseFilters,
+      setViewFilters: setViewFilters,
+      addFilter: (filter) => addUserFilter({ ...filter, id: filter.id ?? `filter-${Date.now()}` } as CascadeFilter),
+      updateFilter: () => {}, // Not directly supported by useFilterState
+      removeFilter: removeFilter,
+      clearFilters: () => clearAllUserFilters(),
+      clearAllUserFilters: clearAllUserFilters,
+      setFilterGroups: setFilterGroups,
+      setInterGroupLogic: setInterGroupLogic,
+      toggleShowFilters: () => setShowFilters(!showFilters),
+      setShowFilters: setShowFilters,
+    },
+    apply: (rows) => applyFilters(rows, safeFilters, filterGroups, interGroupLogic),
+  }), [
+    safeFilters, baseFilters, hasUserFilters, filterGroups, interGroupLogic, showFilters,
+    setBaseFilters, setViewFilters, addUserFilter, removeFilter, clearAllUserFilters,
+    setFilterGroups, setInterGroupLogic, setShowFilters,
+  ]);
+
+  // Create grouping adapter (wraps foundation view state into UseGroupingReturn format)
+  const groupingAdapter: UseGroupingReturn = useMemo(() => ({
+    state: {
+      groupByColumns: groupByColumns,
+      groupByColumn: groupByColumn,
+      collapsedGroups: collapsedGroups,
+      isGrouped: groupByColumns.length > 0,
+      groupDepth: groupByColumns.length,
+      viewMode: groupViewMode,
+    },
+    actions: {
+      setGroupBy: setGroupByColumns,
+      setGroupByColumn: (column) => setGroupByColumns(column ? [column] : []),
+      addGroupLevel: (column) => setGroupByColumns([...groupByColumns, column]),
+      removeGroupLevel: (column) => setGroupByColumns(groupByColumns.filter(c => c !== column)),
+      clearGrouping: () => setGroupByColumns([]),
+      toggleGroupCollapse: (groupKey) => {
+        const next = new Set(collapsedGroups);
+        if (next.has(groupKey)) {
+          next.delete(groupKey);
+        } else {
+          next.add(groupKey);
+        }
+        setCollapsedGroups(next);
+      },
+      expandGroup: (groupKey) => {
+        const next = new Set(collapsedGroups);
+        next.delete(groupKey);
+        setCollapsedGroups(next);
+      },
+      collapseGroup: (groupKey) => {
+        const next = new Set(collapsedGroups);
+        next.add(groupKey);
+        setCollapsedGroups(next);
+      },
+      expandAll: expandAllGroups,
+      collapseAll: collapseAllGroups,
+      setCollapsedGroups: setCollapsedGroups,
+      setViewMode: setGroupViewMode,
+    },
+    apply: (rows, sortCols) => buildGroupedEntries(rows, groupByColumns, sortCols || sortColumns, serverGroupCounts, search),
+    getKeys: getAllGroupKeysUtil,
+    getVisibleIds: (groups) => getVisibleRowIdsFromGroups(groups, collapsedGroups),
+  }), [
+    groupByColumns, groupByColumn, collapsedGroups, groupViewMode,
+    setGroupByColumns, setCollapsedGroups, setGroupViewMode,
+    expandAllGroups, collapseAllGroups, sortColumns, serverGroupCounts, search,
+  ]);
+
+  // Create processed data object
+  const processedData: ProcessedData = useMemo(() => ({
+    processedRows: filteredAndSortedEntries,
+    groupedData: groupedEntries,
+    groupKeys: groupedEntries ? getAllGroupKeysUtil(groupedEntries) : [],
+    visibleRowIds: getVisibleRowIds(),
+    counts: {
+      total: effectiveEntries.length,
+      filtered: filteredAndSortedEntries.length,
+      visible: displayedRows.length,
+    },
+  }), [filteredAndSortedEntries, groupedEntries, getVisibleRowIds, effectiveEntries.length, displayedRows.length]);
+
+  // Create table context value using helper function
+  const tableContextValue = useMemo(() => createTableContextValue({
+    tableCore: {
+      sorting,
+      filtering: filteringAdapter,
+      grouping: groupingAdapter,
+      search: searchHook,
+      selection,
+    } as any, // Cast because we're providing adapters, not the full UseTableCoreReturn
+    columns: COLUMNS,
+    rows: effectiveEntries,
+    processedData,
+    meta: {
+      foundationId: foundationSlug || undefined,
+      foundationIdNumeric: foundationIdNumeric ?? undefined,
+      tableName,
+      viewOnly,
+      autoFetchRecords,
+    },
+    callbacks: {
+      onRowClick,
+      onRowDoubleClick,
+      onEdit: effectiveOnEdit,
+      onView: effectiveOnView,
+      onDelete: effectiveOnDelete,
+      onBulkDelete: effectiveBulkDelete,
+      onBulkEdit,
+      onBulkMerge,
+      onRowUpdate,
+      onRefresh,
+      onAddRow: effectiveOnAddRow,
+      onViewChange,
+    },
+    savedViews,
+    activeView: activeView || null,
+    loadView: loadViewState,
+    isLoading: columnsLoading || isLoadingMore || serverSearchLoading,
+    error: null,
+    hasMore: hasMore || serverHasMore,
+  }), [
+    sorting, filteringAdapter, groupingAdapter, searchHook, selection,
+    COLUMNS, effectiveEntries, processedData,
+    foundationSlug, foundationIdNumeric, tableName, viewOnly, autoFetchRecords,
+    onRowClick, onRowDoubleClick, effectiveOnEdit, effectiveOnView, effectiveOnDelete,
+    effectiveBulkDelete, onBulkEdit, onBulkMerge, onRowUpdate, onRefresh, effectiveOnAddRow, onViewChange,
+    savedViews, activeView, loadViewState, columnsLoading, isLoadingMore, serverSearchLoading, hasMore, serverHasMore,
+  ]);
+
+  // ============================================================================
   // MAIN RENDER
   // ============================================================================
 
 
   return (
+    <TableProvider value={tableContextValue}>
     <div className={cn(
       "flex flex-col h-full gap-2",
       debugGrid && "border-4 border-blue-500 bg-blue-50 dark:bg-blue-950/20 relative",
@@ -6227,5 +6379,6 @@ export default function TeeemTableView({
         </>
       )}
     </div>
+    </TableProvider>
   );
 }

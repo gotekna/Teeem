@@ -70,6 +70,14 @@ interface TradingName {
   is_active?: boolean;
 }
 
+interface XeroTenant {
+  id: number;
+  tenant_name: string;
+  is_primary: boolean;
+  status: string;
+  status_display: string;
+}
+
 export default function CompanyInfoTab() {
   const [settings, setSettings] = React.useState<CompanySettings>({
     company_name: "",
@@ -114,6 +122,11 @@ export default function CompanyInfoTab() {
   const [newTradingName, setNewTradingName] = React.useState<Partial<TradingName> | null>(null);
   const [savingTradingName, setSavingTradingName] = React.useState(false);
 
+  // Xero Tenants state
+  const [xeroTenants, setXeroTenants] = React.useState<XeroTenant[]>([]);
+  const [loadingXero, setLoadingXero] = React.useState(false);
+  const [savingXero, setSavingXero] = React.useState(false);
+
   const hasChanges = React.useMemo(() => {
     if (!originalSettings) return false;
     return JSON.stringify(settings) !== JSON.stringify(originalSettings);
@@ -122,6 +135,7 @@ export default function CompanyInfoTab() {
   React.useEffect(() => {
     loadSettings();
     loadTradingNames();
+    loadXeroTenants();
   }, []);
 
   const loadSettings = async () => {
@@ -226,6 +240,37 @@ export default function CompanyInfoTab() {
       await loadTradingNames();
     } catch (error) {
       console.error("Failed to set default:", error);
+    }
+  };
+
+  // Xero Tenants CRUD
+  const loadXeroTenants = async () => {
+    setLoadingXero(true);
+    try {
+      const response = await api.get<{ success: boolean; tenants: XeroTenant[] }>(
+        "/api/v1/xero/tenants"
+      );
+      if (response?.tenants) {
+        setXeroTenants(response.tenants);
+      }
+    } catch (error) {
+      console.error("Failed to load Xero tenants:", error);
+    } finally {
+      setLoadingXero(false);
+    }
+  };
+
+  const setPrimaryXero = async (tenantId: number) => {
+    setSavingXero(true);
+    try {
+      await api.post("/api/v1/xero/set_primary", { tenant_id: tenantId });
+      await loadXeroTenants();
+      setMessage({ type: "success", text: "Primary Xero account updated!" });
+    } catch (error) {
+      console.error("Failed to set primary Xero:", error);
+      setMessage({ type: "error", text: "Failed to update primary Xero account" });
+    } finally {
+      setSavingXero(false);
     }
   };
 

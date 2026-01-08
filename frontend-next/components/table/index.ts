@@ -25,6 +25,28 @@ export * from "./compound";
 // Layer 2: Feature hooks
 export * from "./hooks";
 
+// Context (for TeeemTableView integration - different from compound/TableContext)
+// Use selective exports to avoid collision with compound/TableContext
+export {
+  TableProvider,
+  useTable,
+  useTableMaybe,
+  useTableSorting,
+  useTableFiltering,
+  useTableGrouping,
+  useTableSearch,
+  useTableSelection,
+  useTableData,
+  useTableColumns,
+  useTableMeta,
+  useTableCallbacks,
+  createTableContextValue,
+  type TableContextValue as TeeemTableContextValue,
+  type TableProviderProps,
+  type TableCallbacks,
+  type TableMeta,
+} from "./context";
+
 // Supporting components
 export { DataHealthWidget } from "./DataHealthWidget";
 export { SchemaTab } from "./SchemaTab";
