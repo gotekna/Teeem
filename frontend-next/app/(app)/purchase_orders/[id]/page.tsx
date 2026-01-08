@@ -1141,25 +1141,15 @@ export default function PurchaseOrderDetailPage() {
               />
             </div>
             <div>
-              <div className="text-sm text-muted-foreground mb-1">Due Date</div>
-              <Input
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-              />
-              {selectedSupplier?.payment_terms && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Terms: {selectedSupplier.payment_terms}
-                </p>
-              )}
-            </div>
-            <div>
               <div className="text-sm text-muted-foreground mb-1">Ordered Date</div>
               <Input
                 type="date"
                 value={orderedDate}
                 onChange={(e) => setOrderedDate(e.target.value)}
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                Auto-fills when status = Sent
+              </p>
             </div>
           </CardContent>
         </Card>
