@@ -2766,13 +2766,17 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_08_120351) do
     t.string "direction"
     t.integer "dismissed_from_job_ids", default: [], array: true
     t.index "((email_classification ->> 'email_type'::text))", name: "idx_email_warehouse_classification_type", where: "(email_classification IS NOT NULL)"
+    t.index "((email_classification ->> 'email_type'::text))", name: "idx_email_warehouse_email_type"
     t.index ["cc_emails"], name: "idx_email_warehouse_cc_emails_gin", using: :gin
     t.index ["contact_ids"], name: "idx_email_warehouse_contact_ids_gin", using: :gin
     t.index ["conversation_id", "is_latest_in_thread"], name: "idx_email_warehouse_conversation_latest"
     t.index ["direction"], name: "index_email_warehouses_on_direction"
+    t.index ["from_email"], name: "idx_email_warehouse_from_email"
+    t.index ["id"], name: "idx_email_warehouse_unassigned", where: "(job_id IS NULL)"
     t.index ["imap_credential_id", "uid"], name: "idx_email_warehouse_imap_uid", where: "(uid IS NOT NULL)"
     t.index ["imap_credential_id"], name: "idx_email_warehouse_imap_credential"
     t.index ["internet_message_id"], name: "idx_email_warehouse_internet_message_id"
+    t.index ["is_latest_in_thread"], name: "idx_email_warehouse_latest_in_thread", where: "(is_latest_in_thread = true)"
     t.index ["job_id", "received_at"], name: "idx_email_warehouse_job_received", order: { received_at: :desc }
     t.index ["labels"], name: "index_email_warehouses_on_labels", using: :gin
     t.index ["microsoft_credential_id", "mailbox_owner_email"], name: "idx_email_warehouse_ms_credential_mailbox"

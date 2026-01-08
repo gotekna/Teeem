@@ -5,6 +5,63 @@ Run browser-based performance checks AND backend performance analysis.
 
 ---
 
+## Step 0: Ensure Chrome DevTools is Running
+
+**Before anything else, check for Chrome debug instance and start if needed.**
+
+### Check all debug ports (run in parallel):
+```bash
+lsof -i:9222 | head -2
+lsof -i:9223 | head -2
+lsof -i:9224 | head -2
+lsof -i:9225 | head -2
+```
+
+### If NO Chrome is running on any port:
+Start Chrome on port 9222 (default):
+```bash
+nohup /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
+  --remote-debugging-port=9222 \
+  --user-data-dir="$HOME/.chrome-debug" \
+  http://localhost:3000 > /dev/null 2>&1 &
+sleep 2
+```
+
+### If port 9222 is in use but others are free:
+Use the first available port (9223, 9224, or 9225):
+```bash
+# Example for 9223:
+nohup /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
+  --remote-debugging-port=9223 \
+  --user-data-dir="$HOME/.chrome-debug-9223" \
+  http://localhost:3000 > /dev/null 2>&1 &
+sleep 2
+```
+
+Then update `/Users/robertharder/GitHub/teeem/.mcp.json`:
+```json
+{
+  "mcpServers": {
+    "chrome-devtools": {
+      "command": "npx",
+      "args": ["@anthropic-ai/mcp-server-chrome-devtools@latest", "--port=PORT_NUMBER", "--isolated"]
+    }
+  }
+}
+```
+
+**⚠️ If using non-9222 port:** Inform user that chat restart is required for MCP to work, then STOP.
+
+### Port Reference:
+| Port | Profile | MCP Config Needed |
+|------|---------|-------------------|
+| 9222 | `~/.chrome-debug` | No (default) |
+| 9223 | `~/.chrome-debug-9223` | Yes |
+| 9224 | `~/.chrome-debug-9224` | Yes |
+| 9225 | `~/.chrome-debug-9225` | Yes |
+
+---
+
 ## 🔴 CRITICAL REMINDERS (Don't Forget These!)
 
 ### FRC - Find Root Cause
