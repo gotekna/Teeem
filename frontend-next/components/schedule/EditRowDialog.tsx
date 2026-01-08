@@ -328,39 +328,38 @@ export function EditRowDialog({
       {/* Row Edit Dialog - Full-screen modal (90%) for better UX */}
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-[90vw] max-h-[90vh] flex flex-col p-0 overflow-hidden">
-          {/* Sticky Header */}
-          <div className="sticky top-0 z-10 bg-background border-b px-6 py-4 flex items-center justify-between">
-            <div>
-              <DialogTitle className="flex items-center gap-2 text-lg font-semibold">
-                Edit Row
-                {/* Show parent header if this task is part of one */}
-                {row.header_gantt && (() => {
-                  const parentTaskNumber = extractLookupId(row.header_gantt);
-                  const parentHeader = parentTaskNumber ? allRows.find(r => String(r.task_number) === String(parentTaskNumber)) : null;
-                  if (parentHeader) {
-                    return (
-                      <Badge variant="outline" className="text-xs font-normal">
-                        Part of: {parentHeader.name}
-                      </Badge>
-                    );
-                  }
-                  return null;
-                })()}
-              </DialogTitle>
-              <p className="text-sm text-muted-foreground mt-1">
-                {row.name} (Task #{row.task_number})
-                {row.sm_template_ids && row.sm_template_ids.length > 0 && templates.length > 0 && (
-                  <span className="ml-2 text-xs">
-                    • Template: {row.sm_template_ids
-                      .map((item: number | { id: number; display?: string }) => {
-                        const id = typeof item === 'object' ? item.id : item;
-                        return templates.find(t => t.id === id)?.name || `#${id}`;
-                      })
-                      .join(', ')}
-                  </span>
-                )}
-              </p>
-            </div>
+          {/* Sticky Header - Compact single line */}
+          <div className="sticky top-0 z-10 bg-background border-b px-6 py-3 flex items-center justify-between">
+            <DialogTitle className="flex items-center gap-2 text-base font-semibold">
+              Edit Row
+              <span className="text-muted-foreground font-normal">•</span>
+              <span className="font-normal">{row.name}</span>
+              <span className="text-muted-foreground text-sm font-normal">(#{row.task_number})</span>
+              {/* Show parent header badge if this task is part of one */}
+              {row.header_gantt && (() => {
+                const parentTaskNumber = extractLookupId(row.header_gantt);
+                const parentHeader = parentTaskNumber ? allRows.find(r => String(r.task_number) === String(parentTaskNumber)) : null;
+                if (parentHeader) {
+                  return (
+                    <Badge variant="outline" className="text-xs font-normal ml-1">
+                      Part of: {parentHeader.name}
+                    </Badge>
+                  );
+                }
+                return null;
+              })()}
+              {/* Template badge if in templates */}
+              {row.sm_template_ids && row.sm_template_ids.length > 0 && templates.length > 0 && (
+                <Badge variant="secondary" className="text-xs font-normal ml-1">
+                  {row.sm_template_ids
+                    .map((item: number | { id: number; display?: string }) => {
+                      const id = typeof item === 'object' ? item.id : item;
+                      return templates.find(t => t.id === id)?.name || `#${id}`;
+                    })
+                    .join(', ')}
+                </Badge>
+              )}
+            </DialogTitle>
             <div className="flex items-center gap-4">
               {/* Auto-save status indicator */}
               <div className="flex items-center text-sm">

@@ -2559,6 +2559,10 @@ export function ScheduleMasterTab() {
                         // So we must manually trigger a refresh when the dropdown is changed
                         setDataViewTemplateId(parseInt(value));
                         setDataViewRefreshKey(k => k + 1);
+                        // Clear viewSlug from URL so initialFilters (template filter) are used instead of saved view filters
+                        if (viewSlug) {
+                          router.push('/admin/system/schedule-master/data-view', { scroll: false });
+                        }
                       }
                     }}
                   >
