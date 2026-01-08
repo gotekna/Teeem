@@ -5,22 +5,17 @@ import { useRouter, usePathname } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import {
   Upload,
   FolderOpen,
   Cloud,
-  CheckCircle,
-  Clock,
   Building2,
   Briefcase,
   Users,
 } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
-import { api } from "@/lib/api";
 
 // Foundation slugs for the three document types
 const DOCUMENT_TYPES = {
@@ -60,50 +55,11 @@ export default function DocumentsPage() {
   ]);
   const [sharePointConnected] = useState(false);
 
-  // Use foundation hook for active tab's document type
-  const { foundation, records, isLoading, refresh } = useFoundationBySlug(DOCUMENT_TYPES[activeTab]);
-
-  // Handle inline row update
-  const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
-    try {
-      await api.patch(`/api/v1/foundations/${DOCUMENT_TYPES[activeTab]}/records/${rowId}`, {
-        record: { [field]: value }
-      });
-      refresh();
-    } catch (error) {
-      console.error("Failed to update document:", error);
-      throw error;
-    }
-  }, [refresh, activeTab]);
-
   // Handle tab change - path-based navigation
   const handleTabChange = useCallback((value: string) => {
     const url = value === "company" ? "/documents" : `/documents/${value}`;
     router.push(url);
   }, [router]);
-
-  // Stats from records
-  const stats = useMemo(() => ({
-    total: records.length,
-    verified: records.filter((d) => d.verified).length,
-    pending: records.filter((d) => !d.verified).length,
-  }), [records]);
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Spinner />
-      </div>
-    );
-  }
-
-  // Left actions - Upload button
-  const leftActions = (
-    <Button>
-      <Upload className="h-4 w-4 mr-2" />
-      Upload
-    </Button>
-  );
 
   // Left actions with SharePoint + Upload buttons
   const documentsLeftActions = (
@@ -203,13 +159,11 @@ export default function DocumentsPage() {
         {/* Documents Table */}
         <div className="lg:col-span-3 h-full">
           <TeeemTableView
-            entries={records}
+            key={activeTab} // Force remount when tab changes
             foundationId={DOCUMENT_TYPES[activeTab]}
-            foundationIdNumeric={foundation?.id}
-            tableName={foundation?.name || `${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Documents`}
+            autoFetchRecords={true}
+            tableName={`${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Documents`}
             enableExport={true}
-            onRefresh={refresh}
-            onRowUpdate={handleRowUpdate}
             leftActions={documentsLeftActions}
             hideFooter={true}
           />
