@@ -4314,13 +4314,29 @@ export default function TeeemTableView({
           "hover:bg-muted/30 cursor-pointer"
         )}
         onClick={() => {
-          console.log("🟣 TeeemTableView row clicked (VR), isEditMode:", isEditMode, "hasOnRowClick:", !!onRowClick);
-          if (!isEditMode && onRowClick) {
-            console.log("🟣 Calling onRowClick with row:", row.id);
-            onRowClick(row);
+          // Single click toggles selection (standard behavior)
+          if (!isEditMode) {
+            setSelectedRows(prev => {
+              const next = new Set(prev);
+              if (next.has(row.id)) {
+                next.delete(row.id);
+              } else {
+                next.add(row.id);
+              }
+              return next;
+            });
           }
         }}
-        onDoubleClick={() => handleRowDoubleClick(row)}
+        onDoubleClick={() => {
+          // Double click opens detail/edit
+          if (!isEditMode) {
+            if (onRowClick) {
+              onRowClick(row);
+            } else {
+              handleRowDoubleClick(row);
+            }
+          }
+        }}
         onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
       >
         {visibleColumnsInOrder.map((column, colIndex) => {
@@ -4560,11 +4576,29 @@ export default function TeeemTableView({
                   "hover:bg-blue-100 dark:hover:bg-blue-900/30 cursor-pointer"
                 )}
                 onClick={() => {
-                  if (!isEditMode && onRowClick) {
-                    onRowClick(companyRow);
+                  // Single click toggles selection (standard behavior)
+                  if (!isEditMode) {
+                    setSelectedRows(prev => {
+                      const next = new Set(prev);
+                      if (next.has(companyRow.id)) {
+                        next.delete(companyRow.id);
+                      } else {
+                        next.add(companyRow.id);
+                      }
+                      return next;
+                    });
                   }
                 }}
-                onDoubleClick={() => handleRowDoubleClick(companyRow)}
+                onDoubleClick={() => {
+                  // Double click opens detail/edit
+                  if (!isEditMode) {
+                    if (onRowClick) {
+                      onRowClick(companyRow);
+                    } else {
+                      handleRowDoubleClick(companyRow);
+                    }
+                  }
+                }}
                 onMouseEnter={() => handleRowMouseEnter(companyRow.id, globalIndex)}
               >
                 {visibleColumnsInOrder.map((column, colIndex) => {
@@ -4644,13 +4678,29 @@ export default function TeeemTableView({
                   "hover:bg-muted/30 cursor-pointer"
                 )}
                 onClick={() => {
-                  console.log("🟣 TeeemTableView row clicked (Grouped), isEditMode:", isEditMode, "hasOnRowClick:", !!onRowClick);
-                  if (!isEditMode && onRowClick) {
-                    console.log("🟣 Calling onRowClick with row:", row.id);
-                    onRowClick(row);
+                  // Single click toggles selection (standard behavior)
+                  if (!isEditMode) {
+                    setSelectedRows(prev => {
+                      const next = new Set(prev);
+                      if (next.has(row.id)) {
+                        next.delete(row.id);
+                      } else {
+                        next.add(row.id);
+                      }
+                      return next;
+                    });
                   }
                 }}
-                onDoubleClick={() => handleRowDoubleClick(row)}
+                onDoubleClick={() => {
+                  // Double click opens detail/edit
+                  if (!isEditMode) {
+                    if (onRowClick) {
+                      onRowClick(row);
+                    } else {
+                      handleRowDoubleClick(row);
+                    }
+                  }
+                }}
                 onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
               >
                 {visibleColumnsInOrder.map((column, colIndex) => {
@@ -4837,11 +4887,29 @@ export default function TeeemTableView({
                   "hover:bg-muted/50 cursor-pointer"
                 )}
                 onClick={() => {
-                  if (!isEditMode && onRowClick) {
-                    onRowClick(row);
+                  // Single click toggles selection (standard behavior)
+                  if (!isEditMode) {
+                    setSelectedRows(prev => {
+                      const next = new Set(prev);
+                      if (next.has(row.id)) {
+                        next.delete(row.id);
+                      } else {
+                        next.add(row.id);
+                      }
+                      return next;
+                    });
                   }
                 }}
-                onDoubleClick={() => handleRowDoubleClick(row)}
+                onDoubleClick={() => {
+                  // Double click opens detail/edit
+                  if (!isEditMode) {
+                    if (onRowClick) {
+                      onRowClick(row);
+                    } else {
+                      handleRowDoubleClick(row);
+                    }
+                  }
+                }}
                 onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
               >
                 {visibleColumnsInOrder.map((column, colIndex) => {
@@ -5049,13 +5117,31 @@ export default function TeeemTableView({
                   isFocused && tableHasFocus && "ring-2 ring-inset ring-primary/50 bg-primary/5",
                   "hover:bg-muted/30 cursor-pointer"
                 )}
-                onClick={(e) => {
-                  if (!isEditMode && !editingRowIds.has(row.id) && onRowClick) {
-                    onRowClick(row);
+                onClick={() => {
+                  // Single click toggles selection (standard behavior)
+                  if (!isEditMode && !editingRowIds.has(row.id)) {
+                    setSelectedRows(prev => {
+                      const next = new Set(prev);
+                      if (next.has(row.id)) {
+                        next.delete(row.id);
+                      } else {
+                        next.add(row.id);
+                      }
+                      return next;
+                    });
                   }
                   setFocusedRowIndex(globalIndex);
                 }}
-                onDoubleClick={() => handleRowDoubleClick(row)}
+                onDoubleClick={() => {
+                  // Double click opens detail/edit
+                  if (!isEditMode && !editingRowIds.has(row.id)) {
+                    if (onRowClick) {
+                      onRowClick(row);
+                    } else {
+                      handleRowDoubleClick(row);
+                    }
+                  }
+                }}
                 onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
               >
                 {visibleColumnsInOrder.map((column, colIndex) => {
