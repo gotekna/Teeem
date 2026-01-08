@@ -331,6 +331,15 @@ export function ScheduleMasterTab() {
   // URL view param (Foundation view filter) - only for data-view tab
   const viewSlug = activeTab === "data-view" ? pathSegments.extra || undefined : undefined;
 
+  // Effect: Trigger refresh AFTER viewSlug clears following a template change
+  // This ensures the table remounts without the old view filters
+  React.useEffect(() => {
+    if (pendingTemplateClearRef.current && !viewSlug) {
+      pendingTemplateClearRef.current = false;
+      setDataViewRefreshKey(k => k + 1);
+    }
+  }, [viewSlug]);
+
   // Clear view filter from URL
   const handleViewClear = React.useCallback(() => {
     router.push("/admin/system/schedule-master/data-view", { scroll: false });
@@ -390,6 +399,16 @@ export function ScheduleMasterTab() {
   const [dataViewRefreshKey, setDataViewRefreshKey] = React.useState(0);
   const [noTemplateCount, setNoTemplateCount] = React.useState<number>(0);
   // SSoT: dataViewFullscreen removed - now handled by TeeemTableView via enableFullscreen prop
+
+  // ⚠️ DO NOT SIMPLIFY - Template change race condition fix (Jan 2025)
+  // ════════════════════════════════════════════════════════════════════
+  // Why: When selecting a template while a saved view is active, we need to:
+  //      1. Clear the URL (remove view slug)
+  //      2. THEN refresh the table
+  // ❌ WRONG: setTimeout - pathname may not update in time, causing 0 records
+  // ✅ CORRECT: Use ref + useEffect to wait for viewSlug to actually clear
+  // ════════════════════════════════════════════════════════════════════
+  const pendingTemplateClearRef = React.useRef(false);
 
   // Gantt V2 state - template ID for selection
   const [ganttV2TemplateId, setGanttV2TemplateId] = React.useState<number | null>(null);
@@ -2542,14 +2561,14 @@ export function ScheduleMasterTab() {
                     value={dataViewTemplateId ? String(dataViewTemplateId) : ""}
                     onValueChange={(value) => {
                       if (value) {
-                        // SSoT: Update template ID AND increment refresh key to trigger remount with new initialFilters
+                        // SSoT: Update template ID
                         setDataViewTemplateId(parseInt(value));
 
                         if (viewSlug) {
-                          // FIX: Clear URL FIRST, then defer refresh to avoid race condition
-                          // Without this, the component remounts before URL changes, causing old view filters to conflict
+                          // View is active - mark pending and clear URL
+                          // useEffect will trigger refresh AFTER viewSlug actually clears
+                          pendingTemplateClearRef.current = true;
                           router.push('/admin/system/schedule-master/data-view', { scroll: false });
-                          setTimeout(() => setDataViewRefreshKey(k => k + 1), 50);
                         } else {
                           // No view active, refresh immediately
                           setDataViewRefreshKey(k => k + 1);
