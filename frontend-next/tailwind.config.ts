@@ -131,9 +131,11 @@ export default {
           "0%": { transform: "rotate3d(0, 0, 1, 0deg)" },
           "100%": { transform: "rotate3d(0, 0, 1, 360deg)" },
         },
+        // GPU-optimized shimmer animation using transform instead of background-position
+        // transform is GPU-compositable and won't cause CLS (layout shifts)
         shimmer: {
-          "0%": { backgroundPosition: "200% 0" },
-          "100%": { backgroundPosition: "-200% 0" },
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(100%)" },
         },
         "accordion-down": {
           from: { height: "0" },

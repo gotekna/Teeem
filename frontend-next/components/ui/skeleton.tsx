@@ -12,8 +12,9 @@ function Skeleton({
         "relative overflow-hidden rounded-md",
         // Base color - visible muted background
         "bg-muted",
-        // Shimmer overlay effect
-        animate && "before:absolute before:inset-0 before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent before:animate-shimmer before:bg-[length:200%_100%]",
+        // GPU-optimized shimmer overlay effect using transform (not background-position)
+        // This prevents CLS (Cumulative Layout Shift) issues
+        animate && "before:absolute before:inset-0 before:w-full before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent before:animate-shimmer",
         className,
       )}
       {...props}
