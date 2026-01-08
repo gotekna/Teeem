@@ -479,14 +479,33 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                     );
                   })}
                 </div>
-                {/* Show selected user below buttons */}
-                {assignedRole && (
-                  <div className="text-sm text-muted-foreground mt-1">
-                    Assigned to: <span className="font-medium text-foreground">
-                      {users.find(u => String(u.id) === assignedUserId)?.name || "Select user"}
-                    </span>
-                  </div>
-                )}
+                {/* User dropdown - select any user */}
+                <ComboboxDropdown
+                  items={users.map((user) => ({
+                    id: String(user.id),
+                    label: user.name,
+                  }))}
+                  selectedItem={assignedUserId ? {
+                    id: assignedUserId,
+                    label: users.find(u => String(u.id) === assignedUserId)?.name || "Select user",
+                  } : undefined}
+                  onSelect={(item) => {
+                    setAssignedUserId(item.id);
+                    // Clear role if user manually selects a different user
+                    const roleUser = assignedRole ? getTeamMemberForRole(assignedRole) : null;
+                    if (roleUser && String(roleUser.user_id) !== item.id) {
+                      setAssignedRole("");
+                    }
+                  }}
+                  placeholder="Select user..."
+                  searchPlaceholder="Search users..."
+                  emptyResults="No user found."
+                  clearable={!!assignedUserId}
+                  onClear={() => {
+                    setAssignedUserId("");
+                    setAssignedRole("");
+                  }}
+                />
               </div>
             )}
           </div>
