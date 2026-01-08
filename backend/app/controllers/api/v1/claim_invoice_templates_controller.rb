@@ -27,6 +27,36 @@ module Api
         render json: { success: false, error: "Template not found" }, status: :not_found
       end
 
+      # PATCH/PUT /api/v1/claim_invoice_templates/:id
+      # Update template settings (colors, fonts, visibility)
+      def update
+        template = ClaimInvoiceTemplate.find(params[:id])
+        template.update!(template_params)
+
+        render json: {
+          success: true,
+          data: template.preview_data
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Template not found" }, status: :not_found
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
+      # PATCH /api/v1/claim_invoice_templates/:id/set_default
+      # Set this template as the default
+      def set_default
+        ClaimInvoiceTemplate.transaction do
+          ClaimInvoiceTemplate.where(is_default: true).update_all(is_default: false)
+          template = ClaimInvoiceTemplate.find(params[:id])
+          template.update!(is_default: true)
+        end
+
+        render json: { success: true }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Template not found" }, status: :not_found
+      end
+
       # GET /api/v1/claim_invoice_templates/:id/preview
       # Returns HTML preview of the template with sample data
       # Accepts optional query params to customize preview:
@@ -112,6 +142,15 @@ module Api
       end
 
       private
+
+      def template_params
+        params.require(:template).permit(
+          :name, :description, :primary_color, :secondary_color,
+          :font_family, :logo_position, :header_style, :is_active,
+          :show_logo, :show_company_details, :show_bank_details,
+          :show_payment_terms, :footer_text
+        )
+      end
 
       def render_template_preview(template, data)
         # Render based on style_key

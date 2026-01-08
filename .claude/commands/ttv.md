@@ -7,7 +7,7 @@ You're helping integrate or fix a table in the TeeemTableView system.
 **ALWAYS read `TEEEM_DOCS/GOLD_STANDARD_TABLE.md` first.**
 
 This file defines:
-- All 31 column types with SQL types, validation rules, and examples
+- All 34 column types with SQL types, validation rules, and examples
 - System-generated columns (id, created_at, updated_at)
 - TeeemTableView standard features (what auto-enables)
 - Code locations that must match the spec

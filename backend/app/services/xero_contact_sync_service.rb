@@ -225,8 +225,9 @@ class XeroContactSyncService
     teeem_by_xero_link = existing_links.transform_values { |link| Contact.find_by(id: link.contact_id) }
     teeem_by_tax_number = teeem_contacts.select { |c| c.abn.present? }
                                           .group_by(&:abn)
-    teeem_by_email = teeem_contacts.select { |c| c.email.present? }
-                                     .index_by { |c| c.email.downcase.strip }
+    # SSoT: Use primary_email from contact_emails table
+    teeem_by_email = teeem_contacts.select { |c| c.primary_email.present? }
+                                     .index_by { |c| c.primary_email.downcase.strip }
 
     # Process each Xero contact (import from Xero)
     if import_enabled
@@ -436,12 +437,15 @@ class XeroContactSyncService
     end
 
     # Priority 2: Exact email match (100% confidence, auto-link)
+    # SSoT: Search in contact_emails table
     if xero_email.present?
-      existing_contact = Contact.find_by("LOWER(email) = ?", xero_email.downcase.strip)
-      if existing_contact
-        Rails.logger.info("Cross-tenant match by email: #{xero_name} -> #{existing_contact.display_name}")
+      contact_email = ContactEmail.joins(:contact)
+        .where("LOWER(contact_emails.email) = ?", xero_email.downcase.strip)
+        .first
+      if contact_email
+        Rails.logger.info("Cross-tenant match by email: #{xero_name} -> #{contact_email.contact.display_name}")
         return {
-          contact: existing_contact,
+          contact: contact_email.contact,
           match_type: "exact_email",
           match_confidence: 1.0,
           needs_review: false
@@ -958,8 +962,14 @@ class XeroContactSyncService
     else
       # FRC: For persons, check for existing contact by email to prevent duplicates
       # Multiple "John Smith" are valid, but same email = same person
+      # SSoT: Search in contact_emails table
       email = contact_data[:email]&.strip&.downcase
-      existing_by_email = email.present? ? Contact.find_by("LOWER(email) = ? AND is_active = true", email) : nil
+      existing_by_email = if email.present?
+        ContactEmail.joins(:contact)
+          .where("LOWER(contact_emails.email) = ?", email)
+          .where(contacts: { is_active: true })
+          .first&.contact
+      end
 
       if existing_by_email
         new_contact = existing_by_email
@@ -1131,16 +1141,17 @@ class XeroContactSyncService
 
     payload[:FirstName] = teeem_contact.first_name if teeem_contact.first_name.present?
     payload[:LastName] = teeem_contact.last_name if teeem_contact.last_name.present?
-    payload[:EmailAddress] = teeem_contact.email if teeem_contact.email.present?
+    # SSoT: Use primary_email from contact_emails table
+    payload[:EmailAddress] = teeem_contact.primary_email if teeem_contact.primary_email.present?
     payload[:TaxNumber] = teeem_contact.abn if teeem_contact.abn.present?
 
-    # Add phone numbers
+    # Add phone numbers (SSoT: Use helper methods from contact_phones table)
     phones = []
-    if teeem_contact.mobile_phone.present?
-      phones << { PhoneType: "MOBILE", PhoneNumber: teeem_contact.mobile_phone }
+    if teeem_contact.primary_mobile.present?
+      phones << { PhoneType: "MOBILE", PhoneNumber: teeem_contact.primary_mobile }
     end
-    if teeem_contact.office_phone.present?
-      phones << { PhoneType: "DEFAULT", PhoneNumber: teeem_contact.office_phone }
+    if teeem_contact.primary_office_phone.present?
+      phones << { PhoneType: "DEFAULT", PhoneNumber: teeem_contact.primary_office_phone }
     end
     payload[:Phones] = phones if phones.any?
 

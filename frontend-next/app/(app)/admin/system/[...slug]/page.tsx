@@ -77,7 +77,7 @@ function PlaceholderTab({
 }
 
 // Company Settings with subtab navigation
-function CompanySettingsContent({ subtab, extra }: { subtab: string; extra?: string }) {
+function CompanySettingsContent({ subtab, extra, innerTab }: { subtab: string; extra?: string; innerTab?: string }) {
   const router = useRouter();
 
   const handleSubtabChange = (value: string) => {
@@ -145,7 +145,7 @@ function CompanySettingsContent({ subtab, extra }: { subtab: string; extra?: str
             <WorkflowConfigTab />
           </TabsContent>
           <TabsContent value="doc-templates">
-            <DocumentTemplatesTab />
+            <DocumentTemplatesTab innerTab={extra === "inner" ? innerTab : undefined} />
           </TabsContent>
         </div>
       </Tabs>
@@ -161,7 +161,7 @@ export default function SystemAdminCatchAllPage({
   // Unwrap params Promise for Next.js 16
   const { slug } = use(params);
   // slug = ["company"] or ["company", "info"] or ["schedule-master", "data-view", "live"]
-  const [tab, subtab, extra] = slug || [];
+  const [tab, subtab, extra, innerTab] = slug || [];
 
   // Get CSS class for tab content
   const getContentClass = () => {
@@ -177,7 +177,7 @@ export default function SystemAdminCatchAllPage({
   const renderContent = () => {
     switch (tab) {
       case "company":
-        return <CompanySettingsContent subtab={subtab || "info"} extra={extra} />;
+        return <CompanySettingsContent subtab={subtab || "info"} extra={extra} innerTab={innerTab} />;
 
       case "brand-guidelines":
         return <BrandGuidelinesTab />;

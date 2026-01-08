@@ -50,16 +50,17 @@ module Api
                         end
 
           # Build WHERE clause based on mode
+          # SSoT: Include contact_emails table in search
           ilike_op = search_mode == 'exact' ? '=' : 'ILIKE'
           search_sql = if search_mode == 'exact'
             "LOWER(contacts.display_name) = LOWER(:q) OR
-             LOWER(contacts.email) = LOWER(:q) OR
+             LOWER(contact_emails.email) = LOWER(:q) OR
              LOWER(contacts.first_name) = LOWER(:q) OR
              LOWER(contacts.last_name) = LOWER(:q) OR
              (contacts.is_team_contact = true AND LOWER(primary_companies_contacts.display_name) = LOWER(:q))"
           else
             "contacts.display_name ILIKE :q OR
-             contacts.email ILIKE :q OR
+             contact_emails.email ILIKE :q OR
              contacts.first_name ILIKE :q OR
              contacts.last_name ILIKE :q OR
              (contacts.is_team_contact = true AND primary_companies_contacts.display_name ILIKE :q)"
@@ -67,7 +68,10 @@ module Api
 
           # Find contacts that match the search term directly
           # Note: left_outer_joins(:primary_company) creates alias "primary_companies_contacts"
-          direct_matches = @contacts.left_outer_joins(:primary_company).where(search_sql, q: search_term)
+          # SSoT: Also join contact_emails for email search
+          direct_matches = @contacts.left_outer_joins(:primary_company, :contact_emails)
+                                    .where(search_sql, q: search_term)
+                                    .distinct
 
           # Find companies that match the search term
           company_search_sql = search_mode == 'exact' ? "LOWER(display_name) = LOWER(?)" : "display_name ILIKE ?"
@@ -266,7 +270,10 @@ module Api
         end
 
         # Add employee names and payment terms for supplier contacts
-        if params[:type] == "suppliers"
+        # Also include for entity_type queries that include companies (for PO supplier selection)
+        entity_types = params[:entity_type].to_s.split(",").map(&:strip)
+        is_company_query = entity_types.intersect?(%w[company trust sole_trader])
+        if params[:type] == "suppliers" || (params[:entity_type].present? && is_company_query)
           supplier_ids = @contacts.map(&:id)
 
           # Performance: Pre-fetch employee counts and names with GROUP BY (avoids N+1)

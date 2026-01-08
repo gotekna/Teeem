@@ -2,12 +2,12 @@
 
 namespace :teeem do
   namespace :gold_standard do
-    desc "Seed column_type_definitions table with all 30 column types"
+    desc "Seed column_type_definitions table with all 34 column types"
     task seed_type_definitions: :environment do
       puts "🔄 Seeding column type definitions..."
       puts "=" * 80
 
-      # All 31 column types with their properties
+      # All 34 column types with their properties (SSoT: Column::COLUMN_SQL_TYPE_MAP)
       # Matches Column::COLUMN_SQL_TYPE_MAP and Trinity T19.001-T19.021
       # Now includes display_formatter for frontend rendering
       type_definitions = [

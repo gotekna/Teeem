@@ -22,12 +22,14 @@ import {
   AlertCircle,
   Pencil,
   Landmark,
+  Receipt,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
 import { TemplateEditor } from "./TemplateEditor";
 import { BankStatementTemplatesTab } from "./BankStatementTemplatesTab";
+import { InvoiceTemplatesTab } from "./InvoiceTemplatesTab";
 
 // SSoT Templates from TeknaDocumentGenerator (the source of truth)
 interface SsotTemplate {
@@ -72,26 +74,32 @@ interface TemplateGroup {
 const DOC_INNER_TABS = [
   { id: "documents", label: "Document Templates", icon: FileText },
   { id: "bank-statements", label: "Bank Statements", icon: Landmark },
+  { id: "invoice-templates", label: "Invoice Templates", icon: Receipt },
 ];
 
-export function DocumentTemplatesTab() {
+interface DocumentTemplatesTabProps {
+  innerTab?: string;
+}
+
+export function DocumentTemplatesTab({ innerTab: innerTabProp }: DocumentTemplatesTabProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const subtabFromUrl = searchParams.get("subtab");
   const activeTab = subtabFromUrl || "ssot";
-  const innerTab = searchParams.get("inner") || "documents";
+  // Use prop if provided, otherwise fall back to search param, then default
+  const innerTab = innerTabProp || searchParams.get("inner") || "documents";
 
   const handleTabChange = useCallback((tabId: string) => {
     const innerPath = innerTab !== "documents" ? `/inner/${innerTab}` : "";
     const url = tabId === "ssot"
-      ? `/admin/system/doc-templates${innerPath}`
-      : `/admin/system/doc-templates/${tabId}${innerPath}`;
+      ? `/admin/system/company/doc-templates${innerPath}`
+      : `/admin/system/company/doc-templates/${tabId}${innerPath}`;
     router.push(url, { scroll: false });
   }, [router, innerTab]);
 
   const handleInnerTabChange = (value: string) => {
     const subtabPath = subtabFromUrl ? `/${subtabFromUrl}` : "";
-    router.push(`/admin/system/doc-templates${subtabPath}/inner/${value}`, { scroll: false });
+    router.push(`/admin/system/company/doc-templates${subtabPath}/inner/${value}`, { scroll: false });
   };
 
   const [ssotTemplates, setSsotTemplates] = React.useState<SsotTemplate[]>([]);
@@ -593,6 +601,11 @@ export function DocumentTemplatesTab() {
         {/* Bank Statement Templates Tab Content */}
         <TabsContent value="bank-statements">
           <BankStatementTemplatesTab />
+        </TabsContent>
+
+        {/* Invoice Templates Tab Content */}
+        <TabsContent value="invoice-templates">
+          <InvoiceTemplatesTab />
         </TabsContent>
       </Tabs>
     </div>

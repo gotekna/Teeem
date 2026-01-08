@@ -457,8 +457,8 @@ TableCell: px-1 py-0.5 (4px horizontal, 2px vertical)
 | What | File | Must Match |
 |------|------|------------|
 | **Column Types & Validation** |
-| SQL Types | `backend/app/models/column.rb` → `COLUMN_SQL_TYPE_MAP` | Section: The 31 Column Types |
-| Validation | `backend/app/controllers/api/v1/column_types_controller.rb` | Section: The 31 Column Types |
+| SQL Types | `backend/app/models/column.rb` → `COLUMN_SQL_TYPE_MAP` | Section: The 34 Column Types |
+| Validation | `backend/app/controllers/api/v1/column_types_controller.rb` | Section: The 34 Column Types |
 | Categories | `column_types_controller.rb` → `categorize_column_type()` | Section headers above |
 | Frontend Cache | `frontend-next/lib/column-types.ts` | Generated from API |
 | System Columns | `TeeemTableView.tsx` → `SYSTEM_GENERATED_TYPES` | Section: System-Generated |
@@ -506,7 +506,7 @@ See commits 917c571f (Phase 1 & 2) and 0f07ddab (Phase 3) for refactoring detail
 ## Gold Standard Table (Foundation ID: 1)
 
 The Gold Standard Table is a **demonstration** of this spec. It should have:
-- One column of each type (31 columns)
+- One column of each type (34 columns)
 - Sample data showing valid values
 - All TeeemTableView features working
 
@@ -538,4 +538,4 @@ When saving a view, these settings are persisted:
 | 2025-12-30 | Added Migration Checklist and Advanced Props Reference for preventing feature loss during table conversions |
 | 2025-12-16 | SSoT: TeeemTableView now handles header/count internally (showHeader prop). Pages no longer implement custom headers. |
 | 2025-12-16 | Added Sticky Columns, View Persistence, Page Container Pattern, group header no-wrap |
-| 2024-12-03 | Created as SSoT, documented all 31 column types |
+| 2024-12-03 | Created as SSoT, documented all 34 column types |

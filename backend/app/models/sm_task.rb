@@ -614,6 +614,17 @@ class SmTask < ApplicationRecord
   # Alias for backwards compatibility
   alias_method :has_purchase_order?, :has_linked_po?
 
+  # SSoT: Claim task detection and linking
+  # Claim tasks are identified by name pattern "CLAIM -" (or en-dash variant)
+  # Claim link is via SmTask.job_claim_stage_id → JobClaimStage
+  def is_claim_task?
+    name&.start_with?("CLAIM -") || name&.start_with?("CLAIM –")
+  end
+
+  def has_linked_claim?
+    job_claim_stage_id.present?
+  end
+
   # Check if materials will arrive on time
   def materials_on_time?
     po = linked_purchase_order

@@ -642,7 +642,7 @@ export function BrandGuidelinesTab() {
                 <Star className="h-5 w-5 text-primary" />
                 <div>
                   <p className="font-medium">Gold Standard Table</p>
-                  <p className="text-sm text-[#606060]">Live demo showing all 31 column types with filters, sorting, and inline editing</p>
+                  <p className="text-sm text-[#606060]">Live demo showing all 34 column types with filters, sorting, and inline editing</p>
                 </div>
               </div>
               <Link
@@ -733,7 +733,7 @@ export function BrandGuidelinesTab() {
         {/* Column Types Summary */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">31 Column Types</CardTitle>
+            <CardTitle className="text-lg">34 Column Types</CardTitle>
             <CardDescription>TeeemTableView supports all these column types via the Foundation API</CardDescription>
           </CardHeader>
           <CardContent>

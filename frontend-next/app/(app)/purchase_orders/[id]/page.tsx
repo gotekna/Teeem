@@ -51,6 +51,7 @@ import {
   ExternalLink,
   Clock,
   Users,
+  FolderOpen,
 } from "lucide-react";
 import {
   Dialog,
@@ -922,6 +923,25 @@ export default function PurchaseOrderDetailPage() {
                     {purchaseOrder.job.title}
                   </button>
                 </div>
+                <span className="text-muted-foreground">-</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => router.push(`/jobs/${purchaseOrder.job!.id}/plans`)}
+                  className="h-7 px-2 text-muted-foreground hover:text-foreground"
+                >
+                  <FileText className="h-4 w-4 mr-1" />
+                  Plans
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => router.push(`/jobs/${purchaseOrder.job!.id}/documents`)}
+                  className="h-7 px-2 text-muted-foreground hover:text-foreground"
+                >
+                  <FolderOpen className="h-4 w-4 mr-1" />
+                  Documents
+                </Button>
               </>
             )}
           </div>
@@ -1166,25 +1186,15 @@ export default function PurchaseOrderDetailPage() {
               />
             </div>
             <div>
-              <div className="text-sm text-muted-foreground mb-1">Due Date</div>
-              <Input
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-              />
-              {selectedSupplier?.payment_terms && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Terms: {selectedSupplier.payment_terms}
-                </p>
-              )}
-            </div>
-            <div>
               <div className="text-sm text-muted-foreground mb-1">Ordered Date</div>
               <Input
                 type="date"
                 value={orderedDate}
                 onChange={(e) => setOrderedDate(e.target.value)}
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                Auto-fills when status = Sent
+              </p>
             </div>
           </CardContent>
         </Card>

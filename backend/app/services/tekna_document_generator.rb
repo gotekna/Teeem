@@ -508,8 +508,8 @@ class TeknaDocumentGenerator
       line_items: line_items,
       line_items_count: line_items.size,
 
-      # Task reference
-      ted_task: po.ted_task
+      # Task reference (SSoT: from linked SmTask)
+      ted_task: po.sm_task&.name
     }
   end
 

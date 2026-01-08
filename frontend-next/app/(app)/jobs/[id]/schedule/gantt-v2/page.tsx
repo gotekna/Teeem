@@ -46,6 +46,8 @@ import type { GanttTask, SmScheduleMaster } from '@/lib/gantt/types';
 import type { PhotoItem } from '@/components/ui/photo-gallery';
 import { ImageLightbox } from '@/components/ui/image-lightbox';
 import { useGanttDataManager } from '@/lib/gantt/hooks';
+import { EditRowDialog, type EditRowData, type EditRowFormData } from '@/components/schedule/EditRowDialog';
+import { clearCachedRecords } from '@/lib/records-cache';
 
 // =============================================================================
 // Types
@@ -80,6 +82,22 @@ export default function GanttV2Page() {
   const [lightboxOpen, setLightboxOpen] = React.useState(false);
   const [lightboxIndex, setLightboxIndex] = React.useState(0);
 
+  // Edit Row Dialog state (SSoT: uses shared EditRowDialog component)
+  const [selectedTaskForEdit, setSelectedTaskForEdit] = React.useState<EditRowData | null>(null);
+  const [showTaskEditDialog, setShowTaskEditDialog] = React.useState(false);
+
+  // Reference data for EditRowDialog
+  const [availableTrades, setAvailableTrades] = React.useState<{ id: number; name: string }[]>([]);
+  const [availableRoles, setAvailableRoles] = React.useState<{ id: number; name: string; display_name: string }[]>([]);
+  const [availableStages, setAvailableStages] = React.useState<{ id: number; name: string }[]>([]);
+  const [availableCostCentres, setAvailableCostCentres] = React.useState<{ id: number; name: string }[]>([]);
+  const [availableChecklists, setAvailableChecklists] = React.useState<{ id: number; name: string }[]>([]);
+  const [availableDocumentTypes, setAvailableDocumentTypes] = React.useState<{ id: number; name: string; display_name?: string; form_number_mapping?: Record<string, string> }[]>([]);
+  const [availableTradingNames, setAvailableTradingNames] = React.useState<{ id: number; name: string }[]>([]);
+  const [availableInvoiceTemplates, setAvailableInvoiceTemplates] = React.useState<{ id: number; name: string; description: string; primary_color: string; secondary_color: string; is_default?: boolean }[]>([]);
+  const [availableHeaderRows, setAvailableHeaderRows] = React.useState<{ id: number; task_number: number; name: string }[]>([]);
+  const [allTasksForEdit, setAllTasksForEdit] = React.useState<EditRowData[]>([]);
+
   // ==========================================================================
   // Load Job and Gantt Data
   // ==========================================================================
@@ -101,6 +119,216 @@ export default function GanttV2Page() {
       gantt.loadData();
     }
   }, [jobId, gantt.loadData]);
+
+  // ==========================================================================
+  // Load Reference Data for EditRowDialog
+  // ==========================================================================
+
+  React.useEffect(() => {
+    const loadReferenceData = async () => {
+      // Load trades
+      try {
+        const tradesData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/sm_trades/records?per_page=100");
+        if (tradesData?.records) setAvailableTrades(tradesData.records);
+      } catch (e) { console.error("Failed to load trades:", e); }
+
+      // Load stages
+      try {
+        const stagesData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/sm_stages/records?per_page=100");
+        if (stagesData?.records) setAvailableStages(stagesData.records);
+      } catch (e) { console.error("Failed to load stages:", e); }
+
+      // Load roles
+      try {
+        const rolesData = await api.get<{ success: boolean; records: { id: number; name: string; display_name: string }[] }>("/api/v1/foundations/roles/records?per_page=100");
+        if (rolesData?.records) setAvailableRoles(rolesData.records.map(r => ({ id: r.id, name: r.name, display_name: r.display_name || r.name })));
+      } catch (e) { console.error("Failed to load roles:", e); }
+
+      // Load cost centres
+      try {
+        const costCentresData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/cost_centres/records?per_page=100");
+        if (costCentresData?.records) setAvailableCostCentres(costCentresData.records);
+      } catch (e) { console.error("Failed to load cost centres:", e); }
+
+      // Load checklists
+      try {
+        const checklistsData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/supervisor_checklist_templates/records?per_page=100");
+        if (checklistsData?.records) setAvailableChecklists(checklistsData.records);
+      } catch (e) { console.error("Failed to load checklists:", e); }
+
+      // Load document types
+      try {
+        const docTypesData = await api.get<{ success: boolean; records: { id: number; name: string; display_name?: string; form_number_mapping?: Record<string, string> }[] }>("/api/v1/foundations/document_types/records?per_page=100&filter[scope]=job");
+        if (docTypesData?.records) setAvailableDocumentTypes(docTypesData.records);
+      } catch (e) { console.error("Failed to load document types:", e); }
+
+      // Load trading names
+      try {
+        const tradingNamesData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/trading_names/records?per_page=100");
+        if (tradingNamesData?.records) setAvailableTradingNames(tradingNamesData.records);
+      } catch (e) { console.error("Failed to load trading names:", e); }
+
+      // Load invoice templates
+      try {
+        const templatesData = await api.get<{ success: boolean; data: { id: number; name: string; description: string; primary_color: string; secondary_color: string; is_default?: boolean }[] }>("/api/v1/claim_invoice_templates");
+        if (templatesData?.data) setAvailableInvoiceTemplates(templatesData.data);
+      } catch (e) { console.error("Failed to load invoice templates:", e); }
+    };
+
+    loadReferenceData();
+  }, []);
+
+  // ==========================================================================
+  // Update Header Rows and All Tasks for EditRowDialog
+  // ==========================================================================
+
+  React.useEffect(() => {
+    if (!gantt.tasks.length) return;
+
+    // Extract header rows from gantt tasks
+    const headers = gantt.tasks
+      .filter((t) => {
+        const row = t.rowData as SmScheduleMaster | undefined;
+        return row?.allow_header || row?.header_gantt === 'Header';
+      })
+      .map((t) => {
+        const row = t.rowData as SmScheduleMaster;
+        return { id: row.id, task_number: row.task_number, name: row.name };
+      });
+    setAvailableHeaderRows(headers);
+
+    // Convert all gantt tasks to EditRowData format
+    // Note: Job mode returns sm_tasks which have _id suffix fields, cast to any for job-specific fields
+    const allRows: EditRowData[] = gantt.tasks.map((t) => {
+      const row = t.rowData as SmScheduleMaster;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const jobRow = row as any;  // Job tasks have additional fields not in SmScheduleMaster type
+      return {
+        id: row.id,
+        task_number: row.task_number,
+        name: row.name,
+        description: row.description || undefined,
+        duration_days: row.duration_days || 1,
+        sequence_order: row.sequence_order || 0,
+        // Job tasks use _id suffix, templates use direct values
+        trade: jobRow.trade_id ? String(jobRow.trade_id) : (row.trade ? String(row.trade) : undefined),
+        stage: jobRow.stage_id ? String(jobRow.stage_id) : (row.stage ? String(row.stage) : undefined),
+        assigned_role: jobRow.assigned_role_id ? String(jobRow.assigned_role_id) : (row.assigned_role || null),
+        cost_centre: jobRow.cost_centre_id ? String(jobRow.cost_centre_id) : (row.cost_centre ? String(row.cost_centre) : undefined),
+        header_gantt: row.header_gantt as string | null | undefined,
+        allow_header: row.allow_header || false,
+        is_active: row.is_active !== false,
+        po_required: row.po_required || false,
+        critical_po: row.critical_po || false,
+        create_po_on_job_start: row.create_po_on_job_start || false,
+        spawn_order_task: jobRow.spawn_order_task || false,
+        spawn_call_task: jobRow.spawn_call_task || false,
+        require_photo: row.require_photo || false,
+        pass_fail_enabled: row.pass_fail_enabled || false,
+        checklist_id: row.checklist_id as number | undefined,
+        is_claim_task: jobRow.is_claim_task || false,
+        is_variation: jobRow.is_variation || false,
+        claim_percentage: jobRow.claim_percentage as number | null | undefined,
+        claim_invoice_pattern: jobRow.claim_invoice_pattern as string | null | undefined,
+        claim_invoice_template_id: jobRow.claim_invoice_template_id as number | null | undefined,
+        claim_trading_name_id: jobRow.claim_trading_name_id as number | null | undefined,
+      };
+    });
+    setAllTasksForEdit(allRows);
+  }, [gantt.tasks]);
+
+  // ==========================================================================
+  // EditRowDialog Handlers
+  // ==========================================================================
+
+  // Handle task double-click to open EditRowDialog
+  const handleTaskEditDoubleClick = React.useCallback((task: GanttTask) => {
+    const row = task.rowData as SmScheduleMaster | undefined;
+    if (!row) return;
+
+    // Job tasks have additional fields not in SmScheduleMaster type
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const jobRow = row as any;
+
+    // Convert to EditRowData format (SSoT: same as Schedule Master)
+    const editRow: EditRowData = {
+      id: row.id,
+      task_number: row.task_number,
+      name: row.name,
+      description: row.description || undefined,
+      duration_days: row.duration_days || 1,
+      sequence_order: row.sequence_order || 0,
+      // Job tasks use _id suffix, templates use direct values
+      trade: jobRow.trade_id ? String(jobRow.trade_id) : (row.trade ? String(row.trade) : undefined),
+      trade_name: jobRow.trade_name ? String(jobRow.trade_name) : undefined,
+      stage: jobRow.stage_id ? String(jobRow.stage_id) : (row.stage ? String(row.stage) : undefined),
+      stage_name: jobRow.stage_name ? String(jobRow.stage_name) : undefined,
+      assigned_role: jobRow.assigned_role_id ? String(jobRow.assigned_role_id) : (row.assigned_role || null),
+      cost_centre: jobRow.cost_centre_id ? String(jobRow.cost_centre_id) : (row.cost_centre ? String(row.cost_centre) : undefined),
+      header_gantt: row.header_gantt as string | null | undefined,
+      allow_header: row.allow_header || false,
+      is_active: row.is_active !== false,
+      po_required: row.po_required || false,
+      critical_po: row.critical_po || false,
+      create_po_on_job_start: row.create_po_on_job_start || false,
+      spawn_order_task: jobRow.spawn_order_task || false,
+      spawn_call_task: jobRow.spawn_call_task || false,
+      require_photo: row.require_photo || false,
+      pass_fail_enabled: row.pass_fail_enabled || false,
+      checklist_id: row.checklist_id as number | undefined,
+      is_claim_task: jobRow.is_claim_task || false,
+      is_variation: jobRow.is_variation || false,
+      claim_percentage: jobRow.claim_percentage as number | null | undefined,
+      claim_invoice_pattern: jobRow.claim_invoice_pattern as string | null | undefined,
+      claim_invoice_template_id: jobRow.claim_invoice_template_id as number | null | undefined,
+      claim_trading_name_id: jobRow.claim_trading_name_id as number | null | undefined,
+    };
+    setSelectedTaskForEdit(editRow);
+    setShowTaskEditDialog(true);
+  }, []);
+
+  // Save task changes - callback for EditRowDialog
+  const handleSaveTask = React.useCallback(async (rowId: number, data: EditRowFormData) => {
+    await api.patch(`/api/v1/sm_tasks/${rowId}`, {
+      sm_task: {
+        name: data.name,
+        description: data.description,
+        duration_days: data.duration_days,
+        sequence_order: data.sequence_order,
+        // Basic settings - sm_tasks uses _id suffix
+        trade_id: data.trade ? parseInt(data.trade) : null,
+        assigned_role_id: data.assigned_role ? parseInt(data.assigned_role) : null,
+        // Classification
+        stage_id: data.stage ? parseInt(data.stage) : null,
+        cost_centre_id: data.cost_centre ? parseInt(data.cost_centre) : null,
+        // PO settings
+        po_required: data.po_required,
+        critical_po: data.critical_po,
+        create_po_on_job_start: data.create_po_on_job_start,
+        spawn_order_task: data.spawn_order_task,
+        spawn_call_task: data.spawn_call_task,
+        // Completion
+        require_photo: data.require_photo,
+        pass_fail_enabled: data.pass_fail_enabled,
+        // Relationships
+        header_gantt: data.header_gantt,
+        allow_header: data.allow_header,
+        checklist_id: data.checklist_id,
+        // Claim settings
+        is_claim_task: data.is_claim_task,
+        is_variation: data.is_variation,
+        claim_percentage: data.claim_percentage,
+        claim_invoice_pattern: data.claim_invoice_pattern,
+        claim_invoice_template_id: data.claim_invoice_template_id,
+        claim_trading_name_id: data.claim_trading_name_id,
+        // Active status
+        is_active: data.is_active,
+      }
+    });
+    // Clear cache and reload gantt data
+    clearCachedRecords("sm_tasks");
+    gantt.loadData({ silent: true });
+  }, [gantt]);
 
   // ==========================================================================
   // Photo Panel (Job-specific)
@@ -216,7 +444,7 @@ export default function GanttV2Page() {
             jobId={jobId}
             showToolbar={true}
             onTaskClick={gantt.handleTaskClick}
-            onTaskDoubleClick={gantt.handleTaskDoubleClick}
+            onTaskDoubleClick={handleTaskEditDoubleClick}
             onCheckboxToggle={gantt.handleCheckboxToggle}
             onRollover={gantt.handleRollover}
             onEditDependencies={gantt.openDependencyEditor}
@@ -343,216 +571,26 @@ export default function GanttV2Page() {
         onSave={gantt.handleDependencyEditorSave}
       />
 
-      {/* Edit Dialog - SSoT: uses hook's state */}
-      <Dialog open={gantt.editSheetOpen} onOpenChange={gantt.setEditSheetOpen}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <div className="flex items-center gap-2">
-              <DialogTitle>Edit Task</DialogTitle>
-              {/* Auto-save status indicator */}
-              {gantt.autoSaveStatus === 'saving' && (
-                <span className="flex items-center text-xs text-muted-foreground">
-                  <Spinner size={12} className="mr-1" />
-                  Saving...
-                </span>
-              )}
-              {gantt.autoSaveStatus === 'saved' && (
-                <span className="flex items-center text-xs text-green-600">
-                  <Check className="h-3 w-3 mr-1" />
-                  Saved
-                </span>
-              )}
-              {gantt.autoSaveStatus === 'error' && (
-                <span className="flex items-center text-xs text-red-600">
-                  <AlertCircle className="h-3 w-3 mr-1" />
-                  Error
-                </span>
-              )}
-            </div>
-            <DialogDescription>
-              {gantt.editingTask?.name} (Task #{gantt.editingRow?.task_number})
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="py-4 space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
-              <Input
-                id="name"
-                value={gantt.editRowForm.name || ''}
-                onChange={(e) => gantt.setEditRowForm({ ...gantt.editRowForm, name: e.target.value })}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="duration">Duration (days)</Label>
-                <Input
-                  id="duration"
-                  type="number"
-                  min={1}
-                  value={gantt.editRowForm.duration_days || 1}
-                  onChange={(e) =>
-                    gantt.setEditRowForm({
-                      ...gantt.editRowForm,
-                      duration_days: Number(e.target.value),
-                    })
-                  }
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="sequence">Sequence</Label>
-                <Input
-                  id="sequence"
-                  type="number"
-                  step="0.1"
-                  value={gantt.editRowForm.sequence_order || 0}
-                  onChange={(e) =>
-                    gantt.setEditRowForm({
-                      ...gantt.editRowForm,
-                      sequence_order: parseFloat(e.target.value),
-                    })
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Input
-                id="description"
-                value={gantt.editRowForm.description || ''}
-                onChange={(e) =>
-                  gantt.setEditRowForm({ ...gantt.editRowForm, description: e.target.value })
-                }
-                placeholder="Optional description..."
-              />
-            </div>
-
-            <div className="border-t pt-4 space-y-3">
-              <h4 className="font-medium text-sm">PO Settings</h4>
-
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="po_required"
-                  checked={gantt.editRowForm.po_required || false}
-                  onCheckedChange={(checked) =>
-                    gantt.setEditRowForm({ ...gantt.editRowForm, po_required: checked })
-                  }
-                />
-                <Label htmlFor="po_required" className="text-sm">
-                  PO Required
-                </Label>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="critical_po"
-                  checked={gantt.editRowForm.critical_po || false}
-                  onCheckedChange={(checked) =>
-                    gantt.setEditRowForm({ ...gantt.editRowForm, critical_po: checked })
-                  }
-                />
-                <Label htmlFor="critical_po" className="text-sm">
-                  Critical PO
-                </Label>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="create_po_on_job_start"
-                  checked={gantt.editRowForm.create_po_on_job_start || false}
-                  onCheckedChange={(checked) =>
-                    gantt.setEditRowForm({ ...gantt.editRowForm, create_po_on_job_start: checked })
-                  }
-                />
-                <Label htmlFor="create_po_on_job_start" className="text-sm">
-                  Auto-PO on Start
-                </Label>
-              </div>
-            </div>
-
-            <div className="border-t pt-4 space-y-3">
-              <h4 className="font-medium text-sm">Completion</h4>
-
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="require_photo"
-                  checked={gantt.editRowForm.require_photo || false}
-                  onCheckedChange={(checked) =>
-                    gantt.setEditRowForm({ ...gantt.editRowForm, require_photo: checked })
-                  }
-                />
-                <Label htmlFor="require_photo" className="text-sm">
-                  Require Photo
-                </Label>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="pass_fail_enabled"
-                  checked={gantt.editRowForm.pass_fail_enabled || false}
-                  onCheckedChange={(checked) =>
-                    gantt.setEditRowForm({ ...gantt.editRowForm, pass_fail_enabled: checked })
-                  }
-                />
-                <div>
-                  <Label htmlFor="pass_fail_enabled" className="text-sm">
-                    Pass/Fail
-                  </Label>
-                  <p className="text-xs text-muted-foreground">Spawns re-inspect if failed</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="border-t pt-4 space-y-3">
-              <h4 className="font-medium text-sm">Header Settings</h4>
-
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="allow_header"
-                  checked={gantt.editRowForm.allow_header || false}
-                  disabled={gantt.editRowForm.po_required || gantt.editRowForm.create_po_on_job_start}
-                  onCheckedChange={(checked) =>
-                    gantt.setEditRowForm({
-                      ...gantt.editRowForm,
-                      allow_header: checked,
-                      header_gantt: checked ? null : gantt.editRowForm.header_gantt,
-                    })
-                  }
-                />
-                <div>
-                  <Label
-                    htmlFor="allow_header"
-                    className={`text-sm ${
-                      gantt.editRowForm.po_required || gantt.editRowForm.create_po_on_job_start
-                        ? 'text-muted-foreground'
-                        : ''
-                    }`}
-                  >
-                    Allow Header
-                  </Label>
-                  <p className="text-xs text-muted-foreground">Can be parent for other tasks</p>
-                </div>
-                {gantt.editRowForm.allow_header && (
-                  <Badge className="text-xs bg-blue-500">Header</Badge>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => gantt.setEditSheetOpen(false)}>
-              Close
-            </Button>
-            <Button onClick={() => gantt.saveEditSheet()} disabled={gantt.saving}>
-              {gantt.saving ? <Spinner className="mr-2 h-4 w-4" /> : null}
-              Save
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Edit Dialog - SSoT: uses shared EditRowDialog component */}
+      <EditRowDialog
+        open={showTaskEditDialog}
+        onOpenChange={setShowTaskEditDialog}
+        row={selectedTaskForEdit}
+        onSave={handleSaveTask}
+        onRefresh={() => gantt.loadData({ silent: true })}
+        trades={availableTrades}
+        roles={availableRoles}
+        stages={availableStages}
+        costCentres={availableCostCentres}
+        checklists={availableChecklists}
+        documentTypes={availableDocumentTypes}
+        tradingNames={availableTradingNames}
+        invoiceTemplates={availableInvoiceTemplates}
+        headerRows={availableHeaderRows}
+        allRows={allTasksForEdit}
+        showTemplateSection={false}
+        jobId={jobId}
+      />
 
       {/* Confirm Dialog - SSoT: for supplier_confirm/confirm toggles */}
       <Dialog
@@ -878,13 +916,16 @@ function Header({ job, jobId, onOpenOldGantt }: HeaderProps) {
           </h1>
           <p className="text-xs text-muted-foreground">SSoT Hook Architecture</p>
         </div>
-        {/* Quick Links - Plans, PO, Site (SSoT: same as old Gantt page) */}
+        {/* Quick Links - Plans, PO, Claims, Site (SSoT: same as old Gantt page) */}
         <div className="flex items-center gap-1 ml-2">
           <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/plans`, '_blank')}>
             Plans
           </Button>
           <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/purchase-orders`, '_blank')}>
             PO
+          </Button>
+          <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}?tab=claims`, '_blank')}>
+            Claims
           </Button>
           <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/site`, '_blank')}>
             Site

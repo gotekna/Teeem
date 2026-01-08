@@ -25,6 +25,8 @@ export type ComboboxItem = {
   id: string;
   label: string;
   disabled?: boolean;
+  /** Additional text to search (e.g., employee names, aliases). Not displayed, only for filtering. */
+  searchText?: string;
 };
 
 type Props<T> = {
@@ -38,6 +40,8 @@ type Props<T> = {
   renderListItem?: (listItem: {
     isChecked: boolean;
     item: T;
+    /** Current search term for highlighting/filtering matched content */
+    searchTerm: string;
   }) => React.ReactNode;
   emptyResults?: React.ReactNode;
   popoverProps?: React.ComponentProps<typeof PopoverContent>;
@@ -100,11 +104,15 @@ export function ComboboxDropdown<T extends ComboboxItem>({
   const safeItems = Array.isArray(items) ? items : [];
 
   // When disableInternalFilter is true, use all items (filtering done externally)
+  // Otherwise filter by label AND searchText (for employee names, aliases, etc.)
   const filteredItems = disableInternalFilter
     ? safeItems
-    : safeItems.filter((item) =>
-        item.label.toLowerCase().includes(inputValue.toLowerCase()),
-      );
+    : safeItems.filter((item) => {
+        const searchLower = inputValue.toLowerCase();
+        const matchesLabel = item.label.toLowerCase().includes(searchLower);
+        const matchesSearchText = item.searchText?.toLowerCase().includes(searchLower) ?? false;
+        return matchesLabel || matchesSearchText;
+      });
 
   const showCreate = onCreate && Boolean(inputValue) && !filteredItems.length;
 
@@ -237,7 +245,7 @@ export function ComboboxDropdown<T extends ComboboxItem>({
                     onMouseEnter={() => setHighlightedIndex(index)}
                   >
                     {renderListItem ? (
-                      renderListItem({ isChecked, item })
+                      renderListItem({ isChecked, item, searchTerm: inputValue })
                     ) : (
                       <>
                         <Check

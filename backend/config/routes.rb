@@ -30,9 +30,10 @@ Rails.application.routes.draw do
       resources :feature_trackers, only: [ :index, :create, :update, :destroy ]
 
       # Claim Invoice Templates - visual styles for claim invoices
-      resources :claim_invoice_templates, only: [ :index, :show ] do
+      resources :claim_invoice_templates, only: [ :index, :show, :update ] do
         member do
           get :preview  # GET /api/v1/claim_invoice_templates/:id/preview - HTML preview
+          patch :set_default  # PATCH /api/v1/claim_invoice_templates/:id/set_default
         end
       end
 

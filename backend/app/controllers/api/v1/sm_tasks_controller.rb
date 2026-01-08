@@ -96,8 +96,8 @@ module Api
         if params[:for] == "select"
           tasks_data = @job.sm_tasks
             .order(:sequence_order, :id)
-            .pluck(:id, :name, :task_number, :start_date)
-            .map { |id, name, task_number, start_date| { id: id, name: name, task_number: task_number, start_date: start_date } }
+            .pluck(:id, :name, :task_number, :start_date, :po_required)
+            .map { |id, name, task_number, start_date, po_required| { id: id, name: name, task_number: task_number, start_date: start_date, po_required: po_required } }
           return render json: { success: true, sm_tasks: tasks_data }
         end
 

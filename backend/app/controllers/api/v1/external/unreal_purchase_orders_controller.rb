@@ -79,7 +79,6 @@ module Api
               job_id: job.id,
               sm_task_id: sm_task.id,
               description: sm_task.name,
-              ted_task: sm_task.trade,
               special_instructions: estimator_notes,
               status: "draft",
               source: "unreal_engine",

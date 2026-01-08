@@ -98,8 +98,8 @@ module Api
           response[:contact] = job_contact.contact.as_json
           # Add company_name alias for frontend compatibility
           response[:contact][:company_name] = job_contact.contact.company_name_or_trust
-          # Add best available phone number (SSoT: prefer mobile, fallback to office)
-          response[:contact][:phone] = job_contact.contact.mobile_phone.presence || job_contact.contact.office_phone.presence
+          # SSoT: Use helper methods from contact_phones table (prefer mobile, fallback to office)
+          response[:contact][:phone] = job_contact.contact.primary_mobile.presence || job_contact.contact.primary_office_phone.presence
 
           # Include relationship details
           relationships = job_contact.contact.outgoing_relationships.includes(:related_contact)
@@ -112,8 +112,9 @@ module Api
                 id: rel.related_contact.id,
                 display_name: rel.related_contact.display_name,
                 company_name: rel.related_contact.company_name_or_trust,
-                email: rel.related_contact.email,
-                mobile_phone: rel.related_contact.mobile_phone
+                # SSoT: Use helper methods from contact_emails/contact_phones tables
+                email: rel.related_contact.primary_email,
+                mobile_phone: rel.related_contact.primary_mobile
               }
             }
           end

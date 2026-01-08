@@ -11,7 +11,7 @@ A focused code review aligned with CLAUDE.md philosophy. 6 essential checks that
 | 1 | **SSoT & Sync Risk** | Find duplicates and manual lists that will drift |
 | 2 | **Standard Components** | THE ONE component per CLAUDE.md |
 | 3 | **TeeemTableView Pattern** | Foundation SSoT, no columns prop, proper layout |
-| 4 | **Gold Standard** | 31 valid column types, searchable not NULL |
+| 4 | **Gold Standard** | 34 valid column types, searchable not NULL |
 | 5 | **Security** | Brakeman scan |
 | 6 | **Code Quality** | Bug patterns, dead code |
 

@@ -34,7 +34,8 @@ import {
   TableHeader,
   TableRow as UITableRow,
 } from "@/components/ui/table";
-import { Calendar, RefreshCw, SkipForward, Link2, Plus, Check, AlertTriangle, Trash2, BarChart3, ArrowRight, X, Minimize2, AlertCircle } from "lucide-react";
+import { Calendar, RefreshCw, SkipForward, Link2, Plus, Check, AlertTriangle, Trash2, BarChart3, ArrowRight, X, Minimize2 } from "lucide-react";
+import { EditRowDialog, type EditRowData, type EditRowFormData } from "@/components/schedule/EditRowDialog";
 import { useLayoutMode } from "@/contexts/LayoutModeContext";
 import { useToast } from "@/components/ui/use-toast";
 import TeeemTableView from "@/components/table/TeeemTableView";
@@ -82,6 +83,9 @@ interface SmTask {
     supplier_name: string | null;
     required_date: string | null;
   } | null;
+  // Claim fields (from ?for=gantt response)
+  is_claim_task?: boolean;
+  job_claim_stage_id?: number | null;
   // Lock status fields for dependency editor
   confirm?: boolean;
   supplier_confirm?: boolean;
@@ -295,6 +299,9 @@ function mapTaskToGanttTask(task: SmTask): GanttTask {
     purchaseOrderId: task.purchase_order?.id ?? task.purchase_order_id ?? undefined,
     purchaseOrderNumber: task.purchase_order?.po_number ?? undefined,
     poRequired: task.po_required ?? false,
+    // Claim fields
+    isClaimTask: task.is_claim_task ?? false,
+    jobClaimStageId: task.job_claim_stage_id ?? undefined,
     // SSoT: rowData contains predecessor_ids and lock status for sidebar/dependency editor
     rowData: {
       task_number: task.task_number,
@@ -405,59 +412,21 @@ export default function SchedulePage() {
   const [syncTemplateList, setSyncTemplateList] = React.useState<Array<{ id: number; name: string; is_default: boolean; slug?: string }>>([]);
   const [loadingSyncTemplates, setLoadingSyncTemplates] = React.useState(false);
 
-  // Task edit dialog state - expanded to match Schedule Master
-  const [selectedTaskForEdit, setSelectedTaskForEdit] = React.useState<Record<string, unknown> | null>(null);
+  // Task edit dialog state - uses shared EditRowDialog (SSoT with Schedule Master)
+  const [selectedTaskForEdit, setSelectedTaskForEdit] = React.useState<EditRowData | null>(null);
   const [showTaskEditDialog, setShowTaskEditDialog] = React.useState(false);
-  const [taskEditForm, setTaskEditForm] = React.useState<{
-    name: string;
-    description: string;
-    duration_days: number;
-    sequence_order: number;
-    start_date: string;
-    end_date: string;
-    status: string;
-    // Basic settings
-    trade: string;
-    assigned_role: string | null;
-    // Classification
-    stage: string;
-    cost_centre: string;
-    // PO settings
-    po_required: boolean;
-    critical_po: boolean;
-    // Completion
-    require_photo: boolean;
-    // Flags
-    hold: boolean;
-    confirm: boolean;
-  }>({
-    name: "",
-    description: "",
-    duration_days: 1,
-    sequence_order: 0,
-    start_date: "",
-    end_date: "",
-    status: "not_started",
-    trade: "",
-    assigned_role: null,
-    stage: "",
-    cost_centre: "",
-    po_required: false,
-    critical_po: false,
-    require_photo: false,
-    hold: false,
-    confirm: false,
-  });
-  const [savingTask, setSavingTask] = React.useState(false);
-  const [autoSaveStatus, setAutoSaveStatus] = React.useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const autoSaveTimerRef = React.useRef<NodeJS.Timeout | null>(null);
-  const initialFormLoadRef = React.useRef(true);
 
   // Reference data for task edit dropdowns (SSoT: same as Schedule Master)
   const [availableTrades, setAvailableTrades] = React.useState<{ id: number; name: string }[]>([]);
   const [availableStages, setAvailableStages] = React.useState<{ id: number; name: string }[]>([]);
   const [availableRoles, setAvailableRoles] = React.useState<{ id: number; name: string; display_name: string }[]>([]);
   const [availableCostCentres, setAvailableCostCentres] = React.useState<{ id: number; name: string }[]>([]);
+  const [availableChecklists, setAvailableChecklists] = React.useState<{ id: number; name: string }[]>([]);
+  const [availableDocumentTypes, setAvailableDocumentTypes] = React.useState<{ id: number; name: string; display_name?: string; form_number_mapping?: Record<string, string> }[]>([]);
+  const [availableTradingNames, setAvailableTradingNames] = React.useState<{ id: number; name: string }[]>([]);
+  const [availableInvoiceTemplates, setAvailableInvoiceTemplates] = React.useState<{ id: number; name: string; description: string; primary_color: string; secondary_color: string; is_default?: boolean }[]>([]);
+  const [availableHeaderRows, setAvailableHeaderRows] = React.useState<{ id: number; task_number: number; name: string }[]>([]);
+  const [allTasks, setAllTasks] = React.useState<EditRowData[]>([]);
 
   // Reset state
   const [showResetDialog, setShowResetDialog] = React.useState(false);
@@ -523,6 +492,30 @@ export default function SchedulePage() {
         const costCentresData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/cost_centres/records?per_page=100");
         if (costCentresData?.records) setAvailableCostCentres(costCentresData.records);
       } catch (e) { console.error("Failed to load cost centres:", e); }
+
+      // Load checklists (SSoT: supervisor_checklist_templates foundation)
+      try {
+        const checklistsData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/supervisor_checklist_templates/records?per_page=100");
+        if (checklistsData?.records) setAvailableChecklists(checklistsData.records);
+      } catch (e) { console.error("Failed to load checklists:", e); }
+
+      // Load document types (SSoT: document_types foundation with scope=job)
+      try {
+        const docTypesData = await api.get<{ success: boolean; records: { id: number; name: string; display_name?: string; form_number_mapping?: Record<string, string> }[] }>("/api/v1/foundations/document_types/records?per_page=100&filter[scope]=job");
+        if (docTypesData?.records) setAvailableDocumentTypes(docTypesData.records);
+      } catch (e) { console.error("Failed to load document types:", e); }
+
+      // Load trading names
+      try {
+        const tradingNamesData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/trading_names/records?per_page=100");
+        if (tradingNamesData?.records) setAvailableTradingNames(tradingNamesData.records);
+      } catch (e) { console.error("Failed to load trading names:", e); }
+
+      // Load invoice templates
+      try {
+        const templatesData = await api.get<{ success: boolean; data: { id: number; name: string; description: string; primary_color: string; secondary_color: string; is_default?: boolean }[] }>("/api/v1/claim_invoice_templates");
+        if (templatesData?.data) setAvailableInvoiceTemplates(templatesData.data);
+      } catch (e) { console.error("Failed to load invoice templates:", e); }
     };
 
     loadReferenceData();
@@ -546,143 +539,88 @@ export default function SchedulePage() {
   }, [triggerRefresh]);
 
   // Handle double-click to open task edit dialog
+  // Converts table row to EditRowData format for the shared EditRowDialog
   const handleRowDoubleClick = React.useCallback((row: Record<string, unknown>) => {
     console.log('[SchedulePage] Task double-clicked:', row);
-    setSelectedTaskForEdit(row);
-    // Mark as initial form load to skip auto-save
-    initialFormLoadRef.current = true;
-    // Populate the edit form with current values
-    setTaskEditForm({
+    // Convert to EditRowData format (SSoT: same as Schedule Master)
+    const editRow: EditRowData = {
+      id: Number(row.id),
+      task_number: Number(row.task_number) || 0,
       name: String(row.name ?? ""),
-      description: String(row.description ?? ""),
+      description: row.description ? String(row.description) : undefined,
       duration_days: Number(row.duration_days) || 1,
       sequence_order: Number(row.sequence_order) || 0,
-      start_date: String(row.start_date ?? ""),
-      end_date: String(row.end_date ?? ""),
-      status: String(row.status ?? "not_started"),
-      // Basic settings - trade stores ID as string
-      trade: row.trade_id ? String(row.trade_id) : "",
+      trade: row.trade_id ? String(row.trade_id) : undefined,
+      trade_name: row.trade_name ? String(row.trade_name) : undefined,
+      stage: row.stage_id ? String(row.stage_id) : undefined,
+      stage_name: row.stage_name ? String(row.stage_name) : undefined,
       assigned_role: row.assigned_role_id ? String(row.assigned_role_id) : null,
-      // Classification
-      stage: row.stage_id ? String(row.stage_id) : "",
-      cost_centre: row.cost_centre_id ? String(row.cost_centre_id) : "",
-      // PO settings
+      cost_centre: row.cost_centre_id ? String(row.cost_centre_id) : undefined,
+      header_gantt: row.header_gantt as string | null | undefined,
+      allow_header: row.allow_header === true,
+      is_active: row.is_active !== false,
       po_required: row.po_required === true,
       critical_po: row.critical_po === true,
-      // Completion
+      create_po_on_job_start: row.create_po_on_job_start === true,
+      spawn_order_task: row.spawn_order_task === true,
+      spawn_call_task: row.spawn_call_task === true,
       require_photo: row.require_photo === true,
-      // Flags
-      hold: row.hold === true,
-      confirm: row.confirm === true,
-    });
-    setAutoSaveStatus('idle');
+      pass_fail_enabled: row.pass_fail_enabled === true,
+      checklist_id: row.checklist_id as number | undefined,
+      is_claim_task: row.is_claim_task === true,
+      is_variation: row.is_variation === true,
+      claim_percentage: row.claim_percentage as number | null | undefined,
+      claim_invoice_pattern: row.claim_invoice_pattern as string | null | undefined,
+      claim_invoice_template_id: row.claim_invoice_template_id as number | null | undefined,
+      claim_trading_name_id: row.claim_trading_name_id as number | null | undefined,
+    };
+    setSelectedTaskForEdit(editRow);
     setShowTaskEditDialog(true);
   }, []);
 
-  // Save task changes (supports both manual and auto-save)
-  const handleSaveTask = React.useCallback(async (options?: { silent?: boolean }) => {
-    if (!selectedTaskForEdit?.id) return;
-
-    const silent = options?.silent ?? false;
-
-    if (silent) {
-      setAutoSaveStatus('saving');
-    } else {
-      setSavingTask(true);
-    }
-
-    try {
-      await api.patch(`/api/v1/sm_tasks/${selectedTaskForEdit.id}`, {
-        sm_task: {
-          name: taskEditForm.name,
-          description: taskEditForm.description,
-          duration_days: taskEditForm.duration_days,
-          sequence_order: taskEditForm.sequence_order,
-          start_date: taskEditForm.start_date,
-          end_date: taskEditForm.end_date,
-          status: taskEditForm.status,
-          // Basic settings
-          trade_id: taskEditForm.trade ? parseInt(taskEditForm.trade) : null,
-          assigned_role_id: taskEditForm.assigned_role ? parseInt(taskEditForm.assigned_role) : null,
-          // Classification
-          stage_id: taskEditForm.stage ? parseInt(taskEditForm.stage) : null,
-          cost_centre_id: taskEditForm.cost_centre ? parseInt(taskEditForm.cost_centre) : null,
-          // PO settings
-          po_required: taskEditForm.po_required,
-          critical_po: taskEditForm.critical_po,
-          // Completion
-          require_photo: taskEditForm.require_photo,
-          // Flags
-          hold: taskEditForm.hold,
-          confirm: taskEditForm.confirm,
-        }
-      });
-
-      if (silent) {
-        setAutoSaveStatus('saved');
-        // Reset to idle after 2 seconds
-        setTimeout(() => setAutoSaveStatus('idle'), 2000);
-        // Clear cache and refresh
-        clearCachedRecords("sm_tasks");
-        triggerRefresh();
-      } else {
-        toast({
-          title: "Task Updated",
-          description: "Changes saved successfully",
-        });
-        setShowTaskEditDialog(false);
-        // Clear cache and refresh
-        clearCachedRecords("sm_tasks");
-        triggerRefresh();
+  // Save task changes - callback for EditRowDialog
+  // Transforms EditRowFormData to sm_tasks API format
+  const handleSaveTask = React.useCallback(async (rowId: number, data: EditRowFormData) => {
+    await api.patch(`/api/v1/sm_tasks/${rowId}`, {
+      sm_task: {
+        name: data.name,
+        description: data.description,
+        duration_days: data.duration_days,
+        sequence_order: data.sequence_order,
+        // Basic settings - sm_tasks uses _id suffix
+        trade_id: data.trade ? parseInt(data.trade) : null,
+        assigned_role_id: data.assigned_role ? parseInt(data.assigned_role) : null,
+        // Classification
+        stage_id: data.stage ? parseInt(data.stage) : null,
+        cost_centre_id: data.cost_centre ? parseInt(data.cost_centre) : null,
+        // PO settings
+        po_required: data.po_required,
+        critical_po: data.critical_po,
+        create_po_on_job_start: data.create_po_on_job_start,
+        spawn_order_task: data.spawn_order_task,
+        spawn_call_task: data.spawn_call_task,
+        // Completion
+        require_photo: data.require_photo,
+        pass_fail_enabled: data.pass_fail_enabled,
+        // Relationships
+        header_gantt: data.header_gantt,
+        allow_header: data.allow_header,
+        checklist_id: data.checklist_id,
+        // Claim settings
+        is_claim_task: data.is_claim_task,
+        is_variation: data.is_variation,
+        claim_percentage: data.claim_percentage,
+        claim_invoice_pattern: data.claim_invoice_pattern,
+        claim_invoice_template_id: data.claim_invoice_template_id,
+        claim_trading_name_id: data.claim_trading_name_id,
+        // Active status
+        is_active: data.is_active,
       }
-    } catch (error) {
-      console.error("Failed to save task:", error);
-      if (silent) {
-        setAutoSaveStatus('error');
-        // Reset to idle after 3 seconds
-        setTimeout(() => setAutoSaveStatus('idle'), 3000);
-      } else {
-        toast({
-          title: "Save Failed",
-          description: "Failed to save task changes",
-          variant: "destructive",
-        });
-      }
-    } finally {
-      if (!silent) {
-        setSavingTask(false);
-      }
-    }
-  }, [selectedTaskForEdit, taskEditForm, toast, triggerRefresh]);
-
-  // Auto-save effect - debounced save when form changes
-  React.useEffect(() => {
-    // Skip auto-save on initial form load
-    if (initialFormLoadRef.current) {
-      initialFormLoadRef.current = false;
-      return;
-    }
-
-    // Skip if dialog is not open or no task is being edited
-    if (!showTaskEditDialog || !selectedTaskForEdit) return;
-
-    // Clear existing timer
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current);
-    }
-
-    // Set new timer for debounced save (500ms delay)
-    autoSaveTimerRef.current = setTimeout(() => {
-      handleSaveTask({ silent: true });
-    }, 500);
-
-    return () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-      }
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [taskEditForm]);
+    });
+    // Clear cache and refresh
+    clearCachedRecords("sm_tasks");
+    triggerRefresh();
+  }, [triggerRefresh]);
 
   // Open Gantt - fetch tasks with po_required filtering (SSoT: ?for=gantt)
   const handleOpenGantt = React.useCallback(async () => {
@@ -1406,6 +1344,14 @@ export default function SchedulePage() {
               >
                 PO{selectedGanttTask?.purchaseOrderNumber ? ` #${selectedGanttTask.purchaseOrderNumber}` : ''}
               </Button>
+              <Button
+                variant={selectedGanttTask?.jobClaimStageId ? "default" : "outline"}
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => window.open(`/jobs/${jobId}?tab=claims`, '_blank')}
+              >
+                Claims
+              </Button>
               <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/site`, '_blank')}>
                 Site
               </Button>
@@ -1496,6 +1442,9 @@ export default function SchedulePage() {
             </Button>
             <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/purchase-orders`, '_blank')}>
               PO
+            </Button>
+            <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}?tab=claims`, '_blank')}>
+              Claims
             </Button>
             <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/site`, '_blank')}>
               Site
@@ -2168,179 +2117,26 @@ export default function SchedulePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Task Edit Dialog - Similar to Schedule Master */}
-      <Dialog open={showTaskEditDialog} onOpenChange={setShowTaskEditDialog}>
-        <DialogContent className="max-w-2xl">
-          {/* Header */}
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              Edit Task
-              <span className="text-sm font-normal text-muted-foreground">
-                #{String(selectedTaskForEdit?.task_number ?? "")}
-              </span>
-            </DialogTitle>
-            <DialogDescription>
-              {String(selectedTaskForEdit?.name ?? "Task")}
-              {selectedTaskForEdit?.trade_name ? (
-                <span className="ml-2">• {String(selectedTaskForEdit.trade_name)}</span>
-              ) : null}
-            </DialogDescription>
-          </DialogHeader>
-
-          {selectedTaskForEdit && (
-            <div className="space-y-4 py-2">
-              {/* Row 1: Name */}
-              <div className="space-y-1">
-                <Label htmlFor="task-name" className="text-xs">Name</Label>
-                <Input
-                  id="task-name"
-                  value={taskEditForm.name}
-                  onChange={(e) => setTaskEditForm({ ...taskEditForm, name: e.target.value })}
-                  className="h-9"
-                />
-              </div>
-
-              {/* Row 2: Description */}
-              <div className="space-y-1">
-                <Label htmlFor="task-description" className="text-xs">Description</Label>
-                <Input
-                  id="task-description"
-                  value={taskEditForm.description}
-                  onChange={(e) => setTaskEditForm({ ...taskEditForm, description: e.target.value })}
-                  className="h-9"
-                  placeholder="Optional description..."
-                />
-              </div>
-
-              {/* Row 3: Dates and Duration */}
-              <div className="grid grid-cols-4 gap-3">
-                <div className="space-y-1">
-                  <Label htmlFor="task-start-date" className="text-xs">Start Date</Label>
-                  <Input
-                    id="task-start-date"
-                    type="date"
-                    value={taskEditForm.start_date}
-                    onChange={(e) => setTaskEditForm({ ...taskEditForm, start_date: e.target.value })}
-                    className="h-9"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="task-end-date" className="text-xs">End Date</Label>
-                  <Input
-                    id="task-end-date"
-                    type="date"
-                    value={taskEditForm.end_date}
-                    onChange={(e) => setTaskEditForm({ ...taskEditForm, end_date: e.target.value })}
-                    className="h-9"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="task-duration" className="text-xs">Duration (days)</Label>
-                  <Input
-                    id="task-duration"
-                    type="number"
-                    value={taskEditForm.duration_days}
-                    onChange={(e) => setTaskEditForm({ ...taskEditForm, duration_days: parseInt(e.target.value) || 1 })}
-                    className="h-9"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="task-status" className="text-xs">Status</Label>
-                  <ComboboxDropdown
-                    items={[
-                      { id: "not_started", label: "Not Started" },
-                      { id: "started", label: "Started" },
-                      { id: "completed", label: "Completed" },
-                    ]}
-                    selectedItem={{ id: taskEditForm.status, label: taskEditForm.status === "completed" ? "Completed" : taskEditForm.status === "started" ? "Started" : "Not Started" }}
-                    onSelect={(item) => setTaskEditForm({ ...taskEditForm, status: item.id })}
-                    placeholder="Select status..."
-                  />
-                </div>
-              </div>
-
-              {/* Read-only Info Section */}
-              <div className="border-t pt-4 mt-2">
-                <h4 className="text-sm font-medium mb-3 text-muted-foreground">Task Info</h4>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  {selectedTaskForEdit.trade_name ? (
-                    <div>
-                      <span className="text-muted-foreground">Trade:</span>{" "}
-                      <span>{String(selectedTaskForEdit.trade_name)}</span>
-                    </div>
-                  ) : null}
-                  {selectedTaskForEdit.stage_name ? (
-                    <div>
-                      <span className="text-muted-foreground">Stage:</span>{" "}
-                      <span>{String(selectedTaskForEdit.stage_name)}</span>
-                    </div>
-                  ) : null}
-                  {selectedTaskForEdit.assigned_role ? (
-                    <div>
-                      <span className="text-muted-foreground">Assigned Role:</span>{" "}
-                      <span>{String(selectedTaskForEdit.assigned_role)}</span>
-                    </div>
-                  ) : null}
-                  {selectedTaskForEdit.supplier_name ? (
-                    <div>
-                      <span className="text-muted-foreground">Supplier:</span>{" "}
-                      <span>{String(selectedTaskForEdit.supplier_name)}</span>
-                    </div>
-                  ) : null}
-                </div>
-
-                {/* Flags */}
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {selectedTaskForEdit.po_required === true ? (
-                    <Badge variant="outline">PO Required</Badge>
-                  ) : null}
-                  {selectedTaskForEdit.critical_po === true ? (
-                    <Badge variant="outline" className="border-red-500 text-red-600">Critical PO</Badge>
-                  ) : null}
-                  {selectedTaskForEdit.require_photo === true ? (
-                    <Badge variant="outline">Photo Required</Badge>
-                  ) : null}
-                  {selectedTaskForEdit.confirm === true ? (
-                    <Badge variant="outline" className="border-green-500 text-green-600">Confirmed</Badge>
-                  ) : null}
-                  {selectedTaskForEdit.hold === true ? (
-                    <Badge variant="outline" className="border-amber-500 text-amber-600">On Hold</Badge>
-                  ) : null}
-                </div>
-
-                {/* PO Link */}
-                {selectedTaskForEdit.purchase_order_id ? (
-                  <div className="mt-3">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => window.open(`/jobs/${jobId}/purchase-orders/${selectedTaskForEdit.purchase_order_id}`, '_blank')}
-                    >
-                      View Purchase Order →
-                    </Button>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowTaskEditDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => handleSaveTask()} disabled={savingTask}>
-              {savingTask ? (
-                <>
-                  <Spinner size={16} className="mr-2" />
-                  Saving...
-                </>
-              ) : (
-                "Save Changes"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Task Edit Dialog - SSoT: Uses shared EditRowDialog (same as Schedule Master) */}
+      <EditRowDialog
+        open={showTaskEditDialog}
+        onOpenChange={setShowTaskEditDialog}
+        row={selectedTaskForEdit}
+        onSave={handleSaveTask}
+        onRefresh={triggerRefresh}
+        trades={availableTrades}
+        roles={availableRoles}
+        stages={availableStages}
+        costCentres={availableCostCentres}
+        checklists={availableChecklists}
+        documentTypes={availableDocumentTypes}
+        tradingNames={availableTradingNames}
+        invoiceTemplates={availableInvoiceTemplates}
+        headerRows={availableHeaderRows}
+        allRows={allTasks}
+        showTemplateSection={false}
+        jobId={jobId ? Number(jobId) : undefined}
+      />
 
       {/* Reset Confirmation Dialog */}
       <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>

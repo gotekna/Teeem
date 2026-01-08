@@ -19,11 +19,12 @@ module Api
         @purchase_orders = @purchase_orders.where(supplier_id: params[:supplier_id]) if params[:supplier_id].present?
 
         # Search using SSoT SearchService
+        # Note: Task name search via sm_task.name handled by Foundation API
         if params[:search].present?
           @purchase_orders = SearchService.apply(
             @purchase_orders,
             params[:search],
-            columns: %w[purchase_order_number description ted_task],
+            columns: %w[purchase_order_number description],
             mode: params[:search_mode] || 'contains',
             model: PurchaseOrder
           )
@@ -158,8 +159,9 @@ module Api
                 sequence_order: max_sequence + 1,
                 start_date: today,
                 duration_days: template&.duration_days || 1,
-                # Default assigned_user to current user
-                assigned_user_id: current_user.id,
+                # Use provided assignment, or default to current user
+                assigned_user_id: params[:purchase_order][:assigned_user_id].presence || current_user.id,
+                assigned_role: params[:purchase_order][:assigned_role].presence,
                 # Audit
                 created_by: current_user,
                 updated_by: current_user
@@ -523,7 +525,6 @@ module Api
           :ordered_date,
           :due_date,
           :expected_delivery_date,
-          :ted_task,
           :estimation_check,
           :part_payment,
           :amount_invoiced,

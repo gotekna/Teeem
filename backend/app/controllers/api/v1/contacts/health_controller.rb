@@ -147,8 +147,8 @@ module Api
         # Find contacts (excluding price_only) without mobile or email
         def missing_contact_info
           # Exclude price_only - they're just pricebook placeholders
-          violations = Contact.where.not(entity_type: "price_only")
-            .where("(mobile_phone IS NULL OR mobile_phone = '') AND (email IS NULL OR email = '')")
+          # SSoT: Use scopes that query contact_emails and contact_phones tables
+          violations = Contact.where.not(entity_type: "price_only").without_contact_info
 
           render json: {
             success: true,
@@ -158,8 +158,9 @@ module Api
                 id: c.id,
                 display_name: c.display_name,
                 entity_type: c.entity_type,
-                mobile_phone: c.mobile_phone,
-                email: c.email,
+                # SSoT: Use helper methods from contact_phones/contact_emails tables
+                mobile_phone: c.primary_mobile,
+                email: c.primary_email,
                 is_active: c.is_active,
                 issue: "Contact has no mobile phone or email - at least one contact method is required"
               }
