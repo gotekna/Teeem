@@ -5566,9 +5566,17 @@ export default function TeeemTableView({
           )}>
             <h1 className="text-2xl font-bold tracking-tight font-serif">{tableName}</h1>
             <span className="text-sm text-muted-foreground">
-              {totalCount !== null
-                ? `${filteredAndSortedEntries.length.toLocaleString()} of ${totalCount.toLocaleString()} records`
-                : `${filteredAndSortedEntries.length.toLocaleString()} records`}
+              {/* CLS FIX: For grouped views, use serverTotalRecords from SSR to prevent "0 records" flash */}
+              {(() => {
+                // For grouped views with SSR data, show serverTotalRecords immediately
+                const displayCount = groupByColumns.length > 0 && serverTotalRecords !== undefined && serverTotalRecords > 0
+                  ? serverTotalRecords
+                  : filteredAndSortedEntries.length;
+
+                return totalCount !== null
+                  ? `${displayCount.toLocaleString()} of ${totalCount.toLocaleString()} records`
+                  : `${displayCount.toLocaleString()} records`;
+              })()}
             </span>
             {/* Load All button OR loading indicator - inline with record count */}
             {loadingMore ? (

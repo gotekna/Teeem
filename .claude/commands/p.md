@@ -9,31 +9,48 @@ Run browser-based performance checks AND backend performance analysis.
 
 **Before anything else, check for Chrome debug instance and start if needed.**
 
-### Check all debug ports (run in parallel):
+### Check ports AND profiles in use (run in parallel):
 ```bash
+# Check ports
 lsof -i:9222 | head -2
 lsof -i:9223 | head -2
 lsof -i:9224 | head -2
 lsof -i:9225 | head -2
+
+# Check which profiles are in use
+ls "/Users/robertharder/Library/Application Support/Google/Chrome/Default/lockfile" 2>/dev/null && echo "Default (Tekna): IN USE"
+ls "/Users/robertharder/Library/Application Support/Google/Chrome/Profile 1/lockfile" 2>/dev/null && echo "Profile 1 (100x): IN USE"
+ls "/Users/robertharder/Library/Application Support/Google/Chrome/Profile 2/lockfile" 2>/dev/null && echo "Profile 2 (Personal): IN USE"
 ```
 
 ### If NO Chrome is running on any port:
-Start Chrome on port 9222 (default):
+Ask user which profile to use, then start Chrome:
+
+**Available Profiles:**
+| Profile Dir | Name | Email |
+|-------------|------|-------|
+| Default | Tekna | robert@tekna.com.au |
+| Profile 1 | 100x Best Life | rob@100xbestlife.com |
+| Profile 2 | Personal | rharder1972@gmail.com |
+
 ```bash
 nohup /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
   --remote-debugging-port=9222 \
-  --user-data-dir="$HOME/.chrome-debug" \
+  --user-data-dir="/Users/robertharder/Library/Application Support/Google/Chrome" \
+  --profile-directory="PROFILE_DIR" \
   http://localhost:3000 > /dev/null 2>&1 &
 sleep 2
 ```
 
+Replace `PROFILE_DIR` with selected profile (Default, Profile 1, etc.)
+
 ### If port 9222 is in use but others are free:
-Use the first available port (9223, 9224, or 9225):
+Use the first available port AND an available profile:
 ```bash
-# Example for 9223:
 nohup /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
-  --remote-debugging-port=9223 \
-  --user-data-dir="$HOME/.chrome-debug-9223" \
+  --remote-debugging-port=PORT \
+  --user-data-dir="/Users/robertharder/Library/Application Support/Google/Chrome" \
+  --profile-directory="PROFILE_DIR" \
   http://localhost:3000 > /dev/null 2>&1 &
 sleep 2
 ```
@@ -44,7 +61,7 @@ Then update `/Users/robertharder/GitHub/teeem/.mcp.json`:
   "mcpServers": {
     "chrome-devtools": {
       "command": "npx",
-      "args": ["@anthropic-ai/mcp-server-chrome-devtools@latest", "--port=PORT_NUMBER", "--isolated"]
+      "args": ["@anthropic-ai/mcp-server-chrome-devtools@latest", "--port=PORT_NUMBER"]
     }
   }
 }
@@ -53,12 +70,23 @@ Then update `/Users/robertharder/GitHub/teeem/.mcp.json`:
 **⚠️ If using non-9222 port:** Inform user that chat restart is required for MCP to work, then STOP.
 
 ### Port Reference:
-| Port | Profile | MCP Config Needed |
-|------|---------|-------------------|
-| 9222 | `~/.chrome-debug` | No (default) |
-| 9223 | `~/.chrome-debug-9223` | Yes |
-| 9224 | `~/.chrome-debug-9224` | Yes |
-| 9225 | `~/.chrome-debug-9225` | Yes |
+| Port | MCP Config Needed |
+|------|-------------------|
+| 9222 | No (default) |
+| 9223 | Yes |
+| 9224 | Yes |
+| 9225 | Yes |
+
+### Profile Reference:
+| Profile Dir | Name | Email |
+|-------------|------|-------|
+| Default | Tekna | robert@tekna.com.au |
+| Profile 1 | 100x Best Life | rob@100xbestlife.com |
+| Profile 2 | Personal | rharder1972@gmail.com |
+| Profile 3 | Andrew | andrew@tekna.com.au |
+| Profile 4 | Rachel | rachel@tekna.com.au |
+
+**Note:** Chrome can only run ONE instance per profile. Check lockfiles to see which are available.
 
 ---
 
