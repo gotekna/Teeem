@@ -110,8 +110,8 @@ function SidebarContent({
         ) : null}
       </nav>
 
-      {/* Version Info */}
-      {(backendVersion || process.env.NEXT_PUBLIC_BUILD_NUMBER) && (
+      {/* Version Info - SSoT: Backend version from commit messages */}
+      {backendVersion && (
         <div
           className={cn(
             "px-3 py-2 text-[10px] text-muted-foreground border-t border-border",
@@ -120,19 +120,13 @@ function SidebarContent({
         >
           {isExpanded || mobile ? (
             <div className="flex flex-col gap-0.5">
-              {backendVersion && <span>Backend: {backendVersion}</span>}
-              {process.env.NEXT_PUBLIC_BUILD_NUMBER && (
-                <span>Frontend: v{process.env.NEXT_PUBLIC_BUILD_NUMBER}</span>
-              )}
+              <span>{backendVersion}</span>
               {herokuRelease && <span>Heroku: {herokuRelease}</span>}
               {deployedAt && <span>D: {deployedAt}</span>}
             </div>
           ) : (
             <div className="flex flex-col gap-0.5">
-              {backendVersion && <span>{backendVersion}</span>}
-              {process.env.NEXT_PUBLIC_BUILD_NUMBER && (
-                <span>v{process.env.NEXT_PUBLIC_BUILD_NUMBER}</span>
-              )}
+              <span>{backendVersion}</span>
               {herokuRelease && <span>{herokuRelease}</span>}
             </div>
           )}
