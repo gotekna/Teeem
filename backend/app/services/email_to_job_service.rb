@@ -333,18 +333,11 @@ class EmailToJobService
         "job_title": "Descriptive title for this job (infer from context or use subject line). For cabinetry/cabinet quotes, prefix with 'Kitchen - '",
         "property_address": "CRITICAL: Find the COMPLETE PROPERTY/SITE address where construction work will be done, NOT the business/office address. MUST include: street number + street name + suburb + state + postcode. Look for labels like 'Site:', 'Site Address', 'Property Address', 'Work Location', 'Project Address', 'Job Site', 'Property:', or addresses in QLD/NSW/VIC. Common PDF formats show 'Site: [address]' in title blocks. AVOID addresses labeled 'Business Address', 'Office Address', 'Company Address', 'Head Office', or PO Box addresses. DO NOT return partial addresses (suburb only is not enough). Must extract the full street address. Format: '123 Main Street, Suburb, State Postcode' (e.g., '3/9 Reef Point Esplanade, Scarborough, QLD 4020'). Return null if complete address not found.",
         "customer": {
-          "name": "The END CLIENT's name - the homeowner or person who will live in/use the property. IMPORTANT: If email is FROM a builder/developer company (domain contains 'homes', 'builders', 'constructions', 'developments'), the sender is NOT the customer - look for the actual homeowner mentioned in email body or PDF. Builder employees forward quotes for their clients.",
-          "email": "Customer email address. If sender is a builder employee, this should be the end client's email (may be null if not provided).",
+          "name": "The CUSTOMER's name - this is who is contracting Tekna for the work. For kitchen/cabinetry jobs, builders ARE valid customers (they contract Tekna to do kitchens in homes they're building). Extract the person requesting the quote - if a builder employee like Nick from Imperial Homes sends a cabinetry quote request, Nick/Imperial Homes is the customer.",
+          "email": "Customer email address",
           "phone": "Phone number if mentioned in email",
-          "company": "Company name if mentioned (usually null for residential customers)",
+          "company": "Company name if the customer works for a company (e.g., 'Imperial Homes QLD' for nick@imperialhomesqld.com.au)",
           "entity_type": "person or company (infer from context)"
-        },
-        "sender_info": {
-          "name": "Name of person who sent the email",
-          "company": "Company name extracted from email signature or email domain (e.g., 'Imperial Homes QLD' from nick@imperialhomesqld.com.au)",
-          "role": "Role/title from email signature (e.g., 'Project Manager', 'Sales Consultant')",
-          "is_builder": "true if sender appears to work for a builder/developer company",
-          "phone": "Phone from email signature"
         },
         "referral": {
           "name": "Name of person who referred this job (look for phrases like 'referred by', 'recommended by', 'sent by', or similar)",
@@ -387,13 +380,12 @@ class EmailToJobService
       - In missing_info, list ALL critical information that's not found or unclear
       - Return ONLY the JSON object, no additional text, no markdown formatting
 
-      Builder/Developer detection:
-      - Email domains containing 'homes', 'builders', 'constructions', 'developments', 'housing' indicate builders
-      - If sender is from a builder company, they are NOT the end customer - they're forwarding for their client
-      - Look for the actual homeowner/end client mentioned in email body or PDF content
-      - Common builder employee roles: Project Manager, Site Supervisor, Construction Manager, Sales Consultant
-      - Extract company name from email signature (e.g., "Nick Miller, Imperial Homes QLD")
-      - Cabinetry/cabinet quotes are typically Kitchen jobs
+      Builder/Developer handling:
+      - Builders ARE valid customers for Tekna (they contract kitchen work for homes they're building)
+      - If someone from a builder company (Imperial Homes, etc.) requests a quote, they are the customer
+      - Extract their company name from email domain or signature (e.g., nick@imperialhomesqld.com.au → Imperial Homes QLD)
+      - Cabinetry/cabinet quotes are Kitchen jobs
+      - The builder's own end client (homeowner) is NOT relevant - the builder is Tekna's customer
     PROMPT
   end
 
@@ -741,29 +733,15 @@ class EmailToJobService
 
   # Add sales people detection to extracted data
   def add_sales_people_info(extracted_data)
-    # FIRST: Detect if sender is from a builder company (forwarding for client)
+    # Detect if sender is from a known company (for context/linking)
     sender_company = find_company_by_email_domain(@email.from_email)
-    if sender_company && is_builder_company?(sender_company)
-      # Sender is from a builder - they're likely forwarding a quote for their client
+    if sender_company
       extracted_data["sender_company"] = {
         "name" => sender_company.display_name,
         "contact_id" => sender_company.id,
-        "is_builder" => true,
+        "is_builder" => is_builder_company?(sender_company),
         "domain" => @email.from_email.split("@").last
       }
-
-      # The AI-extracted customer might actually be the sender (builder employee)
-      # Flag this so the UI knows to look for the real end client
-      customer_data = extracted_data["customer"]
-      if customer_data.is_a?(Hash)
-        customer_email = customer_data["email"]
-        # If the AI picked the sender as customer, that's likely wrong
-        if customer_email.present? && customer_email.downcase == @email.from_email.downcase
-          extracted_data["customer"]["is_likely_builder_employee"] = true
-          extracted_data["customer"]["builder_company_name"] = sender_company.display_name
-          Rails.logger.info "[EmailToJobService] Detected builder employee as customer - #{sender_company.display_name} forwarding for client"
-        end
-      end
     end
 
     # Customer: Check if AI-extracted customer already exists in contacts

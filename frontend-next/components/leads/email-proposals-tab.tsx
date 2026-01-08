@@ -514,34 +514,6 @@ function ProposalCard({
           )}
         </div>
 
-        {/* Sender Company Section - shown when sender is from a builder */}
-        {(data.sender_company || data.sender_info?.is_builder) && (
-          <div className="mt-4 pt-4 border-t">
-            <div className="flex items-center gap-2 mb-2">
-              <Building2 className="w-4 h-4 text-blue-600" />
-              <span className="text-sm font-medium">Sender (Builder)</span>
-              <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 text-xs">
-                Builder
-              </Badge>
-            </div>
-            <div className="pl-6 space-y-1">
-              <div className="flex items-center gap-2 text-sm">
-                <span className="font-medium">{data.sender_company?.name || data.sender_info?.company}</span>
-              </div>
-              {data.sender_info?.name && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <User className="w-3 h-3" />
-                  {data.sender_info.name}
-                  {data.sender_info.role && <span className="text-xs">({data.sender_info.role})</span>}
-                </div>
-              )}
-              <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded text-xs text-blue-700 dark:text-blue-400">
-                Builder forwarding for client - the end customer may be mentioned in the email/PDF
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Client Section */}
         <div className="mt-4 pt-4 border-t">
           <div className="flex items-center gap-2 mb-2">
@@ -551,13 +523,6 @@ function ProposalCard({
               {customer.name ? "1" : "0"}
             </Badge>
           </div>
-          {/* Warning if customer appears to be builder employee */}
-          {customer.is_likely_builder_employee && (
-            <div className="pl-6 mb-2 p-2 bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded text-xs text-yellow-700 dark:text-yellow-400">
-              <AlertTriangle className="w-3 h-3 inline mr-1" />
-              This may be a builder employee, not the end client. Check email/PDF for actual homeowner.
-            </div>
-          )}
           {customer.name ? (
             <div className="pl-6">
               <div className="flex items-center gap-2">
@@ -572,16 +537,11 @@ function ProposalCard({
                     Create New
                   </Badge>
                 )}
-                {customer.is_likely_builder_employee && (
-                  <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 text-xs">
-                    Builder Employee?
-                  </Badge>
-                )}
               </div>
               {customer.email && <div className="ml-6 text-sm text-muted-foreground">{customer.email}</div>}
               {customer.phone && <div className="ml-6 text-sm text-muted-foreground">{customer.phone}</div>}
-              {customer.builder_company_name && (
-                <div className="ml-6 text-sm text-muted-foreground">Company: {customer.builder_company_name}</div>
+              {customer.company && (
+                <div className="ml-6 text-sm text-muted-foreground">Company: {customer.company}</div>
               )}
             </div>
           ) : (
