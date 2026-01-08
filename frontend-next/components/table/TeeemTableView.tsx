@@ -415,6 +415,7 @@ import {
   applyViewAtom,
   loadFoundationViewsAtom,
   invalidateViewsCacheAtom,
+  setViewFiltersAtom,
 } from '@/lib/view-state-atoms';
 
 // ULTRA Solution: Sourced filter state hook
@@ -2921,6 +2922,7 @@ export default function TeeemTableView({
   // Atom actions
   const loadViews = useSetAtom(loadFoundationViewsAtom);
   const applyView = useSetAtom(applyViewAtom);
+  const setViewFilters = useSetAtom(setViewFiltersAtom);
   const invalidateCache = useSetAtom(invalidateViewsCacheAtom);
 
   // Load view state helper - applies saved view configuration to current state
@@ -3136,6 +3138,16 @@ export default function TeeemTableView({
             // No SSR view and no user selection - apply default view now
             const skipUrlUpdate = !!urlViewExistsForFoundation;
             loadViewState(defaultView, skipUrlUpdate);
+          } else if (explicitlyNoView) {
+            // ⚠️ v2706: CLEAR view filters when defaultViewSlug === null
+            // ════════════════════════════════════════════════════════════════════
+            // Why: Template change sets defaultViewSlug={null} to prevent view auto-apply.
+            //      But Jotai atoms still have the OLD view's filters from before remount.
+            //      We must explicitly CLEAR them, not just skip applying new ones.
+            // ════════════════════════════════════════════════════════════════════
+            console.log('[loadSavedViews] v2706 - Clearing view filters (explicitlyNoView)');
+            setViewFilters([]);
+            setActiveViewId(null);
           }
 
           // NOTE: initialViewLoadedRef + fetch trigger handled in finally block (SSoT)
