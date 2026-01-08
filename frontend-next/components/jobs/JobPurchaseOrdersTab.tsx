@@ -29,7 +29,7 @@ import { TaskAssignmentField } from "@/components/task-hub/TaskAssignmentField";
 import { useAuth } from "@/contexts/AuthContext";
 
 // Foundation table name for Purchase Orders
-const PURCHASE_ORDERS_TABLE_NAME = "purchase_orders";
+const PURCHASE_ORDERS_TABLE_NAME = "purchase-orders";
 
 interface Contact {
   id: number;
