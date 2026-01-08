@@ -126,9 +126,9 @@ export function TableRoot({
 
   // Visible columns in display order
   const visibleColumnsInOrder = useMemo(() => {
-    // For now, return all columns that aren't explicitly hidden
+    // For now, return all columns that aren't defaultHidden
     // This will be enhanced when column visibility is added to tableCore
-    return columns.filter((col) => col.visible !== false);
+    return columns.filter((col) => !col.defaultHidden);
   }, [columns]);
 
   // ============================================================================

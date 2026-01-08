@@ -77,12 +77,17 @@ const DOC_INNER_TABS = [
   { id: "invoice-templates", label: "Invoice Templates", icon: Receipt },
 ];
 
-export function DocumentTemplatesTab() {
+interface DocumentTemplatesTabProps {
+  innerTab?: string;
+}
+
+export function DocumentTemplatesTab({ innerTab: innerTabProp }: DocumentTemplatesTabProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const subtabFromUrl = searchParams.get("subtab");
   const activeTab = subtabFromUrl || "ssot";
-  const innerTab = searchParams.get("inner") || "documents";
+  // Use prop if provided, otherwise fall back to search param, then default
+  const innerTab = innerTabProp || searchParams.get("inner") || "documents";
 
   const handleTabChange = useCallback((tabId: string) => {
     const innerPath = innerTab !== "documents" ? `/inner/${innerTab}` : "";

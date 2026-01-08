@@ -145,7 +145,7 @@ function CompanySettingsContent({ subtab, extra }: { subtab: string; extra?: str
             <WorkflowConfigTab />
           </TabsContent>
           <TabsContent value="doc-templates">
-            <DocumentTemplatesTab />
+            <DocumentTemplatesTab innerTab={extra === "inner" ? slug[3] : undefined} />
           </TabsContent>
         </div>
       </Tabs>
