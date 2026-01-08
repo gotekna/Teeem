@@ -109,6 +109,7 @@ export interface TeeemTableViewProps {
 
   // Event handlers
   onAddRow?: () => void; // Called when Add button clicked (auto-shown when foundationIdNumeric set)
+  addRowLabel?: string; // Custom label for Add button (default: "Add Record")
   onEdit?: (row: TableRow) => void;
   onDelete?: (row: TableRow) => void;
   onBulkDelete?: (ids: (number | string)[]) => void;

@@ -465,6 +465,7 @@ export default function TeeemTableView({
   foundationIdNumeric = null,
   tableName = "Table",
   onAddRow,
+  addRowLabel = "Add Record",
   onEdit,
   onDelete,
   onBulkDelete,
@@ -1894,6 +1895,18 @@ export default function TeeemTableView({
   const [validationErrors, setValidationErrors] = useAtom(legacyValidationErrorsAtom);
   const [lookupOptions, setLookupOptions] = useAtom(lookupOptionsAtom);
   const [lookupLoading, setLookupLoading] = useAtom(lookupLoadingAtom);
+
+  // Clear editing state on mount - prevents stale state from persisting across navigations
+  // This fixes the issue where navigating to a detail page and back shows stale edit rows
+  React.useEffect(() => {
+    // Clear any leftover editing state from previous table sessions
+    if (editingRowIds.size > 0) {
+      setEditingRowIds(new Set());
+      setEditingData({});
+      setValidationErrors({});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on mount, not when editingRowIds changes
 
   // Merge modal state managed by atoms (SSoT)
   const [showMergeModal, setShowMergeModal] = useAtom(showMergeModalAtom);
@@ -5706,7 +5719,7 @@ export default function TeeemTableView({
                 onClick={effectiveOnAddRow}
               >
                 <Plus className="h-4 w-4 mr-2" />
-                Add Record
+                {addRowLabel}
               </Button>
             )}
             {/* Edit Mode Toggle - enables inline cell editing (hidden in viewOnly mode) */}

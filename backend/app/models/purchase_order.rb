@@ -21,7 +21,6 @@ class PurchaseOrder < ApplicationRecord
   belongs_to :estimate, optional: true
   belongs_to :quote_response, optional: true
   has_many :line_items, class_name: "PurchaseOrderLineItem", dependent: :destroy
-  has_many :payments, dependent: :destroy
 
   # SSoT: PO-Task Link (Option B - Single Column)
   # THE ONE: PurchaseOrder.sm_task_id points to the linked task
@@ -424,7 +423,7 @@ class PurchaseOrder < ApplicationRecord
       ordered_date: ordered_date,
       required_date: required_date,
       payment_status: payment_status,
-      payments_received: payments.sum(:amount),
+      payments_received: bill_payments.sum(:amount),
       payment_schedule: payment_schedule_summary
     }
   end

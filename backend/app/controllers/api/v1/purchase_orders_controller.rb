@@ -84,23 +84,37 @@ module Api
           task.as_json(methods: [ :materials_status ])
         end
 
-        render json: {
-          **@purchase_order.as_json(
-            include: {
-              supplier: { methods: [ :display_name ] },
-              job: {
-                methods: [ :site_supervisor_info ]
-              },
-              line_items: {
-                include: { pricebook_item: { methods: [ :active_price ] } },
-                methods: [ :price_drift, :price_outdated?, :price_status, :price_status_label ]
-              },
-              document_tasks: {
-                methods: [ :document_url ]
-              }
+        po_json = @purchase_order.as_json(
+          include: {
+            supplier: { methods: [ :display_name ] },
+            job: {
+              methods: [ :site_supervisor_info ]
             },
-            methods: [ :timing_warnings, :delivery_aligned_with_tasks? ]
-          ),
+            line_items: {
+              include: { pricebook_item: { methods: [ :active_price ] } },
+              methods: [ :price_drift, :price_outdated?, :price_status, :price_status_label ]
+            },
+            document_tasks: {
+              methods: [ :document_url ]
+            }
+          },
+          methods: [ :timing_warnings, :delivery_aligned_with_tasks? ]
+        )
+
+        # Add supplied_pricebook_item_ids to supplier for frontend line item warnings
+        if @purchase_order.supplier_id.present?
+          pricebook_item_ids = @purchase_order.line_items.pluck(:pricebook_item_id).compact
+          if pricebook_item_ids.any?
+            supplied_ids = PriceHistory
+              .where(supplier_id: @purchase_order.supplier_id, pricebook_item_id: pricebook_item_ids)
+              .distinct
+              .pluck(:pricebook_item_id)
+            po_json["supplier"]["supplied_pricebook_item_ids"] = supplied_ids
+          end
+        end
+
+        render json: {
+          **po_json,
           sm_tasks: sm_tasks_json,  # SSoT: Backwards-compatible array format for frontend
           company_setting: company_setting.as_json
         }
