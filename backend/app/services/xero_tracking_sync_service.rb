@@ -12,8 +12,8 @@ class XeroTrackingSyncService
   # Create a tracking option in Xero for a job and link it
   # Returns { success: true/false, tracking_option_id: "...", tracking_option_name: "..." }
   def create_tracking_option_for_job(job)
-    tracking_category = find_job_tracking_category
-    return { success: false, error: "Job tracking category not found in Xero" } unless tracking_category
+    tracking_category = find_or_create_job_tracking_category
+    return { success: false, error: "Could not find or create Job tracking category in Xero" } unless tracking_category
 
     tracking_category_id = tracking_category["TrackingCategoryID"]
     option_name = build_tracking_option_name(job)
@@ -96,22 +96,44 @@ class XeroTrackingSyncService
   end
 
   # Build a tracking option name from the job
-  # Format: "XC {job_number}-{street_number} {street_name}"
+  # Uses the job code (e.g., "J201") as the tracking option name
   def build_tracking_option_name(job)
-    # Use job number if available, otherwise use job ID
-    job_number = job.certifier_job_no.presence || job.id.to_s
+    job.job_code.presence || "Job #{job.id}"
+  end
 
-    # Build address part
-    address_parts = []
-    address_parts << job.street_number if job.street_number.present?
-    address_parts << job.street_name if job.street_name.present?
-    address_part = address_parts.join(" ")
+  # Find or create the "Job" tracking category in Xero
+  def find_or_create_job_tracking_category
+    category = find_job_tracking_category
+    return category if category
 
-    if address_part.present?
-      "XC #{job_number}-#{address_part}"
+    # Create the "Job" tracking category in Xero
+    create_job_tracking_category
+  end
+
+  # Create the "Job" tracking category in Xero
+  def create_job_tracking_category
+    Rails.logger.info("Creating '#{TRACKING_CATEGORY_NAME}' tracking category in Xero")
+
+    result = @client.put(
+      "TrackingCategories",
+      { Name: TRACKING_CATEGORY_NAME }
+    )
+
+    unless result[:success]
+      Rails.logger.error("Failed to create Job tracking category in Xero: #{result[:error]}")
+      return nil
+    end
+
+    # Xero returns the created category - extract it
+    # Response can be { "TrackingCategories": [...] } or just the category object
+    data = result[:data]
+    if data["TrackingCategories"]
+      data["TrackingCategories"].find { |c| c["Name"] == TRACKING_CATEGORY_NAME }
+    elsif data["Name"] == TRACKING_CATEGORY_NAME
+      data
     else
-      # Fallback to job name/title
-      job.name.presence || job.title.presence || "Job #{job.id}"
+      Rails.logger.error("Unexpected response when creating tracking category: #{data.inspect}")
+      nil
     end
   end
 end
