@@ -145,7 +145,8 @@ class Job < ApplicationRecord
   before_validation :ensure_name_present
   before_validation :auto_generate_council, if: :should_generate_council?
   after_create :log_job_created
-  after_create :create_claim_stages_from_template
+  # SSoT: Claim stages are created by SmScheduleMasterTemplateCopyService from CLAIM tasks
+  # ClaimStageTemplate system removed - Schedule Master is THE ONE source
   after_create :apply_schedule_template_from_job_type
   after_commit :sync_xero_tracking_option, on: :create
   after_commit :scan_warehouse_for_matching_emails, on: :create
@@ -301,35 +302,6 @@ class Job < ApplicationRecord
     jqv.value = value.to_s
     jqv.updated_by = updated_by
     jqv.save!
-  end
-
-  # Initialize claim stages from template for this job's type
-  def initialize_claim_stages_from_template!
-    return unless job_type_id.present?
-
-    templates = ClaimStageTemplate.where(job_type_id: job_type_id).active.ordered
-    return if templates.empty?
-
-    transaction do
-      job_claim_stages.destroy_all  # Clear existing stages
-
-      templates.each do |template|
-        # SSoT: contract_price is THE ONE
-        expected = if contract_price.present? && template.percentage.present?
-                     (contract_price.to_d * template.percentage / 100).round(2)
-                   end
-
-        job_claim_stages.create!(
-          claim_stage_template: template,
-          name: template.name,
-          percentage: template.percentage,
-          expected_amount: expected,
-          sequence_order: template.sequence_order,
-          description: template.description,
-          is_custom: false
-        )
-      end
-    end
   end
 
   # Recalculate expected amounts based on current contract price
@@ -632,33 +604,6 @@ class Job < ApplicationRecord
     end
   rescue StandardError => e
     Rails.logger.error "Failed to log status/stage change activity: #{e.message}"
-  end
-
-  # Auto-create claim stages from template when job is created
-  def create_claim_stages_from_template
-    return unless job_type_id.present?
-
-    templates = ClaimStageTemplate.where(job_type_id: job_type_id).active.ordered
-    return if templates.empty?
-
-    templates.each do |template|
-      # SSoT: contract_price is THE ONE
-      expected = if contract_price.present? && template.percentage.present?
-                   (contract_price.to_d * template.percentage / 100).round(2)
-                 end
-
-      job_claim_stages.create!(
-        claim_stage_template: template,
-        name: template.name,
-        percentage: template.percentage,
-        expected_amount: expected,
-        sequence_order: template.sequence_order,
-        description: template.description,
-        is_custom: false
-      )
-    end
-  rescue StandardError => e
-    Rails.logger.error "Failed to create claim stages from template for job ##{id}: #{e.message}"
   end
 
   # Auto-apply schedule template from job type when job is created
