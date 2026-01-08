@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/dialog";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import {
-  Plus,
   AlertTriangle,
   X,
 } from "lucide-react";
@@ -25,7 +24,7 @@ import type { TableRow } from "@/components/table/types";
 import { Spinner } from "@/components/ui/spinner";
 
 // Foundation table name for Purchase Orders
-const PURCHASE_ORDERS_TABLE_NAME = "purchase_orders";
+const PURCHASE_ORDERS_TABLE_NAME = "purchase-orders";
 
 interface Contact {
   id: number;
@@ -34,11 +33,12 @@ interface Contact {
   employee_count?: number;
 }
 
-interface TaskTemplate {
+interface JobTask {
   id: number;
   name: string;
-  category?: string;
-  default_duration_days?: number;
+  task_number?: number;
+  status?: string;
+  trade?: string;
 }
 
 interface JobPurchaseOrdersTabProps {
@@ -54,7 +54,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   // Modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [taskTemplates, setTaskTemplates] = useState<TaskTemplate[]>([]);
+  const [jobTasks, setJobTasks] = useState<JobTask[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -62,7 +62,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
 
   // Form state
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
-  const [selectedTemplate, setSelectedTemplate] = useState<TaskTemplate | null>(null);
+  const [selectedTask, setSelectedTask] = useState<JobTask | null>(null);
   const [customTaskName, setCustomTaskName] = useState("");
 
   // Handle row click - navigate to PO detail page
@@ -100,16 +100,16 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     }
   };
 
-  const loadTaskTemplates = async () => {
-    if (taskTemplates.length > 0) return;
+  const loadJobTasks = async () => {
+    if (jobTasks.length > 0) return;
     try {
       setLoadingTasks(true);
-      const response = await api.get<{ task_templates: TaskTemplate[] }>(
-        `/api/v1/task_templates`
+      const response = await api.get<{ sm_tasks: JobTask[] }>(
+        `/api/v1/jobs/${jobId}/sm_tasks`
       );
-      setTaskTemplates(response?.task_templates || []);
+      setJobTasks(response?.sm_tasks || []);
     } catch (err) {
-      console.error("Failed to load task templates:", err);
+      console.error("Failed to load job tasks:", err);
     } finally {
       setLoadingTasks(false);
     }
@@ -118,10 +118,10 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   const handleOpenCreateModal = async () => {
     setError(null);
     setSelectedContact(null);
-    setSelectedTemplate(null);
+    setSelectedTask(null);
     setCustomTaskName("");
     setShowCreateModal(true);
-    await Promise.all([loadContacts(), loadTaskTemplates()]);
+    await Promise.all([loadContacts(), loadJobTasks()]);
   };
 
   const handleCreate = async () => {
@@ -129,8 +129,8 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
       setError("Please select a supplier");
       return;
     }
-    if (!selectedTemplate && !customTaskName.trim()) {
-      setError("Please select a task template or enter a custom task name");
+    if (!selectedTask && !customTaskName.trim()) {
+      setError("Please select a task or enter a custom task name");
       return;
     }
 
@@ -141,8 +141,9 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
         purchase_order: {
           job_id: jobId,
           supplier_id: selectedContact.id,
-          task_template_id: selectedTemplate?.id || null,
-          task_name: selectedTemplate ? null : customTaskName.trim(),
+          // Link to existing task if selected, otherwise create new task with custom name
+          schedule_task_id: selectedTask?.id || null,
+          task_name: selectedTask ? null : customTaskName.trim(),
           status: "draft",
         },
       });
@@ -172,12 +173,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
         onRefresh={() => setRefreshKey(k => k + 1)}
         onRowClick={handleRowClick}
         onRowUpdate={handleRowUpdate}
-        leftActions={
-          <Button onClick={handleOpenCreateModal}>
-            <Plus className="h-4 w-4 mr-2" />
-            New Purchase Order
-          </Button>
-        }
+        onAddRow={handleOpenCreateModal}
       />
 
       {/* Create PO Modal */}
@@ -230,30 +226,30 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
               />
             </div>
 
-            {/* Task Template Select */}
+            {/* Task Select - existing tasks from this job */}
             <div className="space-y-2">
-              <Label>Task Template</Label>
+              <Label>Task</Label>
               <ComboboxDropdown
-                items={taskTemplates.map((template) => ({
-                  id: String(template.id),
-                  label: template.name,
+                items={jobTasks.map((task) => ({
+                  id: String(task.id),
+                  label: task.task_number ? `${task.task_number}. ${task.name}` : task.name,
                 }))}
-                selectedItem={selectedTemplate ? {
-                  id: String(selectedTemplate.id),
-                  label: selectedTemplate.name,
+                selectedItem={selectedTask ? {
+                  id: String(selectedTask.id),
+                  label: selectedTask.task_number ? `${selectedTask.task_number}. ${selectedTask.name}` : selectedTask.name,
                 } : undefined}
                 onSelect={(item) => {
-                  const template = taskTemplates.find((t) => String(t.id) === item.id);
-                  setSelectedTemplate(template || null);
-                  if (template) setCustomTaskName(""); // Clear custom name when template selected
+                  const task = jobTasks.find((t) => String(t.id) === item.id);
+                  setSelectedTask(task || null);
+                  if (task) setCustomTaskName(""); // Clear custom name when task selected
                 }}
-                placeholder={loadingTasks ? "Loading templates..." : "Select task template..."}
-                searchPlaceholder="Search templates..."
-                emptyResults={taskTemplates.length === 0 ? "No task templates available" : "No template found."}
+                placeholder={loadingTasks ? "Loading tasks..." : "Select task..."}
+                searchPlaceholder="Search tasks..."
+                emptyResults={jobTasks.length === 0 ? "No tasks available" : "No task found."}
                 disabled={loadingTasks || !!customTaskName}
                 isLoading={loadingTasks}
                 clearable
-                onClear={() => setSelectedTemplate(null)}
+                onClear={() => setSelectedTask(null)}
               />
             </div>
 
@@ -271,13 +267,13 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                 value={customTaskName}
                 onChange={(e) => {
                   setCustomTaskName(e.target.value);
-                  if (e.target.value) setSelectedTemplate(null); // Clear template when typing custom name
+                  if (e.target.value) setSelectedTask(null); // Clear task when typing custom name
                 }}
                 placeholder="Enter custom task name..."
-                disabled={!!selectedTemplate}
+                disabled={!!selectedTask}
               />
               <p className="text-xs text-muted-foreground">
-                Use this if no template matches your needs
+                Use this to create a new task if none match your needs
               </p>
             </div>
           </div>
