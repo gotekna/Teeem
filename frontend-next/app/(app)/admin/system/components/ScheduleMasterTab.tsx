@@ -337,7 +337,8 @@ export function ScheduleMasterTab() {
   }, [router]);
 
   // Update URL when view changes (for path-based view persistence)
-  // Also sync template dropdown when a saved view is applied
+  // SSoT: Template dropdown selection is KEPT when views change
+  // Views filter WITHIN the currently selected template, not replace it
   const handleViewChange = React.useCallback((view: {
     slug?: string | null;
     filters?: Array<{ column: string; operator: string; value: string | number | boolean | null }>;
@@ -345,23 +346,9 @@ export function ScheduleMasterTab() {
     if (view?.slug) {
       router.push(`/admin/system/schedule-master/data-view/${view.slug}`, { scroll: false });
     }
-
-    // Extract template ID from view's filters and sync dropdown
-    // This ensures the template dropdown stays in sync when a global view is selected
-    if (view?.filters) {
-      const templateFilter = view.filters.find(f => f.column === "sm_template_ids");
-      if (templateFilter?.value) {
-        const templateId = typeof templateFilter.value === 'string'
-          ? parseInt(templateFilter.value)
-          : Number(templateFilter.value);
-        if (!isNaN(templateId)) {
-          setDataViewTemplateId(templateId);
-        }
-      } else if (templateFilter?.operator === "is_empty") {
-        // "No Template" view
-        setDataViewTemplateId(-1);
-      }
-    }
+    // Note: Do NOT sync template from view filters
+    // The template dropdown stays as the user selected it
+    // Saved views add additional filters on top of the template filter
   }, [router]);
 
   // Update URL when tab changes
@@ -2522,7 +2509,9 @@ export function ScheduleMasterTab() {
                   : "PO Schedule Master"
               }
               autoFetchRecords={!!dataViewTemplateId || !!viewSlug}
-              initialFilters={viewSlug ? undefined : (dataViewTemplateId ? (() => {
+              initialFilters={dataViewTemplateId ? (() => {
+                // SSoT: Template filter is ALWAYS applied, even when a saved view is active
+                // Views add additional filters on TOP of the template filter
                 // Special case: -1 means "no template selected" - filter for empty sm_template_ids
                 if (dataViewTemplateId === -1) {
                   return [
@@ -2531,12 +2520,11 @@ export function ScheduleMasterTab() {
                   ];
                 }
                 const currentTemplate = templates.find(t => t.id === dataViewTemplateId);
-                // Transient drafts: Always filter by template_id (rows belong to template, not version)
                 return [
                   { id: "template", column: "sm_template_ids", operator: "array_contains" as const, value: String(dataViewTemplateId), label: `Template: ${currentTemplate?.name || 'Selected'}` },
                   ...(selectedTagFilter ? [{ id: "tag", column: "tags", operator: "contains" as const, value: selectedTagFilter, label: `Tag: ${selectedTagFilter}` }] : [])
                 ];
-              })() : [])}
+              })() : []}
               onRefresh={() => {
                 setDataViewRefreshKey(prev => prev + 1);
               }}
