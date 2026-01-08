@@ -331,6 +331,12 @@ export function ScheduleMasterTab() {
   // URL view param (Foundation view filter) - only for data-view tab
   const viewSlug = activeTab === "data-view" ? pathSegments.extra || undefined : undefined;
 
+  // State to override viewSlug during template change (must be declared before use)
+  // When true, forces viewSlug to null for TeeemTableView (overrides URL-derived value)
+  const [overrideViewSlugClear, setOverrideViewSlugClear] = React.useState(false);
+  // Ref to track pending template change (prevents view navigation during template switch)
+  const pendingTemplateIdRef = React.useRef<number | null>(null);
+
   // Effective viewSlug for TeeemTableView - can be overridden during template change
   // This allows immediate clearing of view while URL updates asynchronously
   // ⚠️ DO NOT SIMPLIFY - null means "explicitly no view, ignore URL" (v2696)
@@ -408,21 +414,6 @@ export function ScheduleMasterTab() {
   const [dataViewRefreshKey, setDataViewRefreshKey] = React.useState(0);
   const [noTemplateCount, setNoTemplateCount] = React.useState<number>(0);
   // SSoT: dataViewFullscreen removed - now handled by TeeemTableView via enableFullscreen prop
-
-  // ⚠️ DO NOT SIMPLIFY - Template change race condition fix (Jan 2025)
-  // ════════════════════════════════════════════════════════════════════
-  // Why: When selecting a template while a saved view is active, we need to:
-  //      1. Clear the view from TeeemTableView (via overrideViewSlugClear state)
-  //      2. Apply the new template ID
-  //      3. Update the URL (cosmetic - TeeemTableView already sees cleared view)
-  // ❌ WRONG: Rely on router.push to clear viewSlug - it's async, TeeemTableView
-  //           still sees old viewSlug → 0 records (conflicting filters)
-  // ✅ CORRECT: Use state to override viewSlug to undefined IMMEDIATELY
-  // ════════════════════════════════════════════════════════════════════
-  // v2695: Fixed - use state override instead of relying on async URL update
-  const pendingTemplateIdRef = React.useRef<number | null>(null);
-  // When true, forces viewSlug to undefined for TeeemTableView (overrides URL-derived value)
-  const [overrideViewSlugClear, setOverrideViewSlugClear] = React.useState(false);
 
   // Gantt V2 state - template ID for selection
   const [ganttV2TemplateId, setGanttV2TemplateId] = React.useState<number | null>(null);
