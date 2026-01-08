@@ -481,6 +481,16 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                     );
                   })}
                 </div>
+                {/* Custom role input - for roles not in the quick-select buttons */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Role:</span>
+                  <Input
+                    value={assignedRole}
+                    onChange={(e) => setAssignedRole(e.target.value)}
+                    placeholder="Enter role (or click button above)"
+                    className="flex-1 h-8 text-sm"
+                  />
+                </div>
                 {/* User dropdown - select any user */}
                 <ComboboxDropdown
                   items={users.map((user) => ({

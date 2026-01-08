@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
-# Script to add missing 31 columns to the contacts table configuration (Table ID 214)
+# Script to add missing columns to the contacts table configuration (Table ID 214)
+# Note: Column count varies - see COLUMN_SQL_TYPE_MAP in column.rb for current count (34 types)
 
 require_relative '../config/environment'
 
@@ -10,7 +11,7 @@ CONTACTS_TABLE_ID = 214
 max_position = Column.where(table_id: CONTACTS_TABLE_ID).maximum(:position) || 0
 puts "Current max position: #{max_position}"
 
-# Missing columns to add (31 total)
+# Missing columns to add
 missing_columns = [
   { name: 'System Type ID', column_name: 'sys_type_id', column_type: 'whole_number', description: 'System type identifier', position: max_position + 1 },
   { name: 'Parent ID', column_name: 'parent_id', column_type: 'whole_number', description: 'Parent contact ID', position: max_position + 2 },

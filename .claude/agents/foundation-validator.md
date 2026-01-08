@@ -2,7 +2,7 @@
 name: Foundation Validator
 description: |
   ╔═══════════════════════════════════════════════════════════╗
-  ║  Column Types:          31/31 types matched          [PASS]║
+  ║  Column Types:          34/34 types matched          [PASS]║
   ║  SQL Type Sync:         All matched                  [PASS]║
   ║  Schema Sync:           DB ↔ Foundation metadata     [PASS]║
   ║  View Sync:             Views ↔ Foundation cols      [PASS]║
@@ -72,9 +72,9 @@ Extract all `column_type` values where `status != 'system'`.
 **This is critical!** Compare the two lists:
 1. **Missing from CLAUDE.md**: Column types in Gold Standard but NOT in CLAUDE.md
 2. **Missing from Gold Standard**: Column types in CLAUDE.md but NOT in Gold Standard
-3. **Count mismatch**: CLAUDE.md count should equal Gold Standard count (31)
+3. **Count mismatch**: CLAUDE.md count should equal Gold Standard count (34)
 
-**Type Name Mapping** (31 types):
+**Type Name Mapping** (34 types):
 ```
 # Text Types (6)
 single_line_text, multiple_lines_text, email, phone, mobile, url
@@ -224,9 +224,9 @@ Foundation.find(X).columns.pluck(:id)
 ║  STATUS: ALL SYNCED                                             ║
 ╠════════════════════════════════════════════════════════════════╣
 ║  PHASE 1: Column Type Validation                                ║
-║    CLAUDE.md Entries:     31 types documented            [PASS] ║
-║    Gold Standard Cols:    31 column types                [PASS] ║
-║    Type Comparison:       31/31 matched                  [PASS] ║
+║    CLAUDE.md Entries:     34 types documented            [PASS] ║
+║    Gold Standard Cols:    34 column types                [PASS] ║
+║    Type Comparison:       34/34 matched                  [PASS] ║
 ║    SQL Type Sync:         All matched                    [PASS] ║
 ║    Code Audit:            No unauthorized dupes          [PASS] ║
 ╠════════════════════════════════════════════════════════════════╣
@@ -272,7 +272,7 @@ Foundation.find(X).columns.pluck(:id)
 ## Critical Rules You Enforce
 
 **MUST:**
-- CLAUDE.md T19.xxx count MUST equal Gold Standard column type count (31)
+- CLAUDE.md T19.xxx count MUST equal Gold Standard column type count (34)
 - Every Gold Standard column type MUST have a matching CLAUDE.md entry
 - Every Foundation column MUST exist in its database table
 - Every FoundationView MUST include all parent Foundation columns

@@ -1,7 +1,7 @@
 /**
  * Column Renderer Registry
  *
- * Central registry pattern for handling all 31 column types in TeeemTableView.
+ * Central registry pattern for handling all 34 column types in TeeemTableView.
  * This replaces the massive 1,488-line renderCellValue function with a clean,
  * modular architecture where each column type has its own handler.
  *
@@ -10,7 +10,8 @@
  * - COLUMN_TYPE_REGISTRY maps type names to their handlers
  * - renderCell() is the main entry point (replaces renderCellValue)
  *
- * Source: TEEEM_DOCS/GOLD_STANDARD_TABLE.md (31 column types defined)
+ * Source: TEEEM_DOCS/GOLD_STANDARD_TABLE.md (34 column types defined)
+ * SSoT: backend/app/models/column.rb → COLUMN_SQL_TYPE_MAP
  */
 
 import React from "react";
@@ -21,7 +22,7 @@ import * as Validation from "./CellValidation";
 /**
  * Column Type Handler Interface
  *
- * Each of the 31 column types implements this interface.
+ * Each of the 34 column types implements this interface.
  * Separates validation, display, and editing concerns.
  */
 export interface ColumnTypeHandler {
@@ -70,7 +71,7 @@ const fallbackHandler: ColumnTypeHandler = {
 /**
  * Column Type Registry
  *
- * Maps each of the 31 column types to its handler.
+ * Maps each of the 34 column types to its handler.
  * Display and validation are fully implemented.
  * Editors are null for now (existing renderCellValue handles editing).
  *
