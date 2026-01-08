@@ -408,6 +408,11 @@ import { selectDefaultView } from '@/lib/view-loading-utils';
 import { useFoundationViewState } from '@/lib/view-state/hooks/useFoundationViewState';
 import { useViewFromPath } from '@/lib/view-state/hooks/useViewFromPath';
 
+// Layer 2: Feature Hooks (new architecture - gradual migration)
+import { useSorting } from './hooks/useSorting';
+import { useSelection } from './hooks/useSelection';
+import { useSearch } from './hooks/useSearch';
+
 // Helper functions and constants now imported from ./utils/table-utils:
 // - SYSTEM_GENERATED_TYPES, SYSTEM_COLUMN_BG
 // - isSystemGeneratedColumn, getCellTooltip
@@ -1338,10 +1343,12 @@ export default function TeeemTableView({
   // STATE - Migrating to atoms for SSoT compliance
   // ============================================================================
 
-  // Search state managed by atom (SSoT)
-  const [search, setSearchAtom] = useAtom(searchQueryAtom);
-  // searchAllColumns managed by atom (SSoT)
-  const [searchAllColumns, setSearchAllColumns] = useAtom(searchAllColumnsAtom);
+  // MIGRATION: Using useSearch hook for search state
+  const searchHook = useSearch();
+  const search = searchHook.state.query;
+  const searchAllColumns = searchHook.state.searchAllColumns;
+  const [, setSearchAtom] = useAtom(searchQueryAtom);  // Keep for custom setSearch wrapper
+  const [, setSearchAllColumns] = useAtom(searchAllColumnsAtom);  // Keep for direct setter
   // Search mode for client-side filtering
   const [currentSearchMode, setCurrentSearchMode] = useState<SearchMode>(propSearchMode || "contains");
 
@@ -1408,7 +1415,11 @@ export default function TeeemTableView({
   }, [cacheInitialized]); // Re-run when session storage becomes available
 
   // View-related state now managed by Jotai atoms (SSoT)
-  const [sortColumns, setSortColumns] = useAtom(currentSortColumnsAtom);
+  // MIGRATION: Using useSorting hook for sort state and actions
+  // Keep atom setter for useTableHandlers compatibility (expects Dispatch signature)
+  const sorting = useSorting();
+  const sortColumns = sorting.state.sortColumns;
+  const [, setSortColumns] = useAtom(currentSortColumnsAtom); // Keep original setter for compatibility
   const [columnWidths, setColumnWidths] = useAtom(currentColumnWidthsAtom);
   const [columnOrder, setColumnOrder] = useAtom(currentColumnOrderAtom);
   const [visibleColumns, setVisibleColumns] = useAtom(currentVisibleColumnsAtom);
@@ -1452,8 +1463,10 @@ export default function TeeemTableView({
     });
      
   }, [COLUMNS]);
-  // Selection state managed by atom (SSoT)
-  const [selectedRows, setSelectedRows] = useAtom(selectedRowsAtom);
+  // MIGRATION: Using useSelection hook for selection state and actions
+  const selection = useSelection();
+  const selectedRows = selection.state.selectedIds;
+  const [, setSelectedRows] = useAtom(selectedRowsAtom);  // Keep for complex functional updates
 
   // SSoT FIX: Sync selectedRows with entries - remove stale IDs that no longer exist
   // This prevents "ghost selection" where IDs remain selected after records are deleted/merged
@@ -2336,24 +2349,8 @@ export default function TeeemTableView({
     });
   }, [cacheColumnWidths, autoSaveColumnWidths]);
 
-  // Sort handler
-  const handleSort = useCallback((columnKey: string) => {
-    setSortColumns((prev) => {
-      const existing = prev.find((s) => s.column === columnKey);
-      if (existing) {
-        if (existing.dir === "asc") {
-          return prev.map((s) =>
-            s.column === columnKey ? { ...s, dir: "desc" as const } : s
-          );
-        } else {
-          return prev.filter((s) => s.column !== columnKey);
-        }
-      } else {
-        return [...prev, { column: columnKey, dir: "asc" as const }];
-      }
-    });
-     
-  }, []);
+  // Sort handler - MIGRATION: Now using useSorting hook
+  const handleSort = sorting.actions.toggleSort;
 
   // Filter handlers
   const addFilter = useCallback(() => {
@@ -2518,22 +2515,14 @@ export default function TeeemTableView({
 
       if (allVisibleSelected && visibleIds.length > 0) {
         // Deselect all visible rows
-        const newSelection = new Set(selectedRows);
-        visibleIds.forEach(id => newSelection.delete(id));
-        setSelectedRows(newSelection);
+        selection.actions.deselectMany(visibleIds as (string | number)[]);
       } else {
         // Select all visible rows
-        const newSelection = new Set(selectedRows);
-        visibleIds.forEach(id => newSelection.add(id));
-        setSelectedRows(newSelection);
+        selection.actions.selectMany(visibleIds as (string | number)[]);
       }
     } else {
-      // Flat view: select all filtered entries
-      if (selectedRows.size === currentFilteredEntries.length) {
-        setSelectedRows(new Set<string | number>());
-      } else {
-        setSelectedRows(new Set(currentFilteredEntries.map((e) => e.id as string | number)));
-      }
+      // Flat view: toggle all selection
+      selection.actions.toggleAll(currentFilteredEntries.map((e) => e.id as string | number));
     }
 
   }, [selectedRows]);
@@ -2556,7 +2545,7 @@ export default function TeeemTableView({
   const handleMergeComplete = useCallback((deletedIds: (string | number)[]) => {
     // Clear selections
     setMergeSelectedIds([]);
-    setSelectedRows(new Set<string | number>());
+    selection.actions.clear();
 
     // 🔴 CRITICAL: Clear cache so refresh gets fresh data
     // SSoT: records-cache.ts
@@ -2579,7 +2568,7 @@ export default function TeeemTableView({
     }
     // Also call onRefresh for non-autoFetch tables
     onRefresh?.();
-  }, [effectiveFoundationId, useAutoFetch, onRefresh, handleAutoFetchSearch]);
+  }, [effectiveFoundationId, useAutoFetch, onRefresh, handleAutoFetchSearch, selection.actions]);
 
   // Group handlers
   // Lazy load all records for a group when expanding (server-side grouping)
@@ -3205,7 +3194,7 @@ export default function TeeemTableView({
       setShowBulkUpdateModal(false);
       setBulkUpdateColumn("");
       setBulkUpdateValue("");
-      setSelectedRows(new Set<string | number>());
+      selection.actions.clear();
 
       // 🔴 CRITICAL: Clear cache to ensure other pages get fresh data
       // SSoT: records-cache.ts
@@ -3692,10 +3681,10 @@ export default function TeeemTableView({
       }
     },
     onSelectAll: () => {
-      setSelectedRows(new Set(filteredAndSortedEntries.map((e) => e.id)));
+      selection.actions.selectAll(filteredAndSortedEntries.map((e) => e.id as string | number));
     },
     onClearSelection: () => {
-      setSelectedRows(new Set());
+      selection.actions.clear();
     },
     onFocusSearch: () => {
       searchInputRef.current?.focus();
@@ -3705,7 +3694,7 @@ export default function TeeemTableView({
       if (search) {
         setSearch("");
       } else {
-        setSelectedRows(new Set());
+        selection.actions.clear();
         setFocusedRowIndex(-1);
       }
     },
@@ -6116,11 +6105,11 @@ export default function TeeemTableView({
                   </div>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
-                  <DropdownMenuItem onClick={() => setSelectedRows(new Set(filteredAndSortedEntries.map(r => r.id)))}>
+                  <DropdownMenuItem onClick={() => selection.actions.selectAll(filteredAndSortedEntries.map(r => r.id as string | number))}>
                     Select All ({filteredAndSortedEntries.length})
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setSelectedRows(new Set<string | number>())}>
+                  <DropdownMenuItem onClick={() => selection.actions.clear()}>
                     Clear Selection
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -6131,7 +6120,7 @@ export default function TeeemTableView({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setSelectedRows(new Set<string | number>())}
+                onClick={() => selection.actions.clear()}
                 className="h-7 px-2 text-xs"
               >
                 Clear
@@ -6229,7 +6218,7 @@ export default function TeeemTableView({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setSelectedRows(new Set<string | number>())}
+                onClick={() => selection.actions.clear()}
               >
                 Clear selection
               </Button>
@@ -6315,7 +6304,7 @@ export default function TeeemTableView({
           {/* Custom bulk actions - rendered via callback */}
           {customBulkActions?.(
             Array.from(selectedRows),
-            () => setSelectedRows(new Set<string | number>())
+            selection.actions.clear
           )}
         </div>
       )}
