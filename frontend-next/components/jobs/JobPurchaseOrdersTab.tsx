@@ -20,16 +20,28 @@ import {
   X,
   Check,
   CornerDownRight,
+  User,
+  Users,
 } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableRow } from "@/components/table/types";
 import { Spinner } from "@/components/ui/spinner";
-import { TaskAssignmentField } from "@/components/task-hub/TaskAssignmentField";
 import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
 
 // Foundation table name for Purchase Orders
 const PURCHASE_ORDERS_TABLE_NAME = "purchase-orders";
+
+// Internal team roles for assignment (SSoT: JobPeopleTab.tsx INTERNAL_ROLES)
+const INTERNAL_TEAM_ROLES = [
+  { key: "supervisor", label: "Supervisor" },
+  { key: "site_coordinator", label: "Site Coordinator" },
+  { key: "estimator", label: "Estimator" },
+  { key: "internal_sales", label: "Internal Sales" },
+  { key: "coordinator", label: "Client Coordinator" },
+] as const;
 
 interface Contact {
   id: number;
@@ -88,6 +100,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   const [customTaskName, setCustomTaskName] = useState("");
   const [assignedUserId, setAssignedUserId] = useState<string>("");
   const [assignedRole, setAssignedRole] = useState<string>("");
+  const [assignMode, setAssignMode] = useState<"user" | "role">("user");
 
   // Handle row click - navigate to PO detail page
   const handleRowClick = useCallback((row: TableRow) => {
@@ -169,6 +182,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     // Default assignment to current user
     setAssignedUserId(currentUser ? String(currentUser.id) : "");
     setAssignedRole("");
+    setAssignMode("user");
     setShowCreateModal(true);
     await Promise.all([loadContacts(), loadPoTasks(), loadUsers()]);
   };
@@ -390,13 +404,62 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
             {customTaskName.trim() && !selectedTask && (
               <div className="space-y-2">
                 <Label>Assign To</Label>
-                <TaskAssignmentField
-                  users={users}
-                  assignedUserId={assignedUserId}
-                  assignedRole={assignedRole}
-                  onAssignedUserChange={setAssignedUserId}
-                  onAssignedRoleChange={setAssignedRole}
-                />
+                <Tabs value={assignMode} onValueChange={(v) => {
+                  setAssignMode(v as "user" | "role");
+                  if (v === "user") {
+                    setAssignedRole("");
+                  } else {
+                    setAssignedUserId("");
+                  }
+                }} className="w-full">
+                  <TabsList className="grid w-full grid-cols-2 h-8">
+                    <TabsTrigger value="user" className="text-xs h-7">
+                      <User className="h-3 w-3 mr-1" />
+                      User
+                    </TabsTrigger>
+                    <TabsTrigger value="role" className="text-xs h-7">
+                      <Users className="h-3 w-3 mr-1" />
+                      Role
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+
+                {assignMode === "user" ? (
+                  <ComboboxDropdown
+                    items={users.map((u) => ({
+                      id: String(u.id),
+                      label: u.name,
+                    }))}
+                    selectedItem={assignedUserId ? {
+                      id: assignedUserId,
+                      label: users.find(u => String(u.id) === assignedUserId)?.name || "",
+                    } : undefined}
+                    onSelect={(item) => setAssignedUserId(item.id)}
+                    placeholder="Search users..."
+                    clearable
+                    onClear={() => setAssignedUserId("")}
+                  />
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {INTERNAL_TEAM_ROLES.map((role) => (
+                      <Button
+                        key={role.key}
+                        type="button"
+                        variant={assignedRole === role.key ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setAssignedRole(
+                          assignedRole === role.key ? "" : role.key
+                        )}
+                        className={cn(
+                          "text-xs",
+                          assignedRole === role.key && "ring-2 ring-offset-1"
+                        )}
+                      >
+                        {role.label}
+                      </Button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
