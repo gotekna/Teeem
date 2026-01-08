@@ -415,7 +415,6 @@ import {
   applyViewAtom,
   loadFoundationViewsAtom,
   invalidateViewsCacheAtom,
-  setViewFiltersAtom,
 } from '@/lib/view-state-atoms';
 
 // ULTRA Solution: Sourced filter state hook
@@ -2922,7 +2921,7 @@ export default function TeeemTableView({
   // Atom actions
   const loadViews = useSetAtom(loadFoundationViewsAtom);
   const applyView = useSetAtom(applyViewAtom);
-  const setViewFilters = useSetAtom(setViewFiltersAtom);
+  // NOTE: setViewFilters comes from useFilterState() hook (line ~909), not duplicated here
   const invalidateCache = useSetAtom(invalidateViewsCacheAtom);
 
   // Load view state helper - applies saved view configuration to current state
