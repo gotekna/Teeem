@@ -234,8 +234,9 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
       setError("Please select a supplier");
       return;
     }
-    if (!selectedTask && !customTaskName.trim()) {
-      setError("Please select a PO task or enter a custom task name");
+    // SSoT: Task is REQUIRED - PO must always link to an SmTask (like a marriage)
+    if (!selectedTask) {
+      setError("Please select a PO task - every PO must be linked to a task");
       return;
     }
 
@@ -437,9 +438,10 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
               />
             </div>
 
-            {/* PO Task Select - tasks from job's schedule */}
+            {/* PO Task Select - REQUIRED - tasks from job's schedule */}
+            {/* SSoT: Every PO must link to a task (like a marriage) */}
             <div className="space-y-2">
-              <Label>PO Task</Label>
+              <Label>PO Task <span className="text-destructive">*</span></Label>
               <ComboboxDropdown
                 items={poTasks.map((task) => ({
                   id: String(task.id),
@@ -452,40 +454,18 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                 onSelect={(item) => {
                   const task = poTasks.find((t) => String(t.id) === item.id);
                   setSelectedTask(task || null);
-                  if (task) setCustomTaskName(""); // Clear custom name when task selected
                 }}
-                placeholder={loadingPoTasks ? "Loading tasks..." : "Select PO task..."}
+                placeholder={loadingPoTasks ? "Loading tasks..." : "Select PO task (required)..."}
                 searchPlaceholder="Search tasks..."
-                emptyResults={poTasks.length === 0 ? "No PO tasks on this job" : "No task found."}
-                disabled={loadingPoTasks || !!customTaskName}
+                emptyResults={poTasks.length === 0 ? "No PO tasks on this job - add tasks to schedule first" : "No task found."}
+                disabled={loadingPoTasks}
                 isLoading={loadingPoTasks}
-                clearable
-                onClear={() => setSelectedTask(null)}
               />
-            </div>
-
-            {/* OR divider */}
-            <div className="flex items-center gap-3">
-              <div className="flex-1 border-t border-muted" />
-              <span className="text-xs text-muted-foreground">OR</span>
-              <div className="flex-1 border-t border-muted" />
-            </div>
-
-            {/* Custom Task Name */}
-            <div className="space-y-2">
-              <Label>Custom Task Name</Label>
-              <Input
-                value={customTaskName}
-                onChange={(e) => {
-                  setCustomTaskName(e.target.value);
-                  if (e.target.value) setSelectedTask(null); // Clear task when typing custom name
-                }}
-                placeholder="Enter custom task name..."
-                disabled={!!selectedTask}
-              />
-              <p className="text-xs text-muted-foreground">
-                Use this if no PO task matches your needs
-              </p>
+              {poTasks.length === 0 && !loadingPoTasks && (
+                <p className="text-xs text-amber-600">
+                  No PO tasks found. Add tasks with &quot;PO Required&quot; to the job schedule first.
+                </p>
+              )}
             </div>
           </div>
 
