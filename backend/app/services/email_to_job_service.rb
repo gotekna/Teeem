@@ -333,11 +333,22 @@ class EmailToJobService
         "job_title": "Descriptive title for this job (infer from context or use subject line). For cabinetry/cabinet quotes, prefix with 'Kitchen - '",
         "property_address": "CRITICAL: Find the COMPLETE PROPERTY/SITE address where construction work will be done, NOT the business/office address. MUST include: street number + street name + suburb + state + postcode. Look for labels like 'Site:', 'Site Address', 'Property Address', 'Work Location', 'Project Address', 'Job Site', 'Property:', or addresses in QLD/NSW/VIC. Common PDF formats show 'Site: [address]' in title blocks. AVOID addresses labeled 'Business Address', 'Office Address', 'Company Address', 'Head Office', or PO Box addresses. DO NOT return partial addresses (suburb only is not enough). Must extract the full street address. Format: '123 Main Street, Suburb, State Postcode' (e.g., '3/9 Reef Point Esplanade, Scarborough, QLD 4020'). Return null if complete address not found.",
         "customer": {
-          "name": "The CUSTOMER's name - this is who is contracting Tekna for the work. For kitchen/cabinetry jobs, builders ARE valid customers (they contract Tekna to do kitchens in homes they're building). Extract the person requesting the quote - if a builder employee like Nick from Imperial Homes sends a cabinetry quote request, Nick/Imperial Homes is the customer.",
+          "name": "The CUSTOMER's name - this is who is contracting Tekna for the work. For kitchen/cabinetry jobs, builders ARE valid customers (they contract Tekna to do kitchens in homes they're building). Extract the person requesting the quote.",
           "email": "Customer email address",
-          "phone": "Phone number if mentioned in email",
-          "company": "Company name if the customer works for a company (e.g., 'Imperial Homes QLD' for nick@imperialhomesqld.com.au)",
+          "phone": "Phone number from email signature or body",
+          "company": "Company name from email signature or domain (e.g., 'Imperial Homes QLD' from nick@imperialhomesqld.com.au or signature)",
           "entity_type": "person or company (infer from context)"
+        },
+        "company_details": {
+          "name": "Company name extracted from email signature (look for company name in signature block, or infer from email domain like imperialhomesqld.com.au → Imperial Homes QLD)",
+          "abn": "ABN number if present in email signature (11 digit number, may be formatted as XX XXX XXX XXX)",
+          "phone": "Company phone number from signature (landline, not mobile)",
+          "mobile": "Mobile phone from signature",
+          "address": "Street address from signature",
+          "city": "City/suburb from signature address",
+          "state": "State from signature (QLD, NSW, VIC, etc.)",
+          "postcode": "Postcode from signature",
+          "website": "Website URL from signature"
         },
         "referral": {
           "name": "Name of person who referred this job (look for phrases like 'referred by', 'recommended by', 'sent by', or similar)",
@@ -731,6 +742,145 @@ class EmailToJobService
     false
   end
 
+  # CONTACT ENRICHMENT: Create/link company from email signature data
+  # - Creates company contact if doesn't exist
+  # - Links person as employee of company
+  # - Migrates Xero link from person to company
+  def enrich_contact_with_company(person_contact, email, company_details, existing_company)
+    result = { actions: [] }
+
+    # Skip if already linked to a company
+    if person_contact.primary_company_id.present?
+      result[:skipped] = "Already linked to company"
+      return result
+    end
+
+    # Skip if this IS a company (not a person)
+    unless person_contact.entity_type == "person"
+      result[:skipped] = "Contact is not a person"
+      return result
+    end
+
+    domain = email.split("@").last&.downcase
+    return result if domain.blank?
+
+    # Skip personal email domains
+    personal_domains = %w[gmail.com yahoo.com hotmail.com outlook.com icloud.com live.com]
+    if personal_domains.include?(domain)
+      result[:skipped] = "Personal email domain"
+      return result
+    end
+
+    # Try to find existing company by domain
+    company = existing_company || find_company_by_email_domain(email)
+
+    # If no company exists, create one from signature data
+    if company.nil? && company_details.is_a?(Hash) && company_details["name"].present?
+      company = create_company_from_signature(company_details, domain)
+      if company
+        result[:actions] << "Created company: #{company.display_name}"
+        result[:company_created] = true
+        result[:company_id] = company.id
+      end
+    end
+
+    # Link person as employee of company
+    if company && person_contact.id != company.id
+      # Migrate Xero link from person to company BEFORE linking
+      if person_contact.xero_contact_number.present? && company.xero_contact_number.blank?
+        xero_number = person_contact.xero_contact_number
+        xero_count = person_contact.xero_invoice_count || 0
+
+        # Move Xero link to company
+        company.update!(
+          xero_contact_number: xero_number,
+          xero_invoice_count: xero_count,
+          sync_with_xero: true
+        )
+
+        # Clear from person
+        person_contact.update!(
+          xero_contact_number: nil,
+          xero_invoice_count: 0,
+          sync_with_xero: false
+        )
+
+        result[:actions] << "Migrated Xero link (#{xero_number}) to company"
+        result[:xero_migrated] = true
+        Rails.logger.info "[ContactEnrichment] Migrated Xero link #{xero_number} from #{person_contact.display_name} to #{company.display_name}"
+      end
+
+      # Link person as employee
+      person_contact.update!(primary_company_id: company.id)
+      result[:actions] << "Linked #{person_contact.display_name} as employee of #{company.display_name}"
+      result[:linked_to_company] = company.display_name
+      result[:company_id] = company.id
+
+      Rails.logger.info "[ContactEnrichment] Linked #{person_contact.display_name} as employee of #{company.display_name}"
+    end
+
+    result
+  rescue StandardError => e
+    Rails.logger.error "[ContactEnrichment] Error: #{e.message}"
+    { error: e.message }
+  end
+
+  # Create a new company contact from email signature data
+  def create_company_from_signature(company_details, domain)
+    return nil unless company_details["name"].present?
+
+    # Clean ABN (remove spaces)
+    abn = company_details["abn"]&.gsub(/\s/, "")
+
+    # Build company contact
+    company = Contact.new(
+      entity_type: "company",
+      company_name_or_trust: company_details["name"],
+      display_name: company_details["name"],
+      abn: abn,
+      website: company_details["website"],
+      address: company_details["address"],
+      city: company_details["city"],
+      state: company_details["state"],
+      postcode: company_details["postcode"],
+      email_domains: [domain],  # Store domain for future auto-linking
+      is_active: true,
+      roles: ["builder"].to_json  # Mark as builder by default for now
+    )
+
+    # Add company email if we can construct it
+    # Common patterns: info@, admin@, office@
+    # For now, skip auto-creating email - let user add it
+
+    # Add phone if present
+    if company_details["phone"].present?
+      company.save!
+      company.contact_phones.create!(
+        phone_number: company_details["phone"],
+        phone_type: "work",
+        is_primary: true
+      )
+    else
+      company.save!
+    end
+
+    # Add mobile if present and different from phone
+    if company_details["mobile"].present? && company_details["mobile"] != company_details["phone"]
+      company.contact_phones.create!(
+        phone_number: company_details["mobile"],
+        phone_type: "mobile",
+        is_primary: company.contact_phones.empty?
+      )
+    end
+
+    Rails.logger.info "[ContactEnrichment] Created company: #{company.display_name} (ID: #{company.id}, ABN: #{abn || 'none'})"
+
+    company
+  rescue ActiveRecord::RecordInvalid => e
+    Rails.logger.error "[ContactEnrichment] Failed to create company: #{e.message}"
+    nil
+  end
+
   # Add sales people detection to extracted data
   def add_sales_people_info(extracted_data)
     # Detect if sender is from a known company (for context/linking)
@@ -791,17 +941,16 @@ class EmailToJobService
         extracted_data["customer"]["is_employee_of_sender_company"] = true
       end
 
-      # AUTO-LINK: If we found a contact and detected they're from a company domain,
-      # automatically set their primary_company if not already set
-      # Check both sender_company (from email sender) and customer_company (from customer email)
-      company_to_link = customer_company || sender_company
-      # Guard: Don't self-reference (can't be your own employer)
-      if customer_contact && company_to_link && customer_contact.primary_company_id.nil? && customer_contact.id != company_to_link.id
-        # Contact exists but not linked to a company - link them now
-        customer_contact.update!(primary_company_id: company_to_link.id)
-        extracted_data["customer"]["auto_linked_to_company"] = true
-        extracted_data["customer"]["linked_company_name"] = company_to_link.display_name
-        Rails.logger.info "[EmailToJobService] Auto-linked #{customer_contact.display_name} as employee of #{company_to_link.display_name}"
+      # CONTACT ENRICHMENT: Create company and link employee if needed
+      company_details = extracted_data["company_details"]
+      if customer_contact && customer_email.present? && customer_contact.entity_type == "person"
+        enrichment_result = enrich_contact_with_company(
+          customer_contact,
+          customer_email,
+          company_details,
+          customer_company || sender_company
+        )
+        extracted_data["customer"]["enrichment"] = enrichment_result if enrichment_result
       end
 
       if customer_contact

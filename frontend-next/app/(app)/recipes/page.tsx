@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import { TablePage } from "@/components/ui/page-wrappers";
 import { Plus } from "lucide-react";
 import { api } from "@/lib/api";
@@ -37,9 +36,7 @@ const initialFormData: RecipeFormData = {
 
 export default function RecipesPage() {
   const router = useRouter();
-
-  // Use foundation hook for TeeemTableView
-  const { foundation, records, totalCount, isLoading, refresh, serverSearch, isSearching } = useFoundationBySlug("recipes");
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const [selectedRecipeId, setSelectedRecipeId] = useState<number | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -50,7 +47,6 @@ export default function RecipesPage() {
   // Handle row click - open recipe detail
   const handleRowClick = useCallback((row: TableRow) => {
     const recipe = row as { id: number; code?: string };
-    // Navigate to recipe detail page (we can create this later)
     router.push(`/recipes/${recipe.id}`);
   }, [router]);
 
@@ -69,19 +65,6 @@ export default function RecipesPage() {
     setIsCreating(false);
     setSheetOpen(true);
   }, []);
-
-  // Handle inline row update
-  const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
-    try {
-      await api.patch(`/api/v1/recipes/${rowId}`, {
-        recipe: { [field]: value }
-      });
-      refresh();
-    } catch (error) {
-      console.error("Failed to update recipe:", error);
-      throw error;
-    }
-  }, [refresh]);
 
   // Handle form field changes
   const handleFieldChange = (field: keyof RecipeFormData, value: string) => {
@@ -108,7 +91,7 @@ export default function RecipesPage() {
         toast.success("Recipe updated successfully");
       }
       setSheetOpen(false);
-      refresh();
+      setRefreshTrigger(prev => prev + 1);
     } catch (error) {
       console.error("Failed to save recipe:", error);
       toast.error(isCreating ? "Failed to create recipe" : "Failed to update recipe");
@@ -116,54 +99,6 @@ export default function RecipesPage() {
       setIsSaving(false);
     }
   };
-
-  // Handle duplicate recipe
-  const handleDuplicate = async (recipeId: number) => {
-    try {
-      const response = await api.post<{ success: boolean; recipe?: { id: number } }>(`/api/v1/recipes/${recipeId}/duplicate`);
-      toast.success("Recipe duplicated successfully");
-      refresh();
-      // Navigate to the new recipe
-      if (response?.recipe?.id) {
-        router.push(`/recipes/${response.recipe.id}`);
-      }
-    } catch (error) {
-      console.error("Failed to duplicate recipe:", error);
-      toast.error("Failed to duplicate recipe");
-    }
-  };
-
-  // Handle activate recipe
-  const handleActivate = async (recipeId: number) => {
-    try {
-      await api.post(`/api/v1/recipes/${recipeId}/activate`);
-      toast.success("Recipe activated");
-      refresh();
-    } catch (error) {
-      console.error("Failed to activate recipe:", error);
-      toast.error("Failed to activate recipe");
-    }
-  };
-
-  // Handle archive recipe
-  const handleArchive = async (recipeId: number) => {
-    try {
-      await api.post(`/api/v1/recipes/${recipeId}/archive`);
-      toast.success("Recipe archived");
-      refresh();
-    } catch (error) {
-      console.error("Failed to archive recipe:", error);
-      toast.error("Failed to archive recipe");
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Spinner />
-      </div>
-    );
-  }
 
   // Left actions - Add Recipe button
   const leftActions = (
@@ -175,21 +110,15 @@ export default function RecipesPage() {
 
   return (
     <TablePage>
-      {/* TeeemTableView handles header, count, and table (SSoT) */}
       <TeeemTableView
-        entries={records}
-        totalCount={totalCount}
         foundationId="recipes"
-        foundationIdNumeric={foundation?.id}
-        tableName={foundation?.name || "Recipes"}
+        autoFetchRecords={true}
+        tableName="Recipes"
         enableExport={true}
-        onRefresh={refresh}
         onRowClick={handleRowClick}
         onRowDoubleClick={handleRowDoubleClick}
-        onRowUpdate={handleRowUpdate}
-        onServerSearch={serverSearch}
-        serverSearchLoading={isSearching}
         leftActions={leftActions}
+        refreshTrigger={refreshTrigger}
       />
 
       {/* Recipe Create/Edit Sheet */}
