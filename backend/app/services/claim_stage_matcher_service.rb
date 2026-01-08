@@ -89,8 +89,9 @@ class ClaimStageMatcherService
     matched_invoice_ids = @job.job_claim_stages.where.not(external_invoice_id: nil).pluck(:external_invoice_id)
 
     # Get sales invoices for this job (customer invoices, not supplier bills)
+    # SSoT: Accept both Xero type "ACCREC" and TEEEM type "sales_invoice"
     @job.external_invoices
-        .where(invoice_type: "ACCREC")  # Accounts Receivable = Sales Invoice
+        .where(invoice_type: ["ACCREC", "sales_invoice"])
         .where.not(id: matched_invoice_ids)
         .order(:created_at)
   end
