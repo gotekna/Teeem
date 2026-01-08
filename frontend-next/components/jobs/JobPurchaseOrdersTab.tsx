@@ -186,7 +186,8 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     await Promise.all([loadContacts(), loadPoTasks(), loadUsers()]);
   };
 
-  const handleCreate = async () => {
+  // Create PO and optionally navigate to detail page
+  const handleCreate = async (openAfterCreate = false) => {
     if (!selectedContact) {
       setError("Please select a supplier");
       return;
@@ -202,7 +203,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
       // Link PO to schedule_task_id if task selected, store name in ted_task
       // Backend expects schedule_task_id, which it then saves to sm_task_id
       // For custom tasks, include assignment info (user or role)
-      await api.post(`/api/v1/purchase_orders`, {
+      const response = await api.post<{ purchase_order: { id: number; purchase_order_number: string } }>(`/api/v1/purchase_orders`, {
         purchase_order: {
           job_id: jobId,
           supplier_id: selectedContact.id,
@@ -218,6 +219,13 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
       });
       setShowCreateModal(false);
       setRefreshKey(k => k + 1);
+
+      // Navigate to PO detail page if requested
+      if (openAfterCreate && response?.purchase_order) {
+        const poNumber = response.purchase_order.purchase_order_number;
+        const slug = poNumber?.replace('PO-', '') || response.purchase_order.id;
+        router.push(`/purchase_orders/${slug}`);
+      }
     } catch (err) {
       console.error("Failed to create purchase order:", err);
       setError("Failed to create purchase order");
