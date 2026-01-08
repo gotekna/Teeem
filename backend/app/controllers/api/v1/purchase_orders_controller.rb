@@ -144,8 +144,9 @@ module Api
                 sequence_order: max_sequence + 1,
                 start_date: today,
                 duration_days: template&.duration_days || 1,
-                # Default assigned_user to current user
-                assigned_user_id: current_user.id,
+                # Use provided assignment, or default to current user
+                assigned_user_id: params[:purchase_order][:assigned_user_id].presence || current_user.id,
+                assigned_role: params[:purchase_order][:assigned_role].presence,
                 # Audit
                 created_by: current_user,
                 updated_by: current_user
