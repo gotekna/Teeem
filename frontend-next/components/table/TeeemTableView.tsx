@@ -5751,6 +5751,7 @@ export default function TeeemTableView({
             <SearchInput
               serverSearchLoading={effectiveServerSearchLoading}
               hasServerSearch={showSearchOptionsMenu}
+              onSearch={handleSearchFromInput}
             />
           </div>
 
