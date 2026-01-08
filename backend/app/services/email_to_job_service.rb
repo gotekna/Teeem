@@ -484,7 +484,7 @@ class EmailToJobService
 
     # Priority 1: Find by email (exact match)
     if email.present?
-      contact = Contact.find_by("LOWER(email) = ?", email.downcase)
+      contact = Contact.find_by_email(email)
       return contact if contact
     end
 
@@ -516,7 +516,7 @@ class EmailToJobService
   rescue ActiveRecord::RecordInvalid => e
     Rails.logger.error "Failed to create customer: #{e.message}"
     # Try to find by email again in case of race condition
-    Contact.find_by(email: email) if email.present?
+    Contact.find_by_email(email) if email.present?
   end
 
   def normalize_phone(phone)
@@ -578,7 +578,7 @@ class EmailToJobService
   # Link internal sales rep to job
   def link_internal_sales_rep(job, sales_user)
     # Check if user has an associated contact record
-    contact = Contact.find_by(email: sales_user.email)
+    contact = Contact.find_by_email(sales_user.email)
     return unless contact
 
     # Link as internal sales rep (avoid duplicates)
@@ -605,7 +605,7 @@ class EmailToJobService
 
     # Find contacts who are sales agents
     all_participants.each do |participant_email|
-      contact = Contact.find_by(email: participant_email)
+      contact = Contact.find_by_email(participant_email)
       next unless contact
 
       # Check if this contact is a sales agent
@@ -696,7 +696,7 @@ class EmailToJobService
 
       # Try to find existing contact by email first
       if customer_email.present?
-        customer_contact = Contact.find_by("LOWER(email) = ?", customer_email.downcase)
+        customer_contact = Contact.find_by_email(customer_email)
       end
 
       # If no email match, try searching by name
@@ -722,7 +722,7 @@ class EmailToJobService
 
     # Internal sales: The user who synced/forwarded the email (Jake, Robert, etc.)
     internal_sales_user = @user
-    internal_sales_contact = Contact.find_by(email: internal_sales_user.email)
+    internal_sales_contact = Contact.find_by_email(internal_sales_user.email)
 
     extracted_data["internal_sales"] = {
       "user_name" => internal_sales_user.name,
@@ -746,7 +746,7 @@ class EmailToJobService
       # Skip if this is the customer
       next if participant_email == extracted_data.dig("customer", "email")
 
-      contact = Contact.find_by(email: participant_email)
+      contact = Contact.find_by_email(participant_email)
 
       # Check if this person might be a sales agent
       is_sales_agent = contact && contact.roles_array.any? { |t| t.match?(/sales|agent/i) }
@@ -776,7 +776,7 @@ class EmailToJobService
 
       # Try to find existing contact by email
       if referral_email.present?
-        referral_contact = Contact.find_by(email: referral_email)
+        referral_contact = Contact.find_by_email(referral_email)
       end
 
       # If no email or no contact found, try searching by name

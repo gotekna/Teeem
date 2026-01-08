@@ -309,7 +309,7 @@ import {
   type SearchMode as DataSearchMode,
 } from "./utils/table-data-utils";
 import { getLookupOptions, fetchLookupOptionsForTable, invalidateLookupCache, lookupCache, lookupFetchPromises } from "./utils/lookup-cache";
-import { fetchColumnsForFoundation, getCachedColumns, invalidateColumnsCache } from "./utils/columns-cache";
+// columns-cache functions now used by useFoundationColumns hook
 import { buildHierarchyRows, filterCollapsedRows, isHeaderRow, type HierarchyRow } from "@/lib/table/hierarchy-utils";
 
 // Jotai atoms for centralized state management (SSoT)

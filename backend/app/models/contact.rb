@@ -426,6 +426,13 @@ class Contact < ApplicationRecord
   scope :without_email, -> { left_joins(:contact_emails).where(contact_emails: { id: nil }) }
   scope :without_phone, -> { left_joins(:contact_phones).where(contact_phones: { id: nil }) }
   scope :without_contact_info, -> { without_email.without_phone }
+
+  # SSoT: Find contact by email through contact_emails table
+  # Use this instead of Contact.find_by(email: ...) since email is not a column
+  def self.find_by_email(email)
+    return nil if email.blank?
+    joins(:contact_emails).where("LOWER(contact_emails.email) = ?", email.downcase).first
+  end
   # Note: roles is TEXT storing JSON array like '["Employee"]', so use LIKE pattern
   # The pattern matches the role surrounded by quotes to avoid partial matches
   scope :with_role, ->(role) { where("roles LIKE ?", "%\"#{role}\"%") }

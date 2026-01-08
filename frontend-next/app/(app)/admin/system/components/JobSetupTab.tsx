@@ -1214,10 +1214,10 @@ export function JobSetupTab() {
                     sm_schedule_master_template_id: value === "none" ? null : parseInt(value, 10)
                   })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select template..." />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-[300px]">
                     <SelectItem value="none">No Template</SelectItem>
                     {scheduleTemplates.map((template) => (
                       <SelectItem key={template.id} value={template.id.toString()}>
