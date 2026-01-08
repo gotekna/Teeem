@@ -2649,7 +2649,7 @@ export function ScheduleMasterTab() {
                 </div>
               }
             />
-            {!dataViewTemplateId && (
+            {!dataViewTemplateId && !effectiveViewSlug && (
               <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                 <TableIcon className="h-12 w-12 mb-4 opacity-50" />
                 <h3 className="text-lg font-medium mb-2">Select a template</h3>
