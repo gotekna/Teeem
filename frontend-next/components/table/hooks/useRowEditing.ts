@@ -30,7 +30,7 @@ import {
   editingDataAtom,
   legacyValidationErrorsAtom,
 } from '@/lib/table-atoms';
-import { validateCellWithRegistry } from '../core/column-renderer/CellValidation';
+import { validateCell as validateCellValue } from '../core/column-renderer/CellValidation';
 import { api } from '@/lib/api';
 import { clearCachedRecords } from '@/lib/records-cache';
 import type { TableColumn } from '../types';
@@ -205,7 +205,7 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
     value: unknown,
     columnType?: string
   ) => {
-    const result = validateCellWithRegistry(value, columnType || 'single_line_text');
+    const result = validateCellValue(value, columnType || 'single_line_text');
     const error = result.error;
 
     setValidationErrors(prev => {
@@ -242,7 +242,7 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
         const column = columns.find(c => c.key === columnKey);
         if (!column) continue;
 
-        const result = validateCellWithRegistry(value, column.column_type || 'single_line_text');
+        const result = validateCellValue(value, column.column_type || 'single_line_text');
         if (result.error) {
           rowErrors[columnKey] = result.error;
           totalErrorCount++;

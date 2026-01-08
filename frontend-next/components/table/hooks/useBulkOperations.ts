@@ -74,8 +74,8 @@ export interface UseBulkOperationsProps {
   foundationId?: string | number | null;
   /** Currently selected row IDs */
   selectedIds: (number | string)[];
-  /** Visible row IDs (filtered/sorted) to intersect with selected */
-  visibleIds?: (number | string)[];
+  /** Ref to visible entries (filtered/sorted) - accessed at execution time */
+  visibleEntriesRef?: React.RefObject<Record<string, unknown>[]>;
   /** Column definitions for type conversion */
   columns: TableColumn[];
   /** Callback when update succeeds */
@@ -88,6 +88,8 @@ export interface UseBulkOperationsProps {
   onOptimisticUpdate?: (ids: (number | string)[], column: string, value: unknown) => void;
   /** Parent refresh callback */
   onRefresh?: () => void;
+  /** Callback to fetch lookup options when column changes */
+  onColumnChange?: (column: TableColumn) => void;
 }
 
 export interface UseBulkOperationsReturn {
@@ -146,13 +148,14 @@ export function useBulkOperations(props: UseBulkOperationsProps): UseBulkOperati
   const {
     foundationId,
     selectedIds,
-    visibleIds,
+    visibleEntriesRef,
     columns,
     onSuccess,
     onMergeComplete,
     onRowUpdate,
     onOptimisticUpdate,
     onRefresh,
+    onColumnChange,
   } = props;
 
   // State
@@ -163,12 +166,12 @@ export function useBulkOperations(props: UseBulkOperationsProps): UseBulkOperati
   const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
   const [mergeIds, setMergeIds] = useState<(number | string)[]>([]);
 
-  // Compute visible selected IDs (intersection of selected and visible)
-  const visibleSelectedIds = useMemo(() => {
-    if (!visibleIds) return selectedIds;
-    const visibleSet = new Set(visibleIds);
-    return selectedIds.filter(id => visibleSet.has(id));
-  }, [selectedIds, visibleIds]);
+  // Helper to compute visible selected IDs at execution time (matches inline behavior)
+  const getVisibleSelectedIds = useCallback(() => {
+    if (!visibleEntriesRef?.current) return selectedIds;
+    const visibleIds = new Set(visibleEntriesRef.current.map(e => e.id as number | string));
+    return selectedIds.filter(id => visibleIds.has(id));
+  }, [selectedIds, visibleEntriesRef]);
 
   // ============================================================================
   // ACTIONS
@@ -187,16 +190,33 @@ export function useBulkOperations(props: UseBulkOperationsProps): UseBulkOperati
   const setColumn = useCallback((column: string) => {
     setUpdateColumn(column);
     setUpdateValue(''); // Reset value when column changes
-  }, []);
+
+    // Fetch lookup options if needed
+    if (column && onColumnChange) {
+      const selectedCol = columns.find(c => c.key === column);
+      if (selectedCol) {
+        const isLookup = selectedCol.column_type === 'lookup' ||
+                        selectedCol.column_type === 'multiple_lookups' ||
+                        !!selectedCol.lookup_foundation_id;
+        if (isLookup) {
+          onColumnChange(selectedCol);
+        }
+      }
+    }
+  }, [columns, onColumnChange]);
 
   const setValue = useCallback((value: string) => {
     setUpdateValue(value);
   }, []);
 
   const executeUpdate = useCallback(async (): Promise<boolean> => {
+    // Compute visible selected IDs at execution time (SSoT: matches inline behavior)
+    const visibleSelectedIds = getVisibleSelectedIds();
+
     console.log('[useBulkOperations] Starting bulk update...');
     console.log('[useBulkOperations] Column:', updateColumn);
     console.log('[useBulkOperations] Value:', updateValue);
+    console.log('[useBulkOperations] Total selected:', selectedIds.length);
     console.log('[useBulkOperations] Visible selected IDs:', visibleSelectedIds.length);
 
     if (!updateColumn || visibleSelectedIds.length === 0) {
@@ -233,6 +253,17 @@ export function useBulkOperations(props: UseBulkOperationsProps): UseBulkOperati
         // Check for errors
         if (!response || !response.success || response.updated_count === 0) {
           console.error('[useBulkOperations] Update failed');
+          console.error('[useBulkOperations] Updated count:', response?.updated_count);
+          console.error('[useBulkOperations] Errors:', response?.errors);
+
+          // Check if this is an entity_type validation error
+          const hasEntityTypeErrors = response?.errors && response.errors.some(err =>
+            err.errors && err.errors.some(msg =>
+              msg.toLowerCase().includes('first name') ||
+              msg.toLowerCase().includes('full name') ||
+              msg.toLowerCase().includes('entity')
+            )
+          );
 
           // Build error message
           let errorMessage = `Bulk update failed. ${response?.updated_count || 0} of ${response?.total_requested || visibleSelectedIds.length} records updated.`;
@@ -245,6 +276,20 @@ export function useBulkOperations(props: UseBulkOperationsProps): UseBulkOperati
             if (response.errors.length > 3) {
               errorMessage += `\n... and ${response.errors.length - 3} more errors`;
             }
+          }
+
+          // If entity_type validation errors, automatically open health report
+          if (hasEntityTypeErrors && foundationId) {
+            console.log('[useBulkOperations] Detected entity_type errors, opening health report...');
+            errorMessage += '\n\n⚠️ Some records have data quality issues that must be fixed first.';
+            errorMessage += '\n\nOpening Health Report to show which records need fixing...';
+
+            alert(errorMessage);
+
+            // Open health report in new tab
+            const healthUrl = `/system-health?foundation=${foundationId}`;
+            window.open(healthUrl, '_blank');
+            return false;
           }
 
           alert(errorMessage);
@@ -294,7 +339,8 @@ export function useBulkOperations(props: UseBulkOperationsProps): UseBulkOperati
   }, [
     updateColumn,
     updateValue,
-    visibleSelectedIds,
+    getVisibleSelectedIds,
+    selectedIds,
     columns,
     foundationId,
     onRowUpdate,

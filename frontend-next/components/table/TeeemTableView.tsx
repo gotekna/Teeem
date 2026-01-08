@@ -281,6 +281,7 @@ import { useTableSessionStorage } from "@/hooks/useTableSessionStorage";
 
 // Phase 8: Extracted hooks
 import { useFoundationColumns } from "./hooks/useFoundationColumns";
+import { useBulkOperations } from "./hooks/useBulkOperations";
 
 // Extracted utilities (Phase 1 & 2 refactoring)
 import {
@@ -1860,11 +1861,40 @@ export default function TeeemTableView({
   // Inline column filters visibility (SSoT)
   const [showColumnFilters, setShowColumnFilters] = useAtom(showColumnFiltersAtom);
 
-  // Bulk update modal state managed by atoms (SSoT)
-  const [showBulkUpdateModal, setShowBulkUpdateModal] = useAtom(showBulkUpdateModalAtom);
-  const [bulkUpdateColumn, setBulkUpdateColumn] = useAtom(bulkUpdateColumnAtom);
-  const [bulkUpdateValue, setBulkUpdateValue] = useAtom(bulkUpdateValueAtom);
-  const [bulkUpdateSaving, setBulkUpdateSaving] = useAtom(bulkUpdateSavingAtom);
+  // Bulk update operations (Phase 10 extraction)
+  const bulkOperations = useBulkOperations({
+    foundationId: effectiveFoundationId,
+    selectedIds: Array.from(selectedRows),
+    visibleEntriesRef: filteredAndSortedEntriesRef,
+    columns: COLUMNS,
+    onSuccess: () => selection.actions.clear(),
+    onRowUpdate: onRowUpdate ? async (id, field, value) => {
+      await onRowUpdate(id, field, value);
+    } : undefined,
+    onOptimisticUpdate: useAutoFetch ? (ids, column, value) => {
+      setAutoFetchedRecords(prev => prev.map(record => {
+        if (ids.includes(record.id as number)) {
+          return { ...record, [column]: value };
+        }
+        return record;
+      }));
+    } : undefined,
+    onRefresh,
+    onColumnChange: (col) => {
+      if (!lookupOptions[col.key] && !lookupLoading[col.key]) {
+        fetchLookupOptions(col);
+      }
+    },
+  });
+
+  // Alias for backward compatibility with existing code
+  const showBulkUpdateModal = bulkOperations.state.isUpdateModalOpen;
+  const setShowBulkUpdateModal = (open: boolean) => open ? bulkOperations.actions.openUpdateModal() : bulkOperations.actions.closeUpdateModal();
+  const bulkUpdateColumn = bulkOperations.state.updateColumn;
+  const setBulkUpdateColumn = bulkOperations.actions.setColumn;
+  const bulkUpdateValue = bulkOperations.state.updateValue;
+  const setBulkUpdateValue = bulkOperations.actions.setValue;
+  const bulkUpdateSaving = bulkOperations.state.isSaving;
 
   // Save view modal state managed by atoms (SSoT)
   const [showSaveViewModal, setShowSaveViewModal] = useAtom(showSaveViewModalAtom);
@@ -2986,192 +3016,8 @@ export default function TeeemTableView({
     }
   }, [editingRowIds, editingData, entries, effectiveFoundationId, onRowUpdate, onRefresh, toast, useAutoFetch, COLUMNS, setValidationErrors]);
 
-  // Bulk update handler
-  const handleBulkUpdate = useCallback(async () => {
-    console.log('[Bulk Update] Starting bulk update...');
-    console.log('[Bulk Update] Column:', bulkUpdateColumn);
-    console.log('[Bulk Update] Value:', bulkUpdateValue);
-
-    // SSoT FIX: Only update VISIBLE selected rows (intersection of selected + filtered)
-    // This prevents accidentally updating rows hidden by filters
-    // Use ref to access current filtered entries (avoids dependency order issues)
-    const visibleIds = new Set(filteredAndSortedEntriesRef.current.map(e => e.id));
-    const visibleSelectedIds = Array.from(selectedRows).filter(id => visibleIds.has(id));
-
-    console.log('[Bulk Update] Total selected rows:', selectedRows.size);
-    console.log('[Bulk Update] Visible selected rows:', visibleSelectedIds.length);
-    console.log('[Bulk Update] Visible selected IDs:', visibleSelectedIds);
-
-    if (!bulkUpdateColumn || visibleSelectedIds.length === 0) {
-      console.warn('[Bulk Update] Aborted - missing column or no visible rows selected');
-      return;
-    }
-
-    setBulkUpdateSaving(true);
-    try {
-      const ids = visibleSelectedIds;
-      const selectedCol = COLUMNS.find(c => c.key === bulkUpdateColumn);
-      console.log('[Bulk Update] Selected column config:', selectedCol);
-
-      // Convert values based on column type
-      let valueToSend: string | number | number[] | boolean = bulkUpdateValue;
-
-      // For multiple_lookups, convert comma-separated string to array of integers
-      if (selectedCol?.column_type === 'multiple_lookups' && bulkUpdateValue) {
-        valueToSend = bulkUpdateValue.split(',').filter(Boolean).map(id => parseInt(id, 10));
-        console.log('[Bulk Update] Converted multiple_lookups value:', bulkUpdateValue, '→', valueToSend);
-      }
-      // For single lookup columns, convert string ID to integer
-      else if ((selectedCol?.column_type === 'lookup' || selectedCol?.lookup_foundation_id) && bulkUpdateValue) {
-        valueToSend = parseInt(bulkUpdateValue, 10);
-        console.log('[Bulk Update] Converted lookup value:', bulkUpdateValue, '→', valueToSend);
-      }
-      // For integer/number columns, convert to number
-      else if ((selectedCol?.column_type === 'integer' || selectedCol?.column_type === 'number') && bulkUpdateValue) {
-        valueToSend = selectedCol?.column_type === 'integer' ? parseInt(bulkUpdateValue, 10) : parseFloat(bulkUpdateValue);
-        console.log('[Bulk Update] Converted number value:', bulkUpdateValue, '→', valueToSend);
-      }
-      // For boolean columns, convert to actual boolean
-      else if (selectedCol?.column_type === 'boolean' && bulkUpdateValue) {
-        valueToSend = bulkUpdateValue === 'true';
-        console.log('[Bulk Update] Converted boolean value:', bulkUpdateValue, '→', valueToSend);
-      }
-
-      if (effectiveFoundationId) {
-        // Use bulk_update API endpoint if foundationIdNumeric is available (much faster)
-        // Skip if we need field mapping (handled above)
-        const payload = {
-          record_ids: ids,
-          updates: { [bulkUpdateColumn]: valueToSend }
-        };
-        console.log('[Bulk Update] Using bulk_update API endpoint');
-        console.log('[Bulk Update] Foundation ID:', effectiveFoundationId);
-        console.log('[Bulk Update] Payload:', JSON.stringify(payload, null, 2));
-
-        const response = await api.post<{
-          success: boolean;
-          updated_count: number;
-          total_requested: number;
-          errors?: Array<{ id: number; errors: string[] }>;
-        }>(`/api/v1/foundations/${effectiveFoundationId}/records/bulk_update`, payload);
-        console.log('[Bulk Update] API response:', response);
-
-        // Check if the update was actually successful
-        if (!response || !response.success || response.updated_count === 0) {
-          console.error('[Bulk Update] Update FAILED - no records were updated');
-          console.error('[Bulk Update] Updated count:', response?.updated_count);
-          console.error('[Bulk Update] Errors:', response?.errors);
-
-          // Check if this is an entity_type validation error
-          const hasEntityTypeErrors = response?.errors && response.errors.some((err: { id: number | string; errors: string[] }) =>
-            err.errors && err.errors.some((msg: string) =>
-              msg.toLowerCase().includes('first name') ||
-              msg.toLowerCase().includes('full name') ||
-              msg.toLowerCase().includes('entity')
-            )
-          );
-          console.log('[Bulk Update] hasEntityTypeErrors:', hasEntityTypeErrors);
-          console.log('[Bulk Update] effectiveFoundationId:', effectiveFoundationId);
-
-          // Show error message to user
-          let errorMessage = `Bulk update failed. ${response?.updated_count || 0} of ${response?.total_requested || ids.length} records updated.`;
-
-          if (response?.errors && response.errors.length > 0) {
-            errorMessage += '\n\nValidation errors:\n';
-            response.errors.slice(0, 3).forEach((err: { id: number | string; errors: string[] }) => {
-              errorMessage += `\n• Record ${err.id}: ${err.errors.join(', ')}`;
-            });
-            if (response.errors.length > 3) {
-              errorMessage += `\n... and ${response.errors.length - 3} more errors`;
-            }
-          }
-
-          // If entity_type validation errors, automatically open health report
-          if (hasEntityTypeErrors && effectiveFoundationId) {
-            console.log('[Bulk Update] Detected entity_type errors, opening health report...');
-            errorMessage += '\n\n⚠️ Some records have data quality issues that must be fixed first.';
-            errorMessage += '\n\nOpening Health Report to show which records need fixing...';
-
-            alert(errorMessage);
-            console.log('[Bulk Update] Alert shown, now opening window...');
-
-            // Open health report in new tab so they can fix the data
-            const healthUrl = `/system-health?foundation=${effectiveFoundationId}`;
-            console.log('[Bulk Update] Opening health report:', healthUrl);
-            window.open(healthUrl, '_blank');
-            console.log('[Bulk Update] window.open called');
-            return;
-          } else {
-            alert(errorMessage);
-          }
-
-          return; // Don't close modal or clear selection on failure
-        }
-
-        console.log('[Bulk Update] Success! Updated', response?.updated_count, 'records');
-      } else if (onRowUpdate) {
-        console.log('[Bulk Update] Using fallback individual updates (no effectiveFoundationId)');
-        // Fallback to individual updates
-        for (const id of ids) {
-          console.log(`[Bulk Update] Updating row ${id}...`);
-          await onRowUpdate(id, bulkUpdateColumn, valueToSend);
-        }
-        console.log('[Bulk Update] Individual updates completed');
-      } else {
-        console.error('[Bulk Update] No update mechanism available (no effectiveFoundationId and no onRowUpdate)');
-      }
-
-      console.log('[Bulk Update] Cleaning up...');
-      setShowBulkUpdateModal(false);
-      setBulkUpdateColumn("");
-      setBulkUpdateValue("");
-      selection.actions.clear();
-
-      // 🔴 CRITICAL: Clear cache to ensure other pages get fresh data
-      // SSoT: records-cache.ts
-      if (effectiveFoundationId) {
-        clearCachedRecords(effectiveFoundationId);
-      }
-
-      console.log('[Bulk Update] Applying optimistic update...');
-      // OPTIMISTIC UPDATE: Update local state directly instead of re-fetching
-      if (useAutoFetch) {
-        setAutoFetchedRecords(prev => prev.map(record => {
-          if (ids.includes(record.id as number)) {
-            return { ...record, [bulkUpdateColumn]: valueToSend };
-          }
-          return record;
-        }));
-      }
-
-      // For non-autoFetch mode: call parent's onRefresh callback
-      onRefresh?.();
-      console.log('[Bulk Update] Complete!');
-    } catch (error) {
-      console.error("[Bulk Update] ERROR:", error);
-      console.error("[Bulk Update] Error details:", {
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        error: error
-      });
-    } finally {
-      setBulkUpdateSaving(false);
-      console.log('[Bulk Update] Saving state reset');
-    }
-  }, [bulkUpdateColumn, bulkUpdateValue, selectedRows, effectiveFoundationId, onRowUpdate, onRefresh, COLUMNS, useAutoFetch]);
-
-  // Fetch lookup options when bulk update column changes to a lookup column
-  useEffect(() => {
-    if (!bulkUpdateColumn) return;
-
-    const selectedCol = COLUMNS.find(c => c.key === bulkUpdateColumn);
-    if (!selectedCol) return;
-
-    const isLookup = selectedCol.column_type === 'lookup' || selectedCol.column_type === 'multiple_lookups' || !!selectedCol.lookup_foundation_id;
-    if (isLookup && !lookupOptions[bulkUpdateColumn] && !lookupLoading[bulkUpdateColumn]) {
-      fetchLookupOptions(selectedCol);
-    }
-  }, [bulkUpdateColumn, COLUMNS, lookupOptions, lookupLoading, fetchLookupOptions]);
+  // Bulk update handler - delegates to useBulkOperations hook (Phase 10 extraction)
+  const handleBulkUpdate = bulkOperations.actions.executeUpdate;
 
   // ============================================================================
   // CELL-LEVEL INLINE EDITING

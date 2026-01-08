@@ -55,7 +55,7 @@ export interface BulkUpdateModalProps {
   lookupLoading: Record<string, boolean>;
 
   /** Bulk update handler */
-  handleBulkUpdate: () => Promise<void>;
+  handleBulkUpdate: () => Promise<boolean | void>;
 }
 
 /**
