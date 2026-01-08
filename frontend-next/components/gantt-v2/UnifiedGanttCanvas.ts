@@ -4020,7 +4020,12 @@ export class UnifiedGanttCanvas {
     this.ctx.fillStyle = this.config.colors.headerBackground;
     this.ctx.fillRect(this.tableWidth, 0, this.width - this.tableWidth, headerHeight);
 
-    // Draw date headers
+    // Draw date headers (with clipping to prevent text bleeding into table area)
+    this.ctx.save();
+    this.ctx.beginPath();
+    this.ctx.rect(this.tableWidth, 0, this.width - this.tableWidth, headerHeight);
+    this.ctx.clip();
+
     const visibleDays = Math.ceil(this.width / dayWidth) + 2;
     const startDayOffset = Math.floor(this.scrollX / dayWidth);
 
@@ -4047,6 +4052,8 @@ export class UnifiedGanttCanvas {
         this.ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
       }
     }
+
+    this.ctx.restore();
 
     // Draw header border
     this.ctx.strokeStyle = this.config.colors.borderColor;

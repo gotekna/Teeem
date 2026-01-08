@@ -221,16 +221,9 @@ Rails.application.routes.draw do
             post :reorder
           end
         end
-        # Claim Stage Templates (per job type)
-        resources :claim_stage_templates, only: [ :index, :create ] do
-          collection do
-            post :reorder
-          end
-        end
+        # SSoT: Claim stages now come from Schedule Master CLAIM tasks
+        # ClaimStageTemplate routes removed - use Schedule Master templates instead
       end
-
-      # Claim Stage Templates (non-nested routes)
-      resources :claim_stage_templates, only: [ :show, :update, :destroy ]
 
       resources :job_status do
         collection do

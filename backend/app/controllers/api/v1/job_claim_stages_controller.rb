@@ -8,7 +8,7 @@ module Api
 
       # GET /api/v1/jobs/:job_id/claim_stages
       def index
-        stages = @job.job_claim_stages.includes(:claim_stage_template, :external_invoice).ordered
+        stages = @job.job_claim_stages.includes(:external_invoice).ordered
 
         # Summary calculations (handle nil values)
         # SSoT: contract_price is THE ONE
@@ -156,18 +156,43 @@ module Api
       end
 
       # POST /api/v1/jobs/:job_id/claim_stages/reset_from_template
+      # SSoT: Claim stages now come from Schedule Master CLAIM tasks
+      # To reset, re-apply the schedule template
       def reset_from_template
-        @job.initialize_claim_stages_from_template!
+        template = @job.job_type&.sm_schedule_master_template
 
-        stages = @job.job_claim_stages.includes(:claim_stage_template, :external_invoice).ordered
+        unless template
+          return render json: {
+            success: false,
+            error: "No schedule template configured for this job type"
+          }, status: :unprocessable_entity
+        end
 
-        render json: {
-          success: true,
-          data: {
-            message: "Claim stages reset from template",
-            stages: stages.map { |s| stage_json(s) }
+        # Clear existing claim stages and re-apply from Schedule Master
+        @job.job_claim_stages.destroy_all
+
+        result = SmScheduleMasterTemplateCopyService.new(template, @job, {
+          start_date: @job.start_date || Date.current,
+          user: current_user,
+          clear_existing: true, # Re-apply entire schedule
+          create_purchase_orders: false
+        }).execute
+
+        if result[:success]
+          stages = @job.job_claim_stages.includes(:external_invoice).ordered
+          render json: {
+            success: true,
+            data: {
+              message: "Claim stages reset from Schedule Master template",
+              stages: stages.map { |s| stage_json(s) },
+              tasks_created: result[:tasks_created],
+              claim_stages_created: result[:claim_stages_created]
+            }
           }
-        }
+        else
+          render json: { success: false, error: result[:errors].join(", ") },
+                 status: :unprocessable_entity
+        end
       end
 
       # POST /api/v1/jobs/:job_id/claim_stages/reorder
@@ -496,7 +521,8 @@ module Api
         {
           id: stage.id,
           job_id: stage.job_id,
-          claim_stage_template_id: stage.claim_stage_template_id,
+          # SSoT: Claim stages now come from Schedule Master CLAIM tasks (sm_task linkage)
+          sm_task_id: stage.sm_task&.id,
           name: stage.name,
           percentage: stage.percentage&.to_f,
           expected_amount: stage.expected_amount&.to_f,

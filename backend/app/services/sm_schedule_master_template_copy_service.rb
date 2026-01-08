@@ -426,15 +426,15 @@ class SmScheduleMasterTemplateCopyService
                         0 # Will be recalculated when contract price is set
                       end
 
+    # SSoT: JobClaimStage created from Schedule Master CLAIM task
+    # ClaimStageTemplate system removed - this is THE ONE source for claim stages
     claim_stage = JobClaimStage.new(
       job_id: job.id,
       name: claim_name,
       percentage: template_row.claim_percentage,
       expected_amount: expected_amount,
-      # NOTE: invoice_match_pattern column not yet on job_claim_stages - stored on claim_stage_templates only
-      # invoice_match_pattern: template_row.claim_invoice_pattern,
       sequence_order: sequence_order,
-      is_custom: false, # Created from template, not manually
+      is_custom: false, # Created from Schedule Master template, not manually
       match_status: "unmatched",
       payment_status: "pending",
       # SSoT: claim_sequence_number for J{job}-{seq} invoice matching

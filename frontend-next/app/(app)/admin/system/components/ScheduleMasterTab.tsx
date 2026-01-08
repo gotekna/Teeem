@@ -241,6 +241,7 @@ interface SmScheduleMasterTemplate {
   row_count: number;
   rows?: SmScheduleMaster[];
   copied_from_id?: number | null;
+  copied_from_name?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -2338,6 +2339,11 @@ export function ScheduleMasterTab() {
                           </div>
                           {template.description && (
                             <CardDescription className="mt-1">{template.description}</CardDescription>
+                          )}
+                          {template.copied_from_name && (
+                            <CardDescription className="mt-1 text-xs text-muted-foreground/70">
+                              Copy of: {template.copied_from_name}
+                            </CardDescription>
                           )}
                         </div>
                       </div>

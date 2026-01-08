@@ -515,8 +515,13 @@ a.bg-primary svg {
 
 /* ========================================
    RADIX UI PORTAL Z-INDEX FIX
-   Ensures dropdowns appear above fullscreen overlays (z-120)
+   Ensures dropdowns appear above ALL overlays including dialogs
+   - EntityConfigurationTab fullscreen: z-120
+   - Sheet: z-130
+   - Leaflet maps: z-1000
+   - Dialog: z-1100
+   - Select: z-1200
    ======================================== */
 [data-radix-popper-content-wrapper] {
-  z-index: 150 !important;
+  z-index: 10000 !important;
 }
