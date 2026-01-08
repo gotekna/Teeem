@@ -404,11 +404,15 @@ export function ScheduleMasterTab() {
 
   // Gantt Preview state
   const [ganttTemplateId, setGanttTemplateId] = React.useState<number | null>(null);
+  // ⚠️ Ref to track CURRENT value for async closure safety (v2711)
+  const ganttTemplateIdRef = React.useRef<number | null>(null);
   const [ganttRows, setGanttRows] = React.useState<SmScheduleMaster[]>([]);
   const [ganttFullscreen, setGanttFullscreen] = React.useState(true); // Default to fullscreen
 
   // Data View state
   const [dataViewTemplateId, setDataViewTemplateId] = React.useState<number | null>(null);
+  // ⚠️ Ref to track CURRENT value for async closure safety (v2711)
+  const dataViewTemplateIdRef = React.useRef<number | null>(null);
   const [dataViewRows, setDataViewRows] = React.useState<SmScheduleMaster[]>([]);
   const [dataViewLoading, setDataViewLoading] = React.useState(false);
   const [dataViewRefreshKey, setDataViewRefreshKey] = React.useState(0);
@@ -417,6 +421,8 @@ export function ScheduleMasterTab() {
 
   // Gantt V2 state - template ID for selection
   const [ganttV2TemplateId, setGanttV2TemplateId] = React.useState<number | null>(null);
+  // ⚠️ Ref to track CURRENT value for async closure safety (v2711)
+  const ganttV2TemplateIdRef = React.useRef<number | null>(null);
   // Show PO required tasks without suppliers (useful for template editing)
   const [showAllPOTasks, setShowAllPOTasks] = React.useState(false);
 
@@ -574,6 +580,24 @@ export function ScheduleMasterTab() {
   // Calculate stats
   const completeCount = Object.values(columnStatus.complete).filter(Boolean).length;
     const totalColumns = ALL_COLUMNS.length;
+
+  // ⚠️ DO NOT SIMPLIFY - Async closure safety (v2711)
+  // ════════════════════════════════════════════════════════════════════
+  // Why: loadTemplates() is async. If user selects a template while API
+  //      is in flight, the closure still has the OLD value. The ref
+  //      gives us access to the CURRENT value after the await.
+  // ════════════════════════════════════════════════════════════════════
+  React.useEffect(() => {
+    ganttTemplateIdRef.current = ganttTemplateId;
+  }, [ganttTemplateId]);
+
+  React.useEffect(() => {
+    dataViewTemplateIdRef.current = dataViewTemplateId;
+  }, [dataViewTemplateId]);
+
+  React.useEffect(() => {
+    ganttV2TemplateIdRef.current = ganttV2TemplateId;
+  }, [ganttV2TemplateId]);
 
   React.useEffect(() => {
     console.log("[ScheduleMasterTab] useEffect running, loading all data...");
@@ -886,7 +910,8 @@ export function ScheduleMasterTab() {
       loadNoTemplateCount();
 
       // Auto-select template for Gantt Preview if not already selected
-      if (!ganttTemplateId && loadedTemplates.length > 0) {
+      // v2711: Use ref (not closure) to check CURRENT value after async await
+      if (!ganttTemplateIdRef.current && loadedTemplates.length > 0) {
         // Try to find a template in priority order:
         // 1. "PO Schedule Master" (current default)
         // 2. Any template with "schedule master" in name
@@ -906,7 +931,8 @@ export function ScheduleMasterTab() {
       // v2709: ALWAYS auto-select template, even when view is in URL
       // Templates and views are independent - views filter WITHIN the selected template
       // Without a template selected, initialFilters is empty and table shows 0 records
-      if (!dataViewTemplateId && loadedTemplates.length > 0) {
+      // v2711: Use ref (not closure) to check CURRENT value after async await
+      if (!dataViewTemplateIdRef.current && loadedTemplates.length > 0) {
         const autoSelectTemplate = loadedTemplates.find(t =>
           t.name.toLowerCase() === 'po schedule master'
         ) || loadedTemplates.find(t =>
@@ -919,7 +945,8 @@ export function ScheduleMasterTab() {
       }
 
       // Auto-select template for Gantt V2 (same priority as others)
-      if (!ganttV2TemplateId && loadedTemplates.length > 0) {
+      // v2711: Use ref (not closure) to check CURRENT value after async await
+      if (!ganttV2TemplateIdRef.current && loadedTemplates.length > 0) {
         const autoSelectTemplate = loadedTemplates.find(t =>
           t.name.toLowerCase() === 'po schedule master'
         ) || loadedTemplates.find(t =>

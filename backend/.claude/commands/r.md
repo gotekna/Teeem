@@ -26,6 +26,21 @@ sleep 2
 psql -d teeem_development -c "SELECT 1"
 ```
 
+**Step 1b: Ensure SECRET_KEY_BASE exists (JWT auth)**
+Check if backend/.env has SECRET_KEY_BASE. If missing, create it:
+```bash
+# Check if SECRET_KEY_BASE exists in .env
+if ! grep -q "SECRET_KEY_BASE" /Users/robertharder/GitHub/teeem/backend/.env 2>/dev/null; then
+  SECRET=$(openssl rand -hex 64)
+  echo "SECRET_KEY_BASE=$SECRET" >> /Users/robertharder/GitHub/teeem/backend/.env
+  echo "Created SECRET_KEY_BASE in backend/.env"
+else
+  echo "SECRET_KEY_BASE already exists"
+fi
+```
+
+**Why this matters:** Without SECRET_KEY_BASE, JWT tokens can't be decoded and users get kicked out immediately after login. The master.key is in .gitignore (correct for security), so local dev needs this fallback.
+
 **Step 2: Kill Existing Servers & Screen Sessions (Parallel)**
 Run all kill commands in a SINGLE message:
 ```bash
@@ -58,6 +73,7 @@ screen -ls || true
 System Health:
 - PostgreSQL: Running ✓ (teeem_development connected)
 - Pending Migrations: 0 (all up to date)
+- SECRET_KEY_BASE: ✓ (backend/.env)
 - Heroku (teeemlive): web.1 up | worker.1 up
 
 Local Servers:
