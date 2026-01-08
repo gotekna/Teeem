@@ -943,14 +943,20 @@ export function ScheduleMasterTab() {
       console.log("[v2711 DEBUG] loadTemplates completed. ref =", dataViewTemplateIdRef.current, "| sessionStorage =", pendingTemplateId);
 
       if (pendingTemplateId) {
-        // User selected a template before remount - use it and clear storage
+        // User selected a template before remount - use it
+        // v2711: Delay clearing to survive multiple rapid remounts (React may mount twice)
         const templateId = parseInt(pendingTemplateId);
-        sessionStorage.removeItem('sm_pending_template_id');
         console.log("[v2711 DEBUG] Using pending template from sessionStorage:", templateId);
         if (loadedTemplates.some(t => t.id === templateId)) {
           loadDataViewRows(templateId);
+          // Clear after delay to survive any additional remounts
+          setTimeout(() => {
+            sessionStorage.removeItem('sm_pending_template_id');
+            console.log("[v2711 DEBUG] Cleared sessionStorage after delay");
+          }, 2000);
         } else {
           console.log("[v2711 DEBUG] Pending template not found in list, falling back to auto-select");
+          sessionStorage.removeItem('sm_pending_template_id');
           // Template not found (maybe deleted?), fall back to auto-select
           const autoSelectTemplate = loadedTemplates[0];
           if (autoSelectTemplate) {

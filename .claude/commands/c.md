@@ -1,13 +1,13 @@
 # Start Chrome for Claude DevTools
 
-Starts Chrome with remote debugging for Claude to control via MCP.
+Starts an isolated Chrome instance for this chat session.
 
 ## How It Works
 
-**MCP uses your Personal Chrome profile** (Profile 2 - rharder1972@gmail.com).
-This keeps your Tekna profile free for regular work.
-
-**App login:** robert@tekna.com.au / Wisdom50-50 (Claude auto-logs in)
+**Each chat gets its own isolated Chrome** - no conflicts between multiple chats.
+- Uses `--isolated` flag for temporary profile per session
+- Auto-cleaned when Chrome closes
+- Login required once per session (Claude auto-logs in)
 
 ## Step 1: Check if MCP Chrome is ready
 
@@ -20,16 +20,10 @@ If it returns pages, skip to Step 3.
 
 ## Step 2: Start Chrome (if needed)
 
-If Step 1 failed or returned empty, Chrome may need to start. The MCP will auto-start Chrome when you first call a tool. Try:
+If Step 1 failed, start Chrome:
 ```javascript
 mcp__chrome-devtools__new_page({ url: "http://localhost:3000" })
 ```
-
-If that fails with "browser already running" error:
-```bash
-rm -rf /Users/robertharder/.cache/chrome-devtools-mcp
-```
-Then try again.
 
 ## Step 3: Navigate and Auto-Login
 
@@ -50,22 +44,13 @@ mcp__chrome-devtools__click({ uid: "SIGNIN_BUTTON_UID" })
 ## Final Report Format
 ```
 Chrome DevTools:
-- Port: 9222 (MCP managed)
-- Profile: MCP dedicated profile
+- Mode: Isolated (no conflicts with other chats)
 - URL: http://localhost:3000
 - Login: [Auto-logged in / Already logged in]
 - MCP: Ready to use
 
 Use mcp__chrome-devtools__* tools directly.
 ```
-
-## Why MCP Uses Its Own Profile
-
-Your regular Chrome profiles (Tekna, Personal) are for daily work. MCP needs:
-- Remote debugging enabled (requires Chrome restart)
-- Exclusive access (can't share with another Chrome window)
-
-So MCP runs a separate Chrome instance with its own profile.
 
 ## Login Credentials
 - **Email:** robert@tekna.com.au
@@ -76,19 +61,8 @@ So MCP runs a separate Chrome instance with its own profile.
 mcp__chrome-devtools__navigate_page({ type: 'url', url: 'http://localhost:3000/jobs/46/schedule/gantt' })
 ```
 
-## Shutdown MCP Chrome (when needed)
-
-If you need to restart or reset MCP Chrome:
-```bash
-# Kill MCP Chrome and clear profile
-pkill -f "chrome-devtools-mcp"
-rm -rf /Users/robertharder/.cache/chrome-devtools-mcp
-```
-
-MCP will auto-start a fresh Chrome on next tool call.
-
 ## Notes
-- MCP auto-starts Chrome when needed
-- Chrome will show "controlled by automated test software" banner
-- Login is required once per session (Claude can auto-login)
-- Your regular Chrome profiles remain untouched
+- Each chat has its own isolated Chrome instance
+- Multiple chats can run Chrome simultaneously without conflicts
+- Chrome shows "controlled by automated test software" banner (expected)
+- Login once per session, Claude can auto-login
