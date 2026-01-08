@@ -854,6 +854,7 @@ class EmailToJobService
     abn = company_details["abn"]&.gsub(/\s/, "")
 
     # Build company contact
+    # Note: Don't set roles for companies - roles are for person contacts (Employee, sales, etc.)
     company = Contact.new(
       entity_type: "company",
       company_name_or_trust: company_details["name"],
@@ -865,8 +866,7 @@ class EmailToJobService
       state: company_details["state"],
       postcode: company_details["postcode"],
       email_domains: [domain],  # Store domain for future auto-linking
-      is_active: true,
-      roles: ["builder"].to_json  # Mark as builder by default for now
+      is_active: true
     )
 
     # Add company email if we can construct it
