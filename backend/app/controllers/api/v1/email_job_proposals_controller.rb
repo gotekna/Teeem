@@ -158,10 +158,10 @@ module Api
       # POST /api/v1/email_job_proposals/:id/reject
       # Reject proposal
       def reject
-        unless @proposal.pending?
+        unless @proposal.pending? || @proposal.error?
           return render json: {
             success: false,
-            error: "Proposal is not pending (status: #{@proposal.status})"
+            error: "Proposal is not pending or error (status: #{@proposal.status})"
           }, status: :unprocessable_entity
         end
 
