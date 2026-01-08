@@ -2513,7 +2513,7 @@ export function ScheduleMasterTab() {
           {/* SSoT: Fullscreen now handled by TeeemTableView via enableFullscreen prop */}
           <div className="flex flex-col h-full">
             <TeeemTableView
-              key={`${dataViewRefreshKey}-${selectedTagFilter}`}
+              key={`${dataViewRefreshKey}-${selectedTagFilter}-${dataViewTemplateId}`}
               foundationId="sm-schedule-master"
               tableName={dataViewTemplateId === -1
                 ? "No Template Selected"

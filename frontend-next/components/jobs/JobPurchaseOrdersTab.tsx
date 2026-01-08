@@ -44,11 +44,15 @@ interface SupplierItem {
   employeeNames: string[];
 }
 
-// Trade represents a task category from sm_trades (SSoT for PO task types)
-// Previously used TaskTemplate table which was dropped - sm_trades is now THE ONE
-interface Trade {
+// SmTask represents a task from the job's schedule
+// PO modal shows tasks where po_required=true so user can link PO to specific task
+interface SmTask {
   id: number;
   name: string;
+  po_required?: boolean;
+  supplier_id?: number;
+  assigned_user_id?: number;
+  assigned_role?: string;
 }
 
 interface JobPurchaseOrdersTabProps {
@@ -64,15 +68,15 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   // Modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [trades, setTrades] = useState<Trade[]>([]);
+  const [poTasks, setPoTasks] = useState<SmTask[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
-  const [loadingTrades, setLoadingTrades] = useState(false);
+  const [loadingPoTasks, setLoadingPoTasks] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Form state
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
-  const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
+  const [selectedTask, setSelectedTask] = useState<SmTask | null>(null);
   const [customTaskName, setCustomTaskName] = useState("");
 
   // Handle row click - navigate to PO detail page
@@ -114,35 +118,35 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     }
   };
 
-  // Load trades from sm_trades foundation (SSoT for PO task categories)
-  // Note: task_templates table was dropped - sm_trades is now THE ONE
-  const loadTrades = async () => {
-    if (trades.length > 0) return;
+  // Load PO tasks from job's schedule (sm_tasks where po_required=true)
+  // This shows actual tasks from this job that can have a PO created
+  const loadPoTasks = async () => {
+    if (poTasks.length > 0) return;
     try {
-      setLoadingTrades(true);
-      // Use Foundation API for sm_trades
-      const response = await api.get<{ records: Trade[] }>(
-        `/api/v1/foundations/sm_trades/records?per_page=200`
+      setLoadingPoTasks(true);
+      // Get sm_tasks for this job
+      const response = await api.get<{ tasks: SmTask[] }>(
+        `/api/v1/sm_tasks?job_id=${jobId}`
       );
-      // Sort by name for easier selection
-      const sortedTrades = (response?.records || []).sort((a, b) =>
-        a.name.localeCompare(b.name)
-      );
-      setTrades(sortedTrades);
+      // Filter for po_required tasks and sort by name
+      const filteredTasks = (response?.tasks || [])
+        .filter(t => t.po_required)
+        .sort((a, b) => a.name.localeCompare(b.name));
+      setPoTasks(filteredTasks);
     } catch (err) {
-      console.error("Failed to load trades:", err);
+      console.error("Failed to load PO tasks:", err);
     } finally {
-      setLoadingTrades(false);
+      setLoadingPoTasks(false);
     }
   };
 
   const handleOpenCreateModal = async () => {
     setError(null);
     setSelectedContact(null);
-    setSelectedTrade(null);
+    setSelectedTask(null);
     setCustomTaskName("");
     setShowCreateModal(true);
-    await Promise.all([loadContacts(), loadTrades()]);
+    await Promise.all([loadContacts(), loadPoTasks()]);
   };
 
   const handleCreate = async () => {
@@ -150,20 +154,21 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
       setError("Please select a supplier");
       return;
     }
-    if (!selectedTrade && !customTaskName.trim()) {
-      setError("Please select a trade or enter a custom task name");
+    if (!selectedTask && !customTaskName.trim()) {
+      setError("Please select a PO task or enter a custom task name");
       return;
     }
 
     try {
       setSaving(true);
       setError(null);
-      // Use ted_task field for the trade/task name (SSoT for PO task category)
+      // Link PO to sm_task_id if task selected, store name in ted_task
       await api.post(`/api/v1/purchase_orders`, {
         purchase_order: {
           job_id: jobId,
           supplier_id: selectedContact.id,
-          ted_task: selectedTrade?.name || customTaskName.trim(),
+          sm_task_id: selectedTask?.id || null,
+          ted_task: selectedTask?.name || customTaskName.trim(),
           status: "draft",
         },
       });
@@ -300,30 +305,30 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
               />
             </div>
 
-            {/* Trade Select (Task Category) */}
+            {/* PO Task Select - tasks from job's schedule */}
             <div className="space-y-2">
-              <Label>Trade</Label>
+              <Label>PO Task</Label>
               <ComboboxDropdown
-                items={trades.map((trade) => ({
-                  id: String(trade.id),
-                  label: trade.name,
+                items={poTasks.map((task) => ({
+                  id: String(task.id),
+                  label: task.name,
                 }))}
-                selectedItem={selectedTrade ? {
-                  id: String(selectedTrade.id),
-                  label: selectedTrade.name,
+                selectedItem={selectedTask ? {
+                  id: String(selectedTask.id),
+                  label: selectedTask.name,
                 } : undefined}
                 onSelect={(item) => {
-                  const trade = trades.find((t) => String(t.id) === item.id);
-                  setSelectedTrade(trade || null);
-                  if (trade) setCustomTaskName(""); // Clear custom name when trade selected
+                  const task = poTasks.find((t) => String(t.id) === item.id);
+                  setSelectedTask(task || null);
+                  if (task) setCustomTaskName(""); // Clear custom name when task selected
                 }}
-                placeholder={loadingTrades ? "Loading trades..." : "Select trade..."}
-                searchPlaceholder="Search trades..."
-                emptyResults={trades.length === 0 ? "No trades available" : "No trade found."}
-                disabled={loadingTrades || !!customTaskName}
-                isLoading={loadingTrades}
+                placeholder={loadingPoTasks ? "Loading tasks..." : "Select PO task..."}
+                searchPlaceholder="Search tasks..."
+                emptyResults={poTasks.length === 0 ? "No PO tasks on this job" : "No task found."}
+                disabled={loadingPoTasks || !!customTaskName}
+                isLoading={loadingPoTasks}
                 clearable
-                onClear={() => setSelectedTrade(null)}
+                onClear={() => setSelectedTask(null)}
               />
             </div>
 
@@ -341,13 +346,13 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                 value={customTaskName}
                 onChange={(e) => {
                   setCustomTaskName(e.target.value);
-                  if (e.target.value) setSelectedTrade(null); // Clear trade when typing custom name
+                  if (e.target.value) setSelectedTask(null); // Clear task when typing custom name
                 }}
                 placeholder="Enter custom task name..."
-                disabled={!!selectedTrade}
+                disabled={!!selectedTask}
               />
               <p className="text-xs text-muted-foreground">
-                Use this if no trade matches your needs
+                Use this if no PO task matches your needs
               </p>
             </div>
           </div>
