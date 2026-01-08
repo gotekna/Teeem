@@ -240,7 +240,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
         tableName="Purchase Orders"
         enableExport={true}
         onRefresh={() => setRefreshKey(k => k + 1)}
-        onRowClick={handleRowClick}
+        onRowDoubleClick={handleRowClick}
         onRowUpdate={handleRowUpdate}
         onAddRow={handleOpenCreateModal}
       />
