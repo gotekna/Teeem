@@ -26,6 +26,20 @@
 export { TableToolbar } from './TableToolbar';
 export type { TableToolbarProps } from './TableToolbar';
 
+// Toolbar sub-components
+export { ToolbarBulkActions } from './ToolbarBulkActions';
+export type { ToolbarBulkActionsProps } from './ToolbarBulkActions';
+
+export { ToolbarMoreActions } from './ToolbarMoreActions';
+export type { ToolbarMoreActionsProps } from './ToolbarMoreActions';
+
+export { ToolbarSecondRow } from './ToolbarSecondRow';
+export type { ToolbarSecondRowProps, SavedView } from './ToolbarSecondRow';
+
+export { ActiveFiltersIndicator } from './ActiveFiltersIndicator';
+export type { ActiveFiltersIndicatorProps } from './ActiveFiltersIndicator';
+// CascadeFilter is now exported from ../types (SSoT)
+
 // Re-export existing extracted sections from core/
 export { TableHeaderSection } from '../core/table-sections/TableHeaderSection';
 export type { TableHeaderSectionProps } from '../core/table-sections/TableHeaderSection';

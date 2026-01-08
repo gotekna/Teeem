@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Spinner } from "@/components/ui/spinner";
-import { api, getApiBaseUrl } from "@/lib/api";
+import { api } from "@/lib/api";
 import {
   Sheet,
   SheetContent,
@@ -59,8 +59,6 @@ export function InvoiceTemplatesTab() {
   const [editingTemplate, setEditingTemplate] = useState<ClaimInvoiceTemplate | null>(null);
   const [editForm, setEditForm] = useState<Partial<ClaimInvoiceTemplate>>({});
   const [saving, setSaving] = useState(false);
-
-  const apiUrl = getApiBaseUrl();
 
   const loadTemplates = useCallback(async () => {
     try {
@@ -316,16 +314,20 @@ export function InvoiceTemplatesTab() {
                     </CardDescription>
                   )}
                 </div>
-                {selectedTemplate && (
+                {selectedTemplate && previewHtml && (
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() =>
-                      window.open(
-                        `${apiUrl}/api/v1/claim_invoice_templates/${selectedTemplate.id}/preview`,
-                        "_blank"
-                      )
-                    }
+                    onClick={() => {
+                      // Use blob URL to open preview in new window (avoids auth issues)
+                      const blob = new Blob([previewHtml], { type: "text/html" });
+                      const url = URL.createObjectURL(blob);
+                      const newWindow = window.open(url, "_blank");
+                      // Clean up blob URL after window loads
+                      if (newWindow) {
+                        newWindow.onload = () => URL.revokeObjectURL(url);
+                      }
+                    }}
                   >
                     <Eye className="h-4 w-4 mr-1" />
                     Full Preview
@@ -344,10 +346,22 @@ export function InvoiceTemplatesTab() {
                   <Spinner size={32} className="text-muted-foreground" />
                 </div>
               ) : (
-                <div className="h-full overflow-auto bg-white dark:bg-gray-100">
+                <div
+                  className="h-full overflow-auto bg-white dark:bg-gray-100 cursor-pointer"
+                  onDoubleClick={() => {
+                    // Double-click opens full preview in new window
+                    const blob = new Blob([previewHtml], { type: "text/html" });
+                    const url = URL.createObjectURL(blob);
+                    const newWindow = window.open(url, "_blank");
+                    if (newWindow) {
+                      newWindow.onload = () => URL.revokeObjectURL(url);
+                    }
+                  }}
+                  title="Double-click to open full preview"
+                >
                   <iframe
                     srcDoc={previewHtml}
-                    className="w-full h-full border-0"
+                    className="w-full h-full border-0 pointer-events-none"
                     title={`Preview: ${selectedTemplate.name}`}
                     sandbox="allow-same-origin"
                   />

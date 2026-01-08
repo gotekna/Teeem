@@ -71,3 +71,12 @@ export {
   countVisibleSelection,
 } from './useSelection';
 export type { SelectionState, SelectionActions, UseSelectionReturn } from './useSelection';
+
+// Bulk Operations feature
+export { useBulkOperations } from './useBulkOperations';
+export type {
+  BulkOperationsState,
+  BulkOperationsActions,
+  UseBulkOperationsProps,
+  UseBulkOperationsReturn,
+} from './useBulkOperations';

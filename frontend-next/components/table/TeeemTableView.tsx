@@ -250,6 +250,10 @@ import { validateCell as validateCellWithRegistry } from "./core/column-renderer
 
 // Table sections (Phase 6 refactoring)
 import { TableHeaderSection, TableFooterSection } from "./core/table-sections";
+import { ToolbarBulkActions } from "./sections/ToolbarBulkActions";
+import { ToolbarMoreActions } from "./sections/ToolbarMoreActions";
+import { ToolbarSecondRow } from "./sections/ToolbarSecondRow";
+import { ActiveFiltersIndicator } from "./sections/ActiveFiltersIndicator";
 
 // Virtualization components (Phase 2 refactoring)
 import { VirtualizedGroupTable, VirtualizedFlatTable } from "./core/virtualization";
@@ -407,6 +411,15 @@ import { selectDefaultView } from '@/lib/view-loading-utils';
 // Single hook provides all view state with SSR support and foundation isolation
 import { useFoundationViewState } from '@/lib/view-state/hooks/useFoundationViewState';
 import { useViewFromPath } from '@/lib/view-state/hooks/useViewFromPath';
+
+// Layer 2: Feature Hooks (new architecture - gradual migration)
+import { useSorting } from './hooks/useSorting';
+import { useSelection } from './hooks/useSelection';
+import { useSearch } from './hooks/useSearch';
+
+// Layer 2: Table Context (enables child components to access state without prop drilling)
+import { TableProvider, createTableContextValue } from './context';
+import type { UseFilteringReturn, UseGroupingReturn, ProcessedData } from './hooks';
 
 // Helper functions and constants now imported from ./utils/table-utils:
 // - SYSTEM_GENERATED_TYPES, SYSTEM_COLUMN_BG
@@ -1381,12 +1394,22 @@ export default function TeeemTableView({
   // STATE - Migrating to atoms for SSoT compliance
   // ============================================================================
 
-  // Search state managed by atom (SSoT)
-  const [search, setSearchAtom] = useAtom(searchQueryAtom);
-  // searchAllColumns managed by atom (SSoT)
-  const [searchAllColumns, setSearchAllColumns] = useAtom(searchAllColumnsAtom);
-  // Search mode for client-side filtering
-  const [currentSearchMode, setCurrentSearchMode] = useState<SearchMode>(propSearchMode || "contains");
+  // MIGRATION: Using useSearch hook for search state
+  const searchHook = useSearch();
+  const search = searchHook.state.query;
+  const searchAllColumns = searchHook.state.searchAllColumns;
+  const currentSearchMode = searchHook.state.mode;  // SSoT: use hook state instead of useState
+  const [, setSearchAtom] = useAtom(searchQueryAtom);  // Keep for custom setSearch wrapper
+  const [, setSearchAllColumns] = useAtom(searchAllColumnsAtom);  // Keep for direct setter
+
+  // Sync propSearchMode to hook on mount (if provided)
+  useEffect(() => {
+    if (propSearchMode && propSearchMode !== searchHook.state.mode) {
+      searchHook.actions.setMode(propSearchMode);
+    }
+    // Only run on mount - propSearchMode is initial value only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Wrap setSearch to also call onSearchChange callback, update URL, and save to session storage
   const setSearch = useCallback((value: string | ((prev: string) => string)) => {
@@ -1451,7 +1474,11 @@ export default function TeeemTableView({
   }, [cacheInitialized]); // Re-run when session storage becomes available
 
   // View-related state now managed by Jotai atoms (SSoT)
-  const [sortColumns, setSortColumns] = useAtom(currentSortColumnsAtom);
+  // MIGRATION: Using useSorting hook for sort state and actions
+  // Keep atom setter for useTableHandlers compatibility (expects Dispatch signature)
+  const sorting = useSorting();
+  const sortColumns = sorting.state.sortColumns;
+  const [, setSortColumns] = useAtom(currentSortColumnsAtom); // Keep original setter for compatibility
   const [columnWidths, setColumnWidths] = useAtom(currentColumnWidthsAtom);
   const [columnOrder, setColumnOrder] = useAtom(currentColumnOrderAtom);
   const [visibleColumns, setVisibleColumns] = useAtom(currentVisibleColumnsAtom);
@@ -1495,8 +1522,10 @@ export default function TeeemTableView({
     });
      
   }, [COLUMNS]);
-  // Selection state managed by atom (SSoT)
-  const [selectedRows, setSelectedRows] = useAtom(selectedRowsAtom);
+  // MIGRATION: Using useSelection hook for selection state and actions
+  const selection = useSelection();
+  const selectedRows = selection.state.selectedIds;
+  const [, setSelectedRows] = useAtom(selectedRowsAtom);  // Keep for complex functional updates
 
   // SSoT FIX: Sync selectedRows with entries - remove stale IDs that no longer exist
   // This prevents "ghost selection" where IDs remain selected after records are deleted/merged
@@ -2269,7 +2298,7 @@ export default function TeeemTableView({
     (value: string, mode?: SearchMode) => {
       setSearch(value);
       if (mode) {
-        setCurrentSearchMode(mode);
+        searchHook.actions.setMode(mode);
       }
 
       // FRC FIX: When CLEARING search (empty value), ALWAYS refresh to get all records
@@ -2298,7 +2327,7 @@ export default function TeeemTableView({
         }
       }
     },
-    [effectiveOnServerSearch, hasMore, autoFetchedRecords.length, autoFetchLimit]
+    [effectiveOnServerSearch, hasMore, autoFetchedRecords.length, autoFetchLimit, searchHook.actions]
   );
 
   const handleSearchAllChange = useCallback(
@@ -2394,24 +2423,8 @@ export default function TeeemTableView({
     });
   }, [cacheColumnWidths, autoSaveColumnWidths]);
 
-  // Sort handler
-  const handleSort = useCallback((columnKey: string) => {
-    setSortColumns((prev) => {
-      const existing = prev.find((s) => s.column === columnKey);
-      if (existing) {
-        if (existing.dir === "asc") {
-          return prev.map((s) =>
-            s.column === columnKey ? { ...s, dir: "desc" as const } : s
-          );
-        } else {
-          return prev.filter((s) => s.column !== columnKey);
-        }
-      } else {
-        return [...prev, { column: columnKey, dir: "asc" as const }];
-      }
-    });
-     
-  }, []);
+  // Sort handler - MIGRATION: Now using useSorting hook
+  const handleSort = sorting.actions.toggleSort;
 
   // Filter handlers
   const addFilter = useCallback(() => {
@@ -2576,22 +2589,14 @@ export default function TeeemTableView({
 
       if (allVisibleSelected && visibleIds.length > 0) {
         // Deselect all visible rows
-        const newSelection = new Set(selectedRows);
-        visibleIds.forEach(id => newSelection.delete(id));
-        setSelectedRows(newSelection);
+        selection.actions.deselectMany(visibleIds as (string | number)[]);
       } else {
         // Select all visible rows
-        const newSelection = new Set(selectedRows);
-        visibleIds.forEach(id => newSelection.add(id));
-        setSelectedRows(newSelection);
+        selection.actions.selectMany(visibleIds as (string | number)[]);
       }
     } else {
-      // Flat view: select all filtered entries
-      if (selectedRows.size === currentFilteredEntries.length) {
-        setSelectedRows(new Set<string | number>());
-      } else {
-        setSelectedRows(new Set(currentFilteredEntries.map((e) => e.id as string | number)));
-      }
+      // Flat view: toggle all selection
+      selection.actions.toggleAll(currentFilteredEntries.map((e) => e.id as string | number));
     }
 
   }, [selectedRows]);
@@ -2614,7 +2619,7 @@ export default function TeeemTableView({
   const handleMergeComplete = useCallback((deletedIds: (string | number)[]) => {
     // Clear selections
     setMergeSelectedIds([]);
-    setSelectedRows(new Set<string | number>());
+    selection.actions.clear();
 
     // 🔴 CRITICAL: Clear cache so refresh gets fresh data
     // SSoT: records-cache.ts
@@ -2637,7 +2642,7 @@ export default function TeeemTableView({
     }
     // Also call onRefresh for non-autoFetch tables
     onRefresh?.();
-  }, [effectiveFoundationId, useAutoFetch, onRefresh, handleAutoFetchSearch]);
+  }, [effectiveFoundationId, useAutoFetch, onRefresh, handleAutoFetchSearch, selection.actions]);
 
   // Group handlers
   // Lazy load all records for a group when expanding (server-side grouping)
@@ -3263,7 +3268,7 @@ export default function TeeemTableView({
       setShowBulkUpdateModal(false);
       setBulkUpdateColumn("");
       setBulkUpdateValue("");
-      setSelectedRows(new Set<string | number>());
+      selection.actions.clear();
 
       // 🔴 CRITICAL: Clear cache to ensure other pages get fresh data
       // SSoT: records-cache.ts
@@ -3756,10 +3761,10 @@ export default function TeeemTableView({
       }
     },
     onSelectAll: () => {
-      setSelectedRows(new Set(filteredAndSortedEntries.map((e) => e.id)));
+      selection.actions.selectAll(filteredAndSortedEntries.map((e) => e.id as string | number));
     },
     onClearSelection: () => {
-      setSelectedRows(new Set());
+      selection.actions.clear();
     },
     onFocusSearch: () => {
       searchInputRef.current?.focus();
@@ -3769,7 +3774,7 @@ export default function TeeemTableView({
       if (search) {
         setSearch("");
       } else {
-        setSelectedRows(new Set());
+        selection.actions.clear();
         setFocusedRowIndex(-1);
       }
     },
@@ -5654,11 +5659,159 @@ export default function TeeemTableView({
   // change, including initial load, causing redirect loops
 
   // ============================================================================
+  // TABLE CONTEXT - Enables child components to access state without prop drilling
+  // ============================================================================
+
+  // Create filtering adapter (wraps useFilterState into UseFilteringReturn format)
+  const filteringAdapter: UseFilteringReturn = useMemo(() => ({
+    state: {
+      filters: safeFilters,
+      baseFilters: baseFilters,
+      viewFilters: [], // Not exposed by useFilterState separately
+      userFilters: [], // Not exposed by useFilterState separately
+      hasUserFilters: hasUserFilters,
+      filterGroups: filterGroups,
+      interGroupLogic: interGroupLogic,
+      filterCount: safeFilters.length,
+      showFilters: showFilters,
+    },
+    actions: {
+      setBaseFilters: setBaseFilters,
+      setViewFilters: setViewFilters,
+      addFilter: (filter) => addUserFilter({ ...filter, id: filter.id ?? `filter-${Date.now()}` } as CascadeFilter),
+      updateFilter: () => {}, // Not directly supported by useFilterState
+      removeFilter: removeFilter,
+      clearFilters: () => clearAllUserFilters(),
+      clearAllUserFilters: clearAllUserFilters,
+      setFilterGroups: setFilterGroups,
+      setInterGroupLogic: setInterGroupLogic,
+      toggleShowFilters: () => setShowFilters(!showFilters),
+      setShowFilters: setShowFilters,
+    },
+    apply: (rows) => applyFilters(rows, safeFilters, filterGroups, interGroupLogic),
+  }), [
+    safeFilters, baseFilters, hasUserFilters, filterGroups, interGroupLogic, showFilters,
+    setBaseFilters, setViewFilters, addUserFilter, removeFilter, clearAllUserFilters,
+    setFilterGroups, setInterGroupLogic, setShowFilters,
+  ]);
+
+  // Create grouping adapter (wraps foundation view state into UseGroupingReturn format)
+  const groupingAdapter: UseGroupingReturn = useMemo(() => ({
+    state: {
+      groupByColumns: groupByColumns,
+      groupByColumn: groupByColumn,
+      collapsedGroups: collapsedGroups,
+      isGrouped: groupByColumns.length > 0,
+      groupDepth: groupByColumns.length,
+      viewMode: groupViewMode,
+    },
+    actions: {
+      setGroupBy: setGroupByColumns,
+      setGroupByColumn: (column) => setGroupByColumns(column ? [column] : []),
+      addGroupLevel: (column) => setGroupByColumns([...groupByColumns, column]),
+      removeGroupLevel: (column) => setGroupByColumns(groupByColumns.filter(c => c !== column)),
+      clearGrouping: () => setGroupByColumns([]),
+      toggleGroupCollapse: (groupKey) => {
+        const next = new Set(collapsedGroups);
+        if (next.has(groupKey)) {
+          next.delete(groupKey);
+        } else {
+          next.add(groupKey);
+        }
+        setCollapsedGroups(next);
+      },
+      expandGroup: (groupKey) => {
+        const next = new Set(collapsedGroups);
+        next.delete(groupKey);
+        setCollapsedGroups(next);
+      },
+      collapseGroup: (groupKey) => {
+        const next = new Set(collapsedGroups);
+        next.add(groupKey);
+        setCollapsedGroups(next);
+      },
+      expandAll: expandAllGroups,
+      collapseAll: collapseAllGroups,
+      setCollapsedGroups: setCollapsedGroups,
+      setViewMode: setGroupViewMode,
+    },
+    apply: (rows, sortCols) => buildGroupedEntries(rows, groupByColumns, sortCols || sortColumns, serverGroupCounts, search),
+    getKeys: getAllGroupKeysUtil,
+    getVisibleIds: (groups) => getVisibleRowIdsFromGroups(groups, collapsedGroups),
+  }), [
+    groupByColumns, groupByColumn, collapsedGroups, groupViewMode,
+    setGroupByColumns, setCollapsedGroups, setGroupViewMode,
+    expandAllGroups, collapseAllGroups, sortColumns, serverGroupCounts, search,
+  ]);
+
+  // Create processed data object
+  const processedData: ProcessedData = useMemo(() => ({
+    processedRows: filteredAndSortedEntries,
+    groupedData: groupedEntries,
+    groupKeys: groupedEntries ? getAllGroupKeysUtil(groupedEntries) : [],
+    visibleRowIds: getVisibleRowIds(),
+    counts: {
+      total: effectiveEntries.length,
+      filtered: filteredAndSortedEntries.length,
+      visible: displayedRows.length,
+    },
+  }), [filteredAndSortedEntries, groupedEntries, getVisibleRowIds, effectiveEntries.length, displayedRows.length]);
+
+  // Create table context value using helper function
+  const tableContextValue = useMemo(() => createTableContextValue({
+    tableCore: {
+      sorting,
+      filtering: filteringAdapter,
+      grouping: groupingAdapter,
+      search: searchHook,
+      selection,
+    } as any, // Cast because we're providing adapters, not the full UseTableCoreReturn
+    columns: COLUMNS,
+    rows: effectiveEntries,
+    processedData,
+    meta: {
+      foundationId: foundationSlug || undefined,
+      foundationIdNumeric: foundationIdNumeric ?? undefined,
+      tableName,
+      viewOnly,
+      autoFetchRecords,
+    },
+    callbacks: {
+      onRowClick,
+      onRowDoubleClick,
+      onEdit: effectiveOnEdit,
+      onView: effectiveOnView,
+      onDelete: effectiveOnDelete,
+      onBulkDelete: effectiveBulkDelete,
+      onBulkEdit,
+      onBulkMerge,
+      onRowUpdate,
+      onRefresh,
+      onAddRow: effectiveOnAddRow,
+      onViewChange,
+    },
+    savedViews,
+    activeView: activeView || null,
+    loadView: loadViewState,
+    isLoading: columnsLoading || isLoadingMore || serverSearchLoading,
+    error: null,
+    hasMore: hasMore || serverHasMore,
+  }), [
+    sorting, filteringAdapter, groupingAdapter, searchHook, selection,
+    COLUMNS, effectiveEntries, processedData,
+    foundationSlug, foundationIdNumeric, tableName, viewOnly, autoFetchRecords,
+    onRowClick, onRowDoubleClick, effectiveOnEdit, effectiveOnView, effectiveOnDelete,
+    effectiveBulkDelete, onBulkEdit, onBulkMerge, onRowUpdate, onRefresh, effectiveOnAddRow, onViewChange,
+    savedViews, activeView, loadViewState, columnsLoading, isLoadingMore, serverSearchLoading, hasMore, serverHasMore,
+  ]);
+
+  // ============================================================================
   // MAIN RENDER
   // ============================================================================
 
 
   return (
+    <TableProvider value={tableContextValue}>
     <div className={cn(
       "flex flex-col h-full gap-2",
       debugGrid && "border-4 border-blue-500 bg-blue-50 dark:bg-blue-950/20 relative",
@@ -5799,19 +5952,11 @@ export default function TeeemTableView({
                 onClick={() => setHealthPanelOpen(!healthPanelOpen)}
               />
             )}
+            {/* SearchInput reads from TableContext for search state/actions */}
             <SearchInput
-            value={search}
-            onSearch={handleSearchFromInput}
-            onSearchAllChange={handleSearchAllChange}
-            searchAllColumns={searchAllColumns}
-            serverSearchLoading={effectiveServerSearchLoading}
-            hasServerSearch={showSearchOptionsMenu}
-            searchMode={currentSearchMode}
-            onSearchModeChange={(mode) => {
-              setCurrentSearchMode(mode);
-              onSearchModeChange?.(mode);
-            }}
-          />
+              serverSearchLoading={effectiveServerSearchLoading}
+              hasServerSearch={showSearchOptionsMenu}
+            />
           </div>
 
           {/* View mode toggle - only show when grouped */}
@@ -5839,78 +5984,20 @@ export default function TeeemTableView({
             </div>
           )}
 
-          {/* Bulk action buttons - show when rows selected (SSoT: always in first row) */}
-          {selectedRows.size > 0 && (
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="h-4 w-px bg-border mx-1" />
-              {/* Bulk Update - column-based update modal */}
-              {onRowUpdate && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowBulkUpdateModal(true)}
-                >
-                  <Pencil className="h-4 w-4 mr-1" />
-                  Bulk Update
-                </Button>
-              )}
-              {/* Inline Edit - edit all selected rows inline like a spreadsheet */}
-              {onRowUpdate && !viewOnly && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => startMultiEditing(Array.from(selectedRows))}
-                >
-                  <Pencil className="h-4 w-4 mr-1" />
-                  Inline Edit
-                </Button>
-              )}
-              {/* Merge button - combine rows into one */}
-              {(onBulkMerge || (enableMerge !== false && effectiveFoundationId)) && !viewOnly && selectedRows.size >= 2 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleMergeClick(Array.from(selectedRows))}
-                >
-                  <GitMerge className="h-4 w-4 mr-1" />
-                  Merge
-                </Button>
-              )}
-              {/* Xero Transfer button - transfer Xero link between exactly 2 contacts */}
-              {onXeroTransfer && !viewOnly && selectedRows.size === 2 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onXeroTransfer(Array.from(selectedRows))}
-                >
-                  <ArrowLeftRight className="h-4 w-4 mr-1" />
-                  Xero
-                </Button>
-              )}
-              {/* Delete button - bulk delete selected rows (auto-enabled with foundationIdNumeric) */}
-              {/* SSoT: Only delete VISIBLE selected rows (filtered intersection) */}
-              {effectiveBulkDelete && !viewOnly && (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => {
-                    // Filter to only visible selected rows (intersection of selected + filtered)
-                    // Use String() for type-safe comparison (IDs may be string or number)
-                    const visibleIdStrings = new Set(filteredAndSortedEntries.map(e => String(e.id)));
-                    const visibleSelectedIds = Array.from(selectedRows).filter(id => visibleIdStrings.has(String(id)));
-                    if (visibleSelectedIds.length === 0) {
-                      console.warn('[Delete] No visible selected rows to delete');
-                      return;
-                    }
-                    effectiveBulkDelete(visibleSelectedIds);
-                  }}
-                >
-                  <Trash2 className="h-4 w-4 mr-1" />
-                  Delete
-                </Button>
-              )}
-            </div>
-          )}
+          {/* Bulk action buttons - reads selection from TableContext */}
+          <ToolbarBulkActions
+            viewOnly={viewOnly}
+            showBulkUpdate={!!onRowUpdate}
+            showInlineEdit={!!onRowUpdate}
+            showMerge={!!(onBulkMerge || (enableMerge !== false && effectiveFoundationId))}
+            showXeroTransfer={!!onXeroTransfer}
+            showDelete={!!effectiveBulkDelete}
+            onBulkUpdate={() => setShowBulkUpdateModal(true)}
+            onInlineEdit={(ids) => startMultiEditing(ids)}
+            onMerge={(ids) => handleMergeClick(ids)}
+            onXeroTransfer={onXeroTransfer}
+            onDelete={effectiveBulkDelete}
+          />
 
           {/* Actions - right side with buttons */}
           <div className="toolbar-right flex items-center gap-2 shrink-0">
@@ -5965,467 +6052,54 @@ export default function TeeemTableView({
             <RefreshCw className="h-4 w-4" />
           </Button>
 
-          {/* More actions menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem onClick={() => setShowEditColumnsModal(true)}>
-                <Columns className="h-4 w-4 mr-2" />
-                Columns
-              </DropdownMenuItem>
-
-              {/* Schema Section - auto-enabled when foundationIdNumeric is set */}
-              {effectiveEnableSchemaEditor && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-xs text-muted-foreground font-medium">
-                    SCHEMA
-                  </DropdownMenuLabel>
-                  <DropdownMenuItem onClick={() => setShowCreateColumnModal(true)}>
-                    <PlusCircle className="h-4 w-4 mr-2" />
-                    Create New Column
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => onEditColumns ? onEditColumns() : setShowEditColumnsModal(true)}>
-                    <Settings className="h-4 w-4 mr-2" />
-                    Edit Columns
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setShowDeleteColumnModal(true)}>
-                    <MinusCircle className="h-4 w-4 mr-2" />
-                    Delete Column
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={toggleColumnEditMode}>
-                    <Settings className="h-4 w-4 mr-2" />
-                    {columnEditMode ? "Exit Edit Mode" : "Edit Individual"}
-                    {columnEditMode && (
-                      <Badge variant="secondary" className="ml-2 text-xs">ON</Badge>
-                    )}
-                  </DropdownMenuItem>
-                </>
-              )}
-
-              {/* Data Section - auto-enabled when foundationIdNumeric is set */}
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-xs text-muted-foreground font-medium">
-                DATA
-              </DropdownMenuLabel>
-              {effectiveEnableImport && (
-                <DropdownMenuItem onClick={onImport}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Import
-                </DropdownMenuItem>
-              )}
-              {effectiveEnableExport && (
-                <DropdownMenuItem onClick={() => setShowExportModal(true)}>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Export
-                </DropdownMenuItem>
-              )}
-
-              {/* Email to Contacts Section - auto-enabled when table has email columns */}
-              {hasEmailColumns && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-xs text-muted-foreground font-medium">
-                    CONTACTS
-                  </DropdownMenuLabel>
-                  <DropdownMenuItem onClick={() => setShowEmailToContactsModal(true)}>
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Extract Contacts from Emails
-                  </DropdownMenuItem>
-                  {/* SSoT: Use slug check only, not numeric ID (which differs per environment) */}
-                  {foundationId === "contacts" && (
-                    <DropdownMenuItem onClick={handleFindMissingAbns} disabled={isFindingAbns}>
-                      {isFindingAbns ? (
-                        <Spinner size={16} className="mr-2" />
-                      ) : (
-                        <Search className="h-4 w-4 mr-2" />
-                      )}
-                      Find Missing ABNs
-                    </DropdownMenuItem>
-                  )}
-                </>
-              )}
-
-              {/* Display Options Section */}
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-xs text-muted-foreground font-medium">
-                DISPLAY
-              </DropdownMenuLabel>
-              <DropdownMenuItem
-                onClick={() => setShowColumnFilters(!showColumnFilters)}
-                className="flex items-center justify-between"
-              >
-                <span className="flex items-center gap-2">
-                  <Filter className="h-4 w-4" />
-                  Column Filters
-                </span>
-                {showColumnFilters && <Check className="h-4 w-4" />}
-              </DropdownMenuItem>
-
-              {/* Table Info Section */}
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-xs text-muted-foreground font-medium">
-                TABLE INFO
-              </DropdownMenuLabel>
-
-              {effectiveFoundationId && (
-                <>
-                  <div className="px-2 py-1.5 flex items-center justify-between">
-                    <span className="text-[11px]">
-                      Table ID: <span className="font-mono font-medium">
-                        {resolvedFoundation ? `${resolvedFoundation.slug} (${resolvedFoundation.id})` : effectiveFoundationId}
-                      </span>
-                    </span>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="h-6 px-2 text-xs"
-                      onClick={handleCopyTableId}
-                    >
-                      Copy
-                    </Button>
-                  </div>
-                  <DropdownMenuItem
-                    onClick={() => window.open(`/admin/system/components`, '_blank')}
-                    className="flex items-center gap-2"
-                  >
-                    <Settings className="h-4 w-4" />
-                    Configure Table
-                    <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
-                  </DropdownMenuItem>
-                </>
-              )}
-
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* More actions menu - extracted to ToolbarMoreActions */}
+          <ToolbarMoreActions
+            enableSchemaEditor={effectiveEnableSchemaEditor}
+            enableImport={effectiveEnableImport}
+            enableExport={effectiveEnableExport}
+            hasEmailColumns={hasEmailColumns}
+            foundationId={foundationId}
+            resolvedFoundation={resolvedFoundation}
+            columnEditMode={columnEditMode}
+            showColumnFilters={showColumnFilters}
+            isFindingAbns={isFindingAbns}
+            onShowEditColumns={() => setShowEditColumnsModal(true)}
+            onShowCreateColumn={() => setShowCreateColumnModal(true)}
+            onEditColumns={onEditColumns ? () => onEditColumns() : undefined}
+            onShowDeleteColumn={() => setShowDeleteColumnModal(true)}
+            onToggleColumnEditMode={toggleColumnEditMode}
+            onImport={onImport}
+            onShowExport={() => setShowExportModal(true)}
+            onShowEmailToContacts={() => setShowEmailToContactsModal(true)}
+            onFindMissingAbns={handleFindMissingAbns}
+            onToggleColumnFilters={() => setShowColumnFilters(!showColumnFilters)}
+            onCopyTableId={handleCopyTableId}
+          />
         </div>
       </div>
 
-      {/* Second row: Saved Views OR Selection Controls (for grouped tables) */}
-      {((!disableSavedViews && savedViews.length > 0) || groupByColumn) && (
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 px-4">
-          {/* Expand/Collapse all button - always visible when grouped to prevent layout shift */}
-          {groupByColumn && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                if (collapsedGroups.size === 0) {
-                  collapseAllGroups();
-                } else {
-                  expandAllGroups();
-                }
-              }}
-              className="h-7 w-7 p-0 shrink-0"
-            >
-              <ChevronDown
-                className={cn(
-                  "h-4 w-4 transition-transform",
-                  collapsedGroups.size === 0 ? "rotate-0" : "-rotate-90"
-                )}
-              />
-            </Button>
-          )}
+      {/* Second row: Saved Views OR Selection Controls (extracted to ToolbarSecondRow) */}
+      {/* Context provides: savedViews, activeViewId, groupByColumn, collapsedGroupsCount, */}
+      {/* selectedRowIds, filteredRowsCount, allRowIds, selection actions, loadView */}
+      <ToolbarSecondRow
+        disableSavedViews={disableSavedViews}
+        editingRowCount={editingRowIds.size}
+        validationErrorCount={Object.values(validationErrors).reduce(
+          (count, rowErrors) => count + Object.keys(rowErrors).length,
+          0
+        )}
+        onCollapseAll={collapseAllGroups}
+        onExpandAll={expandAllGroups}
+        onCancelEditing={cancelEditing}
+        onSaveEditing={saveEditing}
+        onToggleSelectAll={toggleSelectAll}
+      />
 
-          {/* When editing rows, show editing controls instead of saved views */}
-          {editingRowIds.size > 0 ? (
-            (() => {
-              const errorCount = Object.values(validationErrors).reduce(
-                (count, rowErrors) => count + Object.keys(rowErrors).length,
-                0
-              );
-              return (
-                <>
-                  <span className={cn(
-                    "text-[11px] font-medium",
-                    errorCount > 0 ? "text-red-700 dark:text-red-300" : "text-blue-700 dark:text-blue-300"
-                  )}>
-                    Editing {editingRowIds.size} row{editingRowIds.size !== 1 ? "s" : ""}
-                    {errorCount > 0 && (
-                      <span className="ml-2 text-red-600">
-                        ({errorCount} error{errorCount !== 1 ? "s" : ""})
-                      </span>
-                    )}
-                  </span>
-                  <div className="flex-1" />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={cancelEditing}
-                    className="h-7 px-2"
-                  >
-                    <X className="h-4 w-4 mr-1" />
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={saveEditing}
-                    className={cn(
-                      "h-7 px-2",
-                      errorCount > 0
-                        ? "bg-gray-400 hover:bg-gray-400 cursor-not-allowed"
-                        : "bg-green-600 hover:bg-green-700"
-                    )}
-                    disabled={errorCount > 0}
-                  >
-                    <Check className="h-4 w-4 mr-1" />
-                    Save All
-                  </Button>
-                </>
-              );
-            })()
-          ) : groupByColumn && selectedRows.size > 0 ? (
-            <>
-              {/* Selection dropdown for grouped tables */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <div className="flex items-center cursor-pointer">
-                    <Checkbox
-                      checked={
-                        filteredAndSortedEntries.length > 0 &&
-                        filteredAndSortedEntries.every(row => selectedRows.has(row.id))
-                      }
-                      onCheckedChange={toggleSelectAll}
-                    />
-                    <ChevronDown className="h-3 w-3 ml-1 text-muted-foreground" />
-                  </div>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  <DropdownMenuItem onClick={() => setSelectedRows(new Set(filteredAndSortedEntries.map(r => r.id)))}>
-                    Select All ({filteredAndSortedEntries.length})
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setSelectedRows(new Set<string | number>())}>
-                    Clear Selection
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* Selection count and clear - bulk action buttons are in the first toolbar row (SSoT) */}
-              <span className="text-[11px] font-medium ml-auto">{selectedRows.size} selected</span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSelectedRows(new Set<string | number>())}
-                className="h-7 px-2 text-xs"
-              >
-                Clear
-              </Button>
-            </>
-          ) : (
-            <>
-              {/* Show all views as individual buttons */}
-              {/* Uses native title attributes to avoid compose-refs issues during view switching */}
-              {savedViews.map((view) => (
-                <Button
-                  key={view.id}
-                  variant={activeViewId === view.id ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => loadViewState(view, false, true)}
-                  title={view.is_global ? `Global view: ${view.name}` : `Personal view: ${view.name}`}
-                  className={cn(
-                    "shrink-0 max-w-[140px]",
-                    view.is_global && "border-blue-300 dark:border-blue-700"
-                  )}
-                >
-                  {view.is_global && (
-                    <Globe className="h-3 w-3 mr-1 flex-shrink-0" />
-                  )}
-                  <span className="truncate">{view.name}</span>
-                </Button>
-              ))}
-            </>
-          )}
-        </div>
-      )}
-
-      {/* ULTRA Solution: Active filters indicator - only show when Column Filters is enabled */}
-      {/* Base filters (e.g., job scope) are applied but hidden from UI since they're contextual */}
-      {showColumnFilters && hasUserFilters ? (
-        <div className="flex items-center gap-2 flex-wrap px-4">
-          <span className="text-[11px] text-muted-foreground">Active filters:</span>
-          {/* Only render user-clearable filters (not base/locked filters) */}
-          {mergedFilters
-            .filter((f) => !f.locked && f.source !== 'base')
-            .map((filter) => {
-              const col = COLUMNS.find((c) => c.key === filter.column);
-              return (
-                <Badge
-                  key={filter.id}
-                  variant="secondary"
-                  className="gap-1 cursor-pointer hover:bg-secondary/80"
-                  onClick={() => setShowGlobalViewsManager(true)}
-                  title="Click to edit filters"
-                >
-                  {/* Use friendly label if provided, otherwise show raw filter details */}
-                  {filter.label ? (
-                    filter.label
-                  ) : (
-                    <>
-                      {col?.label || filter.column}{" "}
-                      {FILTER_OPERATOR_LABELS[filter.operator] || filter.operator}{" "}
-                      {!["is_empty", "is_not_empty"].includes(filter.operator) &&
-                        `"${filter.value}"`}
-                    </>
-                  )}
-                  <X
-                    className="h-3 w-3 text-muted-foreground hover:text-foreground ml-1"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRemoveFilter(filter.id);
-                    }}
-                  />
-                </Badge>
-              );
-            })}
-          {/* Only show "Clear all" if there are user-clearable filters */}
-          {hasUserFilters && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={clearAllFilters}
-              className="h-6 px-2 text-muted-foreground"
-            >
-              Clear all
-            </Button>
-          )}
-        </div>
-      ) : null}
-
-      {/* Bulk actions - HIDDEN - now shown inline in toolbar */}
-      {false && selectedRows.size > 0 && (
-        <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
-          {/* Only show selection count/clear when NOT in grouped view (grouped view has it inline) */}
-          {!groupByColumn && (
-            <>
-              <span className="text-[11px] font-medium">
-                {selectedRows.size} row{selectedRows.size !== 1 ? "s" : ""} selected
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSelectedRows(new Set<string | number>())}
-              >
-                Clear selection
-              </Button>
-            </>
-          )}
-          {/* Bulk Edit button - for editing multiple rows */}
-          {onBulkEdit && !viewOnly && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onBulkEdit?.(Array.from(selectedRows))}
-            >
-              <Pencil className="h-4 w-4 mr-1" />
-              Edit
-            </Button>
-          )}
-          {/* Bulk Update - column-based update modal */}
-          {onRowUpdate && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowBulkUpdateModal(true)}
-            >
-              <Pencil className="h-4 w-4 mr-1" />
-              Bulk Update
-            </Button>
-          )}
-          {/* Inline Edit - edit all selected rows inline like a spreadsheet */}
-          {onRowUpdate && !viewOnly && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => startMultiEditing(Array.from(selectedRows))}
-            >
-              <Pencil className="h-4 w-4 mr-1" />
-              Inline Edit
-            </Button>
-          )}
-          {/* Merge button - combine rows into one */}
-          {/* Shows when: onBulkMerge provided OR enableMerge with foundationIdNumeric */}
-          {(onBulkMerge || (enableMerge !== false && effectiveFoundationId)) && !viewOnly && selectedRows.size >= 2 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleMergeClick(Array.from(selectedRows))}
-            >
-              <GitMerge className="h-4 w-4 mr-1" />
-              Merge
-            </Button>
-          )}
-          {/* Xero Transfer button - transfer Xero link between exactly 2 contacts */}
-          {onXeroTransfer && !viewOnly && selectedRows.size === 2 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onXeroTransfer?.(Array.from(selectedRows))}
-            >
-              <ArrowLeftRight className="h-4 w-4 mr-1" />
-              Xero
-            </Button>
-          )}
-          {/* Delete button (auto-enabled with foundationIdNumeric) */}
-          {/* SSoT: Only delete VISIBLE selected rows (filtered intersection) */}
-          {effectiveBulkDelete && !viewOnly && (
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => {
-                // Use String() for type-safe comparison (IDs may be string or number)
-                const visibleIdStrings = new Set(filteredAndSortedEntries.map(e => String(e.id)));
-                const visibleSelectedIds = Array.from(selectedRows).filter(id => visibleIdStrings.has(String(id)));
-                if (visibleSelectedIds.length === 0) {
-                  console.warn('[Delete] No visible selected rows to delete');
-                  return;
-                }
-                effectiveBulkDelete?.(visibleSelectedIds);
-              }}
-            >
-              <Trash2 className="h-4 w-4 mr-1" />
-              Delete
-            </Button>
-          )}
-          {/* Custom bulk actions - rendered via callback */}
-          {customBulkActions?.(
-            Array.from(selectedRows),
-            () => setSelectedRows(new Set<string | number>())
-          )}
-        </div>
-      )}
-
-
-      {/* Sort controls - indicators hidden but functionality preserved */}
-      {false && sortColumns.length > 0 && (
-        <div className="flex items-center gap-4 text-[11px]">
-          {sortColumns.length > 0 && (
-            <div className="flex items-center gap-1">
-              <span className="text-muted-foreground">Sorted by:</span>
-              {sortColumns.map((s, i) => (
-                <Badge key={s.column} variant="secondary" className="gap-1">
-                  {s.column} {s.dir === "asc" ? "↑" : "↓"}
-                  <button
-                    onClick={() =>
-                      setSortColumns((prev) =>
-                        prev.filter((_, idx) => idx !== i)
-                      )
-                    }
-                    className="ml-1 hover:text-destructive"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {/* Active filters indicator - reads from TableContext */}
+      <ActiveFiltersIndicator
+        showColumnFilters={showColumnFilters}
+        onEditFilters={() => setShowGlobalViewsManager(true)}
+      />
 
       {/* Table - scrollable container with max height so scrollbar stays visible */}
       {/* Account for: nav(64) + page header(80) + data health(60 collapsed/40vh expanded) + toolbar(50) + footer(30) */}
@@ -6767,5 +6441,6 @@ export default function TeeemTableView({
         </>
       )}
     </div>
+    </TableProvider>
   );
 }

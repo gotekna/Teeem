@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_08_120349) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_08_120350) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -5705,6 +5705,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_08_120349) do
     t.decimal "retainage_amount", precision: 15, scale: 2, default: "0.0"
     t.datetime "retainage_released_at"
     t.bigint "retainage_release_invoice_id"
+    t.integer "claim_sequence_number"
     t.index ["claim_stage_template_id"], name: "index_job_claim_stages_on_claim_stage_template_id"
     t.index ["external_invoice_id"], name: "index_job_claim_stages_on_external_invoice_id"
     t.index ["job_id", "external_invoice_id"], name: "idx_job_claim_stages_invoice", unique: true
@@ -8253,6 +8254,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_08_120349) do
     t.bigint "claim_invoice_template_id"
     t.bigint "claim_trading_name_id"
     t.boolean "is_variation", default: false
+    t.integer "claim_sequence_number"
     t.index ["checklist_id"], name: "index_sm_schedule_masters_on_checklist_id"
     t.index ["claim_invoice_template_id"], name: "index_sm_schedule_masters_on_claim_invoice_template_id"
     t.index ["complete_workflow_id"], name: "index_sm_schedule_masters_on_complete_workflow_id"

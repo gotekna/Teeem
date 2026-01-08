@@ -70,6 +70,14 @@ interface TradingName {
   is_active?: boolean;
 }
 
+interface XeroTenant {
+  id: number;
+  tenant_name: string;
+  is_primary: boolean;
+  status: string;
+  status_display: string;
+}
+
 export default function CompanyInfoTab() {
   const [settings, setSettings] = React.useState<CompanySettings>({
     company_name: "",
@@ -114,6 +122,11 @@ export default function CompanyInfoTab() {
   const [newTradingName, setNewTradingName] = React.useState<Partial<TradingName> | null>(null);
   const [savingTradingName, setSavingTradingName] = React.useState(false);
 
+  // Xero Tenants state
+  const [xeroTenants, setXeroTenants] = React.useState<XeroTenant[]>([]);
+  const [loadingXero, setLoadingXero] = React.useState(false);
+  const [savingXero, setSavingXero] = React.useState(false);
+
   const hasChanges = React.useMemo(() => {
     if (!originalSettings) return false;
     return JSON.stringify(settings) !== JSON.stringify(originalSettings);
@@ -122,6 +135,7 @@ export default function CompanyInfoTab() {
   React.useEffect(() => {
     loadSettings();
     loadTradingNames();
+    loadXeroTenants();
   }, []);
 
   const loadSettings = async () => {
@@ -229,6 +243,37 @@ export default function CompanyInfoTab() {
     }
   };
 
+  // Xero Tenants CRUD
+  const loadXeroTenants = async () => {
+    setLoadingXero(true);
+    try {
+      const response = await api.get<{ success: boolean; tenants: XeroTenant[] }>(
+        "/api/v1/xero/tenants"
+      );
+      if (response?.tenants) {
+        setXeroTenants(response.tenants);
+      }
+    } catch (error) {
+      console.error("Failed to load Xero tenants:", error);
+    } finally {
+      setLoadingXero(false);
+    }
+  };
+
+  const setPrimaryXero = async (tenantId: number) => {
+    setSavingXero(true);
+    try {
+      await api.post("/api/v1/xero/set_primary", { tenant_id: tenantId });
+      await loadXeroTenants();
+      setMessage({ type: "success", text: "Primary Xero account updated!" });
+    } catch (error) {
+      console.error("Failed to set primary Xero:", error);
+      setMessage({ type: "error", text: "Failed to update primary Xero account" });
+    } finally {
+      setSavingXero(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -301,6 +346,59 @@ export default function CompanyInfoTab() {
           <p className="text-xs text-muted-foreground">
             Queensland Building and Construction Commission license number
           </p>
+        </div>
+
+        {/* Primary Xero Account Section */}
+        <div className="space-y-2">
+          <Label>Primary Xero Account</Label>
+          <p className="text-sm text-muted-foreground">
+            Select which Xero organization to use for job tracking categories and syncing
+          </p>
+          {loadingXero ? (
+            <div className="flex items-center gap-2">
+              <Spinner size={16} />
+              <span className="text-sm text-muted-foreground">Loading Xero accounts...</span>
+            </div>
+          ) : xeroTenants.length > 0 ? (
+            <Select
+              value={xeroTenants.find(t => t.is_primary)?.id?.toString() || ""}
+              onValueChange={(value) => setPrimaryXero(parseInt(value))}
+              disabled={savingXero}
+            >
+              <SelectTrigger className="w-full max-w-md">
+                <SelectValue placeholder="Select Xero organization" />
+              </SelectTrigger>
+              <SelectContent>
+                {xeroTenants.map((tenant) => (
+                  <SelectItem key={tenant.id} value={tenant.id.toString()}>
+                    <div className="flex items-center gap-2">
+                      <span>{tenant.tenant_name}</span>
+                      {tenant.is_primary && (
+                        <span className="text-[10px] px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded">
+                          Current
+                        </span>
+                      )}
+                      {tenant.status !== "connected" && (
+                        <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded">
+                          {tenant.status}
+                        </span>
+                      )}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No Xero connections found. Connect to Xero in the Connections tab.
+            </p>
+          )}
+          {savingXero && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Spinner size={14} />
+              <span>Updating...</span>
+            </div>
+          )}
         </div>
 
         {/* Logo Variants Section */}

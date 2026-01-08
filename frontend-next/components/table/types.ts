@@ -55,6 +55,7 @@ export interface SortColumn {
 }
 
 // Filter configuration for cascade filters
+// ULTRA filter source architecture: filters can come from different sources
 export interface CascadeFilter {
   id: string | number;
   column: string;
@@ -62,6 +63,10 @@ export interface CascadeFilter {
   operator: "=" | "!=" | ">" | "<" | ">=" | "<=" | "contains" | "not_contains" | "starts_with" | "ends_with" | "is_empty" | "is_not_empty" | "between" | "array_contains" | "array_not_contains";
   label?: string;
   groupId?: string;
+  /** Source of the filter (matches FilterSource from filter-atoms.ts) */
+  source?: 'base' | 'view' | 'user' | 'search' | 'quickFilter';
+  /** Whether the filter is locked (can't be removed by user) */
+  locked?: boolean;
 }
 
 // Filter group configuration

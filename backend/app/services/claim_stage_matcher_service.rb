@@ -89,17 +89,25 @@ class ClaimStageMatcherService
     matched_invoice_ids = @job.job_claim_stages.where.not(external_invoice_id: nil).pluck(:external_invoice_id)
 
     # Get sales invoices for this job (customer invoices, not supplier bills)
+    # SSoT: Accept both Xero type "ACCREC" and TEEEM type "sales_invoice"
     @job.external_invoices
-        .where(invoice_type: "ACCREC")  # Accounts Receivable = Sales Invoice
+        .where(invoice_type: ["ACCREC", "sales_invoice"])
         .where.not(id: matched_invoice_ids)
         .order(:created_at)
   end
 
   # Find an invoice that matches the stage based on pattern matching
   def find_matching_invoice(stage, invoices)
-    template = stage.claim_stage_template
+    # Priority 1: Try J{job_number}-{sequence} pattern if sequence is set
+    # SSoT: This is the preferred matching method
+    if stage.claim_sequence_number.present?
+      sequence_pattern = build_sequence_pattern(stage.claim_sequence_number)
+      match = invoices.find { |inv| description_matches?(inv, sequence_pattern) }
+      return match if match
+    end
 
-    # Try template pattern first
+    # Priority 2: Try template pattern
+    template = stage.claim_stage_template
     if template&.invoice_match_pattern.present?
       regex = template.match_pattern_regex
       if regex
@@ -110,22 +118,37 @@ class ClaimStageMatcherService
       end
     end
 
-    # Fall back to stage name matching
+    # Priority 3: Fall back to stage name matching
     stage_name_regex = build_name_regex(stage.name)
     invoices.find do |inv|
       description_matches?(inv, stage_name_regex)
     end
   end
 
-  # Check if invoice description matches regex
+  # Build pattern for J{job_number}-{sequence} format
+  # Matches: J201-1, j201-1, J201 - 1, etc.
+  def build_sequence_pattern(sequence_number)
+    job_number = @job.job_number || @job.id
+    # Match J{job_number}-{sequence} with optional spaces around dash
+    Regexp.new("J#{Regexp.escape(job_number.to_s)}\\s*-\\s*#{sequence_number}", Regexp::IGNORECASE)
+  end
+
+  # Check if invoice fields match regex
   def description_matches?(invoice, regex)
     fields_to_check = [
       invoice.reference,
-      invoice.description,
       invoice.invoice_number
-    ].compact
+    ]
 
-    fields_to_check.any? { |field| field.match?(regex) }
+    # Also check line item descriptions (stored in line_items JSONB)
+    if invoice.line_items.is_a?(Array)
+      invoice.line_items.each do |item|
+        fields_to_check << item["Description"] if item["Description"].present?
+        fields_to_check << item["description"] if item["description"].present?
+      end
+    end
+
+    fields_to_check.compact.any? { |field| field.to_s.match?(regex) }
   end
 
   # Build a regex from stage name for matching

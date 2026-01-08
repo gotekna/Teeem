@@ -410,7 +410,8 @@ class SmScheduleMasterTemplateCopyService
       existing_stage.update!(
         percentage: template_row.claim_percentage,
         invoice_match_pattern: template_row.claim_invoice_pattern,
-        sequence_order: sequence_order
+        sequence_order: sequence_order,
+        claim_sequence_number: template_row.claim_sequence_number
       )
       # Link the task to the existing claim stage
       task.update!(job_claim_stage_id: existing_stage.id)
@@ -435,7 +436,9 @@ class SmScheduleMasterTemplateCopyService
       sequence_order: sequence_order,
       is_custom: false, # Created from template, not manually
       match_status: "unmatched",
-      payment_status: "pending"
+      payment_status: "pending",
+      # SSoT: claim_sequence_number for J{job}-{seq} invoice matching
+      claim_sequence_number: template_row.claim_sequence_number
     )
 
     if claim_stage.save

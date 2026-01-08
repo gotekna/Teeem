@@ -253,8 +253,17 @@ module Api
 
         # Build invoice attributes
         amount = @stage.expected_amount || 0
-        description = "#{@stage.name} - #{@job.name}"
-        reference = params[:reference] || "#{@job.job_number}-#{@stage.name}"
+        # SSoT: Use J{job_number}-{sequence} format for auto-matching
+        # Falls back to job_number-stage_name if no sequence set
+        reference = if params[:reference].present?
+                      params[:reference]
+                    elsif @stage.claim_sequence_number.present?
+                      "J#{@job.job_number}-#{@stage.claim_sequence_number}"
+                    else
+                      "#{@job.job_number}-#{@stage.name}"
+                    end
+        # Include reference in description so it's searchable in Xero
+        description = "#{reference} - #{@stage.name} - #{@job.name}"
         due_days = (params[:due_days] || 14).to_i
 
         # Get tracking data if job has Xero tracking option
