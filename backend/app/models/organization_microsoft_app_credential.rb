@@ -209,9 +209,26 @@ class OrganizationMicrosoftAppCredential < ApplicationRecord
   end
 
   # Get list of users in the tenant (for sync configuration)
+  # PERFORMANCE: Cached for 10 minutes to avoid slow Graph API calls on every navigation request
   def list_tenant_users
     return [] unless status == "connected"
 
+    # Cache tenant users for 10 minutes - tenant user list rarely changes
+    # This fixes slow navigation requests (was 2+ seconds due to Graph API latency)
+    cache_key = "org_microsoft_app_credential:#{id}:tenant_users"
+    Rails.cache.fetch(cache_key, expires_in: 10.minutes) do
+      fetch_tenant_users_from_api
+    end
+  end
+
+  # Clear the cached tenant users (call when tenant changes)
+  def clear_tenant_users_cache
+    Rails.cache.delete("org_microsoft_app_credential:#{id}:tenant_users")
+  end
+
+  private
+
+  def fetch_tenant_users_from_api
     response = HTTP.auth("Bearer #{valid_access_token}")
                    .get("https://graph.microsoft.com/v1.0/users?$select=id,displayName,mail,userPrincipalName")
 
@@ -232,6 +249,8 @@ class OrganizationMicrosoftAppCredential < ApplicationRecord
     Rails.logger.error "[MicrosoftApp] Error listing users: #{e.message}"
     []
   end
+
+  public
 
   # SharePoint configuration helpers
   # TEEEM's single SharePoint config (all orgs store attachments here)

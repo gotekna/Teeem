@@ -3127,6 +3127,12 @@ export default function TeeemTableView({
           // ALSO skip if user has already selected a view (prevents race condition override)
           // This fixes: user clicks global view, but async loadSavedViews completion overrides it
           if (!ssrAlreadyAppliedView && !userSelectedViewRef.current && !explicitlyNoView) {
+            // ⚠️ ABORT CHECK #2 - Final check before applying view (v2703)
+            // This catches the race where unmount happens between line 3053 check and here
+            if (aborted) {
+              console.log('[loadSavedViews] Aborted before loadViewState - component unmounted');
+              return;
+            }
             // No SSR view and no user selection - apply default view now
             const skipUrlUpdate = !!urlViewExistsForFoundation;
             loadViewState(defaultView, skipUrlUpdate);

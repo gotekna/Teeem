@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_08_120350) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_08_120351) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -6698,23 +6698,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_08_120350) do
     t.index ["user_id"], name: "index_notifications_on_user_id"
   end
 
-  create_table "one_drive_credentials", force: :cascade do |t|
-    t.bigint "job_id", null: false
-    t.text "access_token"
-    t.text "refresh_token"
-    t.datetime "token_expires_at"
-    t.string "drive_id"
-    t.string "root_folder_id"
-    t.string "folder_path"
-    t.jsonb "metadata", default: {}
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["drive_id"], name: "index_one_drive_credentials_on_drive_id"
-    t.index ["job_id"], name: "index_one_drive_credentials_on_job_id", unique: true
-    t.index ["root_folder_id"], name: "index_one_drive_credentials_on_root_folder_id"
-    t.index ["token_expires_at"], name: "index_one_drive_credentials_on_token_expires_at"
-  end
-
   create_table "organization_microsoft_app_credentials", force: :cascade do |t|
     t.string "client_id"
     t.text "client_secret"
@@ -10458,7 +10441,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_08_120350) do
   add_foreign_key "notebook_shares", "users", column: "granted_by_id"
   add_foreign_key "notebooks", "users", column: "owner_id"
   add_foreign_key "notifications", "users"
-  add_foreign_key "one_drive_credentials", "jobs"
   add_foreign_key "organization_microsoft_app_credentials", "organizations"
   add_foreign_key "organization_microsoft_app_credentials", "users", column: "setup_by_id", name: "organization_microsoft_app_credentials_setup_by_id_fkey"
   add_foreign_key "organization_one_drive_credentials", "users", column: "connected_by_id"
