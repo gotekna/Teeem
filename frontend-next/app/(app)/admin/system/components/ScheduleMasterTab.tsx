@@ -403,16 +403,31 @@ export function ScheduleMasterTab() {
   });
 
   // Gantt Preview state
-  const [ganttTemplateId, setGanttTemplateId] = React.useState<number | null>(null);
+  const [ganttTemplateId, setGanttTemplateIdState] = React.useState<number | null>(null);
   // ⚠️ Ref to track CURRENT value for async closure safety (v2711)
   const ganttTemplateIdRef = React.useRef<number | null>(null);
+  // ⚠️ DO NOT SIMPLIFY - Sync wrapper updates ref BEFORE state (v2711 fix)
+  // ════════════════════════════════════════════════════════════════════
+  // Why: React effects run AFTER commit phase. If loadTemplates() API returns
+  //      before commit completes, the ref (set via effect) would still be stale.
+  // Fix: Update ref synchronously, then state. Ref is always current.
+  // ════════════════════════════════════════════════════════════════════
+  const setGanttTemplateId = React.useCallback((id: number | null) => {
+    ganttTemplateIdRef.current = id;
+    setGanttTemplateIdState(id);
+  }, []);
   const [ganttRows, setGanttRows] = React.useState<SmScheduleMaster[]>([]);
   const [ganttFullscreen, setGanttFullscreen] = React.useState(true); // Default to fullscreen
 
   // Data View state
-  const [dataViewTemplateId, setDataViewTemplateId] = React.useState<number | null>(null);
+  const [dataViewTemplateId, setDataViewTemplateIdState] = React.useState<number | null>(null);
   // ⚠️ Ref to track CURRENT value for async closure safety (v2711)
   const dataViewTemplateIdRef = React.useRef<number | null>(null);
+  // ⚠️ DO NOT SIMPLIFY - Sync wrapper updates ref BEFORE state (v2711 fix)
+  const setDataViewTemplateId = React.useCallback((id: number | null) => {
+    dataViewTemplateIdRef.current = id;
+    setDataViewTemplateIdState(id);
+  }, []);
   const [dataViewRows, setDataViewRows] = React.useState<SmScheduleMaster[]>([]);
   const [dataViewLoading, setDataViewLoading] = React.useState(false);
   const [dataViewRefreshKey, setDataViewRefreshKey] = React.useState(0);
@@ -420,9 +435,14 @@ export function ScheduleMasterTab() {
   // SSoT: dataViewFullscreen removed - now handled by TeeemTableView via enableFullscreen prop
 
   // Gantt V2 state - template ID for selection
-  const [ganttV2TemplateId, setGanttV2TemplateId] = React.useState<number | null>(null);
+  const [ganttV2TemplateId, setGanttV2TemplateIdState] = React.useState<number | null>(null);
   // ⚠️ Ref to track CURRENT value for async closure safety (v2711)
   const ganttV2TemplateIdRef = React.useRef<number | null>(null);
+  // ⚠️ DO NOT SIMPLIFY - Sync wrapper updates ref BEFORE state (v2711 fix)
+  const setGanttV2TemplateId = React.useCallback((id: number | null) => {
+    ganttV2TemplateIdRef.current = id;
+    setGanttV2TemplateIdState(id);
+  }, []);
   // Show PO required tasks without suppliers (useful for template editing)
   const [showAllPOTasks, setShowAllPOTasks] = React.useState(false);
 
@@ -581,23 +601,9 @@ export function ScheduleMasterTab() {
   const completeCount = Object.values(columnStatus.complete).filter(Boolean).length;
     const totalColumns = ALL_COLUMNS.length;
 
-  // ⚠️ DO NOT SIMPLIFY - Async closure safety (v2711)
-  // ════════════════════════════════════════════════════════════════════
-  // Why: loadTemplates() is async. If user selects a template while API
-  //      is in flight, the closure still has the OLD value. The ref
-  //      gives us access to the CURRENT value after the await.
-  // ════════════════════════════════════════════════════════════════════
-  React.useEffect(() => {
-    ganttTemplateIdRef.current = ganttTemplateId;
-  }, [ganttTemplateId]);
-
-  React.useEffect(() => {
-    dataViewTemplateIdRef.current = dataViewTemplateId;
-  }, [dataViewTemplateId]);
-
-  React.useEffect(() => {
-    ganttV2TemplateIdRef.current = ganttV2TemplateId;
-  }, [ganttV2TemplateId]);
+  // v2711 note: Ref sync moved to wrapper setters (setGanttTemplateId, setDataViewTemplateId,
+  // setGanttV2TemplateId) which update refs synchronously BEFORE state. This prevents race
+  // conditions where effects run after async API completes but before commit phase.
 
   React.useEffect(() => {
     console.log("[ScheduleMasterTab] useEffect running, loading all data...");

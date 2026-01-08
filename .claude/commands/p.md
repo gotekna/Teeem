@@ -199,6 +199,39 @@ For each navigation:
 - **LCP > 4000ms** = Very slow (FAIL)
 - Take snapshot to verify content rendered (no persistent spinners >2s)
 
+### Step 1.5: Content Validation (CRITICAL)
+
+**CLS metrics don't catch functional bugs!** After each performance trace, take a snapshot and validate:
+
+#### Table Content Checks
+For any page with TeeemTableView:
+1. **Record count mismatch**: Header shows "0 records" but groups have counts = **FAIL**
+2. **Empty table with groups**: Groups visible with (N) counts but no records loaded = **FAIL**
+3. **Loading state stuck**: Spinner visible for >3 seconds = **FAIL**
+4. **SSR data ignored**: Page shows skeleton when SSR data was passed = **FAIL**
+
+#### How to Detect
+```
+After performance_start_trace completes:
+1. take_snapshot
+2. Search snapshot for:
+   - "0 records" text when groups show counts
+   - Spinner/loading indicators still present
+   - Empty table body with populated group headers
+3. If found: Mark as [FAIL - Content Bug] not just CLS warning
+```
+
+#### Example: The "0 Records" Bug (2025-01-09)
+```
+WRONG ASSESSMENT:
+  Pricebook: LCP 974ms, CLS 0.12 [WARN - borderline]
+
+CORRECT ASSESSMENT:
+  Pricebook: LCP 974ms, CLS 0.12 [FAIL - shows "0 records" but groups have 1000+ items]
+```
+
+**Root cause was:** Header used `filteredAndSortedEntries.length` (0 on SSR) instead of `serverTotalRecords` (correct count from SSR group data).
+
 ### Step 2: Backend Performance Data
 
 Fetch from API and analyze:
