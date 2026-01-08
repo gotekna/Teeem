@@ -348,6 +348,59 @@ export default function CompanyInfoTab() {
           </p>
         </div>
 
+        {/* Primary Xero Account Section */}
+        <div className="space-y-2">
+          <Label>Primary Xero Account</Label>
+          <p className="text-sm text-muted-foreground">
+            Select which Xero organization to use for job tracking categories and syncing
+          </p>
+          {loadingXero ? (
+            <div className="flex items-center gap-2">
+              <Spinner size={16} />
+              <span className="text-sm text-muted-foreground">Loading Xero accounts...</span>
+            </div>
+          ) : xeroTenants.length > 0 ? (
+            <Select
+              value={xeroTenants.find(t => t.is_primary)?.id?.toString() || ""}
+              onValueChange={(value) => setPrimaryXero(parseInt(value))}
+              disabled={savingXero}
+            >
+              <SelectTrigger className="w-full max-w-md">
+                <SelectValue placeholder="Select Xero organization" />
+              </SelectTrigger>
+              <SelectContent>
+                {xeroTenants.map((tenant) => (
+                  <SelectItem key={tenant.id} value={tenant.id.toString()}>
+                    <div className="flex items-center gap-2">
+                      <span>{tenant.tenant_name}</span>
+                      {tenant.is_primary && (
+                        <span className="text-[10px] px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded">
+                          Current
+                        </span>
+                      )}
+                      {tenant.status !== "connected" && (
+                        <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded">
+                          {tenant.status}
+                        </span>
+                      )}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No Xero connections found. Connect to Xero in the Connections tab.
+            </p>
+          )}
+          {savingXero && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Spinner size={14} />
+              <span>Updating...</span>
+            </div>
+          )}
+        </div>
+
         {/* Logo Variants Section */}
         <div className="space-y-6 p-4 border rounded-lg bg-muted/30">
           <div>
