@@ -243,17 +243,19 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     try {
       setSaving(true);
       setError(null);
-      // Link PO to schedule_task_id if task selected, store name in ted_task
-      // Backend expects schedule_task_id, which it then saves to sm_task_id
-      // For custom tasks, include assignment info (user or role)
+      // SSoT: Every PO must link to a real SmTask via sm_task_id
+      // - If existing task selected: send schedule_task_id → backend links it
+      // - If custom task name: send task_name → backend CREATES SmTask then links it
       const response = await api.post<{ purchase_order: { id: number; purchase_order_number: string } }>(`/api/v1/purchase_orders`, {
         purchase_order: {
           job_id: jobId,
           supplier_id: selectedContact.id,
+          // Existing task: link directly
           schedule_task_id: selectedTask?.id || null,
-          ted_task: selectedTask?.name || customTaskName.trim(),
+          // Custom task: backend creates SmTask with this name
+          task_name: !selectedTask && customTaskName.trim() ? customTaskName.trim() : null,
           status: "draft",
-          // Only pass assignment for custom tasks (not existing sm_tasks)
+          // Assignment info for custom tasks
           ...(customTaskName.trim() && !selectedTask && {
             assigned_user_id: assignedUserId ? Number(assignedUserId) : null,
             assigned_role: assignedRole || null,
