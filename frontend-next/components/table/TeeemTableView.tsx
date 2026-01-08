@@ -927,6 +927,14 @@ export default function TeeemTableView({
   // Only include base filters in the key since user filters change frequently
   const baseFiltersKey = useMemo(() => JSON.stringify(baseFilters), [baseFilters]);
 
+  // Track the baseFiltersKey used for the last successful fetch
+  // This ensures we refetch when baseFilters change, even if all records are "loaded"
+  // ⚠️ DO NOT SIMPLIFY - Fixes template/view conflict bug (v2698)
+  // When switching from a view to a template, the first fetch may use wrong baseFilters
+  // because the initialFilters effect hasn't run yet. Without this tracking, the second
+  // fetch (with correct filters) would be skipped because hasMore=false from first fetch.
+  const lastFetchedBaseFiltersKeyRef = useRef<string | null>(null);
+
   // ULTRA FIX: Create stable key for ALL filters (not just base) to trigger client-side filtering
   // This ensures filteredAndSortedEntries recalculates when any filter changes (view, quick, user)
   // Without this, the useMemo dependency on cascadeFilters array reference may not detect content changes
@@ -1029,14 +1037,31 @@ export default function TeeemTableView({
       // When all records are in memory, view filters can be applied client-side instantly
       // via filteredAndSortedEntries - no need for network roundtrip
       // This makes view switching instant when all records are loaded
-      if (!hasMore && autoFetchedRecords.length > 0) {
+      //
+      // ⚠️ EXCEPTION: If baseFilters changed since last fetch, we MUST refetch!
+      // This fixes the template/view conflict bug where:
+      // 1. First fetch uses empty baseFilters (initialFilters effect hasn't run yet)
+      // 2. Second fetch (with correct baseFilters) would be skipped because hasMore=false
+      // 3. Client-side filtering can't fix this because we loaded wrong data
+      const baseFiltersChanged = lastFetchedBaseFiltersKeyRef.current !== null &&
+        lastFetchedBaseFiltersKeyRef.current !== baseFiltersKey;
+
+      if (!hasMore && autoFetchedRecords.length > 0 && !baseFiltersChanged) {
         console.log('[TeeemTableView] All records loaded, applying filters client-side');
         return; // Client-side filtering in filteredAndSortedEntries handles this
       }
 
+      if (baseFiltersChanged) {
+        console.log('[TeeemTableView] Base filters changed, refetching:', {
+          previous: lastFetchedBaseFiltersKeyRef.current,
+          current: baseFiltersKey,
+        });
+      }
+
       // ULTRA FIX: Skip refetch if SSR data was already applied on initial load
       // This prevents double-fetch when filter initialization triggers effect re-run
-      if (hasAppliedInitialRecordsRef.current && autoFetchedRecords.length > 0 && autoFetchRefreshKey === 0) {
+      // EXCEPTION: If baseFilters changed, we must refetch even with SSR data
+      if (hasAppliedInitialRecordsRef.current && autoFetchedRecords.length > 0 && autoFetchRefreshKey === 0 && !baseFiltersChanged) {
         console.log('[TeeemTableView] SSR data already applied, skipping duplicate initial fetch');
         return;
       }
@@ -1064,6 +1089,8 @@ export default function TeeemTableView({
         const newRecords = response.records || [];
         setAutoFetchedRecords(newRecords);
         setHasMore(response.has_more ?? true);
+        // Track which baseFilters were used for this fetch (for change detection)
+        lastFetchedBaseFiltersKeyRef.current = baseFiltersKey;
         // CACHE: Save records for instant restoration on back navigation
         if (newRecords.length > 0) {
           setCachedRecords(effectiveFoundationId, newRecords as Record<string, unknown>[], null, response.has_more ?? true);

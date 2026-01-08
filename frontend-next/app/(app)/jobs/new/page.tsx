@@ -306,22 +306,25 @@ export default function NewJobPage() {
     loadLookupData();
   }, [statusFromPath]);
 
+  // Reusable function to load contacts - can be called after proposal enrichment creates new company
+  const loadContacts = React.useCallback(async () => {
+    try {
+      setLoadingContacts(true);
+      const response = await api.get<{ contacts?: Contact[] } | Contact[]>("/api/v1/contacts");
+      const contacts = Array.isArray(response) ? response : response?.contacts || [];
+      console.log("[loadContacts] Loaded", contacts.length, "contacts");
+      setAllContacts(contacts);
+    } catch (error) {
+      console.error("Failed to load contacts:", error);
+    } finally {
+      setLoadingContacts(false);
+    }
+  }, []);
+
   // Load contacts on mount
   React.useEffect(() => {
-    const loadContacts = async () => {
-      try {
-        setLoadingContacts(true);
-        const response = await api.get<{ contacts?: Contact[] } | Contact[]>("/api/v1/contacts");
-        const contacts = Array.isArray(response) ? response : response?.contacts || [];
-        setAllContacts(contacts);
-      } catch (error) {
-        console.error("Failed to load contacts:", error);
-      } finally {
-        setLoadingContacts(false);
-      }
-    };
     loadContacts();
-  }, []);
+  }, [loadContacts]);
 
   // Load email proposal if from_proposal param is set
   React.useEffect(() => {
@@ -458,6 +461,12 @@ export default function NewJobPage() {
           internal_sales_id: data.internal_sales?.user_id || null,
         }));
 
+        // If enrichment created a new company, reload contacts to include it in the list
+        if (data.customer?.enrichment?.company_id) {
+          console.log("[loadProposal] Enrichment created company, reloading contacts to include ID:", data.customer.enrichment.company_id);
+          await loadContacts();
+        }
+
       } catch (error) {
         console.error("Failed to load proposal:", error);
       } finally {
@@ -466,7 +475,7 @@ export default function NewJobPage() {
     };
 
     loadProposal();
-  }, [proposalId]);
+  }, [proposalId, loadContacts]);
 
   // Track if we've already mapped job type from proposal
   const [hasSetJobTypeFromProposal, setHasSetJobTypeFromProposal] = React.useState(false);
@@ -514,14 +523,12 @@ export default function NewJobPage() {
       const matchedType = jobTypes.find(jt => jt.name.toLowerCase() === targetTypeName.toLowerCase());
       if (matchedType) {
         console.log(`[Proposal JobType Mapping] SUCCESS: "${aiJobType}" → "${matchedType.name}" (ID: ${matchedType.id})`);
-        // Use setTimeout to ensure this runs after any other pending state updates
-        setTimeout(() => {
-          setFormData(prev => {
-            console.log("[Proposal JobType Mapping] Setting job_type_id, prev:", prev.job_type_id);
-            return { ...prev, job_type_id: matchedType.id.toString() };
-          });
-          setHasSetJobTypeFromProposal(true);
-        }, 0);
+        // Set the flag FIRST to prevent re-runs, then set the form data
+        setHasSetJobTypeFromProposal(true);
+        setFormData(prev => {
+          console.log("[Proposal JobType Mapping] Setting job_type_id, prev:", prev.job_type_id, "new:", matchedType.id.toString());
+          return { ...prev, job_type_id: matchedType.id.toString() };
+        });
       } else {
         console.warn(`[Proposal JobType Mapping] No match found for target type "${targetTypeName}" in:`, jobTypes.map(jt => jt.name));
       }
