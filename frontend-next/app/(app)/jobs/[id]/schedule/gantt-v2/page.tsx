@@ -916,13 +916,16 @@ function Header({ job, jobId, onOpenOldGantt }: HeaderProps) {
           </h1>
           <p className="text-xs text-muted-foreground">SSoT Hook Architecture</p>
         </div>
-        {/* Quick Links - Plans, PO, Site (SSoT: same as old Gantt page) */}
+        {/* Quick Links - Plans, PO, Claims, Site (SSoT: same as old Gantt page) */}
         <div className="flex items-center gap-1 ml-2">
           <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/plans`, '_blank')}>
             Plans
           </Button>
           <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/purchase-orders`, '_blank')}>
             PO
+          </Button>
+          <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}?tab=claims`, '_blank')}>
+            Claims
           </Button>
           <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/site`, '_blank')}>
             Site

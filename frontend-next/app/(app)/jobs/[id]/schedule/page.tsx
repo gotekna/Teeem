@@ -83,6 +83,9 @@ interface SmTask {
     supplier_name: string | null;
     required_date: string | null;
   } | null;
+  // Claim fields (from ?for=gantt response)
+  is_claim_task?: boolean;
+  job_claim_stage_id?: number | null;
   // Lock status fields for dependency editor
   confirm?: boolean;
   supplier_confirm?: boolean;
@@ -296,6 +299,9 @@ function mapTaskToGanttTask(task: SmTask): GanttTask {
     purchaseOrderId: task.purchase_order?.id ?? task.purchase_order_id ?? undefined,
     purchaseOrderNumber: task.purchase_order?.po_number ?? undefined,
     poRequired: task.po_required ?? false,
+    // Claim fields
+    isClaimTask: task.is_claim_task ?? false,
+    jobClaimStageId: task.job_claim_stage_id ?? undefined,
     // SSoT: rowData contains predecessor_ids and lock status for sidebar/dependency editor
     rowData: {
       task_number: task.task_number,
@@ -1338,6 +1344,14 @@ export default function SchedulePage() {
               >
                 PO{selectedGanttTask?.purchaseOrderNumber ? ` #${selectedGanttTask.purchaseOrderNumber}` : ''}
               </Button>
+              <Button
+                variant={selectedGanttTask?.jobClaimStageId ? "default" : "outline"}
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => window.open(`/jobs/${jobId}?tab=claims`, '_blank')}
+              >
+                Claims
+              </Button>
               <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/site`, '_blank')}>
                 Site
               </Button>
@@ -1428,6 +1442,9 @@ export default function SchedulePage() {
             </Button>
             <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/purchase-orders`, '_blank')}>
               PO
+            </Button>
+            <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}?tab=claims`, '_blank')}>
+              Claims
             </Button>
             <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/site`, '_blank')}>
               Site

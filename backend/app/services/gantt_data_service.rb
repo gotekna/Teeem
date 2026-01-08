@@ -336,6 +336,9 @@ class GanttDataService
       supplier_id: record.try(:supplier_id) || record.try(:po_supplier_id),
       supplier_name: record.try(:supplier)&.name || record.try(:po_supplier)&.name,
       purchase_order_id: record.respond_to?(:linked_purchase_order) ? record.linked_purchase_order&.id : nil,
+      # Claim-related fields
+      is_claim_task: record.respond_to?(:is_claim_task?) ? record.is_claim_task? : false,
+      job_claim_stage_id: record.try(:job_claim_stage_id),
       # Header/parent info - now supports 2-level nesting
       header_gantt: determine_header_gantt(record),
       # SSoT: Explicit allow_header flag for canvas renderer header detection

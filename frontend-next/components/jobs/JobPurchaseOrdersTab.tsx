@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/dialog";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import {
-  Plus,
   AlertTriangle,
   X,
   Check,
@@ -230,6 +229,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   return (
     <div className="flex flex-col h-full -mx-4">
       {/* TeeemTableView with server-side filtering by job_id */}
+      {/* SSoT: onAddRow opens the PO modal - single way to create POs */}
       <TeeemTableView
         key={refreshKey}
         foundationId={PURCHASE_ORDERS_TABLE_NAME}
@@ -242,12 +242,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
         onRefresh={() => setRefreshKey(k => k + 1)}
         onRowClick={handleRowClick}
         onRowUpdate={handleRowUpdate}
-        leftActions={
-          <Button onClick={handleOpenCreateModal}>
-            <Plus className="h-4 w-4 mr-2" />
-            New Purchase Order
-          </Button>
-        }
+        onAddRow={handleOpenCreateModal}
       />
 
       {/* Create PO Modal */}
