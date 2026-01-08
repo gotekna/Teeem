@@ -468,14 +468,16 @@ export default function NewJobPage() {
     loadProposal();
   }, [proposalId]);
 
+  // Track if we've already mapped job type from proposal
+  const [hasSetJobTypeFromProposal, setHasSetJobTypeFromProposal] = React.useState(false);
+
   // Map AI-detected job_type to job_type_id after both proposal and jobTypes are loaded
+  // Uses a flag to ensure this only runs once and doesn't get overwritten
   React.useEffect(() => {
-    console.log("[Proposal JobType Mapping] Effect running:", {
-      hasProposal: !!proposal,
-      jobType: proposal?.extracted_data?.job_type,
-      jobTypesCount: jobTypes.length,
-      currentJobTypeId: formData.job_type_id,
-    });
+    // Skip if already set, missing data, or lookups still loading
+    if (hasSetJobTypeFromProposal || loadingLookups) {
+      return;
+    }
 
     if (!proposal?.extracted_data?.job_type || jobTypes.length === 0) {
       console.log("[Proposal JobType Mapping] Skipping - missing data");
@@ -512,14 +514,21 @@ export default function NewJobPage() {
       const matchedType = jobTypes.find(jt => jt.name.toLowerCase() === targetTypeName.toLowerCase());
       if (matchedType) {
         console.log(`[Proposal JobType Mapping] SUCCESS: "${aiJobType}" → "${matchedType.name}" (ID: ${matchedType.id})`);
-        setFormData(prev => ({ ...prev, job_type_id: matchedType.id.toString() }));
+        // Use setTimeout to ensure this runs after any other pending state updates
+        setTimeout(() => {
+          setFormData(prev => {
+            console.log("[Proposal JobType Mapping] Setting job_type_id, prev:", prev.job_type_id);
+            return { ...prev, job_type_id: matchedType.id.toString() };
+          });
+          setHasSetJobTypeFromProposal(true);
+        }, 0);
       } else {
         console.warn(`[Proposal JobType Mapping] No match found for target type "${targetTypeName}" in:`, jobTypes.map(jt => jt.name));
       }
     } else {
       console.warn(`[Proposal JobType Mapping] No mapping defined for AI job type "${aiJobType}"`);
     }
-  }, [proposal, jobTypes]);
+  }, [proposal, jobTypes, loadingLookups, hasSetJobTypeFromProposal]);
 
   // Track if we've already populated contacts from proposal
   const [hasPopulatedFromProposal, setHasPopulatedFromProposal] = React.useState(false);
