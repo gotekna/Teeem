@@ -32,7 +32,15 @@ import {
   MessageSquare,
   Paperclip,
   CheckSquare,
+  MoreVertical,
+  Check,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { BackButton } from "@/components/ui/back-button";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
@@ -212,6 +220,8 @@ export default function NewJobPage() {
   const [users, setUsers] = React.useState<User[]>([]);
   const [allContacts, setAllContacts] = React.useState<Contact[]>([]);
   const [loadingContacts, setLoadingContacts] = React.useState(false);
+  // Company-aware contact search display mode (shows "Troy Smith - Harvey Norman")
+  const [showCompanyNames, setShowCompanyNames] = React.useState(true);
   const [peopleData, setPeopleData] = React.useState<PeopleFormData>({
     client1_id: null,
     client2_id: null,
@@ -586,12 +596,19 @@ export default function NewJobPage() {
   }, [allContacts, peopleData.client1_id, peopleData.client2_id, peopleData.referrer_id, peopleData.external_sales_id, proposalId, hasPopulatedFromProposal]);
 
   // Convert contacts to combobox items
-  // Company-aware display: "Troy Smith - Harvey Norman" format
-  const contactItems: ComboboxItem[] = allContacts.map((c: Contact) => {
+  // Company-aware display: "Troy Smith - Harvey Norman" format (when showCompanyNames is true)
+  const getContactLabel = React.useCallback((c: Contact) => {
     const name = c.display_name || c.company_name || `Contact ${c.id}`;
-    const label = c.employer_name ? `${name} - ${c.employer_name}` : name;
-    return { id: c.id.toString(), label };
-  });
+    if (showCompanyNames && c.employer_name) {
+      return `${name} - ${c.employer_name}`;
+    }
+    return name;
+  }, [showCompanyNames]);
+
+  const contactItems: ComboboxItem[] = allContacts.map((c: Contact) => ({
+    id: c.id.toString(),
+    label: getContactLabel(c),
+  }));
 
   // Convert users to combobox items
   const userItems: ComboboxItem[] = users.map((u) => ({
@@ -1272,10 +1289,25 @@ export default function NewJobPage() {
               <div className="space-y-6">
                 {/* Clients */}
                 <div className="space-y-3">
-                  <h3 className="text-sm font-semibold flex items-center gap-2">
-                    <Building2 className="h-4 w-4 text-indigo-500" />
-                    Clients
-                  </h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <Building2 className="h-4 w-4 text-indigo-500" />
+                      Clients
+                    </h3>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setShowCompanyNames(!showCompanyNames)}>
+                          <Check className={`h-4 w-4 mr-2 ${showCompanyNames ? "opacity-100" : "opacity-0"}`} />
+                          Show company names
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="client1">Client 1 (Primary)</Label>
                     <ComboboxDropdown
@@ -1283,7 +1315,7 @@ export default function NewJobPage() {
                       items={contactItems}
                       selectedItem={selectedContacts.client1 ? {
                         id: selectedContacts.client1.id.toString(),
-                        label: selectedContacts.client1.display_name || selectedContacts.client1.company_name || "",
+                        label: getContactLabel(selectedContacts.client1),
                       } : undefined}
                       onSelect={(item) => {
                         const contact = allContacts.find((c: Contact) => c.id.toString() === item.id);
@@ -1302,7 +1334,7 @@ export default function NewJobPage() {
                       items={contactItems}
                       selectedItem={selectedContacts.client2 ? {
                         id: selectedContacts.client2.id.toString(),
-                        label: selectedContacts.client2.display_name || selectedContacts.client2.company_name || "",
+                        label: getContactLabel(selectedContacts.client2),
                       } : undefined}
                       onSelect={(item) => {
                         const contact = allContacts.find((c: Contact) => c.id.toString() === item.id);
@@ -1329,7 +1361,7 @@ export default function NewJobPage() {
                       items={contactItems}
                       selectedItem={selectedContacts.referrer ? {
                         id: selectedContacts.referrer.id.toString(),
-                        label: selectedContacts.referrer.display_name || selectedContacts.referrer.company_name || "",
+                        label: getContactLabel(selectedContacts.referrer),
                       } : undefined}
                       onSelect={(item) => {
                         const contact = allContacts.find((c: Contact) => c.id.toString() === item.id);
@@ -1348,7 +1380,7 @@ export default function NewJobPage() {
                       items={contactItems}
                       selectedItem={selectedContacts.external_sales ? {
                         id: selectedContacts.external_sales.id.toString(),
-                        label: selectedContacts.external_sales.display_name || selectedContacts.external_sales.company_name || "",
+                        label: getContactLabel(selectedContacts.external_sales),
                       } : undefined}
                       onSelect={(item) => {
                         const contact = allContacts.find((c: Contact) => c.id.toString() === item.id);

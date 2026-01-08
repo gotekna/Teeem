@@ -514,14 +514,15 @@ a.bg-primary svg {
 }
 
 /* ========================================
-   RADIX UI PORTAL Z-INDEX FIX
-   Ensures dropdowns appear above ALL overlays including dialogs
-   - EntityConfigurationTab fullscreen: z-120
-   - Sheet: z-130
-   - Leaflet maps: z-1000
-   - Dialog: z-1100
-   - Select: z-1200
+   RADIX UI DROPDOWN Z-INDEX
+   SSoT: lib/constants/z-index-constants.ts
+
+   This rule applies to ALL Radix popper components:
+   Popover, Select, DropdownMenu, Tooltip, ComboboxDropdown
+
+   Value must be above Z_MODAL (1100) so dropdowns inside
+   dialogs appear correctly.
    ======================================== */
 [data-radix-popper-content-wrapper] {
-  z-index: 10000 !important;
+  z-index: 1200 !important;
 }
