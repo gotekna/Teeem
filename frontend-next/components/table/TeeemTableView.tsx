@@ -3099,6 +3099,15 @@ export default function TeeemTableView({
           // ════════════════════════════════════════════════════════════════════
           const explicitlyNoView = defaultViewSlug === null;
 
+          console.log('[loadSavedViews] View application check:', {
+            defaultViewSlug,
+            explicitlyNoView,
+            ssrAlreadyAppliedView,
+            userSelected: userSelectedViewRef.current,
+            willApply: !ssrAlreadyAppliedView && !userSelectedViewRef.current && !explicitlyNoView,
+            defaultViewName: defaultView?.name,
+          });
+
           // ALSO skip if user has already selected a view (prevents race condition override)
           // This fixes: user clicks global view, but async loadSavedViews completion overrides it
           if (!ssrAlreadyAppliedView && !userSelectedViewRef.current && !explicitlyNoView) {
