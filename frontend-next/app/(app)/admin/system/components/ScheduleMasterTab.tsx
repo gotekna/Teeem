@@ -903,12 +903,10 @@ export function ScheduleMasterTab() {
       }
 
       // Auto-select template for Data View (same priority as Gantt)
-      // IMPORTANT: Check URL at runtime (not captured state) to avoid stale closure issues
-      // If a view is in the URL (e.g., /data-view/kitchen-claims), don't auto-select default template
-      const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
-      const hasViewInUrl = currentPath.includes('/data-view/') && currentPath.split('/data-view/')[1]?.length > 0;
-
-      if (!dataViewTemplateId && loadedTemplates.length > 0 && !hasViewInUrl) {
+      // v2709: ALWAYS auto-select template, even when view is in URL
+      // Templates and views are independent - views filter WITHIN the selected template
+      // Without a template selected, initialFilters is empty and table shows 0 records
+      if (!dataViewTemplateId && loadedTemplates.length > 0) {
         const autoSelectTemplate = loadedTemplates.find(t =>
           t.name.toLowerCase() === 'po schedule master'
         ) || loadedTemplates.find(t =>
