@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -13,9 +13,7 @@ import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import { TablePage } from "@/components/ui/page-wrappers";
 import {
   Plus,
-  Users,
   CheckCircle,
-  Clock,
   Star,
   ExternalLink,
   Award,
@@ -23,7 +21,6 @@ import {
   Calendar,
   FileText,
 } from "lucide-react";
-import { api } from "@/lib/api";
 
 // Foundation ID for Portal Users table
 
@@ -43,55 +40,19 @@ export default function PortalPage() {
     router.push(url, { scroll: false });
   }, [router]);
 
-  // Use foundation hook for TeeemTableView
-  const { foundation, records, isLoading, error, refresh } = useFoundationBySlug("portal_users");
+  // Fetch records for leaderboard calculations only
+  // TeeemTableView uses autoFetchRecords for the table
+  const { records, isLoading: leaderboardLoading } = useFoundationBySlug("portal_users");
 
-  // Handle inline row update
-  const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
-    try {
-      await api.patch(`/api/v1/foundations/portal_users/records/${rowId}`, {
-        record: { [field]: value }
-      });
-      refresh();
-    } catch (error) {
-      console.error("Failed to update portal user:", error);
-      throw error;
-    }
-  }, [refresh]);
-
-  // Stats from records
-  const stats = {
-    total_users: records.length,
-    active_users: records.filter((u) => u.status === "active").length,
-    pending_invites: records.filter((u) => u.status === "pending").length,
-    quotes_this_month: records.reduce((sum, u) => sum + (Number(u.quotes_submitted) || 0), 0),
-    avg_kudos_score: Math.round(
-      records.reduce((sum, u) => sum + (Number(u.kudos_score) || 0), 0) / records.length || 0
-    ),
-  };
-
-  const topPerformers = [...records]
-    .sort((a, b) => (Number(b.kudos_score) || 0) - (Number(a.kudos_score) || 0))
-    .slice(0, 5);
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Spinner />
-      </div>
-    );
-  }
-
-  // Left actions - Invite Supplier button
-  const leftActions = (
-    <Button>
-      <Plus className="h-4 w-4 mr-2" />
-      Invite Supplier
-    </Button>
+  const topPerformers = useMemo(() =>
+    [...records]
+      .sort((a, b) => (Number(b.kudos_score) || 0) - (Number(a.kudos_score) || 0))
+      .slice(0, 5),
+    [records]
   );
 
   // Left actions with Preview Portal button
-  const portalLeftActions = (
+  const leftActions = (
     <div className="flex items-center gap-2">
       <Button variant="outline" asChild>
         <Link href="/portal/preview" target="_blank">
@@ -119,19 +80,21 @@ export default function PortalPage() {
 
         <TabsContent value="users" className="flex-1 min-h-0 mt-4">
           <TeeemTableView
-            entries={records}
             foundationId="portal_users"
-            foundationIdNumeric={foundation?.id}
-            tableName={foundation?.name || "Portal Users"}
+            autoFetchRecords={true}
+            tableName="Portal Users"
             enableExport={true}
-            onRefresh={refresh}
-            onRowUpdate={handleRowUpdate}
-            leftActions={portalLeftActions}
+            leftActions={leftActions}
             hideFooter={true}
           />
         </TabsContent>
 
         <TabsContent value="leaderboard" className="mt-4">
+          {leaderboardLoading ? (
+            <div className="flex items-center justify-center min-h-[400px]">
+              <Spinner />
+            </div>
+          ) : (
           <div className="grid md:grid-cols-2 gap-6">
             {/* Top Performers */}
             <Card>
@@ -225,6 +188,7 @@ export default function PortalPage() {
               </CardContent>
             </Card>
           </div>
+          )}
         </TabsContent>
       </Tabs>
     </TablePage>

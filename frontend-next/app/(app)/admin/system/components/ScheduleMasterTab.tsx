@@ -2543,13 +2543,16 @@ export function ScheduleMasterTab() {
                     onValueChange={(value) => {
                       if (value) {
                         // SSoT: Update template ID AND increment refresh key to trigger remount with new initialFilters
-                        // Note: dataViewTemplateId is NOT in the key anymore (to prevent view selection from causing remounts)
-                        // So we must manually trigger a refresh when the dropdown is changed
                         setDataViewTemplateId(parseInt(value));
-                        setDataViewRefreshKey(k => k + 1);
-                        // Clear viewSlug from URL so initialFilters (template filter) are used instead of saved view filters
+
                         if (viewSlug) {
+                          // FIX: Clear URL FIRST, then defer refresh to avoid race condition
+                          // Without this, the component remounts before URL changes, causing old view filters to conflict
                           router.push('/admin/system/schedule-master/data-view', { scroll: false });
+                          setTimeout(() => setDataViewRefreshKey(k => k + 1), 50);
+                        } else {
+                          // No view active, refresh immediately
+                          setDataViewRefreshKey(k => k + 1);
                         }
                       }
                     }}
