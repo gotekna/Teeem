@@ -3063,9 +3063,18 @@ export default function TeeemTableView({
           // loadViewState should ONLY be called when user clicks a view button
           const ssrAlreadyAppliedView = !!initialView;
 
+          // ⚠️ DO NOT SIMPLIFY - null means "explicitly no view" (v2697)
+          // ════════════════════════════════════════════════════════════════════
+          // Why: When switching contexts (e.g., template change while view active),
+          //      parent passes defaultViewSlug={null} to mean "don't apply ANY view".
+          //      - undefined = "not specified, use default behavior"
+          //      - null = "explicitly no view, skip auto-apply"
+          // ════════════════════════════════════════════════════════════════════
+          const explicitlyNoView = defaultViewSlug === null;
+
           // ALSO skip if user has already selected a view (prevents race condition override)
           // This fixes: user clicks global view, but async loadSavedViews completion overrides it
-          if (!ssrAlreadyAppliedView && !userSelectedViewRef.current) {
+          if (!ssrAlreadyAppliedView && !userSelectedViewRef.current && !explicitlyNoView) {
             // No SSR view and no user selection - apply default view now
             const skipUrlUpdate = !!urlViewExistsForFoundation;
             loadViewState(defaultView, skipUrlUpdate);
@@ -3076,7 +3085,8 @@ export default function TeeemTableView({
           // For embedded context: notify parent on initial load so URL can sync
           // Only if no view was already in the URL (don't override explicit URL)
           // This ensures /jobs/46/schedule → /jobs/46/schedule/po-tasks-only
-          if (isEmbeddedContext && !slugToMatch && onViewChange) {
+          // ⚠️ DO NOT call onViewChange if defaultViewSlug is null (explicitly no view)
+          if (isEmbeddedContext && !slugToMatch && !explicitlyNoView && onViewChange) {
             onViewChange(defaultView);
           }
         }
