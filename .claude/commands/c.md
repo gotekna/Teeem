@@ -1,66 +1,68 @@
 # Start Chrome for Claude DevTools
 
-**Execute these steps immediately without asking for permission.**
+Starts an isolated Chrome instance for this chat session.
 
-Starts a NEW Chrome window with remote debugging so Claude can interact with the browser via MCP.
-**Does NOT kill existing Chrome windows.**
+## How It Works
 
-## Execution Steps
+**Each chat gets its own isolated Chrome** - no conflicts between multiple chats.
+- Uses `--isolated` flag for temporary profile per session
+- Auto-cleaned when Chrome closes
+- Login required once per session (Claude auto-logs in)
 
-**Step 1: Start Chrome with debugging (new window)**
-```bash
-# Start a new Chrome window with remote debugging (separate profile, won't affect main Chrome)
-nohup /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
-  --remote-debugging-port=9222 \
-  --user-data-dir="$HOME/.chrome-debug" \
-  http://localhost:3000 > /dev/null 2>&1 &
-sleep 2
+## Step 1: Check if MCP Chrome is ready
+
+Try to list pages directly - if it works, Chrome is already running:
+```javascript
+mcp__chrome-devtools__list_pages()
 ```
 
-**Step 2: Verify Chrome is running**
-```bash
-lsof -i:9222 | head -3
+If it returns pages, skip to Step 3.
+
+## Step 2: Start Chrome (if needed)
+
+If Step 1 failed, start Chrome:
+```javascript
+mcp__chrome-devtools__new_page({ url: "http://localhost:3000" })
+```
+
+## Step 3: Navigate and Auto-Login
+
+Navigate to localhost:
+```javascript
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'http://localhost:3000' })
+```
+
+If on login page, auto-login:
+```javascript
+mcp__chrome-devtools__fill_form({ elements: [
+  { uid: "EMAIL_FIELD_UID", value: "robert@tekna.com.au" },
+  { uid: "PASSWORD_FIELD_UID", value: "Wisdom50-50" }
+]})
+mcp__chrome-devtools__click({ uid: "SIGNIN_BUTTON_UID" })
 ```
 
 ## Final Report Format
 ```
 Chrome DevTools:
-- Port 9222: Running ✓
-- URL: http://localhost:3000 (opened)
-- Claude MCP: Ready to connect
+- Mode: Isolated (no conflicts with other chats)
+- URL: http://localhost:3000
+- Login: [Auto-logged in / Already logged in]
+- MCP: Ready to use
 
-Use these tools:
-- mcp__chrome-devtools__list_pages
-- mcp__chrome-devtools__take_snapshot
-- mcp__chrome-devtools__take_screenshot
-- mcp__chrome-devtools__click
-- mcp__chrome-devtools__fill
+Use mcp__chrome-devtools__* tools directly.
 ```
 
-## Notes
-- This starts a separate Chrome instance (won't affect your main browser)
-- Debug profile stored in ~/.chrome-debug
-- Port 9222 is the Chrome DevTools Protocol port
-- After running /c, ask Claude to interact with the page
+## Login Credentials
+- **Email:** robert@tekna.com.au
+- **Password:** Wisdom50-50
 
 ## Quick Navigation
-After Chrome opens, Claude can navigate to specific pages:
 ```javascript
-// Navigate to Gantt for job 46
 mcp__chrome-devtools__navigate_page({ type: 'url', url: 'http://localhost:3000/jobs/46/schedule/gantt' })
 ```
 
-## Testing Canvas-Based Features (Gantt)
-Canvas interactions (like dependency creation) cannot be reliably tested with synthetic events.
-For Gantt testing, Claude should:
-1. Take a screenshot to verify the page loaded
-2. Check console for errors: `mcp__chrome-devtools__list_console_messages`
-3. Instruct user to test manually:
-
-**Manual Dependency Creation Test:**
-1. Hover over a task bar to see chevrons (< >) appear
-2. Click and HOLD on a chevron
-3. Drag to another task row - popup should appear IMMEDIATELY
-4. Popup follows as you cross different rows
-5. Release mouse over "Start" or "Finish" button
-6. Edit Dependencies dialog should open
+## Notes
+- Each chat has its own isolated Chrome instance
+- Multiple chats can run Chrome simultaneously without conflicts
+- Chrome shows "controlled by automated test software" banner (expected)
+- Login once per session, Claude can auto-login

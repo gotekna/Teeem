@@ -3,7 +3,8 @@ class Contact < ApplicationRecord
   include Searchable
 
   # Searchable columns for full-text search (GIN index)
-  searchable_columns :first_name, :last_name, :email, :company_name_or_trust, :display_name, :mobile_phone
+  # Note: email/mobile_phone columns removed - data now in contact_emails/contact_phones tables
+  searchable_columns :first_name, :last_name, :company_name_or_trust, :display_name, :abn
 
   # Exclude soft-deleted contacts by default
   # Note: deleted column was removed in migration 20251210093313
@@ -411,13 +412,11 @@ class Contact < ApplicationRecord
   # If invoice.contact_name matches contact.display_name exactly, link them
   after_commit :auto_link_unlinked_invoices, on: [:create, :update], if: :should_auto_link_invoices?
 
-  # SSoT: Sync mobile_phone to linked user when contact is updated
-  after_save :sync_mobile_to_user, if: -> { saved_change_to_mobile_phone? && user.present? }
-
-  # SSoT: Sync legacy email/phone columns to contact_emails/contact_phones tables
-  # This ensures SSoT tables stay in sync when legacy columns are updated (e.g., from Xero sync)
-  after_save :sync_legacy_email_to_ssot, if: -> { saved_change_to_email? }
-  after_save :sync_legacy_phones_to_ssot, if: -> { saved_change_to_mobile_phone? || saved_change_to_office_phone? || saved_change_to_fax_phone? }
+  # SSoT: Legacy phone/email columns removed - data now in contact_phones/contact_emails tables
+  # These callbacks are disabled as the columns no longer exist
+  # after_save :sync_mobile_to_user, if: -> { saved_change_to_mobile_phone? && user.present? }
+  # after_save :sync_legacy_email_to_ssot, if: -> { saved_change_to_email? }
+  # after_save :sync_legacy_phones_to_ssot, if: -> { saved_change_to_mobile_phone? || saved_change_to_office_phone? || saved_change_to_fax_phone? }
 
   # Scopes
   # SSoT: Scopes using contact_emails and contact_phones tables
@@ -426,6 +425,13 @@ class Contact < ApplicationRecord
   scope :without_email, -> { left_joins(:contact_emails).where(contact_emails: { id: nil }) }
   scope :without_phone, -> { left_joins(:contact_phones).where(contact_phones: { id: nil }) }
   scope :without_contact_info, -> { without_email.without_phone }
+
+  # SSoT: Find contact by email through contact_emails table
+  # Use this instead of Contact.find_by(email: ...) since email is not a column
+  def self.find_by_email(email)
+    return nil if email.blank?
+    joins(:contact_emails).where("LOWER(contact_emails.email) = ?", email.downcase).first
+  end
   # Note: roles is TEXT storing JSON array like '["Employee"]', so use LIKE pattern
   # The pattern matches the role surrounded by quotes to avoid partial matches
   scope :with_role, ->(role) { where("roles LIKE ?", "%\"#{role}\"%") }
@@ -522,9 +528,17 @@ class Contact < ApplicationRecord
     email.present? || mobile_phone.present? || office_phone.present?
   end
 
+  # Return roles as an array (handles JSON string storage)
+  # SSoT: roles column is TEXT storing JSON like '["Employee"]'
+  def roles_array
+    return [] if roles.blank?
+    return roles if roles.is_a?(Array)
+    JSON.parse(roles) rescue []
+  end
+
   # Generic role checker
   def has_role?(role)
-    roles&.include?(role)
+    roles_array.include?(role)
   end
 
   # Specific role helpers

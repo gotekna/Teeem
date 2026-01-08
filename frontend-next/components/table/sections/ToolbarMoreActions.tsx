@@ -3,11 +3,17 @@
  *
  * Extracted from TeeemTableView to reduce main component size.
  * Contains schema, data, contacts, and display sections.
+ *
+ * Migration Note (Phase 6.5):
+ * This component now reads from TableContext when available for:
+ * - foundationId, resolvedFoundation (from meta)
+ * - hasEmailColumns (derived from columns)
+ * Feature flags, UI state, and callbacks remain as props.
  */
 
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   MoreVertical,
   Columns,
@@ -33,6 +39,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useTableMaybe } from '../context';
 
 export interface ToolbarMoreActionsProps {
   /** Show schema editor options */
@@ -41,11 +48,11 @@ export interface ToolbarMoreActionsProps {
   enableImport?: boolean;
   /** Show export option */
   enableExport?: boolean;
-  /** Whether table has email columns */
+  /** @deprecated Use TableContext instead. Whether table has email columns */
   hasEmailColumns?: boolean;
-  /** Foundation ID/slug for table info */
+  /** @deprecated Use TableContext instead. Foundation ID/slug for table info */
   foundationId?: string | number | null;
-  /** Resolved foundation info for display */
+  /** @deprecated Use TableContext instead. Resolved foundation info for display */
   resolvedFoundation?: { id: number; slug: string } | null;
   /** Whether column edit mode is on */
   columnEditMode?: boolean;
@@ -72,9 +79,9 @@ export function ToolbarMoreActions({
   enableSchemaEditor = false,
   enableImport = false,
   enableExport = false,
-  hasEmailColumns = false,
-  foundationId,
-  resolvedFoundation,
+  hasEmailColumns: propHasEmailColumns,
+  foundationId: propFoundationId,
+  resolvedFoundation: propResolvedFoundation,
   columnEditMode = false,
   showColumnFilters = false,
   isFindingAbns = false,
@@ -90,6 +97,24 @@ export function ToolbarMoreActions({
   onToggleColumnFilters,
   onCopyTableId,
 }: ToolbarMoreActionsProps) {
+  // Try to get values from context first
+  const table = useTableMaybe();
+
+  // Derive hasEmailColumns from context columns if available
+  const contextHasEmailColumns = useMemo(() => {
+    if (!table) return false;
+    return table.columns.some(col => col.column_type === 'email');
+  }, [table]);
+
+  // Resolve values: context first, props as fallback
+  const effectiveFoundationId = table?.meta.foundationId ?? propFoundationId;
+  const effectiveResolvedFoundation = useMemo(() => {
+    if (table?.meta.foundationIdNumeric && table?.meta.foundationId) {
+      return { id: table.meta.foundationIdNumeric, slug: table.meta.foundationId };
+    }
+    return propResolvedFoundation ?? null;
+  }, [table, propResolvedFoundation]);
+  const effectiveHasEmailColumns = table ? contextHasEmailColumns : (propHasEmailColumns ?? false);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -151,7 +176,7 @@ export function ToolbarMoreActions({
         )}
 
         {/* Email to Contacts Section - auto-enabled when table has email columns */}
-        {hasEmailColumns && (
+        {effectiveHasEmailColumns && (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuLabel className="text-xs text-muted-foreground font-medium">
@@ -162,7 +187,7 @@ export function ToolbarMoreActions({
               Extract Contacts from Emails
             </DropdownMenuItem>
             {/* SSoT: Use slug check only, not numeric ID (which differs per environment) */}
-            {foundationId === "contacts" && (
+            {effectiveFoundationId === "contacts" && (
               <DropdownMenuItem onClick={onFindMissingAbns} disabled={isFindingAbns}>
                 {isFindingAbns ? (
                   <Spinner size={16} className="mr-2" />
@@ -197,12 +222,12 @@ export function ToolbarMoreActions({
           TABLE INFO
         </DropdownMenuLabel>
 
-        {foundationId && (
+        {effectiveFoundationId && (
           <>
             <div className="px-2 py-1.5 flex items-center justify-between">
               <span className="text-[11px]">
                 Table ID: <span className="font-mono font-medium">
-                  {resolvedFoundation ? `${resolvedFoundation.slug} (${resolvedFoundation.id})` : foundationId}
+                  {effectiveResolvedFoundation ? `${effectiveResolvedFoundation.slug} (${effectiveResolvedFoundation.id})` : effectiveFoundationId}
                 </span>
               </span>
               <Button

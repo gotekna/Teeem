@@ -2766,13 +2766,17 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_08_120351) do
     t.string "direction"
     t.integer "dismissed_from_job_ids", default: [], array: true
     t.index "((email_classification ->> 'email_type'::text))", name: "idx_email_warehouse_classification_type", where: "(email_classification IS NOT NULL)"
+    t.index "((email_classification ->> 'email_type'::text))", name: "idx_email_warehouse_email_type"
     t.index ["cc_emails"], name: "idx_email_warehouse_cc_emails_gin", using: :gin
     t.index ["contact_ids"], name: "idx_email_warehouse_contact_ids_gin", using: :gin
     t.index ["conversation_id", "is_latest_in_thread"], name: "idx_email_warehouse_conversation_latest"
     t.index ["direction"], name: "index_email_warehouses_on_direction"
+    t.index ["from_email"], name: "idx_email_warehouse_from_email"
+    t.index ["id"], name: "idx_email_warehouse_unassigned", where: "(job_id IS NULL)"
     t.index ["imap_credential_id", "uid"], name: "idx_email_warehouse_imap_uid", where: "(uid IS NOT NULL)"
     t.index ["imap_credential_id"], name: "idx_email_warehouse_imap_credential"
     t.index ["internet_message_id"], name: "idx_email_warehouse_internet_message_id"
+    t.index ["is_latest_in_thread"], name: "idx_email_warehouse_latest_in_thread", where: "(is_latest_in_thread = true)"
     t.index ["job_id", "received_at"], name: "idx_email_warehouse_job_received", order: { received_at: :desc }
     t.index ["labels"], name: "index_email_warehouses_on_labels", using: :gin
     t.index ["microsoft_credential_id", "mailbox_owner_email"], name: "idx_email_warehouse_ms_credential_mailbox"
@@ -6698,23 +6702,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_08_120351) do
     t.index ["user_id"], name: "index_notifications_on_user_id"
   end
 
-  create_table "one_drive_credentials", force: :cascade do |t|
-    t.bigint "job_id", null: false
-    t.text "access_token"
-    t.text "refresh_token"
-    t.datetime "token_expires_at"
-    t.string "drive_id"
-    t.string "root_folder_id"
-    t.string "folder_path"
-    t.jsonb "metadata", default: {}
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["drive_id"], name: "index_one_drive_credentials_on_drive_id"
-    t.index ["job_id"], name: "index_one_drive_credentials_on_job_id", unique: true
-    t.index ["root_folder_id"], name: "index_one_drive_credentials_on_root_folder_id"
-    t.index ["token_expires_at"], name: "index_one_drive_credentials_on_token_expires_at"
-  end
-
   create_table "organization_microsoft_app_credentials", force: :cascade do |t|
     t.string "client_id"
     t.text "client_secret"
@@ -10476,7 +10463,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_08_120351) do
   add_foreign_key "notebook_shares", "users", column: "granted_by_id"
   add_foreign_key "notebooks", "users", column: "owner_id"
   add_foreign_key "notifications", "users"
-  add_foreign_key "one_drive_credentials", "jobs"
   add_foreign_key "organization_microsoft_app_credentials", "organizations"
   add_foreign_key "organization_microsoft_app_credentials", "users", column: "setup_by_id", name: "organization_microsoft_app_credentials_setup_by_id_fkey"
   add_foreign_key "organization_one_drive_credentials", "users", column: "connected_by_id"

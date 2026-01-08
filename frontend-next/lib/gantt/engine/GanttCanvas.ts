@@ -39,7 +39,7 @@ export {
 
 // Re-export working days calendar types
 export type { Holiday, WorkingDaysConfig } from './WorkingDaysCalendar';
-export { WorkingDaysCalendar, getAustralianHolidays } from './WorkingDaysCalendar';
+export { WorkingDaysCalendar } from './WorkingDaysCalendar';
 
 // Re-export critical path types
 export type { CriticalPathResult, TaskSchedule } from './CriticalPath';

@@ -11,7 +11,7 @@
 
 import * as React from "react";
 import { useTheme } from "next-themes";
-import { GanttCanvas, getAustralianHolidays } from "@/lib/gantt/engine/GanttCanvas";
+import { GanttCanvas } from "@/lib/gantt/engine/GanttCanvas";
 import {
   convertRowsToTasks,
   countWorkingDays,
@@ -2540,7 +2540,7 @@ export function GanttCanvasView({
       gantt.selectTasks([selectedTaskId]);
     }
 
-    // Load holidays immediately after canvas creation
+    // SSoT: Load holidays from database API only - no fallbacks
     (async () => {
       try {
         const currentYear = new Date().getFullYear();
@@ -2557,25 +2557,14 @@ export function GanttCanvasView({
               type: 'public' as const,
             };
           });
-          console.log('[Gantt] Adding holidays from API (inline):', holidays.length, 'holidays');
+          console.log('[Gantt] Holidays loaded from database:', holidays.length);
           gantt.addHolidays(holidays);
         } else {
-          const fallbackHolidays = [
-            ...getAustralianHolidays(currentYear),
-            ...getAustralianHolidays(currentYear + 1),
-          ];
-          console.log('[Gantt] Using fallback holidays (inline):', fallbackHolidays.length, 'holidays');
-          gantt.addHolidays(fallbackHolidays);
+          console.warn('[Gantt] No holidays returned from API - holidays will not be shaded');
         }
       } catch (err) {
-        console.error('Failed to load holidays (inline), using fallback:', err);
-        const currentYear = new Date().getFullYear();
-        const fallbackHolidays = [
-          ...getAustralianHolidays(currentYear),
-          ...getAustralianHolidays(currentYear + 1),
-        ];
-        console.log('[Gantt] Using error fallback holidays (inline):', fallbackHolidays.length, 'holidays');
-        gantt.addHolidays(fallbackHolidays);
+        console.error('[Gantt] Failed to load holidays from API:', err);
+        // SSoT: No fallback - database is the only source. Gantt will work but holidays won't be shaded.
       }
     })();
 
@@ -2607,91 +2596,6 @@ export function GanttCanvasView({
     }
   }, [selectedGroupHeaderId]);
 
-  // Note: The static tasks update effect was removed because the main useEffect
-  // already handles this correctly - it recreates the canvas with fresh data
-  // when staticTasks changes.
-
-  // Note: Holiday loading moved inline to main useEffect (after canvas creation)
-  // to ensure holidays persist even when canvas is recreated
-  /*
-  // OLD: Load holidays from API and add to canvas
-  React.useEffect(() => {
-    if (!ganttRef.current) return;
-
-    // Australian QLD public holidays fallback
-    const getAustralianHolidays = (year: number) => {
-      const holidays = [
-        { date: new Date(year, 0, 1), name: "New Year's Day" },
-        { date: new Date(year, 0, 26), name: "Australia Day" },
-        { date: new Date(year, 3, 25), name: "Anzac Day" },
-        { date: new Date(year, 11, 25), name: "Christmas Day" },
-        { date: new Date(year, 11, 26), name: "Boxing Day" },
-      ];
-      // Easter (approximate - Good Friday, Easter Saturday, Easter Monday)
-      // 2025: April 18, 19, 21
-      // 2026: April 3, 4, 6
-      if (year === 2025) {
-        holidays.push({ date: new Date(2025, 3, 18), name: "Good Friday" });
-        holidays.push({ date: new Date(2025, 3, 19), name: "Easter Saturday" });
-        holidays.push({ date: new Date(2025, 3, 21), name: "Easter Monday" });
-        holidays.push({ date: new Date(2025, 7, 13), name: "Ekka (QLD)" }); // Aug 13 2025
-        holidays.push({ date: new Date(2025, 9, 6), name: "King's Birthday (QLD)" }); // Oct 6 2025
-      } else if (year === 2026) {
-        holidays.push({ date: new Date(2026, 3, 3), name: "Good Friday" });
-        holidays.push({ date: new Date(2026, 3, 4), name: "Easter Saturday" });
-        holidays.push({ date: new Date(2026, 3, 6), name: "Easter Monday" });
-        holidays.push({ date: new Date(2026, 7, 12), name: "Ekka (QLD)" });
-        holidays.push({ date: new Date(2026, 9, 5), name: "King's Birthday (QLD)" });
-      }
-      return holidays.map(h => ({ ...h, type: 'public' as const }));
-    };
-
-    const loadHolidays = async () => {
-      try {
-        const currentYear = new Date().getFullYear();
-        const response = await api.get<{ dates: string[] }>(
-          `/api/v1/public_holidays/dates?year_start=${currentYear}&year_end=${currentYear + 2}&region=QLD`
-        );
-
-        if (response.dates && response.dates.length > 0) {
-          const holidays = response.dates.map(dateStr => {
-            // Parse date parts to avoid timezone issues
-            const [year, month, day] = dateStr.split('-').map(Number);
-            return {
-              date: new Date(year, month - 1, day), // month is 0-indexed
-              name: 'Public Holiday',
-              type: 'public' as const,
-            };
-          });
-          console.log('[Gantt] Adding holidays from API:', holidays.length, 'holidays');
-          ganttRef.current?.addHolidays(holidays);
-        } else {
-          // Fallback to hardcoded holidays
-          const currentYear = new Date().getFullYear();
-          const fallbackHolidays = [
-            ...getAustralianHolidays(currentYear),
-            ...getAustralianHolidays(currentYear + 1),
-          ];
-          console.log('[Gantt] Using fallback holidays:', fallbackHolidays.length, 'holidays');
-          ganttRef.current?.addHolidays(fallbackHolidays);
-        }
-      } catch (err) {
-        console.error('Failed to load holidays, using fallback:', err);
-        // Fallback to hardcoded holidays
-        const currentYear = new Date().getFullYear();
-        const fallbackHolidays = [
-          ...getAustralianHolidays(currentYear),
-          ...getAustralianHolidays(currentYear + 1),
-        ];
-        console.log('[Gantt] Using error fallback holidays:', fallbackHolidays.length, 'holidays');
-        ganttRef.current?.addHolidays(fallbackHolidays);
-      }
-    };
-
-    console.log('[Gantt] loadHolidays called, ganttRef.current:', !!ganttRef.current);
-    loadHolidays();
-  }, [rows, staticTasks]); // Re-run when data changes (after canvas is created)
-  */
 
   // Trigger resize when fullscreen changes
   React.useEffect(() => {

@@ -86,6 +86,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { EditRowDialog, type EditRowData, type EditRowFormData } from "@/components/schedule/EditRowDialog";
 import { Spinner } from "@/components/ui/spinner";
 import { Check, AlertCircle, Link2Off, PlayCircle, GitBranch } from "lucide-react";
+import { useAtom, useStore } from "jotai";
+import { smDataViewTemplateIdAtom } from "@/lib/table-atoms";
 
 // Copyable code component for column names
 function CopyableCode({ children }: { children: string }) {
@@ -304,6 +306,8 @@ export function ScheduleMasterTab() {
   const { toast } = useToast();
   const router = useRouter();
   const pathname = usePathname();
+  // v2711: Jotai store for reading CURRENT atom value inside async functions
+  const jotaiStore = useStore();
 
   // SSoT: Parse path segments for state
   // Pattern: /admin/system/schedule-master/[subtab]/[view-or-table]
@@ -331,6 +335,26 @@ export function ScheduleMasterTab() {
   // URL view param (Foundation view filter) - only for data-view tab
   const viewSlug = activeTab === "data-view" ? pathSegments.extra || undefined : undefined;
 
+  // State to override viewSlug during template change (must be declared before use)
+  // When true, forces viewSlug to null for TeeemTableView (overrides URL-derived value)
+  const [overrideViewSlugClear, setOverrideViewSlugClear] = React.useState(false);
+  // Ref to track pending template change (prevents view navigation during template switch)
+  const pendingTemplateIdRef = React.useRef<number | null>(null);
+
+  // Effective viewSlug for TeeemTableView - can be overridden during template change
+  // This allows immediate clearing of view while URL updates asynchronously
+  // ⚠️ DO NOT SIMPLIFY - null means "explicitly no view, ignore URL" (v2696)
+  // When overrideViewSlugClear is true, pass null (not undefined) to tell
+  // TeeemTableView to ignore the URL path and apply no view filters
+  const effectiveViewSlug = overrideViewSlugClear ? null : viewSlug;
+
+  // Clear the override once URL has actually updated (viewSlug becomes undefined)
+  React.useEffect(() => {
+    if (overrideViewSlugClear && !viewSlug) {
+      setOverrideViewSlugClear(false);
+    }
+  }, [viewSlug, overrideViewSlugClear]);
+
   // Clear view filter from URL
   const handleViewClear = React.useCallback(() => {
     router.push("/admin/system/schedule-master/data-view", { scroll: false });
@@ -343,6 +367,10 @@ export function ScheduleMasterTab() {
     slug?: string | null;
     filters?: Array<{ column: string; operator: string; value: string | number | boolean | null }>;
   } | null) => {
+    // Skip navigation if we're clearing the view for a template change
+    // Otherwise this would navigate back to the old view URL, overriding our clear
+    if (pendingTemplateIdRef.current !== null) return;
+
     if (view?.slug) {
       router.push(`/admin/system/schedule-master/data-view/${view.slug}`, { scroll: false });
     }
@@ -379,12 +407,30 @@ export function ScheduleMasterTab() {
   });
 
   // Gantt Preview state
-  const [ganttTemplateId, setGanttTemplateId] = React.useState<number | null>(null);
+  const [ganttTemplateId, setGanttTemplateIdState] = React.useState<number | null>(null);
+  // ⚠️ Ref to track CURRENT value for async closure safety (v2711)
+  const ganttTemplateIdRef = React.useRef<number | null>(null);
+  // ⚠️ DO NOT SIMPLIFY - Sync wrapper updates ref BEFORE state (v2711 fix)
+  // ════════════════════════════════════════════════════════════════════
+  // Why: React effects run AFTER commit phase. If loadTemplates() API returns
+  //      before commit completes, the ref (set via effect) would still be stale.
+  // Fix: Update ref synchronously, then state. Ref is always current.
+  // ════════════════════════════════════════════════════════════════════
+  const setGanttTemplateId = React.useCallback((id: number | null) => {
+    ganttTemplateIdRef.current = id;
+    setGanttTemplateIdState(id);
+  }, []);
   const [ganttRows, setGanttRows] = React.useState<SmScheduleMaster[]>([]);
   const [ganttFullscreen, setGanttFullscreen] = React.useState(true); // Default to fullscreen
 
   // Data View state
-  const [dataViewTemplateId, setDataViewTemplateId] = React.useState<number | null>(null);
+  // ⚠️ DO NOT SIMPLIFY - Jotai atom survives component remounts (v2711 ultra fix)
+  // ════════════════════════════════════════════════════════════════════
+  // Why: router.push() causes component remount. useState/useRef reset on remount.
+  //      Jotai atoms persist outside component lifecycle.
+  // Bug: Without atom, selecting Kitchen while /setup view active → reverts to House
+  // ════════════════════════════════════════════════════════════════════
+  const [dataViewTemplateId, setDataViewTemplateId] = useAtom(smDataViewTemplateIdAtom);
   const [dataViewRows, setDataViewRows] = React.useState<SmScheduleMaster[]>([]);
   const [dataViewLoading, setDataViewLoading] = React.useState(false);
   const [dataViewRefreshKey, setDataViewRefreshKey] = React.useState(0);
@@ -392,7 +438,14 @@ export function ScheduleMasterTab() {
   // SSoT: dataViewFullscreen removed - now handled by TeeemTableView via enableFullscreen prop
 
   // Gantt V2 state - template ID for selection
-  const [ganttV2TemplateId, setGanttV2TemplateId] = React.useState<number | null>(null);
+  const [ganttV2TemplateId, setGanttV2TemplateIdState] = React.useState<number | null>(null);
+  // ⚠️ Ref to track CURRENT value for async closure safety (v2711)
+  const ganttV2TemplateIdRef = React.useRef<number | null>(null);
+  // ⚠️ DO NOT SIMPLIFY - Sync wrapper updates ref BEFORE state (v2711 fix)
+  const setGanttV2TemplateId = React.useCallback((id: number | null) => {
+    ganttV2TemplateIdRef.current = id;
+    setGanttV2TemplateIdState(id);
+  }, []);
   // Show PO required tasks without suppliers (useful for template editing)
   const [showAllPOTasks, setShowAllPOTasks] = React.useState(false);
 
@@ -550,6 +603,10 @@ export function ScheduleMasterTab() {
   // Calculate stats
   const completeCount = Object.values(columnStatus.complete).filter(Boolean).length;
     const totalColumns = ALL_COLUMNS.length;
+
+  // v2711 note: Ref sync moved to wrapper setters (setGanttTemplateId, setDataViewTemplateId,
+  // setGanttV2TemplateId) which update refs synchronously BEFORE state. This prevents race
+  // conditions where effects run after async API completes but before commit phase.
 
   React.useEffect(() => {
     console.log("[ScheduleMasterTab] useEffect running, loading all data...");
@@ -862,7 +919,8 @@ export function ScheduleMasterTab() {
       loadNoTemplateCount();
 
       // Auto-select template for Gantt Preview if not already selected
-      if (!ganttTemplateId && loadedTemplates.length > 0) {
+      // v2711: Use ref (not closure) to check CURRENT value after async await
+      if (!ganttTemplateIdRef.current && loadedTemplates.length > 0) {
         // Try to find a template in priority order:
         // 1. "PO Schedule Master" (current default)
         // 2. Any template with "schedule master" in name
@@ -879,12 +937,17 @@ export function ScheduleMasterTab() {
       }
 
       // Auto-select template for Data View (same priority as Gantt)
-      // IMPORTANT: Check URL at runtime (not captured state) to avoid stale closure issues
-      // If a view is in the URL (e.g., /data-view/kitchen-claims), don't auto-select default template
-      const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
-      const hasViewInUrl = currentPath.includes('/data-view/') && currentPath.split('/data-view/')[1]?.length > 0;
-
-      if (!dataViewTemplateId && loadedTemplates.length > 0 && !hasViewInUrl) {
+      // v2709: ALWAYS auto-select template, even when view is in URL
+      // Templates and views are independent - views filter WITHIN the selected template
+      // Without a template selected, initialFilters is empty and table shows 0 records
+      // v2711: Read CURRENT atom value (not stale closure) via store.get()
+      // ════════════════════════════════════════════════════════════════════
+      // Why: This async function may have started before user clicked a template.
+      //      The closure-captured `dataViewTemplateId` would be stale (null).
+      //      Using store.get() reads the CURRENT atom value after await returns.
+      // ════════════════════════════════════════════════════════════════════
+      const currentTemplateId = jotaiStore.get(smDataViewTemplateIdAtom);
+      if (!currentTemplateId && loadedTemplates.length > 0) {
         const autoSelectTemplate = loadedTemplates.find(t =>
           t.name.toLowerCase() === 'po schedule master'
         ) || loadedTemplates.find(t =>
@@ -897,7 +960,8 @@ export function ScheduleMasterTab() {
       }
 
       // Auto-select template for Gantt V2 (same priority as others)
-      if (!ganttV2TemplateId && loadedTemplates.length > 0) {
+      // v2711: Use ref (not closure) to check CURRENT value after async await
+      if (!ganttV2TemplateIdRef.current && loadedTemplates.length > 0) {
         const autoSelectTemplate = loadedTemplates.find(t =>
           t.name.toLowerCase() === 'po schedule master'
         ) || loadedTemplates.find(t =>
@@ -1339,11 +1403,12 @@ export function ScheduleMasterTab() {
             console.log('[Start Task] Fetched holidays from API:', holidayResponse.dates.filter(d => d.startsWith('2026-01')));
           }
         } catch (err) {
-          console.warn('[Gantt V2] Failed to fetch holidays, using fallback:', err);
+          console.warn('[Gantt V2] Failed to fetch holidays from API:', err);
+          // SSoT: No fallback - working day calculations proceed without holidays
         }
 
         console.log('[Start Task] Today:', today.toISOString().split('T')[0], 'isWorkingDay:', isWorkingDay(today, holidayDates));
-        console.log('[Start Task] Holiday dates in set:', holidayDates ? [...holidayDates].filter(d => d.startsWith('2025-12') || d.startsWith('2026-01')).sort() : 'using fallback');
+        console.log('[Start Task] Holiday dates loaded:', holidayDates ? holidayDates.size : 0);
 
         // Check if today is a working day
         const isTodayWorking = isWorkingDay(today, holidayDates);
@@ -2508,7 +2573,7 @@ export function ScheduleMasterTab() {
                   ? templates.find(t => t.id === dataViewTemplateId)?.name || "PO Schedule Master"
                   : "PO Schedule Master"
               }
-              autoFetchRecords={!!dataViewTemplateId || !!viewSlug}
+              autoFetchRecords={!!dataViewTemplateId || !!effectiveViewSlug}
               initialFilters={dataViewTemplateId ? (() => {
                 // SSoT: Template filter is ALWAYS applied, even when a saved view is active
                 // Views add additional filters on TOP of the template filter
@@ -2531,8 +2596,8 @@ export function ScheduleMasterTab() {
               onRowUpdate={handleDataViewRowUpdate}
               onRowDoubleClick={handleDataViewRowDoubleClick}
               initialShowTotals={true}
-              viewSlug={viewSlug}
-              defaultViewSlug={viewSlug}
+              viewSlug={effectiveViewSlug}
+              defaultViewSlug={effectiveViewSlug}
               onViewChange={handleViewChange}
               leftActions={
                 <div className="flex items-center gap-2">
@@ -2542,14 +2607,33 @@ export function ScheduleMasterTab() {
                     value={dataViewTemplateId ? String(dataViewTemplateId) : ""}
                     onValueChange={(value) => {
                       if (value) {
-                        // SSoT: Update template ID AND increment refresh key to trigger remount with new initialFilters
-                        // Note: dataViewTemplateId is NOT in the key anymore (to prevent view selection from causing remounts)
-                        // So we must manually trigger a refresh when the dropdown is changed
-                        setDataViewTemplateId(parseInt(value));
-                        setDataViewRefreshKey(k => k + 1);
-                        // Clear viewSlug from URL so initialFilters (template filter) are used instead of saved view filters
+                        const newTemplateId = parseInt(value);
+
                         if (viewSlug) {
+                          // ⚠️ DO NOT SIMPLIFY - View must clear BEFORE template applies (v2695, v2711)
+                          // ═══════════════════════════════════════════════════════════════════════════
+                          // Why: TeeemTableView applies saved view filters when viewSlug is set.
+                          //      If we set templateId while viewSlug is active, BOTH filters apply
+                          //      → 0 records (template filter conflicts with view filter)
+                          // Fix: Use overrideViewSlugClear to immediately tell TeeemTableView
+                          //      to ignore the viewSlug. Then update URL (cosmetic).
+                          //
+                          // v2711: Jotai atom (smDataViewTemplateIdAtom) survives remount.
+                          //        No sessionStorage needed - atom persists outside component.
+                          // ═══════════════════════════════════════════════════════════════════════════
+                          pendingTemplateIdRef.current = newTemplateId; // Guard for handleViewChange
+                          setOverrideViewSlugClear(true); // Immediately clear view for TeeemTableView
+                          setDataViewTemplateId(newTemplateId);
+                          setDataViewRefreshKey(k => k + 1);
                           router.push('/admin/system/schedule-master/data-view', { scroll: false });
+                          // Clear ref after a tick to allow state to propagate
+                          setTimeout(() => {
+                            pendingTemplateIdRef.current = null;
+                          }, 0);
+                        } else {
+                          // No view active, apply template immediately
+                          setDataViewTemplateId(newTemplateId);
+                          setDataViewRefreshKey(k => k + 1);
                         }
                       }
                     }}
@@ -2606,7 +2690,7 @@ export function ScheduleMasterTab() {
                 </div>
               }
             />
-            {!dataViewTemplateId && (
+            {!dataViewTemplateId && !effectiveViewSlug && (
               <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                 <TableIcon className="h-12 w-12 mb-4 opacity-50" />
                 <h3 className="text-lg font-medium mb-2">Select a template</h3>

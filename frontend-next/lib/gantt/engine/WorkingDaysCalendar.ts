@@ -304,76 +304,7 @@ export class WorkingDaysCalendar {
   }
 }
 
-// ============================================================================
-// Australian Public Holidays (Example)
-// ============================================================================
-
-/**
- * Get Australian public holidays for a given year
- * Note: These are approximate - actual dates vary by state
- */
-export function getAustralianHolidays(year: number): Holiday[] {
-  const holidays: Holiday[] = [];
-
-  // Fixed date holidays
-  holidays.push({ date: new Date(year, 0, 1), name: "New Year's Day", type: 'public' });
-  holidays.push({ date: new Date(year, 0, 26), name: 'Australia Day', type: 'public' });
-  holidays.push({ date: new Date(year, 3, 25), name: 'Anzac Day', type: 'public' });
-  holidays.push({ date: new Date(year, 11, 25), name: 'Christmas Day', type: 'public' });
-  holidays.push({ date: new Date(year, 11, 26), name: 'Boxing Day', type: 'public' });
-
-  // Easter (calculated)
-  const easter = calculateEaster(year);
-  holidays.push({
-    date: new Date(easter.getTime() - 2 * 24 * 60 * 60 * 1000),
-    name: 'Good Friday',
-    type: 'public',
-  });
-  holidays.push({
-    date: new Date(easter.getTime() - 24 * 60 * 60 * 1000),
-    name: 'Easter Saturday',
-    type: 'public',
-  });
-  holidays.push({ date: easter, name: 'Easter Sunday', type: 'public' });
-  holidays.push({
-    date: new Date(easter.getTime() + 24 * 60 * 60 * 1000),
-    name: 'Easter Monday',
-    type: 'public',
-  });
-
-  // Queen's/King's Birthday (second Monday of June in most states)
-  const juneFirst = new Date(year, 5, 1);
-  const dayOfWeek = juneFirst.getDay();
-  const secondMonday = dayOfWeek === 1 ? 8 : dayOfWeek === 0 ? 9 : 8 + (8 - dayOfWeek);
-  holidays.push({
-    date: new Date(year, 5, secondMonday),
-    name: "King's Birthday",
-    type: 'public',
-  });
-
-  return holidays;
-}
-
-/**
- * Calculate Easter Sunday using the Anonymous Gregorian algorithm
- */
-function calculateEaster(year: number): Date {
-  const a = year % 19;
-  const b = Math.floor(year / 100);
-  const c = year % 100;
-  const d = Math.floor(b / 4);
-  const e = b % 4;
-  const f = Math.floor((b + 8) / 25);
-  const g = Math.floor((b - f + 1) / 3);
-  const h = (19 * a + b - d - g + 15) % 30;
-  const i = Math.floor(c / 4);
-  const k = c % 4;
-  const l = (32 + 2 * e + 2 * i - h - k) % 7;
-  const m = Math.floor((a + 11 * h + 22 * l) / 451);
-  const month = Math.floor((h + l - 7 * m + 114) / 31) - 1;
-  const day = ((h + l - 7 * m + 114) % 31) + 1;
-
-  return new Date(year, month, day);
-}
+// SSoT: Holidays come from database via /api/v1/public_holidays/dates
+// NO hardcoded holidays - use addHolidays() method to set holidays from API
 
 export default WorkingDaysCalendar;

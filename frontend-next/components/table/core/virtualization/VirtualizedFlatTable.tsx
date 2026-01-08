@@ -204,15 +204,23 @@ export const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
                         focusedRowIndex === rowIndex && tableHasFocus && "ring-2 ring-inset ring-primary/50 bg-primary/5",
                         "hover:bg-muted/30 cursor-pointer"
                       )}
-                      onClick={(e) => {
-                        if (!isEditMode && !editingRowIds.has(row.id) && onRowClick) {
-                          onRowClick(row);
+                      onClick={() => {
+                        // Single click toggles selection (standard behavior)
+                        if (!isEditMode && !editingRowIds.has(row.id)) {
+                          getToggleCallback(row.id)();
                         }
                         onFocusRow?.(rowIndex);
                       }}
-                      onDoubleClick={() =>
-                        !isEditMode && !editingRowIds.has(row.id) && onRowDoubleClick?.(row)
-                      }
+                      onDoubleClick={() => {
+                        // Double click opens detail/edit
+                        if (!isEditMode && !editingRowIds.has(row.id)) {
+                          if (onRowClick) {
+                            onRowClick(row);
+                          } else {
+                            onRowDoubleClick?.(row);
+                          }
+                        }
+                      }}
                       onMouseEnter={() => handleRowMouseEnter(row.id, rowIndex)}
                     >
                       {visibleColumnsInOrder.map((column, colIndex) => {

@@ -301,7 +301,8 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
           console.log(`[GanttDataManager] 📅 Loaded ${holidayDates.size} holidays`);
         }
       } catch (err) {
-        console.warn('[GanttDataManager] Failed to load holidays, using fallback:', err);
+        console.warn('[GanttDataManager] Failed to load holidays from API:', err);
+        // SSoT: No fallback - working day calculations will proceed without holidays
       }
 
       // Fetch data
@@ -638,7 +639,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
           if (response?.dates) {
             holidayDates = new Set(response.dates);
           }
-        } catch { /* Use fallback */ }
+        } catch { /* SSoT: No fallback - proceed without holidays */ }
 
         const isTodayWorking = isWorkingDay(today, holidayDates);
         const lastWorking = isTodayWorking ? null : skipToPreviousWorkingDay(today, holidayDates);

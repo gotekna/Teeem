@@ -8,11 +8,12 @@ module Api
 
       # GET /api/v1/sm_schedule_master_templates/:sm_schedule_master_template_id/rows
       # SSoT: Use ?for=gantt to filter invisible tasks (po_required without supplier)
-      # Performance: includes po_supplier, spawn_scan_task to avoid N+1
+      # PERFORMANCE: Eager load ALL associations used in row_json to prevent N+1
+      # P95 was 1.66s due to N+1 on workflows, document_types; should be <300ms with eager loading
       def index
         # Sort by sequence_order - dependencies drive scheduling, calculated client-side
         @rows = @template.sm_schedule_master_rows.active
-                         .includes(:po_supplier, :spawn_scan_task)
+                         .includes(row_json_includes)
                          .order(Arel.sql("COALESCE(sequence_order, 0) ASC"))
 
         # Gantt mode: Filter out PO-required tasks without a supplier configured
@@ -164,11 +165,25 @@ module Api
 
         render json: {
           success: true,
-          rows: @template.sm_schedule_master_rows.active.includes(:po_supplier, :spawn_scan_task).in_sequence.map { |r| row_json(r) }
+          rows: @template.sm_schedule_master_rows.active
+                         .includes(row_json_includes)
+                         .in_sequence.map { |r| row_json(r) }
         }
       end
 
       private
+
+      # SSoT: All associations needed for row_json serialization
+      # Used by index and reorder to prevent N+1 queries
+      def row_json_includes
+        [
+          :po_supplier,
+          :spawn_scan_task,
+          :start_workflow,
+          :complete_workflow,
+          { sm_schedule_master_document_types: :document_type }
+        ]
+      end
 
       def set_template
         @template = SmScheduleMasterTemplate.find(params[:sm_schedule_master_template_id])
@@ -214,7 +229,7 @@ module Api
           # Header and active status
           :allow_header, :is_active,
           # Claim task settings (SSoT for job claims)
-          :is_claim_task, :is_variation, :claim_percentage, :claim_invoice_pattern, :claim_invoice_template_id, :claim_trading_name_id,
+          :is_claim_task, :is_variation, :claim_percentage, :claim_sequence_number, :claim_invoice_pattern, :claim_invoice_template_id, :claim_trading_name_id,
           predecessor_ids: [ :id, :type, :lag ],
           linked_task_ids: [],
           subtask_names: [],
@@ -307,7 +322,8 @@ module Api
           complete_workflow_id: row.complete_workflow_id,
           complete_workflow_name: row.complete_workflow&.name,
           # Document types for GET task spawning
-          document_types: row.sm_schedule_master_document_types.includes(:document_type).map { |dt|
+          # PERFORMANCE: document_type already eager loaded via row_json_includes
+          document_types: row.sm_schedule_master_document_types.map { |dt|
             {
               id: dt.id,
               document_type_id: dt.document_type_id,
@@ -326,6 +342,7 @@ module Api
           # Claim task settings (SSoT for job claims)
           is_claim_task: row.is_claim_task,
           claim_percentage: row.claim_percentage,
+          claim_sequence_number: row.claim_sequence_number,
           claim_invoice_pattern: row.claim_invoice_pattern,
           claim_invoice_template_id: row.claim_invoice_template_id,
           claim_trading_name_id: row.claim_trading_name_id,
@@ -405,9 +422,11 @@ module Api
 
       # SSoT: Load header lookup map (ID => name) - self-reference to sm_schedule_master
       # Headers are tasks that act as group parents for other tasks
+      # PERFORMANCE: Only load rows from this template, not ALL schedule master rows
+      # Before: loaded ALL rows (~thousands), now: only template rows (~50-200)
       # Memoized per request to avoid N+1 queries
       def header_map
-        @header_map ||= SmScheduleMaster.pluck(:id, :name).to_h
+        @header_map ||= @template.sm_schedule_master_rows.pluck(:id, :name).to_h
       end
     end
   end

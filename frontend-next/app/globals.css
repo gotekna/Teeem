@@ -409,12 +409,14 @@
   }
 }
 
+/* GPU-optimized shimmer animation using transform (not background-position)
+   transform is GPU-compositable and won't cause CLS (layout shifts) */
 @keyframes shimmer {
   0% {
-    background-position: 200% 0;
+    transform: translateX(-100%);
   }
   100% {
-    background-position: -200% 0;
+    transform: translateX(100%);
   }
 }
 

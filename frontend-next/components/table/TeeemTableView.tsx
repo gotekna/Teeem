@@ -279,6 +279,11 @@ import { useGroupCounts } from "@/hooks/useGroupCounts";
 import { useTableKeyboardNavigation } from "@/hooks/useTableKeyboardNavigation";
 import { useTableSessionStorage } from "@/hooks/useTableSessionStorage";
 
+// Phase 8: Extracted hooks
+import { useFoundationColumns } from "./hooks/useFoundationColumns";
+import { useBulkOperations } from "./hooks/useBulkOperations";
+import { useRowEditing } from "./hooks/useRowEditing";
+
 // Extracted utilities (Phase 1 & 2 refactoring)
 import {
   extractSelectedIds,
@@ -306,7 +311,7 @@ import {
   type SearchMode as DataSearchMode,
 } from "./utils/table-data-utils";
 import { getLookupOptions, fetchLookupOptionsForTable, invalidateLookupCache, lookupCache, lookupFetchPromises } from "./utils/lookup-cache";
-import { fetchColumnsForFoundation, getCachedColumns, invalidateColumnsCache } from "./utils/columns-cache";
+// columns-cache functions now used by useFoundationColumns hook
 import { buildHierarchyRows, filterCollapsedRows, isHeaderRow, type HierarchyRow } from "@/lib/table/hierarchy-utils";
 
 // Jotai atoms for centralized state management (SSoT)
@@ -380,6 +385,15 @@ import {
   showGlobalViewsManagerAtom,
   // Fullscreen mode
   tableFullscreenAtom,
+  // Record CRUD modals (Phase 7.1 - SSoT migration)
+  showEmailToContactsModalAtom,
+  showAddRecordModalAtom,
+  showEditRecordModalAtom,
+  showViewRecordModalAtom,
+  showDeleteConfirmModalAtom,
+  selectedRecordForModalAtom,
+  recordToDeleteAtom,
+  isDeletingAtom,
 } from '@/lib/table-atoms';
 
 // View state atoms (keep separate for now - already in use)
@@ -595,6 +609,38 @@ export default function TeeemTableView({
   // Used by: loadViewState (skip URL write), loadSavedViews (skip URL read)
   const isEmbeddedContext = !!(initialFilters && initialFilters.length > 0);
 
+  // ============================================================================
+  // DEPRECATION WARNING: entries prop with Foundation-backed tables
+  // ============================================================================
+  // The `entries` prop is deprecated for Foundation-backed tables.
+  // Use `autoFetchRecords={true}` instead for:
+  // - SSR hydration (fast LCP)
+  // - Cursor-based pagination with infinite scroll
+  // - Built-in caching for back navigation
+  // - Server-side search
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      // Only warn if entries is used with a Foundation-backed table and autoFetchRecords is off
+      if (entries && entries.length > 0 && effectiveFoundationId && !autoFetchRecords) {
+        console.warn(
+          `[TeeemTableView DEPRECATION] The \`entries\` prop is deprecated for Foundation-backed tables.\n` +
+          `Foundation: ${effectiveFoundationId}\n` +
+          `Entries provided: ${entries.length} rows\n\n` +
+          `Migration:\n` +
+          `  BEFORE: <TeeemTableView foundationId="${effectiveFoundationId}" entries={data} />\n` +
+          `  AFTER:  <TeeemTableView foundationId="${effectiveFoundationId}" autoFetchRecords={true} />\n\n` +
+          `Benefits of autoFetchRecords:\n` +
+          `  - SSR hydration (faster LCP, no loading spinner)\n` +
+          `  - Cursor-based pagination (handles 100K+ rows)\n` +
+          `  - Built-in caching (instant back navigation)\n` +
+          `  - Server-side search\n\n` +
+          `For embedded tables with filters, use:\n` +
+          `  <TeeemTableView foundationId="..." autoFetchRecords={true} initialFilters={[...]} />`
+        );
+      }
+    }
+  }, []); // Only warn once on mount
+
   // URL-driven view navigation (new architecture)
   // Uses path-based URLs: /jobs/view/live instead of query params
   // Only active when foundationId is a string slug (not numeric)
@@ -628,7 +674,10 @@ export default function TeeemTableView({
   } = useFoundationViewState(foundationKey, {
     initialView: initialView || undefined,
     views: preloadedViews || undefined,
-    viewSlug: viewSlug || undefined,
+    // ⚠️ DO NOT SIMPLIFY - null means "explicitly no view" (v2696)
+    // Pass null through to hook (tells it to ignore URL path)
+    // Only convert falsy empty string to undefined
+    viewSlug: viewSlug === null ? null : (viewSlug || undefined),
     foundationSlug: foundationSlug || foundationKey,
   });
 
@@ -758,15 +807,16 @@ export default function TeeemTableView({
 
   // ============================================================================
   // AUTO-FETCH COLUMNS FROM FOUNDATION API (SSoT ENFORCEMENT)
-  // When effectiveFoundationId is set, columns MUST come from Foundation API
-  // This makes it IMPOSSIBLE to be out of sync with Foundation schema
-  // ============================================================================
-  // CLS FIX: Initialize from SSR data immediately (not via useEffect)
-  // Without this, first render uses null → useEffect sets columns → re-render = CLS
-  const [foundationColumns, setFoundationColumns] = useState<TableColumn[] | null>(initialColumns || null);
-  const [columnsLoading, setColumnsLoading] = useState(false);
-  // Store resolved Foundation info (numeric ID and slug) for consistent display
-  const [resolvedFoundation, setResolvedFoundation] = useState<{ id: number; slug: string } | null>(null);
+  // Phase 8: Extracted to useFoundationColumns hook
+  const {
+    columns: foundationColumns,
+    isLoading: columnsLoading,
+    foundationInfo: resolvedFoundation,
+  } = useFoundationColumns({
+    foundationId: effectiveFoundationId,
+    initialColumns,
+    propColumns: columns,
+  });
 
   // ============================================================================
   // AUTO-FETCH RECORDS WITH INFINITE SCROLL (GOLD STANDARD)
@@ -846,104 +896,6 @@ export default function TeeemTableView({
     hasCacheRestoredRef.current = true;
   }, [useAutoFetch, effectiveFoundationId, initialRecords?.length, isEmbeddedContext, autoFetchLimit]);
 
-  // Auto-fetch columns when effectiveFoundationId is set
-  // ULTRA: Uses module-level cache for instant loading on repeat visits
-  useEffect(() => {
-    // SSR: Skip client fetch if server provided columns
-    if (initialColumns && initialColumns.length > 0) {
-      setFoundationColumns(initialColumns);
-      setColumnsLoading(false);
-      return;
-    }
-
-    if (!effectiveFoundationId) {
-      setFoundationColumns(null);
-      setResolvedFoundation(null);
-      return;
-    }
-
-    // ULTRA: Check cache first for instant loading
-    const cached = getCachedColumns(effectiveFoundationId);
-    if (cached) {
-      setFoundationColumns(cached.columns);
-      setResolvedFoundation(cached.foundationInfo);
-      setColumnsLoading(false);
-      return;
-    }
-
-    const fetchColumns = async () => {
-      setColumnsLoading(true);
-      try {
-        // ULTRA: Use cached fetch (handles deduplication)
-        const result = await fetchColumnsForFoundation(effectiveFoundationId);
-
-        if (result) {
-          setFoundationColumns(result.columns);
-          setResolvedFoundation(result.foundationInfo);
-
-          // SSoT VIOLATION: Alert if parent passed hardcoded columns when Foundation exists
-          if (columns && columns.length > 0 && result.columns.length > 0) {
-            const propKeys = columns.filter(c => !['select', 'actions'].includes(c.key)).map(c => c.key);
-            const foundationKeys = result.columns.filter(c => !['select', 'actions'].includes(c.key)).map(c => c.key);
-
-            if (propKeys.length !== foundationKeys.length) {
-              const inPropsNotFoundation = propKeys.filter(k => !foundationKeys.includes(k));
-              const inFoundationNotProps = foundationKeys.filter(k => !propKeys.includes(k));
-
-              const errorMessage =
-                `[TeeemTableView] SSoT VIOLATION: columns prop has ${propKeys.length} columns, ` +
-                `but Foundation ${effectiveFoundationId} has ${foundationKeys.length} columns.\n` +
-                `In PROPS but not Foundation: ${inPropsNotFoundation.join(', ') || 'none'}\n` +
-                `In FOUNDATION but not Props: ${inFoundationNotProps.join(', ') || 'none'}\n` +
-                `FIX: Remove the columns prop - TeeemTableView auto-fetches from Foundation API (SSoT)`;
-
-              if (process.env.NODE_ENV === 'development') {
-                throw new Error(errorMessage);
-              } else {
-                console.error(errorMessage);
-              }
-            }
-          }
-        } else {
-          // Fetch failed - clean up stale caches
-          invalidateColumnsCache(effectiveFoundationId);
-
-          // Clean up localStorage views cache
-          try {
-            const viewsCacheKey = 'teeem_views_cache';
-            const viewsCache = localStorage.getItem(viewsCacheKey);
-            if (viewsCache) {
-              const parsed = JSON.parse(viewsCache);
-              if (parsed[effectiveFoundationId]) {
-                delete parsed[effectiveFoundationId];
-                localStorage.setItem(viewsCacheKey, JSON.stringify(parsed));
-              }
-            }
-          } catch {
-            // Ignore cache cleanup errors
-          }
-
-          // Clean up sessionStorage table state
-          try {
-            const sessionKey = `teeem-table-state-v1-${effectiveFoundationId}`;
-            sessionStorage.removeItem(sessionKey);
-          } catch {
-            // Ignore cache cleanup errors
-          }
-
-          setFoundationColumns(null);
-        }
-      } catch (error) {
-        console.error(`[TeeemTableView] Failed to fetch columns for Foundation ${effectiveFoundationId}:`, error);
-        setFoundationColumns(null);
-      } finally {
-        setColumnsLoading(false);
-      }
-    };
-
-    fetchColumns();
-  }, [effectiveFoundationId, columns, initialColumns]);
-
   // Ref to hold current search value for use in auto-fetch refresh effect
   // Initialized empty, updated by effect after search atom is declared
   const searchRef = useRef<string>('');
@@ -1015,6 +967,14 @@ export default function TeeemTableView({
   // ULTRA Solution: Create stable filter key for dependency tracking
   // Only include base filters in the key since user filters change frequently
   const baseFiltersKey = useMemo(() => JSON.stringify(baseFilters), [baseFilters]);
+
+  // Track the baseFiltersKey used for the last successful fetch
+  // This ensures we refetch when baseFilters change, even if all records are "loaded"
+  // ⚠️ DO NOT SIMPLIFY - Fixes template/view conflict bug (v2698)
+  // When switching from a view to a template, the first fetch may use wrong baseFilters
+  // because the initialFilters effect hasn't run yet. Without this tracking, the second
+  // fetch (with correct filters) would be skipped because hasMore=false from first fetch.
+  const lastFetchedBaseFiltersKeyRef = useRef<string | null>(null);
 
   // ULTRA FIX: Create stable key for ALL filters (not just base) to trigger client-side filtering
   // This ensures filteredAndSortedEntries recalculates when any filter changes (view, quick, user)
@@ -1118,14 +1078,31 @@ export default function TeeemTableView({
       // When all records are in memory, view filters can be applied client-side instantly
       // via filteredAndSortedEntries - no need for network roundtrip
       // This makes view switching instant when all records are loaded
-      if (!hasMore && autoFetchedRecords.length > 0) {
+      //
+      // ⚠️ EXCEPTION: If baseFilters changed since last fetch, we MUST refetch!
+      // This fixes the template/view conflict bug where:
+      // 1. First fetch uses empty baseFilters (initialFilters effect hasn't run yet)
+      // 2. Second fetch (with correct baseFilters) would be skipped because hasMore=false
+      // 3. Client-side filtering can't fix this because we loaded wrong data
+      const baseFiltersChanged = lastFetchedBaseFiltersKeyRef.current !== null &&
+        lastFetchedBaseFiltersKeyRef.current !== baseFiltersKey;
+
+      if (!hasMore && autoFetchedRecords.length > 0 && !baseFiltersChanged) {
         console.log('[TeeemTableView] All records loaded, applying filters client-side');
         return; // Client-side filtering in filteredAndSortedEntries handles this
       }
 
+      if (baseFiltersChanged) {
+        console.log('[TeeemTableView] Base filters changed, refetching:', {
+          previous: lastFetchedBaseFiltersKeyRef.current,
+          current: baseFiltersKey,
+        });
+      }
+
       // ULTRA FIX: Skip refetch if SSR data was already applied on initial load
       // This prevents double-fetch when filter initialization triggers effect re-run
-      if (hasAppliedInitialRecordsRef.current && autoFetchedRecords.length > 0 && autoFetchRefreshKey === 0) {
+      // EXCEPTION: If baseFilters changed, we must refetch even with SSR data
+      if (hasAppliedInitialRecordsRef.current && autoFetchedRecords.length > 0 && autoFetchRefreshKey === 0 && !baseFiltersChanged) {
         console.log('[TeeemTableView] SSR data already applied, skipping duplicate initial fetch');
         return;
       }
@@ -1153,6 +1130,8 @@ export default function TeeemTableView({
         const newRecords = response.records || [];
         setAutoFetchedRecords(newRecords);
         setHasMore(response.has_more ?? true);
+        // Track which baseFilters were used for this fetch (for change detection)
+        lastFetchedBaseFiltersKeyRef.current = baseFiltersKey;
         // CACHE: Save records for instant restoration on back navigation
         if (newRecords.length > 0) {
           setCachedRecords(effectiveFoundationId, newRecords as Record<string, unknown>[], null, response.has_more ?? true);
@@ -2000,11 +1979,40 @@ export default function TeeemTableView({
   // Inline column filters visibility (SSoT)
   const [showColumnFilters, setShowColumnFilters] = useAtom(showColumnFiltersAtom);
 
-  // Bulk update modal state managed by atoms (SSoT)
-  const [showBulkUpdateModal, setShowBulkUpdateModal] = useAtom(showBulkUpdateModalAtom);
-  const [bulkUpdateColumn, setBulkUpdateColumn] = useAtom(bulkUpdateColumnAtom);
-  const [bulkUpdateValue, setBulkUpdateValue] = useAtom(bulkUpdateValueAtom);
-  const [bulkUpdateSaving, setBulkUpdateSaving] = useAtom(bulkUpdateSavingAtom);
+  // Bulk update operations (Phase 10 extraction)
+  const bulkOperations = useBulkOperations({
+    foundationId: effectiveFoundationId,
+    selectedIds: Array.from(selectedRows),
+    visibleEntriesRef: filteredAndSortedEntriesRef,
+    columns: COLUMNS,
+    onSuccess: () => selection.actions.clear(),
+    onRowUpdate: onRowUpdate ? async (id, field, value) => {
+      await onRowUpdate(id, field, value);
+    } : undefined,
+    onOptimisticUpdate: useAutoFetch ? (ids, column, value) => {
+      setAutoFetchedRecords(prev => prev.map(record => {
+        if (ids.includes(record.id as number)) {
+          return { ...record, [column]: value };
+        }
+        return record;
+      }));
+    } : undefined,
+    onRefresh,
+    onColumnChange: (col) => {
+      if (!lookupOptions[col.key] && !lookupLoading[col.key]) {
+        fetchLookupOptions(col);
+      }
+    },
+  });
+
+  // Alias for backward compatibility with existing code
+  const showBulkUpdateModal = bulkOperations.state.isUpdateModalOpen;
+  const setShowBulkUpdateModal = (open: boolean) => open ? bulkOperations.actions.openUpdateModal() : bulkOperations.actions.closeUpdateModal();
+  const bulkUpdateColumn = bulkOperations.state.updateColumn;
+  const setBulkUpdateColumn = bulkOperations.actions.setColumn;
+  const bulkUpdateValue = bulkOperations.state.updateValue;
+  const setBulkUpdateValue = bulkOperations.actions.setValue;
+  const bulkUpdateSaving = bulkOperations.state.isSaving;
 
   // Save view modal state managed by atoms (SSoT)
   const [showSaveViewModal, setShowSaveViewModal] = useAtom(showSaveViewModalAtom);
@@ -2032,17 +2040,17 @@ export default function TeeemTableView({
   const [exportScope, setExportScope] = useAtom(exportScopeAtom);
   const [exportFormat, setExportFormat] = useAtom(exportFormatAtom);
 
-  // Email to Contacts modal state (local state)
-  const [showEmailToContactsModal, setShowEmailToContactsModal] = useState(false);
+  // Email to Contacts modal state (SSoT: table-atoms.ts - Phase 7.1)
+  const [showEmailToContactsModal, setShowEmailToContactsModal] = useAtom(showEmailToContactsModalAtom);
 
-  // Record CRUD modal state (Phase 8) - auto-enabled when foundationIdNumeric is set
-  const [showAddRecordModal, setShowAddRecordModal] = useState(false);
-  const [showEditRecordModal, setShowEditRecordModal] = useState(false);
-  const [showViewRecordModal, setShowViewRecordModal] = useState(false);
-  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
-  const [selectedRecordForModal, setSelectedRecordForModal] = useState<TableRowType | null>(null);
-  const [recordToDelete, setRecordToDelete] = useState<TableRowType | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  // Record CRUD modal state (SSoT: table-atoms.ts - Phase 7.1)
+  const [showAddRecordModal, setShowAddRecordModal] = useAtom(showAddRecordModalAtom);
+  const [showEditRecordModal, setShowEditRecordModal] = useAtom(showEditRecordModalAtom);
+  const [showViewRecordModal, setShowViewRecordModal] = useAtom(showViewRecordModalAtom);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useAtom(showDeleteConfirmModalAtom);
+  const [selectedRecordForModal, setSelectedRecordForModal] = useAtom(selectedRecordForModalAtom);
+  const [recordToDelete, setRecordToDelete] = useAtom(recordToDeleteAtom);
+  const [isDeleting, setIsDeleting] = useAtom(isDeletingAtom);
 
   // Execute delete after confirmation (defined here after state declarations)
   const executeDelete = useCallback(async () => {
@@ -2874,47 +2882,26 @@ export default function TeeemTableView({
     }
   }, []); // No dependencies needed - uses module-level cache
 
-  // Inline editing handlers - supports single or multiple rows
-  const startEditing = useCallback((row: TableRowType) => {
-    setEditingRowIds(new Set([row.id]));
-    setEditingData({ [row.id]: { ...row } });
+  // ============================================================================
+  // ROW EDITING - Phase 11 Hook Integration
+  // Uses useRowEditing hook for state management, replaces inline handlers
+  // ============================================================================
+  const rowEditing = useRowEditing({
+    columns: COLUMNS,
+    rows: effectiveEntries,
+    foundationId: effectiveFoundationId,
+    toast,
+    onRefresh,
+    onRowUpdate,
+    isAutoFetch: useAutoFetch,
+    setRecords: setAutoFetchedRecords,
+    fetchLookupOptions,
+  });
 
-    // Pre-fetch lookup options for lookup columns (including multiple_lookups)
-    COLUMNS.forEach(col => {
-      if ((col.column_type === 'lookup' || col.column_type === 'relation' || col.column_type === 'multiple_lookups') &&
-          col.lookup_foundation_id) {
-        fetchLookupOptions(col);
-      }
-    });
-  }, [COLUMNS, fetchLookupOptions]);
-
-  // Start editing multiple rows at once
-  const startMultiEditing = useCallback((rowIds: (number | string)[]) => {
-    const newEditingData: Record<string | number, Record<string, unknown>> = {};
-    rowIds.forEach(id => {
-      const row = effectiveEntries.find(e => e.id === id);
-      if (row) {
-        newEditingData[id] = { ...row };
-      }
-    });
-    setEditingRowIds(new Set(rowIds));
-    setEditingData(newEditingData);
-
-    // Pre-fetch lookup options for lookup columns (including multiple_lookups)
-    COLUMNS.forEach(col => {
-      if (col.column_type === 'lookup' || col.column_type === 'relation' || col.column_type === 'multiple_lookups') {
-        if (col.lookup_foundation_id) {
-          fetchLookupOptions(col);
-        }
-      }
-    });
-  }, [COLUMNS, entries, fetchLookupOptions]);
-
-  const cancelEditing = useCallback(() => {
-    setEditingRowIds(new Set());
-    setEditingData({});
-    setValidationErrors({});
-  }, []);
+  // Aliases for backward compatibility - point to hook actions
+  const startEditing = rowEditing.actions.startEditing;
+  const startMultiEditing = rowEditing.actions.startMultiEditing;
+  const cancelEditing = rowEditing.actions.cancelEditing;
 
   // Handler for row double-click - uses parent handler if provided, else starts inline editing
   const handleRowDoubleClick = useCallback((row: TableRowType) => {
@@ -2962,359 +2949,14 @@ export default function TeeemTableView({
     }
   }, [effectiveEntries, effectiveFoundationId, onRowDoubleClick, startEditing, toast]);
 
-  // Validate a cell and update validation errors state
-  const handleCellBlur = useCallback((rowId: number | string, columnKey: string, value: unknown, columnType?: string) => {
-    // Use imported validateCell from CellValidation.tsx (SSoT)
-    const result = validateCellWithRegistry(value, columnType || 'single_line_text');
-    const error = result.error;
+  // Validate a cell - alias to hook action
+  const handleCellBlur = rowEditing.actions.validateCell;
 
-    setValidationErrors(prev => {
-      const rowErrors: Record<string, string> = prev[rowId] ? { ...prev[rowId] } : {};
+  // Save editing - alias to hook action
+  const saveEditing = rowEditing.actions.saveEditing;
 
-      if (error) {
-        rowErrors[columnKey] = error;
-      } else {
-        delete rowErrors[columnKey];
-      }
-
-      // If no errors for this row, remove the row entry
-      if (Object.keys(rowErrors).length === 0) {
-        const { [rowId]: _, ...rest } = prev;
-        return rest;
-      }
-
-      return { ...prev, [rowId]: rowErrors };
-    });
-  }, []);
-
-  const saveEditing = useCallback(async () => {
-    const startTime = performance.now();
-
-    if (editingRowIds.size === 0 || !onRowUpdate) return;
-
-    // 🔴 CRITICAL: Validate ALL dirty cells before saving
-    // Block save if invalid - user can fix it or cancel (cancel clears invalid data)
-    // SSoT: validation-formatters.ts via CellValidation.tsx
-    const newErrors: Record<number | string, Record<string, string>> = {};
-    let totalErrorCount = 0;
-
-    for (const rowId of editingRowIds) {
-      const rowData = editingData[rowId];
-      if (!rowData) continue;
-
-      const rowErrors: Record<string, string> = {};
-      for (const [columnKey, value] of Object.entries(rowData)) {
-        // Find column definition to get column_type
-        const column = COLUMNS.find((c) => c.key === columnKey);
-        if (!column) continue;
-
-        // Validate using SSoT validator
-        const result = validateCellWithRegistry(value, column.column_type || 'single_line_text');
-        if (result.error) {
-          rowErrors[columnKey] = result.error;
-          totalErrorCount++;
-        }
-      }
-
-      if (Object.keys(rowErrors).length > 0) {
-        newErrors[rowId] = rowErrors;
-      }
-    }
-
-    // If any validation errors, block save so user can fix
-    if (totalErrorCount > 0) {
-      setValidationErrors(newErrors);
-      toast({
-        title: "Cannot save",
-        description: `Fix ${totalErrorCount} error${totalErrorCount !== 1 ? "s" : ""} or cancel to discard`,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      // Collect all changes for batch update
-      const rowsToUpdate: Array<{ rowId: number | string; changes: Record<string, unknown> }> = [];
-
-      for (const rowId of editingRowIds) {
-        const originalRow = effectiveEntries.find((e) => e.id === rowId);
-        const rowData = editingData[rowId];
-        if (!originalRow || !rowData) continue;
-
-        const changes: Record<string, unknown> = {};
-        for (const [key, value] of Object.entries(rowData)) {
-          // Compare values - handle objects/arrays properly
-          const originalValue = originalRow[key];
-          const valuesMatch = JSON.stringify(originalValue) === JSON.stringify(value);
-          if (!valuesMatch) {
-            changes[key] = value;
-          }
-        }
-
-        if (Object.keys(changes).length > 0) {
-          rowsToUpdate.push({ rowId, changes });
-        }
-      }
-
-      // Use bulk_update API if foundationIdNumeric is available (single API call)
-      if (effectiveFoundationId && rowsToUpdate.length > 0) {
-        // Group by changes to minimize API calls
-        // For now, update each row with all its changes in one call
-        const apiStartTime = performance.now();
-        for (const { rowId, changes } of rowsToUpdate) {
-          await api.patch(`/api/v1/foundations/${effectiveFoundationId}/records/${rowId}`, {
-            record: changes
-          });
-        }
-
-        // 🔴 CRITICAL: Clear cache to ensure other pages get fresh data
-        // SSoT: records-cache.ts
-        if (effectiveFoundationId) {
-          clearCachedRecords(effectiveFoundationId);
-        }
-
-        // OPTIMISTIC UPDATE: Update local state directly instead of re-fetching
-        // This gives instant feedback without a full table reload
-        if (useAutoFetch) {
-          setAutoFetchedRecords(prev => prev.map(record => {
-            const update = rowsToUpdate.find(r => r.rowId === record.id);
-            if (update) {
-              return { ...record, ...update.changes };
-            }
-            return record;
-          }));
-        }
-
-        // For non-autoFetch mode: call parent's onRefresh callback
-        // Parent is responsible for updating their own state
-        onRefresh?.();
-      } else {
-        // Fallback: call onRowUpdate for each field
-        for (const { rowId, changes } of rowsToUpdate) {
-          for (const [key, value] of Object.entries(changes)) {
-            await onRowUpdate(rowId, key, value);
-          }
-        }
-        // 🔴 CRITICAL: Clear cache to ensure other pages get fresh data
-        if (effectiveFoundationId) {
-          clearCachedRecords(effectiveFoundationId);
-        }
-        // OPTIMISTIC UPDATE: Update local state directly instead of re-fetching
-        if (useAutoFetch) {
-          setAutoFetchedRecords(prev => prev.map(record => {
-            const update = rowsToUpdate.find(r => r.rowId === record.id);
-            if (update) {
-              return { ...record, ...update.changes };
-            }
-            return record;
-          }));
-        }
-      }
-
-      setEditingRowIds(new Set());
-      setEditingData({});
-      setValidationErrors({});
-      toast({
-        title: "Saved",
-        description: `Successfully saved ${editingRowIds.size} row${editingRowIds.size !== 1 ? "s" : ""}`,
-      });
-    } catch (error) {
-      console.error("Failed to save:", error);
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      toast({
-        title: "Save failed",
-        description: errorMessage,
-        variant: "destructive",
-      });
-    }
-  }, [editingRowIds, editingData, entries, effectiveFoundationId, onRowUpdate, onRefresh, toast, useAutoFetch, COLUMNS, setValidationErrors]);
-
-  // Bulk update handler
-  const handleBulkUpdate = useCallback(async () => {
-    console.log('[Bulk Update] Starting bulk update...');
-    console.log('[Bulk Update] Column:', bulkUpdateColumn);
-    console.log('[Bulk Update] Value:', bulkUpdateValue);
-
-    // SSoT FIX: Only update VISIBLE selected rows (intersection of selected + filtered)
-    // This prevents accidentally updating rows hidden by filters
-    // Use ref to access current filtered entries (avoids dependency order issues)
-    const visibleIds = new Set(filteredAndSortedEntriesRef.current.map(e => e.id));
-    const visibleSelectedIds = Array.from(selectedRows).filter(id => visibleIds.has(id));
-
-    console.log('[Bulk Update] Total selected rows:', selectedRows.size);
-    console.log('[Bulk Update] Visible selected rows:', visibleSelectedIds.length);
-    console.log('[Bulk Update] Visible selected IDs:', visibleSelectedIds);
-
-    if (!bulkUpdateColumn || visibleSelectedIds.length === 0) {
-      console.warn('[Bulk Update] Aborted - missing column or no visible rows selected');
-      return;
-    }
-
-    setBulkUpdateSaving(true);
-    try {
-      const ids = visibleSelectedIds;
-      const selectedCol = COLUMNS.find(c => c.key === bulkUpdateColumn);
-      console.log('[Bulk Update] Selected column config:', selectedCol);
-
-      // Convert values based on column type
-      let valueToSend: string | number | number[] | boolean = bulkUpdateValue;
-
-      // For multiple_lookups, convert comma-separated string to array of integers
-      if (selectedCol?.column_type === 'multiple_lookups' && bulkUpdateValue) {
-        valueToSend = bulkUpdateValue.split(',').filter(Boolean).map(id => parseInt(id, 10));
-        console.log('[Bulk Update] Converted multiple_lookups value:', bulkUpdateValue, '→', valueToSend);
-      }
-      // For single lookup columns, convert string ID to integer
-      else if ((selectedCol?.column_type === 'lookup' || selectedCol?.lookup_foundation_id) && bulkUpdateValue) {
-        valueToSend = parseInt(bulkUpdateValue, 10);
-        console.log('[Bulk Update] Converted lookup value:', bulkUpdateValue, '→', valueToSend);
-      }
-      // For integer/number columns, convert to number
-      else if ((selectedCol?.column_type === 'integer' || selectedCol?.column_type === 'number') && bulkUpdateValue) {
-        valueToSend = selectedCol?.column_type === 'integer' ? parseInt(bulkUpdateValue, 10) : parseFloat(bulkUpdateValue);
-        console.log('[Bulk Update] Converted number value:', bulkUpdateValue, '→', valueToSend);
-      }
-      // For boolean columns, convert to actual boolean
-      else if (selectedCol?.column_type === 'boolean' && bulkUpdateValue) {
-        valueToSend = bulkUpdateValue === 'true';
-        console.log('[Bulk Update] Converted boolean value:', bulkUpdateValue, '→', valueToSend);
-      }
-
-      if (effectiveFoundationId) {
-        // Use bulk_update API endpoint if foundationIdNumeric is available (much faster)
-        // Skip if we need field mapping (handled above)
-        const payload = {
-          record_ids: ids,
-          updates: { [bulkUpdateColumn]: valueToSend }
-        };
-        console.log('[Bulk Update] Using bulk_update API endpoint');
-        console.log('[Bulk Update] Foundation ID:', effectiveFoundationId);
-        console.log('[Bulk Update] Payload:', JSON.stringify(payload, null, 2));
-
-        const response = await api.post<{
-          success: boolean;
-          updated_count: number;
-          total_requested: number;
-          errors?: Array<{ id: number; errors: string[] }>;
-        }>(`/api/v1/foundations/${effectiveFoundationId}/records/bulk_update`, payload);
-        console.log('[Bulk Update] API response:', response);
-
-        // Check if the update was actually successful
-        if (!response || !response.success || response.updated_count === 0) {
-          console.error('[Bulk Update] Update FAILED - no records were updated');
-          console.error('[Bulk Update] Updated count:', response?.updated_count);
-          console.error('[Bulk Update] Errors:', response?.errors);
-
-          // Check if this is an entity_type validation error
-          const hasEntityTypeErrors = response?.errors && response.errors.some((err: { id: number | string; errors: string[] }) =>
-            err.errors && err.errors.some((msg: string) =>
-              msg.toLowerCase().includes('first name') ||
-              msg.toLowerCase().includes('full name') ||
-              msg.toLowerCase().includes('entity')
-            )
-          );
-          console.log('[Bulk Update] hasEntityTypeErrors:', hasEntityTypeErrors);
-          console.log('[Bulk Update] effectiveFoundationId:', effectiveFoundationId);
-
-          // Show error message to user
-          let errorMessage = `Bulk update failed. ${response?.updated_count || 0} of ${response?.total_requested || ids.length} records updated.`;
-
-          if (response?.errors && response.errors.length > 0) {
-            errorMessage += '\n\nValidation errors:\n';
-            response.errors.slice(0, 3).forEach((err: { id: number | string; errors: string[] }) => {
-              errorMessage += `\n• Record ${err.id}: ${err.errors.join(', ')}`;
-            });
-            if (response.errors.length > 3) {
-              errorMessage += `\n... and ${response.errors.length - 3} more errors`;
-            }
-          }
-
-          // If entity_type validation errors, automatically open health report
-          if (hasEntityTypeErrors && effectiveFoundationId) {
-            console.log('[Bulk Update] Detected entity_type errors, opening health report...');
-            errorMessage += '\n\n⚠️ Some records have data quality issues that must be fixed first.';
-            errorMessage += '\n\nOpening Health Report to show which records need fixing...';
-
-            alert(errorMessage);
-            console.log('[Bulk Update] Alert shown, now opening window...');
-
-            // Open health report in new tab so they can fix the data
-            const healthUrl = `/system-health?foundation=${effectiveFoundationId}`;
-            console.log('[Bulk Update] Opening health report:', healthUrl);
-            window.open(healthUrl, '_blank');
-            console.log('[Bulk Update] window.open called');
-            return;
-          } else {
-            alert(errorMessage);
-          }
-
-          return; // Don't close modal or clear selection on failure
-        }
-
-        console.log('[Bulk Update] Success! Updated', response?.updated_count, 'records');
-      } else if (onRowUpdate) {
-        console.log('[Bulk Update] Using fallback individual updates (no effectiveFoundationId)');
-        // Fallback to individual updates
-        for (const id of ids) {
-          console.log(`[Bulk Update] Updating row ${id}...`);
-          await onRowUpdate(id, bulkUpdateColumn, valueToSend);
-        }
-        console.log('[Bulk Update] Individual updates completed');
-      } else {
-        console.error('[Bulk Update] No update mechanism available (no effectiveFoundationId and no onRowUpdate)');
-      }
-
-      console.log('[Bulk Update] Cleaning up...');
-      setShowBulkUpdateModal(false);
-      setBulkUpdateColumn("");
-      setBulkUpdateValue("");
-      selection.actions.clear();
-
-      // 🔴 CRITICAL: Clear cache to ensure other pages get fresh data
-      // SSoT: records-cache.ts
-      if (effectiveFoundationId) {
-        clearCachedRecords(effectiveFoundationId);
-      }
-
-      console.log('[Bulk Update] Applying optimistic update...');
-      // OPTIMISTIC UPDATE: Update local state directly instead of re-fetching
-      if (useAutoFetch) {
-        setAutoFetchedRecords(prev => prev.map(record => {
-          if (ids.includes(record.id as number)) {
-            return { ...record, [bulkUpdateColumn]: valueToSend };
-          }
-          return record;
-        }));
-      }
-
-      // For non-autoFetch mode: call parent's onRefresh callback
-      onRefresh?.();
-      console.log('[Bulk Update] Complete!');
-    } catch (error) {
-      console.error("[Bulk Update] ERROR:", error);
-      console.error("[Bulk Update] Error details:", {
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        error: error
-      });
-    } finally {
-      setBulkUpdateSaving(false);
-      console.log('[Bulk Update] Saving state reset');
-    }
-  }, [bulkUpdateColumn, bulkUpdateValue, selectedRows, effectiveFoundationId, onRowUpdate, onRefresh, COLUMNS, useAutoFetch]);
-
-  // Fetch lookup options when bulk update column changes to a lookup column
-  useEffect(() => {
-    if (!bulkUpdateColumn) return;
-
-    const selectedCol = COLUMNS.find(c => c.key === bulkUpdateColumn);
-    if (!selectedCol) return;
-
-    const isLookup = selectedCol.column_type === 'lookup' || selectedCol.column_type === 'multiple_lookups' || !!selectedCol.lookup_foundation_id;
-    if (isLookup && !lookupOptions[bulkUpdateColumn] && !lookupLoading[bulkUpdateColumn]) {
-      fetchLookupOptions(selectedCol);
-    }
-  }, [bulkUpdateColumn, COLUMNS, lookupOptions, lookupLoading, fetchLookupOptions]);
+  // Bulk update handler - delegates to useBulkOperations hook (Phase 10 extraction)
+  const handleBulkUpdate = bulkOperations.actions.executeUpdate;
 
   // ============================================================================
   // CELL-LEVEL INLINE EDITING
@@ -3337,6 +2979,7 @@ export default function TeeemTableView({
   // Atom actions
   const loadViews = useSetAtom(loadFoundationViewsAtom);
   const applyView = useSetAtom(applyViewAtom);
+  // NOTE: setViewFilters comes from useFilterState() hook (line ~909), not duplicated here
   const invalidateCache = useSetAtom(invalidateViewsCacheAtom);
 
   // Load view state helper - applies saved view configuration to current state
@@ -3428,6 +3071,14 @@ export default function TeeemTableView({
     // Reset user selection flag when foundation changes (new context = fresh start)
     userSelectedViewRef.current = false;
 
+    // ⚠️ DO NOT REMOVE - Abort flag for async cleanup (v2701)
+    // ════════════════════════════════════════════════════════════════════
+    // Why: When component remounts (key change), old async effect can still
+    //      complete and apply view to global atoms, causing view conflicts.
+    //      The abort flag prevents applying view after unmount.
+    // ════════════════════════════════════════════════════════════════════
+    let aborted = false;
+
     const loadSavedViews = async () => {
       if (!effectiveFoundationId) return;
       if (disableSavedViews) {
@@ -3454,6 +3105,14 @@ export default function TeeemTableView({
         // Load views using atom (handles caching, mapping, sorting automatically)
         // Pass inheritViewsFrom to include global views from related foundations
         const result = await loadViews(effectiveFoundationId, inheritViewsFrom);
+
+        // ⚠️ ABORT CHECK - Prevents applying view after component unmounts (v2701)
+        // This is critical for template switching: old component's async effect
+        // must not apply view to global atoms after it unmounts
+        if (aborted) {
+          console.log('[loadSavedViews] Aborted - component unmounted during load');
+          return;
+        }
 
         if (!result.success) {
           console.error('[loadSavedViews] Failed to load views:', result.error);
@@ -3506,12 +3165,46 @@ export default function TeeemTableView({
           // loadViewState should ONLY be called when user clicks a view button
           const ssrAlreadyAppliedView = !!initialView;
 
+          // ⚠️ DO NOT SIMPLIFY - null means "explicitly no view" (v2697)
+          // ════════════════════════════════════════════════════════════════════
+          // Why: When switching contexts (e.g., template change while view active),
+          //      parent passes defaultViewSlug={null} to mean "don't apply ANY view".
+          //      - undefined = "not specified, use default behavior"
+          //      - null = "explicitly no view, skip auto-apply"
+          // ════════════════════════════════════════════════════════════════════
+          const explicitlyNoView = defaultViewSlug === null;
+
+          console.log('[loadSavedViews] v2705 - View application check:', {
+            defaultViewSlug,
+            explicitlyNoView,
+            ssrAlreadyAppliedView,
+            userSelected: userSelectedViewRef.current,
+            willApply: !ssrAlreadyAppliedView && !userSelectedViewRef.current && !explicitlyNoView,
+            defaultViewName: defaultView?.name,
+          });
+
           // ALSO skip if user has already selected a view (prevents race condition override)
           // This fixes: user clicks global view, but async loadSavedViews completion overrides it
-          if (!ssrAlreadyAppliedView && !userSelectedViewRef.current) {
+          if (!ssrAlreadyAppliedView && !userSelectedViewRef.current && !explicitlyNoView) {
+            // ⚠️ ABORT CHECK #2 - Final check before applying view (v2703)
+            // This catches the race where unmount happens between line 3053 check and here
+            if (aborted) {
+              console.log('[loadSavedViews] Aborted before loadViewState - component unmounted');
+              return;
+            }
             // No SSR view and no user selection - apply default view now
             const skipUrlUpdate = !!urlViewExistsForFoundation;
             loadViewState(defaultView, skipUrlUpdate);
+          } else if (explicitlyNoView) {
+            // ⚠️ v2706: CLEAR view filters when defaultViewSlug === null
+            // ════════════════════════════════════════════════════════════════════
+            // Why: Template change sets defaultViewSlug={null} to prevent view auto-apply.
+            //      But Jotai atoms still have the OLD view's filters from before remount.
+            //      We must explicitly CLEAR them, not just skip applying new ones.
+            // ════════════════════════════════════════════════════════════════════
+            console.log('[loadSavedViews] v2706 - Clearing view filters (explicitlyNoView)');
+            setViewFilters([]);
+            setActiveViewId(null);
           }
 
           // NOTE: initialViewLoadedRef + fetch trigger handled in finally block (SSoT)
@@ -3519,7 +3212,8 @@ export default function TeeemTableView({
           // For embedded context: notify parent on initial load so URL can sync
           // Only if no view was already in the URL (don't override explicit URL)
           // This ensures /jobs/46/schedule → /jobs/46/schedule/po-tasks-only
-          if (isEmbeddedContext && !slugToMatch && onViewChange) {
+          // ⚠️ DO NOT call onViewChange if defaultViewSlug is null (explicitly no view)
+          if (isEmbeddedContext && !slugToMatch && !explicitlyNoView && onViewChange) {
             onViewChange(defaultView);
           }
         }
@@ -3545,6 +3239,11 @@ export default function TeeemTableView({
 
     loadSavedViews();
 
+    // Cleanup: abort async operation if component unmounts before it completes
+    // This prevents the old component's effect from applying view to global atoms
+    return () => {
+      aborted = true;
+    };
   }, [effectiveFoundationId, preloadedViews, disableSavedViews, inheritViewsFrom]);
 
   // Expose loadViewState to parent via callback
@@ -4814,13 +4513,29 @@ export default function TeeemTableView({
           "hover:bg-muted/30 cursor-pointer"
         )}
         onClick={() => {
-          console.log("🟣 TeeemTableView row clicked (VR), isEditMode:", isEditMode, "hasOnRowClick:", !!onRowClick);
-          if (!isEditMode && onRowClick) {
-            console.log("🟣 Calling onRowClick with row:", row.id);
-            onRowClick(row);
+          // Single click toggles selection (standard behavior)
+          if (!isEditMode) {
+            setSelectedRows(prev => {
+              const next = new Set(prev);
+              if (next.has(row.id)) {
+                next.delete(row.id);
+              } else {
+                next.add(row.id);
+              }
+              return next;
+            });
           }
         }}
-        onDoubleClick={() => handleRowDoubleClick(row)}
+        onDoubleClick={() => {
+          // Double click opens detail/edit
+          if (!isEditMode) {
+            if (onRowClick) {
+              onRowClick(row);
+            } else {
+              handleRowDoubleClick(row);
+            }
+          }
+        }}
         onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
       >
         {visibleColumnsInOrder.map((column, colIndex) => {
@@ -5060,11 +4775,29 @@ export default function TeeemTableView({
                   "hover:bg-blue-100 dark:hover:bg-blue-900/30 cursor-pointer"
                 )}
                 onClick={() => {
-                  if (!isEditMode && onRowClick) {
-                    onRowClick(companyRow);
+                  // Single click toggles selection (standard behavior)
+                  if (!isEditMode) {
+                    setSelectedRows(prev => {
+                      const next = new Set(prev);
+                      if (next.has(companyRow.id)) {
+                        next.delete(companyRow.id);
+                      } else {
+                        next.add(companyRow.id);
+                      }
+                      return next;
+                    });
                   }
                 }}
-                onDoubleClick={() => handleRowDoubleClick(companyRow)}
+                onDoubleClick={() => {
+                  // Double click opens detail/edit
+                  if (!isEditMode) {
+                    if (onRowClick) {
+                      onRowClick(companyRow);
+                    } else {
+                      handleRowDoubleClick(companyRow);
+                    }
+                  }
+                }}
                 onMouseEnter={() => handleRowMouseEnter(companyRow.id, globalIndex)}
               >
                 {visibleColumnsInOrder.map((column, colIndex) => {
@@ -5144,13 +4877,29 @@ export default function TeeemTableView({
                   "hover:bg-muted/30 cursor-pointer"
                 )}
                 onClick={() => {
-                  console.log("🟣 TeeemTableView row clicked (Grouped), isEditMode:", isEditMode, "hasOnRowClick:", !!onRowClick);
-                  if (!isEditMode && onRowClick) {
-                    console.log("🟣 Calling onRowClick with row:", row.id);
-                    onRowClick(row);
+                  // Single click toggles selection (standard behavior)
+                  if (!isEditMode) {
+                    setSelectedRows(prev => {
+                      const next = new Set(prev);
+                      if (next.has(row.id)) {
+                        next.delete(row.id);
+                      } else {
+                        next.add(row.id);
+                      }
+                      return next;
+                    });
                   }
                 }}
-                onDoubleClick={() => handleRowDoubleClick(row)}
+                onDoubleClick={() => {
+                  // Double click opens detail/edit
+                  if (!isEditMode) {
+                    if (onRowClick) {
+                      onRowClick(row);
+                    } else {
+                      handleRowDoubleClick(row);
+                    }
+                  }
+                }}
                 onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
               >
                 {visibleColumnsInOrder.map((column, colIndex) => {
@@ -5337,11 +5086,29 @@ export default function TeeemTableView({
                   "hover:bg-muted/50 cursor-pointer"
                 )}
                 onClick={() => {
-                  if (!isEditMode && onRowClick) {
-                    onRowClick(row);
+                  // Single click toggles selection (standard behavior)
+                  if (!isEditMode) {
+                    setSelectedRows(prev => {
+                      const next = new Set(prev);
+                      if (next.has(row.id)) {
+                        next.delete(row.id);
+                      } else {
+                        next.add(row.id);
+                      }
+                      return next;
+                    });
                   }
                 }}
-                onDoubleClick={() => handleRowDoubleClick(row)}
+                onDoubleClick={() => {
+                  // Double click opens detail/edit
+                  if (!isEditMode) {
+                    if (onRowClick) {
+                      onRowClick(row);
+                    } else {
+                      handleRowDoubleClick(row);
+                    }
+                  }
+                }}
                 onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
               >
                 {visibleColumnsInOrder.map((column, colIndex) => {
@@ -5549,13 +5316,31 @@ export default function TeeemTableView({
                   isFocused && tableHasFocus && "ring-2 ring-inset ring-primary/50 bg-primary/5",
                   "hover:bg-muted/30 cursor-pointer"
                 )}
-                onClick={(e) => {
-                  if (!isEditMode && !editingRowIds.has(row.id) && onRowClick) {
-                    onRowClick(row);
+                onClick={() => {
+                  // Single click toggles selection (standard behavior)
+                  if (!isEditMode && !editingRowIds.has(row.id)) {
+                    setSelectedRows(prev => {
+                      const next = new Set(prev);
+                      if (next.has(row.id)) {
+                        next.delete(row.id);
+                      } else {
+                        next.add(row.id);
+                      }
+                      return next;
+                    });
                   }
                   setFocusedRowIndex(globalIndex);
                 }}
-                onDoubleClick={() => handleRowDoubleClick(row)}
+                onDoubleClick={() => {
+                  // Double click opens detail/edit
+                  if (!isEditMode && !editingRowIds.has(row.id)) {
+                    if (onRowClick) {
+                      onRowClick(row);
+                    } else {
+                      handleRowDoubleClick(row);
+                    }
+                  }
+                }}
                 onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
               >
                 {visibleColumnsInOrder.map((column, colIndex) => {
@@ -5861,9 +5646,17 @@ export default function TeeemTableView({
           )}>
             <h1 className="text-2xl font-bold tracking-tight font-serif">{tableName}</h1>
             <span className="text-sm text-muted-foreground">
-              {totalCount !== null
-                ? `${filteredAndSortedEntries.length.toLocaleString()} of ${totalCount.toLocaleString()} records`
-                : `${filteredAndSortedEntries.length.toLocaleString()} records`}
+              {/* CLS FIX: For grouped views, use serverTotalRecords from SSR to prevent "0 records" flash */}
+              {(() => {
+                // For grouped views with SSR data, show serverTotalRecords immediately
+                const displayCount = groupByColumns.length > 0 && serverTotalRecords !== undefined && serverTotalRecords > 0
+                  ? serverTotalRecords
+                  : filteredAndSortedEntries.length;
+
+                return totalCount !== null
+                  ? `${displayCount.toLocaleString()} of ${totalCount.toLocaleString()} records`
+                  : `${displayCount.toLocaleString()} records`;
+              })()}
             </span>
             {/* Load All button OR loading indicator - inline with record count */}
             {loadingMore ? (
@@ -5883,11 +5676,13 @@ export default function TeeemTableView({
               </Button>
             ) : null}
             {/* Virtual scroll indicator - shown when table exceeds threshold */}
-            {filteredAndSortedEntries.length > VIRTUALIZATION_THRESHOLD && (
-              <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                Virtual scroll active
-              </span>
-            )}
+            {/* CLS FIX: Use visibility instead of display:none to reserve space and prevent layout shift */}
+            <span className={cn(
+              "text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded",
+              filteredAndSortedEntries.length <= VIRTUALIZATION_THRESHOLD && "invisible"
+            )}>
+              Virtual scroll active
+            </span>
           </div>
           {/* Totals in header - collapsible popover to avoid pushing table off screen */}
           {showTotals && Object.keys(columnTotals).length > 0 && (
@@ -6053,13 +5848,11 @@ export default function TeeemTableView({
           </Button>
 
           {/* More actions menu - extracted to ToolbarMoreActions */}
+          {/* Context provides: hasEmailColumns (from columns), foundationId, resolvedFoundation (from meta) */}
           <ToolbarMoreActions
             enableSchemaEditor={effectiveEnableSchemaEditor}
             enableImport={effectiveEnableImport}
             enableExport={effectiveEnableExport}
-            hasEmailColumns={hasEmailColumns}
-            foundationId={foundationId}
-            resolvedFoundation={resolvedFoundation}
             columnEditMode={columnEditMode}
             showColumnFilters={showColumnFilters}
             isFindingAbns={isFindingAbns}
@@ -6150,10 +5943,11 @@ export default function TeeemTableView({
             <p className="text-sm font-medium">No results found</p>
             <p className="text-xs mt-1">No records match "{search}"</p>
           </div>
-        ) : (initialView?.group_by_columns?.length || initialView?.group_by_column) && !groupedEntries ? (
+        ) : groupByColumn && !groupedEntries ? (
           /* CLS FIX: SSR grouped view pending - show skeleton until groupedEntries is computed
            * This prevents flat → grouped transition which causes layout shift
-           * Check both group_by_columns (plural) and group_by_column (singular) */
+           * FRC FIX: Use current groupByColumn state, NOT initialView prop (which never changes)
+           * Bug: initialView.group_by_column='category' persists even when user switches to ungrouped view */
           <TableSkeleton
             rowCount={10}
             columnCount={Math.min(visibleColumnsInOrder.length || 6, 8)}

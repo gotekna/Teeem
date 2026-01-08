@@ -267,11 +267,18 @@ return (
 ```
 
 - ❌ NEVER pass `columns` prop - auto-fetched from Foundation API
+- ❌ NEVER pass `entries` prop for Foundation-backed tables - use `autoFetchRecords={true}`
 - ❌ NO custom `<h1>` headers - TeeemTableView renders header
+- ✅ ALWAYS use `autoFetchRecords={true}` - enables SSR hydration, infinite scroll, caching
 - ✅ Action buttons in `leftActions`
 - ✅ Edge-to-edge: `-mx-4`, full height: `h-full flex flex-col`
+- ✅ For embedded/filtered tables: `autoFetchRecords={true} initialFilters={[...]}`
 
 **"Gold Standard Table" = TeeemTableView** - Changes go to `TeeemTableView.tsx`, not `GoldStandardTab.tsx`
+
+**`entries` prop is DEPRECATED** for Foundation-backed tables. Only use `entries` for:
+- Non-Foundation data (e.g., Xero API responses)
+- Demo/test data in components lab
 
 ## 🔴 Design System
 

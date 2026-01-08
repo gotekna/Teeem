@@ -5,6 +5,28 @@ Run browser-based performance checks AND backend performance analysis.
 
 ---
 
+## Step 0: Ensure Chrome DevTools is Running
+
+**MCP manages its own Chrome instance.** Just try to use MCP tools - it auto-starts Chrome if needed.
+
+### Check if MCP Chrome is ready:
+```javascript
+mcp__chrome-devtools__list_pages()
+```
+
+If it works, proceed to Step 0.5 (Auto-Login).
+
+### If MCP fails with "browser already running" error:
+```bash
+pkill -f "chrome-devtools-mcp"
+rm -rf /Users/robertharder/.cache/chrome-devtools-mcp
+```
+Then try the MCP tool again.
+
+**Note:** MCP uses a dedicated profile at `~/.cache/chrome-devtools-mcp/chrome-profile`, separate from your regular Chrome profiles.
+
+---
+
 ## 🔴 CRITICAL REMINDERS (Don't Forget These!)
 
 ### FRC - Find Root Cause
@@ -114,6 +136,39 @@ For each navigation:
 - **LCP > 4000ms** = Very slow (FAIL)
 - Take snapshot to verify content rendered (no persistent spinners >2s)
 
+### Step 1.5: Content Validation (CRITICAL)
+
+**CLS metrics don't catch functional bugs!** After each performance trace, take a snapshot and validate:
+
+#### Table Content Checks
+For any page with TeeemTableView:
+1. **Record count mismatch**: Header shows "0 records" but groups have counts = **FAIL**
+2. **Empty table with groups**: Groups visible with (N) counts but no records loaded = **FAIL**
+3. **Loading state stuck**: Spinner visible for >3 seconds = **FAIL**
+4. **SSR data ignored**: Page shows skeleton when SSR data was passed = **FAIL**
+
+#### How to Detect
+```
+After performance_start_trace completes:
+1. take_snapshot
+2. Search snapshot for:
+   - "0 records" text when groups show counts
+   - Spinner/loading indicators still present
+   - Empty table body with populated group headers
+3. If found: Mark as [FAIL - Content Bug] not just CLS warning
+```
+
+#### Example: The "0 Records" Bug (2025-01-09)
+```
+WRONG ASSESSMENT:
+  Pricebook: LCP 974ms, CLS 0.12 [WARN - borderline]
+
+CORRECT ASSESSMENT:
+  Pricebook: LCP 974ms, CLS 0.12 [FAIL - shows "0 records" but groups have 1000+ items]
+```
+
+**Root cause was:** Header used `filteredAndSortedEntries.length` (0 on SSR) instead of `serverTotalRecords` (correct count from SSR group data).
+
 ### Step 2: Backend Performance Data
 
 Fetch from API and analyze:
@@ -216,3 +271,109 @@ ISSUES FOUND & FIXED:
 - Always login first before checking pages
 - If login fails, report error and stop
 - Compare local vs production performance to catch deployment regressions
+
+---
+
+## 🔴 ANTI-PATTERNS: What NOT To Do When Fixing Performance
+
+**Lessons learned from past sessions. DO NOT repeat these mistakes.**
+
+### 1. DON'T Add Multiple Fetch Triggers (SSoT Violation)
+
+```typescript
+// ❌ BAD: Two places trigger data fetch
+if (condition1) setAutoFetchRefreshKey(prev => prev + 1);
+// ... later in code ...
+if (condition2) setAutoFetchRefreshKey(prev => prev + 1);
+
+// ✅ GOOD: Single SSoT for fetch trigger
+} finally {
+  if (!hasAppliedInitialRecordsRef.current) {
+    setAutoFetchRefreshKey(prev => prev + 1);
+  }
+}
+```
+
+**Why:** Multiple triggers = data reloads unexpectedly, defeating caching.
+
+### 2. DON'T Add Volatile Dependencies to useEffect
+
+```typescript
+// ❌ BAD: baseFiltersKey changes during initialization
+useEffect(() => {
+  fetchData();
+}, [foundationId, baseFiltersKey]); // baseFiltersKey changes = double fetch!
+
+// ✅ GOOD: Check if already loaded before fetching
+useEffect(() => {
+  if (hasAppliedInitialRecordsRef.current && records.length > 0) {
+    return; // Skip duplicate fetch
+  }
+  fetchData();
+}, [foundationId, baseFiltersKey]);
+```
+
+**Why:** Dependencies that change during initialization cause duplicate fetches.
+
+### 3. DON'T Use Path-Based Navigation for View Switching
+
+```typescript
+// ❌ BAD: Full page reload, wipes cached data
+router.push('/contacts/view/company_role');
+
+// ✅ GOOD: Query param navigation, keeps component mounted
+router.push('/contacts?view=company_role', { scroll: false });
+```
+
+**Why:** Path-based navigation unmounts component → SSR reload → cache wiped.
+
+### 4. DON'T Forget to Check if SSR Data Already Applied
+
+```typescript
+// ❌ BAD: Always fetches, ignores SSR data
+useEffect(() => {
+  fetchRecords();
+}, []);
+
+// ✅ GOOD: Skip fetch if SSR/cache data already applied
+useEffect(() => {
+  if (hasAppliedInitialRecordsRef.current && autoFetchedRecords.length > 0) {
+    console.log('[TeeemTableView] SSR data already applied, skipping fetch');
+    return;
+  }
+  fetchRecords();
+}, []);
+```
+
+**Why:** SSR pre-loads data. Fetching again = slow + flash of loading state.
+
+### 5. DON'T Add Refs Without Understanding WHY
+
+Adding refs like `hasAppliedInitialRecordsRef` is often a bandaid. Ask:
+- Why is the effect running multiple times?
+- Is there a dependency that shouldn't be there?
+- Can we restructure to avoid needing the ref?
+
+### 6. DON'T Decrease Cache TTL "For Safety"
+
+```typescript
+// ❌ BAD: Short cache = frequent reloads
+export const CACHE_TTL_RECORDS = 5 * 60 * 1000; // 5 minutes
+
+// ✅ GOOD: Longer cache, rely on invalidation after mutations
+export const CACHE_TTL_RECORDS = 30 * 60 * 1000; // 30 minutes
+```
+
+**Why:** Mutations already call `clearCachedRecords()`. Short TTL = bad UX.
+
+### Summary: Performance Fix Checklist
+
+Before implementing ANY performance fix, verify:
+
+| Check | Question |
+|-------|----------|
+| SSoT | Is there already a mechanism for this? Search first! |
+| Dependencies | Will this change cause effects to re-run? |
+| Navigation | Will this cause a full page reload? |
+| Cache | Am I working WITH the cache or fighting it? |
+| Refs | Am I adding a ref as a bandaid for a design issue? |

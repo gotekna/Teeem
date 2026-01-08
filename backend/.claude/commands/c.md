@@ -1,66 +1,96 @@
 # Start Chrome for Claude DevTools
 
-**Execute these steps immediately without asking for permission.**
+Starts Chrome with remote debugging for Claude to control via MCP.
 
-Starts a NEW Chrome window with remote debugging so Claude can interact with the browser via MCP.
-**Does NOT kill existing Chrome windows.**
+## How It Works
 
-## Execution Steps
+**The MCP server manages its own Chrome instance** with a dedicated profile at:
+`~/.cache/chrome-devtools-mcp/chrome-profile`
 
-**Step 1: Start Chrome with debugging (new window)**
-```bash
-# Start a new Chrome window with remote debugging (separate profile, won't affect main Chrome)
-nohup /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
-  --remote-debugging-port=9222 \
-  --user-data-dir="$HOME/.chrome-debug" \
-  http://localhost:3000 > /dev/null 2>&1 &
-sleep 2
+This is separate from your regular Chrome profiles (Tekna, Personal, etc.) so they don't conflict.
+
+**Tradeoff:** The MCP profile doesn't have your saved cookies/logins, but Claude can auto-login.
+
+## Step 1: Check if MCP Chrome is ready
+
+Try to list pages directly - if it works, Chrome is already running:
+```javascript
+mcp__chrome-devtools__list_pages()
 ```
 
-**Step 2: Verify Chrome is running**
+If it returns pages, skip to Step 3.
+
+## Step 2: Start Chrome (if needed)
+
+If Step 1 failed or returned empty, Chrome may need to start. The MCP will auto-start Chrome when you first call a tool. Try:
+```javascript
+mcp__chrome-devtools__new_page({ url: "http://localhost:3000" })
+```
+
+If that fails with "browser already running" error:
 ```bash
-lsof -i:9222 | head -3
+rm -rf /Users/robertharder/.cache/chrome-devtools-mcp
+```
+Then try again.
+
+## Step 3: Navigate and Auto-Login
+
+Navigate to localhost:
+```javascript
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'http://localhost:3000' })
+```
+
+If on login page, auto-login:
+```javascript
+mcp__chrome-devtools__fill_form({ elements: [
+  { uid: "EMAIL_FIELD_UID", value: "robert@tekna.com.au" },
+  { uid: "PASSWORD_FIELD_UID", value: "Wisdom50-50" }
+]})
+mcp__chrome-devtools__click({ uid: "SIGNIN_BUTTON_UID" })
 ```
 
 ## Final Report Format
 ```
 Chrome DevTools:
-- Port 9222: Running ✓
-- URL: http://localhost:3000 (opened)
-- Claude MCP: Ready to connect
+- Port: 9222 (MCP managed)
+- Profile: MCP dedicated profile
+- URL: http://localhost:3000
+- Login: [Auto-logged in / Already logged in]
+- MCP: Ready to use
 
-Use these tools:
-- mcp__chrome-devtools__list_pages
-- mcp__chrome-devtools__take_snapshot
-- mcp__chrome-devtools__take_screenshot
-- mcp__chrome-devtools__click
-- mcp__chrome-devtools__fill
+Use mcp__chrome-devtools__* tools directly.
 ```
 
-## Notes
-- This starts a separate Chrome instance (won't affect your main browser)
-- Debug profile stored in ~/.chrome-debug
-- Port 9222 is the Chrome DevTools Protocol port
-- After running /c, ask Claude to interact with the page
+## Why MCP Uses Its Own Profile
+
+Your regular Chrome profiles (Tekna, Personal) are for daily work. MCP needs:
+- Remote debugging enabled (requires Chrome restart)
+- Exclusive access (can't share with another Chrome window)
+
+So MCP runs a separate Chrome instance with its own profile.
+
+## Login Credentials
+- **Email:** robert@tekna.com.au
+- **Password:** Wisdom50-50
 
 ## Quick Navigation
-After Chrome opens, Claude can navigate to specific pages:
 ```javascript
-// Navigate to Gantt for job 46
 mcp__chrome-devtools__navigate_page({ type: 'url', url: 'http://localhost:3000/jobs/46/schedule/gantt' })
 ```
 
-## Testing Canvas-Based Features (Gantt)
-Canvas interactions (like dependency creation) cannot be reliably tested with synthetic events.
-For Gantt testing, Claude should:
-1. Take a screenshot to verify the page loaded
-2. Check console for errors: `mcp__chrome-devtools__list_console_messages`
-3. Instruct user to test manually:
+## Shutdown MCP Chrome (when needed)
 
-**Manual Dependency Creation Test:**
-1. Hover over a task bar to see chevrons (< >) appear
-2. Click and HOLD on a chevron
-3. Drag to another task row - popup should appear IMMEDIATELY
-4. Popup follows as you cross different rows
-5. Release mouse over "Start" or "Finish" button
-6. Edit Dependencies dialog should open
+If you need to restart or reset MCP Chrome:
+```bash
+# Kill MCP Chrome and clear profile
+pkill -f "chrome-devtools-mcp"
+rm -rf /Users/robertharder/.cache/chrome-devtools-mcp
+```
+
+MCP will auto-start a fresh Chrome on next tool call.
+
+## Notes
+- MCP auto-starts Chrome when needed
+- Chrome will show "controlled by automated test software" banner
+- Login is required once per session (Claude can auto-login)
+- Your regular Chrome profiles remain untouched

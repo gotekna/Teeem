@@ -144,6 +144,11 @@ interface EmailProposal {
       company?: string;
       contact_id?: number;
       contact_exists?: boolean;
+      enrichment?: {
+        company_id?: number;
+        company_created?: boolean;
+        linked_to_company?: string;
+      };
     };
     customer2?: {
       name?: string;
@@ -268,8 +273,8 @@ export default function NewJobPage() {
         setJobStatuses(statusesData?.job_statuses || []);
         setUsers(Array.isArray(usersData) ? usersData : usersData?.users || []);
 
-        // Set default values if available
-        if (typesData?.job_types && typesData.job_types.length > 0) {
+        // Set default job type - BUT skip if loading from proposal (the mapping effect will set it)
+        if (typesData?.job_types && typesData.job_types.length > 0 && !proposalId) {
           setFormData(prev => ({ ...prev, job_type_id: typesData.job_types[0].id.toString() }));
         }
         if (statusesData?.job_statuses && statusesData.job_statuses.length > 0) {
@@ -301,22 +306,25 @@ export default function NewJobPage() {
     loadLookupData();
   }, [statusFromPath]);
 
+  // Reusable function to load contacts - can be called after proposal enrichment creates new company
+  const loadContacts = React.useCallback(async () => {
+    try {
+      setLoadingContacts(true);
+      const response = await api.get<{ contacts?: Contact[] } | Contact[]>("/api/v1/contacts");
+      const contacts = Array.isArray(response) ? response : response?.contacts || [];
+      console.log("[loadContacts] Loaded", contacts.length, "contacts");
+      setAllContacts(contacts);
+    } catch (error) {
+      console.error("Failed to load contacts:", error);
+    } finally {
+      setLoadingContacts(false);
+    }
+  }, []);
+
   // Load contacts on mount
   React.useEffect(() => {
-    const loadContacts = async () => {
-      try {
-        setLoadingContacts(true);
-        const response = await api.get<{ contacts?: Contact[] } | Contact[]>("/api/v1/contacts");
-        const contacts = Array.isArray(response) ? response : response?.contacts || [];
-        setAllContacts(contacts);
-      } catch (error) {
-        console.error("Failed to load contacts:", error);
-      } finally {
-        setLoadingContacts(false);
-      }
-    };
     loadContacts();
-  }, []);
+  }, [loadContacts]);
 
   // Load email proposal if from_proposal param is set
   React.useEffect(() => {
@@ -429,14 +437,21 @@ export default function NewJobPage() {
         }));
 
         // Store contact IDs to populate after contacts load
+        // If customer was enriched and linked to a company, use the COMPANY as the client
+        // (e.g., Imperial Homes QLD instead of Nick Miller)
+        const customerClientId = data.customer?.enrichment?.company_id
+          || data.customer?.contact_id
+          || null;
+
         const contactIdsToPopulate = {
-          client1_id: data.customer?.contact_id || null,
+          client1_id: customerClientId,
           client2_id: data.customer2?.contact_id || null,
           referrer_id: data.referral_contact?.contact_id || null,
           external_sales_id: data.external_sales?.[0]?.contact_id || null,
         };
 
         console.log("Proposal loaded with contact IDs:", contactIdsToPopulate);
+        console.log("Enrichment data:", data.customer?.enrichment);
         console.log("Internal sales user_id:", data.internal_sales?.user_id);
 
         // Set people data IDs
@@ -446,6 +461,12 @@ export default function NewJobPage() {
           internal_sales_id: data.internal_sales?.user_id || null,
         }));
 
+        // If enrichment created a new company, reload contacts to include it in the list
+        if (data.customer?.enrichment?.company_id) {
+          console.log("[loadProposal] Enrichment created company, reloading contacts to include ID:", data.customer.enrichment.company_id);
+          await loadContacts();
+        }
+
       } catch (error) {
         console.error("Failed to load proposal:", error);
       } finally {
@@ -454,7 +475,67 @@ export default function NewJobPage() {
     };
 
     loadProposal();
-  }, [proposalId]);
+  }, [proposalId, loadContacts]);
+
+  // Track if we've already mapped job type from proposal
+  const [hasSetJobTypeFromProposal, setHasSetJobTypeFromProposal] = React.useState(false);
+
+  // Map AI-detected job_type to job_type_id after both proposal and jobTypes are loaded
+  // Uses a flag to ensure this only runs once and doesn't get overwritten
+  React.useEffect(() => {
+    // Skip if already set, missing data, or lookups still loading
+    if (hasSetJobTypeFromProposal || loadingLookups) {
+      return;
+    }
+
+    if (!proposal?.extracted_data?.job_type || jobTypes.length === 0) {
+      console.log("[Proposal JobType Mapping] Skipping - missing data");
+      return;
+    }
+
+    const aiJobType = proposal.extracted_data.job_type.toLowerCase().trim();
+
+    // Mapping: AI job type keywords → JobType names
+    const typeMapping: Record<string, string> = {
+      'kitchen': 'Kitchen',
+      'kitchens': 'Kitchen',
+      'cabinetry': 'Kitchen',
+      'cabinet': 'Kitchen',
+      'cabinets': 'Kitchen',
+      'renovation': 'House Renovation',
+      'extension': 'House Renovation',
+      'new_build': 'House',
+      'new build': 'House',
+      'house': 'House',
+      'duplex': 'Duplex',
+      'townhouse': 'Townhouse',
+      'apartment': 'Micro Apartment',
+      'unit': 'Townhouse',
+      'ndis': 'NDIS House',
+      'office': 'Office Fitout',
+    };
+
+    console.log("[Proposal JobType Mapping] Available job types:", jobTypes.map(jt => jt.name));
+
+    const targetTypeName = typeMapping[aiJobType];
+    if (targetTypeName) {
+      // Case-insensitive match for job type name
+      const matchedType = jobTypes.find(jt => jt.name.toLowerCase() === targetTypeName.toLowerCase());
+      if (matchedType) {
+        console.log(`[Proposal JobType Mapping] SUCCESS: "${aiJobType}" → "${matchedType.name}" (ID: ${matchedType.id})`);
+        // Set the flag FIRST to prevent re-runs, then set the form data
+        setHasSetJobTypeFromProposal(true);
+        setFormData(prev => {
+          console.log("[Proposal JobType Mapping] Setting job_type_id, prev:", prev.job_type_id, "new:", matchedType.id.toString());
+          return { ...prev, job_type_id: matchedType.id.toString() };
+        });
+      } else {
+        console.warn(`[Proposal JobType Mapping] No match found for target type "${targetTypeName}" in:`, jobTypes.map(jt => jt.name));
+      }
+    } else {
+      console.warn(`[Proposal JobType Mapping] No mapping defined for AI job type "${aiJobType}"`);
+    }
+  }, [proposal, jobTypes, loadingLookups, hasSetJobTypeFromProposal]);
 
   // Track if we've already populated contacts from proposal
   const [hasPopulatedFromProposal, setHasPopulatedFromProposal] = React.useState(false);

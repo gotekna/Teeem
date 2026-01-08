@@ -330,14 +330,25 @@ class EmailToJobService
       Extract the following information and return ONLY valid JSON (no markdown, no code blocks, just raw JSON):
 
       {
-        "job_title": "Descriptive title for this job (infer from context or use subject line)",
+        "job_title": "Descriptive title for this job (infer from context or use subject line). For cabinetry/cabinet quotes, prefix with 'Kitchen - '",
         "property_address": "CRITICAL: Find the COMPLETE PROPERTY/SITE address where construction work will be done, NOT the business/office address. MUST include: street number + street name + suburb + state + postcode. Look for labels like 'Site:', 'Site Address', 'Property Address', 'Work Location', 'Project Address', 'Job Site', 'Property:', or addresses in QLD/NSW/VIC. Common PDF formats show 'Site: [address]' in title blocks. AVOID addresses labeled 'Business Address', 'Office Address', 'Company Address', 'Head Office', or PO Box addresses. DO NOT return partial addresses (suburb only is not enough). Must extract the full street address. Format: '123 Main Street, Suburb, State Postcode' (e.g., '3/9 Reef Point Esplanade, Scarborough, QLD 4020'). Return null if complete address not found.",
         "customer": {
-          "name": "Customer's full name (if not mentioned, extract from email sender name)",
-          "email": "Customer email (use sender email if customer is the sender)",
-          "phone": "Phone number if mentioned in email",
-          "company": "Company name if mentioned",
+          "name": "The CUSTOMER's name - this is who is contracting Tekna for the work. For kitchen/cabinetry jobs, builders ARE valid customers (they contract Tekna to do kitchens in homes they're building). Extract the person requesting the quote.",
+          "email": "Customer email address",
+          "phone": "Phone number from email signature or body",
+          "company": "Company name from email signature or domain (e.g., 'Imperial Homes QLD' from nick@imperialhomesqld.com.au or signature)",
           "entity_type": "person or company (infer from context)"
+        },
+        "company_details": {
+          "name": "Company name extracted from email signature (look for company name in signature block, or infer from email domain like imperialhomesqld.com.au → Imperial Homes QLD)",
+          "abn": "ABN number if present in email signature (11 digit number, may be formatted as XX XXX XXX XXX)",
+          "phone": "Company phone number from signature (landline, not mobile)",
+          "mobile": "Mobile phone from signature",
+          "address": "Street address from signature",
+          "city": "City/suburb from signature address",
+          "state": "State from signature (QLD, NSW, VIC, etc.)",
+          "postcode": "Postcode from signature",
+          "website": "Website URL from signature"
         },
         "referral": {
           "name": "Name of person who referred this job (look for phrases like 'referred by', 'recommended by', 'sent by', or similar)",
@@ -349,7 +360,7 @@ class EmailToJobService
         "scope_of_work": "Detailed scope extracted from email - what needs to be built/renovated/fixed. Include relevant details from PDF attachments.",
         "contract_value": null or estimated value if mentioned as a number (no currency symbols),
         "urgency": "urgent, normal, or low based on language used",
-        "job_type": "renovation, new_build, extension, repair, or other",
+        "job_type": "kitchen (for cabinetry/cabinet work), renovation, new_build, extension, repair, or other",
         "attachments_mentioned": ["list of any files mentioned or attached"],
         "job_summary": "A concise 2-3 sentence summary of the job from an estimator's perspective - highlighting key construction challenges, scope, and what needs pricing attention. Extract from PDF attachments and email.",
         "key_points": ["Array of exactly 10 specific, actionable points that an estimator should focus on when pricing this job. Include: materials needed, specific trades required, site challenges, access issues, timeline constraints, regulatory requirements, client specifications, potential risks, scope clarifications needed, and cost drivers. Be concrete and specific based on the email/PDF content."],
@@ -379,6 +390,13 @@ class EmailToJobService
       - Be conservative with confidence_score - only high if address and customer are very clear
       - In missing_info, list ALL critical information that's not found or unclear
       - Return ONLY the JSON object, no additional text, no markdown formatting
+
+      Builder/Developer handling:
+      - Builders ARE valid customers for Tekna (they contract kitchen work for homes they're building)
+      - If someone from a builder company (Imperial Homes, etc.) requests a quote, they are the customer
+      - Extract their company name from email domain or signature (e.g., nick@imperialhomesqld.com.au → Imperial Homes QLD)
+      - Cabinetry/cabinet quotes are Kitchen jobs
+      - The builder's own end client (homeowner) is NOT relevant - the builder is Tekna's customer
     PROMPT
   end
 
@@ -484,7 +502,7 @@ class EmailToJobService
 
     # Priority 1: Find by email (exact match)
     if email.present?
-      contact = Contact.find_by("LOWER(email) = ?", email.downcase)
+      contact = Contact.find_by_email(email)
       return contact if contact
     end
 
@@ -516,7 +534,7 @@ class EmailToJobService
   rescue ActiveRecord::RecordInvalid => e
     Rails.logger.error "Failed to create customer: #{e.message}"
     # Try to find by email again in case of race condition
-    Contact.find_by(email: email) if email.present?
+    Contact.find_by_email(email) if email.present?
   end
 
   def normalize_phone(phone)
@@ -559,6 +577,9 @@ class EmailToJobService
       "apartment" => "Micro Apartment",
       "unit" => "Townhouse",
       "kitchen" => "Kitchen",
+      "cabinetry" => "Kitchen",
+      "cabinet" => "Kitchen",
+      "cabinets" => "Kitchen",
       "repair" => "House Renovation",
       "ndis" => "NDIS House"
     }
@@ -578,7 +599,7 @@ class EmailToJobService
   # Link internal sales rep to job
   def link_internal_sales_rep(job, sales_user)
     # Check if user has an associated contact record
-    contact = Contact.find_by(email: sales_user.email)
+    contact = Contact.find_by_email(sales_user.email)
     return unless contact
 
     # Link as internal sales rep (avoid duplicates)
@@ -605,12 +626,12 @@ class EmailToJobService
 
     # Find contacts who are sales agents
     all_participants.each do |participant_email|
-      contact = Contact.find_by(email: participant_email)
+      contact = Contact.find_by_email(participant_email)
       next unless contact
 
       # Check if this contact is a sales agent
       # (they have 'sales' or 'agent' in their roles)
-      is_sales = contact.roles&.any? { |t| t.match?(/sales|agent/i) }
+      is_sales = contact.roles_array.any? { |t| t.match?(/sales|agent/i) }
 
       if is_sales
         # Link as external sales (avoid duplicates)
@@ -685,8 +706,196 @@ class EmailToJobService
     Rails.logger.error "Failed to link referral contact: #{e.message}"
   end
 
+  # Lookup company contact by email domain
+  # Returns the company Contact record if found
+  def find_company_by_email_domain(email)
+    return nil if email.blank?
+
+    domain = email.split("@").last&.downcase
+    return nil if domain.blank?
+
+    # Skip common personal email domains
+    personal_domains = %w[gmail.com yahoo.com hotmail.com outlook.com icloud.com live.com]
+    return nil if personal_domains.include?(domain)
+
+    # Find a company contact that has an email with this domain
+    Contact.where(entity_type: "company")
+           .joins(:contact_emails)
+           .where("LOWER(contact_emails.email) LIKE ?", "%@#{domain}")
+           .first
+  end
+
+  # Check if a company is a builder/developer type
+  def is_builder_company?(company_contact)
+    return false unless company_contact
+
+    # Check roles for builder indicators
+    roles = company_contact.roles_array
+    builder_roles = roles.any? { |r| r.match?(/builder|developer|construction|home/i) }
+    return true if builder_roles
+
+    # Check company name for builder indicators
+    name = company_contact.display_name&.downcase || ""
+    builder_names = name.match?(/homes|builder|constructions|developments|housing/i)
+    return true if builder_names
+
+    false
+  end
+
+  # CONTACT ENRICHMENT: Create/link company from email signature data
+  # - Creates company contact if doesn't exist
+  # - Links person as employee of company
+  # - Migrates Xero link from person to company
+  def enrich_contact_with_company(person_contact, email, company_details, existing_company)
+    result = { actions: [] }
+
+    # Skip if already linked to a company - but still return company_id for frontend
+    if person_contact.primary_company_id.present?
+      result[:skipped] = "Already linked to company"
+      result[:company_id] = person_contact.primary_company_id
+      result[:linked_to_company] = person_contact.primary_company&.display_name
+      return result
+    end
+
+    # Skip if this IS a company (not a person)
+    unless person_contact.entity_type == "person"
+      result[:skipped] = "Contact is not a person"
+      return result
+    end
+
+    domain = email.split("@").last&.downcase
+    return result if domain.blank?
+
+    # Skip personal email domains
+    personal_domains = %w[gmail.com yahoo.com hotmail.com outlook.com icloud.com live.com]
+    if personal_domains.include?(domain)
+      result[:skipped] = "Personal email domain"
+      return result
+    end
+
+    # Try to find existing company by domain
+    company = existing_company || find_company_by_email_domain(email)
+
+    # If no company exists, create one from signature data
+    if company.nil? && company_details.is_a?(Hash) && company_details["name"].present?
+      company = create_company_from_signature(company_details, domain)
+      if company
+        result[:actions] << "Created company: #{company.display_name}"
+        result[:company_created] = true
+        result[:company_id] = company.id
+      end
+    end
+
+    # Link person as employee of company
+    if company && person_contact.id != company.id
+      # Migrate Xero link from person to company BEFORE linking
+      if person_contact.xero_contact_number.present? && company.xero_contact_number.blank?
+        xero_number = person_contact.xero_contact_number
+        xero_count = person_contact.xero_invoice_count || 0
+
+        # Move Xero link to company
+        company.update!(
+          xero_contact_number: xero_number,
+          xero_invoice_count: xero_count,
+          sync_with_xero: true
+        )
+
+        # Clear from person
+        person_contact.update!(
+          xero_contact_number: nil,
+          xero_invoice_count: 0,
+          sync_with_xero: false
+        )
+
+        result[:actions] << "Migrated Xero link (#{xero_number}) to company"
+        result[:xero_migrated] = true
+        Rails.logger.info "[ContactEnrichment] Migrated Xero link #{xero_number} from #{person_contact.display_name} to #{company.display_name}"
+      end
+
+      # Link person as employee
+      person_contact.update!(primary_company_id: company.id)
+      result[:actions] << "Linked #{person_contact.display_name} as employee of #{company.display_name}"
+      result[:linked_to_company] = company.display_name
+      result[:company_id] = company.id
+
+      Rails.logger.info "[ContactEnrichment] Linked #{person_contact.display_name} as employee of #{company.display_name}"
+    end
+
+    result
+  rescue StandardError => e
+    Rails.logger.error "[ContactEnrichment] Error: #{e.message}"
+    { error: e.message }
+  end
+
+  # Create a new company contact from email signature data
+  def create_company_from_signature(company_details, domain)
+    return nil unless company_details["name"].present?
+
+    # Clean ABN (remove spaces)
+    abn = company_details["abn"]&.gsub(/\s/, "")
+
+    # Build company contact
+    # Note: Don't set roles for companies - roles are for person contacts (Employee, sales, etc.)
+    company = Contact.new(
+      entity_type: "company",
+      company_name_or_trust: company_details["name"],
+      display_name: company_details["name"],
+      abn: abn,
+      website: company_details["website"],
+      address: company_details["address"],
+      city: company_details["city"],
+      state: company_details["state"],
+      postcode: company_details["postcode"],
+      email_domains: [domain],  # Store domain for future auto-linking
+      is_active: true
+    )
+
+    # Add company email if we can construct it
+    # Common patterns: info@, admin@, office@
+    # For now, skip auto-creating email - let user add it
+
+    # Add phone if present
+    if company_details["phone"].present?
+      company.save!
+      company.contact_phones.create!(
+        phone_number: company_details["phone"],
+        phone_type: "work",
+        is_primary: true
+      )
+    else
+      company.save!
+    end
+
+    # Add mobile if present and different from phone
+    if company_details["mobile"].present? && company_details["mobile"] != company_details["phone"]
+      company.contact_phones.create!(
+        phone_number: company_details["mobile"],
+        phone_type: "mobile",
+        is_primary: company.contact_phones.empty?
+      )
+    end
+
+    Rails.logger.info "[ContactEnrichment] Created company: #{company.display_name} (ID: #{company.id}, ABN: #{abn || 'none'})"
+
+    company
+  rescue ActiveRecord::RecordInvalid => e
+    Rails.logger.error "[ContactEnrichment] Failed to create company: #{e.message}"
+    nil
+  end
+
   # Add sales people detection to extracted data
   def add_sales_people_info(extracted_data)
+    # Detect if sender is from a known company (for context/linking)
+    sender_company = find_company_by_email_domain(@email.from_email)
+    if sender_company
+      extracted_data["sender_company"] = {
+        "name" => sender_company.display_name,
+        "contact_id" => sender_company.id,
+        "is_builder" => is_builder_company?(sender_company),
+        "domain" => @email.from_email.split("@").last
+      }
+    end
+
     # Customer: Check if AI-extracted customer already exists in contacts
     customer_data = extracted_data["customer"]
     if customer_data.is_a?(Hash)
@@ -696,7 +905,7 @@ class EmailToJobService
 
       # Try to find existing contact by email first
       if customer_email.present?
-        customer_contact = Contact.find_by("LOWER(email) = ?", customer_email.downcase)
+        customer_contact = Contact.find_by_email(customer_email)
       end
 
       # If no email match, try searching by name
@@ -715,22 +924,80 @@ class EmailToJobService
       extracted_data["customer"]["contact_id"] = customer_contact&.id
       extracted_data["customer"]["needs_contact_creation"] = customer_contact.nil?
 
+      # Check if customer's email domain indicates they work for a company
+      # This handles cases where internal staff forward emails and AI extracts the original sender
+      customer_company = nil
+      if customer_email.present? && customer_contact
+        customer_company = find_company_by_email_domain(customer_email)
+        if customer_company
+          extracted_data["customer"]["detected_company"] = {
+            "name" => customer_company.display_name,
+            "contact_id" => customer_company.id,
+            "is_builder" => is_builder_company?(customer_company)
+          }
+        end
+      end
+
+      # If customer contact exists and is linked to the sender's company, note it
+      if customer_contact&.primary_company_id == sender_company&.id
+        extracted_data["customer"]["is_employee_of_sender_company"] = true
+      end
+
+      # CONTACT ENRICHMENT: Create company and link employee if needed
+      # Priority: customer.company > company_details.name (company_details may extract wrong sender)
+      company_details = extracted_data["company_details"] || {}
+      customer_company_name = customer_data["company"]  # AI extracts this from customer's email domain/signature
+
+      # Override company_details.name with customer.company if available
+      if customer_company_name.present? && company_details["name"] != customer_company_name
+        company_details = company_details.merge("name" => customer_company_name)
+      end
+
+      if customer_contact && customer_email.present? && customer_contact.entity_type == "person"
+        # Only pass customer_company - DON'T fall back to sender_company
+        # We don't want to link external customers to internal Tekna companies
+        enrichment_result = enrich_contact_with_company(
+          customer_contact,
+          customer_email,
+          company_details,
+          customer_company  # NOT sender_company - that's internal
+        )
+        extracted_data["customer"]["enrichment"] = enrichment_result if enrichment_result
+      end
+
       if customer_contact
         Rails.logger.info "[EmailToJobService] Found existing customer: #{customer_contact.display_name} (ID: #{customer_contact.id})"
       end
     end
 
-    # Internal sales: The user who synced/forwarded the email (Jake, Robert, etc.)
-    internal_sales_user = @user
-    internal_sales_contact = Contact.find_by(email: internal_sales_user.email)
+    # Internal sales: Prefer email sender if from Tekna, otherwise the user who extracted
+    internal_domains = %w[@tekna.com.au @teeem.au @teeem.com]
+    sender_is_internal = internal_domains.any? { |d| @email.from_email&.downcase&.include?(d) }
 
-    extracted_data["internal_sales"] = {
-      "user_name" => internal_sales_user.name,
-      "user_email" => internal_sales_user.email,
-      "contact_exists" => internal_sales_contact.present?,
-      "contact_id" => internal_sales_contact&.id,
-      "needs_contact_creation" => internal_sales_contact.nil?
-    }
+    if sender_is_internal
+      # Email was sent by a Tekna employee - they are the internal sales
+      internal_sales_contact = Contact.find_by_email(@email.from_email)
+      internal_sales_user = User.find_by(email: @email.from_email) || @user
+      extracted_data["internal_sales"] = {
+        "user_name" => internal_sales_user&.name || @email.from_name || "Unknown",
+        "user_email" => @email.from_email,
+        "contact_exists" => internal_sales_contact.present?,
+        "contact_id" => internal_sales_contact&.id,
+        "user_id" => internal_sales_user&.id,
+        "needs_contact_creation" => internal_sales_contact.nil?
+      }
+    else
+      # Email from external - use the user who ran the extraction
+      internal_sales_contact = Contact.find_by_email(@user.email)
+      extracted_data["internal_sales"] = {
+        "user_name" => @user.name,
+        "user_email" => @user.email,
+        "contact_exists" => internal_sales_contact.present?,
+        "contact_id" => internal_sales_contact&.id,
+        "user_id" => @user.id,
+        "needs_contact_creation" => internal_sales_contact.nil?
+      }
+    end
 
     # External sales: Search email participants for sales agents
     all_participants = [
@@ -740,16 +1007,17 @@ class EmailToJobService
     ].compact.uniq
 
     external_sales = []
+    internal_sales_email = extracted_data.dig("internal_sales", "user_email")
     all_participants.each do |participant_email|
       # Skip if this is the internal sales person
-      next if participant_email == internal_sales_user.email
+      next if participant_email == internal_sales_email
       # Skip if this is the customer
       next if participant_email == extracted_data.dig("customer", "email")
 
-      contact = Contact.find_by(email: participant_email)
+      contact = Contact.find_by_email(participant_email)
 
       # Check if this person might be a sales agent
-      is_sales_agent = contact && contact.roles&.any? { |t| t.match?(/sales|agent/i) }
+      is_sales_agent = contact && contact.roles_array.any? { |t| t.match?(/sales|agent/i) }
 
       # Also check email domain for common sales/real estate patterns
       is_likely_sales = participant_email.match?(/@(realestate|ljhooker|century21|ray-white|bodable)/i)
@@ -776,7 +1044,7 @@ class EmailToJobService
 
       # Try to find existing contact by email
       if referral_email.present?
-        referral_contact = Contact.find_by(email: referral_email)
+        referral_contact = Contact.find_by_email(referral_email)
       end
 
       # If no email or no contact found, try searching by name

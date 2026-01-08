@@ -1,14 +1,11 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import {
   Dialog,
   DialogContent,
@@ -25,55 +22,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  AlertTriangle,
-  Plus,
-  Clock,
-  Search,
-} from "lucide-react";
+import { Plus } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
-import { api } from "@/lib/api";
-
-// Foundation ID for WHS Incidents table
 
 export default function WHSIncidentsPage() {
   const [newIncidentOpen, setNewIncidentOpen] = useState(false);
-
-  // Use foundation hook for TeeemTableView
-  const { foundation, records, isLoading, refresh } = useFoundationBySlug("whs_incidents");
-
-  // Handle inline row update
-  const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
-    try {
-      await api.patch(`/api/v1/foundations/whs_incidents/records/${rowId}`, {
-        record: { [field]: value }
-      });
-      refresh();
-    } catch (error) {
-      console.error("Failed to update incident:", error);
-      throw error;
-    }
-  }, [refresh]);
-
-  // Stats from records
-  const stats = {
-    total: records.length,
-    open: records.filter((i) => ["reported", "investigating"].includes(String(i.status))).length,
-    high: records.filter((i) => i.severity === "high").length,
-    thisMonth: records.filter((i) => {
-      const date = new Date(String(i.reported_at));
-      const now = new Date();
-      return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-    }).length,
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Spinner />
-      </div>
-    );
-  }
 
   // Left actions - Report Incident button
   const leftActions = (
@@ -161,13 +114,10 @@ export default function WHSIncidentsPage() {
   return (
     <div className="flex flex-col h-full -mx-4">
       <TeeemTableView
-        entries={records}
         foundationId="whs_incidents"
-        foundationIdNumeric={foundation?.id}
-        tableName={foundation?.name || "Incident Reports"}
+        autoFetchRecords={true}
+        tableName="Incident Reports"
         enableExport={true}
-        onRefresh={refresh}
-        onRowUpdate={handleRowUpdate}
         leftActions={leftActionsWithBack}
         hideFooter={true}
       />

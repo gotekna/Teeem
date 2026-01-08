@@ -53,6 +53,21 @@ interface EmailProposal {
       phone?: string;
       company?: string;
       contact_exists?: boolean;
+      is_likely_builder_employee?: boolean;
+      builder_company_name?: string;
+    };
+    sender_company?: {
+      name: string;
+      contact_id: number;
+      is_builder: boolean;
+      domain: string;
+    };
+    sender_info?: {
+      name?: string;
+      company?: string;
+      role?: string;
+      is_builder?: boolean;
+      phone?: string;
     };
     referral_contact?: {
       name?: string;
@@ -80,6 +95,7 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
   const [proposals, setProposals] = useState<EmailProposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState<number | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved" | "rejected" | null>(null);
 
   useEffect(() => {
     loadProposals();
@@ -229,9 +245,12 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
         </Button>
       </div>
 
-      {/* Stats */}
+      {/* Stats - clickable to filter */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
+        <Card
+          className={`cursor-pointer transition-all hover:ring-2 hover:ring-primary/50 ${statusFilter === "all" ? "ring-2 ring-primary" : ""}`}
+          onClick={() => setStatusFilter(statusFilter === "all" ? null : "all")}
+        >
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
               <Mail className="h-4 w-4 text-muted-foreground" />
@@ -240,7 +259,16 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
             <div className="text-2xl font-bold font-mono mt-1">{proposals.length}</div>
           </CardContent>
         </Card>
-        <Card className={pendingProposals.length > 0 ? "border-yellow-300 bg-yellow-50 dark:bg-yellow-900/10" : ""}>
+        <Card
+          className={`cursor-pointer transition-all hover:ring-2 hover:ring-yellow-400/50 ${
+            statusFilter === "pending"
+              ? "ring-2 ring-yellow-400"
+              : pendingProposals.length > 0
+                ? "border-yellow-300 bg-yellow-50 dark:bg-yellow-900/10"
+                : ""
+          }`}
+          onClick={() => setStatusFilter(statusFilter === "pending" ? null : "pending")}
+        >
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4 text-yellow-600" />
@@ -251,7 +279,10 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card
+          className={`cursor-pointer transition-all hover:ring-2 hover:ring-green-400/50 ${statusFilter === "approved" ? "ring-2 ring-green-400" : ""}`}
+          onClick={() => setStatusFilter(statusFilter === "approved" ? null : "approved")}
+        >
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
               <CheckCircle className="h-4 w-4 text-green-600" />
@@ -262,7 +293,10 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card
+          className={`cursor-pointer transition-all hover:ring-2 hover:ring-red-400/50 ${statusFilter === "rejected" ? "ring-2 ring-red-400" : ""}`}
+          onClick={() => setStatusFilter(statusFilter === "rejected" ? null : "rejected")}
+        >
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
               <XCircle className="h-4 w-4 text-red-600" />
@@ -275,35 +309,31 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
         </Card>
       </div>
 
-      {/* Pending Proposals */}
-      {pendingProposals.length > 0 && (
+      {/* Filtered View - when a filter is active */}
+      {statusFilter && (
         <div>
-          <h3 className="text-lg font-medium mb-4">
-            Pending Review
-            {pendingProposals.length > 1 && (
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium">
+              {statusFilter === "all" ? "All Proposals" : `${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} Proposals`}
               <span className="ml-2 text-sm text-muted-foreground">
-                (showing latest of {pendingProposals.length})
+                ({statusFilter === "all"
+                  ? proposals.length
+                  : statusFilter === "rejected"
+                    ? proposals.filter(p => p.status === "rejected" || p.status === "error").length
+                    : proposals.filter(p => p.status === statusFilter).length})
               </span>
-            )}
-          </h3>
-          <ProposalCard
-            proposal={pendingProposals[0]}
-            onApprove={handleApprove}
-            onReject={handleReject}
-            onReExtract={handleReExtract}
-            processing={processing}
-            getStatusBadge={getStatusBadge}
-            getConfidenceBadge={getConfidenceBadge}
-          />
-        </div>
-      )}
-
-      {/* Other Proposals */}
-      {otherProposals.length > 0 && (
-        <div>
-          <h3 className="text-lg font-medium mb-4">Previous Proposals</h3>
+            </h3>
+            <Button variant="ghost" size="sm" onClick={() => setStatusFilter(null)}>
+              Clear filter
+            </Button>
+          </div>
           <div className="space-y-4">
-            {otherProposals.map((proposal) => (
+            {(statusFilter === "all"
+              ? proposals
+              : statusFilter === "rejected"
+                ? proposals.filter(p => p.status === "rejected" || p.status === "error")
+                : proposals.filter(p => p.status === statusFilter)
+            ).map((proposal) => (
               <ProposalCard
                 key={proposal.id}
                 proposal={proposal}
@@ -313,11 +343,64 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
                 processing={processing}
                 getStatusBadge={getStatusBadge}
                 getConfidenceBadge={getConfidenceBadge}
-                readonly
+                readonly={proposal.status !== "pending" && proposal.status !== "error"}
               />
             ))}
           </div>
         </div>
+      )}
+
+      {/* Default View - Pending first, then others */}
+      {!statusFilter && (
+        <>
+          {/* Pending Proposals */}
+          {pendingProposals.length > 0 && (
+            <div>
+              <h3 className="text-lg font-medium mb-4">
+                Pending Review
+                <span className="ml-2 text-sm text-muted-foreground">
+                  ({pendingProposals.length})
+                </span>
+              </h3>
+              <div className="space-y-4">
+                {pendingProposals.map((proposal) => (
+                  <ProposalCard
+                    key={proposal.id}
+                    proposal={proposal}
+                    onApprove={handleApprove}
+                    onReject={handleReject}
+                    onReExtract={handleReExtract}
+                    processing={processing}
+                    getStatusBadge={getStatusBadge}
+                    getConfidenceBadge={getConfidenceBadge}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Other Proposals */}
+          {otherProposals.length > 0 && (
+            <div>
+              <h3 className="text-lg font-medium mb-4">Previous Proposals</h3>
+              <div className="space-y-4">
+                {otherProposals.map((proposal) => (
+                  <ProposalCard
+                    key={proposal.id}
+                    proposal={proposal}
+                    onApprove={handleApprove}
+                    onReject={handleReject}
+                    onReExtract={handleReExtract}
+                    processing={processing}
+                    getStatusBadge={getStatusBadge}
+                    getConfidenceBadge={getConfidenceBadge}
+                    readonly
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {proposals.length === 0 && (
@@ -380,7 +463,7 @@ function ProposalCard({
             </div>
           </div>
 
-          {/* Actions - show Re-extract for error proposals even in readonly mode */}
+          {/* Actions - show Re-extract/Reject for error proposals even in readonly mode */}
           {((!readonly && (proposal.status === "pending" || proposal.status === "error")) ||
             (readonly && proposal.status === "error")) && (
             <div className="ml-4 flex gap-2">
@@ -415,6 +498,18 @@ function ProposalCard({
                   </Button>
                 </>
               )}
+              {/* Allow rejecting error proposals */}
+              {proposal.status === "error" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onReject(proposal.id)}
+                  disabled={processing === proposal.id}
+                >
+                  <XCircle className="w-4 h-4 mr-1" />
+                  Reject
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -445,6 +540,9 @@ function ProposalCard({
               </div>
               {customer.email && <div className="ml-6 text-sm text-muted-foreground">{customer.email}</div>}
               {customer.phone && <div className="ml-6 text-sm text-muted-foreground">{customer.phone}</div>}
+              {customer.company && (
+                <div className="ml-6 text-sm text-muted-foreground">Company: {customer.company}</div>
+              )}
             </div>
           ) : (
             <div className="pl-6 text-sm text-muted-foreground italic">No client detected</div>

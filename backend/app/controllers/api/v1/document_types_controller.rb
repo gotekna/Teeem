@@ -4,8 +4,10 @@ module Api
       before_action :set_document_type, only: [ :show, :update, :destroy, :duplicate ]
 
       # GET /api/v1/document_types
+      # PERFORMANCE: Eager load entity_tabs to prevent N+1 queries in serialize_document_type
+      # P95 was 1.4s due to N+1; with eager loading should be <200ms
       def index
-        @document_types = DocumentType.all
+        @document_types = DocumentType.includes(entity_tabs: :parent)
 
         # Filter by scope (company, job, both)
         if params[:scope].present?
@@ -27,9 +29,12 @@ module Api
 
         # Optionally group by folder
         if params[:grouped] == "true"
+          # PERFORMANCE: Use eager-loaded @document_types instead of ungrouped_by_folder
+          # to prevent N+1 queries when serializing
+          grouped = @document_types.active.order(:folder, :name).group_by(&:folder)
           render json: {
             success: true,
-            data: DocumentType.grouped_by_folder.transform_values { |types|
+            data: grouped.transform_values { |types|
               types.map { |t| serialize_document_type(t) }
             }
           }

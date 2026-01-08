@@ -396,45 +396,8 @@ export interface CascadeResolution {
 // Utility Functions
 // ============================================================================
 
-/**
- * Australian public holidays (Queensland)
- * Format: MM-DD for recurring, YYYY-MM-DD for specific dates
- */
-function getAustralianHolidays(year: number): Set<string> {
-  const holidays = new Set<string>();
-
-  // Fixed holidays
-  holidays.add(`${year}-01-01`); // New Year's Day
-  holidays.add(`${year}-01-26`); // Australia Day
-  holidays.add(`${year}-04-25`); // ANZAC Day
-  holidays.add(`${year}-12-25`); // Christmas Day
-  holidays.add(`${year}-12-26`); // Boxing Day
-
-  // Easter dates (approximate - these shift each year)
-  // 2024: March 29 (Good Friday), April 1 (Easter Monday)
-  // 2025: April 18 (Good Friday), April 21 (Easter Monday)
-  if (year === 2024) {
-    holidays.add('2024-03-29'); // Good Friday
-    holidays.add('2024-03-30'); // Easter Saturday
-    holidays.add('2024-04-01'); // Easter Monday
-  } else if (year === 2025) {
-    holidays.add('2025-04-18'); // Good Friday
-    holidays.add('2025-04-19'); // Easter Saturday
-    holidays.add('2025-04-21'); // Easter Monday
-  } else if (year === 2026) {
-    holidays.add('2026-04-03'); // Good Friday
-    holidays.add('2026-04-04'); // Easter Saturday
-    holidays.add('2026-04-06'); // Easter Monday
-  }
-
-  // Queen's Birthday (QLD) - First Monday of October
-  const oct1 = new Date(year, 9, 1);
-  const firstMondayOct = new Date(oct1);
-  firstMondayOct.setDate(1 + ((8 - oct1.getDay()) % 7));
-  holidays.add(firstMondayOct.toISOString().split('T')[0]);
-
-  return holidays;
-}
+// SSoT: Holidays come from database via /api/v1/public_holidays/dates
+// NO hardcoded holidays - all functions require holidayDates parameter
 
 /**
  * Check if a date is a weekend (Saturday or Sunday)
@@ -460,14 +423,12 @@ function isHoliday(date: Date, holidays: Set<string>): boolean {
 /**
  * Count working days between two dates (INCLUSIVE of both start and end)
  * A task from Monday to Wednesday = 3 working days
+ * @param startDate - The start date
+ * @param endDate - The end date
+ * @param holidayDates - Set of holiday date strings (YYYY-MM-DD format) from API. If not provided, only weekends are excluded.
  */
-export function countWorkingDays(startDate: Date, endDate: Date): number {
-  const holidays = getAustralianHolidays(startDate.getFullYear());
-  // Also get holidays for end date year if different
-  if (endDate.getFullYear() !== startDate.getFullYear()) {
-    const endYearHolidays = getAustralianHolidays(endDate.getFullYear());
-    endYearHolidays.forEach(h => holidays.add(h));
-  }
+export function countWorkingDays(startDate: Date, endDate: Date, holidayDates?: Set<string>): number {
+  const holidays = holidayDates || new Set<string>();
 
   let count = 0;
   const current = new Date(startDate);
@@ -486,22 +447,15 @@ export function countWorkingDays(startDate: Date, endDate: Date): number {
  * Add working days to a date (skipping weekends and holidays)
  * @param startDate - The date to start from
  * @param days - Number of working days to add
- * @param holidayDates - Optional set of holiday date strings (YYYY-MM-DD format) from API
+ * @param holidayDates - Set of holiday date strings (YYYY-MM-DD format) from API. If not provided, only weekends are excluded.
  */
 export function addWorkingDays(startDate: Date, days: number, holidayDates?: Set<string>): Date {
   const result = new Date(startDate);
-  const holidays = holidayDates || getAustralianHolidays(result.getFullYear());
+  const holidays = holidayDates || new Set<string>();
 
   let addedDays = 0;
   while (addedDays < days) {
     result.setDate(result.getDate() + 1);
-
-    // Check if we crossed into a new year (only relevant if using fallback holidays)
-    if (!holidayDates && result.getMonth() === 0 && result.getDate() === 1) {
-      // Merge in holidays for the new year
-      const newYearHolidays = getAustralianHolidays(result.getFullYear());
-      newYearHolidays.forEach(h => holidays.add(h));
-    }
 
     if (!isWeekend(result) && !isHoliday(result, holidays)) {
       addedDays++;
@@ -514,20 +468,14 @@ export function addWorkingDays(startDate: Date, days: number, holidayDates?: Set
 /**
  * Skip to next working day if current date is weekend/holiday
  * @param date - The date to start from
- * @param holidayDates - Optional set of holiday date strings (YYYY-MM-DD format) from API
+ * @param holidayDates - Set of holiday date strings (YYYY-MM-DD format) from API. If not provided, only weekends are excluded.
  */
 export function skipToNextWorkingDay(date: Date, holidayDates?: Set<string>): Date {
   const result = new Date(date);
-  const holidays = holidayDates || getAustralianHolidays(result.getFullYear());
+  const holidays = holidayDates || new Set<string>();
 
   while (isWeekend(result) || isHoliday(result, holidays)) {
     result.setDate(result.getDate() + 1);
-
-    // Check if we crossed into a new year (only relevant if using fallback holidays)
-    if (!holidayDates && result.getMonth() === 0 && result.getDate() === 1) {
-      const newYearHolidays = getAustralianHolidays(result.getFullYear());
-      newYearHolidays.forEach(h => holidays.add(h));
-    }
   }
 
   return result;
@@ -536,30 +484,24 @@ export function skipToNextWorkingDay(date: Date, holidayDates?: Set<string>): Da
 /**
  * Check if a date is a working day (not weekend, not holiday)
  * @param date - The date to check
- * @param holidayDates - Optional set of holiday date strings (YYYY-MM-DD format) from API
+ * @param holidayDates - Set of holiday date strings (YYYY-MM-DD format) from API. If not provided, only weekends are excluded.
  */
 export function isWorkingDay(date: Date, holidayDates?: Set<string>): boolean {
-  const holidays = holidayDates || getAustralianHolidays(date.getFullYear());
+  const holidays = holidayDates || new Set<string>();
   return !isWeekend(date) && !isHoliday(date, holidays);
 }
 
 /**
  * Skip to previous working day if current date is weekend/holiday
  * @param date - The date to start from
- * @param holidayDates - Optional set of holiday date strings (YYYY-MM-DD format) from API
+ * @param holidayDates - Set of holiday date strings (YYYY-MM-DD format) from API. If not provided, only weekends are excluded.
  */
 export function skipToPreviousWorkingDay(date: Date, holidayDates?: Set<string>): Date {
   const result = new Date(date);
-  const holidays = holidayDates || getAustralianHolidays(result.getFullYear());
+  const holidays = holidayDates || new Set<string>();
 
   while (isWeekend(result) || isHoliday(result, holidays)) {
     result.setDate(result.getDate() - 1);
-
-    // Check if we crossed into a previous year (only relevant if using fallback holidays)
-    if (!holidayDates && result.getMonth() === 11 && result.getDate() === 31) {
-      const prevYearHolidays = getAustralianHolidays(result.getFullYear());
-      prevYearHolidays.forEach(h => holidays.add(h));
-    }
   }
 
   return result;

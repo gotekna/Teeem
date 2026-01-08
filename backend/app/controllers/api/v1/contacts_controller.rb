@@ -197,24 +197,33 @@ module Api
         contact_ids = @contacts.map(&:id)
         precomputed_flags = precompute_contact_flags(contact_ids)
 
-        # Note: Removed is_customer?, is_supplier?, is_director? from methods - they're pre-computed above
+        # PERFORMANCE: Pre-compute company_group_memberships_count (avoids N+1)
+        # P95 was 5.07s due to N+1 COUNT queries; should be <500ms with batch query
+        membership_counts = ContactCorporateGroupMembership
+          .where(contact_id: contact_ids)
+          .group(:contact_id)
+          .count
+
+        # Note: Removed is_customer?, is_supplier?, is_director?, company_group_memberships_count from methods
+        # These are pre-computed above to avoid N+1 queries
         contacts_json = @contacts.as_json(
           include: {
             portal_user: {},
             corporate_group: {}
           },
-          methods: [ :is_sales?, :is_land_agent?, :display_name, :company_group_memberships_count, :xero_linked_count, :xero_customer?, :xero_supplier? ]
+          methods: [ :is_sales?, :is_land_agent?, :display_name, :xero_linked_count, :xero_customer?, :xero_supplier? ]
         )
 
         # Performance: Build hash map for O(1) lookups instead of O(n²) array search
         contacts_by_id = @contacts.index_by(&:id)
 
-        # Merge pre-computed flags into JSON
+        # Merge pre-computed flags and counts into JSON
         contacts_json.each do |contact_json|
           flags = precomputed_flags[contact_json["id"]] || {}
           contact_json["is_customer?"] = flags[:is_customer] || false
           contact_json["is_supplier?"] = flags[:is_supplier] || false
           contact_json["is_director?"] = flags[:is_director] || false
+          contact_json["company_group_memberships_count"] = membership_counts[contact_json["id"]] || 0
         end
 
         # Add company and job counts for all contacts
