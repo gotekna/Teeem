@@ -5973,13 +5973,11 @@ export default function TeeemTableView({
           </Button>
 
           {/* More actions menu - extracted to ToolbarMoreActions */}
+          {/* Context provides: hasEmailColumns (from columns), foundationId, resolvedFoundation (from meta) */}
           <ToolbarMoreActions
             enableSchemaEditor={effectiveEnableSchemaEditor}
             enableImport={effectiveEnableImport}
             enableExport={effectiveEnableExport}
-            hasEmailColumns={hasEmailColumns}
-            foundationId={foundationId}
-            resolvedFoundation={resolvedFoundation}
             columnEditMode={columnEditMode}
             showColumnFilters={showColumnFilters}
             isFindingAbns={isFindingAbns}

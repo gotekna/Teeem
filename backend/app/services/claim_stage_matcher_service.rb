@@ -126,11 +126,13 @@ class ClaimStageMatcherService
   end
 
   # Build pattern for J{job_number}-{sequence} format
-  # Matches: J201-1, j201-1, J201 - 1, etc.
+  # Matches: J201-1, j201-1, J201 - 1, J0201-1, etc.
   def build_sequence_pattern(sequence_number)
     job_number = @job.job_number || @job.id
-    # Match J{job_number}-{sequence} with optional spaces around dash
-    Regexp.new("J#{Regexp.escape(job_number.to_s)}\\s*-\\s*#{sequence_number}", Regexp::IGNORECASE)
+    # Strip leading zeros for matching (J0201 -> 201, then match J201 or J0201)
+    job_num_stripped = job_number.to_s.gsub(/^0+/, "")
+    # Pattern matches with or without leading zeros: J201-1 or J0201-1
+    Regexp.new("J0*#{Regexp.escape(job_num_stripped)}\\s*-\\s*#{sequence_number}", Regexp::IGNORECASE)
   end
 
   # Check if invoice fields match regex
