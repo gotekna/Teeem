@@ -330,14 +330,21 @@ class EmailToJobService
       Extract the following information and return ONLY valid JSON (no markdown, no code blocks, just raw JSON):
 
       {
-        "job_title": "Descriptive title for this job (infer from context or use subject line)",
+        "job_title": "Descriptive title for this job (infer from context or use subject line). For cabinetry/cabinet quotes, prefix with 'Kitchen - '",
         "property_address": "CRITICAL: Find the COMPLETE PROPERTY/SITE address where construction work will be done, NOT the business/office address. MUST include: street number + street name + suburb + state + postcode. Look for labels like 'Site:', 'Site Address', 'Property Address', 'Work Location', 'Project Address', 'Job Site', 'Property:', or addresses in QLD/NSW/VIC. Common PDF formats show 'Site: [address]' in title blocks. AVOID addresses labeled 'Business Address', 'Office Address', 'Company Address', 'Head Office', or PO Box addresses. DO NOT return partial addresses (suburb only is not enough). Must extract the full street address. Format: '123 Main Street, Suburb, State Postcode' (e.g., '3/9 Reef Point Esplanade, Scarborough, QLD 4020'). Return null if complete address not found.",
         "customer": {
-          "name": "Customer's full name (if not mentioned, extract from email sender name)",
-          "email": "Customer email (use sender email if customer is the sender)",
+          "name": "The END CLIENT's name - the homeowner or person who will live in/use the property. IMPORTANT: If email is FROM a builder/developer company (domain contains 'homes', 'builders', 'constructions', 'developments'), the sender is NOT the customer - look for the actual homeowner mentioned in email body or PDF. Builder employees forward quotes for their clients.",
+          "email": "Customer email address. If sender is a builder employee, this should be the end client's email (may be null if not provided).",
           "phone": "Phone number if mentioned in email",
-          "company": "Company name if mentioned",
+          "company": "Company name if mentioned (usually null for residential customers)",
           "entity_type": "person or company (infer from context)"
+        },
+        "sender_info": {
+          "name": "Name of person who sent the email",
+          "company": "Company name extracted from email signature or email domain (e.g., 'Imperial Homes QLD' from nick@imperialhomesqld.com.au)",
+          "role": "Role/title from email signature (e.g., 'Project Manager', 'Sales Consultant')",
+          "is_builder": "true if sender appears to work for a builder/developer company",
+          "phone": "Phone from email signature"
         },
         "referral": {
           "name": "Name of person who referred this job (look for phrases like 'referred by', 'recommended by', 'sent by', or similar)",
@@ -349,7 +356,7 @@ class EmailToJobService
         "scope_of_work": "Detailed scope extracted from email - what needs to be built/renovated/fixed. Include relevant details from PDF attachments.",
         "contract_value": null or estimated value if mentioned as a number (no currency symbols),
         "urgency": "urgent, normal, or low based on language used",
-        "job_type": "renovation, new_build, extension, repair, or other",
+        "job_type": "kitchen (for cabinetry/cabinet work), renovation, new_build, extension, repair, or other",
         "attachments_mentioned": ["list of any files mentioned or attached"],
         "job_summary": "A concise 2-3 sentence summary of the job from an estimator's perspective - highlighting key construction challenges, scope, and what needs pricing attention. Extract from PDF attachments and email.",
         "key_points": ["Array of exactly 10 specific, actionable points that an estimator should focus on when pricing this job. Include: materials needed, specific trades required, site challenges, access issues, timeline constraints, regulatory requirements, client specifications, potential risks, scope clarifications needed, and cost drivers. Be concrete and specific based on the email/PDF content."],
@@ -379,6 +386,14 @@ class EmailToJobService
       - Be conservative with confidence_score - only high if address and customer are very clear
       - In missing_info, list ALL critical information that's not found or unclear
       - Return ONLY the JSON object, no additional text, no markdown formatting
+
+      Builder/Developer detection:
+      - Email domains containing 'homes', 'builders', 'constructions', 'developments', 'housing' indicate builders
+      - If sender is from a builder company, they are NOT the end customer - they're forwarding for their client
+      - Look for the actual homeowner/end client mentioned in email body or PDF content
+      - Common builder employee roles: Project Manager, Site Supervisor, Construction Manager, Sales Consultant
+      - Extract company name from email signature (e.g., "Nick Miller, Imperial Homes QLD")
+      - Cabinetry/cabinet quotes are typically Kitchen jobs
     PROMPT
   end
 
@@ -559,6 +574,9 @@ class EmailToJobService
       "apartment" => "Micro Apartment",
       "unit" => "Townhouse",
       "kitchen" => "Kitchen",
+      "cabinetry" => "Kitchen",
+      "cabinet" => "Kitchen",
+      "cabinets" => "Kitchen",
       "repair" => "House Renovation",
       "ndis" => "NDIS House"
     }
@@ -685,8 +703,69 @@ class EmailToJobService
     Rails.logger.error "Failed to link referral contact: #{e.message}"
   end
 
+  # Lookup company contact by email domain
+  # Returns the company Contact record if found
+  def find_company_by_email_domain(email)
+    return nil if email.blank?
+
+    domain = email.split("@").last&.downcase
+    return nil if domain.blank?
+
+    # Skip common personal email domains
+    personal_domains = %w[gmail.com yahoo.com hotmail.com outlook.com icloud.com live.com]
+    return nil if personal_domains.include?(domain)
+
+    # Find a company contact that has an email with this domain
+    Contact.where(entity_type: "company")
+           .joins(:contact_emails)
+           .where("LOWER(contact_emails.email) LIKE ?", "%@#{domain}")
+           .first
+  end
+
+  # Check if a company is a builder/developer type
+  def is_builder_company?(company_contact)
+    return false unless company_contact
+
+    # Check roles for builder indicators
+    roles = company_contact.roles_array
+    builder_roles = roles.any? { |r| r.match?(/builder|developer|construction|home/i) }
+    return true if builder_roles
+
+    # Check company name for builder indicators
+    name = company_contact.display_name&.downcase || ""
+    builder_names = name.match?(/homes|builder|constructions|developments|housing/i)
+    return true if builder_names
+
+    false
+  end
+
   # Add sales people detection to extracted data
   def add_sales_people_info(extracted_data)
+    # FIRST: Detect if sender is from a builder company (forwarding for client)
+    sender_company = find_company_by_email_domain(@email.from_email)
+    if sender_company && is_builder_company?(sender_company)
+      # Sender is from a builder - they're likely forwarding a quote for their client
+      extracted_data["sender_company"] = {
+        "name" => sender_company.display_name,
+        "contact_id" => sender_company.id,
+        "is_builder" => true,
+        "domain" => @email.from_email.split("@").last
+      }
+
+      # The AI-extracted customer might actually be the sender (builder employee)
+      # Flag this so the UI knows to look for the real end client
+      customer_data = extracted_data["customer"]
+      if customer_data.is_a?(Hash)
+        customer_email = customer_data["email"]
+        # If the AI picked the sender as customer, that's likely wrong
+        if customer_email.present? && customer_email.downcase == @email.from_email.downcase
+          extracted_data["customer"]["is_likely_builder_employee"] = true
+          extracted_data["customer"]["builder_company_name"] = sender_company.display_name
+          Rails.logger.info "[EmailToJobService] Detected builder employee as customer - #{sender_company.display_name} forwarding for client"
+        end
+      end
+    end
+
     # Customer: Check if AI-extracted customer already exists in contacts
     customer_data = extracted_data["customer"]
     if customer_data.is_a?(Hash)
@@ -714,6 +793,11 @@ class EmailToJobService
       extracted_data["customer"]["contact_exists"] = customer_contact.present?
       extracted_data["customer"]["contact_id"] = customer_contact&.id
       extracted_data["customer"]["needs_contact_creation"] = customer_contact.nil?
+
+      # If customer contact exists and is linked to the sender's company, note it
+      if customer_contact&.primary_company_id == sender_company&.id
+        extracted_data["customer"]["is_employee_of_sender_company"] = true
+      end
 
       if customer_contact
         Rails.logger.info "[EmailToJobService] Found existing customer: #{customer_contact.display_name} (ID: #{customer_contact.id})"

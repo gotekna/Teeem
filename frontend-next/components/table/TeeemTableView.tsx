@@ -282,6 +282,7 @@ import { useTableSessionStorage } from "@/hooks/useTableSessionStorage";
 // Phase 8: Extracted hooks
 import { useFoundationColumns } from "./hooks/useFoundationColumns";
 import { useBulkOperations } from "./hooks/useBulkOperations";
+import { useRowEditing } from "./hooks/useRowEditing";
 
 // Extracted utilities (Phase 1 & 2 refactoring)
 import {
@@ -2761,47 +2762,26 @@ export default function TeeemTableView({
     }
   }, []); // No dependencies needed - uses module-level cache
 
-  // Inline editing handlers - supports single or multiple rows
-  const startEditing = useCallback((row: TableRowType) => {
-    setEditingRowIds(new Set([row.id]));
-    setEditingData({ [row.id]: { ...row } });
+  // ============================================================================
+  // ROW EDITING - Phase 11 Hook Integration
+  // Uses useRowEditing hook for state management, replaces inline handlers
+  // ============================================================================
+  const rowEditing = useRowEditing({
+    columns: COLUMNS,
+    rows: effectiveEntries,
+    foundationId: effectiveFoundationId,
+    toast,
+    onRefresh,
+    onRowUpdate,
+    isAutoFetch: useAutoFetch,
+    setRecords: setAutoFetchedRecords,
+    fetchLookupOptions,
+  });
 
-    // Pre-fetch lookup options for lookup columns (including multiple_lookups)
-    COLUMNS.forEach(col => {
-      if ((col.column_type === 'lookup' || col.column_type === 'relation' || col.column_type === 'multiple_lookups') &&
-          col.lookup_foundation_id) {
-        fetchLookupOptions(col);
-      }
-    });
-  }, [COLUMNS, fetchLookupOptions]);
-
-  // Start editing multiple rows at once
-  const startMultiEditing = useCallback((rowIds: (number | string)[]) => {
-    const newEditingData: Record<string | number, Record<string, unknown>> = {};
-    rowIds.forEach(id => {
-      const row = effectiveEntries.find(e => e.id === id);
-      if (row) {
-        newEditingData[id] = { ...row };
-      }
-    });
-    setEditingRowIds(new Set(rowIds));
-    setEditingData(newEditingData);
-
-    // Pre-fetch lookup options for lookup columns (including multiple_lookups)
-    COLUMNS.forEach(col => {
-      if (col.column_type === 'lookup' || col.column_type === 'relation' || col.column_type === 'multiple_lookups') {
-        if (col.lookup_foundation_id) {
-          fetchLookupOptions(col);
-        }
-      }
-    });
-  }, [COLUMNS, entries, fetchLookupOptions]);
-
-  const cancelEditing = useCallback(() => {
-    setEditingRowIds(new Set());
-    setEditingData({});
-    setValidationErrors({});
-  }, []);
+  // Aliases for backward compatibility - point to hook actions
+  const startEditing = rowEditing.actions.startEditing;
+  const startMultiEditing = rowEditing.actions.startMultiEditing;
+  const cancelEditing = rowEditing.actions.cancelEditing;
 
   // Handler for row double-click - uses parent handler if provided, else starts inline editing
   const handleRowDoubleClick = useCallback((row: TableRowType) => {
@@ -2849,172 +2829,11 @@ export default function TeeemTableView({
     }
   }, [effectiveEntries, effectiveFoundationId, onRowDoubleClick, startEditing, toast]);
 
-  // Validate a cell and update validation errors state
-  const handleCellBlur = useCallback((rowId: number | string, columnKey: string, value: unknown, columnType?: string) => {
-    // Use imported validateCell from CellValidation.tsx (SSoT)
-    const result = validateCellWithRegistry(value, columnType || 'single_line_text');
-    const error = result.error;
+  // Validate a cell - alias to hook action
+  const handleCellBlur = rowEditing.actions.validateCell;
 
-    setValidationErrors(prev => {
-      const rowErrors: Record<string, string> = prev[rowId] ? { ...prev[rowId] } : {};
-
-      if (error) {
-        rowErrors[columnKey] = error;
-      } else {
-        delete rowErrors[columnKey];
-      }
-
-      // If no errors for this row, remove the row entry
-      if (Object.keys(rowErrors).length === 0) {
-        const { [rowId]: _, ...rest } = prev;
-        return rest;
-      }
-
-      return { ...prev, [rowId]: rowErrors };
-    });
-  }, []);
-
-  const saveEditing = useCallback(async () => {
-    const startTime = performance.now();
-
-    if (editingRowIds.size === 0 || !onRowUpdate) return;
-
-    // 🔴 CRITICAL: Validate ALL dirty cells before saving
-    // Block save if invalid - user can fix it or cancel (cancel clears invalid data)
-    // SSoT: validation-formatters.ts via CellValidation.tsx
-    const newErrors: Record<number | string, Record<string, string>> = {};
-    let totalErrorCount = 0;
-
-    for (const rowId of editingRowIds) {
-      const rowData = editingData[rowId];
-      if (!rowData) continue;
-
-      const rowErrors: Record<string, string> = {};
-      for (const [columnKey, value] of Object.entries(rowData)) {
-        // Find column definition to get column_type
-        const column = COLUMNS.find((c) => c.key === columnKey);
-        if (!column) continue;
-
-        // Validate using SSoT validator
-        const result = validateCellWithRegistry(value, column.column_type || 'single_line_text');
-        if (result.error) {
-          rowErrors[columnKey] = result.error;
-          totalErrorCount++;
-        }
-      }
-
-      if (Object.keys(rowErrors).length > 0) {
-        newErrors[rowId] = rowErrors;
-      }
-    }
-
-    // If any validation errors, block save so user can fix
-    if (totalErrorCount > 0) {
-      setValidationErrors(newErrors);
-      toast({
-        title: "Cannot save",
-        description: `Fix ${totalErrorCount} error${totalErrorCount !== 1 ? "s" : ""} or cancel to discard`,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      // Collect all changes for batch update
-      const rowsToUpdate: Array<{ rowId: number | string; changes: Record<string, unknown> }> = [];
-
-      for (const rowId of editingRowIds) {
-        const originalRow = effectiveEntries.find((e) => e.id === rowId);
-        const rowData = editingData[rowId];
-        if (!originalRow || !rowData) continue;
-
-        const changes: Record<string, unknown> = {};
-        for (const [key, value] of Object.entries(rowData)) {
-          // Compare values - handle objects/arrays properly
-          const originalValue = originalRow[key];
-          const valuesMatch = JSON.stringify(originalValue) === JSON.stringify(value);
-          if (!valuesMatch) {
-            changes[key] = value;
-          }
-        }
-
-        if (Object.keys(changes).length > 0) {
-          rowsToUpdate.push({ rowId, changes });
-        }
-      }
-
-      // Use bulk_update API if foundationIdNumeric is available (single API call)
-      if (effectiveFoundationId && rowsToUpdate.length > 0) {
-        // Group by changes to minimize API calls
-        // For now, update each row with all its changes in one call
-        const apiStartTime = performance.now();
-        for (const { rowId, changes } of rowsToUpdate) {
-          await api.patch(`/api/v1/foundations/${effectiveFoundationId}/records/${rowId}`, {
-            record: changes
-          });
-        }
-
-        // 🔴 CRITICAL: Clear cache to ensure other pages get fresh data
-        // SSoT: records-cache.ts
-        if (effectiveFoundationId) {
-          clearCachedRecords(effectiveFoundationId);
-        }
-
-        // OPTIMISTIC UPDATE: Update local state directly instead of re-fetching
-        // This gives instant feedback without a full table reload
-        if (useAutoFetch) {
-          setAutoFetchedRecords(prev => prev.map(record => {
-            const update = rowsToUpdate.find(r => r.rowId === record.id);
-            if (update) {
-              return { ...record, ...update.changes };
-            }
-            return record;
-          }));
-        }
-
-        // For non-autoFetch mode: call parent's onRefresh callback
-        // Parent is responsible for updating their own state
-        onRefresh?.();
-      } else {
-        // Fallback: call onRowUpdate for each field
-        for (const { rowId, changes } of rowsToUpdate) {
-          for (const [key, value] of Object.entries(changes)) {
-            await onRowUpdate(rowId, key, value);
-          }
-        }
-        // 🔴 CRITICAL: Clear cache to ensure other pages get fresh data
-        if (effectiveFoundationId) {
-          clearCachedRecords(effectiveFoundationId);
-        }
-        // OPTIMISTIC UPDATE: Update local state directly instead of re-fetching
-        if (useAutoFetch) {
-          setAutoFetchedRecords(prev => prev.map(record => {
-            const update = rowsToUpdate.find(r => r.rowId === record.id);
-            if (update) {
-              return { ...record, ...update.changes };
-            }
-            return record;
-          }));
-        }
-      }
-
-      setEditingRowIds(new Set());
-      setEditingData({});
-      setValidationErrors({});
-      toast({
-        title: "Saved",
-        description: `Successfully saved ${editingRowIds.size} row${editingRowIds.size !== 1 ? "s" : ""}`,
-      });
-    } catch (error) {
-      console.error("Failed to save:", error);
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      toast({
-        title: "Save failed",
-        description: errorMessage,
-        variant: "destructive",
-      });
-    }
-  }, [editingRowIds, editingData, entries, effectiveFoundationId, onRowUpdate, onRefresh, toast, useAutoFetch, COLUMNS, setValidationErrors]);
+  // Save editing - alias to hook action
+  const saveEditing = rowEditing.actions.saveEditing;
 
   // Bulk update handler - delegates to useBulkOperations hook (Phase 10 extraction)
   const handleBulkUpdate = bulkOperations.actions.executeUpdate;

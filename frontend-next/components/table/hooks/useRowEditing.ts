@@ -56,7 +56,7 @@ export interface UseRowEditingOptions {
   /** Callback after successful save */
   onRefresh?: () => void;
   /** Callback for individual field updates (legacy) */
-  onRowUpdate?: (rowId: string | number, field: string, value: unknown) => Promise<void>;
+  onRowUpdate?: (rowId: string | number, field: string, value: unknown) => void | Promise<void>;
   /** Whether in auto-fetch mode */
   isAutoFetch?: boolean;
   /** Setter for auto-fetched records (for optimistic updates) */
