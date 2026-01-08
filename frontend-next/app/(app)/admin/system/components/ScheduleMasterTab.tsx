@@ -412,6 +412,7 @@ export function ScheduleMasterTab() {
   // ❌ WRONG: setTimeout - pathname may not update in time, causing 0 records
   // ✅ CORRECT: Use ref + useEffect to wait for viewSlug to actually clear
   // ════════════════════════════════════════════════════════════════════
+  // v2692: Template dropdown race condition fix
   const pendingTemplateClearRef = React.useRef(false);
 
   // Gantt V2 state - template ID for selection
