@@ -352,6 +352,10 @@ export function ScheduleMasterTab() {
     slug?: string | null;
     filters?: Array<{ column: string; operator: string; value: string | number | boolean | null }>;
   } | null) => {
+    // Skip navigation if we're clearing the view for a template change
+    // Otherwise this would navigate back to the old view URL, overriding our clear
+    if (pendingTemplateClearRef.current) return;
+
     if (view?.slug) {
       router.push(`/admin/system/schedule-master/data-view/${view.slug}`, { scroll: false });
     }
