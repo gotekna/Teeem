@@ -1087,7 +1087,12 @@ export default function TeeemTableView({
       const baseFiltersChanged = lastFetchedBaseFiltersKeyRef.current !== null &&
         lastFetchedBaseFiltersKeyRef.current !== baseFiltersKey;
 
-      if (!hasMore && autoFetchedRecords.length > 0 && !baseFiltersChanged) {
+      // ⚠️ FRC FIX: Don't skip fetch when there's an active search term
+      // After a search, hasMore=false means "search results complete", not "all records loaded"
+      // If we're not searching, hasMore=false truly means all records are in memory
+      const hasActiveSearch = Boolean(searchRef.current);
+
+      if (!hasMore && autoFetchedRecords.length > 0 && !baseFiltersChanged && !hasActiveSearch) {
         console.log('[TeeemTableView] All records loaded, applying filters client-side');
         return; // Client-side filtering in filteredAndSortedEntries handles this
       }
@@ -2329,6 +2334,8 @@ export default function TeeemTableView({
         // When clearing search, trigger a refresh to get all records
         if (isClearing) {
           console.log('[TeeemTableView] Clearing search - refreshing to restore all records');
+          // Reset hasMore to ensure fetch effect doesn't skip (search results had hasMore=false)
+          setHasMore(true);
           setAutoFetchRefreshKey(prev => prev + 1);
         } else {
           effectiveOnServerSearch(value, mode);

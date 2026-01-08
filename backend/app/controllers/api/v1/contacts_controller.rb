@@ -217,6 +217,12 @@ module Api
         # Performance: Build hash map for O(1) lookups instead of O(n²) array search
         contacts_by_id = @contacts.index_by(&:id)
 
+        # Performance: Pre-fetch employer names for person contacts (company-aware search display)
+        # This allows frontend to show "Troy Smith - Harvey Norman" format
+        employer_names = Contact.where(id: @contacts.where.not(primary_company_id: nil).pluck(:primary_company_id))
+                                .pluck(:id, :display_name)
+                                .to_h
+
         # Merge pre-computed flags and counts into JSON
         contacts_json.each do |contact_json|
           flags = precomputed_flags[contact_json["id"]] || {}
@@ -224,6 +230,13 @@ module Api
           contact_json["is_supplier?"] = flags[:is_supplier] || false
           contact_json["is_director?"] = flags[:is_director] || false
           contact_json["company_group_memberships_count"] = membership_counts[contact_json["id"]] || 0
+
+          # Add employer_name for person contacts (company-aware search)
+          # SSoT: primary_company_id links person to their employer
+          primary_company_id = contacts_by_id[contact_json["id"]]&.primary_company_id
+          if primary_company_id
+            contact_json["employer_name"] = employer_names[primary_company_id]
+          end
         end
 
         # Add company and job counts for all contacts

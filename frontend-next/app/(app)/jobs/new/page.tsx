@@ -95,6 +95,7 @@ interface Contact {
   company_name?: string;
   email?: string;
   mobile_phone?: string;
+  employer_name?: string; // Company name for person contacts (company-aware search)
 }
 
 interface User {
@@ -585,10 +586,12 @@ export default function NewJobPage() {
   }, [allContacts, peopleData.client1_id, peopleData.client2_id, peopleData.referrer_id, peopleData.external_sales_id, proposalId, hasPopulatedFromProposal]);
 
   // Convert contacts to combobox items
-  const contactItems: ComboboxItem[] = allContacts.map((c: Contact) => ({
-    id: c.id.toString(),
-    label: c.display_name || c.company_name || `Contact ${c.id}`,
-  }));
+  // Company-aware display: "Troy Smith - Harvey Norman" format
+  const contactItems: ComboboxItem[] = allContacts.map((c: Contact) => {
+    const name = c.display_name || c.company_name || `Contact ${c.id}`;
+    const label = c.employer_name ? `${name} - ${c.employer_name}` : name;
+    return { id: c.id.toString(), label };
+  });
 
   // Convert users to combobox items
   const userItems: ComboboxItem[] = users.map((u) => ({
