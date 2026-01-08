@@ -475,13 +475,16 @@ export default function PurchaseOrderDetailPage() {
   };
 
   // Load local SmTasks for this job (for task/description lookup)
+  // Uses lightweight endpoint (?for=select) for fast dropdown loading
   const loadSmTasks = async () => {
     if (!purchaseOrder?.job_id) return;
     if (taskItems.length > 0) return;
     try {
       setLoadingTasks(true);
-      // Fetch SmTasks for this specific job (nested under jobs)
-      const response = await api.get<{ sm_tasks: SmTask[] }>(`/api/v1/jobs/${purchaseOrder.job_id}/sm_tasks`);
+      // Fetch SmTasks for this specific job - use lightweight endpoint for dropdown
+      const response = await api.get<{ sm_tasks: Array<{ id: number; name: string; task_number: number; start_date?: string }> }>(
+        `/api/v1/jobs/${purchaseOrder.job_id}/sm_tasks?for=select`
+      );
       // Convert to ComboboxItem format - SSoT: Use SmTask.id as the key
       const items: TaskComboboxItem[] = (response?.sm_tasks || []).map((task) => ({
         id: String(task.id), // Use SmTask.id as the key (SSoT)
@@ -605,10 +608,13 @@ export default function PurchaseOrderDetailPage() {
         },
       };
 
-      await api.patch(`/api/v1/purchase_orders/${recordId}`, updateData);
+      console.log('[PO Save] Sending update with schedule_task_id:', selectedTaskId, 'updateData:', updateData);
+      const patchResponse = await api.patch(`/api/v1/purchase_orders/${recordId}`, updateData);
+      console.log('[PO Save] Patch response:', patchResponse);
 
       // Reload the purchase order data
       const response = await api.get<PurchaseOrder>(`/api/v1/purchase_orders/${recordId}`);
+      console.log('[PO Save] Reloaded PO, sm_tasks:', response.sm_tasks, 'response:', response);
       setPurchaseOrder(response);
 
       // Initialize editable fields
@@ -617,6 +623,7 @@ export default function PurchaseOrderDetailPage() {
       const linkedTaskId = response.sm_tasks && response.sm_tasks.length > 0
         ? response.sm_tasks[0].id
         : null;
+      console.log('[PO Save] Setting linkedTaskId to:', linkedTaskId);
       const stat = response.status || "draft";
       const budg = response.budget?.toString() || "";
       // SSoT: Auto-populate required_date from linked task's start_date if not already set
@@ -686,23 +693,41 @@ export default function PurchaseOrderDetailPage() {
     }
 
     // Compare line items (excluding the blank line at the end)
+    // Filter to only items with content or existing IDs
     const currentItems = lineItems.filter((item) => !isBlankLineItem(item) || item.id);
     const originalItems = originalState.lineItems.filter((item) => !isBlankLineItem(item) || item.id);
 
     if (currentItems.length !== originalItems.length) return true;
 
-    for (let i = 0; i < currentItems.length; i++) {
-      const curr = currentItems[i];
-      const orig = originalItems[i];
+    // Sort both arrays by ID (if available) then by description for consistent comparison
+    // This handles the case where items might be re-sorted after save
+    const sortForComparison = (items: LineItem[]) =>
+      [...items].sort((a, b) => {
+        if (a.id && b.id) return a.id - b.id;
+        if (a.id) return -1;
+        if (b.id) return 1;
+        return (a.description || "").localeCompare(b.description || "");
+      });
+
+    const sortedCurrent = sortForComparison(currentItems);
+    const sortedOriginal = sortForComparison(originalItems);
+
+    for (let i = 0; i < sortedCurrent.length; i++) {
+      const curr = sortedCurrent[i];
+      const orig = sortedOriginal[i];
+
+      // Normalize values for comparison (handle undefined vs "GST", undefined vs "", etc.)
+      const normalizeGstCode = (code: string | undefined) => code || "GST";
+      const normalizeNotes = (notes: string | undefined) => notes || "";
 
       if (
         curr.description !== orig.description ||
         curr.quantity !== orig.quantity ||
         curr.unit_price !== orig.unit_price ||
-        curr.gst_code !== orig.gst_code ||
-        curr.notes !== orig.notes ||
+        normalizeGstCode(curr.gst_code) !== normalizeGstCode(orig.gst_code) ||
+        normalizeNotes(curr.notes) !== normalizeNotes(orig.notes) ||
         curr.pricebook_item_id !== orig.pricebook_item_id ||
-        curr._destroy !== orig._destroy
+        (curr._destroy || false) !== (orig._destroy || false)
       ) {
         return true;
       }
@@ -1275,30 +1300,43 @@ export default function PurchaseOrderDetailPage() {
                     style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}
                   >
                     <TableCell className="py-1 border-b" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
-                      <PricebookCodePicker
-                        value={item.pricebook_item ? {
-                          id: item.pricebook_item.id,
-                          item_code: item.pricebook_item.item_code,
-                          item_name: item.pricebook_item.item_name,
-                          current_price: item.pricebook_item.current_price,
-                          active_price: item.pricebook_item.active_price,
-                          gst_code: item.pricebook_item.gst_code,
-                        } : null}
-                        onSelect={(pbItem) => {
-                          if (pbItem) {
-                            selectPricebookItem(originalIndex, {
-                              id: pbItem.id,
-                              item_code: pbItem.item_code,
-                              item_name: pbItem.item_name,
-                              current_price: pbItem.current_price,
-                              active_price: pbItem.active_price,
-                              gst_code: pbItem.gst_code,
-                            });
-                          }
-                        }}
-                        placeholder="Search items..."
-                        showPrice
-                      />
+                      <div className="flex items-center gap-1">
+                        <PricebookCodePicker
+                          value={item.pricebook_item ? {
+                            id: item.pricebook_item.id,
+                            item_code: item.pricebook_item.item_code,
+                            item_name: item.pricebook_item.item_name,
+                            current_price: item.pricebook_item.current_price,
+                            active_price: item.pricebook_item.active_price,
+                            gst_code: item.pricebook_item.gst_code,
+                          } : null}
+                          onSelect={(pbItem) => {
+                            if (pbItem) {
+                              selectPricebookItem(originalIndex, {
+                                id: pbItem.id,
+                                item_code: pbItem.item_code,
+                                item_name: pbItem.item_name,
+                                current_price: pbItem.current_price,
+                                active_price: pbItem.active_price,
+                                gst_code: pbItem.gst_code,
+                              });
+                            }
+                          }}
+                          placeholder="Search items..."
+                          showPrice
+                        />
+                        {item.pricebook_item?.item_code && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 shrink-0"
+                            onClick={() => window.open(`/pricebook/${item.pricebook_item!.item_code}`, '_blank')}
+                            title="Open in Price Book"
+                          >
+                            <ExternalLink className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="py-1 border-b" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
                       <Input

@@ -94,6 +94,12 @@ interface Supplier {
   name?: string;  // Some API responses use 'name' instead of 'display_name'
 }
 
+interface UnitOfMeasure {
+  id: number;
+  code: string;
+  name: string;
+}
+
 interface PriceBookItem {
   id: number;
   item_code: string;
@@ -136,14 +142,15 @@ interface PriceBookItem {
 const API_URL = getApiBaseUrl();
 
 // QLD Local Government Areas for LGA dropdown
+// SSoT: Must match backend PriceHistory model LGA validation
 const QLD_COUNCILS = [
-  'Brisbane',
-  'Gold Coast',
-  'Sunshine Coast',
-  'Logan',
-  'Ipswich',
-  'Moreton Bay',
-  'Redland'
+  'Brisbane City Council',
+  'City of Gold Coast',
+  'Sunshine Coast Regional Council',
+  'Lockyer Valley Regional Council',
+  'Toowoomba Regional Council',
+  'Redland City Council',
+  'Scenic Rim Regional Council'
 ];
 
 export default function PriceBookItemDetailPage() {
@@ -186,6 +193,15 @@ export default function PriceBookItemDetailPage() {
 
   // Suppliers list for dropdown
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+
+  // Units of measure for dropdown
+  const [unitsOfMeasure, setUnitsOfMeasure] = useState<UnitOfMeasure[]>([]);
+  const [savingUnit, setSavingUnit] = useState(false);
+  const [savingGstCode, setSavingGstCode] = useState(false);
+
+  // GST Code options - SSoT: Must match backend Gl::TaxRate::AUSTRALIAN_TAX_RATES
+  const GST_CODE_OPTIONS = ['GST', 'GST-FREE', 'BAS-EXCLUDED'] as const;
 
   // Batch editing state
   const [pendingEdits, setPendingEdits] = useState<Map<number, Partial<PriceHistory>>>(new Map());
@@ -196,6 +212,7 @@ export default function PriceBookItemDetailPage() {
 
   useEffect(() => {
     loadItem();
+    loadUnitsOfMeasure();
   }, [code]);
 
   // Lazy load suppliers when any supplier popover opens
@@ -222,6 +239,7 @@ export default function PriceBookItemDetailPage() {
 
   const loadSuppliers = async () => {
     try {
+      setLoadingSuppliers(true);
       const response = await api.get<{ success: boolean; contacts: Supplier[] }>('/api/v1/contacts?type=suppliers');
       console.log('[loadSuppliers] Response:', response);
 
@@ -235,6 +253,53 @@ export default function PriceBookItemDetailPage() {
     } catch (err) {
       console.error("Failed to load suppliers:", err);
       setSuppliers([]);
+    } finally {
+      setLoadingSuppliers(false);
+    }
+  };
+
+  const loadUnitsOfMeasure = async () => {
+    try {
+      const response = await api.get<{ success: boolean; units: UnitOfMeasure[] }>('/api/v1/units_of_measure');
+      if (response?.success && Array.isArray(response.units)) {
+        setUnitsOfMeasure(response.units);
+      }
+    } catch (err) {
+      console.error("Failed to load units of measure:", err);
+    }
+  };
+
+  const handleUnitChange = async (newUnit: string) => {
+    if (!item || newUnit === item.unit_of_measure) return;
+
+    const previousUnit = item.unit_of_measure;
+    setItem(prev => prev ? { ...prev, unit_of_measure: newUnit } : null);
+
+    try {
+      setSavingUnit(true);
+      await api.patch(`/api/v1/pricebook/${code}`, { unit_of_measure: newUnit });
+    } catch (err) {
+      console.error("Failed to update unit of measure:", err);
+      setItem(prev => prev ? { ...prev, unit_of_measure: previousUnit } : null);
+    } finally {
+      setSavingUnit(false);
+    }
+  };
+
+  const handleGstCodeChange = async (newGstCode: string) => {
+    if (!item || newGstCode === item.gst_code) return;
+
+    const previousGstCode = item.gst_code;
+    setItem(prev => prev ? { ...prev, gst_code: newGstCode || null } : null);
+
+    try {
+      setSavingGstCode(true);
+      await api.patch(`/api/v1/pricebook/${code}`, { gst_code: newGstCode || null });
+    } catch (err) {
+      console.error("Failed to update GST code:", err);
+      setItem(prev => prev ? { ...prev, gst_code: previousGstCode } : null);
+    } finally {
+      setSavingGstCode(false);
     }
   };
 
@@ -543,12 +608,30 @@ export default function PriceBookItemDetailPage() {
 
     for (const [historyId, changes] of pendingEdits.entries()) {
       try {
-        const response = await api.patch(`/api/v1/pricebook/${code}/price_histories/${historyId}`, {
-          new_price: changes.new_price,
-          date_effective: changes.date_effective,
-          lga: changes.lga,
-          supplier_id: changes.supplier?.id,
-        });
+        // Find the original history to compare what actually changed
+        const originalHistory = item?.price_histories?.find(h => h.id === historyId);
+
+        // Only send fields that have actually changed
+        const patchData: Record<string, any> = {};
+        if (changes.new_price !== undefined && changes.new_price !== originalHistory?.new_price) {
+          patchData.new_price = changes.new_price;
+        }
+        if (changes.date_effective !== undefined && changes.date_effective !== originalHistory?.date_effective) {
+          patchData.date_effective = changes.date_effective;
+        }
+        if (changes.lga !== undefined && changes.lga !== originalHistory?.lga) {
+          patchData.lga = changes.lga || null; // Send null if empty string
+        }
+        if (changes.supplier?.id !== undefined && changes.supplier?.id !== originalHistory?.supplier?.id) {
+          patchData.supplier_id = changes.supplier.id;
+        }
+
+        // Skip if nothing actually changed
+        if (Object.keys(patchData).length === 0) {
+          continue;
+        }
+
+        await api.patch(`/api/v1/pricebook/${code}/price_histories/${historyId}`, patchData);
 
         // Update the item state directly with the response to avoid full reload
         setItem(prevItem => {
@@ -710,7 +793,29 @@ export default function PriceBookItemDetailPage() {
                   </div>
                   <div>
                     <dt className="text-sm font-medium text-muted-foreground">Unit of Measure</dt>
-                    <dd className="mt-1 text-lg">{item.unit_of_measure}</dd>
+                    <dd className="mt-1">
+                      <select
+                        value={
+                          // Find case-insensitive match in standard units
+                          unitsOfMeasure.find(u => u.code.toLowerCase() === item.unit_of_measure?.toLowerCase())?.code
+                          || item.unit_of_measure
+                          || ""
+                        }
+                        onChange={(e) => handleUnitChange(e.target.value)}
+                        disabled={savingUnit}
+                        className="h-9 px-3 py-1 text-base border rounded-md bg-background disabled:opacity-50"
+                      >
+                        {/* Show current value only if no case-insensitive match exists */}
+                        {item.unit_of_measure && !unitsOfMeasure.find(u => u.code.toLowerCase() === item.unit_of_measure?.toLowerCase()) && (
+                          <option value={item.unit_of_measure}>{item.unit_of_measure}</option>
+                        )}
+                        {unitsOfMeasure.map((unit) => (
+                          <option key={unit.id} value={unit.code}>
+                            {unit.code}
+                          </option>
+                        ))}
+                      </select>
+                    </dd>
                   </div>
                   <div>
                     <dt className="text-sm font-medium text-muted-foreground">
@@ -768,7 +873,21 @@ export default function PriceBookItemDetailPage() {
                   </div>
                   <div>
                     <dt className="text-sm font-medium text-muted-foreground">GST Code</dt>
-                    <dd className="mt-1 text-sm">{item.gst_code || "-"}</dd>
+                    <dd className="mt-1">
+                      <select
+                        value={item.gst_code || ""}
+                        onChange={(e) => handleGstCodeChange(e.target.value)}
+                        disabled={savingGstCode}
+                        className="h-9 px-3 py-1 text-sm border rounded-md bg-background disabled:opacity-50"
+                      >
+                        <option value="">Select GST Code...</option>
+                        {GST_CODE_OPTIONS.map((code) => (
+                          <option key={code} value={code}>
+                            {code}
+                          </option>
+                        ))}
+                      </select>
+                    </dd>
                   </div>
                   {item.notes && (
                     <div className="sm:col-span-2">
@@ -928,11 +1047,11 @@ export default function PriceBookItemDetailPage() {
                                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                   </Button>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-[300px] p-0" align="start">
+                                <PopoverContent className="w-[300px] p-0 z-[9999]" align="start">
                                   <Command>
                                     <CommandInput placeholder="Search suppliers..." />
                                     <CommandList>
-                                      <CommandEmpty>No supplier found.</CommandEmpty>
+                                      <CommandEmpty>{loadingSuppliers ? "Loading suppliers..." : "No supplier found."}</CommandEmpty>
                                       <CommandGroup>
                                         {suppliers.map((supplier) => (
                                           <CommandItem
@@ -1080,7 +1199,7 @@ export default function PriceBookItemDetailPage() {
                             <Command>
                               <CommandInput placeholder="Search suppliers..." />
                               <CommandList>
-                                <CommandEmpty>No supplier found.</CommandEmpty>
+                                <CommandEmpty>{loadingSuppliers ? "Loading suppliers..." : "No supplier found."}</CommandEmpty>
                                 <CommandGroup>
                                   {suppliers.map((supplier) => (
                                     <CommandItem

@@ -521,6 +521,117 @@ namespace :pricebook do
     puts "=" * 80
   end
 
+  desc "Auto-set default_supplier_id from most recent price history for items without a default supplier"
+  task set_default_suppliers: :environment do
+    puts "\n" + "=" * 80
+    puts "AUTO-SET DEFAULT SUPPLIERS FROM PRICE HISTORY"
+    puts "=" * 80
+
+    dry_run = ENV["DRY_RUN"] != "false"
+    puts "Mode: #{dry_run ? '🔍 DRY RUN (no changes will be made)' : '⚡ LIVE (will update database)'}"
+    puts "=" * 80 + "\n"
+
+    # Find items without default_supplier but with price history
+    items_to_update = PricebookItem
+      .where(default_supplier_id: nil)
+      .where(is_active: true)
+      .joins(:price_histories)
+      .distinct
+
+    total_candidates = items_to_update.count
+    puts "📊 Found #{total_candidates} active items without default_supplier that have price history\n\n"
+
+    if total_candidates.zero?
+      puts "✅ All items with price history already have a default supplier set!"
+      next
+    end
+
+    stats = {
+      updated: 0,
+      skipped_no_supplier: 0,
+      errors: 0
+    }
+
+    items_to_update.find_each.with_index do |item, index|
+      # Find the most recent price history entry with a supplier
+      # Prioritize by date_effective (if set), then by created_at
+      latest_history = item.price_histories
+        .where.not(supplier_id: nil)
+        .order(Arel.sql("COALESCE(date_effective, DATE('1900-01-01')) DESC, created_at DESC"))
+        .first
+
+      if latest_history.nil? || latest_history.supplier_id.nil?
+        stats[:skipped_no_supplier] += 1
+        next
+      end
+
+      supplier = Contact.find_by(id: latest_history.supplier_id)
+      unless supplier
+        stats[:skipped_no_supplier] += 1
+        next
+      end
+
+      if dry_run
+        puts "  [DRY RUN] #{item.item_code}: Would set default_supplier to #{supplier.display_name} (ID: #{supplier.id})"
+        stats[:updated] += 1
+      else
+        begin
+          item.update!(default_supplier_id: latest_history.supplier_id)
+          stats[:updated] += 1
+
+          # Progress indicator every 100 items
+          if (index + 1) % 100 == 0
+            puts "  Processed #{index + 1}/#{total_candidates}..."
+          end
+        rescue => e
+          stats[:errors] += 1
+          puts "  ❌ Error updating #{item.item_code}: #{e.message}"
+        end
+      end
+    end
+
+    # Summary
+    puts "\n" + "=" * 80
+    puts "SUMMARY"
+    puts "=" * 80
+    puts "  ✅ Updated: #{stats[:updated]} items"
+    puts "  ⏭️  Skipped (no supplier in history): #{stats[:skipped_no_supplier]} items"
+    puts "  ❌ Errors: #{stats[:errors]} items"
+
+    if dry_run
+      puts "\n⚠️  DRY RUN COMPLETE - No changes were made"
+      puts "Run with DRY_RUN=false to apply changes:"
+      puts "  rails pricebook:set_default_suppliers DRY_RUN=false"
+    else
+      puts "\n✅ Default suppliers have been set!"
+    end
+
+    puts "=" * 80 + "\n"
+  end
+
+  desc "Show items that have no price history and no default supplier (need manual attention)"
+  task show_items_without_history: :environment do
+    puts "\n" + "=" * 80
+    puts "ITEMS WITHOUT PRICE HISTORY (need manual supplier assignment)"
+    puts "=" * 80 + "\n"
+
+    items = PricebookItem
+      .where(default_supplier_id: nil)
+      .where(is_active: true)
+      .where.not(id: PriceHistory.select(:pricebook_item_id))
+
+    count = items.count
+    puts "Found #{count} items without any price history:\n\n"
+
+    items.order(:category, :item_code).each do |item|
+      puts "  #{item.item_code.ljust(20)} | #{item.category&.ljust(25) || 'No Category'.ljust(25)} | $#{item.current_price&.round(2) || 'N/A'} | #{item.item_name.truncate(40)}"
+    end
+
+    puts "\n" + "=" * 80
+    puts "These #{count} items need manual supplier assignment."
+    puts "=" * 80 + "\n"
+  end
+
   desc "Fetch images from internet for all pricebook items without photos (batch mode)"
   task fetch_missing_images: :environment do
     puts "=" * 80

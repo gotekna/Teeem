@@ -10,7 +10,8 @@ class AddBoqEntityTab < ActiveRecord::Migration[8.0]
       tab.icon_name = "ClipboardList"
       tab.order_position = 38
       tab.parent_id = estimates_tab.id
-      tab.is_active = true
+      tab.enabled = true
+      tab.scope = "job"
     end
   end
 

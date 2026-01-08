@@ -6,13 +6,13 @@ module Api
         before_action :authenticate_api_key!
 
         # POST /api/v1/external/unreal_purchase_orders
-        # Creates a PO shell from an SmScheduleMaster record (Schedule Master task)
+        # Creates a PO shell linked to an existing SmTask (job-level task)
         #
         # Payload:
         #   {
-        #     "Task_ID": 10,           # SmScheduleMaster ID in TEEEM
-        #     "job_id": 30,            # Job ID in TEEEM
-        #     "estimator_notes": "..." # Notes from Unreal estimator
+        #     "task_number": 10,        # SmTask.task_number on the job
+        #     "job_id": 30,             # Job ID in TEEEM
+        #     "estimator_notes": "..."  # Notes from Unreal estimator
         #   }
         #
         # Response:
@@ -25,14 +25,14 @@ module Api
         #
         def create
           # Validate required params
-          sm_schedule_master_id = params[:Task_ID] || params[:task_id]
+          task_number = params[:Task_ID] || params[:task_id] || params[:task_number]
           job_id = params[:job_id]
           estimator_notes = params[:estimator_notes]
 
-          if sm_schedule_master_id.blank?
+          if task_number.blank?
             return render json: {
               success: false,
-              error: "Task_ID is required"
+              error: "task_number (or Task_ID) is required"
             }, status: :unprocessable_entity
           end
 
@@ -41,15 +41,6 @@ module Api
               success: false,
               error: "job_id is required"
             }, status: :unprocessable_entity
-          end
-
-          # Find the SM Schedule Master record
-          sm_schedule_master = SmScheduleMaster.find_by(id: sm_schedule_master_id)
-          unless sm_schedule_master
-            return render json: {
-              success: false,
-              error: "SM Schedule Master not found with ID: #{sm_schedule_master_id}"
-            }, status: :not_found
           end
 
           # Find the job
@@ -61,29 +52,32 @@ module Api
             }, status: :not_found
           end
 
+          # Find the SmTask directly by task_number on this job
+          sm_task = job.sm_tasks.find_by(task_number: task_number)
+          unless sm_task
+            return render json: {
+              success: false,
+              error: "Task not found with task_number: #{task_number} on job: #{job_id}",
+              hint: "Available task_numbers on this job: #{job.sm_tasks.pluck(:task_number).sort.join(', ')}"
+            }, status: :not_found
+          end
+
+          # Check if task already has a PO linked
+          if sm_task.has_linked_po?
+            existing_po = sm_task.linked_purchase_order
+            return render json: {
+              success: false,
+              error: "Task already has a PO linked",
+              existing_po_id: existing_po.id,
+              existing_po_number: existing_po.purchase_order_number
+            }, status: :unprocessable_entity
+          end
+
           ActiveRecord::Base.transaction do
-            # SSoT: Find or create SmTask first, then link PO to the task (not template)
-            # This ensures PO always links to a job-level SmTask, never directly to template
-            sm_task = job.sm_tasks.find_by(sm_schedule_master_id: sm_schedule_master.id)
-
-            if sm_task.nil?
-              # Task doesn't exist - use SmScheduleMasterSyncService to create it
-              sync_result = SmScheduleMasterSyncService.new(job, sm_schedule_master).sync!
-
-              unless sync_result[:success]
-                return render json: {
-                  success: false,
-                  error: "Failed to sync task from template: #{sync_result[:error]}"
-                }, status: :unprocessable_entity
-              end
-
-              sm_task = sync_result[:task]
-              Rails.logger.info "[Unreal PO] Created SmTask #{sm_task.id} from SmScheduleMaster #{sm_schedule_master.id}"
-            end
-
-            # Create the PO shell linked to the SmTask (via task's data)
+            # Create the PO shell linked to the SmTask
             purchase_order = PurchaseOrder.new(
               job_id: job.id,
+              sm_task_id: sm_task.id,
               description: sm_task.name,
               special_instructions: estimator_notes,
               status: "draft",
@@ -92,10 +86,7 @@ module Api
             )
 
             if purchase_order.save
-              # SSoT: Link PO to task via sm_task_id (Option B - single column)
-              purchase_order.update!(sm_task_id: sm_task.id)
-
-              Rails.logger.info "[Unreal PO] Created PO #{purchase_order.purchase_order_number} linked to SmTask #{sm_task.id}"
+              Rails.logger.info "[Unreal PO] Created PO #{purchase_order.purchase_order_number} linked to SmTask #{sm_task.id} (task_number: #{task_number})"
 
               render json: {
                 success: true,
@@ -104,11 +95,12 @@ module Api
                 job_id: job.id,
                 job_title: job.title,
                 sm_task_id: sm_task.id,
+                task_number: sm_task.task_number,
                 task_name: sm_task.name,
                 task_trade: sm_task.trade,
                 supplier_id: sm_task.supplier_id,
                 status: purchase_order.status,
-                message: "Purchase order created and linked to task '#{sm_task.name}'"
+                message: "Purchase order created and linked to task ##{task_number} '#{sm_task.name}'"
               }, status: :created
             else
               render json: {

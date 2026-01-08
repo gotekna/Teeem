@@ -23,9 +23,11 @@ interface ApiColumn {
   description?: string;
   available_choices?: string[];
   lookup_foundation_id?: number;
+  lookup_foundation_slug?: string;
   lookup_display_column?: string;
   required?: boolean;
   is_unique?: boolean;
+  settings?: Record<string, unknown>;
 }
 
 interface Foundation {
@@ -47,9 +49,14 @@ interface TableColumn {
   width?: number;
   choices?: string[];
   lookup_foundation_id?: number;
+  lookup_foundation_slug?: string;
   lookup_display_column?: string;
   system?: boolean;
   editable?: boolean;
+  settings?: {
+    show_in_create?: boolean;
+    [key: string]: unknown;
+  };
 }
 
 interface TableRow {
@@ -195,10 +202,12 @@ function transformColumns(foundation: Foundation): TableColumn[] {
       width: getDefaultWidth(col.column_name, col.column_type),
       choices: col.available_choices,
       lookup_foundation_id: col.lookup_foundation_id,
+      lookup_foundation_slug: col.lookup_foundation_slug,
       lookup_display_column: col.lookup_display_column,
       // SSoT: System columns are visible but not editable (GOLD_STANDARD_TABLE.md)
       system: isSystemCol,
       editable: !isSystemCol,
+      settings: col.settings as TableColumn['settings'],
     });
   });
 

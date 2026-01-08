@@ -189,7 +189,9 @@ export function CreateRecordDialog({
       .filter((col) => !col.system)
       .filter((col) => col.editable !== false)
       .filter((col) => !isSystemGeneratedType(col.column_type || ""))
-      .filter((col) => col.label);
+      .filter((col) => col.label)
+      // SSoT: Respect settings.show_in_create from Column model
+      .filter((col) => col.settings?.show_in_create !== false);
   }, [columns]);
 
   // Initialize visible fields and order on first render or when columns change

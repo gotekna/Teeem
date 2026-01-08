@@ -90,6 +90,17 @@ module Api
       # Performance: includes sm_task_attachments to avoid N+1
       # SSoT: sm_schedule_master needed for header_gantt lookup in GanttDataService
       def job_index
+        # Lightweight mode for dropdowns/selects - minimal data for fast loading
+        # Used by: PO detail page task dropdown
+        # Handle early to avoid heavy includes/ordered scope
+        if params[:for] == "select"
+          tasks_data = @job.sm_tasks
+            .order(:sequence_order, :id)
+            .pluck(:id, :name, :task_number, :start_date, :po_required)
+            .map { |id, name, task_number, start_date, po_required| { id: id, name: name, task_number: task_number, start_date: start_date, po_required: po_required } }
+          return render json: { success: true, sm_tasks: tasks_data }
+        end
+
         @tasks = @job.sm_tasks.ordered.includes(
           :hold_reason, :purchase_order, :assigned_user, :supplier, :sm_schedule_master,
           sm_task_attachments: :attachable

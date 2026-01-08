@@ -29,6 +29,9 @@ Rails.application.routes.draw do
       # Feature Trackers
       resources :feature_trackers, only: [ :index, :create, :update, :destroy ]
 
+      # Units of Measure (lookup table for pricebook, recipes, etc.)
+      resources :units_of_measure, only: [ :index ]
+
       # Claim Invoice Templates - visual styles for claim invoices
       resources :claim_invoice_templates, only: [ :index, :show, :update ] do
         member do

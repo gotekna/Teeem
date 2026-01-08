@@ -34,6 +34,11 @@ export interface TableColumn {
   // Header and data alignment
   headerAlign?: "left" | "center" | "right";
   dataAlign?: "left" | "center" | "right";
+  // Column settings (from backend Column.settings jsonb field)
+  settings?: {
+    show_in_create?: boolean; // Whether to show in CreateRecordDialog (default: true)
+    [key: string]: unknown;
+  };
 }
 
 // Row data - generic record with id
@@ -114,6 +119,7 @@ export interface TeeemTableViewProps {
 
   // Event handlers
   onAddRow?: () => void; // Called when Add button clicked (auto-shown when foundationIdNumeric set)
+  addRowLabel?: string; // Custom label for Add button (default: "Add Record")
   onEdit?: (row: TableRow) => void;
   onDelete?: (row: TableRow) => void;
   onBulkDelete?: (ids: (number | string)[]) => void;
@@ -194,6 +200,7 @@ export interface TeeemTableViewProps {
   onLoadAll?: () => void; // Load all remaining records button callback
   hasMore?: boolean; // Whether there are more records to load from server
   autoFetchRecords?: boolean; // Enable auto-fetch from Foundation API (default: false). Only set true if NOT passing entries prop.
+  autoFetchLimit?: number; // Maximum records to auto-fetch before stopping (default: unlimited). Search still searches ALL records via server API.
   initialFilters?: CascadeFilter[]; // Initial cascade filters to apply (e.g., for template-specific views)
 
   // Data Health widget
@@ -265,6 +272,10 @@ export interface TeeemTableViewProps {
   // Increment this number to trigger an internal refresh without unmounting/remounting the component
   // Use this INSTEAD OF key={refreshKey} pattern to avoid losing SSR data
   refreshTrigger?: number;
+
+  // Start with all groups collapsed (showing only group headers, no expanded items)
+  // Useful for pages with many grouped items where users want to see categories first
+  initialGroupsCollapsed?: boolean;
 }
 
 // Column visibility state

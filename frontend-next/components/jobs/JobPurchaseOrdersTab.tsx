@@ -60,6 +60,7 @@ interface SupplierItem {
 interface SmTask {
   id: number;
   name: string;
+  task_number?: number;
   po_required?: boolean;
   supplier_id?: number;
   assigned_user_id?: number;
@@ -159,14 +160,19 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     if (poTasks.length > 0) return;
     try {
       setLoadingPoTasks(true);
-      // Get sm_tasks for this job
-      const response = await api.get<{ tasks: SmTask[] }>(
-        `/api/v1/sm_tasks?job_id=${jobId}`
+      // Get sm_tasks for this job - use lightweight endpoint for fast loading
+      const response = await api.get<{ sm_tasks: SmTask[] }>(
+        `/api/v1/jobs/${jobId}/sm_tasks?for=select`
       );
-      // Filter for po_required tasks and sort by name
-      const filteredTasks = (response?.tasks || [])
+      // Filter for po_required tasks and sort by task_number then name
+      const filteredTasks = (response?.sm_tasks || [])
         .filter(t => t.po_required)
-        .sort((a, b) => a.name.localeCompare(b.name));
+        .sort((a, b) => {
+          if (a.task_number && b.task_number) return a.task_number - b.task_number;
+          if (a.task_number) return -1;
+          if (b.task_number) return 1;
+          return a.name.localeCompare(b.name);
+        });
       setPoTasks(filteredTasks);
     } catch (err) {
       console.error("Failed to load PO tasks:", err);
@@ -433,11 +439,11 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
               <ComboboxDropdown
                 items={poTasks.map((task) => ({
                   id: String(task.id),
-                  label: task.name,
+                  label: task.task_number ? `${task.task_number}. ${task.name}` : task.name,
                 }))}
                 selectedItem={selectedTask ? {
                   id: String(selectedTask.id),
-                  label: selectedTask.name,
+                  label: selectedTask.task_number ? `${selectedTask.task_number}. ${selectedTask.name}` : selectedTask.name,
                 } : undefined}
                 onSelect={(item) => {
                   const task = poTasks.find((t) => String(t.id) === item.id);
