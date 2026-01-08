@@ -2522,14 +2522,6 @@ export function ScheduleMasterTab() {
           {/* Data View Tab - Full TeeemTableView */}
           <TabsContent value="data-view" className="absolute inset-0 flex flex-col data-[state=inactive]:hidden">
           {/* SSoT: Fullscreen now handled by TeeemTableView via enableFullscreen prop */}
-          {/* Debug: Log effectiveViewSlug to trace template/view bug */}
-          {console.log('[ScheduleMasterTab] Rendering TeeemTableView with:', {
-            effectiveViewSlug,
-            overrideViewSlugClear,
-            viewSlug,
-            dataViewTemplateId,
-            key: `${dataViewRefreshKey}-${selectedTagFilter}-${dataViewTemplateId}`,
-          })}
           <div className="flex flex-col h-full">
             <TeeemTableView
               key={`${dataViewRefreshKey}-${selectedTagFilter}-${dataViewTemplateId}`}
