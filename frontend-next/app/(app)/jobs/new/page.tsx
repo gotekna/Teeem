@@ -144,6 +144,11 @@ interface EmailProposal {
       company?: string;
       contact_id?: number;
       contact_exists?: boolean;
+      enrichment?: {
+        company_id?: number;
+        company_created?: boolean;
+        linked_to_company?: string;
+      };
     };
     customer2?: {
       name?: string;
@@ -429,14 +434,21 @@ export default function NewJobPage() {
         }));
 
         // Store contact IDs to populate after contacts load
+        // If customer was enriched and linked to a company, use the COMPANY as the client
+        // (e.g., Imperial Homes QLD instead of Nick Miller)
+        const customerClientId = data.customer?.enrichment?.company_id
+          || data.customer?.contact_id
+          || null;
+
         const contactIdsToPopulate = {
-          client1_id: data.customer?.contact_id || null,
+          client1_id: customerClientId,
           client2_id: data.customer2?.contact_id || null,
           referrer_id: data.referral_contact?.contact_id || null,
           external_sales_id: data.external_sales?.[0]?.contact_id || null,
         };
 
         console.log("Proposal loaded with contact IDs:", contactIdsToPopulate);
+        console.log("Enrichment data:", data.customer?.enrichment);
         console.log("Internal sales user_id:", data.internal_sales?.user_id);
 
         // Set people data IDs
@@ -455,6 +467,41 @@ export default function NewJobPage() {
 
     loadProposal();
   }, [proposalId]);
+
+  // Map AI-detected job_type to job_type_id after both proposal and jobTypes are loaded
+  React.useEffect(() => {
+    if (!proposal?.extracted_data?.job_type || jobTypes.length === 0) return;
+
+    const aiJobType = proposal.extracted_data.job_type.toLowerCase();
+
+    // Mapping: AI job type keywords → JobType names
+    const typeMapping: Record<string, string> = {
+      'kitchen': 'Kitchen',
+      'cabinetry': 'Kitchen',
+      'cabinet': 'Kitchen',
+      'cabinets': 'Kitchen',
+      'renovation': 'House Renovation',
+      'extension': 'House Renovation',
+      'new_build': 'House',
+      'new build': 'House',
+      'house': 'House',
+      'duplex': 'Duplex',
+      'townhouse': 'Townhouse',
+      'apartment': 'Micro Apartment',
+      'unit': 'Townhouse',
+      'ndis': 'NDIS House',
+      'office': 'Office Fitout',
+    };
+
+    const targetTypeName = typeMapping[aiJobType];
+    if (targetTypeName) {
+      const matchedType = jobTypes.find(jt => jt.name === targetTypeName);
+      if (matchedType) {
+        console.log(`[Proposal] Mapping job_type "${aiJobType}" → "${matchedType.name}" (ID: ${matchedType.id})`);
+        setFormData(prev => ({ ...prev, job_type_id: matchedType.id.toString() }));
+      }
+    }
+  }, [proposal, jobTypes]);
 
   // Track if we've already populated contacts from proposal
   const [hasPopulatedFromProposal, setHasPopulatedFromProposal] = React.useState(false);
