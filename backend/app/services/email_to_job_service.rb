@@ -794,9 +794,36 @@ class EmailToJobService
       extracted_data["customer"]["contact_id"] = customer_contact&.id
       extracted_data["customer"]["needs_contact_creation"] = customer_contact.nil?
 
+      # Check if customer's email domain indicates they work for a company
+      # This handles cases where internal staff forward emails and AI extracts the original sender
+      customer_company = nil
+      if customer_email.present? && customer_contact
+        customer_company = find_company_by_email_domain(customer_email)
+        if customer_company
+          extracted_data["customer"]["detected_company"] = {
+            "name" => customer_company.display_name,
+            "contact_id" => customer_company.id,
+            "is_builder" => is_builder_company?(customer_company)
+          }
+        end
+      end
+
       # If customer contact exists and is linked to the sender's company, note it
       if customer_contact&.primary_company_id == sender_company&.id
         extracted_data["customer"]["is_employee_of_sender_company"] = true
+      end
+
+      # AUTO-LINK: If we found a contact and detected they're from a company domain,
+      # automatically set their primary_company if not already set
+      # Check both sender_company (from email sender) and customer_company (from customer email)
+      company_to_link = customer_company || sender_company
+      if customer_contact && company_to_link && customer_contact.primary_company_id.nil?
+        # Contact exists but not linked to a company - link them now
+        customer_contact.update!(primary_company_id: company_to_link.id)
+        extracted_data["customer"]["auto_linked_to_company"] = true
+        extracted_data["customer"]["is_employee_of_sender_company"] = true
+        extracted_data["customer"]["linked_company_name"] = company_to_link.display_name
+        Rails.logger.info "[EmailToJobService] Auto-linked #{customer_contact.display_name} as employee of #{company_to_link.display_name}"
       end
 
       if customer_contact
