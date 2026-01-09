@@ -330,6 +330,7 @@ export function displayLookup(value: unknown): React.ReactNode {
 /**
  * Display multiple lookups as badges
  * Shows first badge + count to keep rows compact (1 row per record)
+ * Badge uses flex-1 to fill available column width (not fixed max-width)
  */
 export function displayMultipleLookups(value: unknown): React.ReactNode {
   if (value === null || value === undefined) return formatEmpty();
@@ -349,21 +350,21 @@ export function displayMultipleLookups(value: unknown): React.ReactNode {
   const remaining = items.length - 1;
 
   return (
-    <div className="flex items-center gap-1 overflow-hidden">
-      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 truncate max-w-[120px]">
+    <div className="flex items-center gap-1 overflow-hidden min-w-0">
+      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 truncate min-w-0 flex-shrink">
         {firstItem}
       </Badge>
       {remaining > 0 && (
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="text-[10px] text-muted-foreground cursor-help whitespace-nowrap">
+              <span className="text-[10px] text-muted-foreground cursor-help whitespace-nowrap flex-shrink-0">
                 +{remaining}
               </span>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-xs">
               <div className="flex flex-col gap-1">
-                {items.slice(1).map((item, idx) => (
+                {items.map((item, idx) => (
                   <span key={idx} className="text-[11px]">{item}</span>
                 ))}
               </div>
@@ -454,6 +455,7 @@ export function displayStructuredData(value: unknown): React.ReactNode {
 /**
  * Display array of items as badges
  * Shows first badge + count to keep rows compact (1 row per record)
+ * Badge uses flex-shrink to fill available column width (not fixed max-width)
  */
 export function displayArrayOfItems(value: unknown): React.ReactNode {
   if (value === null || value === undefined) return formatEmpty();
@@ -464,21 +466,21 @@ export function displayArrayOfItems(value: unknown): React.ReactNode {
   const remaining = items.length - 1;
 
   return (
-    <div className="flex items-center gap-1 overflow-hidden">
-      <Badge variant="outline" className="text-[10px] px-1.5 py-0 truncate max-w-[120px]">
+    <div className="flex items-center gap-1 overflow-hidden min-w-0">
+      <Badge variant="outline" className="text-[10px] px-1.5 py-0 truncate min-w-0 flex-shrink">
         {firstItem}
       </Badge>
       {remaining > 0 && (
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="text-[10px] text-muted-foreground cursor-help whitespace-nowrap">
+              <span className="text-[10px] text-muted-foreground cursor-help whitespace-nowrap flex-shrink-0">
                 +{remaining}
               </span>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-xs">
               <div className="flex flex-col gap-1">
-                {items.slice(1).map((item, idx) => (
+                {items.map((item, idx) => (
                   <span key={idx} className="text-[11px]">{item}</span>
                 ))}
               </div>
