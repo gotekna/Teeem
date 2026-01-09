@@ -1248,36 +1248,40 @@ export function EditRowDialog({
               </div>
             ) : null}
 
-            {/* Linked Tasks - only shown when PO Required is on */}
-            {editRowForm.po_required ? (
-              <div className="border-t pt-3">
-                <Label className="text-xs">Linked Tasks (appear when this PO task is included)</Label>
-                <MultipleSelector
-                  value={(editRowForm.linked_task_ids || []).map(id => {
-                    const linkedRow = allRows.find(r => r.id === id);
-                    return { value: String(id), label: linkedRow?.name || `Task ${id}` };
-                  })}
-                  onChange={(options) => {
-                    setEditRowForm({
-                      ...editRowForm,
-                      linked_task_ids: options.map(o => parseInt(o.value))
-                    });
-                  }}
-                  defaultOptions={allRows
-                    .filter(r => !r.po_required && r.id !== row?.id)
-                    .map(r => ({
-                      value: String(r.id),
-                      label: r.name
-                    }))}
-                  placeholder="Select tasks to link..."
-                  emptyIndicator={
-                    <p className="text-center text-xs text-muted-foreground">
-                      No non-PO tasks available
-                    </p>
-                  }
-                />
-              </div>
-            ) : null}
+            {/* Linked Tasks */}
+            <div className="border-t pt-3">
+              <Label className="text-xs">Linked Tasks</Label>
+              <MultipleSelector
+                value={(editRowForm.linked_task_ids || []).map(id => {
+                  const linkedRow = allRows.find(r => r.id === id);
+                  return { value: String(id), label: linkedRow?.name || `Task ${id}` };
+                })}
+                onChange={(options) => {
+                  setEditRowForm({
+                    ...editRowForm,
+                    linked_task_ids: options.map(o => parseInt(o.value))
+                  });
+                }}
+                defaultOptions={allRows
+                  .filter(r => r.id !== row?.id)
+                  .map(r => ({
+                    value: String(r.id),
+                    label: r.name
+                  }))}
+                onSearchSync={(search) => {
+                  const lower = search.toLowerCase();
+                  return allRows
+                    .filter(r => r.id !== row?.id && r.name.toLowerCase().includes(lower))
+                    .map(r => ({ value: String(r.id), label: r.name }));
+                }}
+                placeholder="Search and select tasks..."
+                emptyIndicator={
+                  <p className="text-center text-xs text-muted-foreground">
+                    No tasks available
+                  </p>
+                }
+              />
+            </div>
           </div>
         </DialogContent>
       </Dialog>

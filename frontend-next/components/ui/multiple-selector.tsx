@@ -207,9 +207,11 @@ const MultipleSelector = React.forwardRef<
     ref: React.Ref<MultipleSelectorRef>,
   ) => {
     const inputRef = React.useRef<HTMLInputElement>(null);
+    const containerRef = React.useRef<HTMLDivElement>(null);
     const [open, setOpen] = React.useState(false);
     const [onScrollbar, setOnScrollbar] = React.useState(false);
     const [isLoading, setIsLoading] = React.useState(false);
+    const [flipUp, setFlipUp] = React.useState(false);
     const dropdownRef = React.useRef<HTMLDivElement>(null);
 
     const [selected, setSelected] = React.useState<Option[]>(value || []);
@@ -291,6 +293,16 @@ const MultipleSelector = React.forwardRef<
         setSelected(value);
       }
     }, [value]);
+
+    // Detect if dropdown should flip upward when near bottom of viewport
+    useEffect(() => {
+      if (open && containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        // Flip if less than 320px space below (max dropdown height is 300px + margin)
+        setFlipUp(spaceBelow < 320);
+      }
+    }, [open]);
 
     useEffect(() => {
       if (!arrayOptions || onSearch) {
@@ -445,6 +457,7 @@ const MultipleSelector = React.forwardRef<
         filter={commandFilter()}
       >
         <div
+          ref={containerRef}
           className={cn(
             "min-h-10 border-b border-border text-sm",
             {
@@ -528,7 +541,10 @@ const MultipleSelector = React.forwardRef<
         <div className="relative">
           {open && (
             <CommandList
-              className="absolute top-1 z-10 w-full bg-popover text-popover-foreground shadow-md border border-border outline-none animate-in max-h-[300px] overflow-auto"
+              className={cn(
+                "absolute z-10 w-full bg-popover text-popover-foreground shadow-md border border-border outline-none animate-in max-h-[300px] overflow-auto",
+                flipUp ? "bottom-full mb-1" : "top-full mt-1"
+              )}
               onMouseLeave={() => {
                 setOnScrollbar(false);
               }}
