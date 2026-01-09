@@ -323,6 +323,12 @@ class EmailToContactExtractionService
     }
   end
 
+  # Public method to get company suggestion from an email address
+  # Used by quick_create_contact in email_warehouse_controller
+  def suggest_company_for_email(email)
+    generate_company_suggestion(email)
+  end
+
   private
 
   # Extract all email addresses from email data

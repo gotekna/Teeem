@@ -61,6 +61,13 @@ module Api
             errors: notebook.errors.full_messages
           }, status: :unprocessable_entity
         end
+      rescue => e
+        Rails.logger.error("[NotebooksController#create] Exception: #{e.class} - #{e.message}")
+        Rails.logger.error(e.backtrace.first(10).join("\n"))
+        render json: {
+          success: false,
+          error: "Failed to create notebook: #{e.message}"
+        }, status: :internal_server_error
       end
 
       # PATCH /api/v1/notebooks/:id

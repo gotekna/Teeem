@@ -731,10 +731,10 @@ class Api::V1::EmailWarehouseController < ApplicationController
     }
 
     # Get company suggestion from domain
-    company_suggestion = service.generate_company_suggestion(@email.from_email)
-    if company_suggestion && company_suggestion[:id]
+    company_suggestion = service.suggest_company_for_email(@email.from_email)
+    if company_suggestion && company_suggestion[:existing_company_id]
       selection[:company_action] = "link"
-      selection[:company_id] = company_suggestion[:id]
+      selection[:company_id] = company_suggestion[:existing_company_id]
     elsif company_suggestion && company_suggestion[:name]
       selection[:company_action] = "create"
       selection[:company_name] = company_suggestion[:name]
