@@ -172,7 +172,7 @@ module Api
           is_pinned: page.is_pinned,
           preview: page.preview(100),
           word_count: page.word_count,
-          last_edited_by: page.last_edited_by&.display_name,
+          last_edited_by: page.last_edited_by&.name,
           updated_at: page.updated_at
         }
       end

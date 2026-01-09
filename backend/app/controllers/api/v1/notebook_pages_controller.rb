@@ -241,11 +241,11 @@ module Api
           char_count: page.char_count,
           created_by: page.created_by ? {
             id: page.created_by.id,
-            name: page.created_by.display_name
+            name: page.created_by.name
           } : nil,
           last_edited_by: page.last_edited_by ? {
             id: page.last_edited_by.id,
-            name: page.last_edited_by.display_name
+            name: page.last_edited_by.name
           } : nil,
           created_at: page.created_at,
           updated_at: page.updated_at
