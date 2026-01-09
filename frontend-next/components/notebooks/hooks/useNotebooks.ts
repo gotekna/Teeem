@@ -92,7 +92,7 @@ export function useNotebooks(options?: {
   }
 
   const queryString = params.toString();
-  const url = `/notebooks${queryString ? `?${queryString}` : ""}`;
+  const url = `/api/v1/notebooks${queryString ? `?${queryString}` : ""}`;
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["notebooks", options],
@@ -120,7 +120,7 @@ export function useNotebook(notebookId: number | null) {
     queryKey: ["notebook", notebookId],
     queryFn: async () => {
       if (!notebookId) return null;
-      const response = await api.get<NotebookResponse>(`/notebooks/${notebookId}`);
+      const response = await api.get<NotebookResponse>(`/api/v1/notebooks/${notebookId}`);
       if (!response?.success) {
         throw new Error("Failed to fetch notebook");
       }
@@ -147,7 +147,7 @@ export const notebookActions = {
     notable_type?: string;
     notable_id?: number;
   }): Promise<Notebook> {
-    const response = await api.post<NotebookResponse>("/notebooks", data);
+    const response = await api.post<NotebookResponse>("/api/v1/notebooks", data);
     if (!response?.success) {
       throw new Error("Failed to create notebook");
     }
@@ -163,7 +163,7 @@ export const notebookActions = {
       color?: string;
     }
   ): Promise<Notebook> {
-    const response = await api.patch<NotebookResponse>(`/notebooks/${id}`, data);
+    const response = await api.patch<NotebookResponse>(`/api/v1/notebooks/${id}`, data);
     if (!response?.success) {
       throw new Error("Failed to update notebook");
     }
@@ -171,7 +171,7 @@ export const notebookActions = {
   },
 
   async delete(id: number): Promise<void> {
-    const response = await api.delete<{ success: boolean }>(`/notebooks/${id}`);
+    const response = await api.delete<{ success: boolean }>(`/api/v1/notebooks/${id}`);
     if (!response?.success) {
       throw new Error("Failed to delete notebook");
     }
@@ -182,7 +182,7 @@ export const notebookActions = {
     data: { user_id: number; permission: "view" | "edit" | "admin"; expires_at?: string }
   ): Promise<NotebookShare> {
     const response = await api.post<{ success: boolean; share: NotebookShare }>(
-      `/notebooks/${id}/share`,
+      `/api/v1/notebooks/${id}/share`,
       data
     );
     if (!response?.success) {
@@ -193,7 +193,7 @@ export const notebookActions = {
 
   async unshare(id: number, userId: number): Promise<void> {
     const response = await api.delete<{ success: boolean }>(
-      `/notebooks/${id}/unshare?user_id=${userId}`
+      `/api/v1/notebooks/${id}/unshare?user_id=${userId}`
     );
     if (!response?.success) {
       throw new Error("Failed to remove share");
@@ -208,7 +208,7 @@ export const sectionActions = {
     data: { name: string; color?: string }
   ): Promise<NotebookSection> {
     const response = await api.post<{ success: boolean; section: NotebookSection }>(
-      `/notebooks/${notebookId}/sections`,
+      `/api/v1/notebooks/${notebookId}/sections`,
       data
     );
     if (!response?.success) {
@@ -223,7 +223,7 @@ export const sectionActions = {
     data: { name?: string; color?: string }
   ): Promise<NotebookSection> {
     const response = await api.patch<{ success: boolean; section: NotebookSection }>(
-      `/notebooks/${notebookId}/sections/${sectionId}`,
+      `/api/v1/notebooks/${notebookId}/sections/${sectionId}`,
       data
     );
     if (!response?.success) {
@@ -234,7 +234,7 @@ export const sectionActions = {
 
   async delete(notebookId: number, sectionId: number): Promise<void> {
     const response = await api.delete<{ success: boolean }>(
-      `/notebooks/${notebookId}/sections/${sectionId}`
+      `/api/v1/notebooks/${notebookId}/sections/${sectionId}`
     );
     if (!response?.success) {
       throw new Error("Failed to delete section");
@@ -243,7 +243,7 @@ export const sectionActions = {
 
   async reorder(notebookId: number, sectionId: number, position: number): Promise<void> {
     const response = await api.post<{ success: boolean }>(
-      `/notebooks/${notebookId}/sections/${sectionId}/reorder`,
+      `/api/v1/notebooks/${notebookId}/sections/${sectionId}/reorder`,
       { position }
     );
     if (!response?.success) {

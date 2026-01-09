@@ -56,7 +56,7 @@ export function useNotebookPage(pageId: number | null) {
     queryKey: ["notebook-page", pageId],
     queryFn: async () => {
       if (!pageId) return null;
-      const response = await api.get<PageResponse>(`/notebook_pages/${pageId}`);
+      const response = await api.get<PageResponse>(`/api/v1/notebook_pages/${pageId}`);
       if (!response?.success) {
         throw new Error("Failed to fetch page");
       }
@@ -70,7 +70,7 @@ export function useNotebookPage(pageId: number | null) {
     debounce(async (id: number, changes: { title?: string; content?: string }) => {
       try {
         setIsSaving(true);
-        const response = await api.patch<PageResponse>(`/notebook_pages/${id}`, changes);
+        const response = await api.patch<PageResponse>(`/api/v1/notebook_pages/${id}`, changes);
         if (response?.success) {
           setLastSaved(new Date());
           setHasUnsavedChanges(false);
@@ -115,7 +115,7 @@ export function useNotebookPage(pageId: number | null) {
     try {
       setIsSaving(true);
       const response = await api.patch<PageResponse>(
-        `/notebook_pages/${pageId}`,
+        `/api/v1/notebook_pages/${pageId}`,
         pendingChangesRef.current
       );
       if (response?.success) {
@@ -161,7 +161,7 @@ export function useNotebookPages(notebookId: number | null, sectionId: number | 
     queryFn: async () => {
       if (!notebookId || !sectionId) return { pages: [] };
       const response = await api.get<PagesResponse>(
-        `/notebooks/${notebookId}/sections/${sectionId}/pages`
+        `/api/v1/notebooks/${notebookId}/sections/${sectionId}/pages`
       );
       if (!response?.success) {
         throw new Error("Failed to fetch pages");
@@ -184,7 +184,7 @@ export function useRecentPages() {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["notebook-pages-recent"],
     queryFn: async () => {
-      const response = await api.get<PagesResponse>("/notebook_pages/recent");
+      const response = await api.get<PagesResponse>("/api/v1/notebook_pages/recent");
       if (!response?.success) {
         throw new Error("Failed to fetch recent pages");
       }
@@ -206,7 +206,7 @@ export function useSearchPages(query: string) {
     queryKey: ["notebook-pages-search", query],
     queryFn: async () => {
       if (!query.trim()) return { pages: [] };
-      const response = await api.get<PagesResponse>("/notebook_pages/search", {
+      const response = await api.get<PagesResponse>("/api/v1/notebook_pages/search", {
         params: { q: query },
       });
       if (!response?.success) {
@@ -233,7 +233,7 @@ export const pageActions = {
     data: { title?: string; content?: string }
   ): Promise<NotebookPage> {
     const response = await api.post<PageResponse>(
-      `/notebooks/${notebookId}/sections/${sectionId}/pages`,
+      `/api/v1/notebooks/${notebookId}/sections/${sectionId}/pages`,
       data
     );
     if (!response?.success) {
@@ -246,7 +246,7 @@ export const pageActions = {
     pageId: number,
     data: { title?: string; content?: string; is_pinned?: boolean }
   ): Promise<NotebookPage> {
-    const response = await api.patch<PageResponse>(`/notebook_pages/${pageId}`, data);
+    const response = await api.patch<PageResponse>(`/api/v1/notebook_pages/${pageId}`, data);
     if (!response?.success) {
       throw new Error("Failed to update page");
     }
@@ -254,21 +254,21 @@ export const pageActions = {
   },
 
   async delete(pageId: number): Promise<void> {
-    const response = await api.delete<{ success: boolean }>(`/notebook_pages/${pageId}`);
+    const response = await api.delete<{ success: boolean }>(`/api/v1/notebook_pages/${pageId}`);
     if (!response?.success) {
       throw new Error("Failed to delete page");
     }
   },
 
   async move(pageId: number, options: { section_id?: number; position?: number }): Promise<void> {
-    const response = await api.post<{ success: boolean }>(`/notebook_pages/${pageId}/move`, options);
+    const response = await api.post<{ success: boolean }>(`/api/v1/notebook_pages/${pageId}/move`, options);
     if (!response?.success) {
       throw new Error("Failed to move page");
     }
   },
 
   async togglePin(pageId: number): Promise<NotebookPage> {
-    const response = await api.post<PageResponse>(`/notebook_pages/${pageId}/toggle_pin`, {});
+    const response = await api.post<PageResponse>(`/api/v1/notebook_pages/${pageId}/toggle_pin`, {});
     if (!response?.success) {
       throw new Error("Failed to toggle pin");
     }
@@ -280,7 +280,7 @@ export const pageActions = {
 export const attachmentActions = {
   async list(pageId: number): Promise<NotebookPageAttachment[]> {
     const response = await api.get<{ attachments: NotebookPageAttachment[] }>(
-      `/notebook_pages/${pageId}/attachments`
+      `/api/v1/notebook_pages/${pageId}/attachments`
     );
     return response?.attachments ?? [];
   },
@@ -305,7 +305,7 @@ export const attachmentActions = {
 
   async delete(attachmentId: number): Promise<void> {
     const response = await api.delete<{ success: boolean }>(
-      `/notebook_page_attachments/${attachmentId}`
+      `/api/v1/notebook_page_attachments/${attachmentId}`
     );
     if (!response?.success) {
       throw new Error("Failed to delete attachment");
@@ -314,7 +314,7 @@ export const attachmentActions = {
 
   async getDownloadUrl(attachmentId: number): Promise<{ url: string; file_name: string }> {
     const response = await api.get<{ url: string; file_name: string }>(
-      `/notebook_page_attachments/${attachmentId}/download`
+      `/api/v1/notebook_page_attachments/${attachmentId}/download`
     );
     if (!response?.url) {
       throw new Error("Failed to get download URL");
