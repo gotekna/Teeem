@@ -41,6 +41,7 @@ import {
   MoreVertical,
   CheckCheck,
   ListTodo,
+  UserPlus,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -505,6 +506,7 @@ export default function EmailPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [creatingTask, setCreatingTask] = useState(false);
+  const [creatingContact, setCreatingContact] = useState(false);
   // SSoT: Uses PAGE_SIZE_LIST from pagination-constants.ts
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
@@ -1312,6 +1314,40 @@ To: ${email.to_emails?.join(", ") || ""}
     }
   };
 
+  // Quick create contact from email sender
+  const handleQuickCreateContact = async (email: Email) => {
+    if (creatingContact) return;
+
+    setCreatingContact(true);
+    try {
+      const response = await api.post<{
+        success: boolean;
+        contact: { id: number; display_name: string; email: string };
+        company?: { id: number; name: string };
+        message: string;
+        already_existed?: boolean;
+      }>(`/api/v1/email_warehouse/${email.id}/quick_create_contact`);
+
+      if (response?.success) {
+        toast({
+          title: response.already_existed ? "Contact Linked" : "Contact Created",
+          description: response.message,
+        });
+        // Refresh the email to show updated contact
+        handleEmailClick(email);
+      }
+    } catch (error) {
+      console.error("Failed to create contact:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create contact",
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingContact(false);
+    }
+  };
+
   // Handle snooze email (show toast for now, can integrate SnoozePicker later)
   const handleSnoozeEmail = useCallback((email: Email) => {
     toast({
@@ -1850,6 +1886,20 @@ To: ${email.to_emails?.join(", ") || ""}
                   contacts={selectedEmail.contacts || []}
                   onContactsChanged={() => handleEmailClick(selectedEmail)}
                 />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleQuickCreateContact(selectedEmail)}
+                  disabled={creatingContact}
+                  title="Create contact from sender"
+                >
+                  {creatingContact ? (
+                    <Spinner className="h-4 w-4 mr-2" />
+                  ) : (
+                    <UserPlus className="h-4 w-4 mr-2" />
+                  )}
+                  + Contact
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"

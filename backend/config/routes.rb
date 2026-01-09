@@ -1096,6 +1096,7 @@ Rails.application.routes.draw do
           post :summarize
           post :link_contact
           post :unlink_contact
+          post :quick_create_contact
           get :suggest_contacts
           get "attachments/:attachment_id/download", action: :download_attachment
         end
