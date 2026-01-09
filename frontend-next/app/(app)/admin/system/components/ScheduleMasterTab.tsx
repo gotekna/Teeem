@@ -532,6 +532,7 @@ export function ScheduleMasterTab() {
     { id: "sm_trades", name: "SM Trades", description: "Trade types for schedule tasks (e.g., CARPENTER, ELECTRICIAN)" },
     { id: "sm_stages", name: "SM Stages", description: "Stage types for schedule tasks (e.g., 01 Slab, 05 Enclosed)" },
     { id: "cost_centres", name: "Cost Centres", description: "Cost centres for categorizing schedule tasks" },
+    { id: "sm_task_groups", name: "Task Groups", description: "Group PO and non-PO tasks together - when any PO from group is on job, all linked tasks appear" },
   ] as const;
   type LookupTableId = typeof LOOKUP_TABLES[number]["id"];
 
@@ -586,6 +587,8 @@ export function ScheduleMasterTab() {
   const [tradingNames, setTradingNames] = React.useState<TradingName[]>([]);
   // SSoT: Workflows (BPMN processes) for task workflow triggers
   const [availableWorkflows, setAvailableWorkflows] = React.useState<{ id: number; name: string }[]>([]);
+  // SSoT: Task Groups from Foundation SM Task Groups - for grouping PO and non-PO tasks
+  const [availableTaskGroups, setAvailableTaskGroups] = React.useState<{ id: number; name: string }[]>([]);
 
   // Load column status from localStorage on mount
   React.useEffect(() => {
@@ -637,6 +640,7 @@ export function ScheduleMasterTab() {
     loadClaimInvoiceTemplates();
     loadTradingNames();
     loadWorkflows();
+    loadTaskGroups();
     console.log("[ScheduleMasterTab] All loaders called");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showInactive]);
@@ -776,6 +780,18 @@ export function ScheduleMasterTab() {
       }
     } catch (error) {
       console.error("Failed to load cost centres:", error);
+    }
+  };
+
+  // SSoT: Load task groups from Foundation SM Task Groups (slug: sm_task_groups)
+  const loadTaskGroups = async () => {
+    try {
+      const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/sm_task_groups/records?per_page=100");
+      if (data?.records) {
+        setAvailableTaskGroups(data.records);
+      }
+    } catch (error) {
+      console.error("Failed to load task groups:", error);
     }
   };
 
@@ -3455,6 +3471,7 @@ export function ScheduleMasterTab() {
         invoiceTemplates={claimInvoiceTemplates}
         workflows={availableWorkflows}
         headerRows={availableHeaderRows}
+        taskGroups={availableTaskGroups}
         allRows={dataViewRows.map(r => convertToEditRowData(r))}
         showTemplateSection={true}
         templates={templates}

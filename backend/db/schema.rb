@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_10_100000) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_10_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8206,6 +8206,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_10_100000) do
     t.integer "claim_sequence_number"
     t.boolean "requires_document_to_complete", default: false
     t.bigint "completion_document_type_id"
+    t.bigint "sm_task_group_id"
     t.index ["checklist_id"], name: "index_sm_schedule_masters_on_checklist_id"
     t.index ["claim_invoice_template_id"], name: "index_sm_schedule_masters_on_claim_invoice_template_id"
     t.index ["complete_workflow_id"], name: "index_sm_schedule_masters_on_complete_workflow_id"
@@ -8220,6 +8221,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_10_100000) do
     t.index ["is_claim_task"], name: "index_sm_schedule_masters_claim_tasks", where: "(is_claim_task = true)"
     t.index ["po_supplier_id"], name: "index_sm_schedule_masters_on_po_supplier_id"
     t.index ["predecessor_ids"], name: "index_sm_schedule_master_on_predecessor_ids_gin", using: :gin
+    t.index ["sm_task_group_id"], name: "index_sm_schedule_masters_on_sm_task_group_id"
     t.index ["sm_template_ids"], name: "index_sm_schedule_master_on_sm_template_ids_gin", using: :gin
     t.index ["stage"], name: "index_sm_schedule_masters_on_stage"
     t.index ["start_workflow_id"], name: "index_sm_schedule_masters_on_start_workflow_id"
@@ -8294,6 +8296,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_10_100000) do
     t.index ["document_type_id"], name: "index_sm_task_document_types_on_document_type_id"
     t.index ["sm_task_id", "document_type_id"], name: "idx_sm_task_doc_type_unique", unique: true
     t.index ["sm_task_id"], name: "index_sm_task_document_types_on_sm_task_id"
+  end
+
+  create_table "sm_task_groups", force: :cascade do |t|
+    t.string "name", null: false
+    t.text "description"
+    t.boolean "is_active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_active"], name: "index_sm_task_groups_on_is_active"
   end
 
   create_table "sm_task_photos", force: :cascade do |t|
@@ -10547,6 +10558,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_10_100000) do
   add_foreign_key "sm_schedule_masters", "claim_invoice_templates"
   add_foreign_key "sm_schedule_masters", "document_types", column: "completion_document_type_id"
   add_foreign_key "sm_schedule_masters", "sm_schedule_masters", column: "spawn_scan_task_id", on_delete: :nullify
+  add_foreign_key "sm_schedule_masters", "sm_task_groups"
   add_foreign_key "sm_schedule_masters", "supervisor_checklist_templates", column: "checklist_id"
   add_foreign_key "sm_schedule_masters", "users", column: "created_by_id"
   add_foreign_key "sm_schedule_masters", "users", column: "updated_by_id"

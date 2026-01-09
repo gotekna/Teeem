@@ -181,6 +181,7 @@ module Api
           :spawn_scan_task,
           :start_workflow,
           :complete_workflow,
+          :sm_task_group,
           { sm_schedule_master_document_types: :document_type }
         ]
       end
@@ -343,6 +344,9 @@ module Api
           tags: row.tags,
           color: row.color,
           is_active: row.is_active,
+          # Task group for PO/non-PO grouping
+          sm_task_group_id: row.sm_task_group_id,
+          sm_task_group_name: row.sm_task_group&.name,
           # Multi-template support
           sm_template_ids: row.sm_template_ids || [],
           # New Schedule Master fields

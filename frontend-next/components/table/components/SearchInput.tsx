@@ -219,9 +219,9 @@ export const SearchInput = memo(function SearchInput({
                 <div className="font-medium text-sm">Search all columns</div>
                 <div className="text-xs text-muted-foreground">
                   {effectiveSearchAllColumns
-                    ? "Searching all columns including hidden"
+                    ? "All text columns (lookups excluded)"
                     : searchableColumnNames && searchableColumnNames.length > 0
-                      ? `Searching: ${searchableColumnNames.slice(0, 4).join(', ')}${searchableColumnNames.length > 4 ? ` +${searchableColumnNames.length - 4} more` : ''}`
+                      ? searchableColumnNames.join(', ')
                       : "Only searching key columns"}
                 </div>
               </div>

@@ -78,6 +78,9 @@ export interface EditRowData {
   requires_document_to_complete?: boolean;
   completion_document_type_id?: number | null;
   completion_document_type_name?: string | null;
+  // Task group - for grouping PO and non-PO tasks
+  sm_task_group_id?: number | null;
+  sm_task_group_name?: string | null;
 }
 
 export type EditRowFormData = Partial<EditRowData>;
@@ -145,6 +148,7 @@ export interface EditRowDialogProps {
   // For header/child relationships
   allRows?: EditRowData[];
   headerRows?: Array<{ id: number; task_number: number; name: string }>;
+  taskGroups?: Array<{ id: number; name: string }>;
   onChildTaskUpdate?: (childId: number, headerGantt: number | null) => Promise<void>;
   // Schedule Master specific (optional)
   showTemplateSection?: boolean;
@@ -177,6 +181,7 @@ export function EditRowDialog({
   workflows = [],
   allRows = [],
   headerRows = [],
+  taskGroups = [],
   onChildTaskUpdate,
   showTemplateSection = false,
   templates = [],
@@ -1258,6 +1263,35 @@ export function EditRowDialog({
                 </p>
               </div>
             ) : null}
+
+            {/* Task Group */}
+            <div className="border-t pt-3">
+              <Label className="text-xs">Task Group</Label>
+              <ComboboxDropdown
+                items={taskGroups.map(g => ({
+                  id: String(g.id),
+                  label: g.name
+                }))}
+                selectedItem={editRowForm.sm_task_group_id
+                  ? {
+                      id: String(editRowForm.sm_task_group_id),
+                      label: editRowForm.sm_task_group_name || taskGroups.find(g => g.id === editRowForm.sm_task_group_id)?.name || `Group ${editRowForm.sm_task_group_id}`
+                    }
+                  : undefined}
+                onSelect={(item) => {
+                  setEditRowForm({
+                    ...editRowForm,
+                    sm_task_group_id: item ? Number(item.id) : null,
+                    sm_task_group_name: item?.label || null
+                  });
+                }}
+                placeholder="Select task group..."
+                clearable
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Tasks in the same group appear together when any PO from the group is on a job
+              </p>
+            </div>
 
             {/* Linked Tasks */}
             <div className="border-t pt-3">

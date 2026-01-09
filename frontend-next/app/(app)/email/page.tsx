@@ -1443,7 +1443,7 @@ To: ${email.to_emails?.join(", ") || ""}
     <EmailDragDropProvider onMoveComplete={handleDragDropMove}>
     <ResizablePanelGroup
       orientation="horizontal"
-      className="h-full -mx-4 -mt-4"
+      className={cn("h-full", isStandalone ? "pl-4 pt-2" : "-mx-4 -mt-4")}
     >
       {/* Left Sidebar - Mailboxes & Folders */}
       <ResizablePanel
