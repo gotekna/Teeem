@@ -52,6 +52,8 @@ export interface EditRowData {
   related_po_task_ids?: number[];
   related_po_task_names?: string[];
   linked_task_ids?: number[];
+  // Completion linked tasks - tasks that can be completed together when this task completes
+  completion_linked_task_ids?: number[];
   checklist_id?: number | { id: number; display: string } | null;
   spawn_scan_task_id?: number | { id: number; display: string } | null;
   document_types?: Array<{
@@ -233,6 +235,7 @@ export function EditRowDialog({
         related_po_task_ids: row.related_po_task_ids || [],
         related_po_task_names: row.related_po_task_names || [],
         linked_task_ids: row.linked_task_ids,
+        completion_linked_task_ids: row.completion_linked_task_ids || [],
         allow_header: row.allow_header,
         is_active: row.is_active,
         document_types: row.document_types || [],
@@ -1326,9 +1329,9 @@ export function EditRowDialog({
               </p>
             </div>
 
-            {/* Linked Tasks */}
+            {/* Linked Tasks (Visibility) */}
             <div className="border-t pt-3">
-              <Label className="text-xs">Linked Tasks</Label>
+              <Label className="text-xs">Linked Tasks (Visibility)</Label>
               <MultipleSelector
                 value={(editRowForm.linked_task_ids || []).map(id => {
                   const linkedRow = allRows.find(r => r.id === id);
@@ -1359,6 +1362,47 @@ export function EditRowDialog({
                   </p>
                 }
               />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                These tasks appear/disappear together with this task on a job
+              </p>
+            </div>
+
+            {/* Completion Linked Tasks (Cascade) */}
+            <div className="border-t pt-3">
+              <Label className="text-xs">Complete Together (Cascade)</Label>
+              <MultipleSelector
+                value={(editRowForm.completion_linked_task_ids || []).map(id => {
+                  const linkedRow = allRows.find(r => r.id === id);
+                  return { value: String(id), label: linkedRow?.name || `Task ${id}` };
+                })}
+                onChange={(options) => {
+                  setEditRowForm({
+                    ...editRowForm,
+                    completion_linked_task_ids: options.map(o => parseInt(o.value))
+                  });
+                }}
+                defaultOptions={allRows
+                  .filter(r => r.id !== row?.id)
+                  .map(r => ({
+                    value: String(r.id),
+                    label: r.name
+                  }))}
+                onSearchSync={(search) => {
+                  const lower = search.toLowerCase();
+                  return allRows
+                    .filter(r => r.id !== row?.id && r.name.toLowerCase().includes(lower))
+                    .map(r => ({ value: String(r.id), label: r.name }));
+                }}
+                placeholder="Search and select tasks..."
+                emptyIndicator={
+                  <p className="text-center text-xs text-muted-foreground">
+                    No tasks available
+                  </p>
+                }
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                When completing this task, user can choose to also complete these tasks
+              </p>
             </div>
           </div>
         </DialogContent>

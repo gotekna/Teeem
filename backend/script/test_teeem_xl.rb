@@ -1,0 +1,160 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Test script for TeeemXL library
+# Run with: bundle exec ruby script/test_teeem_xl.rb
+
+require_relative "../config/environment"
+require_relative "../lib/teeem_xl/teeem_xl"
+
+puts "=" * 60
+puts "TeeemXL Test Script"
+puts "=" * 60
+
+# Test 1: Read a real Excel file
+puts "\n[Test 1] Reading real Excel file..."
+test_file = Rails.root.join("..", "Schedule Master Final.xlsx").to_s
+
+if File.exist?(test_file)
+  begin
+    workbook = TeeemXL.read(test_file)
+    puts "  ✓ Successfully read: #{test_file}"
+    puts "  ✓ Sheets: #{workbook.sheet_names.join(', ')}"
+
+    workbook.sheets.each do |sheet|
+      puts "  ✓ Sheet '#{sheet.name}': #{sheet.cell_count} cells"
+
+      # Show first 3 rows
+      rows = sheet.rows.first(3)
+      rows.each_with_index do |row, idx|
+        values = row.map { |c| c.value.to_s[0..20] }.join(" | ")
+        puts "    Row #{idx + 1}: #{values}"
+      end
+    end
+  rescue => e
+    puts "  ✗ Error: #{e.message}"
+    puts e.backtrace.first(5).join("\n")
+  end
+else
+  puts "  ⚠ Test file not found: #{test_file}"
+end
+
+# Test 2: Write and read back
+puts "\n[Test 2] Write and read back..."
+begin
+  # Create workbook
+  workbook = TeeemXL::Models::Workbook.new
+  sheet = workbook.add_sheet("Test Data")
+
+  # Add header
+  sheet.add_row(["ID", "Name", "Value", "Active", "Date"])
+
+  # Add data rows
+  sheet.add_row([1, "Alice", 100.50, true, Date.today])
+  sheet.add_row([2, "Bob", 200.75, false, Date.today - 7])
+  sheet.add_row([3, "Charlie", 300.25, true, Date.today + 7])
+
+  # Add formula row
+  sheet.add_row(["Total", "", "=SUM(C2:C4)", "", ""])
+
+  # Set column widths
+  sheet.column_widths = [10, 20, 15, 10, 15]
+
+  # Freeze header row
+  sheet.freeze_panes(row: 1)
+
+  # Write to temp file
+  temp_file = Tempfile.new(["teeem_xl_test", ".xlsx"])
+  TeeemXL.write(workbook, temp_file.path)
+  puts "  ✓ Written to: #{temp_file.path}"
+  puts "  ✓ File size: #{File.size(temp_file.path)} bytes"
+
+  # Read it back
+  read_back = TeeemXL.read(temp_file.path)
+  puts "  ✓ Read back successfully"
+  puts "  ✓ Sheets: #{read_back.sheet_names.join(', ')}"
+
+  read_sheet = read_back.first_sheet
+  puts "  ✓ Cells: #{read_sheet.cell_count}"
+
+  # Verify data
+  header = read_sheet.row(1).map(&:value)
+  puts "  ✓ Header: #{header.join(', ')}"
+
+  row2 = read_sheet.row(2).map(&:value)
+  puts "  ✓ Row 2: #{row2.join(', ')}"
+
+  # Check formula
+  formula_cell = read_sheet.cell("C5")
+  if formula_cell&.formula
+    puts "  ✓ Formula in C5: =#{formula_cell.formula}"
+  else
+    puts "  ⚠ Formula not found in C5"
+  end
+
+  # Check frozen panes
+  if read_sheet.frozen_panes
+    puts "  ✓ Frozen panes: row=#{read_sheet.frozen_panes[:row]}, col=#{read_sheet.frozen_panes[:col]}"
+  end
+
+  # Cleanup
+  temp_file.close
+  temp_file.unlink
+
+  puts "  ✓ Round-trip test passed!"
+
+rescue => e
+  puts "  ✗ Error: #{e.message}"
+  puts e.backtrace.first(5).join("\n")
+end
+
+# Test 3: Compare with existing library (Roo)
+puts "\n[Test 3] Compare with Roo (current library)..."
+if File.exist?(test_file)
+  begin
+    require 'roo'
+
+    # Read with Roo
+    roo_workbook = Roo::Spreadsheet.open(test_file)
+    roo_sheets = roo_workbook.sheets
+
+    # Read with TeeemXL
+    teeem_workbook = TeeemXL.read(test_file)
+    teeem_sheets = teeem_workbook.sheet_names
+
+    if roo_sheets == teeem_sheets
+      puts "  ✓ Sheet names match: #{roo_sheets.join(', ')}"
+    else
+      puts "  ⚠ Sheet names differ:"
+      puts "    Roo: #{roo_sheets.join(', ')}"
+      puts "    TeeemXL: #{teeem_sheets.join(', ')}"
+    end
+
+    # Compare first sheet cell count
+    roo_workbook.default_sheet = roo_sheets.first
+    roo_rows = roo_workbook.last_row || 0
+    roo_cols = roo_workbook.last_column || 0
+
+    teeem_sheet = teeem_workbook.first_sheet
+    teeem_rows = teeem_sheet.max_row
+    teeem_cols = teeem_sheet.max_column + 1
+
+    puts "  Roo dimensions: #{roo_rows} rows x #{roo_cols} cols"
+    puts "  TeeemXL dimensions: #{teeem_rows} rows x #{teeem_cols} cols"
+
+    if roo_rows == teeem_rows && roo_cols == teeem_cols
+      puts "  ✓ Dimensions match!"
+    else
+      puts "  ⚠ Dimensions differ (may be due to empty cell handling)"
+    end
+
+  rescue => e
+    puts "  ⚠ Comparison error: #{e.message}"
+  end
+else
+  puts "  ⚠ Test file not found"
+end
+
+puts "\n" + "=" * 60
+puts "Tests completed"
+puts "=" * 60

@@ -7,6 +7,7 @@
 #   - privacy_changed: Task privacy setting changed
 #   - follower_added: Someone started following the task
 #   - follower_removed: Someone stopped following the task
+#   - cascade_completed: Task was completed as part of cascade completion
 #
 class TaskActivityLog < ApplicationRecord
   belongs_to :sm_task
@@ -25,6 +26,7 @@ class TaskActivityLog < ApplicationRecord
     hold_changed
     confirm_changed
     dates_changed
+    cascade_completed
   ].freeze
 
   validates :activity_type, inclusion: { in: ACTIVITY_TYPES }
@@ -133,6 +135,19 @@ class TaskActivityLog < ApplicationRecord
       old_value: old_value.to_s,
       new_value: new_value.to_s,
       description: "#{user&.name || 'System'} #{action} #{label}".strip
+    )
+  end
+
+  # Create a log entry for cascade completion (task completed with another task)
+  def self.log_cascade_completion(task:, triggered_by:, user:)
+    create!(
+      sm_task: task,
+      user: user,
+      activity_type: 'cascade_completed',
+      field_name: 'status',
+      old_value: task.status_was || 'not_started',
+      new_value: 'completed',
+      description: "Auto-completed with #{triggered_by.name} by #{user&.name || 'System'}"
     )
   end
 end

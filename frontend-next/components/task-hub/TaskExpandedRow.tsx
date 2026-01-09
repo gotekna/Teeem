@@ -45,6 +45,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { ComboboxDropdown, ComboboxItem } from '@/components/ui/combobox-dropdown';
 import { Briefcase } from 'lucide-react';
+import { CascadeCompletionDialog } from '@/components/schedule/CascadeCompletionDialog';
 
 interface Job {
   id: number;
@@ -88,6 +89,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
     updateTask,
     startTask,
     completeTask,
+    getCompletableLinkedTasks,
     setTaskHold,
     confirmTask,
     supplierConfirmTask,
@@ -178,6 +180,10 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   const [editingTaskName, setEditingTaskName] = useState(false);
   const [taskNameText, setTaskNameText] = useState(task.name);
   const [taskNameSaving, setTaskNameSaving] = useState(false);
+
+  // Cascade completion dialog state
+  const [cascadeDialogOpen, setCascadeDialogOpen] = useState(false);
+  const [cascadeDialogLoading, setCascadeDialogLoading] = useState(false);
 
   // Load followers on mount for all tasks
   useEffect(() => {
@@ -384,15 +390,42 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   // Handler for completed checkbox
   const handleCompletedChange = async (checked: boolean) => {
     if (loading) return;
-    setLoading('completed');
-    try {
-      if (checked) {
-        await completeTask(task.id);
-      } else {
-        await updateTask(task.id, { status: 'started', completed_at: undefined });
+
+    if (checked) {
+      // Check if this task has completable linked tasks
+      const linkedTasks = getCompletableLinkedTasks(task.id);
+      if (linkedTasks.length > 0) {
+        // Show cascade completion dialog
+        setCascadeDialogOpen(true);
+        return;
       }
+
+      // No linked tasks, complete directly
+      setLoading('completed');
+      try {
+        await completeTask(task.id);
+      } finally {
+        setLoading(null);
+      }
+    } else {
+      // Un-completing - no dialog needed
+      setLoading('completed');
+      try {
+        await updateTask(task.id, { status: 'started', completed_at: undefined });
+      } finally {
+        setLoading(null);
+      }
+    }
+  };
+
+  // Handler for cascade completion dialog
+  const handleCascadeComplete = async (alsoCompleteTaskIds: number[]) => {
+    setCascadeDialogLoading(true);
+    try {
+      await completeTask(task.id, alsoCompleteTaskIds);
+      setCascadeDialogOpen(false);
     } finally {
-      setLoading(null);
+      setCascadeDialogLoading(false);
     }
   };
 

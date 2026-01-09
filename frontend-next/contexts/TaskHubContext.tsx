@@ -146,6 +146,9 @@ export interface SmTask {
 
   // Email keywords for auto-matching
   email_keywords?: string;
+
+  // Completion linked tasks - tasks that can be completed together when this task completes
+  completion_linked_task_ids?: number[];
 }
 
 export interface TaskFilters {
@@ -225,7 +228,8 @@ export interface TaskHubContextType extends TaskHubState {
 
   // Task actions
   startTask: (taskId: number) => Promise<void>;
-  completeTask: (taskId: number) => Promise<void>;
+  completeTask: (taskId: number, alsoCompleteTaskIds?: number[]) => Promise<{ cascadeCompletedTasks?: SmTask[] }>;
+  getCompletableLinkedTasks: (taskId: number) => SmTask[];
   setTaskHold: (taskId: number, hold: boolean) => Promise<void>;
   confirmTask: (taskId: number, date: string) => Promise<void>;
   supplierConfirmTask: (taskId: number, date: string) => Promise<void>;
@@ -1208,22 +1212,49 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     await updateTask(taskId, { status: 'started', started_at: now } as Partial<SmTask>);
   }, [updateTask]);
 
-  const completeTask = useCallback(async (taskId: number) => {
+  const completeTask = useCallback(async (taskId: number, alsoCompleteTaskIds?: number[]): Promise<{ cascadeCompletedTasks?: SmTask[] }> => {
     try {
-      await api.post(`/api/v1/sm_tasks/${taskId}/complete`, {});
+      const response = await api.post<{
+        success: boolean;
+        cascade_completed_tasks?: SmTask[];
+      }>(`/api/v1/sm_tasks/${taskId}/complete`, {
+        also_complete_task_ids: alsoCompleteTaskIds || [],
+      });
+
       // Update local state with completion
       const now = new Date().toISOString();
       const today = new Date().toISOString().split('T')[0];
+      const completedIds = new Set([taskId, ...(alsoCompleteTaskIds || [])]);
+
       setTasks(prev => prev.map(t =>
-        t.id === taskId
+        completedIds.has(t.id)
           ? { ...t, status: 'completed' as const, completed_at: now, end_date: today }
           : t
       ));
+
+      return { cascadeCompletedTasks: response.cascade_completed_tasks };
     } catch (err) {
       console.error('Failed to complete task:', err);
       throw err;
     }
   }, []);
+
+  // Get tasks that can be completed together with this task (by completion_linked_task_ids)
+  // Filters to only incomplete tasks on the same job
+  const getCompletableLinkedTasks = useCallback((taskId: number): SmTask[] => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task || !task.completion_linked_task_ids || task.completion_linked_task_ids.length === 0) {
+      return [];
+    }
+
+    // Find matching tasks on the same job that are not completed
+    return tasks.filter(t =>
+      task.completion_linked_task_ids!.includes(t.id) &&
+      t.construction_id === task.construction_id &&
+      t.status !== 'completed' &&
+      !t.hold
+    );
+  }, [tasks]);
 
   const setTaskHold = useCallback(async (taskId: number, hold: boolean) => {
     await updateTask(taskId, { hold } as Partial<SmTask>);
@@ -1280,6 +1311,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     navigateToTask,
     startTask,
     completeTask,
+    getCompletableLinkedTasks,
     setTaskHold,
     confirmTask,
     supplierConfirmTask,

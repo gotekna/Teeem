@@ -183,6 +183,8 @@ interface SmScheduleMaster {
   po_line_items?: Array<{ pricebook_item_id: number; qty: number }>;
   // Linked non-PO tasks (visibility follows this PO task)
   linked_task_ids?: number[];
+  // Completion linked tasks (cascade complete together when this task completes)
+  completion_linked_task_ids?: number[];
   // Related PO tasks for supplier coordination info
   related_po_task_ids?: number[];
   related_po_task_names?: string[];
@@ -305,6 +307,8 @@ const ALL_COLUMNS = [
   "claim_invoice_pattern", "claim_invoice_template_id", "claim_trading_name_id",
   // Subtasks
   "has_subtasks", "subtask_count", "subtask_names", "linked_task_ids",
+  // Completion Cascade
+  "completion_linked_task_ids",
   // Documentation
   "documentation_category_ids",
   // Spawning Tasks
@@ -1283,6 +1287,10 @@ export function ScheduleMasterTab() {
       // Related PO tasks for supplier coordination info
       related_po_task_ids: row.related_po_task_ids || [],
       related_po_task_names: row.related_po_task_names || [],
+      // Linked tasks (visibility follows this task)
+      linked_task_ids: row.linked_task_ids || [],
+      // Completion linked tasks (cascade complete together)
+      completion_linked_task_ids: row.completion_linked_task_ids || [],
     };
   }, []);
 
@@ -3103,6 +3111,7 @@ export function ScheduleMasterTab() {
             )}
 
             {/* Assignment & Supplier */}
+            {sectionHasMatches(["trade", "stage", "assigned_role", "cost_centre"]) && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Assignment & Supplier</CardTitle>
@@ -3116,35 +3125,45 @@ export function ScheduleMasterTab() {
                     <span>Type</span>
                     <span>Description</span>
                   </div>
+                  {columnMatchesSearch("trade") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["trade"] || false} onCheckedChange={(v) => updateColumnStatus("trade", !!v)} />
                     <CopyableCode>trade</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">string</Badge>
                     <span className="text-muted-foreground">The type of work for this task (e.g., Plumbing, Electrical, Carpentry). Used to filter the Gantt by trade and helps match tasks to the right suppliers.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("stage") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["stage"] || false} onCheckedChange={(v) => updateColumnStatus("stage", !!v)} />
                     <CopyableCode>stage</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">string</Badge>
                     <span className="text-muted-foreground">Which construction phase this task belongs to (e.g., Foundation, Frame, Lock-up, Fixing, Finishing). Helps organise tasks into major milestones.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("assigned_role") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["assigned_role"] || false} onCheckedChange={(v) => updateColumnStatus("assigned_role", !!v)} />
                     <CopyableCode>assigned_role</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">string</Badge>
                     <span className="text-muted-foreground">Which team member role is responsible for this task (e.g., Site Supervisor, Admin, Project Manager). Used to filter tasks by who needs to action them.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("cost_centre") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["cost_centre"] || false} onCheckedChange={(v) => updateColumnStatus("cost_centre", !!v)} />
                     <CopyableCode>cost_centre</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">string</Badge>
                     <span className="text-muted-foreground">Accounting code for tracking costs. Links this task&apos;s expenses to the correct budget category in your financial reports.</span>
                   </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
+            )}
 
             {/* PO Settings */}
+            {sectionHasMatches(["po_required", "critical_po", "create_po_on_job_start", "po_line_items", "order_time_days", "call_time_days", "po_supplier_id"]) && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">PO (Purchase Order) Settings</CardTitle>
@@ -3158,53 +3177,69 @@ export function ScheduleMasterTab() {
                     <span>Type</span>
                     <span>Description</span>
                   </div>
+                  {columnMatchesSearch("po_required") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["po_required"] || false} onCheckedChange={(v) => updateColumnStatus("po_required", !!v)} />
                     <CopyableCode>po_required</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
                     <span className="text-muted-foreground">This task needs a Purchase Order before it can appear on the job. The task stays hidden in the Gantt until a PO is linked to it. Dependencies automatically skip over hidden PO tasks.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("critical_po") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["critical_po"] || false} onCheckedChange={(v) => updateColumnStatus("critical_po", !!v)} />
                     <CopyableCode>critical_po</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
                     <span className="text-muted-foreground">Flags this as a critical path task. These tasks are highlighted and easily searchable in the Gantt. Delays to critical tasks will push back the entire project completion date.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("create_po_on_job_start") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["create_po_on_job_start"] || false} onCheckedChange={(v) => updateColumnStatus("create_po_on_job_start", !!v)} />
                     <CopyableCode>create_po_on_job_start</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
                     <span className="text-muted-foreground">Automatically creates a Purchase Order for this task when the job is started. Uses the line items defined in po_line_items. Great for tasks that always need the same materials.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("po_line_items") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center pl-6">
                     <Checkbox checked={columnStatus.complete["po_line_items"] || false} onCheckedChange={(v) => updateColumnStatus("po_line_items", !!v)} />
                     <CopyableCode>po_line_items</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">jsonb</Badge>
                     <span className="text-muted-foreground">↳ The items to include when auto-creating a PO. Each entry specifies a pricebook item and quantity. Example: concrete, timber, or fixtures that are always needed for this task.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("order_time_days") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["order_time_days"] || false} onCheckedChange={(v) => updateColumnStatus("order_time_days", !!v)} />
                     <CopyableCode>order_time_days</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">integer</Badge>
                     <span className="text-muted-foreground">How many working days before the task starts that materials need to be ordered. Helps ensure materials arrive in time. Example: 5 days for custom windows.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("call_time_days") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["call_time_days"] || false} onCheckedChange={(v) => updateColumnStatus("call_time_days", !!v)} />
                     <CopyableCode>call_time_days</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">integer</Badge>
                     <span className="text-muted-foreground">How many working days before the task starts that you should contact the supplier to confirm the booking. Example: Call electrician 3 days ahead to confirm date.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("po_supplier_id") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["po_supplier_id"] || false} onCheckedChange={(v) => updateColumnStatus("po_supplier_id", !!v)} />
                     <CopyableCode>po_supplier_id</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">FK</Badge>
                     <span className="text-muted-foreground">The default supplier for this task&apos;s Purchase Orders. When a PO is auto-created, it will use this supplier. Pricebook items are filtered to show only this supplier&apos;s prices.</span>
                   </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
+            )}
 
             {/* Completion Requirements */}
+            {sectionHasMatches(["require_photo", "pass_fail_enabled"]) && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Completion Requirements</CardTitle>
@@ -3218,23 +3253,29 @@ export function ScheduleMasterTab() {
                     <span>Type</span>
                     <span>Description</span>
                   </div>
+                  {columnMatchesSearch("require_photo") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["require_photo"] || false} onCheckedChange={(v) => updateColumnStatus("require_photo", !!v)} />
                     <CopyableCode>require_photo</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
                     <span className="text-muted-foreground">A photo must be uploaded before this task can be marked complete. Ensures visual proof of work for quality control and record-keeping.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("pass_fail_enabled") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["pass_fail_enabled"] || false} onCheckedChange={(v) => updateColumnStatus("pass_fail_enabled", !!v)} />
                     <CopyableCode>pass_fail_enabled</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
                     <span className="text-muted-foreground">Adds Pass/Fail buttons to this task. Useful for inspections or quality checks where work needs to be explicitly approved or rejected.</span>
                   </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
+            )}
 
             {/* Subtasks */}
+            {sectionHasMatches(["has_subtasks", "subtask_count", "subtask_names", "linked_task_ids"]) && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Subtasks & Linked Tasks</CardTitle>
@@ -3248,35 +3289,73 @@ export function ScheduleMasterTab() {
                     <span>Type</span>
                     <span>Description</span>
                   </div>
+                  {columnMatchesSearch("has_subtasks") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["has_subtasks"] || false} onCheckedChange={(v) => updateColumnStatus("has_subtasks", !!v)} />
                     <CopyableCode>has_subtasks</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
                     <span className="text-muted-foreground">Indicates this task has smaller steps (subtasks) within it. Subtasks let you break down complex work into individual checklist items that must all be completed.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("subtask_count") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["subtask_count"] || false} onCheckedChange={(v) => updateColumnStatus("subtask_count", !!v)} />
                     <CopyableCode>subtask_count</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">integer</Badge>
                     <span className="text-muted-foreground">How many subtasks this task contains. The main task can only be completed when all subtasks are ticked off.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("subtask_names") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["subtask_names"] || false} onCheckedChange={(v) => updateColumnStatus("subtask_names", !!v)} />
                     <CopyableCode>subtask_names</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">string[]</Badge>
                     <span className="text-muted-foreground">The names of each subtask step. These appear as a checklist when viewing the task. Example: [&quot;Frame walls&quot;, &quot;Install noggins&quot;, &quot;Brace frame&quot;].</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("linked_task_ids") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["linked_task_ids"] || false} onCheckedChange={(v) => updateColumnStatus("linked_task_ids", !!v)} />
                     <CopyableCode>linked_task_ids</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">JSONB</Badge>
                     <span className="text-muted-foreground">Other tasks that should appear/disappear together with this one. When this PO task is added to a job, all linked tasks also appear automatically.</span>
                   </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
+            )}
+
+            {/* Completion Cascade */}
+            {sectionHasMatches(["completion_linked_task_ids"]) && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Completion Cascade</CardTitle>
+                <CardDescription>Tasks that can be completed together</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 text-sm">
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center text-xs text-muted-foreground border-b pb-2 mb-1">
+                    <span title="Complete">Done</span>
+                    <span>Column</span>
+                    <span>Type</span>
+                    <span>Description</span>
+                  </div>
+                  {columnMatchesSearch("completion_linked_task_ids") && (
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["completion_linked_task_ids"] || false} onCheckedChange={(v) => updateColumnStatus("completion_linked_task_ids", !!v)} />
+                    <CopyableCode>completion_linked_task_ids</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">JSONB</Badge>
+                    <span className="text-muted-foreground">Tasks that can be completed together when this task completes. Shows a dialog letting user choose which related tasks to also complete (e.g., completing &quot;Sign Contract&quot; can also complete &quot;Give Quote&quot; and &quot;Create Estimate&quot;).</span>
+                  </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+            )}
 
             {/* Documentation */}
+            {sectionHasMatches(["documentation_category_ids"]) && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Documentation</CardTitle>
@@ -3290,17 +3369,21 @@ export function ScheduleMasterTab() {
                     <span>Type</span>
                     <span>Description</span>
                   </div>
+                  {columnMatchesSearch("documentation_category_ids") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["documentation_category_ids"] || false} onCheckedChange={(v) => updateColumnStatus("documentation_category_ids", !!v)} />
                     <CopyableCode>documentation_category_ids</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">integer[]</Badge>
                     <span className="text-muted-foreground">Which documentation folders this task&apos;s photos and files should appear under. Photos uploaded to this task will be visible in the selected documentation tabs on the job.</span>
                   </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
+            )}
 
             {/* Spawning Tasks */}
+            {sectionHasMatches(["spawn_order_task", "spawn_call_task", "spawn_scan_task_id", "spawn_scan_lag_days"]) && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Spawning Tasks</CardTitle>
@@ -3314,35 +3397,45 @@ export function ScheduleMasterTab() {
                     <span>Type</span>
                     <span>Description</span>
                   </div>
+                  {columnMatchesSearch("spawn_order_task") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["spawn_order_task"] || false} onCheckedChange={(v) => updateColumnStatus("spawn_order_task", !!v)} />
                     <CopyableCode>spawn_order_task</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
                     <span className="text-muted-foreground">Automatically create an &quot;Order Materials&quot; reminder task based on order_time_days. The reminder appears the right number of days before this task starts.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("spawn_call_task") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["spawn_call_task"] || false} onCheckedChange={(v) => updateColumnStatus("spawn_call_task", !!v)} />
                     <CopyableCode>spawn_call_task</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
                     <span className="text-muted-foreground">Automatically create a &quot;Call Supplier&quot; reminder task based on call_time_days. The reminder appears the right number of days before this task starts.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("spawn_scan_task_id") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["spawn_scan_task_id"] || false} onCheckedChange={(v) => updateColumnStatus("spawn_scan_task_id", !!v)} />
                     <CopyableCode>spawn_scan_task_id</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">bigint</Badge>
                     <span className="text-muted-foreground">When this task is completed, automatically create a follow-up scanning task. Select which task template to use for the scan. Great for tasks that generate paperwork needing to be digitised.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("spawn_scan_lag_days") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["spawn_scan_lag_days"] || false} onCheckedChange={(v) => updateColumnStatus("spawn_scan_lag_days", !!v)} />
                     <CopyableCode>spawn_scan_lag_days</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">integer</Badge>
                     <span className="text-muted-foreground">How many working days after this task completes before the scan task should be scheduled. Example: 2 days gives time for paperwork to reach the office.</span>
                   </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
+            )}
 
             {/* Checklists */}
+            {sectionHasMatches(["checklist_id"]) && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Checklists</CardTitle>
@@ -3356,17 +3449,21 @@ export function ScheduleMasterTab() {
                     <span>Type</span>
                     <span>Description</span>
                   </div>
+                  {columnMatchesSearch("checklist_id") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["checklist_id"] || false} onCheckedChange={(v) => updateColumnStatus("checklist_id", !!v)} />
                     <CopyableCode>checklist_id</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">FK</Badge>
                     <span className="text-muted-foreground">Links a supervisor inspection checklist to this task. When viewing the task, the checklist items will appear and need to be completed. Used for quality control inspections.</span>
                   </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
+            )}
 
             {/* Template Membership */}
+            {sectionHasMatches(["sm_template_ids"]) && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Template Membership</CardTitle>
@@ -3380,17 +3477,21 @@ export function ScheduleMasterTab() {
                     <span>Type</span>
                     <span>Description</span>
                   </div>
+                  {columnMatchesSearch("sm_template_ids") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["sm_template_ids"] || false} onCheckedChange={(v) => updateColumnStatus("sm_template_ids", !!v)} />
                     <CopyableCode>sm_template_ids</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">JSONB</Badge>
                     <span className="text-muted-foreground">Which schedule templates include this task. A single task can be shared across multiple templates (e.g., &quot;Site Clean&quot; in both House and Duplex templates). When you edit the task, changes apply everywhere.</span>
                   </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
+            )}
 
             {/* Display */}
+            {sectionHasMatches(["tags", "color", "is_active"]) && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Display</CardTitle>
@@ -3404,29 +3505,37 @@ export function ScheduleMasterTab() {
                     <span>Type</span>
                     <span>Description</span>
                   </div>
+                  {columnMatchesSearch("tags") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["tags"] || false} onCheckedChange={(v) => updateColumnStatus("tags", !!v)} />
                     <CopyableCode>tags</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">string[]</Badge>
                     <span className="text-muted-foreground">Custom labels for searching and filtering. Add any tags you like (e.g., &quot;exterior&quot;, &quot;council-required&quot;, &quot;final-fix&quot;). Tasks can then be filtered by tag in the Gantt.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("color") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["color"] || false} onCheckedChange={(v) => updateColumnStatus("color", !!v)} />
                     <CopyableCode>color</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">string</Badge>
                     <span className="text-muted-foreground">Override the default bar colour in the Gantt chart. Useful for visually distinguishing special tasks (e.g., red for inspections, green for milestones).</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("is_active") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["is_active"] || false} onCheckedChange={(v) => updateColumnStatus("is_active", !!v)} />
                     <CopyableCode>is_active</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
                     <span className="text-muted-foreground">When turned off, this task is hidden from templates but not permanently deleted. Useful for temporarily removing tasks or keeping old tasks for reference.</span>
                   </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
+            )}
 
             {/* Audit */}
+            {sectionHasMatches(["created_by_id", "updated_by_id", "created_at", "updated_at"]) && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Audit</CardTitle>
@@ -3440,35 +3549,45 @@ export function ScheduleMasterTab() {
                     <span>Type</span>
                     <span>Description</span>
                   </div>
+                  {columnMatchesSearch("created_by_id") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["created_by_id"] || false} onCheckedChange={(v) => updateColumnStatus("created_by_id", !!v)} />
                     <CopyableCode>created_by_id</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">FK</Badge>
                     <span className="text-muted-foreground">Which user originally created this task in the template. Automatically recorded when a new task is added.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("updated_by_id") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["updated_by_id"] || false} onCheckedChange={(v) => updateColumnStatus("updated_by_id", !!v)} />
                     <CopyableCode>updated_by_id</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">FK</Badge>
                     <span className="text-muted-foreground">Which user most recently made changes to this task. Helps track who modified what.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("created_at") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["created_at"] || false} onCheckedChange={(v) => updateColumnStatus("created_at", !!v)} />
                     <CopyableCode>created_at</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">datetime</Badge>
                     <span className="text-muted-foreground">The exact date and time this task was first added to the template. Automatically set by the system.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("updated_at") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["updated_at"] || false} onCheckedChange={(v) => updateColumnStatus("updated_at", !!v)} />
                     <CopyableCode>updated_at</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">datetime</Badge>
                     <span className="text-muted-foreground">The date and time of the last change to this task. Updates automatically whenever any field is modified.</span>
                   </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
+            )}
 
             {/* Workflow Triggers */}
+            {sectionHasMatches(["start_workflow_enabled", "start_workflow_id", "complete_workflow_enabled", "complete_workflow_id"]) && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Workflow Triggers</CardTitle>
@@ -3482,35 +3601,45 @@ export function ScheduleMasterTab() {
                     <span>Type</span>
                     <span>Description</span>
                   </div>
+                  {columnMatchesSearch("start_workflow_enabled") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["start_workflow_enabled"] || false} onCheckedChange={(v) => updateColumnStatus("start_workflow_enabled", !!v)} />
                     <CopyableCode>start_workflow_enabled</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
                     <span className="text-muted-foreground">When enabled, automatically runs a workflow when this task is started. Useful for triggering notifications, creating follow-up tasks, or updating external systems.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("start_workflow_id") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center pl-6">
                     <Checkbox checked={columnStatus.complete["start_workflow_id"] || false} onCheckedChange={(v) => updateColumnStatus("start_workflow_id", !!v)} />
                     <CopyableCode>start_workflow_id</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">FK</Badge>
                     <span className="text-muted-foreground">↳ The workflow to execute when the task starts. Select from available workflow templates.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("complete_workflow_enabled") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["complete_workflow_enabled"] || false} onCheckedChange={(v) => updateColumnStatus("complete_workflow_enabled", !!v)} />
                     <CopyableCode>complete_workflow_enabled</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
                     <span className="text-muted-foreground">When enabled, automatically runs a workflow when this task is completed. Great for triggering invoicing, notifications to next trades, or quality control checks.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("complete_workflow_id") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center pl-6">
                     <Checkbox checked={columnStatus.complete["complete_workflow_id"] || false} onCheckedChange={(v) => updateColumnStatus("complete_workflow_id", !!v)} />
                     <CopyableCode>complete_workflow_id</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">FK</Badge>
                     <span className="text-muted-foreground">↳ The workflow to execute when the task completes. Select from available workflow templates.</span>
                   </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
+            )}
 
             {/* Document Requirements */}
+            {sectionHasMatches(["requires_document_to_complete", "completion_document_type_id", "document_types"]) && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Document Requirements</CardTitle>
@@ -3524,29 +3653,37 @@ export function ScheduleMasterTab() {
                     <span>Type</span>
                     <span>Description</span>
                   </div>
+                  {columnMatchesSearch("requires_document_to_complete") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["requires_document_to_complete"] || false} onCheckedChange={(v) => updateColumnStatus("requires_document_to_complete", !!v)} />
                     <CopyableCode>requires_document_to_complete</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
                     <span className="text-muted-foreground">When enabled, a specific document type must be attached before the task can be marked complete. Ensures critical paperwork is collected.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("completion_document_type_id") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center pl-6">
                     <Checkbox checked={columnStatus.complete["completion_document_type_id"] || false} onCheckedChange={(v) => updateColumnStatus("completion_document_type_id", !!v)} />
                     <CopyableCode>completion_document_type_id</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">FK</Badge>
                     <span className="text-muted-foreground">↳ The type of document required for completion. Example: &quot;Council Inspection Certificate&quot; for inspection tasks.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("document_types") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["document_types"] || false} onCheckedChange={(v) => updateColumnStatus("document_types", !!v)} />
                     <CopyableCode>document_types</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">join</Badge>
                     <span className="text-muted-foreground">Document types that spawn GET (scanning) tasks when this task completes. Each document type can have a lag time and assigned role for the scan task.</span>
                   </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
+            )}
 
             {/* Task Groups */}
+            {sectionHasMatches(["sm_task_group_id"]) && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Task Groups</CardTitle>
@@ -3560,17 +3697,21 @@ export function ScheduleMasterTab() {
                     <span>Type</span>
                     <span>Description</span>
                   </div>
+                  {columnMatchesSearch("sm_task_group_id") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["sm_task_group_id"] || false} onCheckedChange={(v) => updateColumnStatus("sm_task_group_id", !!v)} />
                     <CopyableCode>sm_task_group_id</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">FK</Badge>
                     <span className="text-muted-foreground">Links this task to a task group for organizational purposes. Task groups help categorize PO vs non-PO tasks and enable bulk operations on related tasks.</span>
                   </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
+            )}
 
             {/* Related PO Tasks */}
+            {sectionHasMatches(["related_po_task_ids"]) && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Related PO Tasks</CardTitle>
@@ -3584,17 +3725,21 @@ export function ScheduleMasterTab() {
                     <span>Type</span>
                     <span>Description</span>
                   </div>
+                  {columnMatchesSearch("related_po_task_ids") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["related_po_task_ids"] || false} onCheckedChange={(v) => updateColumnStatus("related_po_task_ids", !!v)} />
                     <CopyableCode>related_po_task_ids</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">join</Badge>
                     <span className="text-muted-foreground">Links to other PO tasks whose supplier contact info should be included in this task&apos;s PO description. Enables suppliers to coordinate directly (e.g., Carpenter can call Crane hire and Roof Trusses supplier).</span>
                   </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
+            )}
 
             {/* Claim Settings */}
+            {sectionHasMatches(["is_claim_task", "is_variation", "claim_percentage", "claim_sequence_number", "claim_invoice_pattern", "claim_invoice_template_id", "claim_trading_name_id"]) && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Claim Settings</CardTitle>
@@ -3608,51 +3753,66 @@ export function ScheduleMasterTab() {
                     <span>Type</span>
                     <span>Description</span>
                   </div>
+                  {columnMatchesSearch("is_claim_task") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["is_claim_task"] || false} onCheckedChange={(v) => updateColumnStatus("is_claim_task", !!v)} />
                     <CopyableCode>is_claim_task</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
                     <span className="text-muted-foreground">Marks this as a progress claim milestone. When completed, this task triggers a claim invoice to the client for the specified percentage of the contract.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("is_variation") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["is_variation"] || false} onCheckedChange={(v) => updateColumnStatus("is_variation", !!v)} />
                     <CopyableCode>is_variation</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
                     <span className="text-muted-foreground">Indicates this claim task is for a variation (extra work) rather than the original contract. Variations are invoiced separately from scheduled progress claims.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("claim_percentage") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["claim_percentage"] || false} onCheckedChange={(v) => updateColumnStatus("claim_percentage", !!v)} />
                     <CopyableCode>claim_percentage</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">decimal</Badge>
                     <span className="text-muted-foreground">The percentage of the total contract value to claim when this task is completed. Example: 10% for slab pour, 15% for frame complete.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("claim_sequence_number") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["claim_sequence_number"] || false} onCheckedChange={(v) => updateColumnStatus("claim_sequence_number", !!v)} />
                     <CopyableCode>claim_sequence_number</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">integer</Badge>
                     <span className="text-muted-foreground">The order this claim appears in the progress claim schedule. Used to generate claim numbering like &quot;Progress Claim #3&quot;.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("claim_invoice_pattern") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["claim_invoice_pattern"] || false} onCheckedChange={(v) => updateColumnStatus("claim_invoice_pattern", !!v)} />
                     <CopyableCode>claim_invoice_pattern</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">string</Badge>
                     <span className="text-muted-foreground">Naming pattern for the generated invoice. Supports variables like {`{job_number}`}, {`{claim_number}`}, {`{date}`}.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("claim_invoice_template_id") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["claim_invoice_template_id"] || false} onCheckedChange={(v) => updateColumnStatus("claim_invoice_template_id", !!v)} />
                     <CopyableCode>claim_invoice_template_id</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">FK</Badge>
                     <span className="text-muted-foreground">The invoice template to use when generating the claim invoice. Different templates can have different layouts, logos, and terms.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("claim_trading_name_id") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["claim_trading_name_id"] || false} onCheckedChange={(v) => updateColumnStatus("claim_trading_name_id", !!v)} />
                     <CopyableCode>claim_trading_name_id</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">FK</Badge>
                     <span className="text-muted-foreground">Which company trading name to invoice from. Useful when your business operates under multiple trading names for different types of work.</span>
                   </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
+            )}
 
           </div>
         </TabsContent>

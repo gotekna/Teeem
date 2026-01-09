@@ -77,6 +77,19 @@ class SmScheduleMaster < ApplicationRecord
     self.related_po_tasks = SmScheduleMaster.where(id: ids, po_required: true)
   end
 
+  # Completion linked tasks - tasks that can be completed together when this task completes
+  # User sees a dialog to select which linked tasks to also complete
+  def completion_linked_tasks
+    return SmScheduleMaster.none if completion_linked_task_ids.blank?
+    SmScheduleMaster.where(id: completion_linked_task_ids)
+  end
+
+  # Setter for completion_linked_task_ids to work with API
+  def completion_linked_task_ids=(ids)
+    ids = Array(ids).compact.map(&:to_i).uniq.reject { |id| id == self.id }
+    write_attribute(:completion_linked_task_ids, ids)
+  end
+
   # Validations
   validates :name, presence: true, length: { maximum: 255 }
   # Note: task_number is synced to equal id after creation (see sync_task_number_to_id callback)
@@ -96,6 +109,7 @@ class SmScheduleMaster < ApplicationRecord
   validate :subtask_names_match_count
   validate :predecessor_ids_valid
   validate :no_circular_dependencies
+  validate :completion_linked_task_ids_valid
 
   # Claim task validations
   # Percentage required for claim tasks UNLESS it's a variation (variations have amounts entered later)
@@ -281,6 +295,19 @@ class SmScheduleMaster < ApplicationRecord
       if subtask_names.length != subtask_count
         errors.add(:subtask_names, "count (#{subtask_names.length}) must match subtask_count (#{subtask_count})")
       end
+    end
+  end
+
+  def completion_linked_task_ids_valid
+    return if completion_linked_task_ids.blank?
+
+    # Ensure all referenced tasks exist
+    ids = Array(completion_linked_task_ids).map(&:to_i)
+    existing_ids = SmScheduleMaster.where(id: ids).pluck(:id)
+    invalid_ids = ids - existing_ids
+
+    if invalid_ids.any?
+      errors.add(:completion_linked_task_ids, "contains invalid task IDs: #{invalid_ids.join(', ')}")
     end
   end
 

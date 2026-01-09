@@ -459,6 +459,25 @@ class SmTask < ApplicationRecord
     )
   end
 
+  # Get linked tasks that can be completed together when this task completes
+  # Returns SmTask records on the same job that:
+  # - Match the sm_schedule_master_id from completion_linked_task_ids
+  # - Are not already completed
+  # - Are not on hold
+  def completable_linked_tasks
+    return SmTask.none if completion_linked_task_ids.blank? || job_id.blank?
+
+    SmTask.where(job_id: job_id)
+          .where(sm_schedule_master_id: completion_linked_task_ids)
+          .where.not(status: "completed")
+          .where(on_hold: false)
+  end
+
+  # Check if task can be completed (used by cascade completion)
+  def can_complete?
+    (status_started? || status_not_started?) && !on_hold
+  end
+
   # ============================================
   # Support Ticket Methods
   # ============================================

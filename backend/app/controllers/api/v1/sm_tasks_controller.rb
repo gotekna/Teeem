@@ -438,18 +438,23 @@ module Api
       end
 
       # POST /api/v1/sm_tasks/:id/complete
+      # Params:
+      #   passed: boolean - for pass/fail tasks
+      #   also_complete_task_ids: array of task IDs to cascade complete with this task
       def complete
         passed = params[:passed].nil? ? nil : ActiveModel::Type::Boolean.new.cast(params[:passed])
+        also_complete_task_ids = Array(params[:also_complete_task_ids]).map(&:to_i).compact
 
         service = SmTaskCompletionService.new(@task, user: current_user)
-        result = service.complete(passed: passed)
+        result = service.complete(passed: passed, also_complete_task_ids: also_complete_task_ids)
 
         if result[:success]
           render json: {
             success: true,
             message: "Task completed",
             sm_task: task_to_json(result[:task]),
-            spawned_tasks: result[:spawned_tasks].map { |t| task_to_json(t) }
+            spawned_tasks: result[:spawned_tasks].map { |t| task_to_json(t) },
+            cascade_completed_tasks: (result[:cascade_completed_tasks] || []).map { |t| task_to_json(t) }
           }
         else
           render json: {

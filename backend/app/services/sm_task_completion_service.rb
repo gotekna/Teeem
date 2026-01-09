@@ -20,11 +20,13 @@ class SmTaskCompletionService
     @user = user
     @errors = []
     @spawned_tasks = []
+    @cascade_completed_tasks = []
   end
 
   # Complete a task with optional pass/fail for inspections
-  # Returns { success: bool, task: SmTask, spawned_tasks: [], errors: [] }
-  def complete(passed: nil)
+  # also_complete_task_ids: array of task IDs to cascade complete with this task
+  # Returns { success: bool, task: SmTask, spawned_tasks: [], cascade_completed_tasks: [], errors: [] }
+  def complete(passed: nil, also_complete_task_ids: [])
     ActiveRecord::Base.transaction do
       # Validate task can be completed
       unless can_complete?
@@ -33,6 +35,9 @@ class SmTaskCompletionService
 
       # Update task status
       complete_task!(passed)
+
+      # Cascade complete selected linked tasks
+      complete_linked_tasks(also_complete_task_ids) if also_complete_task_ids.present?
 
       # Handle spawning based on completion result
       if task.pass_fail_enabled? && passed == false
@@ -135,6 +140,36 @@ class SmTaskCompletionService
 
     # Spawn GET tasks for linked document types
     spawn_document_get_tasks if task.sm_task_document_types.any?
+  end
+
+  # Complete selected linked tasks (cascade completion)
+  # Only completes tasks on the same job that are in completion_linked_task_ids
+  def complete_linked_tasks(task_ids)
+    return if task_ids.blank?
+
+    task_ids.each do |linked_task_id|
+      linked_task = SmTask.find_by(id: linked_task_id, job_id: task.job_id)
+      next unless linked_task
+      next unless linked_task.can_complete?
+
+      # Complete the linked task
+      linked_task.update!(
+        status: "completed",
+        completed_at: Time.current,
+        updated_by: user
+      )
+
+      # Log the cascade completion for audit trail
+      TaskActivityLog.log_cascade_completion(
+        task: linked_task,
+        triggered_by: task,
+        user: user
+      )
+
+      @cascade_completed_tasks << linked_task
+
+      Rails.logger.info("[SmTaskCompletionService] Cascade completed task #{linked_task.id} (#{linked_task.name}) with parent task #{task.id}")
+    end
   end
 
   def fire_complete_workflow
@@ -435,6 +470,7 @@ class SmTaskCompletionService
       success: true,
       task: task.reload,
       spawned_tasks: @spawned_tasks,
+      cascade_completed_tasks: @cascade_completed_tasks,
       errors: []
     }
   end
@@ -444,6 +480,7 @@ class SmTaskCompletionService
       success: false,
       task: task,
       spawned_tasks: [],
+      cascade_completed_tasks: [],
       errors: @errors
     }
   end
