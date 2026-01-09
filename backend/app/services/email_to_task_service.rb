@@ -366,9 +366,9 @@ class EmailToTaskService
   def add_participant(task, email_addr, role)
     return if email_addr.blank?
 
-    # Check if already added
+    # Check if already added (SSoT: contact emails are in contact_emails table)
     existing = task.task_contacts.joins(:user).where("LOWER(users.email) = ?", email_addr.downcase).exists? ||
-               task.task_contacts.joins(:contact).where("LOWER(contacts.email) = ?", email_addr.downcase).exists?
+               task.task_contacts.joins(contact: :contact_emails).where("LOWER(contact_emails.email) = ?", email_addr.downcase).exists?
     return if existing
 
     user = User.find_by("LOWER(email) = ?", email_addr.downcase)
@@ -384,16 +384,17 @@ class EmailToTaskService
   def find_or_create_contact(email, name = nil)
     return nil if email.blank?
 
-    # Try to find existing
-    contact = Contact.find_by("LOWER(email) = ?", email.downcase)
+    # Try to find existing (SSoT: Contact.find_by_email uses contact_emails table)
+    contact = Contact.find_by_email(email)
     return contact if contact
 
-    # Create new contact
-    Contact.create!(
-      email: email,
+    # Create new contact with email via contact_emails association
+    contact = Contact.create!(
       display_name: name || extract_name_from_email(email),
       entity_type: "person"
     )
+    contact.contact_emails.create!(email: email, is_primary: true)
+    contact
   rescue ActiveRecord::RecordInvalid => e
     Rails.logger.warn "[EmailToTaskService] Failed to create contact for #{email}: #{e.message}"
     nil
