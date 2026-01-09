@@ -582,7 +582,6 @@ module Api
             id: invoice.id,
             invoice_number: invoice.invoice_number,
             reference: invoice.reference,
-            description: invoice.description,
             total: invoice.total&.to_f,
             amount_paid: invoice.amount_paid&.to_f,
             status: invoice.status,

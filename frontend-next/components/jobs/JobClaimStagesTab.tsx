@@ -125,7 +125,6 @@ interface AvailableInvoice {
   id: number;
   invoice_number: string;
   reference: string | null;
-  description: string | null;
   total: number;
   amount_paid: number;
   status: string;
