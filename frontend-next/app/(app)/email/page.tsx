@@ -1297,8 +1297,8 @@ To: ${email.to_emails?.join(", ") || ""}
           title: "Task Created",
           description: `Task "${response.sm_task.name}" created successfully`,
         });
-        // Open the task in a new tab
-        window.open(`/sm-tasks/${response.sm_task.id}`, "_blank");
+        // Open Task Hub in a new tab (standalone tasks go to /tasks, not /sm-tasks)
+        window.open(`/tasks`, "_blank");
       } else {
         throw new Error(response.error || "Failed to create task");
       }
