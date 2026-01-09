@@ -146,3 +146,6 @@ require_relative "writer/workbook_writer"
 require_relative "writer/worksheet_writer"
 require_relative "writer/shared_strings_writer"
 require_relative "writer/styles_writer"
+
+# Adapters (Roo compatibility layer)
+require_relative "spreadsheet_adapter"
