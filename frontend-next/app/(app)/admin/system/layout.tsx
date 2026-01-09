@@ -30,6 +30,7 @@ import {
   Box,
   Bot,
   FileSignature,
+  ListTodo,
 } from "lucide-react";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 
@@ -58,6 +59,7 @@ const MAIN_TABS = [
   { id: "unreal-engine", label: "Unreal Engine", icon: Box },
   { id: "agents", label: "Agents", icon: Bot },
   { id: "signature-register", label: "Signature Register", icon: FileSignature },
+  { id: "sm-tasks", label: "SM Tasks", icon: ListTodo },
 ];
 
 // Tabs that hide the header for more space
