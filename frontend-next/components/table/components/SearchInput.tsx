@@ -56,6 +56,8 @@ interface SearchInputProps {
   onSearchModeChange?: (mode: SearchMode) => void;
   /** Whether to show the mode selector dropdown */
   showModeSelector?: boolean;
+  /** Names of columns being searched (for display) */
+  searchableColumnNames?: string[];
 }
 
 export const SearchInput = memo(function SearchInput({
@@ -68,6 +70,7 @@ export const SearchInput = memo(function SearchInput({
   searchMode: propSearchMode,
   onSearchModeChange: propOnSearchModeChange,
   showModeSelector = true,
+  searchableColumnNames,
 }: SearchInputProps) {
   // Try to get values from context first
   const table = useTableMaybe();
@@ -217,7 +220,9 @@ export const SearchInput = memo(function SearchInput({
                 <div className="text-xs text-muted-foreground">
                   {effectiveSearchAllColumns
                     ? "Searching all columns including hidden"
-                    : "Only searching key columns (name, ID, etc.)"}
+                    : searchableColumnNames && searchableColumnNames.length > 0
+                      ? `Searching: ${searchableColumnNames.slice(0, 4).join(', ')}${searchableColumnNames.length > 4 ? ` +${searchableColumnNames.length - 4} more` : ''}`
+                      : "Only searching key columns"}
                 </div>
               </div>
               {effectiveSearchAllColumns && <Check className="h-4 w-4 text-primary" />}

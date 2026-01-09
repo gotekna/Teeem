@@ -1518,6 +1518,13 @@ export default function TeeemTableView({
     setSearchableColumns(getDefaultSearchableColumns());
   }, [getDefaultSearchableColumns]);
 
+  // Compute searchable column names for display in SearchInput dropdown
+  const searchableColumnNames = useMemo(() => {
+    return COLUMNS
+      .filter(col => searchableColumns[col.key])
+      .map(col => col.label || col.key);
+  }, [COLUMNS, searchableColumns]);
+
   // Sync column order and visibility when COLUMNS changes (e.g., select/actions added)
   useEffect(() => {
     setColumnOrder((prev) => {
@@ -5866,6 +5873,7 @@ export default function TeeemTableView({
               serverSearchLoading={effectiveServerSearchLoading}
               hasServerSearch={showSearchOptionsMenu}
               onSearch={handleSearchFromInput}
+              searchableColumnNames={searchableColumnNames}
             />
           </div>
 

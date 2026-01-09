@@ -131,7 +131,9 @@ class Api::V1::EmailWarehouseController < ApplicationController
       emails = emails.in_folder(params[:folder_id])
     end
     if params[:folder_name].present?
+      Rails.logger.info "[EmailWarehouse] Filtering by folder_name: #{params[:folder_name].inspect}"
       emails = emails.in_folder(params[:folder_name])
+      Rails.logger.info "[EmailWarehouse] After folder filter, count: #{emails.count}"
     end
 
     # Filter by direction (sent, received, cc, bcc)
@@ -152,17 +154,37 @@ class Api::V1::EmailWarehouseController < ApplicationController
       org_cred = MicrosoftCredential.find_by(id: params[:microsoft_credential_id])
       if org_cred
         # Get the mailboxes this user is authorized to access
-        user_mailboxes = org_cred.sync_config&.dig("user_mailbox_access", current_user.id.to_s) || []
+        # SSoT: Match the same logic as all_accounts endpoint
+        configured_mailboxes = org_cred.sync_config&.dig("user_mailbox_access", current_user.id.to_s) || []
+
+        # SSoT: Auto-include user's own email if it exists in this tenant
+        # This matches all_accounts endpoint which also auto-includes user's email
+        auto_mailboxes = []
+        if current_user.email.present?
+          # Check if user's email exists in this tenant's synced emails (case-insensitive)
+          # (Cheaper than calling list_tenant_users which is an API call)
+          user_email_exists = EmailWarehouse.where(microsoft_credential_id: org_cred.id)
+            .where("LOWER(mailbox_owner_email) = LOWER(?)", current_user.email)
+            .exists?
+          auto_mailboxes = [current_user.email.downcase] if user_email_exists
+        end
+
+        # Combine configured + auto-included mailboxes (case-insensitive dedup)
+        user_mailboxes = (auto_mailboxes + configured_mailboxes).map(&:downcase).uniq
+
+        Rails.logger.info "[EmailWarehouse] MS365 filter: credential=#{org_cred.id}, user_mailboxes=#{user_mailboxes.inspect}"
+
         if user_mailboxes.any?
           emails = emails.where(microsoft_credential_id: params[:microsoft_credential_id])
           # If specific mailbox requested, filter to that (if user has access)
           if params[:mailbox].present? && user_mailboxes.map(&:downcase).include?(params[:mailbox].downcase)
-            emails = emails.where(mailbox_owner_email: params[:mailbox])
+            emails = emails.where("LOWER(mailbox_owner_email) = LOWER(?)", params[:mailbox])
           else
-            emails = emails.where(mailbox_owner_email: user_mailboxes)
+            emails = emails.where("LOWER(mailbox_owner_email) IN (?)", user_mailboxes)
           end
         else
           # User has no access to this credential's mailboxes
+          Rails.logger.warn "[EmailWarehouse] User #{current_user.id} has no access to MS365 credential #{org_cred.id}"
           emails = emails.none
         end
       else
