@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useState, useCallback, useEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ export default function NotebooksPage() {
   // Use full-height layout mode for split view
   useSetLayoutMode("full-height");
 
+  const queryClient = useQueryClient();
   const { mutate: mutateNotebooks } = useNotebooks({ global: true });
   const [selectedNotebookId, setSelectedNotebookId] = useState<number | null>(null);
   const [selectedPageId, setSelectedPageId] = useState<number | null>(null);
@@ -65,12 +67,13 @@ export default function NotebooksPage() {
   }, []);
 
   const handleNotebookCreated = useCallback(
-    (notebook: { id: number }) => {
-      mutateNotebooks();
+    async (notebook: { id: number }) => {
+      // Invalidate all notebook queries to ensure sidebar updates
+      await queryClient.invalidateQueries({ queryKey: ["notebooks"] });
       setSelectedNotebookId(notebook.id);
       setSelectedPageId(null);
     },
-    [mutateNotebooks]
+    [queryClient]
   );
 
   return (
