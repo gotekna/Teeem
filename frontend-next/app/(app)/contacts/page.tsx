@@ -26,7 +26,7 @@ export default async function ContactsPage({ searchParams }: ContactsPageProps) 
   // Also fetch view config if ?view= param is present to eliminate flash
   // Also fetch group counts if view has grouping to eliminate CLS
   // Also fetch all views for immediate toolbar button rendering
-  const { columns, records, hasMore, view, views, groupCounts } = await fetchFoundationForSSR("contacts", {
+  const { columns, records, hasMore, totalCount, view, views, groupCounts } = await fetchFoundationForSSR("contacts", {
     limit: 20,
     viewSlug,
   });
@@ -36,6 +36,7 @@ export default async function ContactsPage({ searchParams }: ContactsPageProps) 
       initialColumns={columns}
       initialRecords={records}
       initialHasMore={hasMore}
+      initialTotalCount={totalCount}
       initialView={view}
       initialViews={views}
       initialGroupCounts={groupCounts}

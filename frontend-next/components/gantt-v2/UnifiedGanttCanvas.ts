@@ -177,22 +177,18 @@ const DEFAULT_COLUMNS: TableColumn[] = [
   { id: 'task_number', label: 'ID', width: 45, visible: true, type: 'number', field: 'task_number' },
   // Name - always visible (permanent)
   { id: 'name', label: 'Name', width: 242, minWidth: 100, visible: true, type: 'text', field: 'name' },
-  // Status checkboxes - hidden by default
-  { id: 'started', label: '▶', width: 24, visible: false, type: 'checkbox', field: 'started' },
-  { id: 'hold', label: '📌', width: 24, visible: false, type: 'checkbox', field: 'hold' },
-  { id: 'confirm', label: '✓', width: 24, visible: false, type: 'checkbox', field: 'confirm' },
-  { id: 'supplier_confirm', label: 'S✓', width: 24, visible: false, type: 'checkbox', field: 'supplier_confirm' },
-  { id: 'is_completed', label: '✓', width: 24, visible: false, type: 'checkbox', field: 'is_completed' },
-  // Dependencies (action column - click opens editor) - Show "34 FS, 35 SS" format
-  { id: 'dependencies', label: 'Deps', width: 80, visible: true, type: 'action', field: 'predecessor_display' },
-  // Duration (editable number)
-  { id: 'duration', label: 'Days', width: 50, visible: true, type: 'number', field: 'duration_days' },
-  // Supplier info
-  { id: 'supplier', label: 'Supplier', width: 100, visible: true, type: 'text', field: 'supplier_name' },
-  { id: 'poNumber', label: 'PO #', width: 70, visible: true, type: 'text', field: 'purchase_order_number' },
-  // Role
-  { id: 'role', label: 'Role', width: 90, visible: true, type: 'text', field: 'assigned_role_name' },
-  // Hidden by default
+  // Status checkboxes - visible by default (compact view shows task status at a glance)
+  { id: 'started', label: '▶', width: 24, visible: true, type: 'checkbox', field: 'started' },
+  { id: 'hold', label: '📌', width: 24, visible: true, type: 'checkbox', field: 'hold' },
+  { id: 'confirm', label: '✓', width: 24, visible: true, type: 'checkbox', field: 'confirm' },
+  { id: 'supplier_confirm', label: 'S✓', width: 24, visible: true, type: 'checkbox', field: 'supplier_confirm' },
+  { id: 'is_completed', label: '✓', width: 24, visible: true, type: 'checkbox', field: 'is_completed' },
+  // Hidden by default - detail columns (shown when needed)
+  { id: 'dependencies', label: 'Deps', width: 80, visible: false, type: 'action', field: 'predecessor_display' },
+  { id: 'duration', label: 'Days', width: 50, visible: false, type: 'number', field: 'duration_days' },
+  { id: 'supplier', label: 'Supplier', width: 100, visible: false, type: 'text', field: 'supplier_name' },
+  { id: 'poNumber', label: 'PO #', width: 70, visible: false, type: 'text', field: 'purchase_order_number' },
+  { id: 'role', label: 'Role', width: 90, visible: false, type: 'text', field: 'assigned_role_name' },
   { id: 'startDate', label: 'Start', width: 80, visible: false, type: 'date', field: 'start_date' },
   { id: 'endDate', label: 'End', width: 80, visible: false, type: 'date', field: 'end_date' },
   { id: 'progress', label: '%', width: 50, visible: false, type: 'number', field: 'progress_percentage' },
@@ -4024,7 +4020,12 @@ export class UnifiedGanttCanvas {
     this.ctx.fillStyle = this.config.colors.headerBackground;
     this.ctx.fillRect(this.tableWidth, 0, this.width - this.tableWidth, headerHeight);
 
-    // Draw date headers
+    // Draw date headers (with clipping to prevent text bleeding into table area)
+    this.ctx.save();
+    this.ctx.beginPath();
+    this.ctx.rect(this.tableWidth, 0, this.width - this.tableWidth, headerHeight);
+    this.ctx.clip();
+
     const visibleDays = Math.ceil(this.width / dayWidth) + 2;
     const startDayOffset = Math.floor(this.scrollX / dayWidth);
 
@@ -4051,6 +4052,8 @@ export class UnifiedGanttCanvas {
         this.ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
       }
     }
+
+    this.ctx.restore();
 
     // Draw header border
     this.ctx.strokeStyle = this.config.colors.borderColor;

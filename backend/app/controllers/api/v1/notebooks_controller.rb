@@ -61,6 +61,13 @@ module Api
             errors: notebook.errors.full_messages
           }, status: :unprocessable_entity
         end
+      rescue => e
+        Rails.logger.error("[NotebooksController#create] Exception: #{e.class} - #{e.message}")
+        Rails.logger.error(e.backtrace.first(10).join("\n"))
+        render json: {
+          success: false,
+          error: "Failed to create notebook: #{e.message}"
+        }, status: :internal_server_error
       end
 
       # PATCH /api/v1/notebooks/:id
@@ -118,7 +125,7 @@ module Api
             share.previously_new_record? ? "share_added" : "share_updated",
             notebook: @notebook,
             user: current_user,
-            metadata: { user_name: user.display_name, permission: permission }
+            metadata: { user_name: user.name, permission: permission }
           )
 
           render json: {
@@ -140,7 +147,7 @@ module Api
         end
 
         share = @notebook.shares.find_by!(user_id: params[:user_id])
-        user_name = share.user.display_name
+        user_name = share.user.name
         share.destroy!
 
         NotebookActivity.track(
@@ -174,7 +181,7 @@ module Api
           color: notebook.color,
           owner: {
             id: notebook.owner_id,
-            name: notebook.owner&.display_name
+            name: notebook.owner&.name
           },
           notable_type: notebook.notable_type,
           notable_id: notebook.notable_id,
@@ -212,11 +219,11 @@ module Api
           id: share.id,
           user: {
             id: share.user_id,
-            name: share.user&.display_name,
+            name: share.user&.name,
             email: share.user&.email
           },
           permission: share.permission,
-          granted_by: share.granted_by&.display_name,
+          granted_by: share.granted_by&.name,
           expires_at: share.expires_at,
           created_at: share.created_at
         }

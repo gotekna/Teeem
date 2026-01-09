@@ -147,6 +147,34 @@ class Api::V1::EmailUserStatesController < ApplicationController
     }
   end
 
+  # POST /api/v1/email_user_states/mark_folder_read
+  # Mark all emails in a folder as read
+  def mark_folder_read
+    mailbox_email = params[:mailbox_email]
+    folder_name = params[:folder_name] || "Inbox"
+
+    return render json: { success: false, error: "mailbox_email required" }, status: :bad_request unless mailbox_email.present?
+
+    # Find all unread emails in this folder
+    emails = EmailWarehouse.where(mailbox_email: mailbox_email)
+                           .where("folder_name ILIKE ?", folder_name)
+
+    affected = 0
+    emails.find_each do |email|
+      state = EmailUserState.for(email, current_user)
+      unless state.is_read
+        state.update!(is_read: true)
+        affected += 1
+      end
+    end
+
+    render json: {
+      success: true,
+      data: { affected_count: affected },
+      message: "Marked #{affected} emails as read"
+    }
+  end
+
   # POST /api/v1/email_user_states/bulk_action
   # Apply action to multiple emails
   def bulk_action

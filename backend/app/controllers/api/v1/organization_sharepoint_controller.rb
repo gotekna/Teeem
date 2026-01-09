@@ -1632,6 +1632,9 @@ module Api
       # List ALL files from the job's OneDrive folder
       # Uses Data Warehouse pattern: reads from JobDocument table for instant results
       # Falls back to live API if no cached data, and triggers background sync
+      #
+      # Params:
+      #   refresh_thumbnails: "true" - Fetch fresh thumbnail URLs from SharePoint (cached ones expire)
       def job_all_files
         job = Job.find(params[:job_id])
 
@@ -1639,6 +1642,11 @@ module Api
         cached_docs = job.job_documents.includes(:document_type, :ai_suggested_type, :parent_document, :child_versions, :signed_by).synced
 
         if cached_docs.any?
+          # Refresh thumbnails if requested (they expire after ~24-48 hours)
+          fresh_thumbnails = {}
+          if params[:refresh_thumbnails] == "true"
+            fresh_thumbnails = refresh_thumbnails_for_docs(cached_docs)
+          end
           # Data Warehouse approach: instant results from database
           files_with_suggestions = cached_docs.map do |doc|
             {
@@ -1664,7 +1672,7 @@ module Api
               ai_confidence: doc.ai_confidence&.to_f,
               ai_reasoning: doc.ai_reasoning,
               rename_status: doc.rename_status,
-              thumbnail_url: doc.thumbnail_url,
+              thumbnail_url: fresh_thumbnails[doc.sharepoint_item_id] || doc.thumbnail_url,
               from_cache: true,
               # Version chain fields (Draft/Signed versioning)
               version_status: doc.version_status,
@@ -2456,6 +2464,49 @@ module Api
         end
 
         attachments
+      end
+
+      # Refresh thumbnail URLs for cached documents
+      # SharePoint thumbnails expire after ~24-48 hours, so we need to fetch fresh ones
+      # Returns hash: { sharepoint_item_id => thumbnail_url }
+      def refresh_thumbnails_for_docs(docs)
+        return {} if docs.empty?
+
+        credential = get_onedrive_credential
+        return {} unless credential
+
+        begin
+          client = MicrosoftGraphClient.new(credential)
+          fresh_thumbnails = {}
+
+          # Batch process - get thumbnails for each doc
+          # Microsoft Graph supports batch requests but for simplicity we'll make individual calls
+          # Limited to first 50 docs to avoid timeout
+          docs.limit(50).each do |doc|
+            next unless doc.sharepoint_item_id.present? && doc.sharepoint_drive_id.present?
+
+            begin
+              # Get fresh thumbnail from Graph API
+              item_data = client.get_drive_item(doc.sharepoint_drive_id, doc.sharepoint_item_id, expand: "thumbnails")
+              if item_data
+                thumbnails = item_data.dig("thumbnails", 0) || {}
+                thumb_url = thumbnails.dig("medium", "url") || thumbnails.dig("small", "url")
+                if thumb_url
+                  fresh_thumbnails[doc.sharepoint_item_id] = thumb_url
+                  # Also update the cached value
+                  doc.update_column(:thumbnail_url, thumb_url)
+                end
+              end
+            rescue => e
+              Rails.logger.warn("[Thumbnail Refresh] Failed for doc #{doc.id}: #{e.message}")
+            end
+          end
+
+          fresh_thumbnails
+        rescue => e
+          Rails.logger.error("[Thumbnail Refresh] Batch refresh failed: #{e.message}")
+          {}
+        end
       end
 
       # Recursively list all files in a job folder

@@ -76,11 +76,12 @@ class ContactEmailMatchJob < ApplicationJob
     # Normalize emails to lowercase for case-insensitive matching
     lookup = {}
 
-    Contact.where.not(email: nil).find_each do |contact|
-      next if contact.email.blank?
+    # Query contact_emails table (SSoT) instead of legacy contacts.email column
+    ContactEmail.includes(:contact).find_each do |contact_email|
+      next if contact_email.email.blank?
 
-      normalized_email = contact.email.downcase.strip
-      lookup[normalized_email] = contact.id
+      normalized_email = contact_email.email.downcase.strip
+      lookup[normalized_email] = contact_email.contact_id
     end
 
     lookup

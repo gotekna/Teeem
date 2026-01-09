@@ -122,7 +122,7 @@ export interface SSRViewConfig {
     showTotals?: boolean;
     stickyActions?: boolean;
   };
-  sort_order?: Array<{ column: string; dir: "asc" | "desc" }>;
+  sort_order?: Array<{ column: string; dir: "asc" | "desc" | "custom"; customOrder?: string[] }>;
 }
 
 /**

@@ -221,16 +221,9 @@ Rails.application.routes.draw do
             post :reorder
           end
         end
-        # Claim Stage Templates (per job type)
-        resources :claim_stage_templates, only: [ :index, :create ] do
-          collection do
-            post :reorder
-          end
-        end
+        # SSoT: Claim stages now come from Schedule Master CLAIM tasks
+        # ClaimStageTemplate routes removed - use Schedule Master templates instead
       end
-
-      # Claim Stage Templates (non-nested routes)
-      resources :claim_stage_templates, only: [ :show, :update, :destroy ]
 
       resources :job_status do
         collection do
@@ -462,6 +455,7 @@ Rails.application.routes.draw do
             post :match
             delete :unmatch
             post :create_invoice
+            post :send_to_client
             post :generate_pdf
             post :release_retainage
           end
@@ -1103,6 +1097,7 @@ Rails.application.routes.draw do
           post :summarize
           post :link_contact
           post :unlink_contact
+          post :quick_create_contact
           get :suggest_contacts
           get "attachments/:attachment_id/download", action: :download_attachment
         end
@@ -1165,6 +1160,7 @@ Rails.application.routes.draw do
         collection do
           get :star_colors
           post :bulk_action
+          post :mark_folder_read
           get "for_email/:email_id", action: :show
           patch "for_email/:email_id", action: :update
           post "for_email/:email_id/toggle_pin", action: :toggle_pin
@@ -1434,6 +1430,7 @@ Rails.application.routes.draw do
         collection do
           post :bulk_update
           get :user_counts
+          post "from_email/:email_id", action: :create_from_email
         end
         member do
           post :start

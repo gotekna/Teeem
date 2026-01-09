@@ -1,5 +1,5 @@
 class Api::V1::EmailWarehouseController < ApplicationController
-  before_action :set_email, only: [ :show, :assign_to_job, :unassign, :mark_as_spam, :delete_from_outlook, :move_to_folder, :summarize, :link_contact, :unlink_contact ]
+  before_action :set_email, only: [ :show, :assign_to_job, :unassign, :mark_as_spam, :delete_from_outlook, :move_to_folder, :summarize, :link_contact, :unlink_contact, :quick_create_contact ]
   before_action :require_admin, only: [ :bulk_delete_spam ]
 
   # GET /api/v1/email_warehouse
@@ -691,6 +691,89 @@ class Api::V1::EmailWarehouseController < ApplicationController
       message: "Contact unlinked from email",
       email: email_json(@email)
     }
+  end
+
+  # POST /api/v1/email_warehouse/:id/quick_create_contact
+  # Creates a contact from the email sender and links it to the email
+  # Reuses EmailToContactExtractionService for company suggestion and creation
+  def quick_create_contact
+    # Check if contact already exists with this email (emails stored in ContactEmail model)
+    contact_email = ContactEmail.find_by(email: @email.from_email&.downcase)
+    if contact_email
+      existing = contact_email.contact
+      # Just link it if not already linked
+      current_ids = @email.contact_ids || []
+      unless current_ids.include?(existing.id)
+        current_ids << existing.id
+      end
+      @email.update!(
+        contact_ids: current_ids,
+        primary_contact_id: @email.primary_contact_id || existing.id,
+        contacts_matched_at: Time.current
+      )
+
+      return render json: {
+        success: true,
+        contact: existing.as_json(only: [ :id, :display_name ]).merge(email: contact_email.email),
+        message: "Contact already exists, linked to email",
+        already_existed: true
+      }
+    end
+
+    # Use existing service for company suggestion and creation
+    service = EmailToContactExtractionService.new(user: current_user)
+
+    # Build selection for bulk_create
+    selection = {
+      email: @email.from_email,
+      display_name: @email.from_name.presence || @email.from_email.split("@").first.titleize,
+      entity_type: "person"
+    }
+
+    # Get company suggestion from domain
+    company_suggestion = service.suggest_company_for_email(@email.from_email)
+    if company_suggestion && company_suggestion[:existing_company_id]
+      selection[:company_action] = "link"
+      selection[:company_id] = company_suggestion[:existing_company_id]
+    elsif company_suggestion && company_suggestion[:name]
+      selection[:company_action] = "create"
+      selection[:company_name] = company_suggestion[:name]
+    end
+
+    result = service.bulk_create([ selection ])
+
+    if result[:success] && result[:created_contacts].present?
+      contact = result[:created_contacts].first
+      contact_record = Contact.find(contact[:id])
+
+      # Link to email
+      current_ids = @email.contact_ids || []
+      current_ids << contact_record.id unless current_ids.include?(contact_record.id)
+      @email.update!(
+        contact_ids: current_ids,
+        primary_contact_id: @email.primary_contact_id || contact_record.id,
+        contacts_matched_at: Time.current
+      )
+
+      render json: {
+        success: true,
+        contact: contact,
+        company: result[:created_companies]&.first,
+        message: "Contact created and linked"
+      }
+    else
+      render json: {
+        success: false,
+        error: result[:errors]&.first || "Failed to create contact"
+      }, status: :unprocessable_entity
+    end
+  rescue StandardError => e
+    Rails.logger.error("quick_create_contact error: #{e.message}")
+    Rails.logger.error(e.backtrace.join("\n"))
+    render json: {
+      success: false,
+      error: e.message
+    }, status: :internal_server_error
   end
 
   # GET /api/v1/email_warehouse/:id/suggest_contacts

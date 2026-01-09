@@ -147,10 +147,9 @@ export default function PricebookPageClient({
         initialGroupCounts={initialGroupCounts}
         // SSR Total Count - prevents CLS from "20 records" → "5,285 records" text change
         totalCount={initialTotalCount ?? undefined}
-        // Auto-fetch limited to 200 records for fast page load
-        // Search still searches ALL records via server API
+        // Auto-fetch all records - IndexedDB cache handles large datasets (5,285 items)
+        // Records cached locally for instant navigation back
         autoFetchRecords
-        autoFetchLimit={200}
         // Start with all groups collapsed (user sees categories first)
         initialGroupsCollapsed
       />

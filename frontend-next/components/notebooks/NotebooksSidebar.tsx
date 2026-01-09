@@ -76,7 +76,16 @@ export const NotebooksSidebar = forwardRef<NotebooksSidebarRef, NotebooksSidebar
   onCreateNotebook,
   className,
 }: NotebooksSidebarProps, ref) {
-  const { notebooks, isLoading, mutate: mutateNotebooks } = useNotebooks({ global: true });
+  const { notebooks, isLoading, error, mutate: mutateNotebooks } = useNotebooks({ global: true });
+
+  // Debug logging
+  React.useEffect(() => {
+    console.log("[NotebooksSidebar] State:", {
+      isLoading,
+      error: error?.message,
+      notebooksCount: notebooks?.length
+    });
+  }, [isLoading, error, notebooks]);
   const { notebook: selectedNotebook, mutate: mutateNotebook } = useNotebook(selectedNotebookId);
   const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set());
   const [editingSection, setEditingSection] = useState<number | null>(null);
@@ -219,6 +228,18 @@ export const NotebooksSidebar = forwardRef<NotebooksSidebarRef, NotebooksSidebar
     return (
       <div className={cn("flex items-center justify-center h-40", className)}>
         <Spinner />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className={cn("flex flex-col items-center justify-center h-40 text-center p-4", className)}>
+        <p className="text-sm text-destructive mb-2">Failed to load notebooks</p>
+        <p className="text-xs text-muted-foreground mb-3">{error.message}</p>
+        <Button variant="outline" size="sm" onClick={() => mutateNotebooks()}>
+          Retry
+        </Button>
       </div>
     );
   }

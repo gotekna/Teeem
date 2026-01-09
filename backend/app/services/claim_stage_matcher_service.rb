@@ -97,6 +97,7 @@ class ClaimStageMatcherService
   end
 
   # Find an invoice that matches the stage based on pattern matching
+  # SSoT: Schedule Master CLAIM tasks define claim stages
   def find_matching_invoice(stage, invoices)
     # Priority 1: Try J{job_number}-{sequence} pattern if sequence is set
     # SSoT: This is the preferred matching method
@@ -106,19 +107,7 @@ class ClaimStageMatcherService
       return match if match
     end
 
-    # Priority 2: Try template pattern
-    template = stage.claim_stage_template
-    if template&.invoice_match_pattern.present?
-      regex = template.match_pattern_regex
-      if regex
-        match = invoices.find do |inv|
-          description_matches?(inv, regex)
-        end
-        return match if match
-      end
-    end
-
-    # Priority 3: Fall back to stage name matching
+    # Priority 2: Fall back to stage name matching
     stage_name_regex = build_name_regex(stage.name)
     invoices.find do |inv|
       description_matches?(inv, stage_name_regex)

@@ -40,16 +40,20 @@ class EmailToTaskService
       # 5. Attach the source email
       attach_source_email(task)
 
-      # 6. Download and attach email file attachments (PDFs, images, etc.)
+      # 6. Extract auto-match keywords from email subject
+      # This enables automatic matching of future related emails
+      extract_auto_match_keywords(task)
+
+      # 7. Download and attach email file attachments (PDFs, images, etc.)
       download_and_attach_email_files(task)
 
-      # 7. Find and attach related emails
+      # 8. Find and attach related emails
       find_and_attach_related_emails(task)
 
-      # 7. Add email participants as task contacts
+      # 9. Add email participants as task contacts
       add_email_participants_as_contacts(task)
 
-      # 8. Log activity
+      # 10. Log activity
       log_task_created(task)
 
       task
@@ -73,6 +77,7 @@ class EmailToTaskService
       task_number: generate_task_number,
       sequence_order: 1,
       created_by: @user,
+      assigned_user: @user,  # Auto-assign to the user creating the task
       is_private: false
     )
   end
@@ -171,6 +176,42 @@ class EmailToTaskService
       added_by: @user
     )
     Rails.logger.info "[EmailToTaskService] Attached source email ##{@email.id}"
+  end
+
+  def extract_auto_match_keywords(task)
+    return if @email.subject.blank?
+
+    # Extract reference numbers and identifiers from the email subject
+    # These will be used to auto-match future emails to this task
+    keywords = []
+
+    subject = @email.subject
+
+    # 1. Extract alphanumeric codes (like KAMN49DQUCVA, REF123456)
+    # Pattern: 3+ consecutive letters followed by 2+ numbers, or vice versa
+    alphanumeric_codes = subject.scan(/\b[A-Z]{2,}[0-9]{2,}[A-Z0-9]*\b/i)
+    keywords.concat(alphanumeric_codes.map(&:upcase))
+
+    # 2. Extract pure numeric reference numbers (6+ digits)
+    # Often order numbers, ticket numbers, etc.
+    numeric_refs = subject.scan(/\b\d{6,}\b/)
+    keywords.concat(numeric_refs)
+
+    # 3. Extract bracketed references [REF-123] or (REF123)
+    bracketed = subject.scan(/[\[\(]([^\]\)]+)[\]\)]/).flatten
+    keywords.concat(bracketed.select { |b| b.match?(/\d/) && b.length >= 4 })
+
+    # 4. Extract common reference patterns: REF-xxx, ORDER-xxx, TICKET-xxx, etc.
+    reference_patterns = subject.scan(/\b(?:REF|ORDER|TICKET|CASE|ID|PO|INV)[-:#]?\s*([A-Z0-9-]+)\b/i).flatten
+    keywords.concat(reference_patterns.map(&:upcase))
+
+    # Clean up and dedupe
+    keywords = keywords.map(&:strip).reject(&:blank?).uniq
+
+    if keywords.any?
+      task.update_column(:email_keywords, keywords.join(", "))
+      Rails.logger.info "[EmailToTaskService] Extracted auto-match keywords: #{keywords.join(', ')}"
+    end
   end
 
   def download_and_attach_email_files(task)
@@ -326,9 +367,9 @@ class EmailToTaskService
   def add_participant(task, email_addr, role)
     return if email_addr.blank?
 
-    # Check if already added
+    # Check if already added (SSoT: contact emails are in contact_emails table)
     existing = task.task_contacts.joins(:user).where("LOWER(users.email) = ?", email_addr.downcase).exists? ||
-               task.task_contacts.joins(:contact).where("LOWER(contacts.email) = ?", email_addr.downcase).exists?
+               task.task_contacts.joins(contact: :contact_emails).where("LOWER(contact_emails.email) = ?", email_addr.downcase).exists?
     return if existing
 
     user = User.find_by("LOWER(email) = ?", email_addr.downcase)
@@ -344,16 +385,17 @@ class EmailToTaskService
   def find_or_create_contact(email, name = nil)
     return nil if email.blank?
 
-    # Try to find existing
-    contact = Contact.find_by("LOWER(email) = ?", email.downcase)
+    # Try to find existing (SSoT: Contact.find_by_email uses contact_emails table)
+    contact = Contact.find_by_email(email)
     return contact if contact
 
-    # Create new contact
-    Contact.create!(
-      email: email,
+    # Create new contact with email via contact_emails association
+    contact = Contact.create!(
       display_name: name || extract_name_from_email(email),
       entity_type: "person"
     )
+    contact.contact_emails.create!(email: email, is_primary: true)
+    contact
   rescue ActiveRecord::RecordInvalid => e
     Rails.logger.warn "[EmailToTaskService] Failed to create contact for #{email}: #{e.message}"
     nil

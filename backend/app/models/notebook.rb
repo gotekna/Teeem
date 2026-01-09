@@ -32,10 +32,11 @@ class Notebook < ApplicationRecord
   scope :recent, -> { order(updated_at: :desc) }
 
   # Accessible notebooks for a user (owned + shared + entity-based)
+  # Note: Can't use .or() because owned and shared have different joins (Rails 8 compatibility)
   scope :accessible_by, ->(user) {
-    owned = where(owner: user)
-    shared = joins(:shares).where(notebook_shares: { user_id: user.id })
-    owned.or(shared)
+    owned_ids = where(owner: user).pluck(:id)
+    shared_ids = joins(:shares).where(notebook_shares: { user_id: user.id }).pluck(:id)
+    where(id: (owned_ids + shared_ids).uniq)
   }
 
   # Callbacks

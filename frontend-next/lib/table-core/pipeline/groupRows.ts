@@ -39,6 +39,28 @@ export function getGroupDisplayValue(value: unknown): string {
 }
 
 /**
+ * Extract the display name from a cell value (for custom sort comparison)
+ * Unlike getGroupDisplayValue which returns ID for lookup columns,
+ * this returns the human-readable display name.
+ */
+export function getDisplayName(value: unknown): string {
+  if (value === null || value === undefined) return "(Empty)";
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "—";
+    return value.map((item) => String(item)).join(", ");
+  }
+
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    // Return display name (not ID) for lookup columns
+    return String(obj.display || obj.display_value || obj.name || obj.id || "(Empty)");
+  }
+
+  return String(value);
+}
+
+/**
  * Build grouped entries structure (hierarchical)
  *
  * @param rows - Array of table rows to group
@@ -64,13 +86,38 @@ export function groupRows<TRow extends TableRow>(
     return sortConfig?.customOrder;
   };
 
-  const sortGroupKeys = (keys: string[], customOrder: string[] | undefined): string[] => {
+  // Build a mapping from group key (ID) to display name for custom sort comparison
+  // customOrder contains display names, but group keys are IDs for lookup columns
+  const buildKeyToDisplayMap = (
+    entries: TRow[],
+    columnName: string
+  ): Map<string, string> => {
+    const map = new Map<string, string>();
+    for (const entry of entries) {
+      const value = entry[columnName];
+      const groupKey = getGroupDisplayValue(value);
+      const displayName = getDisplayName(value);
+      if (!map.has(groupKey)) {
+        map.set(groupKey, displayName);
+      }
+    }
+    return map;
+  };
+
+  const sortGroupKeys = (
+    keys: string[],
+    customOrder: string[] | undefined,
+    keyToDisplayMap: Map<string, string>
+  ): string[] => {
     if (!customOrder || customOrder.length === 0) {
       return keys;
     }
     return [...keys].sort((a, b) => {
-      const aIndex = customOrder.indexOf(a);
-      const bIndex = customOrder.indexOf(b);
+      // Resolve group keys to display names for comparison against customOrder
+      const aDisplay = keyToDisplayMap.get(a) || a;
+      const bDisplay = keyToDisplayMap.get(b) || b;
+      const aIndex = customOrder.indexOf(aDisplay);
+      const bIndex = customOrder.indexOf(bDisplay);
       const aPos = aIndex === -1 ? customOrder.length + keys.indexOf(a) : aIndex;
       const bPos = bIndex === -1 ? customOrder.length + keys.indexOf(b) : bIndex;
       return aPos - bPos;
@@ -138,8 +185,10 @@ export function groupRows<TRow extends TableRow>(
     }
 
     // Sort group keys
+    // Build ID-to-display mapping for custom sort comparison (customOrder has display names)
+    const keyToDisplayMap = buildKeyToDisplayMap(groupEntries, currentCol);
     const customOrder = getCustomOrderForColumn(currentCol);
-    const sortedKeys = sortGroupKeys(Object.keys(unsortedGroups), customOrder);
+    const sortedKeys = sortGroupKeys(Object.keys(unsortedGroups), customOrder, keyToDisplayMap);
 
     const groups: Record<string, NestedGroup<TRow>> = {};
     for (const key of sortedKeys) {

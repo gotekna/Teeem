@@ -4,7 +4,8 @@ class JobType < ApplicationRecord
   has_many :job_type_statuses, dependent: :destroy
   has_many :statuses, through: :job_type_statuses, source: :job_status
   has_many :job_status_stages, dependent: :destroy
-  has_many :claim_stage_templates, dependent: :destroy
+  # SSoT: Claim stages come from Schedule Master CLAIM tasks, not ClaimStageTemplate
+  # ClaimStageTemplate system removed - see SmScheduleMasterTemplateCopyService
 
   # Default schedule template for jobs of this type
   belongs_to :sm_schedule_master_template, optional: true

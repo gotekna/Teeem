@@ -39,6 +39,9 @@ import {
   ArrowUpDown,
   FolderPlus,
   MoreVertical,
+  CheckCheck,
+  ListTodo,
+  UserPlus,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -53,7 +56,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { api } from "@/lib/api";
 import { PAGE_SIZE_LIST } from "@/lib/constants/pagination-constants";
-import { formatDistanceToNow, format } from "date-fns";
+import { formatDistanceToNow, format, isToday, differenceInDays } from "date-fns";
 import { ComposeEmailModal } from "@/components/emails/ComposeEmailModal";
 import {
   SplitInboxTabs,
@@ -68,7 +71,6 @@ import { ThreadCountBadge } from "@/components/emails/ThreadCountBadge";
 import { QuickEmailActions } from "@/components/emails/QuickEmailActions";
 import { EmailContextMenu } from "@/components/emails/EmailContextMenu";
 import { EmailSummary } from "@/components/emails/EmailSummary";
-import { EmailContactMatch } from "@/components/emails/EmailContactMatch";
 import { useEmailKeyboardShortcuts } from "@/hooks/useEmailKeyboardShortcuts";
 import { useEmailSelection } from "@/hooks/useEmailSelection";
 import { useEmailBulkActions } from "@/hooks/useEmailBulkActions";
@@ -155,6 +157,27 @@ function decodeHtmlEntities(text: string | null | undefined): string {
   decoded = decoded.replace(/\s+/g, " ").trim();
 
   return decoded;
+}
+
+// Smart date formatter for email list:
+// - Today: Show time only (e.g., "2:35 PM")
+// - Last 7 days: Show day + time (e.g., "Thu 2:35 PM")
+// - Older: Show date only (e.g., "09/01/2026")
+function formatEmailDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const daysDiff = differenceInDays(now, date);
+
+  if (isToday(date)) {
+    // Today: just time
+    return format(date, "h:mm a");
+  } else if (daysDiff < 7) {
+    // Last 7 days: day + time
+    return format(date, "EEE h:mm a");
+  } else {
+    // Older: just date
+    return format(date, "dd/MM/yyyy");
+  }
 }
 
 interface Email {
@@ -392,7 +415,7 @@ const EmailListItem = memo(function EmailListItem({
                   "text-[10px] whitespace-nowrap shrink-0 group-hover:hidden",
                   !email.is_read ? "font-semibold text-muted-foreground" : "text-muted-foreground"
                 )}>
-                  {formatDistanceToNow(new Date(email.received_at), { addSuffix: true })}
+                  {formatEmailDate(email.received_at)}
                 </span>
               </div>
               <p className={cn(
@@ -461,7 +484,7 @@ const EmailListItem = memo(function EmailListItem({
                     "text-[10px] whitespace-nowrap shrink-0",
                     !threadEmail.is_read ? "font-semibold text-muted-foreground" : "text-muted-foreground"
                   )}>
-                    {format(new Date(threadEmail.received_at), "MMM d, h:mm a")}
+                    {formatEmailDate(threadEmail.received_at)}
                   </div>
                 </div>
               </div>
@@ -502,6 +525,8 @@ export default function EmailPage() {
   const [loadingFolders, setLoadingFolders] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [creatingTask, setCreatingTask] = useState(false);
+  const [creatingContact, setCreatingContact] = useState(false);
   // SSoT: Uses PAGE_SIZE_LIST from pagination-constants.ts
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
@@ -1099,6 +1124,39 @@ export default function EmailPage() {
     }
   };
 
+  // Mark all emails in current folder as read
+  const handleMarkFolderRead = async () => {
+    if (!selectedAccount || selectedAccount === "all") {
+      toast({ title: "Select a mailbox first", variant: "destructive" });
+      return;
+    }
+
+    const account = accounts.find(a => String(a.id) === selectedAccount);
+    if (!account?.email_address) {
+      toast({ title: "Mailbox email not found", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const response = await api.post<{ success: boolean; data: { affected_count: number }; message: string }>(
+        "/api/v1/email_user_states/mark_folder_read",
+        {
+          mailbox_email: account.email_address,
+          folder_name: selectedFolder,
+        }
+      );
+
+      if (response?.success) {
+        toast({ title: response.message || "Folder marked as read" });
+        // Refresh emails to show updated read status
+        fetchEmails();
+      }
+    } catch (error) {
+      console.error("Failed to mark folder as read:", error);
+      toast({ title: "Failed to mark folder as read", variant: "destructive" });
+    }
+  };
+
   const handleEmailClick = useCallback(async (email: Email, openPopout = false) => {
     if (!email || !email.id) {
       console.error("Invalid email object:", email);
@@ -1240,6 +1298,76 @@ To: ${email.to_emails?.join(", ") || ""}
     setComposeOpen(true);
   };
 
+  // Create a task from email (same as forwarding to newtask@tekna.com.au)
+  const handleCreateTaskFromEmail = async (email: Email) => {
+    if (creatingTask) return;
+
+    setCreatingTask(true);
+    try {
+      const response = await api.post<{ success: boolean; sm_task: { id: number; name: string }; error?: string }>(
+        `/api/v1/sm_tasks/from_email/${email.id}`
+      );
+
+      if (!response) {
+        throw new Error("No response from server");
+      }
+
+      if (response.success && response.sm_task) {
+        toast({
+          title: "Task Created",
+          description: `Task "${response.sm_task.name}" created successfully`,
+        });
+        // Open Task Hub in a new tab (standalone tasks go to /tasks, not /sm-tasks)
+        window.open(`/tasks`, "_blank");
+      } else {
+        throw new Error(response.error || "Failed to create task");
+      }
+    } catch (error) {
+      console.error("Failed to create task:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create task from email",
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingTask(false);
+    }
+  };
+
+  // Quick create contact from email sender
+  const handleQuickCreateContact = async (email: Email) => {
+    if (creatingContact) return;
+
+    setCreatingContact(true);
+    try {
+      const response = await api.post<{
+        success: boolean;
+        contact: { id: number; display_name: string; email: string };
+        company?: { id: number; name: string };
+        message: string;
+        already_existed?: boolean;
+      }>(`/api/v1/email_warehouse/${email.id}/quick_create_contact`);
+
+      if (response?.success) {
+        toast({
+          title: response.already_existed ? "Contact Linked" : "Contact Created",
+          description: response.message,
+        });
+        // Refresh the email to show updated contact
+        handleEmailClick(email);
+      }
+    } catch (error) {
+      console.error("Failed to create contact:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create contact",
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingContact(false);
+    }
+  };
+
   // Handle snooze email (show toast for now, can integrate SnoozePicker later)
   const handleSnoozeEmail = useCallback((email: Email) => {
     toast({
@@ -1376,6 +1504,14 @@ To: ${email.to_emails?.join(", ") || ""}
                   </DropdownMenuItem>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={handleMarkFolderRead}
+                disabled={!selectedAccount || selectedAccount === "all"}
+              >
+                <CheckCheck className="h-4 w-4 mr-2" />
+                Mark folder as read
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => router.push("/email/rules")}>
                 <Settings2 className="h-4 w-4 mr-2" />
@@ -1762,14 +1898,35 @@ To: ${email.to_emails?.join(", ") || ""}
                 Forward
               </Button>
 
-              {/* Contact Matching - right aligned */}
-              <div className="ml-auto">
-                <EmailContactMatch
-                  emailId={selectedEmail.id}
-                  primaryContact={selectedEmail.primary_contact}
-                  contacts={selectedEmail.contacts || []}
-                  onContactsChanged={() => handleEmailClick(selectedEmail)}
-                />
+              {/* Right-aligned actions: Contact + Task Creation */}
+              <div className="ml-auto flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleQuickCreateContact(selectedEmail)}
+                  disabled={creatingContact}
+                  title="Create contact from sender"
+                >
+                  {creatingContact ? (
+                    <Spinner className="h-4 w-4 mr-2" />
+                  ) : (
+                    <UserPlus className="h-4 w-4 mr-2" />
+                  )}
+                  + Contact
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleCreateTaskFromEmail(selectedEmail)}
+                  disabled={creatingTask}
+                >
+                  {creatingTask ? (
+                    <Spinner className="h-4 w-4 mr-2" />
+                  ) : (
+                    <ListTodo className="h-4 w-4 mr-2" />
+                  )}
+                  + Task
+                </Button>
               </div>
             </div>
 

@@ -40,6 +40,7 @@ import { CostTab } from "../components/CostTab";
 import { UnrealEngineTab } from "../components/UnrealEngineTab";
 import { ConnectionsTab } from "../components/ConnectionsTab";
 import { AgentsTab } from "../components/AgentsTab";
+import { SMTasksTab } from "../components/SMTasksTab";
 import CompanyInfoTab from "../components/CompanyInfoTab";
 
 // Company subtabs
@@ -59,7 +60,7 @@ const COMPANY_TABS = [
 ];
 
 // SSoT: Tabs that need full-height table layout (overflow-hidden)
-const FULL_HEIGHT_TABS = ["components", "schedule-master"];
+const FULL_HEIGHT_TABS = ["components", "schedule-master", "sm-tasks"];
 
 function PlaceholderTab({
   title,
@@ -267,6 +268,20 @@ export default function SystemAdminCatchAllPage({
 
       case "agents":
         return <AgentsTab />;
+
+      case "sm-tasks":
+        return <SMTasksTab />;
+
+      case "signature-register":
+        // Signature register has its own page
+        return (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">Redirecting to Signature Register...</p>
+            <a href="/admin/system/signature-register" className="text-primary hover:underline">
+              Go to Signature Register
+            </a>
+          </div>
+        );
 
       default:
         return (

@@ -47,6 +47,7 @@ import {
   Lock,
   Unlock,
   ShieldCheck,
+  Send,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -125,7 +126,6 @@ interface AvailableInvoice {
   id: number;
   invoice_number: string;
   reference: string | null;
-  description: string | null;
   total: number;
   amount_paid: number;
   status: string;

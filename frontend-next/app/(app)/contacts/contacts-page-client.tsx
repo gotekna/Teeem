@@ -36,6 +36,7 @@ interface ContactsPageClientProps {
   initialColumns: TableColumn[];
   initialRecords: TableRow[];
   initialHasMore: boolean;
+  initialTotalCount?: number | null;
   // SSR view config - eliminates flash when loading grouped views
   initialView?: ViewData | null;
   // SSR all views - for immediate toolbar button rendering
@@ -65,6 +66,7 @@ export default function ContactsPageClient({
   initialColumns,
   initialRecords,
   initialHasMore,
+  initialTotalCount,
   initialView,
   initialViews,
   initialGroupCounts,
@@ -170,10 +172,12 @@ export default function ContactsPageClient({
         onXeroTransfer={handleXeroTransfer}
         leftActions={leftActions}
         hideFooter
+        hideAddRecord // SSoT: Use "Add Contact" button in leftActions (links to /contacts/new with entity_type filtering)
         // SSR Props - data pre-fetched on server for fast LCP
         initialColumns={initialColumns}
         initialRecords={initialRecords}
         initialHasMore={initialHasMore}
+        initialTotalCount={initialTotalCount ?? undefined}
         // SSR View - pre-fetched to eliminate flash on grouped views
         initialView={initialView}
         // SSR All Views - for immediate toolbar button rendering (no flash)

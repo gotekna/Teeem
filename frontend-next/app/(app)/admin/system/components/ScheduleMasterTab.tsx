@@ -241,6 +241,7 @@ interface SmScheduleMasterTemplate {
   row_count: number;
   rows?: SmScheduleMaster[];
   copied_from_id?: number | null;
+  copied_from_name?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -1228,6 +1229,8 @@ export function ScheduleMasterTab() {
       claim_invoice_pattern: data.claim_invoice_pattern,
       claim_invoice_template_id: data.claim_invoice_template_id,
       claim_trading_name_id: data.claim_trading_name_id,
+      // Template membership - which templates this row belongs to
+      sm_template_ids: data.sm_template_ids,
     };
 
     await api.patch(`/api/v1/sm_schedule_master_templates/${activeEditTemplateId}/rows/${rowId}`, {
@@ -2338,6 +2341,11 @@ export function ScheduleMasterTab() {
                           </div>
                           {template.description && (
                             <CardDescription className="mt-1">{template.description}</CardDescription>
+                          )}
+                          {template.copied_from_name && (
+                            <CardDescription className="mt-1 text-xs text-muted-foreground/70">
+                              Copy of: {template.copied_from_name}
+                            </CardDescription>
                           )}
                         </div>
                       </div>

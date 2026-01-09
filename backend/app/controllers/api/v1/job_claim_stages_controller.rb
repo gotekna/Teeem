@@ -4,11 +4,11 @@ module Api
   module V1
     class JobClaimStagesController < ApplicationController
       before_action :set_job
-      before_action :set_stage, only: [:show, :update, :destroy, :match, :unmatch, :create_invoice, :generate_pdf, :release_retainage]
+      before_action :set_stage, only: [:show, :update, :destroy, :match, :unmatch, :create_invoice, :send_to_client, :generate_pdf, :release_retainage]
 
       # GET /api/v1/jobs/:job_id/claim_stages
       def index
-        stages = @job.job_claim_stages.includes(:claim_stage_template, :external_invoice).ordered
+        stages = @job.job_claim_stages.includes(:external_invoice).ordered
 
         # Summary calculations (handle nil values)
         # SSoT: contract_price is THE ONE
@@ -156,18 +156,43 @@ module Api
       end
 
       # POST /api/v1/jobs/:job_id/claim_stages/reset_from_template
+      # SSoT: Claim stages now come from Schedule Master CLAIM tasks
+      # To reset, re-apply the schedule template
       def reset_from_template
-        @job.initialize_claim_stages_from_template!
+        template = @job.job_type&.sm_schedule_master_template
 
-        stages = @job.job_claim_stages.includes(:claim_stage_template, :external_invoice).ordered
+        unless template
+          return render json: {
+            success: false,
+            error: "No schedule template configured for this job type"
+          }, status: :unprocessable_entity
+        end
 
-        render json: {
-          success: true,
-          data: {
-            message: "Claim stages reset from template",
-            stages: stages.map { |s| stage_json(s) }
+        # Clear existing claim stages and re-apply from Schedule Master
+        @job.job_claim_stages.destroy_all
+
+        result = SmScheduleMasterTemplateCopyService.new(template, @job, {
+          start_date: @job.start_date || Date.current,
+          user: current_user,
+          clear_existing: true, # Re-apply entire schedule
+          create_purchase_orders: false
+        }).execute
+
+        if result[:success]
+          stages = @job.job_claim_stages.includes(:external_invoice).ordered
+          render json: {
+            success: true,
+            data: {
+              message: "Claim stages reset from Schedule Master template",
+              stages: stages.map { |s| stage_json(s) },
+              tasks_created: result[:tasks_created],
+              claim_stages_created: result[:claim_stages_created]
+            }
           }
-        }
+        else
+          render json: { success: false, error: result[:errors].join(", ") },
+                 status: :unprocessable_entity
+        end
       end
 
       # POST /api/v1/jobs/:job_id/claim_stages/reorder
@@ -315,6 +340,57 @@ module Api
           matcher = ClaimStageMatcherService.new(@job)
           matcher.manual_match(@stage, invoice)
 
+          # Reload to get updated data
+          invoice.reload
+          @stage.reload
+
+          render json: {
+            success: true,
+            data: {
+              stage: stage_json(@stage),
+              invoice: {
+                id: invoice.id,
+                invoice_number: invoice.invoice_number || "DRAFT",
+                external_id: invoice.external_id,
+                total: invoice.total&.to_f,
+                status: invoice.status,
+                pending_push: invoice.pending_push
+              },
+              message: "Invoice created as draft in TEEEM. Click 'Send to Client' to sync to Xero."
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.error("Failed to create invoice for claim stage #{@stage.id}: #{e.message}")
+          Rails.logger.error(e.backtrace.join("\n"))
+
+          render json: { success: false, error: "Failed to create invoice: #{e.message}" },
+                 status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/jobs/:job_id/claim_stages/:id/send_to_client
+      # Push draft invoice to Xero
+      def send_to_client
+        invoice = @stage.external_invoice
+
+        unless invoice
+          return render json: { success: false, error: "No invoice linked to this stage" },
+                       status: :unprocessable_entity
+        end
+
+        unless invoice.pending_push?
+          return render json: { success: false, error: "Invoice has already been sent to Xero" },
+                       status: :unprocessable_entity
+        end
+
+        # Get Xero credential
+        xero_credential = XeroCredential.current
+        unless xero_credential
+          return render json: { success: false, error: "No Xero connection configured" },
+                       status: :unprocessable_entity
+        end
+
+        begin
           # Push to Xero
           sync_service = ExternalInvoiceSyncService.new(source: "xero", tenant_id: xero_credential.tenant_id)
           sync_service.send(:push_invoice_to_xero, invoice)
@@ -334,14 +410,14 @@ module Api
                 total: invoice.total&.to_f,
                 status: invoice.status
               },
-              message: "Invoice created and synced to Xero"
+              message: "Invoice sent to Xero successfully"
             }
           }
         rescue StandardError => e
-          Rails.logger.error("Failed to create invoice for claim stage #{@stage.id}: #{e.message}")
+          Rails.logger.error("Failed to send invoice to Xero: #{e.message}")
           Rails.logger.error(e.backtrace.join("\n"))
 
-          render json: { success: false, error: "Failed to create invoice: #{e.message}" },
+          render json: { success: false, error: "Failed to send to Xero: #{e.message}" },
                  status: :unprocessable_entity
         end
       end
@@ -496,7 +572,8 @@ module Api
         {
           id: stage.id,
           job_id: stage.job_id,
-          claim_stage_template_id: stage.claim_stage_template_id,
+          # SSoT: Claim stages now come from Schedule Master CLAIM tasks (sm_task linkage)
+          sm_task_id: stage.sm_task&.id,
           name: stage.name,
           percentage: stage.percentage&.to_f,
           expected_amount: stage.expected_amount&.to_f,
@@ -556,7 +633,6 @@ module Api
             id: invoice.id,
             invoice_number: invoice.invoice_number,
             reference: invoice.reference,
-            description: invoice.description,
             total: invoice.total&.to_f,
             amount_paid: invoice.amount_paid&.to_f,
             status: invoice.status,

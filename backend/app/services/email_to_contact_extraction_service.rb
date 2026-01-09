@@ -323,6 +323,12 @@ class EmailToContactExtractionService
     }
   end
 
+  # Public method to get company suggestion from an email address
+  # Used by quick_create_contact in email_warehouse_controller
+  def suggest_company_for_email(email)
+    generate_company_suggestion(email)
+  end
+
   private
 
   # Extract all email addresses from email data
@@ -851,8 +857,8 @@ class EmailToContactExtractionService
   # Find company from existing contacts with the same email domain
   def find_company_from_existing_contacts(domain)
     # Find contacts with emails in this domain that have a primary_company
-    contact_with_company = Contact.joins(:primary_company)
-                                  .where("contacts.email LIKE ?", "%@#{domain}")
+    contact_with_company = Contact.joins(:primary_company, :contact_emails)
+                                  .where("contact_emails.email LIKE ?", "%@#{domain}")
                                   .where.not(primary_company_id: nil)
                                   .includes(:primary_company)
                                   .first

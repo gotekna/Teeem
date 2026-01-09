@@ -118,7 +118,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
-import { getCachedRecords, setCachedRecords, clearCachedRecords } from "@/lib/records-cache";
+import { getCachedRecords, getCachedRecordsAsync, setCachedRecords, clearCachedRecords } from "@/lib/records-cache";
 import { useAuth } from "@/contexts/AuthContext";
 import { getColumnPriority, COLUMN_PRIORITY_CONFIG, type ColumnPriority } from "@/lib/column-priority";
 import { measureText, TABLE_FONTS, TABLE_PADDING } from "@/lib/column-measurement";
@@ -321,6 +321,7 @@ import { useAtom, useSetAtom, useAtomValue } from 'jotai';
 import {
   // Core edit mode
   tableEditModeAtom,
+  exitEditModeAtom,
   selectedRowsAtom,
   selectAllAtom,
   toggleRowSelectionAtom,
@@ -557,6 +558,7 @@ export default function TeeemTableView({
   onDataHealthIssueClick,
   initialShowTotals = true,
   hideFooter = false,
+  hideAddRecord = false,
   alwaysVisibleColumns = [],
   enableFullscreen = true, // SSoT: Default enabled for all tables
   stats,
@@ -829,6 +831,8 @@ export default function TeeemTableView({
   const [hasMore, setHasMore] = useState(initialHasMore ?? true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  // Total count from API (first request returns total_count for UX: "X of Y records")
+  const [autoFetchTotalCount, setAutoFetchTotalCount] = useState<number | null>(initialTotalCount ?? null);
   // Auto-refresh key: increment to trigger re-fetch when using autoFetchRecords
   const [autoFetchRefreshKey, setAutoFetchRefreshKey] = useState(0);
 
@@ -864,6 +868,12 @@ export default function TeeemTableView({
   // ⚠️ SKIP for embedded context (tables with initialFilters) - cache is keyed by foundationId only,
   // so different filter sets (e.g., different templates) would incorrectly restore the wrong data
   const hasCacheRestoredRef = useRef(false);
+  // Track if we're doing a background refresh (L2 cache restore triggers silent refresh)
+  const isBackgroundRefreshRef = useRef(false);
+
+  // Cache restoration effect - async to support IndexedDB L2 cache
+  // L1 (memory) = same session, fresh data
+  // L2 (IndexedDB) = survived page refresh, may be stale → trigger background refresh
   useEffect(() => {
     if (hasCacheRestoredRef.current) return;
     if (!useAutoFetch || !effectiveFoundationId) return;
@@ -873,27 +883,44 @@ export default function TeeemTableView({
       return;
     }
 
-    const cached = getCachedRecords(effectiveFoundationId);
-    if (cached && cached.records.length > (initialRecords?.length || 0)) {
-      // Cache has more records (user had scrolled/loaded more before)
-      // Restore from cache for better UX, but respect autoFetchLimit if set
-      let recordsToRestore = cached.records as TableRowType[];
-      let hasMoreToRestore = cached.hasMore;
+    // Async IIFE to await IndexedDB cache lookup
+    (async () => {
+      // Mark as restored immediately to prevent duplicate async calls
+      hasCacheRestoredRef.current = true;
 
-      // If autoFetchLimit is set, only restore up to that limit
-      if (autoFetchLimit !== undefined && recordsToRestore.length > autoFetchLimit) {
-        console.log(`[RecordsCache] Limiting cache restore to ${autoFetchLimit} records (cache had ${recordsToRestore.length})`);
-        recordsToRestore = recordsToRestore.slice(0, autoFetchLimit);
-        hasMoreToRestore = true; // There are more records available
-      } else {
-        console.log(`[RecordsCache] Restoring ${recordsToRestore.length} records from cache (SSR had ${initialRecords?.length || 0})`);
+      // Try L1 (memory) first, then L2 (IndexedDB) if available
+      const cached = await getCachedRecordsAsync(effectiveFoundationId);
+      if (cached && cached.records.length > (initialRecords?.length || 0)) {
+        // Cache has more records (user had scrolled/loaded more before)
+        // Restore from cache for better UX, but respect autoFetchLimit if set
+        let recordsToRestore = cached.records as TableRowType[];
+        let hasMoreToRestore = cached.hasMore;
+
+        // If autoFetchLimit is set, only restore up to that limit
+        if (autoFetchLimit !== undefined && recordsToRestore.length > autoFetchLimit) {
+          console.log(`[RecordsCache] Limiting cache restore to ${autoFetchLimit} records (cache had ${recordsToRestore.length})`);
+          recordsToRestore = recordsToRestore.slice(0, autoFetchLimit);
+          hasMoreToRestore = true; // There are more records available
+        } else {
+          console.log(`[RecordsCache] Restoring ${recordsToRestore.length} records from cache (SSR had ${initialRecords?.length || 0})`);
+        }
+
+        setAutoFetchedRecords(recordsToRestore);
+        setHasMore(hasMoreToRestore);
+        hasAppliedInitialRecordsRef.current = true; // Skip SSR check in auto-fetch effect
+
+        // L2 (IndexedDB) cache may be stale - trigger background refresh to get fresh data
+        // User sees cached data immediately, then silently updates if server data differs
+        if (cached.source === 'L2') {
+          console.log(`[RecordsCache] L2 cache restored - triggering background refresh for fresh data`);
+          isBackgroundRefreshRef.current = true;
+          // Small delay to let UI render with cached data first
+          setTimeout(() => {
+            setAutoFetchRefreshKey(prev => prev + 1);
+          }, 100);
+        }
       }
-
-      setAutoFetchedRecords(recordsToRestore);
-      setHasMore(hasMoreToRestore);
-      hasAppliedInitialRecordsRef.current = true; // Skip SSR check in auto-fetch effect
-    }
-    hasCacheRestoredRef.current = true;
+    })();
   }, [useAutoFetch, effectiveFoundationId, initialRecords?.length, isEmbeddedContext, autoFetchLimit]);
 
   // Ref to hold current search value for use in auto-fetch refresh effect
@@ -1087,7 +1114,12 @@ export default function TeeemTableView({
       const baseFiltersChanged = lastFetchedBaseFiltersKeyRef.current !== null &&
         lastFetchedBaseFiltersKeyRef.current !== baseFiltersKey;
 
-      if (!hasMore && autoFetchedRecords.length > 0 && !baseFiltersChanged) {
+      // ⚠️ FRC FIX: Don't skip fetch when there's an active search term
+      // After a search, hasMore=false means "search results complete", not "all records loaded"
+      // If we're not searching, hasMore=false truly means all records are in memory
+      const hasActiveSearch = Boolean(searchRef.current);
+
+      if (!hasMore && autoFetchedRecords.length > 0 && !baseFiltersChanged && !hasActiveSearch) {
         console.log('[TeeemTableView] All records loaded, applying filters client-side');
         return; // Client-side filtering in filteredAndSortedEntries handles this
       }
@@ -1109,7 +1141,11 @@ export default function TeeemTableView({
 
       console.log('[TeeemTableView] Proceeding with API fetch');
 
-      setIsLoadingMore(true);
+      // Skip loading indicator for background refresh (L2 cache already displayed data)
+      const isBackground = isBackgroundRefreshRef.current;
+      if (!isBackground) {
+        setIsLoadingMore(true);
+      }
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const params: Record<string, any> = { limit: 100 };
@@ -1123,23 +1159,35 @@ export default function TeeemTableView({
             value: f.value,
           })));
         }
-        const response = await api.get<{ records: TableRowType[], has_more: boolean }>(
+        const response = await api.get<{ records: TableRowType[], has_more: boolean, total_count?: number }>(
           `/api/v1/foundations/${effectiveFoundationId}/records`,
           { params }
         );
         const newRecords = response.records || [];
         setAutoFetchedRecords(newRecords);
         setHasMore(response.has_more ?? true);
+        // Capture total_count from first request for "X of Y records" display
+        if (response.total_count !== undefined) {
+          setAutoFetchTotalCount(response.total_count);
+        }
         // Track which baseFilters were used for this fetch (for change detection)
         lastFetchedBaseFiltersKeyRef.current = baseFiltersKey;
         // CACHE: Save records for instant restoration on back navigation
         if (newRecords.length > 0) {
           setCachedRecords(effectiveFoundationId, newRecords as Record<string, unknown>[], null, response.has_more ?? true);
         }
+        // Log completion of background refresh
+        if (isBackground) {
+          console.log(`[RecordsCache] Background refresh complete - ${newRecords.length} fresh records loaded`);
+          isBackgroundRefreshRef.current = false;
+        }
       } catch (error) {
         console.error(`[TeeemTableView] Failed to fetch records for Foundation ${effectiveFoundationId}:`, error);
+        isBackgroundRefreshRef.current = false; // Reset on error too
       } finally {
-        setIsLoadingMore(false);
+        if (!isBackground) {
+          setIsLoadingMore(false);
+        }
       }
     };
 
@@ -1668,6 +1716,21 @@ export default function TeeemTableView({
     }
   }, [initialView, setColumnOrder, setVisibleColumns, setColumnWidths, foundationId]);
 
+  // SSR SORT ORDER: Apply sort_order from initialView (for custom group ordering)
+  // FRC Fix: This was missing! sort_order includes customOrder for cascading views
+  // Note: SSR uses snake_case (sort_order), client uses camelCase (sortColumns)
+  const ssrSortColumnsInitializedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (ssrSortColumnsInitializedRef.current === foundationId) return;
+    // SSR initialView has sort_order (snake_case), not sortColumns
+    const ssrSortOrder = (initialView as { sort_order?: SortColumn[] })?.sort_order;
+    if (ssrSortOrder?.length) {
+      ssrSortColumnsInitializedRef.current = foundationId;
+      console.log('[SSR] Applying initialView sort_order:', ssrSortOrder.length, 'columns', ssrSortOrder);
+      setSortColumns(ssrSortOrder);
+    }
+  }, [initialView, setSortColumns, foundationId]);
+
   // SSR FIX: Initialize savedViews from preloadedViews immediately
   // This eliminates the flash where view buttons don't show until API call completes
   // Also handles navigation between foundations - replaces stale views from wrong foundation
@@ -1693,6 +1756,7 @@ export default function TeeemTableView({
           columns?: { visible?: Record<string, boolean>; order?: string[]; widths?: Record<string, number> };
           group_by_columns?: string[];  // SSR snake_case
           group_by_column?: string;     // SSR snake_case
+          sort_order?: Array<{ column: string; dir: string; customOrder?: string[] }>; // SSR snake_case
         };
 
         return {
@@ -1708,7 +1772,12 @@ export default function TeeemTableView({
           visibleColumns: v.visibleColumns || viewAny.columns?.visible || {},
           columnOrder: v.columnOrder || viewAny.columns?.order || [],
           columnWidths: v.columnWidths || viewAny.columns?.widths || {},
-          sortColumns: v.sortColumns || [],
+          // FRC Fix: Handle both SSR (sort_order) and client (sortColumns) formats - includes customOrder
+          // Cast dir to SortColumn['dir'] to satisfy TypeScript (API returns string, we need literal union)
+          sortColumns: (v.sortColumns || viewAny.sort_order || []).map(s => ({
+            ...s,
+            dir: s.dir as SortColumn['dir']
+          })),
           // FRC Fix: Handle both SSR (group_by_columns) and client (groupByColumns) formats
           groupByColumns: v.groupByColumns || viewAny.group_by_columns || (v.groupByColumn || viewAny.group_by_column ? [v.groupByColumn || viewAny.group_by_column!] : []),
           groupByColumn: v.groupByColumn || viewAny.group_by_column,
@@ -1957,6 +2026,21 @@ export default function TeeemTableView({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run on mount, not when editingRowIds changes
+
+  // ⚠️ CRITICAL: Reset edit mode on unmount (2026-01-09)
+  // ════════════════════════════════════════════
+  // Why: Global tableEditModeAtom persists across navigation, blocking double-click
+  // ❌ BUG: User enters edit mode → navigates to detail → returns → double-click blocked
+  // ✅ FIX: Reset edit mode on unmount so returning users have clean state
+  // Root Cause: Global atoms don't auto-reset on navigation
+  // ════════════════════════════════════════════
+  const exitEditMode = useSetAtom(exitEditModeAtom);
+  React.useEffect(() => {
+    return () => {
+      // Cleanup on unmount: exit edit mode to prevent blocking double-click
+      exitEditMode();
+    };
+  }, [exitEditMode]);
 
   // Merge modal state managed by atoms (SSoT)
   const [showMergeModal, setShowMergeModal] = useAtom(showMergeModalAtom);
@@ -2326,16 +2410,27 @@ export default function TeeemTableView({
       }
 
       if (effectiveOnServerSearch) {
-        // When clearing search, trigger a refresh to get all records
+        // When clearing search, restore from cache first (avoids refetch if data was loaded)
         if (isClearing) {
-          console.log('[TeeemTableView] Clearing search - refreshing to restore all records');
-          setAutoFetchRefreshKey(prev => prev + 1);
+          console.log('[TeeemTableView] Clearing search - checking cache for pre-search data');
+          // Try to restore from cache first (preserves all loaded records)
+          const cached = effectiveFoundationId ? getCachedRecords(effectiveFoundationId) : null;
+          if (cached && cached.records.length > 0) {
+            console.log(`[TeeemTableView] Restoring ${cached.records.length} records from cache`);
+            setAutoFetchedRecords(cached.records as TableRowType[]);
+            setHasMore(cached.hasMore);
+          } else {
+            // No cache - trigger a fresh fetch
+            console.log('[TeeemTableView] No cache available - triggering fresh fetch');
+            setHasMore(true);
+            setAutoFetchRefreshKey(prev => prev + 1);
+          }
         } else {
           effectiveOnServerSearch(value, mode);
         }
       }
     },
-    [effectiveOnServerSearch, hasMore, autoFetchedRecords.length, autoFetchLimit, searchHook.actions]
+    [effectiveOnServerSearch, hasMore, autoFetchedRecords.length, autoFetchLimit, searchHook.actions, effectiveFoundationId]
   );
 
   const handleSearchAllChange = useCallback(
@@ -4310,7 +4405,7 @@ export default function TeeemTableView({
     const currentColLabel = COLUMNS.find((c) => c.key === currentColKey)?.label || currentColKey;
     const result: React.ReactNode[] = [];
 
-    // Sort groups alphabetically by display name
+    // Sort groups by custom order (if defined) or alphabetically by display name
     // "(Empty)" group always goes last (SSoT: all null/undefined values use "(Empty)")
     const isEmptyGroup = (key: string) => key === "(Empty)";
     const isGroupingByCompany = currentColKey?.includes('company') || currentColKey?.includes('employer');
@@ -4318,11 +4413,26 @@ export default function TeeemTableView({
     // Collect all group keys to filter companies from "No Employees Assigned" group
     const groupKeysAtRoot = new Set(Object.keys(groups));
 
+    // Check if there's a custom sort order for the current groupBy column
+    const customSortForGroup = sortColumns.find(
+      (s) => s.column === currentColKey && s.dir === 'custom' && s.customOrder && s.customOrder.length > 0
+    );
+
     const sortedGroupEntries = Object.entries(groups).sort(([keyA], [keyB]) => {
       if (isEmptyGroup(keyA)) return 1;
       if (isEmptyGroup(keyB)) return -1;
       const displayA = combinedDisplayMap.get(`${currentColKey}:${keyA}`) || combinedDisplayMap.get(keyA) || keyA;
       const displayB = combinedDisplayMap.get(`${currentColKey}:${keyB}`) || combinedDisplayMap.get(keyB) || keyB;
+
+      // Use custom order if defined for this column
+      if (customSortForGroup?.customOrder) {
+        const aIndex = customSortForGroup.customOrder.indexOf(displayA);
+        const bIndex = customSortForGroup.customOrder.indexOf(displayB);
+        const aPos = aIndex === -1 ? customSortForGroup.customOrder.length : aIndex;
+        const bPos = bIndex === -1 ? customSortForGroup.customOrder.length : bIndex;
+        return aPos - bPos;
+      }
+
       return naturalCompare(displayA, displayB);
     });
 
@@ -4529,11 +4639,7 @@ export default function TeeemTableView({
         onDoubleClick={() => {
           // Double click opens detail/edit
           if (!isEditMode) {
-            if (onRowClick) {
-              onRowClick(row);
-            } else {
-              handleRowDoubleClick(row);
-            }
+            handleRowDoubleClick(row);
           }
         }}
         onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
@@ -4614,9 +4720,15 @@ export default function TeeemTableView({
     // Collect all group keys at depth 0 to filter companies from "(Empty)"
     const groupKeysAtRoot = allGroupKeys || new Set(Object.keys(groups));
 
-    // Sort groups alphabetically by display name
+    // Sort groups by custom order (if defined) or alphabetically by display name
     // "(Empty)" group always goes last (SSoT: all null/undefined values use "(Empty)")
     const isEmptyGroup = (key: string) => key === "(Empty)";
+
+    // Check if there's a custom sort order for the current groupBy column
+    const customSortForGroup = sortColumns.find(
+      (s) => s.column === currentColKey && s.dir === 'custom' && s.customOrder && s.customOrder.length > 0
+    );
+
     const sortedGroupEntries = Object.entries(groups).sort(([keyA], [keyB]) => {
       if (isEmptyGroup(keyA)) return 1;
       if (isEmptyGroup(keyB)) return -1;
@@ -4624,6 +4736,15 @@ export default function TeeemTableView({
       // Try prefixed key first (e.g., "primary_company_id:123"), then unprefixed, then raw key
       const displayA = combinedDisplayMap.get(`${currentColKey}:${keyA}`) || combinedDisplayMap.get(keyA) || keyA;
       const displayB = combinedDisplayMap.get(`${currentColKey}:${keyB}`) || combinedDisplayMap.get(keyB) || keyB;
+
+      // Use custom order if defined for this column
+      if (customSortForGroup?.customOrder) {
+        const aIndex = customSortForGroup.customOrder.indexOf(displayA);
+        const bIndex = customSortForGroup.customOrder.indexOf(displayB);
+        const aPos = aIndex === -1 ? customSortForGroup.customOrder.length : aIndex;
+        const bPos = bIndex === -1 ? customSortForGroup.customOrder.length : bIndex;
+        return aPos - bPos;
+      }
       return naturalCompare(displayA, displayB);
     });
 
@@ -4791,11 +4912,7 @@ export default function TeeemTableView({
                 onDoubleClick={() => {
                   // Double click opens detail/edit
                   if (!isEditMode) {
-                    if (onRowClick) {
-                      onRowClick(companyRow);
-                    } else {
-                      handleRowDoubleClick(companyRow);
-                    }
+                    handleRowDoubleClick(companyRow);
                   }
                 }}
                 onMouseEnter={() => handleRowMouseEnter(companyRow.id, globalIndex)}
@@ -4893,11 +5010,7 @@ export default function TeeemTableView({
                 onDoubleClick={() => {
                   // Double click opens detail/edit
                   if (!isEditMode) {
-                    if (onRowClick) {
-                      onRowClick(row);
-                    } else {
-                      handleRowDoubleClick(row);
-                    }
+                    handleRowDoubleClick(row);
                   }
                 }}
                 onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
@@ -5102,11 +5215,7 @@ export default function TeeemTableView({
                 onDoubleClick={() => {
                   // Double click opens detail/edit
                   if (!isEditMode) {
-                    if (onRowClick) {
-                      onRowClick(row);
-                    } else {
-                      handleRowDoubleClick(row);
-                    }
+                    handleRowDoubleClick(row);
                   }
                 }}
                 onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
@@ -5334,11 +5443,7 @@ export default function TeeemTableView({
                 onDoubleClick={() => {
                   // Double click opens detail/edit
                   if (!isEditMode && !editingRowIds.has(row.id)) {
-                    if (onRowClick) {
-                      onRowClick(row);
-                    } else {
-                      handleRowDoubleClick(row);
-                    }
+                    handleRowDoubleClick(row);
                   }
                 }}
                 onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
@@ -5647,14 +5752,23 @@ export default function TeeemTableView({
             <h1 className="text-2xl font-bold tracking-tight font-serif">{tableName}</h1>
             <span className="text-sm text-muted-foreground">
               {/* CLS FIX: For grouped views, use serverTotalRecords from SSR to prevent "0 records" flash */}
+              {/* When searching, show filtered count but keep "X of Y" format so user knows total available */}
               {(() => {
-                // For grouped views with SSR data, show serverTotalRecords immediately
-                const displayCount = groupByColumns.length > 0 && serverTotalRecords !== undefined && serverTotalRecords > 0
-                  ? serverTotalRecords
-                  : filteredAndSortedEntries.length;
+                const hasActiveSearch = Boolean(searchRef.current);
 
-                return totalCount !== null
-                  ? `${displayCount.toLocaleString()} of ${totalCount.toLocaleString()} records`
+                // Display count: filtered results when searching, otherwise SSR total for grouped views
+                const displayCount = hasActiveSearch
+                  ? filteredAndSortedEntries.length  // Search results count
+                  : (groupByColumns.length > 0 && serverTotalRecords !== undefined && serverTotalRecords > 0
+                      ? serverTotalRecords
+                      : filteredAndSortedEntries.length);
+
+                // Use totalCount if passed directly, fall back to autoFetchTotalCount (from API), then SSR initialTotalCount
+                const effectiveTotalCount = totalCount ?? autoFetchTotalCount ?? initialTotalCount ?? null;
+
+                // Always show "X of Y" format when totalCount is available (helps user know total during search)
+                return effectiveTotalCount !== null
+                  ? `${displayCount.toLocaleString()} of ${effectiveTotalCount.toLocaleString()} records`
                   : `${displayCount.toLocaleString()} records`;
               })()}
             </span>
@@ -5726,8 +5840,8 @@ export default function TeeemTableView({
             "toolbar-left flex items-center gap-2 flex-shrink-0",
             debugGrid && "border border-purple-300 bg-purple-100/50 dark:bg-purple-900/30 mt-6"
           )}>
-            {/* Add Row button - auto-shown when effectiveOnAddRow is available */}
-            {effectiveOnAddRow && (
+            {/* Add Row button - auto-shown when effectiveOnAddRow is available (SSoT: use hideAddRecord when page has custom create action) */}
+            {effectiveOnAddRow && !hideAddRecord && (
               <Button
                 variant="default"
                 size="sm"

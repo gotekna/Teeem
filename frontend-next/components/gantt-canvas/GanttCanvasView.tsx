@@ -1316,6 +1316,7 @@ export function GanttCanvasView({
       setLoadingPhotos(true);
 
       // Use job_all_files endpoint to get all files from job's SharePoint folder
+      // refresh_thumbnails=true forces fresh thumbnail URLs from SharePoint (cached ones expire)
       const response = await api.get<{
         success: boolean;
         items: Array<{
@@ -1328,7 +1329,7 @@ export function GanttCanvasView({
           download_url?: string;
           folder_path?: string;
         }>;
-      }>(`/api/v1/organization_onedrive/job_all_files?job_id=${jobId}`);
+      }>(`/api/v1/organization_onedrive/job_all_files?job_id=${jobId}&refresh_thumbnails=true`);
 
       if (response?.success && response.items) {
         // Filter for image files only (from any photo folder)
@@ -3719,14 +3720,25 @@ export function GanttCanvasView({
                         setLightboxIndex(index);
                         setLightboxOpen(true);
                       }}
-                      className="aspect-square rounded-md overflow-hidden bg-muted/50 hover:ring-2 hover:ring-primary/50 transition-all focus:outline-none focus:ring-2 focus:ring-primary"
+                      className="aspect-square rounded-md overflow-hidden bg-muted/50 hover:ring-2 hover:ring-primary/50 transition-all focus:outline-none focus:ring-2 focus:ring-primary relative group"
                     >
-                      <img
-                        src={photo.thumbnailUrl}
-                        alt={photo.name}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                      />
+                      {photo.thumbnailUrl ? (
+                        <img
+                          src={photo.thumbnailUrl}
+                          alt={photo.name}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                          onError={(e) => {
+                            // Hide broken image and show fallback
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                          }}
+                        />
+                      ) : null}
+                      <div className={`absolute inset-0 flex flex-col items-center justify-center ${photo.thumbnailUrl ? 'hidden' : ''}`}>
+                        <Camera className="h-6 w-6 text-muted-foreground/50" />
+                        <span className="text-[10px] text-muted-foreground/70 mt-1 px-1 truncate max-w-full">{photo.name.slice(0, 15)}...</span>
+                      </div>
                     </button>
                   ))}
                 </div>

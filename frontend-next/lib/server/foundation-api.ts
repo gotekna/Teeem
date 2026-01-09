@@ -464,7 +464,7 @@ interface ViewData {
     showTotals?: boolean;
     stickyActions?: boolean;
   };
-  sort_order?: Array<{ column: string; dir: 'asc' | 'desc' }>;
+  sort_order?: Array<{ column: string; dir: 'asc' | 'desc' | 'custom'; customOrder?: string[] }>;
   group_by_columns?: string[];
   group_by_column?: string;
   display_order?: number;

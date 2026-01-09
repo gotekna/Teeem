@@ -518,3 +518,56 @@ export function formatWithConfig(
 
 // Re-export formatEmpty for backward compatibility
 export { formatEmpty as displayEmpty };
+
+// ============================================================================
+// CONTACT DISPLAY UTILITIES
+// ============================================================================
+
+/**
+ * Contact object interface for display formatting
+ */
+export interface ContactForDisplay {
+  id: number;
+  display_name?: string;
+  company_name?: string;
+  company_name_or_trust?: string;
+  first_name?: string;
+  last_name?: string;
+  employer_name?: string; // Company name for person contacts (from backend)
+}
+
+/**
+ * SSoT: Format contact label for display in dropdowns/lists
+ *
+ * Company-aware display shows "Troy Smith - Harvey Norman" format
+ * when showCompanyName is true and contact has an employer.
+ *
+ * @param contact - The contact object
+ * @param showCompanyName - Whether to show employer name (default: true)
+ * @returns Formatted label string
+ *
+ * @example
+ * formatContactLabel({ display_name: "Troy Smith", employer_name: "Harvey Norman" })
+ * // Returns: "Troy Smith - Harvey Norman"
+ *
+ * formatContactLabel({ display_name: "Troy Smith", employer_name: "Harvey Norman" }, false)
+ * // Returns: "Troy Smith"
+ */
+export function formatContactLabel(
+  contact: ContactForDisplay,
+  showCompanyName: boolean = true
+): string {
+  const name =
+    contact.display_name ||
+    contact.company_name ||
+    contact.company_name_or_trust ||
+    (contact.first_name && contact.last_name
+      ? `${contact.first_name} ${contact.last_name}`.trim()
+      : contact.first_name || contact.last_name) ||
+    `Contact ${contact.id}`;
+
+  if (showCompanyName && contact.employer_name) {
+    return `${name} - ${contact.employer_name}`;
+  }
+  return name;
+}

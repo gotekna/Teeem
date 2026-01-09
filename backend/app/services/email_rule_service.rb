@@ -32,7 +32,7 @@ class EmailRuleService
   def apply_rules_to_existing(credential_id: nil, microsoft_credential_id: nil, rule_id: nil)
     results = { matched: 0, processed: 0, errors: 0 }
 
-    emails = user.email_warehouse
+    emails = user.email_warehouses
     emails = emails.where(imap_credential_id: credential_id) if credential_id
     emails = emails.where(microsoft_credential_id: microsoft_credential_id) if microsoft_credential_id
 
@@ -75,7 +75,7 @@ class EmailRuleService
   def test_rule(rule_params, limit: 100)
     rule = EmailRule.new(rule_params.merge(user: user))
 
-    emails = user.email_warehouse.limit(limit)
+    emails = user.email_warehouses.limit(limit)
     matches = emails.select { |e| rule.matches?(e) }
 
     {

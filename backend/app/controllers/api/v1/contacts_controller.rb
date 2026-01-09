@@ -111,7 +111,65 @@ module Api
           when "suppliers"
             # Suppliers: contacts with is_supplier_cached=true
             # Cached column is updated when contacts get POs, pricebooks, price histories, or bills
-            @contacts = @contacts.where(is_supplier_cached: true)
+            #
+            # Company-aware supplier search: When searching, also find supplier COMPANIES
+            # where an EMPLOYEE matches the search term (e.g., search "troy" finds "Pre Hung Doors"
+            # if Troy Wilson works there and Pre Hung Doors is a supplier)
+            # The matched employee names are returned in `matched_employees` for UI display
+            if params[:search].present?
+              search_term = "%#{params[:search]}%"
+
+              # Find people (employees) matching the search term
+              matching_employees = Contact.where(entity_type: "person")
+                                          .where("display_name ILIKE ? OR first_name ILIKE ? OR last_name ILIKE ?",
+                                                 search_term, search_term, search_term)
+                                          .select(:id, :display_name, :primary_company_id)
+
+              # Build mapping: employer_id -> [employee names]
+              @matched_employees_by_company = {}
+              matching_employees.each do |emp|
+                next unless emp.primary_company_id
+                @matched_employees_by_company[emp.primary_company_id] ||= []
+                @matched_employees_by_company[emp.primary_company_id] << emp.display_name
+              end
+
+              # Also check ContactRelationship employee_of
+              if matching_employees.any?
+                employee_relationships = ContactRelationship
+                  .active
+                  .where(relationship_type: "employee_of")
+                  .where(source_contact_id: matching_employees.map(&:id))
+                  .pluck(:source_contact_id, :related_contact_id)
+
+                employee_names_by_id = matching_employees.index_by(&:id)
+                employee_relationships.each do |emp_id, company_id|
+                  emp = employee_names_by_id[emp_id]
+                  next unless emp
+                  @matched_employees_by_company[company_id] ||= []
+                  @matched_employees_by_company[company_id] << emp.display_name unless @matched_employees_by_company[company_id].include?(emp.display_name)
+                end
+              end
+
+              employer_company_ids = @matched_employees_by_company.keys
+
+              # Include ALL employer companies of matching employees (regardless of is_supplier_cached)
+              # This allows finding potential suppliers by employee name before they're officially marked
+              valid_employer_ids = employer_company_ids.any? ?
+                Contact.where(id: employer_company_ids, is_active: true).pluck(:id) : []
+
+              # Build final result: direct supplier matches + employer companies of matching employees
+              # Exclude employees (people with primary_company_id) - show their company instead
+              direct_supplier_ids = @contacts.where(is_supplier_cached: true)
+                                             .where("contacts.entity_type IN ('company', 'trust') OR contacts.primary_company_id IS NULL")
+                                             .pluck(:id)
+
+              all_supplier_ids = (direct_supplier_ids + valid_employer_ids).uniq
+              @contacts = Contact.where(id: all_supplier_ids).where(is_active: true)
+            else
+              # No search term - show all suppliers (excluding employees who have employer companies)
+              @contacts = @contacts.where(is_supplier_cached: true)
+                                   .where("contacts.entity_type IN ('company', 'trust') OR contacts.primary_company_id IS NULL")
+            end
           when "customers"
             # Customers: contacts with is_customer_cached=true
             # Cached column is updated when contacts get jobs
@@ -174,7 +232,16 @@ module Api
           @contacts = @contacts.where(company_group_id: nil)
         end
 
-        @contacts = @contacts.order(:display_name)
+        # Fix PostgreSQL DISTINCT + ORDER BY conflict:
+        # When DISTINCT is used earlier in the query chain (from joins, .distinct calls, or .or()),
+        # PostgreSQL requires ORDER BY columns to be in SELECT list.
+        # Solution: Resolve DISTINCT via subquery, then order the final results.
+        if @contacts.distinct_value || @contacts.to_sql.include?("DISTINCT")
+          contact_ids = @contacts.pluck(:id)
+          @contacts = Contact.where(id: contact_ids).order(:display_name)
+        else
+          @contacts = @contacts.order(:display_name)
+        end
 
         # Optionally include companies and jobs data
         include_companies = params[:include_companies] == "true"
@@ -217,6 +284,12 @@ module Api
         # Performance: Build hash map for O(1) lookups instead of O(n²) array search
         contacts_by_id = @contacts.index_by(&:id)
 
+        # Performance: Pre-fetch employer names for person contacts (company-aware search display)
+        # This allows frontend to show "Troy Smith - Harvey Norman" format
+        employer_names = Contact.where(id: @contacts.where.not(primary_company_id: nil).pluck(:primary_company_id))
+                                .pluck(:id, :display_name)
+                                .to_h
+
         # Merge pre-computed flags and counts into JSON
         contacts_json.each do |contact_json|
           flags = precomputed_flags[contact_json["id"]] || {}
@@ -224,6 +297,19 @@ module Api
           contact_json["is_supplier?"] = flags[:is_supplier] || false
           contact_json["is_director?"] = flags[:is_director] || false
           contact_json["company_group_memberships_count"] = membership_counts[contact_json["id"]] || 0
+
+          # Add employer_name for person contacts (company-aware search)
+          # SSoT: primary_company_id links person to their employer
+          primary_company_id = contacts_by_id[contact_json["id"]]&.primary_company_id
+          if primary_company_id
+            contact_json["employer_name"] = employer_names[primary_company_id]
+          end
+
+          # Add matched_employees for company contacts (supplier search by employee name)
+          # Shows which employees matched the search term (e.g., "Troy Wilson" when searching "troy")
+          if @matched_employees_by_company && @matched_employees_by_company[contact_json["id"]]
+            contact_json["matched_employees"] = @matched_employees_by_company[contact_json["id"]]
+          end
         end
 
         # Add company and job counts for all contacts

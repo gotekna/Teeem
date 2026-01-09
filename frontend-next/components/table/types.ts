@@ -210,6 +210,7 @@ export interface TeeemTableViewProps {
   // Display options
   initialShowTotals?: boolean; // Initial value for showing totals row (default: true)
   hideFooter?: boolean; // Hide the footer row (record count shown in page header instead)
+  hideAddRecord?: boolean; // Hide the Add Record button (use when page has custom create action, e.g., /contacts/new)
   alwaysVisibleColumns?: string[]; // Columns that are always visible regardless of view settings
   enableFullscreen?: boolean; // Enable fullscreen toggle button in toolbar (default: false)
 
@@ -256,7 +257,7 @@ export interface TeeemTableViewProps {
       showTotals?: boolean;
       stickyActions?: boolean;
     };
-    sort_order?: Array<{ column: string; dir: 'asc' | 'desc' }>;
+    sort_order?: Array<{ column: string; dir: 'asc' | 'desc' | 'custom'; customOrder?: string[] }>;
   } | null;
 
   // SSR Group Counts - Pre-fetched group counts to eliminate CLS on grouped views

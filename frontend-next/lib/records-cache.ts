@@ -3,18 +3,20 @@
  *
  * Problem: User loads 1000 records, clicks a row for detail, comes back - data is gone.
  *
- * Solution: Module-level cache that survives React re-renders and route changes.
- * Records are kept in memory for instant restoration when navigating back.
+ * Solution: Two-tier caching strategy:
+ * - L1: Memory cache (instant, lost on refresh)
+ * - L2: IndexedDB (50MB+, survives refresh, 1 hour TTL)
  *
  * Features:
- * - In-memory cache (no serialization, instant access)
+ * - In-memory L1 cache (instant access, no serialization)
+ * - IndexedDB L2 cache (persistent, handles large datasets like Pricebook 5,285 items)
  * - Per-foundation keying
- * - TTL-based expiration (5 minutes default)
- * - Automatic cleanup of expired entries
- * - Optional sessionStorage persistence for page refresh survival
+ * - TTL-based expiration
+ * - Automatic L2 → L1 restoration on cache hit
  */
 
-import { CACHE_TTL_RECORDS, CACHE_TTL_SESSION } from './constants/cache-constants';
+import { CACHE_TTL_RECORDS } from './constants/cache-constants';
+import { getFromIDB, setInIDB, deleteFromIDB, clearAllIDB, isIndexedDBAvailable } from './records-cache-idb';
 
 interface CachedRecords {
   records: Record<string, unknown>[];
@@ -24,15 +26,16 @@ interface CachedRecords {
   cursor?: number; // Last cursor position for pagination
 }
 
+// Result from async cache lookup - includes source for background refresh decision
+export interface CachedRecordsWithSource extends CachedRecords {
+  source: 'L1' | 'L2'; // L1 = memory (fresh), L2 = IndexedDB (may be stale)
+}
+
 // Module-level cache - survives route changes
 const recordsCache = new Map<string | number, CachedRecords>();
 
-// SSoT: Cache TTLs from cache-constants.ts
+// SSoT: Cache TTL for memory cache (L1)
 const DEFAULT_TTL_MS = CACHE_TTL_RECORDS;
-const SESSION_STORAGE_TTL_MS = CACHE_TTL_SESSION;
-
-// Session storage key prefix
-const STORAGE_PREFIX = 'teeem-records-cache-v1-';
 
 // Log deduplication - prevents flooding console with repeated identical logs
 const recentLogs = new Map<string, { count: number; lastTime: number }>();
@@ -70,50 +73,68 @@ function dedupedLog(message: string): void {
 }
 
 /**
- * Get cached records for a foundation
+ * Get cached records for a foundation (sync - memory only)
+ * Use getCachedRecordsAsync for IndexedDB fallback
  */
 export function getCachedRecords(foundationId: string | number): CachedRecords | null {
-  // Check memory cache first (instant)
+  // Check memory cache (instant, sync)
   const memoryCache = recordsCache.get(foundationId);
   if (memoryCache) {
     const age = Date.now() - memoryCache.timestamp;
     if (age < DEFAULT_TTL_MS) {
-      dedupedLog(`[RecordsCache] HIT (memory): ${foundationId}, ${memoryCache.records.length} records, age: ${Math.round(age / 1000)}s`);
+      dedupedLog(`[RecordsCache] HIT (L1 memory): ${foundationId}, ${memoryCache.records.length} records, age: ${Math.round(age / 1000)}s`);
       return memoryCache;
     }
     // Expired - remove it
     recordsCache.delete(foundationId);
-    dedupedLog(`[RecordsCache] EXPIRED (memory): ${foundationId}`);
+    dedupedLog(`[RecordsCache] EXPIRED (L1 memory): ${foundationId}`);
   }
 
-  // Check sessionStorage (survives page refresh)
-  if (typeof window !== 'undefined') {
-    try {
-      const stored = sessionStorage.getItem(`${STORAGE_PREFIX}${foundationId}`);
-      if (stored) {
-        const parsed = JSON.parse(stored) as CachedRecords;
-        const age = Date.now() - parsed.timestamp;
-        if (age < SESSION_STORAGE_TTL_MS) {
-          dedupedLog(`[RecordsCache] HIT (session): ${foundationId}, ${parsed.records.length} records, age: ${Math.round(age / 1000)}s`);
-          // Restore to memory cache for faster subsequent access
-          recordsCache.set(foundationId, parsed);
-          return parsed;
-        }
-        // Expired - remove it
-        sessionStorage.removeItem(`${STORAGE_PREFIX}${foundationId}`);
-        dedupedLog(`[RecordsCache] EXPIRED (session): ${foundationId}`);
-      }
-    } catch (e) {
-      console.warn('[RecordsCache] Failed to read from sessionStorage:', e);
+  dedupedLog(`[RecordsCache] MISS (L1 memory): ${foundationId}`);
+  return null;
+}
+
+/**
+ * Get cached records with IndexedDB fallback (async)
+ * Checks L1 (memory) then L2 (IndexedDB)
+ * On L2 hit, restores to L1 for subsequent sync access
+ * Returns source indicator for background refresh decision:
+ * - L1 = memory cache (same session, fresh)
+ * - L2 = IndexedDB (survived refresh, may be stale - trigger background refresh)
+ */
+export async function getCachedRecordsAsync(foundationId: string | number): Promise<CachedRecordsWithSource | null> {
+  // Check L1 memory cache first (instant, same session = fresh)
+  const memoryCache = getCachedRecords(foundationId);
+  if (memoryCache) {
+    return { ...memoryCache, source: 'L1' };
+  }
+
+  // Check L2 IndexedDB (async, survives page refresh = may be stale)
+  if (isIndexedDBAvailable()) {
+    const idbData = await getFromIDB(foundationId);
+    if (idbData) {
+      // Restore to L1 memory cache for subsequent sync access
+      const cachedEntry: CachedRecords = {
+        records: idbData.records,
+        totalCount: idbData.totalCount,
+        hasMore: idbData.hasMore,
+        timestamp: idbData.timestamp,
+        cursor: idbData.cursor,
+      };
+      recordsCache.set(foundationId, cachedEntry);
+      dedupedLog(`[RecordsCache] HIT (L2 IndexedDB→L1): ${foundationId}, ${idbData.records.length} records`);
+      // L2 source = may be stale, caller should trigger background refresh
+      return { ...cachedEntry, source: 'L2' };
     }
   }
 
-  dedupedLog(`[RecordsCache] MISS: ${foundationId}`);
+  dedupedLog(`[RecordsCache] MISS (all layers): ${foundationId}`);
   return null;
 }
 
 /**
  * Cache records for a foundation
+ * Writes to both L1 (memory) and L2 (IndexedDB)
  */
 export function setCachedRecords(
   foundationId: string | number,
@@ -130,26 +151,16 @@ export function setCachedRecords(
     cursor,
   };
 
-  // Always store in memory (instant, no size limit concerns)
+  // L1: Always store in memory (instant, no size limit)
   recordsCache.set(foundationId, entry);
-  dedupedLog(`[RecordsCache] SET (memory): ${foundationId}, ${records.length} records`);
+  dedupedLog(`[RecordsCache] SET (L1 memory): ${foundationId}, ${records.length} records`);
 
-  // Try to persist to sessionStorage for page refresh survival
-  // But only if the data isn't too large (avoid quota issues)
-  if (typeof window !== 'undefined') {
-    try {
-      const json = JSON.stringify(entry);
-      // Only persist if under 2MB (sessionStorage is typically 5MB total)
-      if (json.length < 2 * 1024 * 1024) {
-        sessionStorage.setItem(`${STORAGE_PREFIX}${foundationId}`, json);
-        dedupedLog(`[RecordsCache] SET (session): ${foundationId}, ${Math.round(json.length / 1024)}KB`);
-      } else {
-        dedupedLog(`[RecordsCache] SKIP (session): ${foundationId}, too large (${Math.round(json.length / 1024)}KB)`);
-      }
-    } catch (e) {
-      // Quota exceeded or other error - that's fine, memory cache still works
-      console.warn('[RecordsCache] Failed to write to sessionStorage:', e);
-    }
+  // L2: Persist to IndexedDB (async, fire-and-forget, 50MB+ capacity)
+  // This handles large datasets like Pricebook (5,285 items)
+  if (isIndexedDBAvailable()) {
+    setInIDB(foundationId, records, totalCount, hasMore, cursor).catch(e => {
+      console.warn('[RecordsCache] Failed to write to IndexedDB:', e);
+    });
   }
 }
 
@@ -186,65 +197,57 @@ export function appendCachedRecords(
 
 /**
  * Clear cache for a foundation (after data changes like merge/delete)
+ * Clears both L1 (memory) and L2 (IndexedDB)
  */
 export function clearCachedRecords(foundationId: string | number): void {
+  // L1: Clear memory
   recordsCache.delete(foundationId);
-  if (typeof window !== 'undefined') {
-    try {
-      sessionStorage.removeItem(`${STORAGE_PREFIX}${foundationId}`);
-    } catch {
-      // Ignore
-    }
+
+  // L2: Clear IndexedDB (async)
+  if (isIndexedDBAvailable()) {
+    deleteFromIDB(foundationId).catch(() => {/* ignore */});
   }
+
   dedupedLog(`[RecordsCache] CLEARED: ${foundationId}`);
 }
 
 /**
  * Clear all cached records
+ * Clears both L1 (memory) and L2 (IndexedDB)
  */
 export function clearAllCachedRecords(): void {
+  // L1: Clear all memory
   recordsCache.clear();
-  if (typeof window !== 'undefined') {
-    try {
-      const keysToRemove: string[] = [];
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const key = sessionStorage.key(i);
-        if (key?.startsWith(STORAGE_PREFIX)) {
-          keysToRemove.push(key);
-        }
-      }
-      keysToRemove.forEach(key => sessionStorage.removeItem(key));
-    } catch {
-      // Ignore
-    }
+
+  // L2: Clear all IndexedDB (async)
+  if (isIndexedDBAvailable()) {
+    clearAllIDB().catch(() => {/* ignore */});
   }
+
   dedupedLog('[RecordsCache] ALL CLEARED');
 }
 
 /**
  * Remove a specific record from cache (after delete)
+ * Updates both L1 (memory) and L2 (IndexedDB)
  */
 export function removeFromCache(foundationId: string | number, recordId: string | number): void {
   const cached = recordsCache.get(foundationId);
   if (cached) {
     cached.records = cached.records.filter(r => r.id !== recordId);
     recordsCache.set(foundationId, cached);
-    // Also update sessionStorage
-    if (typeof window !== 'undefined') {
-      try {
-        const json = JSON.stringify(cached);
-        if (json.length < 2 * 1024 * 1024) {
-          sessionStorage.setItem(`${STORAGE_PREFIX}${foundationId}`, json);
-        }
-      } catch {
-        // Ignore
-      }
+
+    // L2: Update IndexedDB with modified records
+    if (isIndexedDBAvailable()) {
+      setInIDB(foundationId, cached.records, cached.totalCount, cached.hasMore, cached.cursor)
+        .catch(() => {/* ignore */});
     }
   }
 }
 
 /**
  * Remove multiple records from cache (after bulk delete/merge)
+ * Updates both L1 (memory) and L2 (IndexedDB)
  */
 export function removeMultipleFromCache(foundationId: string | number, recordIds: (string | number)[]): void {
   const cached = recordsCache.get(foundationId);
@@ -252,16 +255,11 @@ export function removeMultipleFromCache(foundationId: string | number, recordIds
     const idsSet = new Set(recordIds);
     cached.records = cached.records.filter(r => !idsSet.has(r.id as string | number));
     recordsCache.set(foundationId, cached);
-    // Also update sessionStorage
-    if (typeof window !== 'undefined') {
-      try {
-        const json = JSON.stringify(cached);
-        if (json.length < 2 * 1024 * 1024) {
-          sessionStorage.setItem(`${STORAGE_PREFIX}${foundationId}`, json);
-        }
-      } catch {
-        // Ignore
-      }
+
+    // L2: Update IndexedDB with modified records
+    if (isIndexedDBAvailable()) {
+      setInIDB(foundationId, cached.records, cached.totalCount, cached.hasMore, cached.cursor)
+        .catch(() => {/* ignore */});
     }
   }
 }

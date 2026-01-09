@@ -35,7 +35,18 @@ module Api
         @tasks = @tasks.by_trade(params[:trade]) if params[:trade].present?
         @tasks = @tasks.active if params[:active_only] == "true"
         @tasks = @tasks.hold_tasks if params[:hold_tasks_only] == "true"
-        @tasks = @tasks.for_user_roles(current_user) if params[:mine] == "true"
+        # Mine filter: tasks assigned to user OR (optionally) tasks user is following
+        if params[:mine] == "true"
+          if params[:include_following] == "true"
+            # Get tasks user is assigned to OR tasks they're following
+            assigned_task_ids = SmTask.for_user_roles(current_user).pluck(:id)
+            following_task_ids = TaskFollower.where(user_id: current_user.id).pluck(:sm_task_id)
+            all_task_ids = (assigned_task_ids + following_task_ids).uniq
+            @tasks = @tasks.where(id: all_task_ids)
+          else
+            @tasks = @tasks.for_user_roles(current_user)
+          end
+        end
         @tasks = @tasks.where(assigned_user_id: nil, assigned_role: nil) if params[:unassigned] == "true"
         # Filter by specific user - shows all tasks they can work on (direct + role-based)
         if params[:for_user_id].present?
@@ -1207,6 +1218,34 @@ module Api
         end
       end
 
+      # POST /api/v1/sm_tasks/from_email/:email_id
+      # Creates a standalone task from an email (same as forwarding to newtask@tekna.com.au)
+      # Uses EmailToTaskService for consistent behavior
+      def create_from_email
+        email = EmailWarehouse.find_by(id: params[:email_id])
+
+        unless email
+          return render json: {
+            success: false,
+            error: "Email not found"
+          }, status: :not_found
+        end
+
+        service = EmailToTaskService.new(email, user: current_user)
+        task = service.create_task
+
+        render json: {
+          success: true,
+          message: "Task created from email",
+          sm_task: task_to_json(task)
+        }, status: :created
+      rescue EmailToTaskService::TaskCreationError => e
+        render json: {
+          success: false,
+          error: "Failed to create task: #{e.message}"
+        }, status: :unprocessable_entity
+      end
+
       private
 
       # Parse user counts from SQL result, ensuring valid integer IDs
@@ -1494,6 +1533,7 @@ module Api
               subject: email.subject,
               from_email: email.from_email,
               from_name: email.from_name,
+              to_emails: email.to_emails,
               received_at: email.received_at,
               has_attachments: email.email_attachments.any?,
               conversation_id: email.conversation_id,

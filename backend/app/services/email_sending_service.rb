@@ -274,8 +274,13 @@ class EmailSendingService
     credential = find_ms365_credential
     client = MicrosoftAppGraphClient.new(credential)
 
-    # Determine from address (mailbox_email for shared mailbox, or credential email)
-    from_email = @params.mailbox_email.presence || credential.email
+    # Determine from address (mailbox_email or from_address for shared mailbox, or credential email)
+    from_email = @params.mailbox_email.presence || @params.from_address.presence || credential.email
+
+    # Validate from_email is present
+    unless from_email.present?
+      raise SendError, "Cannot send email: no 'from' address available. Please specify mailbox_email or ensure the MS365 credential has an email configured."
+    end
 
     result = client.send_email(
       from: from_email,

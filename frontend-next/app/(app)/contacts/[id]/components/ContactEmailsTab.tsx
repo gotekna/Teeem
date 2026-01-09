@@ -34,30 +34,6 @@ export function ContactEmailsTab({
     window.open(`/email?id=${row.id}`, '_blank');
   };
 
-  // Determine which contact email address was used in each email
-  const getContactEmailUsed = (email: EmailMessage): string | null => {
-    if (!contactEmail) return null;
-    const contactEmailLower = contactEmail.toLowerCase();
-
-    // Check if contact sent the email
-    if (email.from_email?.toLowerCase() === contactEmailLower) {
-      return email.from_email;
-    }
-
-    // Check if contact received the email (to or cc)
-    const toMatch = email.to_emails?.find(
-      (e) => e.toLowerCase() === contactEmailLower
-    );
-    if (toMatch) return toMatch;
-
-    const ccMatch = email.cc_emails?.find(
-      (e) => e.toLowerCase() === contactEmailLower
-    );
-    if (ccMatch) return ccMatch;
-
-    return contactEmail; // Fallback to the contact's primary email
-  };
-
   return (
     <div className="h-full flex flex-col">
       <div className="flex items-center justify-between mb-4 shrink-0">
@@ -99,25 +75,17 @@ export function ContactEmailsTab({
               preloadedViews={[]}
               columns={[
                 {
-                  key: "direction",
-                  label: "Direction",
-                  column_type: "choice",
-                  width: 80,
-                  choices: ["From", "To", "CC"],
+                  key: "from",
+                  label: "From",
+                  column_type: "text",
+                  width: 160,
                   filterable: true,
                 },
                 {
-                  key: "from_or_to",
-                  label: "From/To",
+                  key: "to",
+                  label: "To",
                   column_type: "text",
-                  width: 200,
-                  filterable: true,
-                },
-                {
-                  key: "contact_email_used",
-                  label: "Contact Email",
-                  column_type: "text",
-                  width: 200,
+                  width: 160,
                   filterable: true,
                 },
                 {
@@ -143,20 +111,11 @@ export function ContactEmailsTab({
                 },
               ]}
               entries={emails.map((email) => {
-                const contactEmailLower = contactEmail?.toLowerCase() || "";
-                const isFrom =
-                  email.from_email?.toLowerCase() === contactEmailLower;
-                const isCc = email.cc_emails?.some(
-                  (e) => e.toLowerCase() === contactEmailLower
-                );
                 return {
                   id: email.id,
-                  direction: isFrom ? "From" : isCc ? "CC" : "To",
-                  contact_email_used: getContactEmailUsed(email),
+                  from: email.from_email || "-",
+                  to: email.to_emails?.join(", ") || "-",
                   subject: email.subject || "(no subject)",
-                  from_or_to: isFrom
-                    ? email.to_emails?.join(", ") || "-"
-                    : email.display_from || email.from_email,
                   received_at: email.received_at,
                   attachments: email.has_attachments
                     ? email.attachment_count || 1

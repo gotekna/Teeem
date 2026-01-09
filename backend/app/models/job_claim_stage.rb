@@ -3,7 +3,8 @@
 class JobClaimStage < ApplicationRecord
   # Associations
   belongs_to :job
-  belongs_to :claim_stage_template, optional: true
+  # SSoT: Claim stages are created from Schedule Master CLAIM tasks
+  # ClaimStageTemplate system removed - claim_stage_template_id column deprecated
   belongs_to :external_invoice, optional: true
   belongs_to :retainage_release_invoice, class_name: "Gl::Invoice", optional: true
 

@@ -452,18 +452,17 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
             }
             columns={[
               {
-                key: "direction",
-                label: "Direction",
-                column_type: "choice",
-                width: 80,
-                choices: ["From", "To"],
+                key: "from",
+                label: "From",
+                column_type: "text",
+                width: 160,
                 filterable: true,
               },
               {
-                key: "from_or_to",
-                label: "From/To",
+                key: "to",
+                label: "To",
                 column_type: "text",
-                width: 200,
+                width: 160,
                 filterable: true,
               },
               {
@@ -489,18 +488,10 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
               },
             ]}
             entries={emails.map((email) => {
-              // Determine direction: From = we received, To = we sent
-              // Check if from_email is from our company domain
-              const isFromOurCompany = email.from_email?.toLowerCase().includes("@tekna.com.au");
-              const direction = isFromOurCompany ? "To" : "From";
-
               return {
                 id: email.id,
-                direction,
-                // If we sent it, show recipients. If we received it, show sender
-                from_or_to: isFromOurCompany
-                  ? email.to_emails?.join(", ") || "-"
-                  : email.display_from || email.from_email,
+                from: email.from_email || "-",
+                to: email.to_emails?.join(", ") || "-",
                 subject: email.subject || "(no subject)",
                 received_at: email.received_at,
                 attachments: email.has_attachments ? (email.attachment_count || 1) : 0,

@@ -112,7 +112,8 @@ module Api
           description: @template.description,
           is_default: false,
           is_active: true,
-          created_by: current_user
+          created_by: current_user,
+          copied_from: @template
         )
 
         if new_template.save
@@ -1012,7 +1013,8 @@ module Api
           created_by: template.created_by&.as_json,
           created_at: template.created_at,
           updated_at: template.updated_at,
-          copied_from_id: template.copied_from_id
+          copied_from_id: template.copied_from_id,
+          copied_from_name: template.copied_from&.name
         }
 
         if include_rows
