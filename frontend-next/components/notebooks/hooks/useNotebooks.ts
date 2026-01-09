@@ -147,7 +147,9 @@ export const notebookActions = {
     notable_type?: string;
     notable_id?: number;
   }): Promise<Notebook> {
+    console.log("[notebookActions.create] Calling POST /api/v1/notebooks with:", data);
     const response = await api.post<NotebookResponse>("/api/v1/notebooks", data);
+    console.log("[notebookActions.create] Response:", response);
     if (!response?.success) {
       throw new Error("Failed to create notebook");
     }
