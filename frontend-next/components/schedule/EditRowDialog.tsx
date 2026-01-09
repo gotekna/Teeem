@@ -234,6 +234,17 @@ export function EditRowDialog({
         claim_invoice_template_id: row.claim_invoice_template_id,
         claim_trading_name_id: row.claim_trading_name_id,
         sm_template_ids: row.sm_template_ids || [],
+        // Workflow triggers
+        start_workflow_enabled: row.start_workflow_enabled || false,
+        start_workflow_id: row.start_workflow_id || null,
+        start_workflow_name: row.start_workflow_name || null,
+        complete_workflow_enabled: row.complete_workflow_enabled || false,
+        complete_workflow_id: row.complete_workflow_id || null,
+        complete_workflow_name: row.complete_workflow_name || null,
+        // Completion document requirement
+        requires_document_to_complete: row.requires_document_to_complete || false,
+        completion_document_type_id: row.completion_document_type_id || null,
+        completion_document_type_name: row.completion_document_type_name || null,
       });
 
       // Load template preview if claim task with template
