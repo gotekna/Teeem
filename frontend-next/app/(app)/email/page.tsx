@@ -1358,9 +1358,14 @@ To: ${email.to_emails?.join(", ") || ""}
       }
     } catch (error) {
       console.error("Failed to create contact:", error);
+      const errorMessage = error instanceof Error
+        ? error.message
+        : typeof error === 'string'
+          ? error
+          : "Failed to create contact";
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create contact",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
