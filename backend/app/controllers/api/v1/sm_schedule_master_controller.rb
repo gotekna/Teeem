@@ -230,6 +230,8 @@ module Api
           :hold, :hold_date, :dependency_broken, :started,
           # Header and active status
           :allow_header, :is_active,
+          # Task group for PO/non-PO grouping
+          :sm_task_group_id,
           # Claim task settings (SSoT for job claims)
           :is_claim_task, :is_variation, :claim_percentage, :claim_sequence_number, :claim_invoice_pattern, :claim_invoice_template_id, :claim_trading_name_id,
           predecessor_ids: [ :id, :type, :lag ],

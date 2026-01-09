@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useState, useEffect, useCallback, useTransition, useMemo, memo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useLayoutMode } from "@/contexts/LayoutModeContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -517,6 +518,17 @@ export default function EmailPage() {
   const router = useRouter();
   const accountParam = searchParams.get("account");
   const emailIdParam = searchParams.get("id");
+  const standaloneParam = searchParams.get("standalone");
+  const isStandalone = standaloneParam === "true";
+
+  // Fullscreen mode for standalone email tab (hides sidebar)
+  const { setMode } = useLayoutMode();
+  useEffect(() => {
+    if (isStandalone) {
+      setMode("fullscreen");
+      return () => setMode("padded");
+    }
+  }, [isStandalone, setMode]);
 
   const [emails, setEmails] = useState<Email[]>([]);
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
@@ -1565,6 +1577,10 @@ To: ${email.to_emails?.join(", ") || ""}
                   setSelectedFolderId("");  // Clear old folder ID
                   setExpandedAccounts(new Set([accountId]));
                   fetchFolders(accountId, account, true);  // forceSelectInbox to update folder ID
+                }}
+                onDoubleClick={() => {
+                  // Open mailbox in a new dedicated fullscreen tab
+                  window.open(`/email?account=${account.id}&standalone=true`, '_blank');
                 }}
                 className={cn(
                   "w-full flex items-center gap-2 px-1 py-1 text-sm hover:bg-muted/50 rounded-sm",

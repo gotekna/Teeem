@@ -57,6 +57,10 @@ class SmScheduleMaster < ApplicationRecord
   # Claim invoice template - visual style for claim invoices
   belongs_to :claim_invoice_template, optional: true
 
+  # Task group - for grouping PO and non-PO tasks together
+  # When any PO in the group is on a job, all non-PO tasks appear (once)
+  belongs_to :sm_task_group, optional: true
+
   # Document types for GET task spawning on completion
   has_many :sm_schedule_master_document_types, dependent: :destroy
   has_many :document_types, through: :sm_schedule_master_document_types

@@ -1005,15 +1005,28 @@ class SmScheduleMasterSyncService
   end
 
   # Check if this task's PO parent(s) are visible on the job
-  # PO tasks can have linked_task_ids pointing to non-PO tasks
-  # Non-PO tasks are only visible if their PO parent is on the job
+  # Visibility can come from:
+  # 1. Task Group membership - if ANY PO from the group is on the job
+  # 2. Direct linked_task_ids - if a PO with this task in its linked_task_ids is on the job
   def po_parent_visible?
+    # Check 1: Group-based visibility
+    # If this task is in a group, check if ANY PO from the group is on the job
+    if template_row.sm_task_group_id.present?
+      group = template_row.sm_task_group
+      return true if group&.any_po_on_job?(job)
+      # If in a group but no PO from group is on job, continue to check linked_task_ids
+    end
+
+    # Check 2: Direct linked_task_ids (backwards compatible)
     # Find all PO tasks that link to this template row
     po_parents = SmScheduleMaster.where(po_required: true)
                                   .where("linked_task_ids @> ?", [template_row.id].to_json)
 
-    # If no PO parents link to this task, it's always visible
-    return true if po_parents.empty?
+    # If no PO parents link to this task AND no group membership, it's always visible
+    return true if po_parents.empty? && template_row.sm_task_group_id.blank?
+
+    # If in a group with no PO on job, and no direct links, hide
+    return false if po_parents.empty? && template_row.sm_task_group_id.present?
 
     # Check if at least one PO parent exists on the job
     po_parents.any? do |po_parent|
