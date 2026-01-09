@@ -1680,6 +1680,21 @@ export default function TeeemTableView({
     }
   }, [initialView, setColumnOrder, setVisibleColumns, setColumnWidths, foundationId]);
 
+  // SSR SORT ORDER: Apply sort_order from initialView (for custom group ordering)
+  // FRC Fix: This was missing! sort_order includes customOrder for cascading views
+  // Note: SSR uses snake_case (sort_order), client uses camelCase (sortColumns)
+  const ssrSortColumnsInitializedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (ssrSortColumnsInitializedRef.current === foundationId) return;
+    // SSR initialView has sort_order (snake_case), not sortColumns
+    const ssrSortOrder = (initialView as { sort_order?: SortColumn[] })?.sort_order;
+    if (ssrSortOrder?.length) {
+      ssrSortColumnsInitializedRef.current = foundationId;
+      console.log('[SSR] Applying initialView sort_order:', ssrSortOrder.length, 'columns', ssrSortOrder);
+      setSortColumns(ssrSortOrder);
+    }
+  }, [initialView, setSortColumns, foundationId]);
+
   // SSR FIX: Initialize savedViews from preloadedViews immediately
   // This eliminates the flash where view buttons don't show until API call completes
   // Also handles navigation between foundations - replaces stale views from wrong foundation

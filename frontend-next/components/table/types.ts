@@ -257,7 +257,7 @@ export interface TeeemTableViewProps {
       showTotals?: boolean;
       stickyActions?: boolean;
     };
-    sort_order?: Array<{ column: string; dir: 'asc' | 'desc' }>;
+    sort_order?: Array<{ column: string; dir: 'asc' | 'desc' | 'custom'; customOrder?: string[] }>;
   } | null;
 
   // SSR Group Counts - Pre-fetched group counts to eliminate CLS on grouped views
