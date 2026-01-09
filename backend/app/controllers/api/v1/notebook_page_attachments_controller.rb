@@ -6,7 +6,7 @@ class Api::V1::NotebookPageAttachmentsController < ApplicationController
   before_action :authorize_view!, only: [:index, :show, :download]
   before_action :authorize_edit!, only: [:create, :destroy]
 
-  # GET /api/v1/notebook_pages/:page_id/attachments
+  # GET /api/v1/notebook_pages/:notebook_page_id/attachments
   def index
     @attachments = @page.attachments.order(created_at: :desc)
     render json: { success: true, attachments: @attachments.map { |a| attachment_json(a) } }
@@ -17,7 +17,7 @@ class Api::V1::NotebookPageAttachmentsController < ApplicationController
     render json: { success: true, attachment: attachment_json(@attachment) }
   end
 
-  # POST /api/v1/notebook_pages/:page_id/attachments
+  # POST /api/v1/notebook_pages/:notebook_page_id/attachments
   def create
     unless params[:file].present?
       render json: { success: false, error: "File is required" }, status: :unprocessable_entity
@@ -71,7 +71,7 @@ class Api::V1::NotebookPageAttachmentsController < ApplicationController
   private
 
   def set_page
-    @page = NotebookPage.find(params[:page_id])
+    @page = NotebookPage.find(params[:notebook_page_id])
   end
 
   def set_attachment
