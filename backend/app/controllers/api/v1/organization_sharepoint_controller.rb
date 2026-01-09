@@ -1632,6 +1632,9 @@ module Api
       # List ALL files from the job's OneDrive folder
       # Uses Data Warehouse pattern: reads from JobDocument table for instant results
       # Falls back to live API if no cached data, and triggers background sync
+      #
+      # Params:
+      #   refresh_thumbnails: "true" - Fetch fresh thumbnail URLs from SharePoint (cached ones expire)
       def job_all_files
         job = Job.find(params[:job_id])
 
@@ -1639,6 +1642,11 @@ module Api
         cached_docs = job.job_documents.includes(:document_type, :ai_suggested_type, :parent_document, :child_versions, :signed_by).synced
 
         if cached_docs.any?
+          # Refresh thumbnails if requested (they expire after ~24-48 hours)
+          fresh_thumbnails = {}
+          if params[:refresh_thumbnails] == "true"
+            fresh_thumbnails = refresh_thumbnails_for_docs(cached_docs)
+          end
           # Data Warehouse approach: instant results from database
           files_with_suggestions = cached_docs.map do |doc|
             {
@@ -1664,7 +1672,7 @@ module Api
               ai_confidence: doc.ai_confidence&.to_f,
               ai_reasoning: doc.ai_reasoning,
               rename_status: doc.rename_status,
-              thumbnail_url: doc.thumbnail_url,
+              thumbnail_url: fresh_thumbnails[doc.sharepoint_item_id] || doc.thumbnail_url,
               from_cache: true,
               # Version chain fields (Draft/Signed versioning)
               version_status: doc.version_status,
