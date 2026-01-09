@@ -2405,14 +2405,17 @@ export default function TeeemTableView({
       // a search that returned few results, hasMore=false just means search results are complete
       // We need to distinguish between "all records loaded" vs "search results loaded"
       const isClearing = !value && searchRef.current; // Clearing if value is empty but we had a search
+      const hadPreviousSearch = !!searchRef.current; // Had a search active before this change
 
-      // If all records loaded AND not clearing a search, search client-side only
-      // But if clearing search, always refresh to restore full dataset
+      // If all records loaded AND not clearing a search AND no previous search, search client-side only
+      // But if clearing search OR changing search term, always use server-side search
       // IMPORTANT: When autoFetchLimit is set, we intentionally don't have all records
       // so always use server-side search (server searches the full database)
+      // FRC FIX 2: If we had a previous search, hasMore=false means "search results complete" not "all records loaded"
+      // So we MUST do server search when changing from one search term to another
       const hasLimitedRecords = autoFetchLimit !== undefined;
-      if (!isClearing && !hasMore && autoFetchedRecords.length > 0 && !hasLimitedRecords) {
-        console.log('[TeeemTableView] All records loaded, searching client-side');
+      if (!isClearing && !hadPreviousSearch && !hasMore && autoFetchedRecords.length > 0 && !hasLimitedRecords) {
+        console.log('[TeeemTableView] All records loaded (no prior search), searching client-side');
         return; // Skip API call - safe because we truly have all records
       }
 
