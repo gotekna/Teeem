@@ -27,6 +27,7 @@ import { cn } from '@/lib/utils';
 import { useState, useMemo } from 'react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { getTaskRowColorClass, getTaskColorClasses } from '../TaskColorSettings';
+import { Input } from '@/components/ui/input';
 
 const statusColors: Record<string, string> = {
   not_started: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
@@ -58,6 +59,9 @@ export function ListView() {
     field: 'start_date',
     direction: 'asc'
   });
+
+  const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
+  const [editingTaskName, setEditingTaskName] = useState('');
 
   const sortedTasks = useMemo(() => {
     return [...filteredTasks].sort((a, b) => {
@@ -109,6 +113,14 @@ export function ListView() {
     await updateTask(task.id, { status: newStatus });
   };
 
+  const handleTaskNameSave = async (taskId: number) => {
+    if (editingTaskName.trim() && editingTaskName.trim() !== filteredTasks.find(t => t.id === taskId)?.name) {
+      await updateTask(taskId, { name: editingTaskName.trim() });
+    }
+    setEditingTaskId(null);
+    setEditingTaskName('');
+  };
+
   const allSelected = filteredTasks.length > 0 && filteredTasks.every(t => selectedTaskIds.has(t.id));
 
   const SortHeader = ({ field, children, className }: { field: SortField; children: React.ReactNode; className?: string }) => (
@@ -157,7 +169,7 @@ export function ListView() {
                   'grid grid-cols-[28px_1fr_130px_60px_60px_100px_70px_32px] gap-1 px-2 py-1 items-center text-xs hover:bg-muted/30 cursor-pointer transition-colors',
                   selectedTaskIds.has(task.id) && !isExpanded && 'bg-primary/5',
                   !isExpanded && getTaskRowColorClass(task),
-                  isExpanded && 'bg-primary/20 dark:bg-primary/30 border-l-4 border-primary shadow-md font-medium'
+                  isExpanded && 'bg-blue-100 dark:bg-blue-900/50 border-l-4 border-blue-500 shadow-lg font-medium text-blue-900 dark:text-blue-100'
                 )}
               >
                 <div onClick={(e) => e.stopPropagation()}>
@@ -175,9 +187,40 @@ export function ListView() {
                     <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
                   )}
                   <span className="font-mono text-[10px] text-muted-foreground">#{task.task_number}</span>
-                  <span className={cn('truncate', task.status === 'completed' && 'line-through text-muted-foreground')}>
-                    {task.name}
-                  </span>
+                  {editingTaskId === task.id ? (
+                    <Input
+                      value={editingTaskName}
+                      onChange={(e) => setEditingTaskName(e.target.value)}
+                      onBlur={() => handleTaskNameSave(task.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleTaskNameSave(task.id);
+                        } else if (e.key === 'Escape') {
+                          setEditingTaskId(null);
+                          setEditingTaskName('');
+                        }
+                        e.stopPropagation();
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="h-6 text-xs flex-1"
+                      autoFocus
+                    />
+                  ) : (
+                    <span
+                      className={cn(
+                        'truncate cursor-text hover:bg-muted/50 px-1 -mx-1 rounded',
+                        task.status === 'completed' && 'line-through text-muted-foreground'
+                      )}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingTaskId(task.id);
+                        setEditingTaskName(task.name);
+                      }}
+                      title="Click to edit task name"
+                    >
+                      {task.name}
+                    </span>
+                  )}
                   {task.is_overdue && task.status !== 'completed' && (
                     <AlertTriangle className="h-3 w-3 text-red-500 shrink-0" />
                   )}
