@@ -313,7 +313,9 @@ class User < ApplicationRecord
     return unless contact.present?
     return if contact.mobile_phone == mobile_phone  # No change needed
 
-    contact.update_column(:mobile_phone, mobile_phone)
+    # Use setter method (writes to contact_phones table, not removed column)
+    contact.mobile_phone = mobile_phone
+    contact.save
     Rails.logger.info "[User#sync_mobile_to_contact] Synced mobile_phone '#{mobile_phone}' to Contact##{contact.id}"
   rescue StandardError => e
     Rails.logger.error "[User#sync_mobile_to_contact] Failed to sync: #{e.message}"

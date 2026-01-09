@@ -451,7 +451,8 @@ class Contact < ApplicationRecord
   ].freeze
 
   # Validations
-  validates :email, format: { with: URI::MailTo::EMAIL_REGEXP, allow_blank: true }
+  # NOTE: Email validation removed - now handled at SSoT level (ContactEmail model)
+  # The :email getter returns data from contact_emails table, not a column
   validate :roles_must_be_valid
   # Note: primary_contact_type column removed - use roles[0] instead
 

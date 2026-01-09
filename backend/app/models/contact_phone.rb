@@ -21,7 +21,9 @@ class ContactPhone < ApplicationRecord
   before_validation :set_position, on: :create
 
   # If this is set as primary, unset all other primary phones for this contact
-  before_save :ensure_single_primary
+  # CRITICAL: Must run before_validation (not before_save) so that the
+  # only_one_primary_per_contact validation doesn't fail before we clear conflicts
+  before_validation :ensure_single_primary
 
   def display_type
     phone_type.titleize
