@@ -1146,11 +1146,16 @@ module Api
             end
           end
 
-          # SSoT: PurchaseOrder required_date comes from linked task's start_date
-          # This ensures table shows when materials are needed without data duplication
+          # SSoT: PurchaseOrder virtual columns from linked task
+          # - required_date: task's start_date (when materials needed)
+          # - po_task_name: task name (PurchaseOrder.sm_task_id is THE link)
+          # - stage_from_task: stage name from task->schedule_master->sm_stages
+          # - trade_from_task: trade name from task->schedule_master->sm_trades
           if record.class.name == "PurchaseOrder"
             json[:required_date] = record.effective_required_date
-            json[:po_task_name] = record.po_task_name  # SSoT: PurchaseOrder.sm_task_id is THE link
+            json[:po_task_name] = record.po_task_name
+            json[:stage_from_task] = record.stage_from_task
+            json[:trade_from_task] = record.trade_from_task
           end
 
           # SSoT: Job client_name comes from job_contacts where role='client'
