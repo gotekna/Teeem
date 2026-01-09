@@ -77,15 +77,6 @@ export const NotebooksSidebar = forwardRef<NotebooksSidebarRef, NotebooksSidebar
   className,
 }: NotebooksSidebarProps, ref) {
   const { notebooks, isLoading, error, mutate: mutateNotebooks } = useNotebooks({ global: true });
-
-  // Debug logging
-  React.useEffect(() => {
-    console.log("[NotebooksSidebar] State:", {
-      isLoading,
-      error: error?.message,
-      notebooksCount: notebooks?.length
-    });
-  }, [isLoading, error, notebooks]);
   const { notebook: selectedNotebook, mutate: mutateNotebook } = useNotebook(selectedNotebookId);
   const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set());
   const [editingSection, setEditingSection] = useState<number | null>(null);

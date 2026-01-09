@@ -97,20 +97,11 @@ export function useNotebooks(options?: {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["notebooks", options],
     queryFn: async () => {
-      console.log("[useNotebooks] Fetching notebooks from:", url);
-      try {
-        const response = await api.get<NotebooksResponse>(url);
-        console.log("[useNotebooks] Response:", response);
-        if (!response?.success) {
-          console.error("[useNotebooks] API returned unsuccessful:", response);
-          throw new Error("Failed to fetch notebooks");
-        }
-        console.log("[useNotebooks] Loaded", response.notebooks?.length, "notebooks");
-        return response;
-      } catch (err) {
-        console.error("[useNotebooks] Error fetching notebooks:", err);
-        throw err;
+      const response = await api.get<NotebooksResponse>(url);
+      if (!response?.success) {
+        throw new Error("Failed to fetch notebooks");
       }
+      return response;
     },
   });
 
