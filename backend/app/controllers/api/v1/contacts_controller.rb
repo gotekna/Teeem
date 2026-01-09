@@ -216,7 +216,16 @@ module Api
           @contacts = @contacts.where(company_group_id: nil)
         end
 
-        @contacts = @contacts.order(:display_name)
+        # Fix PostgreSQL DISTINCT + ORDER BY conflict:
+        # When DISTINCT is used earlier in the query chain (from joins, .distinct calls, or .or()),
+        # PostgreSQL requires ORDER BY columns to be in SELECT list.
+        # Solution: Resolve DISTINCT via subquery, then order the final results.
+        if @contacts.distinct_value || @contacts.to_sql.include?("DISTINCT")
+          contact_ids = @contacts.pluck(:id)
+          @contacts = Contact.where(id: contact_ids).order(:display_name)
+        else
+          @contacts = @contacts.order(:display_name)
+        end
 
         # Optionally include companies and jobs data
         include_companies = params[:include_companies] == "true"
