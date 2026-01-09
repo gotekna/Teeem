@@ -102,18 +102,16 @@ class SmScheduleMasterTemplateCopyService
 
   def create_tasks
     sequence = 0
-    max_task_number = job.sm_tasks.maximum(:task_number) || 0
 
     @row_map.values.sort_by(&:sequence_order).each do |row|
       sequence += 1
-      task_number = max_task_number + sequence
 
       task = SmTask.new(
         construction_id: job.id,
         sm_schedule_master_id: row.id,  # Link to SSoT SmScheduleMaster
         name: row.name,
         description: row.description,
-        task_number: task_number,
+        task_number: row.task_number,   # Use template's task_number (SSoT: equals template id)
         sequence_order: sequence,
         duration_days: row.duration_days,
         trade: row.trade,
@@ -190,34 +188,23 @@ class SmScheduleMasterTemplateCopyService
   end
 
   def create_dependencies
-    # SSoT: Copy predecessor_ids from template, remapping task_numbers to new tasks
+    # SSoT: Copy predecessor_ids from template directly
+    # Since task_number = sm_schedule_master.id for both template and tasks,
+    # predecessor_ids can be copied as-is (no remapping needed)
     @row_map.values.each do |row|
       next if row.predecessor_ids.blank?
 
       successor_task = @task_number_map[row.task_number]
       next unless successor_task
 
-      # Build transformed predecessor_ids with new task_numbers
-      new_predecessor_ids = row.predecessor_ids.map do |pred_data|
-        old_pred_task_number = (pred_data["id"] || pred_data[:id]).to_i
-        predecessor_task = @task_number_map[old_pred_task_number]
-        next unless predecessor_task
-
-        {
-          "id" => predecessor_task.task_number,
-          "type" => pred_data["type"] || pred_data[:type] || "FS",
-          "lag" => (pred_data["lag"] || pred_data[:lag] || 0).to_i
-        }
-      end.compact
-
-      if new_predecessor_ids.any?
-        successor_task.update!(predecessor_ids: new_predecessor_ids)
-        @created_dependencies << {
-          task_id: successor_task.id,
-          predecessor_ids: new_predecessor_ids
-        }
-        Rails.logger.debug "SmScheduleMasterTemplateCopyService: Set predecessor_ids for task #{successor_task.task_number}"
-      end
+      # Copy predecessor_ids directly from template (no remapping needed)
+      # The predecessor_ids reference task_numbers which equal sm_schedule_master.id
+      successor_task.update!(predecessor_ids: row.predecessor_ids)
+      @created_dependencies << {
+        task_id: successor_task.id,
+        predecessor_ids: row.predecessor_ids
+      }
+      Rails.logger.debug "SmScheduleMasterTemplateCopyService: Set predecessor_ids for task #{successor_task.task_number}"
     end
   end
 
