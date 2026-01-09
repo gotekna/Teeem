@@ -204,6 +204,17 @@ interface SmScheduleMaster {
   claim_invoice_template_id?: number | null;
   claim_trading_name_id?: number | null;
   claim_trading_name?: string | null;
+  // Workflow triggers (SSoT: BpmnProcess)
+  start_workflow_enabled?: boolean;
+  start_workflow_id?: number | null;
+  start_workflow_name?: string | null;
+  complete_workflow_enabled?: boolean;
+  complete_workflow_id?: number | null;
+  complete_workflow_name?: string | null;
+  // Completion document requirement (requires document attachment to complete task)
+  requires_document_to_complete?: boolean;
+  completion_document_type_id?: number | null;
+  completion_document_type_name?: string | null;
 }
 
 // Claim Invoice Template for selecting invoice styles
@@ -573,6 +584,8 @@ export function ScheduleMasterTab() {
   const [showFullPreview, setShowFullPreview] = React.useState(false);
   // SSoT: Trading names for claim invoices (from Foundation trading_names)
   const [tradingNames, setTradingNames] = React.useState<TradingName[]>([]);
+  // SSoT: Workflows (BPMN processes) for task workflow triggers
+  const [availableWorkflows, setAvailableWorkflows] = React.useState<{ id: number; name: string }[]>([]);
 
   // Load column status from localStorage on mount
   React.useEffect(() => {
@@ -623,6 +636,7 @@ export function ScheduleMasterTab() {
     loadDocumentTypes();
     loadClaimInvoiceTemplates();
     loadTradingNames();
+    loadWorkflows();
     console.log("[ScheduleMasterTab] All loaders called");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showInactive]);
@@ -851,6 +865,20 @@ export function ScheduleMasterTab() {
       }
     } catch (error) {
       console.error("Failed to load trading names:", error);
+    }
+  };
+
+  // SSoT: Load workflows (BPMN processes) for task workflow triggers
+  const loadWorkflows = async () => {
+    try {
+      const data = await api.get<{ success: boolean; data: Array<{ id: number; name: string }> }>(
+        "/api/v1/bpmn_processes?status=published"
+      );
+      if (data?.data) {
+        setAvailableWorkflows(data.data);
+      }
+    } catch (error) {
+      console.error("Failed to load workflows:", error);
     }
   };
 
@@ -1193,6 +1221,19 @@ export function ScheduleMasterTab() {
       sm_template_ids: (row.sm_template_ids || []).map((item: number | { id: number }) =>
         typeof item === 'object' ? item.id : item
       ),
+      // Document types for GET task spawning (SSoT: sm_schedule_master_document_types join table)
+      document_types: row.document_types || [],
+      // Workflow triggers
+      start_workflow_enabled: row.start_workflow_enabled || false,
+      start_workflow_id: row.start_workflow_id || null,
+      start_workflow_name: row.start_workflow_name || null,
+      complete_workflow_enabled: row.complete_workflow_enabled || false,
+      complete_workflow_id: row.complete_workflow_id || null,
+      complete_workflow_name: row.complete_workflow_name || null,
+      // Completion document requirement
+      requires_document_to_complete: row.requires_document_to_complete || false,
+      completion_document_type_id: row.completion_document_type_id || null,
+      completion_document_type_name: row.completion_document_type_name || null,
     };
   }, []);
 
@@ -1231,7 +1272,25 @@ export function ScheduleMasterTab() {
       claim_trading_name_id: data.claim_trading_name_id,
       // Template membership - which templates this row belongs to
       sm_template_ids: data.sm_template_ids,
+      // Workflow triggers
+      start_workflow_enabled: data.start_workflow_enabled,
+      start_workflow_id: data.start_workflow_id,
+      complete_workflow_enabled: data.complete_workflow_enabled,
+      complete_workflow_id: data.complete_workflow_id,
+      // Completion document requirement
+      requires_document_to_complete: data.requires_document_to_complete,
+      completion_document_type_id: data.completion_document_type_id,
     };
+
+    // Transform document_types to Rails nested attributes format (SSoT: sm_schedule_master_document_types)
+    if (data.document_types !== undefined) {
+      rowPayload.sm_schedule_master_document_types_attributes = data.document_types.map(dt => ({
+        id: dt.id || undefined, // Include id for existing records
+        document_type_id: dt.document_type_id,
+        lag_days: dt.lag_days || 0,
+        assigned_role: dt.assigned_role || null,
+      }));
+    }
 
     await api.patch(`/api/v1/sm_schedule_master_templates/${activeEditTemplateId}/rows/${rowId}`, {
       row: rowPayload,
@@ -3394,6 +3453,7 @@ export function ScheduleMasterTab() {
         documentTypes={availableDocumentTypes}
         tradingNames={tradingNames}
         invoiceTemplates={claimInvoiceTemplates}
+        workflows={availableWorkflows}
         headerRows={availableHeaderRows}
         allRows={dataViewRows.map(r => convertToEditRowData(r))}
         showTemplateSection={true}

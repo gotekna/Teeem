@@ -1508,6 +1508,9 @@ module Api
           :start_workflow_enabled, :start_workflow_id,
           :complete_workflow_enabled, :complete_workflow_id,
 
+          # Completion document requirement
+          :requires_document_to_complete, :completion_document_type_id,
+
           # Arrays
           linked_task_ids: [],
           # predecessor_ids is JSONB array of {id, type, lag} objects
@@ -1822,6 +1825,10 @@ module Api
           complete_workflow_enabled: task.complete_workflow_enabled,
           complete_workflow_id: task.complete_workflow_id,
           complete_workflow_name: task.complete_workflow&.name,
+          # Completion document requirement
+          requires_document_to_complete: task.requires_document_to_complete,
+          completion_document_type_id: task.completion_document_type_id,
+          completion_document_type_name: task.completion_document_type&.display_name || task.completion_document_type&.name,
           # Computed
           started_at: task.started_at,
           completed_at: task.completed_at,

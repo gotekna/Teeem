@@ -85,7 +85,27 @@ class SmTaskCompletionService
       return false
     end
 
+    # Check if required document is attached
+    if task.requires_document_to_complete? && task.completion_document_type_id.present?
+      unless has_required_document_attached?
+        doc_type_name = task.completion_document_type&.display_name || task.completion_document_type&.name || "required document"
+        @errors << "Cannot complete task: #{doc_type_name} must be attached"
+        return false
+      end
+    end
+
     true
+  end
+
+  def has_required_document_attached?
+    required_doc_type_id = task.completion_document_type_id
+    return false unless required_doc_type_id
+
+    # Check attached CorporateCompanyDocuments for matching document type
+    task.sm_task_attachments.documents.any? do |attachment|
+      doc = attachment.attachable
+      doc.is_a?(CorporateCompanyDocument) && doc.document_type_id == required_doc_type_id
+    end
   end
 
   def complete_task!(passed)

@@ -67,6 +67,17 @@ export interface EditRowData {
   claim_invoice_template_id?: number | null;
   claim_trading_name_id?: number | null;
   claim_trading_name?: string | null;
+  // Workflow triggers (SSoT: BpmnProcess)
+  start_workflow_enabled?: boolean;
+  start_workflow_id?: number | null;
+  start_workflow_name?: string | null;
+  complete_workflow_enabled?: boolean;
+  complete_workflow_id?: number | null;
+  complete_workflow_name?: string | null;
+  // Completion document requirement
+  requires_document_to_complete?: boolean;
+  completion_document_type_id?: number | null;
+  completion_document_type_name?: string | null;
 }
 
 export type EditRowFormData = Partial<EditRowData>;
@@ -130,6 +141,7 @@ export interface EditRowDialogProps {
   documentTypes: Array<{ id: number; name: string; display_name?: string; form_number_mapping?: Record<string, string> }>;
   tradingNames: Array<{ id: number; name: string }>;
   invoiceTemplates: ClaimInvoiceTemplate[];
+  workflows?: Array<{ id: number; name: string }>;
   // For header/child relationships
   allRows?: EditRowData[];
   headerRows?: Array<{ id: number; task_number: number; name: string }>;
@@ -162,6 +174,7 @@ export function EditRowDialog({
   documentTypes,
   tradingNames,
   invoiceTemplates,
+  workflows = [],
   allRows = [],
   headerRows = [],
   onChildTaskUpdate,
@@ -952,6 +965,114 @@ export function EditRowDialog({
                     <p className="text-xs text-muted-foreground">Select a document type to spawn a scan task on completion</p>
                   )}
                 </div>
+
+                {/* Workflow Triggers */}
+                {workflows.length > 0 && (
+                  <>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="row-start-workflow-enabled"
+                          checked={editRowForm.start_workflow_enabled || false}
+                          onCheckedChange={(checked) => setEditRowForm({
+                            ...editRowForm,
+                            start_workflow_enabled: checked,
+                            start_workflow_id: checked ? editRowForm.start_workflow_id : null
+                          })}
+                        />
+                        <Label htmlFor="row-start-workflow-enabled" className="text-xs">Start Workflow</Label>
+                      </div>
+                      {editRowForm.start_workflow_enabled && (
+                        <ComboboxDropdown
+                          items={workflows.map(w => ({ id: String(w.id), label: w.name }))}
+                          selectedItem={editRowForm.start_workflow_id ? {
+                            id: String(editRowForm.start_workflow_id),
+                            label: editRowForm.start_workflow_name || workflows.find(w => w.id === editRowForm.start_workflow_id)?.name || ''
+                          } : undefined}
+                          onSelect={(item) => setEditRowForm({
+                            ...editRowForm,
+                            start_workflow_id: Number(item.id),
+                            start_workflow_name: item.label
+                          })}
+                          placeholder="Select workflow to run on task start..."
+                          emptyResults="No workflows found"
+                          clearable
+                          onClear={() => setEditRowForm({ ...editRowForm, start_workflow_id: null, start_workflow_name: null })}
+                        />
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="row-complete-workflow-enabled"
+                          checked={editRowForm.complete_workflow_enabled || false}
+                          onCheckedChange={(checked) => setEditRowForm({
+                            ...editRowForm,
+                            complete_workflow_enabled: checked,
+                            complete_workflow_id: checked ? editRowForm.complete_workflow_id : null
+                          })}
+                        />
+                        <Label htmlFor="row-complete-workflow-enabled" className="text-xs">Complete Workflow</Label>
+                      </div>
+                      {editRowForm.complete_workflow_enabled && (
+                        <ComboboxDropdown
+                          items={workflows.map(w => ({ id: String(w.id), label: w.name }))}
+                          selectedItem={editRowForm.complete_workflow_id ? {
+                            id: String(editRowForm.complete_workflow_id),
+                            label: editRowForm.complete_workflow_name || workflows.find(w => w.id === editRowForm.complete_workflow_id)?.name || ''
+                          } : undefined}
+                          onSelect={(item) => setEditRowForm({
+                            ...editRowForm,
+                            complete_workflow_id: Number(item.id),
+                            complete_workflow_name: item.label
+                          })}
+                          placeholder="Select workflow to run on task completion..."
+                          emptyResults="No workflows found"
+                          clearable
+                          onClear={() => setEditRowForm({ ...editRowForm, complete_workflow_id: null, complete_workflow_name: null })}
+                        />
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* Completion Document Requirement */}
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="row-requires-document"
+                      checked={editRowForm.requires_document_to_complete || false}
+                      onCheckedChange={(checked) => setEditRowForm({
+                        ...editRowForm,
+                        requires_document_to_complete: checked,
+                        completion_document_type_id: checked ? editRowForm.completion_document_type_id : null
+                      })}
+                    />
+                    <Label htmlFor="row-requires-document" className="text-xs">Requires Document to Complete</Label>
+                  </div>
+                  {editRowForm.requires_document_to_complete && (
+                    <>
+                      <ComboboxDropdown
+                        items={documentTypes.map(dt => ({ id: String(dt.id), label: dt.display_name || dt.name }))}
+                        selectedItem={editRowForm.completion_document_type_id ? {
+                          id: String(editRowForm.completion_document_type_id),
+                          label: editRowForm.completion_document_type_name || documentTypes.find(dt => dt.id === editRowForm.completion_document_type_id)?.name || ''
+                        } : undefined}
+                        onSelect={(item) => setEditRowForm({
+                          ...editRowForm,
+                          completion_document_type_id: Number(item.id),
+                          completion_document_type_name: item.label
+                        })}
+                        placeholder="Select required document type..."
+                        emptyResults="No document types found"
+                        clearable
+                        onClear={() => setEditRowForm({ ...editRowForm, completion_document_type_id: null, completion_document_type_name: null })}
+                      />
+                      <p className="text-xs text-muted-foreground">Task cannot be completed until a document of this type is attached</p>
+                    </>
+                  )}
+                </div>
+
                 {/* Allow Header */}
                 <div className="flex items-center gap-2 pt-2 border-t">
                   <Switch

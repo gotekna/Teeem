@@ -51,6 +51,9 @@ class SmScheduleMaster < ApplicationRecord
   belongs_to :start_workflow, class_name: "BpmnProcess", optional: true
   belongs_to :complete_workflow, class_name: "BpmnProcess", optional: true
 
+  # Completion document requirement - document type that must be attached to complete task
+  belongs_to :completion_document_type, class_name: "DocumentType", optional: true
+
   # Claim invoice template - visual style for claim invoices
   belongs_to :claim_invoice_template, optional: true
 

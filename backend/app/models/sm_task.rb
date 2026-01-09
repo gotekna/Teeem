@@ -82,6 +82,9 @@ class SmTask < ApplicationRecord
   belongs_to :start_workflow, class_name: "BpmnProcess", optional: true
   belongs_to :complete_workflow, class_name: "BpmnProcess", optional: true
 
+  # Completion document requirement - document type that must be attached to complete task
+  belongs_to :completion_document_type, class_name: "DocumentType", optional: true
+
   # Document types for GET task spawning on completion
   has_many :sm_task_document_types, dependent: :destroy
   has_many :document_types, through: :sm_task_document_types

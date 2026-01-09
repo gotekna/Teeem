@@ -222,6 +222,8 @@ module Api
           # Workflow triggers
           :start_workflow_enabled, :start_workflow_id,
           :complete_workflow_enabled, :complete_workflow_id,
+          # Completion document requirement
+          :requires_document_to_complete, :completion_document_type_id,
           # New Schedule Master fields
           :supplier_confirm,
           # Manual positioning and task status
@@ -321,6 +323,10 @@ module Api
           complete_workflow_enabled: row.complete_workflow_enabled,
           complete_workflow_id: row.complete_workflow_id,
           complete_workflow_name: row.complete_workflow&.name,
+          # Completion document requirement
+          requires_document_to_complete: row.requires_document_to_complete,
+          completion_document_type_id: row.completion_document_type_id,
+          completion_document_type_name: row.completion_document_type&.display_name || row.completion_document_type&.name,
           # Document types for GET task spawning
           # PERFORMANCE: document_type already eager loaded via row_json_includes
           document_types: row.sm_schedule_master_document_types.map { |dt|

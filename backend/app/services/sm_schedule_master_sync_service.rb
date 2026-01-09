@@ -1154,6 +1154,10 @@ class SmScheduleMasterSyncService
       complete_workflow_enabled: template_row.complete_workflow_enabled,
       complete_workflow_id: template_row.complete_workflow_id,
 
+      # Completion document requirement (from template)
+      requires_document_to_complete: template_row.requires_document_to_complete,
+      completion_document_type_id: template_row.completion_document_type_id,
+
       # Automation (from template)
       spawn_scan_task_id: template_row.spawn_scan_task_id,
       spawn_scan_lag_days: template_row.spawn_scan_lag_days,
