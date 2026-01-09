@@ -266,7 +266,7 @@ module Api
       def find_matching_teeem_contact(warehouse_contact)
         # Priority 1: Match by email
         if warehouse_contact.email_address.present?
-          match = Contact.find_by("LOWER(email) = ?", warehouse_contact.email_address.downcase)
+          match = Contact.joins(:contact_emails).find_by("LOWER(contact_emails.email) = ?", warehouse_contact.email_address.downcase)
           if match
             @match_type = "email"
             return match
