@@ -19,9 +19,7 @@ If user responds `1234`, use `--no-verify` to bypass.
 DEPLOYED: HH:MM DD/MM (Brisbane)
 Commit: [hash] - [message]
 ----------------------------------------
-Backend:  v[XXX] - [REQUIRED/not required]
-Frontend: v[XXX] - [REQUIRED/not required]
-Heroku:   [vXXX] - [deployed/skipped]
+Backend: v[XXX] - [deployed/skipped]
 ========================================
 ```
 

@@ -292,5 +292,5 @@ heroku run rails db:migrate --app teeemlive
 ## Notes
 
 - No pre-configured Heroku remote needed - the deploy script creates it on-the-fly
-- Frontend deploys automatically via Vercel on GitHub push
+- Frontend auto-deploys from GitHub push (no version tracking needed)
 - Backend only deploys if changes detected in `backend/` directory

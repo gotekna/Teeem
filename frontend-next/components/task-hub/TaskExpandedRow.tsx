@@ -159,11 +159,6 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   // Email keywords state
   const [emailKeywords, setEmailKeywords] = useState(task.email_keywords || '');
 
-  // Task name editing state
-  const [editingName, setEditingName] = useState(false);
-  const [nameText, setNameText] = useState(task.name || '');
-  const [nameSaving, setNameSaving] = useState(false);
-
   // Description editing state
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionText, setDescriptionText] = useState(task.description || '');
@@ -182,13 +177,6 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   useEffect(() => {
     getFollowers(task.id).then(setFollowers).catch(console.error);
   }, [task.id, getFollowers]);
-
-  // Sync name text when task updates
-  useEffect(() => {
-    if (!editingName) {
-      setNameText(task.name || '');
-    }
-  }, [task.name, editingName]);
 
   // Sync description text when task updates
   useEffect(() => {
@@ -581,26 +569,6 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
     }
   };
 
-  // Save task name
-  const saveName = async () => {
-    if (nameText.trim() === '' || nameText === task.name) {
-      setEditingName(false);
-      setNameText(task.name || '');
-      return;
-    }
-
-    setNameSaving(true);
-    try {
-      await updateTask(task.id, { name: nameText.trim() });
-      setEditingName(false);
-    } catch (error) {
-      console.error('Failed to save task name:', error);
-      setNameText(task.name || ''); // Revert on error
-    } finally {
-      setNameSaving(false);
-    }
-  };
-
   // Save description
   const saveDescription = async () => {
     if (descriptionText === (task.description || '')) {
@@ -646,55 +614,16 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
 
   return (
     <div className="bg-muted/30 border-t border-b px-3 py-3 space-y-3 animate-in slide-in-from-top-2 duration-200">
-      {/* Header with task name */}
-      <div className="bg-primary/10 dark:bg-primary/20 border border-primary/20 rounded-lg p-3 -mx-1">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2 flex-1">
-            <span className="text-xs font-semibold text-primary">Task #{task.task_number}</span>
-            {task.is_overdue && task.status !== 'completed' && (
-              <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4 gap-1">
-                <AlertTriangle className="h-3 w-3" />
-                Overdue
-              </Badge>
-            )}
-            {nameSaving && <Spinner size={12} />}
-          </div>
-          <Button variant="ghost" size="sm" onClick={handleClose} className="h-6 px-2 -mr-2">
-            <ChevronUp className="h-4 w-4" />
-          </Button>
-        </div>
-
-        {/* Editable Task Name */}
-        {editingName ? (
-          <Input
-            value={nameText}
-            onChange={(e) => setNameText(e.target.value)}
-            onBlur={saveName}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                saveName();
-              } else if (e.key === 'Escape') {
-                setNameText(task.name || '');
-                setEditingName(false);
-              }
-            }}
-            placeholder="Task name..."
-            className="text-lg font-bold bg-background/50 border-primary/30 mb-2"
-            autoFocus
-            disabled={nameSaving}
-          />
-        ) : (
-          <h3
-            className="text-lg font-bold cursor-pointer hover:bg-background/50 px-2 -mx-2 rounded transition-colors mb-2"
-            onClick={() => setEditingName(true)}
-            title="Click to edit task name"
-          >
-            {task.name || <span className="text-muted-foreground italic">Click to add task name...</span>}
-          </h3>
-        )}
-
-        {/* Action Buttons Row */}
+      {/* Header with close button */}
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">Task #{task.task_number}</span>
+          {task.is_overdue && task.status !== 'completed' && (
+            <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4 gap-1">
+              <AlertTriangle className="h-3 w-3" />
+              Overdue
+            </Badge>
+          )}
           {/* Privacy Toggle */}
           <Button
             variant="ghost"
@@ -967,6 +896,9 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             title="Delete task"
           >
             {loading === 'delete' ? <Spinner size={12} /> : <Trash2 className="h-4 w-4" />}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={handleClose} className="h-6 px-2">
+            <ChevronUp className="h-4 w-4" />
           </Button>
         </div>
       </div>
