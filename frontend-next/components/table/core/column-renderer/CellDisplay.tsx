@@ -329,29 +329,48 @@ export function displayLookup(value: unknown): React.ReactNode {
 
 /**
  * Display multiple lookups as badges
+ * Shows first badge + count to keep rows compact (1 row per record)
  */
 export function displayMultipleLookups(value: unknown): React.ReactNode {
   if (value === null || value === undefined) return formatEmpty();
   if (!Array.isArray(value) || value.length === 0) return formatEmpty();
 
+  // Extract display text for each item
+  const items = value.map((item) => {
+    if (typeof item === "object" && item !== null) {
+      const obj = item as Record<string, unknown>;
+      return String(obj.display_value || obj.display || obj.name || obj.id || "");
+    }
+    return String(item);
+  });
+
+  // Show first badge + count indicator to keep rows compact
+  const firstItem = items[0];
+  const remaining = items.length - 1;
+
   return (
-    <div className="flex flex-wrap gap-1">
-      {value.map((item, idx) => {
-        let displayText = "";
-
-        if (typeof item === "object" && item !== null) {
-          const obj = item as Record<string, unknown>;
-          displayText = String(obj.display_value || obj.display || obj.name || obj.id || "");
-        } else {
-          displayText = String(item);
-        }
-
-        return (
-          <Badge key={idx} variant="secondary" className="text-[10px] px-1.5 py-0">
-            {displayText}
-          </Badge>
-        );
-      })}
+    <div className="flex items-center gap-1 overflow-hidden">
+      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 truncate max-w-[120px]">
+        {firstItem}
+      </Badge>
+      {remaining > 0 && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="text-[10px] text-muted-foreground cursor-help whitespace-nowrap">
+                +{remaining}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-xs">
+              <div className="flex flex-col gap-1">
+                {items.slice(1).map((item, idx) => (
+                  <span key={idx} className="text-[11px]">{item}</span>
+                ))}
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
     </div>
   );
 }
@@ -434,18 +453,39 @@ export function displayStructuredData(value: unknown): React.ReactNode {
 
 /**
  * Display array of items as badges
+ * Shows first badge + count to keep rows compact (1 row per record)
  */
 export function displayArrayOfItems(value: unknown): React.ReactNode {
   if (value === null || value === undefined) return formatEmpty();
   if (!Array.isArray(value) || value.length === 0) return formatEmpty();
 
+  const items = value.map(String);
+  const firstItem = items[0];
+  const remaining = items.length - 1;
+
   return (
-    <div className="flex flex-wrap gap-1">
-      {value.map((item, idx) => (
-        <Badge key={idx} variant="outline" className="text-[10px] px-1.5 py-0">
-          {String(item)}
-        </Badge>
-      ))}
+    <div className="flex items-center gap-1 overflow-hidden">
+      <Badge variant="outline" className="text-[10px] px-1.5 py-0 truncate max-w-[120px]">
+        {firstItem}
+      </Badge>
+      {remaining > 0 && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="text-[10px] text-muted-foreground cursor-help whitespace-nowrap">
+                +{remaining}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-xs">
+              <div className="flex flex-col gap-1">
+                {items.slice(1).map((item, idx) => (
+                  <span key={idx} className="text-[11px]">{item}</span>
+                ))}
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
     </div>
   );
 }
