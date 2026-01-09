@@ -11,6 +11,7 @@ export interface TaskAttachmentEmail {
   subject: string;
   from_email: string;
   from_name?: string;
+  to_emails?: string[];
   received_at: string;
   has_attachments: boolean;
   conversation_id?: string;

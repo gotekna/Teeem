@@ -118,7 +118,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
-import { getCachedRecords, setCachedRecords, clearCachedRecords } from "@/lib/records-cache";
+import { getCachedRecords, getCachedRecordsAsync, setCachedRecords, clearCachedRecords } from "@/lib/records-cache";
 import { useAuth } from "@/contexts/AuthContext";
 import { getColumnPriority, COLUMN_PRIORITY_CONFIG, type ColumnPriority } from "@/lib/column-priority";
 import { measureText, TABLE_FONTS, TABLE_PADDING } from "@/lib/column-measurement";
@@ -867,6 +867,7 @@ export default function TeeemTableView({
   // ⚠️ SKIP for embedded context (tables with initialFilters) - cache is keyed by foundationId only,
   // so different filter sets (e.g., different templates) would incorrectly restore the wrong data
   const hasCacheRestoredRef = useRef(false);
+  // Cache restoration effect - async to support IndexedDB L2 cache
   useEffect(() => {
     if (hasCacheRestoredRef.current) return;
     if (!useAutoFetch || !effectiveFoundationId) return;
@@ -876,27 +877,33 @@ export default function TeeemTableView({
       return;
     }
 
-    const cached = getCachedRecords(effectiveFoundationId);
-    if (cached && cached.records.length > (initialRecords?.length || 0)) {
-      // Cache has more records (user had scrolled/loaded more before)
-      // Restore from cache for better UX, but respect autoFetchLimit if set
-      let recordsToRestore = cached.records as TableRowType[];
-      let hasMoreToRestore = cached.hasMore;
+    // Async IIFE to await IndexedDB cache lookup
+    (async () => {
+      // Mark as restored immediately to prevent duplicate async calls
+      hasCacheRestoredRef.current = true;
 
-      // If autoFetchLimit is set, only restore up to that limit
-      if (autoFetchLimit !== undefined && recordsToRestore.length > autoFetchLimit) {
-        console.log(`[RecordsCache] Limiting cache restore to ${autoFetchLimit} records (cache had ${recordsToRestore.length})`);
-        recordsToRestore = recordsToRestore.slice(0, autoFetchLimit);
-        hasMoreToRestore = true; // There are more records available
-      } else {
-        console.log(`[RecordsCache] Restoring ${recordsToRestore.length} records from cache (SSR had ${initialRecords?.length || 0})`);
+      // Try L1 (memory) first, then L2 (IndexedDB) if available
+      const cached = await getCachedRecordsAsync(effectiveFoundationId);
+      if (cached && cached.records.length > (initialRecords?.length || 0)) {
+        // Cache has more records (user had scrolled/loaded more before)
+        // Restore from cache for better UX, but respect autoFetchLimit if set
+        let recordsToRestore = cached.records as TableRowType[];
+        let hasMoreToRestore = cached.hasMore;
+
+        // If autoFetchLimit is set, only restore up to that limit
+        if (autoFetchLimit !== undefined && recordsToRestore.length > autoFetchLimit) {
+          console.log(`[RecordsCache] Limiting cache restore to ${autoFetchLimit} records (cache had ${recordsToRestore.length})`);
+          recordsToRestore = recordsToRestore.slice(0, autoFetchLimit);
+          hasMoreToRestore = true; // There are more records available
+        } else {
+          console.log(`[RecordsCache] Restoring ${recordsToRestore.length} records from cache (SSR had ${initialRecords?.length || 0})`);
+        }
+
+        setAutoFetchedRecords(recordsToRestore);
+        setHasMore(hasMoreToRestore);
+        hasAppliedInitialRecordsRef.current = true; // Skip SSR check in auto-fetch effect
       }
-
-      setAutoFetchedRecords(recordsToRestore);
-      setHasMore(hasMoreToRestore);
-      hasAppliedInitialRecordsRef.current = true; // Skip SSR check in auto-fetch effect
-    }
-    hasCacheRestoredRef.current = true;
+    })();
   }, [useAutoFetch, effectiveFoundationId, initialRecords?.length, isEmbeddedContext, autoFetchLimit]);
 
   // Ref to hold current search value for use in auto-fetch refresh effect

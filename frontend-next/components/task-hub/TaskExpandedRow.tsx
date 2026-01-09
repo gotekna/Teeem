@@ -1624,18 +1624,17 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                     disableSavedViews={true}
                     columns={[
                       {
-                        key: "direction",
-                        label: "Direction",
-                        column_type: "choice",
-                        width: 80,
-                        choices: ["From", "To"],
+                        key: "from",
+                        label: "From",
+                        column_type: "text",
+                        width: 160,
                         filterable: true,
                       },
                       {
-                        key: "from_to",
-                        label: "From/To",
+                        key: "to",
+                        label: "To",
                         column_type: "text",
-                        width: 180,
+                        width: 160,
                         filterable: true,
                       },
                       {
@@ -1661,11 +1660,10 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                     ]}
                     entries={emailAttachments.map((attachment) => {
                       const email = attachment.email!;
-                      const isFromOurCompany = email.from_email?.toLowerCase().includes("@tekna.com.au");
                       return {
                         id: email.id,
-                        direction: isFromOurCompany ? "To" : "From",
-                        from_to: email.from_name || email.from_email,
+                        from: email.from_email || "-",
+                        to: email.to_emails?.join(", ") || "-",
                         subject: email.subject || "(no subject)",
                         received_at: email.received_at,
                         files: email.has_attachments ? 1 : 0,

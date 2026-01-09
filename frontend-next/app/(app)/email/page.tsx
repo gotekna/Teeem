@@ -392,7 +392,7 @@ const EmailListItem = memo(function EmailListItem({
                   "text-[10px] whitespace-nowrap shrink-0 group-hover:hidden",
                   !email.is_read ? "font-semibold text-muted-foreground" : "text-muted-foreground"
                 )}>
-                  {formatDistanceToNow(new Date(email.received_at), { addSuffix: true })}
+                  {format(new Date(email.received_at), 'dd/MM/yyyy')}
                 </span>
               </div>
               <p className={cn(
