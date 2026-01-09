@@ -22,6 +22,7 @@ import {
   Lock,
   ChevronDown,
   ChevronRight,
+  Pencil,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useMemo } from 'react';
@@ -166,10 +167,11 @@ export function ListView() {
               <div
                 onClick={() => toggleTaskExpansion(task.id)}
                 className={cn(
-                  'grid grid-cols-[28px_1fr_130px_60px_60px_100px_70px_32px] gap-1 px-2 py-1 items-center text-xs hover:bg-muted/30 cursor-pointer transition-colors',
-                  selectedTaskIds.has(task.id) && !isExpanded && 'bg-primary/5',
+                  'grid grid-cols-[28px_1fr_130px_60px_60px_100px_70px_32px] gap-1 px-2 items-center cursor-pointer transition-colors',
+                  !isExpanded && 'py-2 text-xs hover:bg-muted/30',
+                  !isExpanded && selectedTaskIds.has(task.id) && 'bg-primary/5',
                   !isExpanded && getTaskRowColorClass(task),
-                  isExpanded && 'bg-blue-100 dark:bg-blue-900/50 border-l-4 border-blue-500 shadow-lg font-medium text-blue-900 dark:text-blue-100'
+                  isExpanded && '!bg-primary/15 dark:!bg-primary/25 border-l-4 !border-primary shadow-xl !py-3 !text-base font-semibold'
                 )}
               >
                 <div onClick={(e) => e.stopPropagation()}>
@@ -206,20 +208,26 @@ export function ListView() {
                       autoFocus
                     />
                   ) : (
-                    <span
-                      className={cn(
-                        'truncate cursor-text hover:bg-muted/50 px-1 -mx-1 rounded',
-                        task.status === 'completed' && 'line-through text-muted-foreground'
+                    <div className="flex items-center gap-1 flex-1 min-w-0">
+                      <span
+                        className={cn(
+                          'truncate cursor-text hover:bg-muted/50 px-1 -mx-1 rounded flex-1',
+                          task.status === 'completed' && 'line-through text-muted-foreground',
+                          isExpanded && '!font-bold !text-lg'
+                        )}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingTaskId(task.id);
+                          setEditingTaskName(task.name);
+                        }}
+                        title="Click to edit task name"
+                      >
+                        {task.name}
+                      </span>
+                      {isExpanded && (
+                        <Pencil className="h-3 w-3 text-muted-foreground shrink-0 opacity-50" />
                       )}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingTaskId(task.id);
-                        setEditingTaskName(task.name);
-                      }}
-                      title="Click to edit task name"
-                    >
-                      {task.name}
-                    </span>
+                    </div>
                   )}
                   {task.is_overdue && task.status !== 'completed' && (
                     <AlertTriangle className="h-3 w-3 text-red-500 shrink-0" />

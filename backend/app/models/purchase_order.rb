@@ -49,14 +49,26 @@ class PurchaseOrder < ApplicationRecord
   end
 
   # Virtual attributes for Foundation - expose stage/trade via SmTask
-  # Path: PO → SmTask → SmScheduleMaster.{stage, trade}
+  # Path: PO → SmTask.{stage, trade} (or SmScheduleMaster as fallback) → sm_stages/sm_trades.name
   # Used by Expenses tab for hierarchical grouping
   def stage_from_task
-    sm_task&.sm_schedule_master&.stage
+    # Try SmTask.stage first, then SmScheduleMaster.stage
+    stage_id = sm_task&.stage || sm_task&.sm_schedule_master&.stage
+    return nil unless stage_id
+    # Look up stage name from sm_stages table
+    ActiveRecord::Base.connection.select_value(
+      "SELECT name FROM sm_stages WHERE id = #{stage_id.to_i}"
+    )
   end
 
   def trade_from_task
-    sm_task&.sm_schedule_master&.trade
+    # Try SmTask.trade first, then SmScheduleMaster.trade
+    trade_id = sm_task&.trade || sm_task&.sm_schedule_master&.trade
+    return nil unless trade_id
+    # Look up trade name from sm_trades table
+    ActiveRecord::Base.connection.select_value(
+      "SELECT name FROM sm_trades WHERE id = #{trade_id.to_i}"
+    )
   end
 
   has_many :purchase_order_documents, dependent: :destroy
