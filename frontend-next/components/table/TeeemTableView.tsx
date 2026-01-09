@@ -867,7 +867,12 @@ export default function TeeemTableView({
   // ⚠️ SKIP for embedded context (tables with initialFilters) - cache is keyed by foundationId only,
   // so different filter sets (e.g., different templates) would incorrectly restore the wrong data
   const hasCacheRestoredRef = useRef(false);
+  // Track if we're doing a background refresh (L2 cache restore triggers silent refresh)
+  const isBackgroundRefreshRef = useRef(false);
+
   // Cache restoration effect - async to support IndexedDB L2 cache
+  // L1 (memory) = same session, fresh data
+  // L2 (IndexedDB) = survived page refresh, may be stale → trigger background refresh
   useEffect(() => {
     if (hasCacheRestoredRef.current) return;
     if (!useAutoFetch || !effectiveFoundationId) return;
@@ -902,6 +907,17 @@ export default function TeeemTableView({
         setAutoFetchedRecords(recordsToRestore);
         setHasMore(hasMoreToRestore);
         hasAppliedInitialRecordsRef.current = true; // Skip SSR check in auto-fetch effect
+
+        // L2 (IndexedDB) cache may be stale - trigger background refresh to get fresh data
+        // User sees cached data immediately, then silently updates if server data differs
+        if (cached.source === 'L2') {
+          console.log(`[RecordsCache] L2 cache restored - triggering background refresh for fresh data`);
+          isBackgroundRefreshRef.current = true;
+          // Small delay to let UI render with cached data first
+          setTimeout(() => {
+            setAutoFetchRefreshKey(prev => prev + 1);
+          }, 100);
+        }
       }
     })();
   }, [useAutoFetch, effectiveFoundationId, initialRecords?.length, isEmbeddedContext, autoFetchLimit]);

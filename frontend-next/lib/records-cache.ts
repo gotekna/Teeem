@@ -26,6 +26,11 @@ interface CachedRecords {
   cursor?: number; // Last cursor position for pagination
 }
 
+// Result from async cache lookup - includes source for background refresh decision
+export interface CachedRecordsWithSource extends CachedRecords {
+  source: 'L1' | 'L2'; // L1 = memory (fresh), L2 = IndexedDB (may be stale)
+}
+
 // Module-level cache - survives route changes
 const recordsCache = new Map<string | number, CachedRecords>();
 
@@ -93,15 +98,18 @@ export function getCachedRecords(foundationId: string | number): CachedRecords |
  * Get cached records with IndexedDB fallback (async)
  * Checks L1 (memory) then L2 (IndexedDB)
  * On L2 hit, restores to L1 for subsequent sync access
+ * Returns source indicator for background refresh decision:
+ * - L1 = memory cache (same session, fresh)
+ * - L2 = IndexedDB (survived refresh, may be stale - trigger background refresh)
  */
-export async function getCachedRecordsAsync(foundationId: string | number): Promise<CachedRecords | null> {
-  // Check L1 memory cache first (instant)
+export async function getCachedRecordsAsync(foundationId: string | number): Promise<CachedRecordsWithSource | null> {
+  // Check L1 memory cache first (instant, same session = fresh)
   const memoryCache = getCachedRecords(foundationId);
   if (memoryCache) {
-    return memoryCache;
+    return { ...memoryCache, source: 'L1' };
   }
 
-  // Check L2 IndexedDB (async, survives page refresh)
+  // Check L2 IndexedDB (async, survives page refresh = may be stale)
   if (isIndexedDBAvailable()) {
     const idbData = await getFromIDB(foundationId);
     if (idbData) {
@@ -115,7 +123,8 @@ export async function getCachedRecordsAsync(foundationId: string | number): Prom
       };
       recordsCache.set(foundationId, cachedEntry);
       dedupedLog(`[RecordsCache] HIT (L2 IndexedDB→L1): ${foundationId}, ${idbData.records.length} records`);
-      return cachedEntry;
+      // L2 source = may be stale, caller should trigger background refresh
+      return { ...cachedEntry, source: 'L2' };
     }
   }
 

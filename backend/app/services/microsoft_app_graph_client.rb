@@ -227,6 +227,79 @@ class MicrosoftAppGraphClient
 
   public
 
+  # Send email as a specific user
+  # Uses POST /users/{user-id}/sendMail to send email from any user's mailbox
+  # Options:
+  #   from: sender email address (the mailbox to send from)
+  #   to: recipient email(s) (string or array)
+  #   cc: CC recipient email(s) (optional)
+  #   bcc: BCC recipient email(s) (optional)
+  #   subject: email subject
+  #   body: email body (HTML supported)
+  #   attachments: array of { name:, content: (base64), content_type: } (optional)
+  def send_email(from:, to:, subject:, body:, cc: [], bcc: [], attachments: [])
+    # Build recipients arrays
+    to_recipients = Array(to).map { |email| { emailAddress: { address: email } } }
+    cc_recipients = Array(cc).reject(&:blank?).map { |email| { emailAddress: { address: email } } }
+    bcc_recipients = Array(bcc).reject(&:blank?).map { |email| { emailAddress: { address: email } } }
+
+    # Build message content
+    message_content = {
+      subject: subject,
+      body: {
+        contentType: "HTML",
+        content: body
+      },
+      toRecipients: to_recipients
+    }
+
+    # Add CC if present
+    message_content[:ccRecipients] = cc_recipients if cc_recipients.any?
+
+    # Add BCC if present
+    message_content[:bccRecipients] = bcc_recipients if bcc_recipients.any?
+
+    # Add attachments if present
+    if attachments.any?
+      message_content[:attachments] = attachments.map do |att|
+        {
+          "@odata.type": "#microsoft.graph.fileAttachment",
+          name: att[:name] || att[:filename],
+          contentBytes: att[:content],
+          contentType: att[:content_type] || "application/octet-stream"
+        }
+      end
+    end
+
+    # Build request body
+    request_body = {
+      message: message_content,
+      saveToSentItems: true
+    }
+
+    # Send using the user's mailbox
+    endpoint = "/users/#{CGI.escape(from)}/sendMail"
+
+    url = "#{GRAPH_API_BASE}#{endpoint}"
+
+    with_retry do
+      response = HTTP.auth("Bearer #{access_token}")
+                     .headers("Content-Type" => "application/json")
+                     .post(url, json: request_body)
+
+      # Microsoft Graph returns 202 (Accepted) for successful sendMail
+      if response.status.success? || response.status.code == 202
+        Rails.logger.info "[MicrosoftAppGraph] Email sent successfully from #{from} to #{to}"
+        { success: true, message_id: SecureRandom.uuid }
+      else
+        error_body = JSON.parse(response.body.to_s) rescue { "error" => { "message" => response.body.to_s } }
+        error_msg = error_body.dig("error", "message") || "HTTP #{response.status}"
+        Rails.logger.error "[MicrosoftAppGraph] Failed to send email: #{response.status.code} - #{error_msg}"
+        raise ApiError, "#{response.status.code} - #{error_msg}"
+      end
+    end
+  end
+
   # Search emails across a user's mailbox
   def search_user_emails(user_identifier, query, top: 50)
     endpoint = "/users/#{CGI.escape(user_identifier)}/messages"
