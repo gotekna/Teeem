@@ -871,11 +871,11 @@ export function ScheduleMasterTab() {
   // SSoT: Load workflows (BPMN processes) for task workflow triggers
   const loadWorkflows = async () => {
     try {
-      const data = await api.get<{ success: boolean; data: Array<{ id: number; name: string }> }>(
-        "/api/v1/bpmn_processes?status=published"
+      const data = await api.get<{ success: boolean; bpmn_processes: Array<{ id: number; name: string }> }>(
+        "/api/v1/bpmn_processes?published=true"
       );
-      if (data?.data) {
-        setAvailableWorkflows(data.data);
+      if (data?.bpmn_processes) {
+        setAvailableWorkflows(data.bpmn_processes);
       }
     } catch (error) {
       console.error("Failed to load workflows:", error);
