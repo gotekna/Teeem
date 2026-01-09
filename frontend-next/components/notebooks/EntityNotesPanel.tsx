@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useState, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -31,6 +32,7 @@ export function EntityNotesPanel({
   entityName,
   className,
 }: EntityNotesPanelProps) {
+  const queryClient = useQueryClient();
   const {
     notebooks,
     isLoading,
@@ -57,11 +59,12 @@ export function EntityNotesPanel({
 
   const handleCreateNotebook = useCallback(
     async (notebook: NotebookType) => {
-      mutateNotebooks();
+      // Invalidate all notebook queries to ensure list updates
+      await queryClient.invalidateQueries({ queryKey: ["notebooks"] });
       setSelectedNotebookId(notebook.id);
       setSelectedPageId(null);
     },
-    [mutateNotebooks]
+    [queryClient]
   );
 
   const handleCreatePage = async (sectionId: number) => {
@@ -70,7 +73,7 @@ export function EntityNotesPanel({
       const page = await pageActions.create(selectedNotebookId, sectionId, {
         title: "Untitled",
       });
-      mutateNotebook();
+      await queryClient.invalidateQueries({ queryKey: ["notebook", selectedNotebookId] });
       setSelectedPageId(page.id);
     } catch (err) {
       console.error("Failed to create page:", err);
@@ -96,8 +99,8 @@ export function EntityNotesPanel({
         const page = await pageActions.create(notebook.id, newSection.id, {
           title: `Note - ${new Date().toLocaleDateString()}`,
         });
-        mutateNotebooks();
-        mutateNotebook();
+        await queryClient.invalidateQueries({ queryKey: ["notebooks"] });
+        await queryClient.invalidateQueries({ queryKey: ["notebook", notebook.id] });
         setSelectedNotebookId(notebook.id);
         setSelectedPageId(page.id);
       } catch (err) {
@@ -108,7 +111,7 @@ export function EntityNotesPanel({
         const page = await pageActions.create(notebook.id, section.id, {
           title: `Note - ${new Date().toLocaleDateString()}`,
         });
-        mutateNotebook();
+        await queryClient.invalidateQueries({ queryKey: ["notebook", notebook.id] });
         setSelectedPageId(page.id);
       } catch (err) {
         console.error("Failed to create quick note:", err);
