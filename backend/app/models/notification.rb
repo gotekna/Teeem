@@ -7,6 +7,9 @@ class Notification < ApplicationRecord
   # Allowed polymorphic types for notifiable (security: prevents arbitrary type injection)
   ALLOWED_NOTIFIABLE_TYPES = %w[SmTask EmailWarehouse EmailSnooze].freeze
 
+  # Auto-generate link based on notifiable type
+  before_save :generate_link_from_notifiable
+
   # Notification types
   TYPES = %w[
     task_assigned
@@ -40,5 +43,27 @@ class Notification < ApplicationRecord
 
   def self.mark_all_read_for_user!(user)
     where(user: user, read: false).update_all(read: true)
+  end
+
+  private
+
+  # Generate the navigation link based on the notifiable object
+  # This allows clicking on a notification to navigate directly to the relevant page
+  def generate_link_from_notifiable
+    return if link.present? # Don't overwrite if already set
+    return if notifiable_type.blank? || notifiable_id.blank?
+
+    self.link = case notifiable_type
+                when "SmTask"
+                  # Link to tasks page with task expanded
+                  "/tasks?taskId=#{notifiable_id}"
+                when "EmailWarehouse"
+                  # Link to email page with email selected
+                  "/email?id=#{notifiable_id}"
+                when "EmailSnooze"
+                  # Link to email page - find the email ID from the snooze
+                  snooze = EmailSnooze.find_by(id: notifiable_id)
+                  snooze&.email_warehouse_id ? "/email?id=#{snooze.email_warehouse_id}" : nil
+                end
   end
 end

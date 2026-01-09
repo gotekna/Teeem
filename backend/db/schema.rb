@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_10_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_10_120001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -6658,6 +6658,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_10_120000) do
     t.boolean "read", default: false, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "link"
     t.index ["notifiable_type", "notifiable_id"], name: "index_notifications_on_notifiable"
     t.index ["user_id", "created_at"], name: "index_notifications_on_user_id_and_created_at"
     t.index ["user_id", "read"], name: "index_notifications_on_user_id_and_read"
@@ -8454,6 +8455,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_10_120000) do
     t.text "email_keywords"
     t.boolean "is_delegated_question", default: false, null: false
     t.bigint "job_claim_stage_id"
+    t.boolean "is_claim_task", default: false, null: false
+    t.decimal "claim_percentage"
+    t.string "claim_invoice_pattern"
+    t.integer "claim_invoice_template_id"
+    t.integer "claim_trading_name_id"
+    t.boolean "is_variation", default: false
+    t.integer "claim_sequence_number"
     t.boolean "requires_document_to_complete", default: false
     t.bigint "completion_document_type_id"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"

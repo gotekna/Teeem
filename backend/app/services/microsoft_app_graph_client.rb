@@ -237,7 +237,8 @@ class MicrosoftAppGraphClient
   #   subject: email subject
   #   body: email body (HTML supported)
   #   attachments: array of { name:, content: (base64), content_type: } (optional)
-  def send_email(from:, to:, subject:, body:, cc: [], bcc: [], attachments: [])
+  #   reply_to_message_id: internetMessageId of original email (for threading replies)
+  def send_email(from:, to:, subject:, body:, cc: [], bcc: [], attachments: [], reply_to_message_id: nil)
     # Build recipients arrays
     to_recipients = Array(to).map { |email| { emailAddress: { address: email } } }
     cc_recipients = Array(cc).reject(&:blank?).map { |email| { emailAddress: { address: email } } }
@@ -258,6 +259,15 @@ class MicrosoftAppGraphClient
 
     # Add BCC if present
     message_content[:bccRecipients] = bcc_recipients if bcc_recipients.any?
+
+    # Add threading headers for replies
+    # This ensures the reply appears in the same email thread/conversation
+    if reply_to_message_id.present?
+      message_content[:internetMessageHeaders] = [
+        { name: "In-Reply-To", value: reply_to_message_id },
+        { name: "References", value: reply_to_message_id }
+      ]
+    end
 
     # Add attachments if present
     if attachments.any?

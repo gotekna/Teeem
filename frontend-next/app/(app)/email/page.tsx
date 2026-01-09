@@ -208,6 +208,7 @@ interface Email {
     size: number;
   }>;
   // Threading fields
+  internet_message_id?: string;
   conversation_id?: string;
   thread_count?: number;
   is_latest_in_thread?: boolean;
@@ -571,7 +572,7 @@ export default function EmailPage() {
   const [popoutEmail, setPopoutEmail] = useState<Email | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
-  const [replyTo, setReplyTo] = useState<{ to: string; cc?: string; subject: string; body?: string; messageId?: string; fromAccountId?: string } | null>(null);
+  const [replyTo, setReplyTo] = useState<{ to: string; cc?: string; subject: string; body?: string; messageId?: string; fromAccountId?: string; replyToMessageId?: string } | null>(null);
   const [isPending, startTransition] = useTransition();
 
   // Split Inbox State - default to folders (Inbox) for faster loading
@@ -1257,6 +1258,7 @@ export default function EmailPage() {
       to: email.from_email || email.from_address,
       subject: email.subject?.startsWith("Re:") ? email.subject : `Re: ${email.subject}`,
       fromAccountId: selectedAccount, // Reply from the same account that received the email
+      replyToMessageId: email.internet_message_id, // For email threading
     });
     setComposeOpen(true);
   };
@@ -1281,6 +1283,7 @@ export default function EmailPage() {
       cc: ccRecipients.join(", "),
       subject: email.subject?.startsWith("Re:") ? email.subject : `Re: ${email.subject}`,
       fromAccountId: selectedAccount,
+      replyToMessageId: email.internet_message_id, // For email threading
     });
     setComposeOpen(true);
   };
@@ -2045,6 +2048,7 @@ To: ${email.to_emails?.join(", ") || ""}
         defaultSubject={replyTo?.subject || ""}
         defaultBody={replyTo?.body || ""}
         defaultFromAccountId={replyTo?.fromAccountId}
+        replyToMessageId={replyTo?.replyToMessageId}
         onSent={() => {
           fetchEmails();
           setReplyTo(null);

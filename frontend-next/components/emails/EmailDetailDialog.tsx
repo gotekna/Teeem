@@ -47,6 +47,7 @@ interface EmailDetailData {
   job_number?: string | null;
   attachments?: Attachment[];
   // Thread
+  internet_message_id?: string;
   thread?: EmailDetailData[];
   thread_count?: number;
 }
@@ -184,6 +185,7 @@ export function EmailDetailDialog({
           defaultTo: email.from_email,
           defaultSubject: replySubject,
           defaultBody: quotedBody,
+          replyToMessageId: email.internet_message_id,
         };
       case "replyAll":
         const allRecipients = [
@@ -196,6 +198,7 @@ export function EmailDetailDialog({
           defaultCc: allRecipients.filter((e) => e !== email.from_email).join(", "),
           defaultSubject: replySubject,
           defaultBody: quotedBody,
+          replyToMessageId: email.internet_message_id,
         };
       case "forward":
         return {

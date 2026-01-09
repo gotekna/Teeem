@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useAuth } from './AuthContext';
 
@@ -627,6 +628,7 @@ interface TaskHubProviderProps {
 
 export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps) => {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
 
   const [tasks, setTasks] = useState<SmTask[]>([]);
   const [activeView, setActiveViewState] = useState<ViewType>(() => {
@@ -698,6 +700,17 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
   useEffect(() => {
     loadUserCounts();
   }, [loadUserCounts]);
+
+  // Handle URL param for opening specific task (e.g., from notification click)
+  useEffect(() => {
+    const taskIdParam = searchParams.get('taskId');
+    if (taskIdParam) {
+      const taskId = parseInt(taskIdParam, 10);
+      if (!isNaN(taskId)) {
+        setExpandedTaskId(taskId);
+      }
+    }
+  }, [searchParams]);
 
   // Load tasks from API
   const loadTasks = useCallback(async () => {

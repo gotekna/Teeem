@@ -289,7 +289,8 @@ class EmailSendingService
       bcc: @params.bcc_list,
       subject: @params.subject,
       body: @params.body,
-      attachments: normalize_attachments_for_graph
+      attachments: normalize_attachments_for_graph,
+      reply_to_message_id: @params.reply_to_message_id
     )
 
     if result[:success] || result.is_a?(Hash) && result[:success] != false
