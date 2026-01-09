@@ -146,8 +146,7 @@ class EmailToContactExtractionService
             end
 
             # Check if email already exists on any OTHER contact
-            if Contact.where.not(id: contact.id).exists?(email: new_email) ||
-               ContactEmail.where.not(contact_id: contact.id).exists?(email: new_email)
+            if ContactEmail.where.not(contact_id: contact.id).exists?(email: new_email)
               errors << { email: selection[:email], error: "Email already exists on another contact" }
               next
             end
@@ -225,7 +224,7 @@ class EmailToContactExtractionService
           end
 
           # Skip if contact already exists
-          if Contact.exists?(email: normalize_email(selection[:email]))
+          if ContactEmail.exists?(email: normalize_email(selection[:email]))
             errors << { email: selection[:email], error: "Contact already exists" }
             next
           end
