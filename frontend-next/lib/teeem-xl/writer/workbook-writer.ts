@@ -4,7 +4,7 @@
  * Creates valid XLSX files that can be opened in Excel.
  */
 
-import * as JSZip from 'jszip';
+import JSZip from 'jszip';
 import type { Workbook, Worksheet, Cell, CellValue, WriteOptions } from '../types';
 import { NAMESPACES, RELATIONSHIP_TYPES, CONTENT_TYPES } from '../types';
 import { makeReference, indexToColumn } from '../index';
@@ -28,7 +28,8 @@ export class WorkbookWriter {
    * Write a workbook to an Excel file
    */
   async writeWorkbook(workbook: Workbook): Promise<Blob> {
-    const zip = new JSZip();
+    // Type assertion needed for JSZip constructor compatibility
+    const zip = new (JSZip as unknown as new () => JSZip)();
 
     // Reset shared strings
     this.sharedStrings = [];

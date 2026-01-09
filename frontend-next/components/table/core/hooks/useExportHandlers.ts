@@ -124,50 +124,58 @@ export function useExportHandlers(props: UseExportHandlersProps): UseExportHandl
     });
   }, [exportScope, visibleDataColumns, allDataColumns, filteredAndSortedEntries, tableName, toast, onExportComplete]);
 
-  // Export handler - exports to Excel
+  // Export handler - exports to Excel using TeeemXL
   const handleExportExcel = useCallback(async () => {
     const columnsToExport = exportScope === "visible" ? visibleDataColumns : allDataColumns;
 
-    // Dynamic import exceljs to avoid SSR issues
-    const ExcelJS = await import('exceljs');
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet(tableName.slice(0, 31)); // Sheet name max 31 chars
+    // Dynamic import TeeemXL to avoid SSR issues
+    const TeeemXL = await import('@/lib/teeem-xl');
 
     // Build headers
     const headers = columnsToExport.map((col) => col.label || col.key);
 
-    // Add header row with styling
-    const headerRow = worksheet.addRow(headers);
-    headerRow.font = { bold: true };
-    headerRow.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FFE0E0E0' }
-    };
-
-    // Add data rows
-    filteredAndSortedEntries.forEach((entry) => {
-      const rowData = columnsToExport.map((col) => {
+    // Build data rows - ensure all values are CellValue compatible
+    const dataRows: (string | number | boolean | Date | null)[][] = filteredAndSortedEntries.map((entry) => {
+      return columnsToExport.map((col): string | number | boolean | Date | null => {
         const value = entry[col.key];
+        // Handle null/undefined
+        if (value === null || value === undefined) return null;
+        // Handle dates
+        if (value instanceof Date) return value;
         // Handle objects (like nested relations)
-        if (typeof value === "object" && value !== null) {
-          if ("name" in value) return (value as { name: string }).name;
-          if ("label" in value) return (value as { label: string }).label;
+        if (typeof value === "object") {
+          if ("name" in value) return String((value as { name: string }).name);
+          if ("label" in value) return String((value as { label: string }).label);
           return JSON.stringify(value);
         }
-        return value;
+        // Handle primitives
+        if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+          return value;
+        }
+        // Fallback: convert to string
+        return String(value);
       });
-      worksheet.addRow(rowData);
     });
 
-    // Auto-size columns
-    worksheet.columns.forEach((column, i) => {
-      let maxLen = String(headers[i] || '').length;
-      column.eachCell?.({ includeEmpty: true }, (cell) => {
-        const cellLen = String(cell.value || '').length;
+    // Combine headers and data into 2D array
+    const allData = [headers, ...dataRows];
+
+    // Calculate column widths (auto-size based on content)
+    const columnWidths = columnsToExport.map((_, colIdx) => {
+      let maxLen = String(headers[colIdx] || '').length;
+      dataRows.forEach((row) => {
+        const cellLen = String(row[colIdx] ?? '').length;
         if (cellLen > maxLen) maxLen = cellLen;
       });
-      column.width = Math.min(maxLen + 2, 50);
+      return Math.min(maxLen + 2, 50);
+    });
+
+    // Write Excel file using TeeemXL
+    const blob = await TeeemXL.write(allData, {
+      sheetName: tableName.slice(0, 31), // Sheet name max 31 chars
+      headerStyle: { bold: true, backgroundColor: 'E0E0E0' }, // Header styling
+      freezeHeader: true,
+      columnWidths,
     });
 
     // Generate and download
@@ -175,9 +183,6 @@ export function useExportHandlers(props: UseExportHandlersProps): UseExportHandl
     const scopeLabel = exportScope === "visible" ? "visible" : "all";
     const fileName = `${tableName.toLowerCase().replace(/\s+/g, "-")}-${scopeLabel}-${timestamp}.xlsx`;
 
-    // Write to buffer and trigger download
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;

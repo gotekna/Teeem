@@ -4,7 +4,7 @@
  * Uses JSZip for ZIP handling and DOMParser for XML parsing.
  */
 
-import * as JSZip from 'jszip';
+import JSZip from 'jszip';
 import type {
   Workbook,
   Worksheet,
@@ -36,8 +36,8 @@ export class WorkbookReader {
    * Read an Excel file
    */
   async read(source: File | Blob | ArrayBuffer): Promise<Workbook> {
-    // Load ZIP
-    this.zip = await JSZip.loadAsync(source);
+    // Load ZIP (type assertion needed for JSZip compatibility)
+    this.zip = await JSZip.loadAsync(source) as JSZip;
 
     // Parse supporting files
     await this.parseSharedStrings();
