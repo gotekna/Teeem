@@ -1535,7 +1535,8 @@ module Api
               from_name: email.from_name,
               to_emails: email.to_emails,
               received_at: email.received_at,
-              has_attachments: email.email_attachments.any?,
+              has_attachments: email.document_attachments_count > 0,
+              document_attachments_count: email.document_attachments_count,
               conversation_id: email.conversation_id,
               thread_count: email.thread_count,
               body_preview: email.body_preview || email.body_text&.truncate(200)

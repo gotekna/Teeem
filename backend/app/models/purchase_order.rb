@@ -457,7 +457,9 @@ class PurchaseOrder < ApplicationRecord
     result = super(options).merge(
       'sm_task_name' => po_task_name,
       'sm_schedule_master_name' => sm_schedule_master_name,
-      'sm_schedule_master_id_via_task' => sm_schedule_master_id_via_task
+      'sm_schedule_master_id_via_task' => sm_schedule_master_id_via_task,
+      'stage_from_task' => stage_from_task,
+      'trade_from_task' => trade_from_task
     )
     # Include labour summary if this is a labour PO
     result['labour_summary'] = labour_summary if labour_po?

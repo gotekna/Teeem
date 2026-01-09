@@ -1741,7 +1741,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                         to: email.to_emails?.join(", ") || "-",
                         subject: email.subject || "(no subject)",
                         received_at: email.received_at,
-                        files: email.has_attachments ? 1 : 0,
+                        files: email.document_attachments_count || 0,
                       };
                     })}
                     viewOnly={true}

@@ -14,6 +14,7 @@ export interface TaskAttachmentEmail {
   to_emails?: string[];
   received_at: string;
   has_attachments: boolean;
+  document_attachments_count?: number; // Count of real documents (excludes signature images)
   conversation_id?: string;
   thread_count?: number;
   body_preview?: string;
