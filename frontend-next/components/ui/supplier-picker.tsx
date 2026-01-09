@@ -14,6 +14,8 @@ export interface Supplier {
   name?: string;
   /** Pricebook item IDs this supplier has price histories for (when filtered by forPricebookItemIds) */
   supplied_pricebook_item_ids?: number[];
+  /** Employee names that matched the search term (for company-aware search) */
+  matched_employees?: string[];
 }
 
 interface SupplierComboboxItem extends ComboboxItem {
@@ -22,6 +24,8 @@ interface SupplierComboboxItem extends ComboboxItem {
   coveredCount?: number;
   /** Total items requested */
   totalRequested?: number;
+  /** Employee names that matched the search term */
+  matchedEmployees?: string[];
 }
 
 interface SupplierPickerProps {
@@ -172,6 +176,7 @@ export function SupplierPicker({
         supplier,
         coveredCount,
         totalRequested,
+        matchedEmployees: supplier.matched_employees,
       };
     });
   }, [suppliers, forPricebookItemIds]);
@@ -230,12 +235,20 @@ export function SupplierPicker({
             const totalRequested = item.totalRequested ?? 0;
             const showCoverage = hasItemFilter && totalRequested > 0;
             const isPartial = showCoverage && item.coveredCount !== undefined && item.coveredCount < totalRequested;
+            const hasMatchedEmployees = item.matchedEmployees && item.matchedEmployees.length > 0;
 
             return (
               <div className="flex items-center justify-between gap-2 w-full">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <span className="truncate">{item.label}</span>
+                <div className="flex flex-col min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="truncate">{item.label}</span>
+                  </div>
+                  {hasMatchedEmployees && (
+                    <div className="text-xs text-muted-foreground ml-6 truncate">
+                      ↳ Employee: {item.matchedEmployees!.join(", ")}
+                    </div>
+                  )}
                 </div>
                 {showCoverage && (
                   <div className={cn(

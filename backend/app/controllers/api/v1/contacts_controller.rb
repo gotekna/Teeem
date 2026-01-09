@@ -113,58 +113,57 @@ module Api
             # Cached column is updated when contacts get POs, pricebooks, price histories, or bills
             #
             # Company-aware supplier search: When searching, also find supplier COMPANIES
-            # where an EMPLOYEE matches the search term (e.g., search "troy" finds "Harvey Norman"
-            # if Troy Smith works there and Harvey Norman is a supplier)
+            # where an EMPLOYEE matches the search term (e.g., search "troy" finds "Pre Hung Doors"
+            # if Troy Wilson works there and Pre Hung Doors is a supplier)
+            # The matched employee names are returned in `matched_employees` for UI display
             if params[:search].present?
               search_term = "%#{params[:search]}%"
 
               # Find people (employees) matching the search term
-              matching_person_ids = Contact.where(entity_type: "person")
-                                           .where("display_name ILIKE ? OR first_name ILIKE ? OR last_name ILIKE ?",
-                                                  search_term, search_term, search_term)
-                                           .pluck(:id)
+              matching_employees = Contact.where(entity_type: "person")
+                                          .where("display_name ILIKE ? OR first_name ILIKE ? OR last_name ILIKE ?",
+                                                 search_term, search_term, search_term)
+                                          .select(:id, :display_name, :primary_company_id)
 
-              if matching_person_ids.any?
-                # Find their employer companies (via primary_company_id)
-                employer_ids_via_primary = Contact.where(id: matching_person_ids)
-                                                  .where.not(primary_company_id: nil)
-                                                  .pluck(:primary_company_id)
+              # Build mapping: employer_id -> [employee names]
+              @matched_employees_by_company = {}
+              matching_employees.each do |emp|
+                next unless emp.primary_company_id
+                @matched_employees_by_company[emp.primary_company_id] ||= []
+                @matched_employees_by_company[emp.primary_company_id] << emp.display_name
+              end
 
-                # Find their employer companies (via ContactRelationship employee_of)
-                employer_ids_via_relationship = ContactRelationship
+              # Also check ContactRelationship employee_of
+              if matching_employees.any?
+                employee_relationships = ContactRelationship
                   .active
                   .where(relationship_type: "employee_of")
-                  .where(source_contact_id: matching_person_ids)
-                  .pluck(:related_contact_id)
+                  .where(source_contact_id: matching_employees.map(&:id))
+                  .pluck(:source_contact_id, :related_contact_id)
 
-                employer_company_ids = (employer_ids_via_primary + employer_ids_via_relationship).uniq
-
-                # Filter to only include employer companies that ARE suppliers (and active)
-                supplier_employer_ids = Contact.where(id: employer_company_ids)
-                                               .where(is_supplier_cached: true)
-                                               .where(is_active: true)
-                                               .pluck(:id)
-
-                # Include supplier companies (direct matches + employer companies found via employee search)
-                # EXCLUDE employees: people with primary_company_id should not appear directly
-                # (show their employer company instead)
-                # Use SQL WHERE to avoid .or() DISTINCT incompatibility
-                if supplier_employer_ids.any?
-                  # Suppliers that are: companies OR sole traders (no employer) OR employer companies of matching employees
-                  @contacts = @contacts.where(
-                    "(contacts.is_supplier_cached = ? AND (contacts.entity_type IN ('company', 'trust') OR contacts.primary_company_id IS NULL)) OR contacts.id IN (?)",
-                    true, supplier_employer_ids
-                  )
-                else
-                  # No employer matches - just show direct supplier matches (excluding employees)
-                  @contacts = @contacts.where(is_supplier_cached: true)
-                                       .where("contacts.entity_type IN ('company', 'trust') OR contacts.primary_company_id IS NULL")
+                employee_names_by_id = matching_employees.index_by(&:id)
+                employee_relationships.each do |emp_id, company_id|
+                  emp = employee_names_by_id[emp_id]
+                  next unless emp
+                  @matched_employees_by_company[company_id] ||= []
+                  @matched_employees_by_company[company_id] << emp.display_name unless @matched_employees_by_company[company_id].include?(emp.display_name)
                 end
-              else
-                # No search term - show all suppliers (excluding employees who have employer companies)
-                @contacts = @contacts.where(is_supplier_cached: true)
-                                     .where("contacts.entity_type IN ('company', 'trust') OR contacts.primary_company_id IS NULL")
               end
+
+              employer_company_ids = @matched_employees_by_company.keys
+
+              # Get supplier employer company IDs
+              supplier_employer_ids = employer_company_ids.any? ?
+                Contact.where(id: employer_company_ids, is_supplier_cached: true, is_active: true).pluck(:id) : []
+
+              # Build final result: direct supplier matches + employer companies of matching employees
+              # Exclude employees (people with primary_company_id) - show their company instead
+              direct_supplier_ids = @contacts.where(is_supplier_cached: true)
+                                             .where("contacts.entity_type IN ('company', 'trust') OR contacts.primary_company_id IS NULL")
+                                             .pluck(:id)
+
+              all_supplier_ids = (direct_supplier_ids + supplier_employer_ids).uniq
+              @contacts = Contact.where(id: all_supplier_ids).where(is_active: true)
             else
               # No search term - show all suppliers (excluding employees who have employer companies)
               @contacts = @contacts.where(is_supplier_cached: true)
@@ -303,6 +302,12 @@ module Api
           primary_company_id = contacts_by_id[contact_json["id"]]&.primary_company_id
           if primary_company_id
             contact_json["employer_name"] = employer_names[primary_company_id]
+          end
+
+          # Add matched_employees for company contacts (supplier search by employee name)
+          # Shows which employees matched the search term (e.g., "Troy Wilson" when searching "troy")
+          if @matched_employees_by_company && @matched_employees_by_company[contact_json["id"]]
+            contact_json["matched_employees"] = @matched_employees_by_company[contact_json["id"]]
           end
         end
 
