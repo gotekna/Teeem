@@ -195,11 +195,32 @@ module Api
               end
 
             else # "contains" (default)
-              # Substring match (ILIKE %term%)
-              conditions = searchable_columns.map do |col|
-                "#{get_column_sql.call(col)} ILIKE :search"
-              end.join(" OR ")
-              query = query.where(conditions, search: "%#{search}%")
+              # Multi-word search: split on whitespace, ALL words must match
+              # "req drafting" → finds records where ANY searchable column contains "req" AND "drafting"
+              search_words = search.strip.split(/\s+/).reject(&:blank?)
+
+              if search_words.length > 1
+                # Multi-word: each word must match at least one searchable column
+                # Build condition for each word, then AND them together
+                word_conditions = search_words.map do |word|
+                  col_conditions = searchable_columns.map do |col|
+                    "#{get_column_sql.call(col)} ILIKE :word_#{search_words.index(word)}"
+                  end.join(" OR ")
+                  "(#{col_conditions})"
+                end
+                combined = word_conditions.join(" AND ")
+
+                # Build params hash for each word
+                word_params = {}
+                search_words.each_with_index { |word, idx| word_params["word_#{idx}".to_sym] = "%#{word}%" }
+                query = query.where(combined, word_params)
+              else
+                # Single word: original behavior
+                conditions = searchable_columns.map do |col|
+                  "#{get_column_sql.call(col)} ILIKE :search"
+                end.join(" OR ")
+                query = query.where(conditions, search: "%#{search}%")
+              end
             end
           end
 
