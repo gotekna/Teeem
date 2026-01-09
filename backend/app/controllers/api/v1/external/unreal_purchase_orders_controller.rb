@@ -73,9 +73,14 @@ module Api
             }, status: :unprocessable_entity
           end
 
+          # Create the PO shell linked to the SmTask
+          # NOTE: Do NOT wrap render inside transaction - response must only be sent after commit
+          purchase_order = nil
+
           ActiveRecord::Base.transaction do
-            # Create the PO shell linked to the SmTask
-            purchase_order = PurchaseOrder.new(
+            Rails.logger.info "[Unreal PO] Starting transaction for job_id=#{job.id}, task_number=#{task_number}"
+
+            purchase_order = PurchaseOrder.create!(
               job_id: job.id,
               sm_task_id: sm_task.id,
               description: sm_task.name,
@@ -85,31 +90,37 @@ module Api
               supplier_id: sm_task.supplier_id
             )
 
-            if purchase_order.save
-              Rails.logger.info "[Unreal PO] Created PO #{purchase_order.purchase_order_number} linked to SmTask #{sm_task.id} (task_number: #{task_number})"
-
-              render json: {
-                success: true,
-                purchase_order_id: purchase_order.id,
-                purchase_order_number: purchase_order.purchase_order_number,
-                job_id: job.id,
-                job_title: job.title,
-                sm_task_id: sm_task.id,
-                task_number: sm_task.task_number,
-                task_name: sm_task.name,
-                task_trade: sm_task.trade,
-                supplier_id: sm_task.supplier_id,
-                status: purchase_order.status,
-                message: "Purchase order created and linked to task ##{task_number} '#{sm_task.name}'"
-              }, status: :created
-            else
-              render json: {
-                success: false,
-                error: "Failed to create purchase order",
-                details: purchase_order.errors.full_messages
-              }, status: :unprocessable_entity
-            end
+            Rails.logger.info "[Unreal PO] Created PO id=#{purchase_order.id} #{purchase_order.purchase_order_number} linked to SmTask #{sm_task.id} (task_number: #{task_number})"
           end
+
+          # Verify the PO was actually committed to the database
+          verified_po = PurchaseOrder.find_by(id: purchase_order.id)
+          unless verified_po
+            Rails.logger.error "[Unreal PO] CRITICAL: PO #{purchase_order.id} was created but not found after transaction commit!"
+            return render json: {
+              success: false,
+              error: "Purchase order creation failed - transaction may have been rolled back",
+              attempted_id: purchase_order.id
+            }, status: :internal_server_error
+          end
+
+          Rails.logger.info "[Unreal PO] Verified PO #{verified_po.purchase_order_number} exists in database"
+
+          # Render AFTER transaction commits - ensures PO exists before responding
+          render json: {
+            success: true,
+            purchase_order_id: purchase_order.id,
+            purchase_order_number: purchase_order.purchase_order_number,
+            job_id: job.id,
+            job_title: job.title,
+            sm_task_id: sm_task.id,
+            task_number: sm_task.task_number,
+            task_name: sm_task.name,
+            task_trade: sm_task.trade,
+            supplier_id: sm_task.supplier_id,
+            status: purchase_order.status,
+            message: "Purchase order created and linked to task ##{task_number} '#{sm_task.name}'"
+          }, status: :created
 
         rescue ActiveRecord::RecordInvalid => e
           render json: {
