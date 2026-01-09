@@ -1,5 +1,3 @@
-require "roo"
-
 namespace :corporate do
   desc "Import corporate data from Corporate File.xlsx"
   task import: :environment do
@@ -10,7 +8,7 @@ namespace :corporate do
       exit 1
     end
 
-    xlsx = Roo::Excelx.new(file_path.to_s)
+    xlsx = TeeemXl::SpreadsheetAdapter.open(file_path.to_s)
     puts "Opened Corporate File.xlsx with sheets: #{xlsx.sheets.join(', ')}"
 
     # Step 1: Create Company Groups
@@ -455,15 +453,13 @@ namespace :corporate do
   # ==============================
   desc "Import company documents from Corporate File.xlsx spreadsheet"
   task import_documents: :environment do
-    require "roo"
-
     xlsx_path = Rails.root.join("..", "Corporate File.xlsx")
     unless File.exist?(xlsx_path)
       puts "ERROR: Corporate File.xlsx not found at #{xlsx_path}"
       exit 1
     end
 
-    xlsx = Roo::Excelx.new(xlsx_path.to_s)
+    xlsx = TeeemXl::SpreadsheetAdapter.open(xlsx_path.to_s)
     puts "=== Importing Company Documents ==="
 
     # Map sheet names to company names
