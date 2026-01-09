@@ -61,9 +61,8 @@ class SmScheduleMaster < ApplicationRecord
 
   # Validations
   validates :name, presence: true, length: { maximum: 255 }
-  # Note: task_number uniqueness is per-template, not global
-  # Since rows can belong to multiple templates (sm_template_ids JSONB),
-  # global uniqueness doesn't apply. Each template can have task_number 1, 2, 3, etc.
+  # Note: task_number is synced to equal id after creation (see sync_task_number_to_id callback)
+  # This ensures consistent task_number across all sm_tasks that reference this template
   validates :task_number, presence: true
   validates :sequence_order, presence: true
   validates :duration_days, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
@@ -98,8 +97,9 @@ class SmScheduleMaster < ApplicationRecord
   scope :for_template, ->(template_id) { where("sm_template_ids @> ?", [template_id].to_json) }
 
   # Callbacks
-  before_validation :set_task_number, on: :create
+  before_validation :set_temporary_task_number, on: :create
   before_validation :set_sequence_order, on: :create
+  after_create :sync_task_number_to_id
   before_validation :clean_invalid_predecessors
   before_validation :uppercase_name_if_header
   before_validation :default_duration_for_tasks
@@ -201,12 +201,17 @@ class SmScheduleMaster < ApplicationRecord
 
   private
 
-  def set_task_number
+  # Set a temporary task_number to pass validation (will be synced to id after create)
+  def set_temporary_task_number
     return if task_number.present?
+    # Use a placeholder - will be replaced with actual id after create
+    self.task_number = 0
+  end
 
-    # Task numbers are now globally unique (not per-template)
-    max_number = SmScheduleMaster.maximum(:task_number) || 0
-    self.task_number = max_number + 1
+  # Sync task_number to match id after creation
+  # This ensures task_number = id for all rows (SSoT)
+  def sync_task_number_to_id
+    update_column(:task_number, id) if task_number != id
   end
 
   def set_sequence_order

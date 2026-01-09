@@ -780,40 +780,22 @@ class SmScheduleMasterSyncService
     { linked: linked, not_found: not_found }
   end
 
-  # SSoT: Sync predecessor_ids from templates to tasks with proper task_number remapping
-  # Template predecessor_ids reference template task_numbers, but SmTask needs SmTask task_numbers
+  # SSoT: Sync predecessor_ids from templates to tasks
+  # Since task_number = sm_schedule_master.task_number (= sm_schedule_master.id),
+  # no remapping is needed - predecessor_ids can be copied directly from template
   def self.sync_predecessor_ids_for_job(job, template)
     return unless job.present? && template.present?
 
-    # Build mapping: template task_number → SmTask task_number
-    template_to_task_number = {}
-    job.sm_tasks.where.not(sm_schedule_master_id: nil).includes(:sm_schedule_master).find_each do |task|
-      next unless task.sm_schedule_master
-      template_to_task_number[task.sm_schedule_master.task_number] = task.task_number
-    end
-
-    return if template_to_task_number.empty?
-
     updated_count = 0
 
-    # Update each task's predecessor_ids with remapped task_numbers
+    # Copy predecessor_ids directly from template to tasks (no remapping needed)
     job.sm_tasks.where.not(sm_schedule_master_id: nil).includes(:sm_schedule_master).find_each do |task|
       template_row = task.sm_schedule_master
       next unless template_row
       next if template_row.predecessor_ids.blank?
 
-      # Remap template task_numbers to actual SmTask task_numbers
-      new_predecessor_ids = template_row.predecessor_ids.filter_map do |pred|
-        template_task_num = (pred["id"] || pred[:id]).to_i
-        actual_task_num = template_to_task_number[template_task_num]
-        next unless actual_task_num
-
-        {
-          "id" => actual_task_num,
-          "type" => pred["type"] || pred[:type] || "FS",
-          "lag" => (pred["lag"] || pred[:lag] || 0).to_i
-        }
-      end
+      # Copy predecessor_ids directly - task_numbers match template
+      new_predecessor_ids = template_row.predecessor_ids
 
       # Only update if changed
       if task.predecessor_ids != new_predecessor_ids
@@ -1002,26 +984,12 @@ class SmScheduleMasterSyncService
     differences
   end
 
-  # Remap predecessor_ids from template task_numbers to job task_numbers for comparison
+  # Compare predecessor_ids between template and job task
+  # Since task_number = sm_schedule_master.task_number, no remapping is needed
   def remap_predecessor_ids_for_comparison(template_preds)
     return [] if template_preds.blank?
-
-    # Build mapping from template task_number to job task_number (single query)
-    master_ids = job.sm_tasks.where.not(sm_schedule_master_id: nil).pluck(:sm_schedule_master_id)
-    master_id_to_tn = SmScheduleMaster.where(id: master_ids).pluck(:id, :task_number).to_h
-
-    template_to_job_tn = {}
-    job.sm_tasks.where.not(sm_schedule_master_id: nil).pluck(:sm_schedule_master_id, :task_number).each do |master_id, job_tn|
-      template_tn = master_id_to_tn[master_id]
-      template_to_job_tn[template_tn] = job_tn if template_tn
-    end
-
-    template_preds.filter_map do |pred|
-      template_tn = pred["id"]
-      job_tn = template_to_job_tn[template_tn]
-      next unless job_tn
-      { "id" => job_tn, "type" => pred["type"], "lag" => pred["lag"] }
-    end
+    # No remapping needed - task_numbers match template
+    template_preds
   end
 
   def user

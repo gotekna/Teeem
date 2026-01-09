@@ -644,8 +644,15 @@ class SmTask < ApplicationRecord
 
   def set_task_number
     return if task_number.present?
-    max_number = SmTask.where(construction_id: construction_id).maximum(:task_number) || 0
-    self.task_number = max_number + 1
+
+    if sm_schedule_master_id.present?
+      # Use the template's task_number (which equals template's id)
+      template = SmScheduleMaster.find_by(id: sm_schedule_master_id)
+      self.task_number = template&.task_number || 0
+    else
+      # Manual task without template gets task_number = 0
+      self.task_number = 0
+    end
   end
 
   # Clear spawn_order_task and spawn_call_task if po_required is false
