@@ -300,14 +300,14 @@ class EmailWarehouse < ApplicationRecord
   end
 
   # Get document attachments only (exclude signature images and inline images)
+  # Uses Active Storage files attached directly to EmailWarehouse
   def document_attachments
-    email_attachments.joins(attachment: :blob)
-      .where.not("active_storage_blobs.content_type LIKE ?", "image/%")
+    files.select { |file| !file.content_type&.start_with?('image/') }
   end
 
   # Get count of document attachments (excluding images)
   def document_attachments_count
-    document_attachments.count
+    files.count { |file| !file.content_type&.start_with?('image/') }
   end
 
   # Job ID patterns to look for in subject line
