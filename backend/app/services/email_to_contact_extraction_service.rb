@@ -948,6 +948,7 @@ class EmailToContactExtractionService
       # Create company contact first with website details
       company_contact = Contact.create!(
         display_name: full_company_name,
+        company_name_or_trust: full_company_name,  # Required for entity_type: "company"
         entity_type: "company",
         is_active: true,
         website: website_details[:website],

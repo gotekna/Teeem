@@ -171,7 +171,7 @@ export function ListView() {
                   !isExpanded && 'py-2 text-xs hover:bg-muted/30',
                   !isExpanded && selectedTaskIds.has(task.id) && 'bg-primary/5',
                   !isExpanded && getTaskRowColorClass(task),
-                  isExpanded && '!bg-primary/15 dark:!bg-primary/25 border-l-4 !border-primary shadow-xl !py-3 !text-base font-semibold'
+                  isExpanded && '!bg-primary/30 dark:!bg-primary/40 border-l-4 !border-primary shadow-xl !py-3 !text-base font-semibold'
                 )}
               >
                 <div onClick={(e) => e.stopPropagation()}>

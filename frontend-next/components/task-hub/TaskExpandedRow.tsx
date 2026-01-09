@@ -33,6 +33,7 @@ import {
   Mail,
   MessageSquare,
   Paperclip,
+  Pencil,
   Plus,
   Send,
   Trash2,
@@ -173,6 +174,11 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   const [jobsLoading, setJobsLoading] = useState(false);
   const [jobSearchTimeout, setJobSearchTimeout] = useState<NodeJS.Timeout | null>(null);
 
+  // Task name editing state
+  const [editingTaskName, setEditingTaskName] = useState(false);
+  const [taskNameText, setTaskNameText] = useState(task.name);
+  const [taskNameSaving, setTaskNameSaving] = useState(false);
+
   // Load followers on mount for all tasks
   useEffect(() => {
     getFollowers(task.id).then(setFollowers).catch(console.error);
@@ -184,6 +190,13 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
       setDescriptionText(task.description || '');
     }
   }, [task.description, editingDescription]);
+
+  // Sync task name text when task updates
+  useEffect(() => {
+    if (!editingTaskName) {
+      setTaskNameText(task.name);
+    }
+  }, [task.name, editingTaskName]);
 
   // Check if this is a PO task
   const isPOTask = !!task.purchase_order_id;
@@ -588,6 +601,26 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
     }
   };
 
+  // Save task name
+  const saveTaskName = async () => {
+    if (taskNameText.trim() === task.name || !taskNameText.trim()) {
+      setEditingTaskName(false);
+      setTaskNameText(task.name); // Revert if empty
+      return;
+    }
+
+    setTaskNameSaving(true);
+    try {
+      await updateTask(task.id, { name: taskNameText.trim() });
+      setEditingTaskName(false);
+    } catch (error) {
+      console.error('Failed to save task name:', error);
+      setTaskNameText(task.name); // Revert on error
+    } finally {
+      setTaskNameSaving(false);
+    }
+  };
+
   // Render text with clickable task IDs (e.g., #123 becomes a link)
   const renderTextWithTaskLinks = (text: string) => {
     const parts = text.split(/(#\d+)/g);
@@ -614,16 +647,83 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
 
   return (
     <div className="bg-muted/30 border-t border-b px-3 py-3 space-y-3 animate-in slide-in-from-top-2 duration-200">
-      {/* Header with close button */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">Task #{task.task_number}</span>
-          {task.is_overdue && task.status !== 'completed' && (
-            <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4 gap-1">
-              <AlertTriangle className="h-3 w-3" />
-              Overdue
-            </Badge>
-          )}
+      {/* Header with prominent colored background */}
+      <div className="bg-primary/20 dark:bg-primary/30 border-l-4 border-primary rounded px-3 py-3 -mx-3 mb-3">
+        <div className="flex items-center justify-between mb-2">
+          {/* Task name - editable */}
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <span className="text-xs font-mono text-muted-foreground">#{task.task_number}</span>
+            {editingTaskName ? (
+              <Input
+                value={taskNameText}
+                onChange={(e) => setTaskNameText(e.target.value)}
+                onBlur={saveTaskName}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    saveTaskName();
+                  } else if (e.key === 'Escape') {
+                    setEditingTaskName(false);
+                    setTaskNameText(task.name);
+                  }
+                  e.stopPropagation();
+                }}
+                onClick={(e) => e.stopPropagation()}
+                className="h-8 text-base font-bold flex-1"
+                autoFocus
+                disabled={taskNameSaving}
+              />
+            ) : (
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <span
+                  className="text-lg font-bold cursor-pointer hover:bg-primary/10 px-2 -mx-2 rounded flex-1"
+                  onClick={() => setEditingTaskName(true)}
+                  title="Click to edit task name"
+                >
+                  {task.name}
+                </span>
+                <Pencil className="h-4 w-4 text-muted-foreground opacity-50" />
+              </div>
+            )}
+            {taskNameSaving && <Spinner size={16} />}
+            {task.is_overdue && task.status !== 'completed' && (
+              <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4 gap-1">
+                <AlertTriangle className="h-3 w-3" />
+                Overdue
+              </Badge>
+            )}
+          </div>
+
+          {/* Delete and Close buttons */}
+          <div className="flex items-center gap-1">
+            {/* Delete Button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-muted-foreground hover:text-destructive"
+              onClick={async () => {
+                if (window.confirm(`Delete task "${task.name}"? This cannot be undone.`)) {
+                  setLoading('delete');
+                  try {
+                    await deleteTask(task.id);
+                    handleClose();
+                  } finally {
+                    setLoading(null);
+                  }
+                }
+              }}
+              disabled={!!loading}
+              title="Delete task"
+            >
+              {loading === 'delete' ? <Spinner size={12} /> : <Trash2 className="h-4 w-4" />}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleClose} className="h-6 px-2">
+              <ChevronUp className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Second row - Privacy, Follow, Share, Status checkboxes */}
+        <div className="flex items-center gap-2 flex-wrap">
           {/* Privacy Toggle */}
           <Button
             variant="ghost"
@@ -875,33 +975,8 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-1">
-          {/* Delete Button */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 px-2 text-muted-foreground hover:text-destructive"
-            onClick={async () => {
-              if (window.confirm(`Delete task "${task.name}"? This cannot be undone.`)) {
-                setLoading('delete');
-                try {
-                  await deleteTask(task.id);
-                  handleClose();
-                } finally {
-                  setLoading(null);
-                }
-              }
-            }}
-            disabled={!!loading}
-            title="Delete task"
-          >
-            {loading === 'delete' ? <Spinner size={12} /> : <Trash2 className="h-4 w-4" />}
-          </Button>
-          <Button variant="ghost" size="sm" onClick={handleClose} className="h-6 px-2">
-            <ChevronUp className="h-4 w-4" />
-          </Button>
-        </div>
       </div>
+      {/* End of colored header box */}
 
       {/* Description Section - Always show (editable) */}
       <div className="p-2 bg-background/50 rounded border">
