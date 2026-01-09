@@ -321,6 +321,7 @@ import { useAtom, useSetAtom, useAtomValue } from 'jotai';
 import {
   // Core edit mode
   tableEditModeAtom,
+  exitEditModeAtom,
   selectedRowsAtom,
   selectAllAtom,
   toggleRowSelectionAtom,
@@ -2025,6 +2026,21 @@ export default function TeeemTableView({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run on mount, not when editingRowIds changes
+
+  // ⚠️ CRITICAL: Reset edit mode on unmount (2026-01-09)
+  // ════════════════════════════════════════════
+  // Why: Global tableEditModeAtom persists across navigation, blocking double-click
+  // ❌ BUG: User enters edit mode → navigates to detail → returns → double-click blocked
+  // ✅ FIX: Reset edit mode on unmount so returning users have clean state
+  // Root Cause: Global atoms don't auto-reset on navigation
+  // ════════════════════════════════════════════
+  const exitEditMode = useSetAtom(exitEditModeAtom);
+  React.useEffect(() => {
+    return () => {
+      // Cleanup on unmount: exit edit mode to prevent blocking double-click
+      exitEditMode();
+    };
+  }, [exitEditMode]);
 
   // Merge modal state managed by atoms (SSoT)
   const [showMergeModal, setShowMergeModal] = useAtom(showMergeModalAtom);
@@ -4623,11 +4639,7 @@ export default function TeeemTableView({
         onDoubleClick={() => {
           // Double click opens detail/edit
           if (!isEditMode) {
-            if (onRowClick) {
-              onRowClick(row);
-            } else {
-              handleRowDoubleClick(row);
-            }
+            handleRowDoubleClick(row);
           }
         }}
         onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
@@ -4900,11 +4912,7 @@ export default function TeeemTableView({
                 onDoubleClick={() => {
                   // Double click opens detail/edit
                   if (!isEditMode) {
-                    if (onRowClick) {
-                      onRowClick(companyRow);
-                    } else {
-                      handleRowDoubleClick(companyRow);
-                    }
+                    handleRowDoubleClick(companyRow);
                   }
                 }}
                 onMouseEnter={() => handleRowMouseEnter(companyRow.id, globalIndex)}
@@ -5002,11 +5010,7 @@ export default function TeeemTableView({
                 onDoubleClick={() => {
                   // Double click opens detail/edit
                   if (!isEditMode) {
-                    if (onRowClick) {
-                      onRowClick(row);
-                    } else {
-                      handleRowDoubleClick(row);
-                    }
+                    handleRowDoubleClick(row);
                   }
                 }}
                 onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
@@ -5211,11 +5215,7 @@ export default function TeeemTableView({
                 onDoubleClick={() => {
                   // Double click opens detail/edit
                   if (!isEditMode) {
-                    if (onRowClick) {
-                      onRowClick(row);
-                    } else {
-                      handleRowDoubleClick(row);
-                    }
+                    handleRowDoubleClick(row);
                   }
                 }}
                 onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
@@ -5443,11 +5443,7 @@ export default function TeeemTableView({
                 onDoubleClick={() => {
                   // Double click opens detail/edit
                   if (!isEditMode && !editingRowIds.has(row.id)) {
-                    if (onRowClick) {
-                      onRowClick(row);
-                    } else {
-                      handleRowDoubleClick(row);
-                    }
+                    handleRowDoubleClick(row);
                   }
                 }}
                 onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
