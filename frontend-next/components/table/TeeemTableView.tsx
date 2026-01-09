@@ -2332,18 +2332,27 @@ export default function TeeemTableView({
       }
 
       if (effectiveOnServerSearch) {
-        // When clearing search, trigger a refresh to get all records
+        // When clearing search, restore from cache first (avoids refetch if data was loaded)
         if (isClearing) {
-          console.log('[TeeemTableView] Clearing search - refreshing to restore all records');
-          // Reset hasMore to ensure fetch effect doesn't skip (search results had hasMore=false)
-          setHasMore(true);
-          setAutoFetchRefreshKey(prev => prev + 1);
+          console.log('[TeeemTableView] Clearing search - checking cache for pre-search data');
+          // Try to restore from cache first (preserves all loaded records)
+          const cached = effectiveFoundationId ? getCachedRecords(effectiveFoundationId) : null;
+          if (cached && cached.records.length > 0) {
+            console.log(`[TeeemTableView] Restoring ${cached.records.length} records from cache`);
+            setAutoFetchedRecords(cached.records as TableRowType[]);
+            setHasMore(cached.hasMore);
+          } else {
+            // No cache - trigger a fresh fetch
+            console.log('[TeeemTableView] No cache available - triggering fresh fetch');
+            setHasMore(true);
+            setAutoFetchRefreshKey(prev => prev + 1);
+          }
         } else {
           effectiveOnServerSearch(value, mode);
         }
       }
     },
-    [effectiveOnServerSearch, hasMore, autoFetchedRecords.length, autoFetchLimit, searchHook.actions]
+    [effectiveOnServerSearch, hasMore, autoFetchedRecords.length, autoFetchLimit, searchHook.actions, effectiveFoundationId]
   );
 
   const handleSearchAllChange = useCallback(
