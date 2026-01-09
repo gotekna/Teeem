@@ -4340,6 +4340,16 @@ export default function TeeemTableView({
       (s) => s.column === currentColKey && s.dir === 'custom' && s.customOrder && s.customOrder.length > 0
     );
 
+    // Debug: trace custom sort order for panel mode
+    if (depth === 0) {
+      console.log('[CustomSort] Panel mode - currentColKey:', currentColKey);
+      console.log('[CustomSort] Panel mode - sortColumns:', JSON.stringify(sortColumns.map(s => ({ col: s.column, dir: s.dir, hasCustomOrder: !!s.customOrder, customOrderLen: s.customOrder?.length }))));
+      console.log('[CustomSort] Panel mode - customSortForGroup:', customSortForGroup ? { col: customSortForGroup.column, order: customSortForGroup.customOrder?.slice(0, 5) } : null);
+      const groupKeys = Object.keys(groups).slice(0, 5);
+      console.log('[CustomSort] Panel mode - group keys (first 5):', groupKeys);
+      console.log('[CustomSort] Panel mode - display values:', groupKeys.map(k => `${k} -> ${combinedDisplayMap.get(`${currentColKey}:${k}`) || k}`));
+    }
+
     const sortedGroupEntries = Object.entries(groups).sort(([keyA], [keyB]) => {
       if (isEmptyGroup(keyA)) return 1;
       if (isEmptyGroup(keyB)) return -1;
@@ -4654,6 +4664,16 @@ export default function TeeemTableView({
     const customSortForGroup = sortColumns.find(
       (s) => s.column === currentColKey && s.dir === 'custom' && s.customOrder && s.customOrder.length > 0
     );
+
+    // Debug: trace custom sort order for inline mode
+    if (depth === 0) {
+      console.log('[CustomSort] Inline mode - currentColKey:', currentColKey);
+      console.log('[CustomSort] Inline mode - sortColumns:', JSON.stringify(sortColumns.map(s => ({ col: s.column, dir: s.dir, hasCustomOrder: !!s.customOrder, customOrderLen: s.customOrder?.length }))));
+      console.log('[CustomSort] Inline mode - customSortForGroup:', customSortForGroup ? { col: customSortForGroup.column, order: customSortForGroup.customOrder?.slice(0, 5) } : null);
+      const groupKeys = Object.keys(groups).slice(0, 5);
+      console.log('[CustomSort] Inline mode - group keys (first 5):', groupKeys);
+      console.log('[CustomSort] Inline mode - display values:', groupKeys.map(k => `${k} -> ${combinedDisplayMap.get(`${currentColKey}:${k}`) || k}`));
+    }
 
     const sortedGroupEntries = Object.entries(groups).sort(([keyA], [keyB]) => {
       if (isEmptyGroup(keyA)) return 1;
