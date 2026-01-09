@@ -1,6 +1,6 @@
 "use client";
 
-import { TeeemTableView } from "@/components/table/TeeemTableView";
+import TeeemTableView from "@/components/table/TeeemTableView";
 
 /**
  * SM Tasks Admin Tab

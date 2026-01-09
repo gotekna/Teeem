@@ -71,7 +71,6 @@ import { ThreadCountBadge } from "@/components/emails/ThreadCountBadge";
 import { QuickEmailActions } from "@/components/emails/QuickEmailActions";
 import { EmailContextMenu } from "@/components/emails/EmailContextMenu";
 import { EmailSummary } from "@/components/emails/EmailSummary";
-import { EmailContactMatch } from "@/components/emails/EmailContactMatch";
 import { useEmailKeyboardShortcuts } from "@/hooks/useEmailKeyboardShortcuts";
 import { useEmailSelection } from "@/hooks/useEmailSelection";
 import { useEmailBulkActions } from "@/hooks/useEmailBulkActions";
@@ -1878,14 +1877,8 @@ To: ${email.to_emails?.join(", ") || ""}
                 Forward
               </Button>
 
-              {/* Right-aligned actions: Contact Matching + Task Creation */}
+              {/* Right-aligned actions: Contact + Task Creation */}
               <div className="ml-auto flex items-center gap-2">
-                <EmailContactMatch
-                  emailId={selectedEmail.id}
-                  primaryContact={selectedEmail.primary_contact}
-                  contacts={selectedEmail.contacts || []}
-                  onContactsChanged={() => handleEmailClick(selectedEmail)}
-                />
                 <Button
                   variant="outline"
                   size="sm"
