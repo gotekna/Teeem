@@ -1716,7 +1716,11 @@ export default function TeeemTableView({
           columnOrder: v.columnOrder || viewAny.columns?.order || [],
           columnWidths: v.columnWidths || viewAny.columns?.widths || {},
           // FRC Fix: Handle both SSR (sort_order) and client (sortColumns) formats - includes customOrder
-          sortColumns: v.sortColumns || viewAny.sort_order || [],
+          // Cast dir to SortColumn['dir'] to satisfy TypeScript (API returns string, we need literal union)
+          sortColumns: (v.sortColumns || viewAny.sort_order || []).map(s => ({
+            ...s,
+            dir: s.dir as SortColumn['dir']
+          })),
           // FRC Fix: Handle both SSR (group_by_columns) and client (groupByColumns) formats
           groupByColumns: v.groupByColumns || viewAny.group_by_columns || (v.groupByColumn || viewAny.group_by_column ? [v.groupByColumn || viewAny.group_by_column!] : []),
           groupByColumn: v.groupByColumn || viewAny.group_by_column,
