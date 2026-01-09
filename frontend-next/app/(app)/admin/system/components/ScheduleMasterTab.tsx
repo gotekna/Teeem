@@ -2943,6 +2943,7 @@ export function ScheduleMasterTab() {
             )}
 
             {/* Scheduling */}
+            {sectionHasMatches(["duration_days", "predecessor_ids", "predecessor_ids_backup"]) && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Scheduling</CardTitle>
@@ -2956,29 +2957,37 @@ export function ScheduleMasterTab() {
                     <span>Type</span>
                     <span>Description</span>
                   </div>
+                  {columnMatchesSearch("duration_days") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["duration_days"] || false} onCheckedChange={(v) => updateColumnStatus("duration_days", !!v)} />
                     <CopyableCode>duration_days</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">integer</Badge>
                     <span className="text-muted-foreground">How many working days (Mon-Fri) this task takes to complete. Enter 1 for same-day tasks, 5 for a full week, etc. Weekends are automatically skipped.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("predecessor_ids") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["predecessor_ids"] || false} onCheckedChange={(v) => updateColumnStatus("predecessor_ids", !!v)} />
                     <CopyableCode>predecessor_ids</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">JSONB</Badge>
                     <span className="text-muted-foreground">Links to tasks that must finish before this one can start. Format: FS (Finish-to-Start, most common), SS (Start-to-Start), FF (Finish-to-Finish), SF (Start-to-Finish). Lag adds extra waiting days.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("predecessor_ids_backup") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["predecessor_ids_backup"] || false} onCheckedChange={(v) => updateColumnStatus("predecessor_ids_backup", !!v)} />
                     <CopyableCode>predecessor_ids_backup</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">JSONB</Badge>
                     <span className="text-muted-foreground">Stores the original dependencies when a link is broken (e.g., when a locked task can&apos;t move). Used to restore connections later if needed.</span>
                   </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
+            )}
 
             {/* Locking & Status */}
+            {sectionHasMatches(["hold", "hold_date", "previous_hold_date", "hold_at", "dependency_broken", "started", "confirm", "confirmed_at", "supplier_confirm", "supplier_confirmed_at", "completed", "completed_at"]) && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Locking & Status</CardTitle>
@@ -2992,81 +3001,106 @@ export function ScheduleMasterTab() {
                     <span>Type</span>
                     <span>Description</span>
                   </div>
+                  {columnMatchesSearch("hold") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["hold"] || false} onCheckedChange={(v) => updateColumnStatus("hold", !!v)} />
                     <CopyableCode>hold</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
                     <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Hold</Badge>When turned on, this task is &quot;pinned&quot; to a specific date and won&apos;t move when other tasks push forward. Use this when a date is fixed (e.g., council inspection scheduled for a specific day).</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("hold_date") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["hold_date"] || false} onCheckedChange={(v) => updateColumnStatus("hold_date", !!v)} />
                     <CopyableCode>hold_date</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">date</Badge>
                     <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Hold Date</Badge>The fixed date this task is pinned to. Only used when &quot;hold&quot; is turned on. The task will always start on this date regardless of what happens to other tasks.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("previous_hold_date") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["previous_hold_date"] || false} onCheckedChange={(v) => updateColumnStatus("previous_hold_date", !!v)} />
                     <CopyableCode>previous_hold_date</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">date</Badge>
                     <span className="text-muted-foreground">Stores the previous hold date before a change was made. Useful for audit trails when dates are adjusted.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("hold_at") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["hold_at"] || false} onCheckedChange={(v) => updateColumnStatus("hold_at", !!v)} />
                     <CopyableCode>hold_at</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">datetime</Badge>
                     <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Hold At</Badge>Records exactly when the hold was turned on. Useful for audit purposes to see when decisions were made to lock dates.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("dependency_broken") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["dependency_broken"] || false} onCheckedChange={(v) => updateColumnStatus("dependency_broken", !!v)} />
                     <CopyableCode>dependency_broken</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
                     <span className="text-muted-foreground">Indicates this task was manually removed from the dependency chain. When true, the task schedules independently and won&apos;t be pushed by predecessor tasks.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("started") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["started"] || false} onCheckedChange={(v) => updateColumnStatus("started", !!v)} />
                     <CopyableCode>started</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
                     <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Started</Badge>Marks this task as in progress. Once started, the task is LOCKED and won&apos;t be pushed by predecessor delays. The actual start date is recorded when this is turned on.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("confirm") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["confirm"] || false} onCheckedChange={(v) => updateColumnStatus("confirm", !!v)} />
                     <CopyableCode>confirm</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
                     <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Confirm</Badge>Supervisor has signed off on this task&apos;s dates. Once confirmed, the task is LOCKED - it won&apos;t move even if earlier tasks are delayed. Use this to commit to a supplier.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("confirmed_at") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["confirmed_at"] || false} onCheckedChange={(v) => updateColumnStatus("confirmed_at", !!v)} />
                     <CopyableCode>confirmed_at</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">datetime</Badge>
                     <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Confirmed At</Badge>Records the exact date and time when the supervisor confirmed the task. Helps track when commitments were made.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("supplier_confirm") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["supplier_confirm"] || false} onCheckedChange={(v) => updateColumnStatus("supplier_confirm", !!v)} />
                     <CopyableCode>supplier_confirm</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
                     <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Supplier Confirm</Badge>The supplier has confirmed they can do the work on these dates. Once supplier-confirmed, the task is LOCKED and won&apos;t be pushed by delays.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("supplier_confirmed_at") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["supplier_confirmed_at"] || false} onCheckedChange={(v) => updateColumnStatus("supplier_confirmed_at", !!v)} />
                     <CopyableCode>supplier_confirmed_at</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">datetime</Badge>
                     <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Supplier Confirmed At</Badge>Records when the supplier gave their confirmation. Important for accountability if dates aren&apos;t met.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("completed") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["completed"] || false} onCheckedChange={(v) => updateColumnStatus("completed", !!v)} />
                     <CopyableCode>completed</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
                     <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Completed</Badge>Marks the task as finished. Completed tasks are LOCKED and their dates become permanent. Successor tasks can now start as scheduled.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("completed_at") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["completed_at"] || false} onCheckedChange={(v) => updateColumnStatus("completed_at", !!v)} />
                     <CopyableCode>completed_at</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">date</Badge>
                     <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Completed At</Badge>The actual date the task was marked complete. This may differ from the planned end date if work finished early or late.</span>
                   </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
+            )}
 
             {/* Assignment & Supplier */}
             <Card>

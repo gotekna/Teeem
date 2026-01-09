@@ -441,7 +441,8 @@ export function ComposeEmailModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[1400px] h-[90vh] max-h-[90vh] p-0 gap-0 overflow-hidden flex flex-col">
+      <DialogContent className="sm:max-w-[1400px] h-[90vh] max-h-[90vh] p-0 gap-0 overflow-hidden flex flex-col" aria-describedby={undefined}>
+        <DialogTitle className="sr-only">Compose Email</DialogTitle>
         {/* Outlook-style Header with Send Button */}
         <div className="flex items-center gap-2 px-4 py-3 border-b bg-background">
           {/* Send button with dropdown */}
