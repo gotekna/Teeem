@@ -152,9 +152,10 @@ module Api
 
               employer_company_ids = @matched_employees_by_company.keys
 
-              # Get supplier employer company IDs
-              supplier_employer_ids = employer_company_ids.any? ?
-                Contact.where(id: employer_company_ids, is_supplier_cached: true, is_active: true).pluck(:id) : []
+              # Include ALL employer companies of matching employees (regardless of is_supplier_cached)
+              # This allows finding potential suppliers by employee name before they're officially marked
+              valid_employer_ids = employer_company_ids.any? ?
+                Contact.where(id: employer_company_ids, is_active: true).pluck(:id) : []
 
               # Build final result: direct supplier matches + employer companies of matching employees
               # Exclude employees (people with primary_company_id) - show their company instead
@@ -162,7 +163,7 @@ module Api
                                              .where("contacts.entity_type IN ('company', 'trust') OR contacts.primary_company_id IS NULL")
                                              .pluck(:id)
 
-              all_supplier_ids = (direct_supplier_ids + supplier_employer_ids).uniq
+              all_supplier_ids = (direct_supplier_ids + valid_employer_ids).uniq
               @contacts = Contact.where(id: all_supplier_ids).where(is_active: true)
             else
               # No search term - show all suppliers (excluding employees who have employer companies)
