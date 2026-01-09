@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# TeeemXL - Custom Excel Reader/Writer
+# TeeemXl - Custom Excel Reader/Writer
 #
 # A production-grade, dependency-free Excel library for reading and writing
 # XLSX files. Built specifically for Teeem to eliminate third-party Excel
@@ -8,13 +8,13 @@
 #
 # Usage:
 #   # Reading
-#   workbook = TeeemXL.read("file.xlsx")
+#   workbook = TeeemXl.read("file.xlsx")
 #   workbook.sheets.each do |sheet|
 #     sheet.rows.each { |row| puts row.cells.map(&:value).join(", ") }
 #   end
 #
 #   # Writing
-#   workbook = TeeemXL::Workbook.new
+#   workbook = TeeemXl::Workbook.new
 #   sheet = workbook.add_sheet("Data")
 #   sheet.add_row(["Name", "Value"], style: :header)
 #   sheet.add_row(["Item 1", 100])
@@ -32,7 +32,7 @@
 #   - Styles: Cell formatting definitions
 #   - Worksheets: Actual cell data
 #
-module TeeemXL
+module TeeemXl
   class Error < StandardError; end
   class InvalidFileError < Error; end
   class CorruptedFileError < Error; end
@@ -86,7 +86,7 @@ module TeeemXL
     # Read an Excel file from path or IO
     #
     # @param source [String, IO, Pathname] File path or IO object
-    # @return [TeeemXL::Workbook] Parsed workbook
+    # @return [TeeemXl::Workbook] Parsed workbook
     # @raise [InvalidFileError] If file is not a valid XLSX
     # @raise [CorruptedFileError] If file structure is corrupted
     def read(source)
@@ -101,7 +101,7 @@ module TeeemXL
     # @yield [sheet_name, row_number, row] Each row as it's parsed
     # @yieldparam sheet_name [String] Name of current sheet
     # @yieldparam row_number [Integer] 1-based row number
-    # @yieldparam row [Array<TeeemXL::Cell>] Row cells
+    # @yieldparam row [Array<TeeemXl::Cell>] Row cells
     def stream_read(source, &block)
       package = Package.new(source)
       Reader::WorkbookReader.new(package).stream_read(&block)
@@ -109,14 +109,14 @@ module TeeemXL
 
     # Create a new workbook for writing
     #
-    # @return [TeeemXL::Workbook] New empty workbook
+    # @return [TeeemXl::Workbook] New empty workbook
     def new_workbook
       Models::Workbook.new
     end
 
     # Write a workbook to file
     #
-    # @param workbook [TeeemXL::Workbook] Workbook to write
+    # @param workbook [TeeemXl::Workbook] Workbook to write
     # @param destination [String, IO, Pathname] Output path or IO
     def write(workbook, destination)
       Writer::WorkbookWriter.new(workbook).write(destination)

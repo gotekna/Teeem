@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module TeeemXL
+module TeeemXl
   module Reader
     # WorkbookReader is the main entry point for reading XLSX files.
     #
@@ -11,12 +11,12 @@ module TeeemXL
     # - Individual worksheets (xl/worksheets/sheetN.xml)
     #
     # Usage:
-    #   package = TeeemXL::Package.new("file.xlsx")
+    #   package = TeeemXl::Package.new("file.xlsx")
     #   reader = WorkbookReader.new(package)
     #   workbook = reader.read
     #
     class WorkbookReader
-      NS = TeeemXL::NAMESPACES[:spreadsheet]
+      NS = TeeemXl::NAMESPACES[:spreadsheet]
 
       def initialize(package)
         @package = package
@@ -91,7 +91,7 @@ module TeeemXL
         workbook_xml.xpath("//xmlns:sheets/xmlns:sheet", "xmlns" => NS).each do |sheet_node|
           name = sheet_node["name"]
           sheet_id = sheet_node["sheetId"]&.to_i
-          rel_id = sheet_node.attribute_with_ns("id", TeeemXL::NAMESPACES[:office_document])&.value ||
+          rel_id = sheet_node.attribute_with_ns("id", TeeemXl::NAMESPACES[:office_document])&.value ||
                    sheet_node["r:id"]
 
           # Resolve relationship to get worksheet path

@@ -1,14 +1,14 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# Test script for TeeemXL library
+# Test script for TeeemXl library
 # Run with: bundle exec ruby script/test_teeem_xl.rb
 
 require_relative "../config/environment"
 require_relative "../lib/teeem_xl/teeem_xl"
 
 puts "=" * 60
-puts "TeeemXL Test Script"
+puts "TeeemXl Test Script"
 puts "=" * 60
 
 # Test 1: Read a real Excel file
@@ -17,7 +17,7 @@ test_file = Rails.root.join("..", "Schedule Master Final.xlsx").to_s
 
 if File.exist?(test_file)
   begin
-    workbook = TeeemXL.read(test_file)
+    workbook = TeeemXl.read(test_file)
     puts "  ✓ Successfully read: #{test_file}"
     puts "  ✓ Sheets: #{workbook.sheet_names.join(', ')}"
 
@@ -43,7 +43,7 @@ end
 puts "\n[Test 2] Write and read back..."
 begin
   # Create workbook
-  workbook = TeeemXL::Models::Workbook.new
+  workbook = TeeemXl::Models::Workbook.new
   sheet = workbook.add_sheet("Test Data")
 
   # Add header
@@ -65,12 +65,12 @@ begin
 
   # Write to temp file
   temp_file = Tempfile.new(["teeem_xl_test", ".xlsx"])
-  TeeemXL.write(workbook, temp_file.path)
+  TeeemXl.write(workbook, temp_file.path)
   puts "  ✓ Written to: #{temp_file.path}"
   puts "  ✓ File size: #{File.size(temp_file.path)} bytes"
 
   # Read it back
-  read_back = TeeemXL.read(temp_file.path)
+  read_back = TeeemXl.read(temp_file.path)
   puts "  ✓ Read back successfully"
   puts "  ✓ Sheets: #{read_back.sheet_names.join(', ')}"
 
@@ -118,8 +118,8 @@ if File.exist?(test_file)
     roo_workbook = Roo::Spreadsheet.open(test_file)
     roo_sheets = roo_workbook.sheets
 
-    # Read with TeeemXL
-    teeem_workbook = TeeemXL.read(test_file)
+    # Read with TeeemXl
+    teeem_workbook = TeeemXl.read(test_file)
     teeem_sheets = teeem_workbook.sheet_names
 
     if roo_sheets == teeem_sheets
@@ -127,7 +127,7 @@ if File.exist?(test_file)
     else
       puts "  ⚠ Sheet names differ:"
       puts "    Roo: #{roo_sheets.join(', ')}"
-      puts "    TeeemXL: #{teeem_sheets.join(', ')}"
+      puts "    TeeemXl: #{teeem_sheets.join(', ')}"
     end
 
     # Compare first sheet cell count
@@ -140,7 +140,7 @@ if File.exist?(test_file)
     teeem_cols = teeem_sheet.max_column + 1
 
     puts "  Roo dimensions: #{roo_rows} rows x #{roo_cols} cols"
-    puts "  TeeemXL dimensions: #{teeem_rows} rows x #{teeem_cols} cols"
+    puts "  TeeemXl dimensions: #{teeem_rows} rows x #{teeem_cols} cols"
 
     if roo_rows == teeem_rows && roo_cols == teeem_cols
       puts "  ✓ Dimensions match!"

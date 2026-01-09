@@ -1339,6 +1339,10 @@ export function ScheduleMasterTab() {
       completion_document_type_id: data.completion_document_type_id,
       // Related PO tasks for supplier coordination
       related_po_task_ids: data.related_po_task_ids,
+      // Linked tasks (visibility follows this task)
+      linked_task_ids: data.linked_task_ids,
+      // Completion linked tasks (cascade complete together)
+      completion_linked_task_ids: data.completion_linked_task_ids,
     };
 
     // Transform document_types to Rails nested attributes format (SSoT: sm_schedule_master_document_types)

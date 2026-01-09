@@ -2,7 +2,7 @@
 
 require "nokogiri"
 
-module TeeemXL
+module TeeemXl
   # Relationships parses and represents .rels files.
   #
   # Relationship files map relationship IDs (rId1, rId2, etc.) to

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module TeeemXL
+module TeeemXl
   module Reader
     # WorksheetReader parses individual worksheet XML files.
     #
@@ -20,7 +20,7 @@ module TeeemXL
     #   </worksheet>
     #
     class WorksheetReader
-      NS = TeeemXL::NAMESPACES[:spreadsheet]
+      NS = TeeemXl::NAMESPACES[:spreadsheet]
 
       # Excel's date epoch (December 30, 1899)
       # Excel has a bug where it thinks 1900 was a leap year,
@@ -211,10 +211,17 @@ module TeeemXL
         date = EXCEL_EPOCH + days
 
         if time_fraction > 0
-          # Include time component
-          hours = (time_fraction * 24).to_i
-          minutes = ((time_fraction * 24 - hours) * 60).to_i
-          seconds = (((time_fraction * 24 - hours) * 60 - minutes) * 60).round
+          # Include time component - convert to total seconds for accuracy
+          total_seconds = (time_fraction * 86400).round
+          hours = total_seconds / 3600
+          minutes = (total_seconds % 3600) / 60
+          seconds = total_seconds % 60
+
+          # Handle overflow (shouldn't happen, but be safe)
+          if hours >= 24
+            date += 1
+            hours = 0
+          end
 
           DateTime.new(date.year, date.month, date.day, hours, minutes, seconds)
         else

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module TeeemXL
+module TeeemXl
   module Writer
     # WorksheetWriter generates worksheet XML files
     #
@@ -18,14 +18,40 @@ module TeeemXL
     #   </worksheet>
     #
     class WorksheetWriter
-      NS = TeeemXL::NAMESPACES[:spreadsheet]
+      NS = TeeemXl::NAMESPACES[:spreadsheet]
 
       # Excel's date epoch (December 30, 1899)
       EXCEL_EPOCH = Date.new(1899, 12, 30)
 
-      def initialize(worksheet, shared_strings)
+      # Built-in date format ID (yyyy-mm-dd)
+      DATE_FORMAT_ID = 14
+      # Built-in datetime format ID
+      DATETIME_FORMAT_ID = 22
+
+      def initialize(worksheet, shared_strings, styles = nil)
         @worksheet = worksheet
         @shared_strings = shared_strings
+        @styles = styles
+        @date_style_index = nil
+        @datetime_style_index = nil
+      end
+
+      # Get or create date style index
+      def date_style_index
+        return @date_style_index if @date_style_index
+        return nil unless @styles
+
+        @date_style_index = @styles.add_cell_format(number_format: "yyyy-mm-dd")
+        @date_style_index
+      end
+
+      # Get or create datetime style index
+      def datetime_style_index
+        return @datetime_style_index if @datetime_style_index
+        return nil unless @styles
+
+        @datetime_style_index = @styles.add_cell_format(number_format: "yyyy-mm-dd hh:mm:ss")
+        @datetime_style_index
       end
 
       # Generate XML content
@@ -35,7 +61,7 @@ module TeeemXL
         builder = Nokogiri::XML::Builder.new(encoding: "UTF-8") do |xml|
           xml.worksheet(
             xmlns: NS,
-            "xmlns:r" => TeeemXL::NAMESPACES[:office_document]
+            "xmlns:r" => TeeemXl::NAMESPACES[:office_document]
           ) do
             write_sheet_views(xml)
             write_sheet_format_pr(xml)
@@ -149,6 +175,14 @@ module TeeemXL
         when :date
           # Convert to Excel serial date
           serial = date_to_serial(value)
+          # Apply date style if not already styled
+          unless attrs[:s]
+            if value.is_a?(DateTime) || value.is_a?(Time)
+              attrs[:s] = datetime_style_index if datetime_style_index
+            else
+              attrs[:s] = date_style_index if date_style_index
+            end
+          end
           xml.c(attrs) do
             xml.v(serial)
           end
@@ -199,13 +233,21 @@ module TeeemXL
       end
 
       def date_to_serial(date)
+        # Excel uses a serial date system starting from Dec 30, 1899
+        # Excel has a bug where it thinks 1900 was a leap year (Feb 29, 1900 = day 60)
+        # For dates on or after Mar 1, 1900, we need to add 1 to the serial
+        march_1_1900 = Date.new(1900, 3, 1)
+
         case date
         when DateTime, Time
           days = (date.to_date - EXCEL_EPOCH).to_i
+          days += 1 if date.to_date >= march_1_1900  # Account for Excel's leap year bug
           time_fraction = (date.hour * 3600 + date.min * 60 + date.sec) / 86400.0
           days + time_fraction
         when Date
-          (date - EXCEL_EPOCH).to_i
+          days = (date - EXCEL_EPOCH).to_i
+          days += 1 if date >= march_1_1900  # Account for Excel's leap year bug
+          days
         else
           date
         end

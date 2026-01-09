@@ -2,7 +2,7 @@
 
 require "nokogiri"
 
-module TeeemXL
+module TeeemXl
   # ContentTypes parses and represents the [Content_Types].xml file.
   #
   # This mandatory file catalogs all parts in the XLSX archive,

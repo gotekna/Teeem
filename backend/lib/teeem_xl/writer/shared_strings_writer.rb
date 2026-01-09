@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module TeeemXL
+module TeeemXl
   module Writer
     # SharedStringsWriter generates xl/sharedStrings.xml
     #
@@ -12,7 +12,7 @@ module TeeemXL
     #   </sst>
     #
     class SharedStringsWriter
-      NS = TeeemXL::NAMESPACES[:spreadsheet]
+      NS = TeeemXl::NAMESPACES[:spreadsheet]
 
       def initialize(shared_strings)
         @shared_strings = shared_strings

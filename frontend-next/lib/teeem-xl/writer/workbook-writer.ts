@@ -362,6 +362,14 @@ export class WorkbookWriter {
 
       case 'date':
         if (cell.value instanceof Date) {
+          // Apply date style if not already styled
+          if (cell.styleIndex === undefined) {
+            // Check if it has a time component
+            const hasTime = cell.value.getHours() !== 0 ||
+                           cell.value.getMinutes() !== 0 ||
+                           cell.value.getSeconds() !== 0;
+            attrs.push(`s="${hasTime ? 3 : 2}"`); // DATETIME or DATE style
+          }
           content = `<v>${this.dateToExcel(cell.value)}</v>`;
         }
         break;
@@ -418,9 +426,13 @@ export class WorkbookWriter {
    * Write xl/styles.xml
    */
   private writeStyles(zip: JSZip): void {
-    // Minimal styles with one header style
+    // Enhanced styles with header, date, currency, and bordered styles
     const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="${NAMESPACES.spreadsheet}">
+  <numFmts count="2">
+    <numFmt numFmtId="164" formatCode="yyyy-mm-dd"/>
+    <numFmt numFmtId="165" formatCode="yyyy-mm-dd hh:mm:ss"/>
+  </numFmts>
   <fonts count="2">
     <font>
       <sz val="11"/>
@@ -448,17 +460,27 @@ export class WorkbookWriter {
       </patternFill>
     </fill>
   </fills>
-  <borders count="1">
+  <borders count="2">
     <border>
       <left/><right/><top/><bottom/><diagonal/>
+    </border>
+    <border>
+      <left style="thin"><color auto="1"/></left>
+      <right style="thin"><color auto="1"/></right>
+      <top style="thin"><color auto="1"/></top>
+      <bottom style="thin"><color auto="1"/></bottom>
+      <diagonal/>
     </border>
   </borders>
   <cellStyleXfs count="1">
     <xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>
   </cellStyleXfs>
-  <cellXfs count="2">
+  <cellXfs count="5">
     <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
     <xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
+    <xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>
+    <xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>
   </cellXfs>
   <cellStyles count="1">
     <cellStyle name="Normal" xfId="0" builtinId="0"/>
@@ -468,14 +490,30 @@ export class WorkbookWriter {
     zip.file('xl/styles.xml', xml);
   }
 
+  // Style indices for convenience
+  static readonly STYLE_INDEX = {
+    NORMAL: 0,
+    HEADER: 1,
+    DATE: 2,
+    DATETIME: 3,
+    BORDERED: 4,
+  } as const;
+
   /**
    * Convert JavaScript Date to Excel serial number
    */
   private dateToExcel(date: Date): number {
     const msPerDay = 86400000;
-    const days = Math.floor(
+    let days = Math.floor(
       (date.getTime() - EXCEL_EPOCH.getTime()) / msPerDay
     );
+
+    // Excel has a bug where it thinks 1900 was a leap year (Feb 29, 1900 = day 60)
+    // For dates on or after Mar 1, 1900, we need to add 1 to the serial
+    const march1_1900 = new Date(1900, 2, 1); // March 1, 1900
+    if (date >= march1_1900) {
+      days += 1;
+    }
 
     // Time fraction
     const timeFraction =

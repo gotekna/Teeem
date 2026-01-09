@@ -3,7 +3,7 @@
 require "zip"
 require "stringio"
 
-module TeeemXL
+module TeeemXl
   module Writer
     # WorkbookWriter generates complete XLSX files.
     #
@@ -17,7 +17,7 @@ module TeeemXL
     # - xl/styles.xml
     #
     class WorkbookWriter
-      NS = TeeemXL::NAMESPACES[:spreadsheet]
+      NS = TeeemXl::NAMESPACES[:spreadsheet]
 
       def initialize(workbook)
         @workbook = workbook
@@ -126,7 +126,7 @@ module TeeemXL
         builder = Nokogiri::XML::Builder.new(encoding: "UTF-8") do |xml|
           xml.workbook(
             xmlns: NS,
-            "xmlns:r" => TeeemXL::NAMESPACES[:office_document]
+            "xmlns:r" => TeeemXl::NAMESPACES[:office_document]
           ) do
             xml.sheets do
               @workbook.sheets.each_with_index do |sheet, idx|
@@ -186,7 +186,7 @@ module TeeemXL
 
       def write_worksheets(zip)
         @workbook.sheets.each_with_index do |sheet, idx|
-          writer = WorksheetWriter.new(sheet, @workbook.shared_strings)
+          writer = WorksheetWriter.new(sheet, @workbook.shared_strings, @workbook.styles)
           zip.put_next_entry("xl/worksheets/sheet#{idx + 1}.xml")
           zip.write(writer.to_xml)
         end
@@ -238,7 +238,7 @@ module TeeemXL
         builder = Nokogiri::XML::Builder.new(encoding: "UTF-8") do |xml|
           xml.workbook(
             xmlns: NS,
-            "xmlns:r" => TeeemXL::NAMESPACES[:office_document]
+            "xmlns:r" => TeeemXl::NAMESPACES[:office_document]
           ) do
             xml.sheets do
               @workbook.sheets.each_with_index do |sheet, idx|
@@ -292,7 +292,7 @@ module TeeemXL
 
       def write_worksheets_to_zip(zip)
         @workbook.sheets.each_with_index do |sheet, idx|
-          writer = WorksheetWriter.new(sheet, @workbook.shared_strings)
+          writer = WorksheetWriter.new(sheet, @workbook.shared_strings, @workbook.styles)
           zip.get_output_stream("xl/worksheets/sheet#{idx + 1}.xml") { |f| f.write(writer.to_xml) }
         end
       end

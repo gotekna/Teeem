@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module TeeemXL
+module TeeemXl
   module Reader
     # SharedStringsReader parses xl/sharedStrings.xml
     #
@@ -15,7 +15,7 @@ module TeeemXL
     #   </sst>
     #
     class SharedStringsReader
-      NS = TeeemXL::NAMESPACES[:spreadsheet]
+      NS = TeeemXl::NAMESPACES[:spreadsheet]
 
       def initialize(package)
         @package = package
@@ -38,7 +38,7 @@ module TeeemXL
 
       def find_shared_strings_path
         rels = @package.relationships_for(@package.workbook_path)
-        targets = rels.targets_for_type(TeeemXL::RELATIONSHIP_TYPES[:shared_strings])
+        targets = rels.targets_for_type(TeeemXl::RELATIONSHIP_TYPES[:shared_strings])
         targets.first
       end
 

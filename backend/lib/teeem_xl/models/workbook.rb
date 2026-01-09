@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module TeeemXL
+module TeeemXl
   module Models
     # Workbook represents an Excel workbook (the top-level container).
     #
@@ -96,7 +96,7 @@ module TeeemXL
       #
       # @param destination [String, IO, Pathname] Output path or IO
       def write(destination)
-        TeeemXL.write(self, destination)
+        TeeemXl.write(self, destination)
       end
 
       # Check if workbook has any data
@@ -300,14 +300,26 @@ module TeeemXL
       def find_or_add_border(options)
         return 0 unless options[:border]
 
+        border_color = normalize_color(options[:border_color])
+
         border = case options[:border]
                  when true, :thin
-                   { left: :thin, right: :thin, top: :thin, bottom: :thin }
+                   { left: :thin, right: :thin, top: :thin, bottom: :thin, color: border_color }
+                 when :medium
+                   { left: :medium, right: :medium, top: :medium, bottom: :medium, color: border_color }
+                 when :thick
+                   { left: :thick, right: :thick, top: :thick, bottom: :thick, color: border_color }
+                 when :dashed
+                   { left: :dashed, right: :dashed, top: :dashed, bottom: :dashed, color: border_color }
+                 when :dotted
+                   { left: :dotted, right: :dotted, top: :dotted, bottom: :dotted, color: border_color }
+                 when :double
+                   { left: :double, right: :double, top: :double, bottom: :double, color: border_color }
                  when Hash
-                   options[:border]
+                   options[:border].merge(color: border_color)
                  else
                    { left: options[:border], right: options[:border],
-                     top: options[:border], bottom: options[:border] }
+                     top: options[:border], bottom: options[:border], color: border_color }
                  end
 
         existing_idx = @borders.index(border)

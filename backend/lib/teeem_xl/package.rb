@@ -3,7 +3,7 @@
 require "zip"
 require "nokogiri"
 
-module TeeemXL
+module TeeemXl
   # Package handles the ZIP archive structure of XLSX files.
   #
   # An XLSX file is a ZIP archive containing XML files following the
@@ -78,7 +78,7 @@ module TeeemXL
     # Relationships are stored in _rels/{part_name}.rels
     #
     # @param part_path [String] Path of the part (e.g., "xl/workbook.xml")
-    # @return [TeeemXL::Relationships] Relationships for that part
+    # @return [TeeemXl::Relationships] Relationships for that part
     def relationships_for(part_path)
       return @relationships_cache[part_path] if @relationships_cache.key?(part_path)
 

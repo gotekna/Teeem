@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module TeeemXL
+module TeeemXl
   module Models
     # Cell represents a single cell in a worksheet.
     #
@@ -125,7 +125,7 @@ module TeeemXL
       end
 
       def inspect
-        "#<TeeemXL::Cell #{@reference} type=#{@type} value=#{@value.inspect}>"
+        "#<TeeemXl::Cell #{@reference} type=#{@type} value=#{@value.inspect}>"
       end
     end
   end

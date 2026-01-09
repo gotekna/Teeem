@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module TeeemXL
+module TeeemXl
   module Models
     # Worksheet represents a single sheet in a workbook.
     #
@@ -220,6 +220,67 @@ module TeeemXL
       # Count of cells with data
       def cell_count
         @cells.size
+      end
+
+      # Apply style to a range of cells
+      #
+      # @param range [String] Range like "A1:D1" or "A1"
+      # @param style_index [Integer] Style index to apply
+      def apply_style(range, style_index)
+        if range.include?(":")
+          start_ref, end_ref = range.split(":")
+          start_row, start_col = Cell.parse_reference(start_ref)
+          end_row, end_col = Cell.parse_reference(end_ref)
+
+          (start_row..end_row).each do |row|
+            (start_col..end_col).each do |col|
+              ref = Cell.make_reference(row, col)
+              cell = @cells[ref]
+              cell.style_index = style_index if cell
+            end
+          end
+        else
+          cell = @cells[range.upcase]
+          cell.style_index = style_index if cell
+        end
+      end
+
+      # Calculate and set auto-width for all columns based on content
+      #
+      # @param padding [Float] Extra width padding (default 2)
+      # @param min_width [Float] Minimum column width (default 8)
+      # @param max_width [Float] Maximum column width (default 50)
+      def auto_fit_columns(padding: 2, min_width: 8, max_width: 50)
+        return if @cells.empty?
+
+        col_widths = {}
+
+        @cells.each_value do |cell|
+          col_idx = cell.column_index
+          value = cell.value.to_s
+
+          # Estimate width based on character count
+          # Excel uses approximately 1 character = 1 width unit
+          width = value.length + padding
+
+          col_widths[col_idx] = [
+            col_widths[col_idx] || 0,
+            width.clamp(min_width, max_width)
+          ].max
+        end
+
+        col_widths.each do |col_idx, width|
+          @column_widths[col_idx] = width
+        end
+      end
+
+      # Set auto-filter on header row (first row with data)
+      def enable_auto_filter
+        return if @cells.empty?
+
+        min_col = @cells.values.map(&:column_index).min
+        max_col = @cells.values.map(&:column_index).max
+        @auto_filter = "#{Cell.index_to_column(min_col)}1:#{Cell.index_to_column(max_col)}1"
       end
 
       private

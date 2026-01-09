@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module TeeemXL
+module TeeemXl
   module Reader
     # StylesReader parses xl/styles.xml
     #
@@ -14,7 +14,7 @@ module TeeemXL
     # We parse what's needed for reading: number formats for date detection.
     #
     class StylesReader
-      NS = TeeemXL::NAMESPACES[:spreadsheet]
+      NS = TeeemXl::NAMESPACES[:spreadsheet]
 
       # Standard date format IDs (Excel built-in)
       DATE_FORMAT_IDS = [14, 15, 16, 17, 18, 19, 20, 21, 22, 45, 46, 47].freeze
@@ -67,7 +67,7 @@ module TeeemXL
 
       def find_styles_path
         rels = @package.relationships_for(@package.workbook_path)
-        targets = rels.targets_for_type(TeeemXL::RELATIONSHIP_TYPES[:styles])
+        targets = rels.targets_for_type(TeeemXl::RELATIONSHIP_TYPES[:styles])
         targets.first
       end
 

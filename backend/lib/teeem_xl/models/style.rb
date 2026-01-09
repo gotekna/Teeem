@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module TeeemXL
+module TeeemXl
   module Models
     # Style represents cell formatting options.
     #
@@ -60,8 +60,16 @@ module TeeemXL
           new(bold: true, background: "4472C4", color: "FFFFFF")
         end
 
+        def header_bordered
+          new(bold: true, background: "4472C4", color: "FFFFFF", border: :thin)
+        end
+
         def currency
           new(number_format: '_("$"* #,##0.00_)')
+        end
+
+        def accounting
+          new(number_format: '_($* #,##0.00_);_($* (#,##0.00);_($* "-"??_);_(@_)')
         end
 
         def percentage
@@ -76,12 +84,52 @@ module TeeemXL
           new(number_format: "yyyy-mm-dd hh:mm:ss")
         end
 
+        def time
+          new(number_format: "hh:mm:ss")
+        end
+
         def wrapped
           new(wrap: true)
         end
 
         def centered
           new(align: :center, valign: :center)
+        end
+
+        def bordered
+          new(border: :thin)
+        end
+
+        def bordered_medium
+          new(border: :medium)
+        end
+
+        def total_row
+          new(bold: true, border: { top: :double, bottom: :thin })
+        end
+
+        def error
+          new(background: "FFC7CE", color: "9C0006")
+        end
+
+        def warning
+          new(background: "FFEB9C", color: "9C5700")
+        end
+
+        def success
+          new(background: "C6EFCE", color: "006100")
+        end
+
+        def neutral
+          new(background: "FFFFCC")
+        end
+
+        def hyperlink
+          new(color: "0563C1", underline: true)
+        end
+
+        def code
+          new(font_name: "Consolas", font_size: 10)
         end
       end
 

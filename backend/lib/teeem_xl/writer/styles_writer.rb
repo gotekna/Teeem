@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module TeeemXL
+module TeeemXl
   module Writer
     # StylesWriter generates xl/styles.xml
     #
@@ -16,7 +16,7 @@ module TeeemXL
     #   </styleSheet>
     #
     class StylesWriter
-      NS = TeeemXL::NAMESPACES[:spreadsheet]
+      NS = TeeemXl::NAMESPACES[:spreadsheet]
 
       def initialize(styles)
         @styles = styles
@@ -99,7 +99,11 @@ module TeeemXL
                 style = border[side]
                 if style
                   xml.send(side, style: style.to_s) do
-                    xml.color(auto: 1)
+                    if border[:color]
+                      xml.color(rgb: "FF#{border[:color]}")
+                    else
+                      xml.color(auto: 1)
+                    end
                   end
                 else
                   xml.send(side)

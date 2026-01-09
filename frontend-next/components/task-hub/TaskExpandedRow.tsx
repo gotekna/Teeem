@@ -1906,6 +1906,20 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
           if (!open) setSelectedEmailId(null);
         }}
       />
+
+      {/* Cascade Completion Dialog */}
+      <CascadeCompletionDialog
+        open={cascadeDialogOpen}
+        onOpenChange={setCascadeDialogOpen}
+        taskName={task.name}
+        linkedTasks={getCompletableLinkedTasks(task.id).map(t => ({
+          id: t.id,
+          name: t.name,
+          status: t.status,
+        }))}
+        onComplete={handleCascadeComplete}
+        loading={cascadeDialogLoading}
+      />
     </div>
   );
 }
