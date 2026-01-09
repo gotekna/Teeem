@@ -2466,6 +2466,49 @@ module Api
         attachments
       end
 
+      # Refresh thumbnail URLs for cached documents
+      # SharePoint thumbnails expire after ~24-48 hours, so we need to fetch fresh ones
+      # Returns hash: { sharepoint_item_id => thumbnail_url }
+      def refresh_thumbnails_for_docs(docs)
+        return {} if docs.empty?
+
+        credential = get_onedrive_credential
+        return {} unless credential
+
+        begin
+          client = MicrosoftGraphClient.new(credential)
+          fresh_thumbnails = {}
+
+          # Batch process - get thumbnails for each doc
+          # Microsoft Graph supports batch requests but for simplicity we'll make individual calls
+          # Limited to first 50 docs to avoid timeout
+          docs.limit(50).each do |doc|
+            next unless doc.sharepoint_item_id.present? && doc.sharepoint_drive_id.present?
+
+            begin
+              # Get fresh thumbnail from Graph API
+              item_data = client.get_drive_item(doc.sharepoint_drive_id, doc.sharepoint_item_id, expand: "thumbnails")
+              if item_data
+                thumbnails = item_data.dig("thumbnails", 0) || {}
+                thumb_url = thumbnails.dig("medium", "url") || thumbnails.dig("small", "url")
+                if thumb_url
+                  fresh_thumbnails[doc.sharepoint_item_id] = thumb_url
+                  # Also update the cached value
+                  doc.update_column(:thumbnail_url, thumb_url)
+                end
+              end
+            rescue => e
+              Rails.logger.warn("[Thumbnail Refresh] Failed for doc #{doc.id}: #{e.message}")
+            end
+          end
+
+          fresh_thumbnails
+        rescue => e
+          Rails.logger.error("[Thumbnail Refresh] Batch refresh failed: #{e.message}")
+          {}
+        end
+      end
+
       # Recursively list all files in a job folder
       # Similar to JobDocumentMigrationService but for the job's own folder
       def list_all_job_files_recursive(client, credential, root_folder_id, max_depth: 5, max_time: 25)
