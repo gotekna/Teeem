@@ -486,12 +486,24 @@ export function Sidebar() {
     const showBadge = emailAccountCount !== null || badgeCount > 0; // Always show for email accounts
     const isItemLoading = loadingHref === item.href;
 
+    // Handle double-click to open email account in standalone mode (new tab)
+    const handleDoubleClick = (e: React.MouseEvent) => {
+      if (isEmailAccount) {
+        e.preventDefault();
+        const standaloneUrl = item.href.includes('?')
+          ? `${item.href}&standalone=true`
+          : `${item.href}?standalone=true`;
+        window.open(standaloneUrl, '_blank');
+      }
+    };
+
     return (
       <Link
         key={item.href}
         href={item.href}
         prefetch={false}
         onClick={() => handleNavClick(item.href, active)}
+        onDoubleClick={handleDoubleClick}
         className={cn(
           "flex items-center gap-3 px-3 py-1.5 transition-colors relative group",
           isChild && (isExpanded || mobile) && !isGrandchild && !hasChevron && "pl-10",

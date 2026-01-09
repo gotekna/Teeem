@@ -3005,6 +3005,12 @@ export function ScheduleMasterTab() {
                     <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Hold Date</Badge>The fixed date this task is pinned to. Only used when &quot;hold&quot; is turned on. The task will always start on this date regardless of what happens to other tasks.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["previous_hold_date"] || false} onCheckedChange={(v) => updateColumnStatus("previous_hold_date", !!v)} />
+                    <CopyableCode>previous_hold_date</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">date</Badge>
+                    <span className="text-muted-foreground">Stores the previous hold date before a change was made. Useful for audit trails when dates are adjusted.</span>
+                  </div>
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["hold_at"] || false} onCheckedChange={(v) => updateColumnStatus("hold_at", !!v)} />
                     <CopyableCode>hold_at</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">datetime</Badge>
@@ -3015,6 +3021,12 @@ export function ScheduleMasterTab() {
                     <CopyableCode>dependency_broken</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
                     <span className="text-muted-foreground">Indicates this task was manually removed from the dependency chain. When true, the task schedules independently and won&apos;t be pushed by predecessor tasks.</span>
+                  </div>
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["started"] || false} onCheckedChange={(v) => updateColumnStatus("started", !!v)} />
+                    <CopyableCode>started</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Started</Badge>Marks this task as in progress. Once started, the task is LOCKED and won&apos;t be pushed by predecessor delays. The actual start date is recorded when this is turned on.</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["confirm"] || false} onCheckedChange={(v) => updateColumnStatus("confirm", !!v)} />
@@ -3608,35 +3620,6 @@ export function ScheduleMasterTab() {
               </CardContent>
             </Card>
 
-            {/* Additional Status Fields */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Additional Status Fields</CardTitle>
-                <CardDescription>Extra status tracking columns</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-3 text-sm">
-                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center text-xs text-muted-foreground border-b pb-2 mb-1">
-                    <span title="Complete">Done</span>
-                    <span>Column</span>
-                    <span>Type</span>
-                    <span>Description</span>
-                  </div>
-                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["started"] || false} onCheckedChange={(v) => updateColumnStatus("started", !!v)} />
-                    <CopyableCode>started</CopyableCode>
-                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground">Indicates work has begun on this task. Once started, the task is LOCKED and won&apos;t be pushed by predecessor delays. The actual start date is recorded.</span>
-                  </div>
-                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["previous_hold_date"] || false} onCheckedChange={(v) => updateColumnStatus("previous_hold_date", !!v)} />
-                    <CopyableCode>previous_hold_date</CopyableCode>
-                    <Badge variant="outline" className="text-xs w-fit">date</Badge>
-                    <span className="text-muted-foreground">Stores the previous hold date before a change was made. Useful for audit trails when dates are adjusted and you need to know what was originally planned.</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
           </div>
         </TabsContent>
 
