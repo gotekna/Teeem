@@ -1,11 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useCallback, useMemo } from "react";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { useAtom } from "jotai";
-import { currentGroupByColumnsAtom } from "@/lib/table-atoms";
 
 interface JobExpensesTabProps {
   jobId: string | number;
@@ -21,50 +19,58 @@ interface JobExpensesTabProps {
  *
  * Features:
  * - Two-level hierarchical grouping (expandable/collapsible)
- * - Instant grouping mode toggle (client-side, no re-fetch)
+ * - Instant grouping mode toggle via key remount
  * - Shows PO Total, Amount Paid, Remaining to Pay, Payment Status
  * - Budget tracking context
  *
  * Architecture:
- * - Uses TeeemTableView's built-in multi-level grouping
+ * - Uses TeeemTableView's initialView prop for multi-level grouping
  * - Foundation API auto-fetches all PO data
  * - Virtual columns (stage_from_task, trade_from_task) expose stage/trade via SmTask
- * - Jotai atoms for grouping state (no component-level useState for state)
+ * - Key-based remount for grouping toggle (simple, reliable)
  */
 export function JobExpensesTab({ jobId }: JobExpensesTabProps) {
-  const [, setGroupByColumns] = useAtom(currentGroupByColumnsAtom);
   const [groupingMode, setGroupingMode] = useState<'stage-trade' | 'trade-stage'>('stage-trade');
 
-  // Set initial grouping on mount
-  useEffect(() => {
-    setGroupByColumns(['stage_from_task', 'trade_from_task']);
-  }, [setGroupByColumns]);
-
-  const handleGroupingChange = (value: string) => {
+  const handleGroupingChange = useCallback((value: string) => {
     if (!value) return;
     setGroupingMode(value as 'stage-trade' | 'trade-stage');
+  }, []);
 
-    // Update Jotai atom to trigger re-grouping
-    if (value === 'stage-trade') {
-      setGroupByColumns(['stage_from_task', 'trade_from_task']);
-    } else {
-      setGroupByColumns(['trade_from_task', 'stage_from_task']);
-    }
-  };
+  // Memoize the grouping columns to prevent unnecessary re-renders
+  const groupByColumns = useMemo(() => {
+    return groupingMode === 'stage-trade'
+      ? ['stage_from_task', 'trade_from_task']
+      : ['trade_from_task', 'stage_from_task'];
+  }, [groupingMode]);
+
+  // Use initialView to set grouping - TeeemTableView reads group_by_columns from this
+  const initialView = useMemo(() => ({
+    id: -1, // Synthetic view ID
+    name: 'Expenses Grouped View',
+    view_display_type: 'grouped' as const,
+    group_by_columns: groupByColumns,
+  }), [groupByColumns]);
+
+  // Filter for this job's POs only
+  const initialFilters = useMemo(() => [
+    { id: crypto.randomUUID(), column: "job_id", operator: "=" as const, value: String(jobId) }
+  ], [jobId]);
 
   return (
     <div className="flex flex-col h-full -mx-4">
       <TeeemTableView
+        key={groupingMode} // Remount when grouping changes for clean state reset
         foundationId="purchase-orders"
         autoFetchRecords={true}
-        initialFilters={[
-          { id: crypto.randomUUID(), column: "job_id", operator: "=", value: String(jobId) }
-        ]}
+        initialFilters={initialFilters}
+        initialView={initialView}
+        disableSavedViews={true} // Don't show saved views dropdown for this embedded table
         leftActions={
           <RadioGroup
             value={groupingMode}
             onValueChange={handleGroupingChange}
-            className="flex items-center gap-4 px-3 py-1.5 border rounded-md bg-white"
+            className="flex items-center gap-4 px-3 py-1.5 border rounded-md bg-white dark:bg-gray-800"
           >
             <div className="flex items-center gap-2">
               <RadioGroupItem value="stage-trade" id="stage-trade" />
