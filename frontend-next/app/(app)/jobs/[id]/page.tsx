@@ -78,6 +78,7 @@ import { JobBOQTab } from "@/components/jobs/JobBOQTab";
 import { JobCommunicationsTab } from "@/components/jobs/JobCommunicationsTab";
 import { JobProfitTab } from "@/components/jobs/JobProfitTab";
 import { JobClaimStagesTab } from "@/components/jobs/JobClaimStagesTab";
+import { JobExpensesTab } from "@/components/jobs/JobExpensesTab";
 import { JobScheduleTab } from "@/components/jobs/JobScheduleTab";
 import { JobSitePresenceTab } from "@/components/jobs/JobSitePresenceTab";
 import { RevitTab } from "@/components/jobs/RevitTab";
@@ -107,6 +108,7 @@ const JOB_TAB_COMPONENTS: Record<string, React.ComponentType<any>> = {
   "specifications": SpecificationBuilder,
   "colours": ColourSelectionBuilder,
   "claims": JobClaimStagesTab,
+  "expenses": JobExpensesTab,
   "profit": JobProfitTab,
   "budget": JobBudgetTab,
   "people": JobPeopleTab,

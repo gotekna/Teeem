@@ -48,6 +48,17 @@ class PurchaseOrder < ApplicationRecord
     sm_task&.sm_schedule_master_id
   end
 
+  # Virtual attributes for Foundation - expose stage/trade via SmTask
+  # Path: PO → SmTask → SmScheduleMaster.{stage, trade}
+  # Used by Expenses tab for hierarchical grouping
+  def stage_from_task
+    sm_task&.sm_schedule_master&.stage
+  end
+
+  def trade_from_task
+    sm_task&.sm_schedule_master&.trade
+  end
+
   has_many :purchase_order_documents, dependent: :destroy
   has_many :document_tasks, through: :purchase_order_documents
   has_many :kudos_events, dependent: :destroy
