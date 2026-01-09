@@ -213,7 +213,10 @@ export default function NewContactPage() {
       }
     } catch (error) {
       console.error("Failed to create company:", error);
-      toast({ title: "Error", description: "Failed to create company", variant: "destructive" });
+      const errorMessage = error instanceof Error
+        ? error.message
+        : "Failed to create company";
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
     }
     setCompanySearchOpen(false);
     setCompanySearchQuery("");
@@ -370,7 +373,10 @@ export default function NewContactPage() {
       router.push(`/contacts/${newContactId || ""}`);
     } catch (error) {
       console.error("Failed to create contact:", error);
-      toast({ title: "Error", description: "Failed to create contact", variant: "destructive" });
+      const errorMessage = error instanceof Error
+        ? error.message
+        : "Failed to create contact";
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
     } finally {
       setLoading(false);
     }
