@@ -159,6 +159,11 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   // Email keywords state
   const [emailKeywords, setEmailKeywords] = useState(task.email_keywords || '');
 
+  // Task name editing state
+  const [editingTaskName, setEditingTaskName] = useState(false);
+  const [taskNameText, setTaskNameText] = useState(task.name);
+  const [taskNameSaving, setTaskNameSaving] = useState(false);
+
   // Description editing state
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionText, setDescriptionText] = useState(task.description || '');
@@ -177,6 +182,13 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   useEffect(() => {
     getFollowers(task.id).then(setFollowers).catch(console.error);
   }, [task.id, getFollowers]);
+
+  // Sync task name text when task updates
+  useEffect(() => {
+    if (!editingTaskName) {
+      setTaskNameText(task.name);
+    }
+  }, [task.name, editingTaskName]);
 
   // Sync description text when task updates
   useEffect(() => {
@@ -569,6 +581,25 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
     }
   };
 
+  // Save task name
+  const saveTaskName = async () => {
+    if (taskNameText === task.name || !taskNameText.trim()) {
+      setEditingTaskName(false);
+      return;
+    }
+
+    setTaskNameSaving(true);
+    try {
+      await updateTask(task.id, { name: taskNameText.trim() });
+      setEditingTaskName(false);
+    } catch (error) {
+      console.error('Failed to save task name:', error);
+      setTaskNameText(task.name); // Revert on error
+    } finally {
+      setTaskNameSaving(false);
+    }
+  };
+
   // Save description
   const saveDescription = async () => {
     if (descriptionText === (task.description || '')) {
@@ -901,6 +932,41 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             <ChevronUp className="h-4 w-4" />
           </Button>
         </div>
+      </div>
+
+      {/* Task Name Section - Editable */}
+      <div className="p-2 bg-background/50 rounded border">
+        <div className="flex items-center justify-between mb-1">
+          <div className="text-xs text-muted-foreground">Task Name</div>
+          {taskNameSaving && <Spinner size={12} />}
+        </div>
+        {editingTaskName ? (
+          <Input
+            value={taskNameText}
+            onChange={(e) => setTaskNameText(e.target.value)}
+            onBlur={saveTaskName}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                saveTaskName();
+              } else if (e.key === 'Escape') {
+                setTaskNameText(task.name);
+                setEditingTaskName(false);
+              }
+            }}
+            placeholder="Enter task name..."
+            className="w-full h-8 text-sm font-medium"
+            autoFocus
+            disabled={taskNameSaving}
+          />
+        ) : (
+          <p
+            className="text-sm font-medium whitespace-pre-wrap cursor-pointer hover:bg-muted/50 px-1 -mx-1 rounded min-h-[24px]"
+            onClick={() => setEditingTaskName(true)}
+            title="Click to edit"
+          >
+            {task.name || <span className="text-muted-foreground italic">Click to add task name...</span>}
+          </p>
+        )}
       </div>
 
       {/* Description Section - Always show (editable) */}
