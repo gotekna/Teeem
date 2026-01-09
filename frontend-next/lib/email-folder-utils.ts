@@ -112,16 +112,23 @@ export function buildFolderHierarchy(
   const hasHierarchy = folders.some((f) => f.parent_id || f.parentId);
 
   if (hasHierarchy) {
-    return folders.map((f) => ({
-      id: f.id,
-      name: f.name,
-      type: (f.type as FolderType) || inferFolderType(f.name),
-      parentId: f.parent_id || f.parentId || undefined,
-      childFolderCount: f.child_folder_count ?? f.childFolderCount ?? 0,
-      unreadCount: f.unread_count ?? f.unreadCount ?? 0,
-      totalItems: f.total_items ?? f.totalItems ?? 0,
-      depth: f.depth ?? 0,
-    }));
+    return folders.map((f) => {
+      // Extract display name: just the last part after "/" (e.g., "Inbox/A - Sales" → "A - Sales")
+      const nameParts = f.name.split("/");
+      const displayName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : f.name;
+
+      return {
+        id: f.id,
+        name: f.name,  // Keep full path for filtering
+        displayName,   // Show just the folder name
+        type: (f.type as FolderType) || inferFolderType(f.name),
+        parentId: f.parent_id || f.parentId || undefined,
+        childFolderCount: f.child_folder_count ?? f.childFolderCount ?? 0,
+        unreadCount: f.unread_count ?? f.unreadCount ?? 0,
+        totalItems: f.total_items ?? f.totalItems ?? 0,
+        depth: f.depth ?? 0,
+      };
+    });
   }
 
   // IMAP folders - infer hierarchy from delimiter
