@@ -830,6 +830,8 @@ export default function TeeemTableView({
   const [hasMore, setHasMore] = useState(initialHasMore ?? true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  // Total count from API (first request returns total_count for UX: "X of Y records")
+  const [autoFetchTotalCount, setAutoFetchTotalCount] = useState<number | null>(initialTotalCount ?? null);
   // Auto-refresh key: increment to trigger re-fetch when using autoFetchRecords
   const [autoFetchRefreshKey, setAutoFetchRefreshKey] = useState(0);
 
@@ -1129,13 +1131,17 @@ export default function TeeemTableView({
             value: f.value,
           })));
         }
-        const response = await api.get<{ records: TableRowType[], has_more: boolean }>(
+        const response = await api.get<{ records: TableRowType[], has_more: boolean, total_count?: number }>(
           `/api/v1/foundations/${effectiveFoundationId}/records`,
           { params }
         );
         const newRecords = response.records || [];
         setAutoFetchedRecords(newRecords);
         setHasMore(response.has_more ?? true);
+        // Capture total_count from first request for "X of Y records" display
+        if (response.total_count !== undefined) {
+          setAutoFetchTotalCount(response.total_count);
+        }
         // Track which baseFilters were used for this fetch (for change detection)
         lastFetchedBaseFiltersKeyRef.current = baseFiltersKey;
         // CACHE: Save records for instant restoration on back navigation
@@ -5711,8 +5717,8 @@ export default function TeeemTableView({
                       ? serverTotalRecords
                       : filteredAndSortedEntries.length);
 
-                // Use totalCount if passed directly, otherwise fall back to SSR initialTotalCount
-                const effectiveTotalCount = totalCount ?? initialTotalCount ?? null;
+                // Use totalCount if passed directly, fall back to autoFetchTotalCount (from API), then SSR initialTotalCount
+                const effectiveTotalCount = totalCount ?? autoFetchTotalCount ?? initialTotalCount ?? null;
 
                 // Always show "X of Y" format when totalCount is available (helps user know total during search)
                 return effectiveTotalCount !== null

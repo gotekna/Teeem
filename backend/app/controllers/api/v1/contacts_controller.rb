@@ -111,7 +111,49 @@ module Api
           when "suppliers"
             # Suppliers: contacts with is_supplier_cached=true
             # Cached column is updated when contacts get POs, pricebooks, price histories, or bills
-            @contacts = @contacts.where(is_supplier_cached: true)
+            #
+            # Company-aware supplier search: When searching, also find supplier COMPANIES
+            # where an EMPLOYEE matches the search term (e.g., search "troy" finds "Harvey Norman"
+            # if Troy Smith works there and Harvey Norman is a supplier)
+            if params[:search].present?
+              search_term = "%#{params[:search]}%"
+
+              # Find people (employees) matching the search term
+              matching_person_ids = Contact.where(entity_type: "person")
+                                           .where("display_name ILIKE ? OR first_name ILIKE ? OR last_name ILIKE ?",
+                                                  search_term, search_term, search_term)
+                                           .pluck(:id)
+
+              if matching_person_ids.any?
+                # Find their employer companies (via primary_company_id)
+                employer_ids_via_primary = Contact.where(id: matching_person_ids)
+                                                  .where.not(primary_company_id: nil)
+                                                  .pluck(:primary_company_id)
+
+                # Find their employer companies (via ContactRelationship employee_of)
+                employer_ids_via_relationship = ContactRelationship
+                  .active
+                  .where(relationship_type: "employee_of")
+                  .where(source_contact_id: matching_person_ids)
+                  .pluck(:related_contact_id)
+
+                employer_company_ids = (employer_ids_via_primary + employer_ids_via_relationship).uniq
+
+                # Filter to only include employer companies that ARE suppliers (and active)
+                supplier_employer_ids = Contact.where(id: employer_company_ids)
+                                               .where(is_supplier_cached: true)
+                                               .where(is_active: true)
+                                               .pluck(:id)
+
+                # Include both direct supplier matches AND supplier companies found via employee search
+                @contacts = @contacts.where(is_supplier_cached: true)
+                                     .or(Contact.where(id: supplier_employer_ids))
+              else
+                @contacts = @contacts.where(is_supplier_cached: true)
+              end
+            else
+              @contacts = @contacts.where(is_supplier_cached: true)
+            end
           when "customers"
             # Customers: contacts with is_customer_cached=true
             # Cached column is updated when contacts get jobs
