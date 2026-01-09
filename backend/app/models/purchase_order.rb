@@ -464,6 +464,8 @@ class PurchaseOrder < ApplicationRecord
   # Update the job's live profit when this PO changes
   def update_job_profit
     job&.calculate_and_update_profit!
+  rescue StandardError => e
+    Rails.logger.error "[PO] Failed to update job profit for PO #{id}: #{e.message}"
   end
 
   # Sync supplier changes to linked SmTask (One Entity concept)
