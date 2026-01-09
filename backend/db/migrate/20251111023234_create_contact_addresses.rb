@@ -18,7 +18,7 @@ class CreateContactAddresses < ActiveRecord::Migration[8.0]
     end
 
     add_index :contact_addresses, :address_type
-    add_index :contact_addresses, [:contact_id, :is_primary]
-    add_index :contact_addresses, [:contact_id, :address_type]
+    add_index :contact_addresses, [ :contact_id, :is_primary ]
+    add_index :contact_addresses, [ :contact_id, :address_type ]
   end
 end

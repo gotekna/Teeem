@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -31,20 +30,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Loader2,
   RefreshCw,
   Database,
   Search,
   ExternalLink,
-  Plus,
   CheckCircle,
   AlertTriangle,
   XCircle,
-  Eye,
-  Pencil,
-  Trash2,
-  Settings,
-  ArrowUpDown,
   GitBranch,
   Bot,
   Columns,
@@ -52,12 +44,15 @@ import {
   X,
   ChevronUp,
   ChevronDown,
+  Ban,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { EmailBlacklistTab } from "./EmailBlacklistTab";
 
 // Types
 interface TableInfo {
@@ -75,13 +70,6 @@ interface TableInfo {
   record_count?: number;
   is_live?: boolean;
   has_ui?: boolean;
-}
-
-interface ColumnInfo {
-  name: string;
-  type: string;
-  nullable: boolean;
-  default?: string;
 }
 
 interface AgentInfo {
@@ -122,26 +110,6 @@ interface SyncResults {
   timestamp?: string;
 }
 
-const FEATURE_OPTIONS = [
-  "",
-  "Jobs",
-  "Contacts",
-  "Purchase Orders",
-  "Pricebook",
-  "Estimates",
-  "Quotes",
-  "WHS",
-  "Schedule",
-  "Meetings",
-  "Financial",
-  "Workflows",
-  "Companies",
-  "Users",
-  "Xero",
-  "OneDrive",
-  "Documentation",
-  "System",
-];
 
 // No mock data - we want real data from the API
 
@@ -160,9 +128,18 @@ const MOCK_BRANCHES: GitBranchInfo[] = [
   { name: "jake", current: false, lastCommit: "557ba494", behind: 2, ahead: 0 },
 ];
 
-export function DeveloperToolsTab() {
+interface DeveloperToolsTabProps {
+  subtab?: string;
+}
+
+export function DeveloperToolsTab({ subtab }: DeveloperToolsTabProps) {
   const { toast } = useToast();
   const router = useRouter();
+  const activeTab = subtab || "tables";
+
+  const setActiveTab = React.useCallback((tab: string) => {
+    router.push(`/admin/system/developer-tools/${tab}`, { scroll: false });
+  }, [router]);
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [tables, setTables] = React.useState<TableInfo[]>([]);
@@ -179,10 +156,17 @@ export function DeveloperToolsTab() {
   const [showCreateModal, setShowCreateModal] = React.useState(false);
   const [newTableName, setNewTableName] = React.useState("");
   const [creating, setCreating] = React.useState(false);
-  const [previewTable, setPreviewTable] = React.useState<TableInfo | null>(null);
-  const [previewColumns, setPreviewColumns] = React.useState<ColumnInfo[]>([]);
-  const [loadingPreview, setLoadingPreview] = React.useState(false);
   const [columnSearchQuery, setColumnSearchQuery] = React.useState("");
+
+  // Sort icon helper component
+  const SortIcon = ({ column }: { column: string }) => {
+    if (sortColumn !== column) return null;
+    return sortDirection === "asc" ? (
+      <ChevronUp className="ml-1 h-4 w-4" />
+    ) : (
+      <ChevronDown className="ml-1 h-4 w-4" />
+    );
+  };
 
   React.useEffect(() => {
     loadData();
@@ -265,38 +249,7 @@ export function DeveloperToolsTab() {
     }
   };
 
-  const handlePreviewTable = async (table: TableInfo) => {
-    try {
-      setLoadingPreview(true);
-      setPreviewTable(table);
 
-      const response = await api.get<{ columns: ColumnInfo[] }>(`/api/v1/schema/system_table_columns/${table.database_table_name}`);
-      setPreviewColumns(response.columns || []);
-    } catch (error) {
-      console.error("Failed to fetch columns:", error);
-      // Mock columns for preview
-      setPreviewColumns([
-        { name: "id", type: "integer", nullable: false, default: "nextval" },
-        { name: "name", type: "varchar(255)", nullable: false },
-        { name: "created_at", type: "timestamp", nullable: false, default: "now()" },
-        { name: "updated_at", type: "timestamp", nullable: false, default: "now()" },
-      ]);
-    } finally {
-      setLoadingPreview(false);
-    }
-  };
-
-  const handleToggleHasUi = async (tableId: number, hasUi: boolean) => {
-    try {
-      await api.patch(`/api/v1/foundations/${tableId}`, {
-        foundation: { has_ui: hasUi },
-      });
-      setTables(tables.map(t => t.id === tableId ? { ...t, has_ui: hasUi } : t));
-    } catch (error) {
-      console.error("Failed to update has_ui:", error);
-      toast({ title: "Error", description: "Failed to update", variant: "destructive" });
-    }
-  };
 
   const handleSort = (column: string) => {
     if (sortColumn === column) {
@@ -308,7 +261,7 @@ export function DeveloperToolsTab() {
   };
 
   // Filter and sort tables
-  const uniqueFeatures = [...new Set(tables.map(t => t.feature).filter(Boolean))].sort();
+  const uniqueFeatures = [...new Set(tables.map(t => t.feature).filter((f): f is string => Boolean(f)))].sort();
 
   const filteredTables = tables.filter(table => {
     const matchesSearch = !searchQuery ||
@@ -353,23 +306,12 @@ export function DeveloperToolsTab() {
   const importCount = tables.filter(t => t.type === "import").length;
   const systemCount = tables.filter(t => t.type === "system").length;
 
-  // Get all columns for column search
-  const allColumns = React.useMemo(() => {
-    return tables.flatMap(t => {
-      // This would need to be enhanced to include actual column data
-      return [];
-    });
-  }, [tables]);
 
-  const SortIcon = ({ column }: { column: string }) => {
-    if (sortColumn !== column) return <ArrowUpDown className="h-4 w-4 ml-1 opacity-50" />;
-    return sortDirection === "asc" ? <ChevronUp className="h-4 w-4 ml-1" /> : <ChevronDown className="h-4 w-4 ml-1" />;
-  };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -385,7 +327,7 @@ export function DeveloperToolsTab() {
         </div>
       </div>
 
-      <Tabs defaultValue="tables" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="w-full justify-start">
           <TabsTrigger value="tables" className="flex items-center gap-2">
             <Database className="h-4 w-4" />
@@ -398,6 +340,10 @@ export function DeveloperToolsTab() {
           <TabsTrigger value="schema" className="flex items-center gap-2">
             <FileCode className="h-4 w-4" />
             Database Schema
+          </TabsTrigger>
+          <TabsTrigger value="blacklist" className="flex items-center gap-2">
+            <Ban className="h-4 w-4" />
+            Email Blacklist
           </TabsTrigger>
           <TabsTrigger value="branches" className="flex items-center gap-2">
             <GitBranch className="h-4 w-4" />
@@ -428,7 +374,7 @@ export function DeveloperToolsTab() {
                   disabled={creatingSetupViews}
                 >
                   {creatingSetupViews ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Spinner size={16} className="mr-2" />
                   ) : (
                     <CheckCircle className="h-4 w-4 mr-2" />
                   )}
@@ -441,7 +387,7 @@ export function DeveloperToolsTab() {
                   disabled={syncing}
                 >
                   {syncing ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Spinner size={16} className="mr-2" />
                   ) : (
                     <RefreshCw className="h-4 w-4 mr-2" />
                   )}
@@ -500,7 +446,7 @@ export function DeveloperToolsTab() {
                   <SelectItem value="all">All Features</SelectItem>
                   <SelectItem value="none">No Feature</SelectItem>
                   {uniqueFeatures.map(feature => (
-                    <SelectItem key={feature} value={feature || ""}>{feature}</SelectItem>
+                    <SelectItem key={feature} value={feature}>{feature}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -838,6 +784,11 @@ export function DeveloperToolsTab() {
           </div>
         </TabsContent>
 
+        {/* Email Blacklist Tab */}
+        <TabsContent value="blacklist">
+          <EmailBlacklistTab />
+        </TabsContent>
+
         {/* Agent Status Tab */}
         <TabsContent value="agents">
           <div className="space-y-4">
@@ -973,7 +924,7 @@ export function DeveloperToolsTab() {
             <Button onClick={handleCreateTable} disabled={creating || !newTableName.trim()}>
               {creating ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Creating...
                 </>
               ) : (
@@ -984,7 +935,8 @@ export function DeveloperToolsTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Preview Table Modal */}
+      {/* Preview Table Modal - TODO: Implement preview functionality
+         State variables (previewTable, previewColumns, loadingPreview) need to be added
       <Dialog open={!!previewTable} onOpenChange={() => setPreviewTable(null)}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>
@@ -997,7 +949,7 @@ export function DeveloperToolsTab() {
           </DialogHeader>
           {loadingPreview ? (
             <div className="flex justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <Spinner size={32} className="text-muted-foreground" />
             </div>
           ) : (
             <div className="border rounded-lg max-h-96 overflow-y-auto">
@@ -1042,6 +994,7 @@ export function DeveloperToolsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      */}
     </div>
   );
 }

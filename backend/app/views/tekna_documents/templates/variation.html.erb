@@ -1,0 +1,142 @@
+<h1>Contract Variation</h1>
+
+<p style="color: var(--color-text-secondary);">
+  Job: <%= @job[:job_number] %> | <%= @job[:name] %><br>
+  Date: <%= format_date(today, :long) %>
+</p>
+
+<h2>Variation Details</h2>
+
+<table>
+  <tr>
+    <td style="width: 35%; background: #f5f5f5;"><strong>Variation Number</strong></td>
+    <td><%= @variation[:number] if @variation %></td>
+  </tr>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Date</strong></td>
+    <td><%= format_date(today, :long) %></td>
+  </tr>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Site Address</strong></td>
+    <td><%= @job[:full_address] %></td>
+  </tr>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Client(s)</strong></td>
+    <td><%= @client_names %></td>
+  </tr>
+</table>
+
+<h2>Original Contract</h2>
+
+<table>
+  <tr>
+    <td style="width: 35%; background: #f5f5f5;"><strong>Contract Date</strong></td>
+    <td><%= @job[:contract_date] %></td>
+  </tr>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Original Contract Price</strong></td>
+    <td><%= @job[:contract_price] %> (inc. GST)</td>
+  </tr>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Approved Variations to Date</strong></td>
+    <td><%= @variation[:previous_total] if @variation %></td>
+  </tr>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Current Contract Total</strong></td>
+    <td><%= @variation[:current_total] if @variation %></td>
+  </tr>
+</table>
+
+<h2>Description of Variation</h2>
+
+<div style="border: 1px solid var(--color-border); padding: var(--space-4); min-height: 100px; margin-bottom: var(--space-4);">
+  <%= @variation[:description] if @variation %>
+</div>
+
+<h2>Variation Pricing</h2>
+
+<table>
+  <tr>
+    <th style="width: 60%;">Item Description</th>
+    <th style="text-align: right;">Amount (inc. GST)</th>
+  </tr>
+  <% if @variation && @variation[:items].present? %>
+    <% @variation[:items].each do |item| %>
+    <tr>
+      <td><%= item[:description] %></td>
+      <td style="text-align: right;"><%= format_currency(item[:amount]) %></td>
+    </tr>
+    <% end %>
+  <% else %>
+  <tr>
+    <td></td>
+    <td style="text-align: right;"></td>
+  </tr>
+  <tr>
+    <td></td>
+    <td style="text-align: right;"></td>
+  </tr>
+  <tr>
+    <td></td>
+    <td style="text-align: right;"></td>
+  </tr>
+  <% end %>
+  <tr style="background: #f5f5f5;">
+    <td><strong>Subtotal (excl. GST)</strong></td>
+    <td style="text-align: right;"><strong><%= @variation[:subtotal] if @variation %></strong></td>
+  </tr>
+  <tr style="background: #f5f5f5;">
+    <td><strong>GST</strong></td>
+    <td style="text-align: right;"><strong><%= @variation[:gst] if @variation %></strong></td>
+  </tr>
+  <tr style="background: #e8e8e8;">
+    <td><strong>Total Variation (inc. GST)</strong></td>
+    <td style="text-align: right;"><strong><%= @variation[:total] if @variation %></strong></td>
+  </tr>
+</table>
+
+<h2>Impact on Contract</h2>
+
+<table>
+  <tr>
+    <td style="width: 50%; background: #f5f5f5;"><strong>Current Contract Total</strong></td>
+    <td style="text-align: right;"><%= @variation[:current_total] if @variation %></td>
+  </tr>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>This Variation</strong></td>
+    <td style="text-align: right;"><%= @variation[:total] if @variation %></td>
+  </tr>
+  <tr style="background: #e8e8e8;">
+    <td><strong>New Contract Total (inc. GST)</strong></td>
+    <td style="text-align: right;"><strong><%= @variation[:new_total] if @variation %></strong></td>
+  </tr>
+</table>
+
+<% if @variation && @variation[:time_extension].present? %>
+<h2>Time Extension</h2>
+
+<p>
+  This variation includes an extension to the building period of
+  <strong><%= @variation[:time_extension] %> working days</strong>.
+</p>
+<% end %>
+
+<h2>Terms</h2>
+
+<ol>
+  <li>This variation forms part of the original building contract.</li>
+  <li>Payment for this variation is due in accordance with the progress payment schedule.</li>
+  <li>Work on this variation will not commence until this document is signed by all parties.</li>
+  <li>Any time extension specified above is subject to weather and other delays as per the original contract.</li>
+</ol>
+
+<%= render "qbcc_clause" %>
+
+<h2>Approval</h2>
+
+<p>
+  I/We, <strong><%= @client_names %></strong>, approve this variation to the
+  building contract and agree to pay the additional amount specified above.
+</p>
+
+<%= render "signature_block" %>

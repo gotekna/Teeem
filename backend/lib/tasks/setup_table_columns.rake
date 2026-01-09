@@ -1,13 +1,13 @@
 namespace :teeem do
   desc "Auto-generate column definitions for a table from its database schema"
-  task :setup_table_columns, [:table_id] => :environment do |t, args|
+  task :setup_table_columns, [ :table_id ] => :environment do |t, args|
     table_id = args[:table_id]&.to_i
 
     unless table_id
       puts "Usage: bin/rails teeem:setup_table_columns[TABLE_ID]"
       puts ""
       puts "Available tables without column definitions:"
-      Table.where.not(database_table_name: [nil, '']).each do |table|
+      Table.where.not(database_table_name: [ nil, "" ]).each do |table|
         column_count = Column.where(table_id: table.id).count
         if column_count == 0
           puts "  #{table.id}: #{table.name} (#{table.database_table_name})"
@@ -38,7 +38,7 @@ namespace :teeem do
       end
       puts "Found #{db_columns.length} database columns"
     rescue ActiveRecord::StatementInvalid => e
-      if e.message.include?('UndefinedTable') || e.message.include?('does not exist')
+      if e.message.include?("UndefinedTable") || e.message.include?("does not exist")
         puts ""
         puts "⚠️  This is a virtual table (no physical database table exists)."
         puts "   Virtual tables store data in the 'records' table as JSON."
@@ -60,7 +60,7 @@ namespace :teeem do
     if existing_count > 0
       print "Delete #{existing_count} existing column definitions? (y/n): "
       response = STDIN.gets.chomp.downcase
-      if response == 'y'
+      if response == "y"
         Column.where(table_id: table_id).destroy_all
         puts "Deleted existing columns"
       else
@@ -73,38 +73,38 @@ namespace :teeem do
       case column.type
       when :string
         case column.name
-        when /email/i then 'email'
-        when /phone|mobile|fax/i then 'phone'
-        when /url|website|link/i then 'url'
-        when /color|colour/i then 'color_picker'
-        else 'single_line_text'
+        when /email/i then "email"
+        when /phone|mobile|fax/i then "phone"
+        when /url|website|link/i then "url"
+        when /color|colour/i then "color_picker"
+        else "single_line_text"
         end
       when :text
-        'multiple_lines_text'
+        "multiple_lines_text"
       when :integer, :bigint
-        if column.name.end_with?('_id')
-          'lookup'
+        if column.name.end_with?("_id")
+          "lookup"
         else
-          'whole_number'
+          "whole_number"
         end
       when :decimal, :float
         if column.name =~ /price|cost|amount|total|balance/i
-          'currency'
+          "currency"
         elsif column.name =~ /percent|rate/i
-          'percentage'
+          "percentage"
         else
-          'number'
+          "number"
         end
       when :boolean
-        'boolean'
+        "boolean"
       when :date
-        'date'
+        "date"
       when :datetime, :timestamp
-        'date_and_time'
+        "date_and_time"
       when :json, :jsonb
-        'multiple_lines_text'
+        "multiple_lines_text"
       else
-        'single_line_text'
+        "single_line_text"
       end
     end
 
@@ -117,12 +117,12 @@ namespace :teeem do
     skipped_count = 0
 
     # Add action_buttons column at position 0 (Gold Standard pattern)
-    unless Column.exists?(table_id: table_id, column_type: 'action_buttons')
+    unless Column.exists?(table_id: table_id, column_type: "action_buttons")
       Column.create!(
         table_id: table_id,
-        name: 'Actions',
-        column_name: 'actions',
-        column_type: 'action_buttons',
+        name: "Actions",
+        column_name: "actions",
+        column_type: "action_buttons",
         position: position,
         searchable: false
       )
@@ -133,7 +133,7 @@ namespace :teeem do
 
     db_columns.each do |db_col|
       # Skip system columns
-      if skip_columns.include?(db_col.name) || db_col.name.end_with?('$type')
+      if skip_columns.include?(db_col.name) || db_col.name.end_with?("$type")
         skipped_count += 1
         next
       end
@@ -151,16 +151,16 @@ namespace :teeem do
 
       # Special handling for _id columns (lookups)
       lookup_table_id = nil
-      if db_col.name.end_with?('_id') && column_type == 'lookup'
+      if db_col.name.end_with?("_id") && column_type == "lookup"
         # Try to find the related table
-        related_table_name = db_col.name.sub(/_id$/, '').pluralize
+        related_table_name = db_col.name.sub(/_id$/, "").pluralize
         related_table = Table.find_by(database_table_name: related_table_name)
         if related_table
           lookup_table_id = related_table.id
-          display_name = db_col.name.sub(/_id$/, '').humanize.titleize
+          display_name = db_col.name.sub(/_id$/, "").humanize.titleize
         else
           # Can't find lookup table, use single_line_text instead
-          column_type = 'single_line_text'
+          column_type = "single_line_text"
         end
       end
 
@@ -186,9 +186,9 @@ namespace :teeem do
 
       Column.create!(
         table_id: table_id,
-        name: sys_col == 'created_at' ? 'Created' : 'Updated',
+        name: sys_col == "created_at" ? "Created" : "Updated",
         column_name: sys_col,
-        column_type: 'date_and_time',
+        column_type: "date_and_time",
         position: position,
         searchable: false
       )
@@ -209,7 +209,7 @@ namespace :teeem do
 
   desc "Setup columns for ALL tables that don't have column definitions"
   task setup_all_table_columns: :environment do
-    tables_without_columns = Table.where.not(database_table_name: [nil, '']).select do |table|
+    tables_without_columns = Table.where.not(database_table_name: [ nil, "" ]).select do |table|
       Column.where(table_id: table.id).count == 0
     end
 
@@ -225,12 +225,12 @@ namespace :teeem do
 
     print "\nSetup columns for all these tables? (y/n): "
     response = STDIN.gets.chomp.downcase
-    exit unless response == 'y'
+    exit unless response == "y"
 
     tables_without_columns.each do |table|
       puts "\n" + "="*60
-      Rake::Task['teeem:setup_table_columns'].reenable
-      Rake::Task['teeem:setup_table_columns'].invoke(table.id)
+      Rake::Task["teeem:setup_table_columns"].reenable
+      Rake::Task["teeem:setup_table_columns"].invoke(table.id)
     end
 
     puts "\n" + "="*60

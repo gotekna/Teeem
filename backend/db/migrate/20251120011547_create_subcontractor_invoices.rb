@@ -16,8 +16,8 @@ class CreateSubcontractorInvoices < ActiveRecord::Migration[8.0]
 
     add_index :subcontractor_invoices, :status
     add_index :subcontractor_invoices, :external_invoice_id
-    add_index :subcontractor_invoices, [:purchase_order_id, :status]
-    add_index :subcontractor_invoices, [:contact_id, :status]
+    add_index :subcontractor_invoices, [ :purchase_order_id, :status ]
+    add_index :subcontractor_invoices, [ :contact_id, :status ]
     add_index :subcontractor_invoices, :paid_at
   end
 end

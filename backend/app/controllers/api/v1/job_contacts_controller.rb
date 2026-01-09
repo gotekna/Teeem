@@ -2,7 +2,7 @@ module Api
   module V1
     class JobContactsController < ApplicationController
       before_action :set_job
-      before_action :set_job_contact, only: [:update, :destroy]
+      before_action :set_job_contact, only: [ :update, :destroy ]
 
       # GET /api/v1/jobs/:job_id/job_contacts
       def index
@@ -53,7 +53,7 @@ module Api
         # Prevent deleting the last client contact (internal team can be removed)
         client_contacts = @job.job_contacts.where.not(role: JobContact::INTERNAL_ROLES)
         if !@job_contact.internal_team? && client_contacts.count <= 1
-          render json: { error: 'Cannot remove the last client contact from a job. At least one client is required.' }, status: :unprocessable_entity
+          render json: { error: "Cannot remove the last client contact from a job. At least one client is required." }, status: :unprocessable_entity
           return
         end
 
@@ -91,17 +91,15 @@ module Api
         }
 
         if job_contact.user.present?
-          response[:user] = job_contact.user.as_json(
-            only: [:id, :name, :email]
-          )
+          response[:user] = job_contact.user.as_json
           response[:relationships_count] = 0
           response[:relationships] = []
         elsif job_contact.contact.present?
-          response[:contact] = job_contact.contact.as_json(
-            only: [:id, :first_name, :last_name, :full_name, :company_name_or_trust, :email, :mobile_phone, :office_phone]
-          )
+          response[:contact] = job_contact.contact.as_json
           # Add company_name alias for frontend compatibility
           response[:contact][:company_name] = job_contact.contact.company_name_or_trust
+          # SSoT: Use helper methods from contact_phones table (prefer mobile, fallback to office)
+          response[:contact][:phone] = job_contact.contact.primary_mobile.presence || job_contact.contact.primary_office_phone.presence
 
           # Include relationship details
           relationships = job_contact.contact.outgoing_relationships.includes(:related_contact)
@@ -112,11 +110,28 @@ module Api
               relationship_type: rel.relationship_type,
               related_contact: {
                 id: rel.related_contact.id,
-                full_name: rel.related_contact.full_name,
+                display_name: rel.related_contact.display_name,
                 company_name: rel.related_contact.company_name_or_trust,
-                email: rel.related_contact.email,
-                mobile_phone: rel.related_contact.mobile_phone
+                # SSoT: Use helper methods from contact_emails/contact_phones tables
+                email: rel.related_contact.primary_email,
+                mobile_phone: rel.related_contact.primary_mobile
               }
+            }
+          end
+
+          # Include related jobs (other jobs this contact is associated with)
+          related_job_ids = JobContact.where(contact_id: job_contact.contact_id)
+                                      .where.not(job_id: job_contact.job_id)
+                                      .pluck(:job_id)
+                                      .uniq
+          related_jobs = Job.where(id: related_job_ids).limit(5)
+          response[:related_jobs_count] = related_job_ids.count
+          response[:related_jobs] = related_jobs.map do |job|
+            {
+              id: job.id,
+              address: job.address,
+              job_status: job.job_status&.name,
+              contract_value: job.contract_value
             }
           end
         end

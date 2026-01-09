@@ -1,5 +1,5 @@
 class Api::V1::WHSSettingsController < ApplicationController
-  before_action :set_whs_setting, only: [:show, :update, :destroy]
+  before_action :set_whs_setting, only: [ :show, :update, :destroy ]
 
   # GET /api/v1/whs_settings
   def index
@@ -37,7 +37,7 @@ class Api::V1::WHSSettingsController < ApplicationController
     else
       render json: {
         success: false,
-        error: 'Setting not found'
+        error: "Setting not found"
       }, status: :not_found
     end
   end
@@ -54,7 +54,7 @@ class Api::V1::WHSSettingsController < ApplicationController
     else
       render json: {
         success: false,
-        error: setting.errors.full_messages.join(', ')
+        error: setting.errors.full_messages.join(", ")
       }, status: :unprocessable_entity
     end
   end
@@ -69,7 +69,7 @@ class Api::V1::WHSSettingsController < ApplicationController
     else
       render json: {
         success: false,
-        error: @whs_setting.errors.full_messages.join(', ')
+        error: @whs_setting.errors.full_messages.join(", ")
       }, status: :unprocessable_entity
     end
   end
@@ -78,7 +78,7 @@ class Api::V1::WHSSettingsController < ApplicationController
   def update_by_key
     key = params[:key]
     value = params[:value]
-    setting_type = params[:setting_type] || 'string'
+    setting_type = params[:setting_type] || "string"
     description = params[:description]
 
     begin
@@ -106,12 +106,12 @@ class Api::V1::WHSSettingsController < ApplicationController
     if @whs_setting.destroy
       render json: {
         success: true,
-        data: { message: 'Setting deleted successfully' }
+        data: { message: "Setting deleted successfully" }
       }
     else
       render json: {
         success: false,
-        error: 'Failed to delete setting'
+        error: "Failed to delete setting"
       }, status: :unprocessable_entity
     end
   end

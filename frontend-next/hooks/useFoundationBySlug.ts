@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { api } from '@/lib/api';
 import { TableColumn, TableRow } from '@/components/table/types';
 import type { Foundation } from './useFoundationData';
+import { isSystemOrHiddenColumn } from '@/lib/corporate/column-utils';
+import { CACHE_TTL_VIEWS } from '@/lib/constants/cache-constants';
 
 /**
  * Extended return type with server-side search support
@@ -12,6 +14,8 @@ export interface UseFoundationBySlugReturn {
   foundation: Foundation | null;
   columns: TableColumn[];
   records: TableRow[];
+  originalRecords: TableRow[]; // Unfiltered records for stats
+  totalCount: number | null; // Total count from server (for stats without loading all records)
   isLoading: boolean;
   error: Error | null;
   refresh: () => Promise<void>;
@@ -36,6 +40,7 @@ interface ApiColumn {
   lookup_display_column?: string;
   required?: boolean;
   is_unique?: boolean;
+  searchable?: boolean;
 }
 
 /**
@@ -50,16 +55,31 @@ interface FoundationLookupResponse {
  */
 interface RecordsResponse {
   records: TableRow[];
-  meta?: {
+  pagination?: {
     total_count?: number;
     page?: number;
     per_page?: number;
+    total_pages?: number;
   };
 }
 
 /**
+ * API response shape for views
+ */
+interface ViewsResponse {
+  success: boolean;
+  views: unknown[];
+}
+
+// Module-level cache for preloaded views (shared with TeeemTableView)
+
+export const preloadedViewsCache: Record<number, { views: any[]; timestamp: number }> = {};
+// SSoT: Uses CACHE_TTL_VIEWS from cache-constants.ts
+const VIEWS_CACHE_TTL = CACHE_TTL_VIEWS;
+
+/**
  * Hook for loading foundation data by slug (not ID)
- * Used for slug-based URLs like /jobs_GOD_LOVES_YOU_ instead of /204/jobs_GOD_LOVES_YOU_
+ * Used for slug-based URLs like /jobs, /pricebook, /contacts
  *
  * @param slug - The foundation slug (e.g., 'jobs', 'pricebook', 'contacts')
  * @param options - Additional options for data loading
@@ -76,42 +96,97 @@ export function useFoundationBySlug(
   const [foundation, setFoundation] = useState<Foundation | null>(null);
   const [records, setRecords] = useState<TableRow[]>([]);
   const [originalRecords, setOriginalRecords] = useState<TableRow[]>([]); // Store original records for clearing search
+  const [totalCount, setTotalCount] = useState<number | null>(null); // Total count from server
   const [isLoading, setIsLoading] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
+  // Prevent duplicate concurrent fetches (React StrictMode causes double-mount)
+  const fetchInProgressRef = useRef(false);
+  const lastFetchSlugRef = useRef<string | null>(null);
+
   const loadData = useCallback(async () => {
+    // Prevent duplicate fetches for the same slug
+    if (fetchInProgressRef.current && lastFetchSlugRef.current === slug) {
+      console.log('[useFoundationBySlug] Skipping duplicate fetch for:', slug);
+      return;
+    }
+
+    const startTime = performance.now();
+    console.log('[useFoundationBySlug] loadData starting for slug:', slug);
+
     if (!slug) {
       setIsLoading(false);
       return;
     }
 
+    fetchInProgressRef.current = true;
+    lastFetchSlugRef.current = slug;
     setIsLoading(true);
     setError(null);
 
     try {
       // Load foundation metadata by slug (backend supports slug lookup)
+      const foundationStartTime = performance.now();
       const foundationData = await api.get<FoundationLookupResponse>(
         `/api/v1/foundations/${slug}`
       );
+      console.log('[useFoundationBySlug] Foundation loaded in', (performance.now() - foundationStartTime).toFixed(0), 'ms');
 
       const foundationObj = foundationData.foundation;
       setFoundation(foundationObj);
 
-      // Load records via the universal records endpoint using the foundation ID
-      const recordsData = await api.get<RecordsResponse>(
+      // Load records AND views in parallel for better performance
+      const recordsStartTime = performance.now();
+
+      // Check if views are already cached
+      const cachedViews = preloadedViewsCache[foundationObj.id];
+      const now = Date.now();
+      const viewsCached = cachedViews && (now - cachedViews.timestamp) < VIEWS_CACHE_TTL;
+
+      // Start both requests in parallel
+      // Load full records (associations are eager-loaded on backend for performance)
+      const recordsPromise = api.get<RecordsResponse>(
         `/api/v1/foundations/${foundationObj.id}/records`,
         { params: { per_page: perPage } }
       );
 
-      const loadedRecords = recordsData.records || [];
+      // Only fetch views if not cached
+      const viewsPromise = viewsCached
+        ? Promise.resolve(null)
+        : api.get<ViewsResponse>(
+            `/api/v1/foundation_views`,
+            { params: { foundation_id: foundationObj.id } }
+          );
+
+      // Wait for both to complete
+      const [recordsData, viewsData] = await Promise.all([recordsPromise, viewsPromise]);
+
+      console.log('[useFoundationBySlug] Records loaded in', (performance.now() - recordsStartTime).toFixed(0), 'ms', '- count:', recordsData.records?.length);
+
+      // Cache the views for TeeemTableView to use
+      if (viewsData?.success && viewsData.views) {
+        preloadedViewsCache[foundationObj.id] = {
+          views: viewsData.views,
+          timestamp: Date.now()
+        };
+        console.log('[useFoundationBySlug] Views preloaded:', viewsData.views.length);
+      } else if (viewsCached) {
+        console.log('[useFoundationBySlug] Using cached views');
+      }
+
+      // Safety: ensure records is always an array to prevent .sort() errors
+      const loadedRecords = Array.isArray(recordsData.records) ? recordsData.records : [];
       setRecords(loadedRecords);
       setOriginalRecords(loadedRecords); // Store for clearing search
+      setTotalCount(recordsData.pagination?.total_count ?? null); // Store total count from server
+      console.log('[useFoundationBySlug] Total loadData time:', (performance.now() - startTime).toFixed(0), 'ms');
     } catch (err) {
       console.error('Failed to load foundation data by slug:', err);
       setError(err instanceof Error ? err : new Error('Failed to load data'));
     } finally {
       setIsLoading(false);
+      fetchInProgressRef.current = false;
     }
   }, [slug, perPage]);
 
@@ -137,7 +212,8 @@ export function useFoundationBySlug(
           }
         }
       );
-      setRecords(recordsData.records || []);
+      // Safety: ensure records is always an array
+      setRecords(Array.isArray(recordsData.records) ? recordsData.records : []);
     } catch (err) {
       console.error('Server search failed:', err);
       // Keep current records on error
@@ -158,9 +234,6 @@ export function useFoundationBySlug(
     }
   }, [autoLoad, loadData]);
 
-  // System columns to hide
-  const SYSTEM_COLUMNS = ['created_at', 'updated_at', 'deleted_at'];
-
   // Transform API columns to TeeemTableView format
   const columns: TableColumn[] = useMemo(() => {
     if (!foundation?.columns) return [];
@@ -170,13 +243,8 @@ export function useFoundationBySlug(
     ];
 
     foundation.columns.forEach((col: ApiColumn) => {
-      // Skip system columns
-      if (SYSTEM_COLUMNS.includes(col.column_name)) return;
-
-      // Log lookup columns for debugging
-      if (col.lookup_foundation_id) {
-        console.log('[useFoundationBySlug] Column', col.column_name, 'has lookup_foundation_id:', col.lookup_foundation_id, 'display_column:', col.lookup_display_column);
-      }
+      // Skip system columns (SSoT: uses same logic as column-utils.ts)
+      if (isSystemOrHiddenColumn(col.column_name)) return;
 
       tableColumns.push({
         id: col.id,
@@ -189,10 +257,9 @@ export function useFoundationBySlug(
         filterable: true,
         width: getDefaultWidth(col.column_name, col.column_type),
         choices: col.available_choices,
-        lookup_config: col.lookup_foundation_id ? {
-          target_table_id: col.lookup_foundation_id,
-          display_column: col.lookup_display_column,
-        } : undefined,
+        lookup_foundation_id: col.lookup_foundation_id,
+        lookup_display_column: col.lookup_display_column,
+        searchable: col.searchable ?? false,
       });
     });
 
@@ -203,6 +270,8 @@ export function useFoundationBySlug(
     foundation,
     columns,
     records,
+    originalRecords, // Expose original unfiltered records
+    totalCount, // Total count from server (for stats without loading all records)
     isLoading,
     error,
     refresh: loadData,

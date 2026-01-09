@@ -1,7 +1,7 @@
 class IntercompanyBalance < ApplicationRecord
   # Associations
-  belongs_to :company
-  belongs_to :related_company, class_name: 'Company'
+  belongs_to :corporate_company, foreign_key: "company_id"
+  belongs_to :related_company, class_name: "CorporateCompany"
 
   # Constants
   BALANCE_TYPES = %w[loan receivable payable investment].freeze
@@ -18,10 +18,10 @@ class IntercompanyBalance < ApplicationRecord
   scope :as_of, ->(date) { where(as_of_date: date) }
   scope :by_type, ->(type) { where(balance_type: type) }
   scope :by_source, ->(source) { where(source: source) }
-  scope :loans, -> { where(balance_type: 'loan') }
-  scope :receivables, -> { where(balance_type: 'receivable') }
-  scope :payables, -> { where(balance_type: 'payable') }
-  scope :investments, -> { where(balance_type: 'investment') }
+  scope :loans, -> { where(balance_type: "loan") }
+  scope :receivables, -> { where(balance_type: "receivable") }
+  scope :payables, -> { where(balance_type: "payable") }
+  scope :investments, -> { where(balance_type: "investment") }
   scope :between_companies, ->(company_id, related_company_id) {
     where(company_id: company_id, related_company_id: related_company_id)
       .or(where(company_id: related_company_id, related_company_id: company_id))
@@ -38,10 +38,10 @@ class IntercompanyBalance < ApplicationRecord
 
   # Sync balances from loan register for a company group
   def self.sync_from_loans(company_group, as_of_date: Date.today)
-    company_ids = company_group.companies.pluck(:id)
+    company_ids = company_group.corporate_companies.pluck(:id)
 
     # Find all active loans between companies in the group
-    loans = CompanyLoan.active
+    loans = CorporateCompanyLoan.active
       .where(lender_company_id: company_ids, borrower_company_id: company_ids)
 
     synced_count = 0
@@ -51,11 +51,11 @@ class IntercompanyBalance < ApplicationRecord
       find_or_initialize_by(
         company_id: loan.lender_company_id,
         related_company_id: loan.borrower_company_id,
-        balance_type: 'loan',
+        balance_type: "loan",
         as_of_date: as_of_date
       ).tap do |balance|
         balance.amount = loan.current_balance || loan.principal_amount
-        balance.source = 'loan_register'
+        balance.source = "loan_register"
         balance.source_reference = "loan_#{loan.id}"
         balance.description = "Loan to #{loan.borrower_name}"
         balance.metadata = {
@@ -72,11 +72,11 @@ class IntercompanyBalance < ApplicationRecord
       find_or_initialize_by(
         company_id: loan.borrower_company_id,
         related_company_id: loan.lender_company_id,
-        balance_type: 'loan',
+        balance_type: "loan",
         as_of_date: as_of_date
       ).tap do |balance|
         balance.amount = -(loan.current_balance || loan.principal_amount)
-        balance.source = 'loan_register'
+        balance.source = "loan_register"
         balance.source_reference = "loan_#{loan.id}"
         balance.description = "Loan from #{loan.lender_name}"
         balance.metadata = {
@@ -120,7 +120,7 @@ class IntercompanyBalance < ApplicationRecord
   end
 
   def company_name
-    company&.name
+    corporate_company&.name
   end
 
   def related_company_name

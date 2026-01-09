@@ -2,7 +2,7 @@ module Api
   module V1
     class RainLogsController < ApplicationController
       before_action :set_job
-      before_action :set_rain_log, only: [:show, :update, :destroy]
+      before_action :set_rain_log, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/constructions/:job_id/rain_logs
       def index
@@ -21,7 +21,7 @@ module Api
         render json: {
           rain_logs: @rain_logs.as_json(
             include: {
-              created_by_user: { only: [:id, :name, :email] }
+              created_by_user: {}
             }
           )
         }
@@ -32,7 +32,7 @@ module Api
         render json: {
           rain_log: @rain_log.as_json(
             include: {
-              created_by_user: { only: [:id, :name, :email] }
+              created_by_user: {}
             }
           )
         }
@@ -42,7 +42,7 @@ module Api
       def create
         @rain_log = @job.rain_logs.build(rain_log_params)
         @rain_log.created_by_user = current_user
-        @rain_log.source = 'manual'
+        @rain_log.source = "manual"
 
         # Auto-calculate severity if rainfall_mm is provided
         if @rain_log.rainfall_mm.present?
@@ -53,7 +53,7 @@ module Api
           render json: {
             rain_log: @rain_log.as_json(
               include: {
-                created_by_user: { only: [:id, :name, :email] }
+                created_by_user: {}
               }
             )
           }, status: :created
@@ -73,7 +73,7 @@ module Api
           render json: {
             rain_log: @rain_log.reload.as_json(
               include: {
-                created_by_user: { only: [:id, :name, :email] }
+                created_by_user: {}
               }
             )
           }
@@ -91,16 +91,19 @@ module Api
       # GET /api/v1/jobs/:job_id/rain_logs/weather_status
       # Returns current weather config status and job location
       def weather_status
-        location = extract_job_location(@job)
-        api_configured = ENV['WEATHER_API_KEY'].present?
+        api_location = extract_job_location(@job)  # For API calls (coordinates)
+        display_loc = display_location(@job)       # For display (human-readable)
+        api_configured = ENV["WEATHER_API_KEY"].present?
 
         render json: {
           api_configured: api_configured,
-          job_location: location,
-          job_has_location: location.present?,
+          job_location: display_loc,               # Show human-readable address
+          api_location: api_location,              # Coordinates used for API
+          job_has_location: api_location.present?,
           latitude: @job.latitude,
           longitude: @job.longitude,
-          message: status_message(api_configured, location)
+          address: @job.respond_to?(:address) ? @job.address : nil,
+          message: status_message(api_configured, display_loc)
         }
       end
 
@@ -109,14 +112,14 @@ module Api
       def fetch_weather
         date = params[:date].present? ? Date.parse(params[:date]) : Date.yesterday
 
-        unless ENV['WEATHER_API_KEY'].present?
-          render json: { error: 'Weather API not configured. Please set WEATHER_API_KEY.' }, status: :service_unavailable
+        unless ENV["WEATHER_API_KEY"].present?
+          render json: { error: "Weather API not configured. Please set WEATHER_API_KEY." }, status: :service_unavailable
           return
         end
 
         location = extract_job_location(@job)
         unless location
-          render json: { error: 'Job has no location set. Please add a location to the job.' }, status: :unprocessable_entity
+          render json: { error: "Job has no location set. Please add a location to the job." }, status: :unprocessable_entity
           return
         end
 
@@ -147,14 +150,14 @@ module Api
       def auto_log
         date = params[:date].present? ? Date.parse(params[:date]) : Date.yesterday
 
-        unless ENV['WEATHER_API_KEY'].present?
-          render json: { error: 'Weather API not configured' }, status: :service_unavailable
+        unless ENV["WEATHER_API_KEY"].present?
+          render json: { error: "Weather API not configured" }, status: :service_unavailable
           return
         end
 
         location = extract_job_location(@job)
         unless location
-          render json: { error: 'Job has no location set' }, status: :unprocessable_entity
+          render json: { error: "Job has no location set" }, status: :unprocessable_entity
           return
         end
 
@@ -186,7 +189,7 @@ module Api
             date: date,
             rainfall_mm: rainfall_mm,
             severity: RainLog.calculate_severity(rainfall_mm),
-            source: 'automatic',
+            source: "automatic",
             weather_api_response: weather_data[:raw_response],
             notes: "Auto-detected: #{weather_data[:condition]} at #{weather_data[:location]}",
             created_by_user: current_user
@@ -196,7 +199,7 @@ module Api
             success: true,
             message: "Rain log created for #{date}",
             rain_log_created: true,
-            rain_log: rain_log.as_json(include: { created_by_user: { only: [:id, :name] } })
+            rain_log: rain_log.as_json(include: { created_by_user: {} })
           }, status: :created
 
         rescue WeatherApiClient::Error => e
@@ -206,9 +209,26 @@ module Api
 
       private
 
+      # For weather API: prefer lat/long coordinates (most accurate)
+      # The text location field can be incorrectly geocoded
       def extract_job_location(job)
-        return job.location if job.location.present?
+        # Prefer coordinates - they're always more accurate for weather APIs
         return "#{job.latitude},#{job.longitude}" if job.latitude.present? && job.longitude.present?
+        # Fall back to address field (user-entered, usually correct)
+        return job.address if job.respond_to?(:address) && job.address.present?
+        # Last resort: location field (auto-geocoded, may be wrong)
+        return job.location if job.location.present?
+        nil
+      end
+
+      # Human-readable location for display purposes
+      def display_location(job)
+        # Prefer address (user-entered)
+        return job.address if job.respond_to?(:address) && job.address.present?
+        # Fall back to location
+        return job.location if job.location.present?
+        # Last resort: coordinates
+        return "#{job.latitude}, #{job.longitude}" if job.latitude.present? && job.longitude.present?
         nil
       end
 

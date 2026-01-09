@@ -12,23 +12,23 @@ class AddCompositeIndexes < ActiveRecord::Migration[8.0]
     end
 
     # Purchase Orders - frequently filtered by construction + status
-    safe_add_index :purchase_orders, [:construction_id, :status],
+    safe_add_index :purchase_orders, [ :construction_id, :status ],
                    name: 'index_purchase_orders_on_construction_and_status'
 
     # Project Tasks - frequently filtered
-    safe_add_index :project_tasks, [:project_id, :status, :planned_start_date],
+    safe_add_index :project_tasks, [ :project_id, :status, :planned_start_date ],
                    name: 'index_project_tasks_on_project_status_start'
 
     # Estimates - filtering
-    safe_add_index :estimates, [:construction_id, :status],
+    safe_add_index :estimates, [ :construction_id, :status ],
                    name: 'index_estimates_on_construction_and_status'
 
     # Chat Messages - pagination
-    safe_add_index :chat_messages, [:construction_id, :channel, :created_at],
+    safe_add_index :chat_messages, [ :construction_id, :channel, :created_at ],
                    name: 'index_chat_messages_on_construction_channel_created'
 
     # Pricebook Items - smart lookup searches
-    safe_add_index :pricebook_items, [:category, :is_active, :supplier_id],
+    safe_add_index :pricebook_items, [ :category, :is_active, :supplier_id ],
                    name: 'index_pricebook_items_on_category_active_supplier'
   end
 end

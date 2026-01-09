@@ -1,4 +1,4 @@
-require 'fileutils'
+require "fileutils"
 
 module Api
   module V1
@@ -7,25 +7,27 @@ module Api
       # Upload a file and get preview data with type detection
       def upload
         unless params[:file].present?
-          return render json: { error: 'No file provided' }, status: :unprocessable_entity
+          return render json: { error: "No file provided" }, status: :unprocessable_entity
         end
 
         file = params[:file]
 
         begin
           # Use /tmp directly for Heroku compatibility
-          temp_dir = File.join(Dir.tmpdir, 'imports')
+          temp_dir = File.join(Dir.tmpdir, "imports")
           FileUtils.mkdir_p(temp_dir) unless Dir.exist?(temp_dir)
 
           # Generate unique filename
           timestamp = Time.current.to_i
           random_key = SecureRandom.hex(8)
-          extension = File.extname(file.original_filename)
+          # Sanitize extension to prevent path traversal attacks
+          raw_extension = File.extname(file.original_filename).to_s
+          extension = raw_extension.gsub(/[^a-zA-Z0-9.]/, "").slice(0, 10) # Only allow alphanumeric + dot, max 10 chars
           temp_filename = "import_#{timestamp}_#{random_key}#{extension}"
           temp_file_path = File.join(temp_dir, temp_filename)
 
           # Save uploaded file to temp location
-          File.open(temp_file_path, 'wb') do |f|
+          File.open(temp_file_path, "wb") do |f|
             f.write(file.read)
           end
 
@@ -92,7 +94,7 @@ module Api
         unless session_key.present?
           return render json: {
             success: false,
-            error: 'Session key not provided. Please upload the file again.',
+            error: "Session key not provided. Please upload the file again."
           }, status: :unprocessable_entity
         end
 
@@ -102,7 +104,7 @@ module Api
         unless import_session
           return render json: {
             success: false,
-            error: 'Import session expired or not found. Please upload the file again.',
+            error: "Import session expired or not found. Please upload the file again."
           }, status: :unprocessable_entity
         end
 
@@ -110,7 +112,7 @@ module Api
           import_session.destroy
           return render json: {
             success: false,
-            error: 'Import file not found. Please upload the file again.',
+            error: "Import file not found. Please upload the file again."
           }, status: :unprocessable_entity
         end
 
@@ -137,7 +139,7 @@ module Api
         columns_data.each_with_index do |col_data, index|
           column = foundation.columns.build(
             name: col_data[:name],
-            column_name: col_data[:column_name] || col_data[:name].parameterize(separator: '_'),
+            column_name: col_data[:column_name] || col_data[:name].parameterize(separator: "_"),
             column_type: col_data[:column_type],
             searchable: col_data[:searchable] != false,
             is_title: col_data[:is_title] == true,
@@ -164,7 +166,7 @@ module Api
         end
 
         # Link foundation to import session
-        import_session.update!(foundation_id: foundation.id, status: 'queued')
+        import_session.update!(foundation_id: foundation.id, status: "queued")
 
         # Start background import job
         ImportJob.perform_later(import_session.id, foundation.id, params[:column_mapping] || {})
@@ -186,28 +188,27 @@ module Api
         unless import_session
           return render json: {
             success: false,
-            error: 'Import session not found'
+            error: "Import session not found"
           }, status: :not_found
         end
 
         response = {
           success: true,
-          status: import_session.status || 'pending',
+          status: import_session.status || "pending",
           progress: import_session.progress || 0,
           total_rows: import_session.total_rows || 0,
           processed_rows: import_session.processed_rows || 0
         }
 
-        if import_session.status == 'completed'
+        if import_session.status == "completed"
           response[:foundation_id] = import_session.foundation_id
           response[:result] = import_session.result
-        elsif import_session.status == 'failed'
+        elsif import_session.status == "failed"
           response[:error] = import_session.error_message
         end
 
         render json: response
       end
-
     end
   end
 end

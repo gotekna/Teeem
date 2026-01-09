@@ -1,9 +1,9 @@
 class Api::V1::MeetingTypesController < ApplicationController
-  before_action :set_meeting_type, only: [:show, :update, :destroy]
+  before_action :set_meeting_type, only: [ :show, :update, :destroy ]
 
   # GET /api/v1/meeting_types
   def index
-    meeting_types = if params[:active_only] == 'true'
+    meeting_types = if params[:active_only] == "true"
       MeetingType.active
     elsif params[:category].present?
       MeetingType.by_category(params[:category])
@@ -39,7 +39,7 @@ class Api::V1::MeetingTypesController < ApplicationController
     else
       render json: {
         success: false,
-        error: meeting_type.errors.full_messages.join(', ')
+        error: meeting_type.errors.full_messages.join(", ")
       }, status: :unprocessable_entity
     end
   end
@@ -49,7 +49,7 @@ class Api::V1::MeetingTypesController < ApplicationController
     if @meeting_type.is_system_default && params[:meeting_type][:is_active] == false
       render json: {
         success: false,
-        error: 'Cannot deactivate system default meeting type'
+        error: "Cannot deactivate system default meeting type"
       }, status: :unprocessable_entity
       return
     end
@@ -62,7 +62,7 @@ class Api::V1::MeetingTypesController < ApplicationController
     else
       render json: {
         success: false,
-        error: @meeting_type.errors.full_messages.join(', ')
+        error: @meeting_type.errors.full_messages.join(", ")
       }, status: :unprocessable_entity
     end
   end
@@ -72,7 +72,7 @@ class Api::V1::MeetingTypesController < ApplicationController
     if @meeting_type.is_system_default
       render json: {
         success: false,
-        error: 'Cannot delete system default meeting type'
+        error: "Cannot delete system default meeting type"
       }, status: :forbidden
       return
     end
@@ -80,7 +80,7 @@ class Api::V1::MeetingTypesController < ApplicationController
     if @meeting_type.meetings.any?
       render json: {
         success: false,
-        error: 'Cannot delete meeting type that is being used by existing meetings'
+        error: "Cannot delete meeting type that is being used by existing meetings"
       }, status: :unprocessable_entity
       return
     end
@@ -88,12 +88,12 @@ class Api::V1::MeetingTypesController < ApplicationController
     if @meeting_type.destroy
       render json: {
         success: true,
-        data: { message: 'Meeting type deleted successfully' }
+        data: { message: "Meeting type deleted successfully" }
       }
     else
       render json: {
         success: false,
-        error: 'Failed to delete meeting type'
+        error: "Failed to delete meeting type"
       }, status: :unprocessable_entity
     end
   end
@@ -113,7 +113,7 @@ class Api::V1::MeetingTypesController < ApplicationController
   rescue ActiveRecord::RecordNotFound
     render json: {
       success: false,
-      error: 'Meeting type not found'
+      error: "Meeting type not found"
     }, status: :not_found
   end
 
@@ -124,12 +124,12 @@ class Api::V1::MeetingTypesController < ApplicationController
       :is_active,
       required_participant_types: [],
       optional_participant_types: [],
-      default_agenda_items: [:title, :duration_minutes],
+      default_agenda_items: [ :title, :duration_minutes ],
       required_fields: [],
       optional_fields: [],
-      custom_fields: [:name, :type, :label, :required, :options],
+      custom_fields: [ :name, :type, :label, :required, :options ],
       required_documents: [],
-      notification_settings: [:send_reminder, :reminder_hours]
+      notification_settings: [ :send_reminder, :reminder_hours ]
     )
   end
 end

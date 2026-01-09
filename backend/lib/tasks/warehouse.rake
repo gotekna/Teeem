@@ -1,0 +1,122 @@
+namespace :warehouse do
+  desc "Show warehouse status"
+  task status: :environment do
+    puts "=== DATA WAREHOUSE STATUS ==="
+    puts ""
+    puts "📊 MATERIALIZED VIEWS:"
+    views = {
+      "mv_job_summary" => MvJobSummary,
+      "mv_document_summary" => MvDocumentSummary,
+      "mv_document_completeness" => MvDocumentCompleteness,
+      "mv_invoice_po_reconciliation" => MvInvoicePoReconciliation,
+      "mv_resource_utilization" => MvResourceUtilization,
+      "mv_job_document_status" => MvJobDocumentStatus,
+      "mv_task_metrics" => MvTaskMetrics
+    }
+    views.each do |name, model|
+      count = model.count rescue 0
+      puts "  #{name}: #{count} rows"
+    end
+
+    puts ""
+    puts "📈 HISTORICAL SNAPSHOTS:"
+    puts "  fact_job_daily_snapshots: #{FactJobDailySnapshot.count} rows"
+    puts "  Latest snapshot: #{FactJobDailySnapshot.maximum(:snapshot_date)}"
+
+    puts ""
+    puts "📎 DOCUMENT LINKS:"
+    puts "  Total documents: #{CompanyDocument.count}"
+    puts "  Linked to PurchaseOrders: #{CompanyDocument.where(documentable_type: 'PurchaseOrder').count}"
+    puts "  Linked to ExternalInvoices: #{CompanyDocument.where(documentable_type: 'ExternalInvoice').count}"
+    puts "  Linked to Jobs: #{CompanyDocument.where(documentable_type: 'Job').count}"
+    puts "  Unlinked: #{CompanyDocument.where(documentable_type: nil).count}"
+  end
+
+  desc "Refresh all materialized views"
+  task refresh: :environment do
+    puts "Refreshing materialized views..."
+    result = RefreshMaterializedViewsJob.new.perform
+    result.each do |view, status|
+      emoji = status[:success] ? "✅" : "❌"
+      puts "  #{emoji} #{view}: #{status[:duration_ms] || status[:error]}ms"
+    end
+    puts "Done!"
+  end
+
+  desc "Capture daily job snapshots"
+  task snapshot: :environment do
+    puts "Capturing daily snapshots..."
+    result = DailyJobSnapshotJob.new.perform
+    puts "  Captured: #{result[:captured]}"
+    puts "  Skipped: #{result[:skipped]}"
+    puts "  Errors: #{result[:errors].count}"
+    puts "Done!"
+  end
+
+  desc "Link existing documents to their parent entities (Jobs, POs, Invoices)"
+  task link_documents: :environment do
+    puts "Linking documents to parent entities..."
+    result = WarehouseDataLinkerService.new.link_all!
+    puts "  Invoices linked: #{result[:invoices_linked]}"
+    puts "  POs linked: #{result[:pos_linked]}"
+    puts "  Jobs linked: #{result[:jobs_linked]}"
+    puts "  Errors: #{result[:errors].count}"
+    puts "Done!"
+  end
+
+  desc "Sync Xero invoice attachments (downloads PDFs)"
+  task sync_xero_attachments: :environment do
+    limit = ENV["LIMIT"]&.to_i || 50
+    puts "Syncing Xero attachments (limit: #{limit})..."
+    result = XeroAttachmentSyncJob.new.perform(nil, limit: limit)
+    puts "  Processed: #{result[:processed]}"
+    puts "  Success: #{result[:success]}"
+    puts "  Failed: #{result[:failed]}"
+    puts "Done!"
+  end
+
+  desc "Run batch document verification (AI classification)"
+  task verify_documents: :environment do
+    limit = ENV["LIMIT"]&.to_i || 100
+    puts "Running batch document verification (limit: #{limit})..."
+    result = BatchDocumentVerificationJob.new.perform(limit: limit)
+    puts "  Processed: #{result[:processed]}"
+    puts "  Success: #{result[:success]}"
+    puts "  Failed: #{result[:failed]}"
+    puts "  Skipped: #{result[:skipped]}"
+    puts "Done!"
+  end
+
+  desc "Full warehouse setup: link docs, sync attachments, refresh views, capture snapshot"
+  task setup: :environment do
+    puts "🚀 Running full warehouse setup..."
+    puts ""
+
+    # Step 1: Link existing documents
+    puts "Step 1: Linking documents..."
+    Rake::Task["warehouse:link_documents"].invoke
+    puts ""
+
+    # Step 2: Sync Xero attachments (if connected)
+    if XeroCredential.current.present?
+      puts "Step 2: Syncing Xero attachments..."
+      Rake::Task["warehouse:sync_xero_attachments"].invoke
+      puts ""
+    else
+      puts "Step 2: Skipped (no Xero connection)"
+      puts ""
+    end
+
+    # Step 3: Refresh materialized views
+    puts "Step 3: Refreshing views..."
+    Rake::Task["warehouse:refresh"].invoke
+    puts ""
+
+    # Step 4: Capture daily snapshot
+    puts "Step 4: Capturing snapshot..."
+    Rake::Task["warehouse:snapshot"].invoke
+    puts ""
+
+    puts "✅ Warehouse setup complete!"
+  end
+end

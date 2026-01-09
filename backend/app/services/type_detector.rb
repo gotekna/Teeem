@@ -8,7 +8,7 @@ class TypeDetector
   # Detect the most appropriate column type for the given values
   def detect
     non_empty = @column_values.compact.reject(&:blank?).first(SAMPLE_SIZE)
-    return 'single_line_text' if non_empty.empty?
+    return "single_line_text" if non_empty.empty?
 
     # Calculate confidence scores for each type
     scores = {
@@ -29,9 +29,9 @@ class TypeDetector
     if best_score >= 0.8
       best_type.to_s
     elsif non_empty.any? { |v| v.to_s.length > 255 }
-      'multiple_lines_text'
+      "multiple_lines_text"
     else
-      'single_line_text'
+      "single_line_text"
     end
   end
 
@@ -43,7 +43,7 @@ class TypeDetector
   end
 
   def check_boolean(values)
-    bool_values = ['true', 'false', 'yes', 'no', '1', '0', 't', 'f', 'y', 'n']
+    bool_values = [ "true", "false", "yes", "no", "1", "0", "t", "f", "y", "n" ]
     matches = values.count { |v| bool_values.include?(v.to_s.downcase.strip) }
     matches.to_f / values.length
   end
@@ -58,7 +58,7 @@ class TypeDetector
   def check_number(values)
     matches = values.count do |v|
       begin
-        Float(v.to_s.strip.gsub(/[$,%]/, ''))
+        Float(v.to_s.strip.gsub(/[$,%]/, ""))
         true
       rescue ArgumentError, TypeError
         false
@@ -73,11 +73,11 @@ class TypeDetector
       v.to_s.strip.match?(/^\$?\-?\d+\.?\d*$/) || v.to_s.strip.match?(/^\$/)
     end
 
-    has_currency_symbol = values.any? { |v| v.to_s.include?('$') }
+    has_currency_symbol = values.any? { |v| v.to_s.include?("$") }
     base_score = currency_matches.to_f / values.length
 
     # Boost score if we see $ symbols
-    has_currency_symbol ? [base_score + 0.2, 1.0].min : base_score
+    has_currency_symbol ? [ base_score + 0.2, 1.0 ].min : base_score
   end
 
   def check_percentage(values)
@@ -86,11 +86,11 @@ class TypeDetector
       (v.to_s.strip.match?(/^\d+\.?\d*$/) && v.to_f.between?(0, 100))
     end
 
-    has_percent_symbol = values.any? { |v| v.to_s.include?('%') }
+    has_percent_symbol = values.any? { |v| v.to_s.include?("%") }
     base_score = percentage_matches.to_f / values.length
 
     # Boost score if we see % symbols
-    has_percent_symbol ? [base_score + 0.3, 1.0].min : base_score * 0.5
+    has_percent_symbol ? [ base_score + 0.3, 1.0 ].min : base_score * 0.5
   end
 
   def check_date(values)

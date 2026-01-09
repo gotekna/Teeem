@@ -4,7 +4,7 @@
 #
 # Calculates working days considering:
 # - Company working days (M-F by default, configurable)
-# - Public holidays (future enhancement)
+# - Public holidays (from PublicHoliday model)
 #
 # See GANTT_ARCHITECTURE_PLAN.md Section 1.5
 #
@@ -19,6 +19,9 @@ class WorkingDaysCalculator
     else
       default_working_days
     end
+
+    # Cache public holidays for efficient lookup (covers 2 years)
+    @public_holidays = load_public_holidays
   end
 
   # Add N working days to a date
@@ -66,10 +69,16 @@ class WorkingDaysCalculator
     # Check working days config
     return false unless @working_days[day_name]
 
-    # Future: Check public holidays
-    # return false if public_holiday?(date)
+    # Check public holidays
+    return false if public_holiday?(date)
 
     true
+  end
+
+  # Check if a date is a public holiday
+  def public_holiday?(date)
+    date = date.is_a?(String) ? Date.parse(date) : date
+    @public_holidays.include?(date)
   end
 
   # Get next working day on or after date
@@ -111,13 +120,29 @@ class WorkingDaysCalculator
 
   def default_working_days
     {
-      'monday' => true,
-      'tuesday' => true,
-      'wednesday' => true,
-      'thursday' => true,
-      'friday' => true,
-      'saturday' => false,
-      'sunday' => false
+      "monday" => true,
+      "tuesday" => true,
+      "wednesday" => true,
+      "thursday" => true,
+      "friday" => true,
+      "saturday" => false,
+      "sunday" => false
     }
+  end
+
+  # Load public holidays from database (QLD region including National)
+  # Caches dates from 1 year ago to 2 years ahead for efficient lookup
+  def load_public_holidays
+    start_date = Date.current - 1.year
+    end_date = Date.current + 2.years
+
+    PublicHoliday
+      .where(region: %w[QLD National])
+      .where(date: start_date..end_date)
+      .pluck(:date)
+      .to_set
+  rescue StandardError => e
+    Rails.logger.error "[WorkingDaysCalculator] Failed to load public holidays: #{e.message}"
+    Set.new
   end
 end

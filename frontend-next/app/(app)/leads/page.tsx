@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader } from "@/components/ui/loader";
+import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { JobPipeline } from "@/components/leads/job-pipeline";
-import { EmailProposalsTab } from "@/components/leads/email-proposals-tab";
 import {
   PipelineJob,
   PipelineStage,
@@ -87,15 +87,32 @@ interface PipelineResponse {
 }
 
 export default function LeadsPage() {
+  useSetLayoutMode("full-height");
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const initialTab = searchParams.get("tab") || "leads";
+  const pathname = usePathname();
+
+  // Parse tab from path: /leads/tab/pipeline → "pipeline", /leads → "leads"
+  // Uses /leads/tab/ prefix to avoid conflicts with /leads/[id] detail routes
+  const activeTab = useMemo(() => {
+    const parts = pathname.replace("/leads", "").split("/").filter(Boolean);
+    // Path format: /leads/tab/{tabname}
+    if (parts[0] === "tab" && parts[1]) {
+      return parts[1];
+    }
+    return "leads";
+  }, [pathname]);
+
+  const handleTabChange = useCallback((tabId: string) => {
+    // Path-based navigation: /leads, /leads/tab/pipeline, /leads/tab/email-proposals
+    const url = tabId === "leads"
+      ? "/leads"
+      : `/leads/tab/${tabId}`;
+    router.push(url, { scroll: false });
+  }, [router]);
 
   const [jobsByStage, setJobsByStage] = useState<Record<string, PipelineJob[]>>({});
   const [pipelineMeta, setPipelineMeta] = useState<PipelineResponse["meta"] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [emailProposals, setEmailProposals] = useState<EmailProposal[]>([]);
-  const [activeTab, setActiveTab] = useState(initialTab);
   const [pendingProposalCount, setPendingProposalCount] = useState(0);
 
   const loadPipeline = useCallback(async () => {
@@ -118,12 +135,10 @@ export default function LeadsPage() {
         "/api/v1/email_job_proposals?status="
       );
       const proposals = response.proposals || [];
-      setEmailProposals(proposals);
       const pendingCount = proposals.filter(p => p.status === "pending").length;
       setPendingProposalCount(pendingCount);
     } catch (error) {
       console.error("Failed to load email proposals:", error);
-      setEmailProposals([]);
     }
   };
 
@@ -141,22 +156,31 @@ export default function LeadsPage() {
     }
   };
 
+  const handleMarkAsLost = async (jobId: number) => {
+    try {
+      await api.patch(`/api/v1/jobs/${jobId}/mark_lost`);
+      loadPipeline();
+    } catch (error) {
+      console.error("Failed to mark job as lost:", error);
+    }
+  };
+
   const handleJobClick = (job: PipelineJob) => {
     router.push(`/jobs/${job.id}`);
   };
 
   const handleNewEnquiry = () => {
     // Navigate to new job form with Enquiry status pre-selected
-    router.push("/jobs/new?status=Enquiry");
+    router.push("/jobs/new/status/enquiry");
   };
 
-  const formatCurrency = (value: number) => {
+  const formatCurrency = (value: number | string) => {
     return new Intl.NumberFormat("en-AU", {
       style: "currency",
       currency: "AUD",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(value);
+    }).format(Number(value) || 0);
   };
 
   // Calculate active count (all jobs in pipeline except won/lost)
@@ -167,7 +191,7 @@ export default function LeadsPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader />
+        <Spinner />
       </div>
     );
   }
@@ -189,15 +213,22 @@ export default function LeadsPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="leads">
             <TrendingUp className="h-4 w-4 mr-2" />
             Pipeline
           </TabsTrigger>
-          <TabsTrigger value="email-proposals" className="relative">
+          <TabsTrigger
+            value="email-leads"
+            className="relative"
+            onClick={(e) => {
+              e.preventDefault();
+              router.push("/leads/emails");
+            }}
+          >
             <Mail className="h-4 w-4 mr-2" />
-            Email Proposals
+            Email Leads
             {pendingProposalCount > 0 && (
               <Badge className="ml-2 bg-yellow-500 text-white hover:bg-yellow-500">
                 {pendingProposalCount}
@@ -208,68 +239,13 @@ export default function LeadsPage() {
 
         {/* Pipeline Tab */}
         <TabsContent value="leads" className="mt-6 space-y-6">
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">Total Pipeline</span>
-                </div>
-                <div className="text-2xl font-bold font-mono mt-1">
-                  {formatCurrency(pipelineMeta?.total_pipeline_value || 0)}
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-blue-500" />
-                  <span className="text-xs text-muted-foreground">Active Enquiries</span>
-                </div>
-                <div className="text-2xl font-bold font-mono text-blue-600 mt-1">
-                  {activeCount}
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-500" />
-                  <span className="text-xs text-muted-foreground">Won</span>
-                </div>
-                <div className="text-2xl font-bold font-mono text-green-600 mt-1">
-                  {pipelineMeta?.won_count || 0}
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-2">
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">Won Value</span>
-                </div>
-                <div className="text-2xl font-bold font-mono mt-1">
-                  {formatCurrency(pipelineMeta?.won_value || 0)}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
           {/* Pipeline View */}
           <JobPipeline
             jobsByStage={jobsByStage}
-            emailProposals={emailProposals.filter(p => p.status === "pending")}
             onJobClick={handleJobClick}
             onStageChange={handleStageChange}
-            onProposalsChange={loadEmailProposals}
-            onJobsChange={loadPipeline}
+            onMarkAsLost={handleMarkAsLost}
           />
-        </TabsContent>
-
-        {/* Email Proposals Tab */}
-        <TabsContent value="email-proposals" className="mt-6">
-          <EmailProposalsTab onPendingCountChange={setPendingProposalCount} />
         </TabsContent>
       </Tabs>
     </div>

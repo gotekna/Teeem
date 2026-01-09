@@ -1,8 +1,13 @@
 module Api
   module V1
     class AssetsController < ApplicationController
-      before_action :set_asset, only: [:show, :update, :destroy, :service_history,
-                                        :add_service, :insurance, :update_insurance, :documents]
+      before_action :set_asset, only: [
+        :show, :update, :destroy, :service_history, :add_service, :insurance,
+        :update_insurance, :documents, :depreciation_profile, :update_depreciation_profile,
+        :depreciation_schedule, :calculate_depreciation, :depreciation_forecast,
+        :dispose, :expenses, :add_expense, :odometer_readings, :add_odometer_reading,
+        :assign_user
+      ]
 
       # GET /api/v1/assets
       def index
@@ -13,8 +18,8 @@ module Api
 
         # Build includes array based on what tables exist
         # Check if table exists using raw SQL to avoid loading the model
-        has_insurance_table = ActiveRecord::Base.connection.table_exists?('asset_insurances')
-        includes_array = [:company]
+        has_insurance_table = ActiveRecord::Base.connection.table_exists?("asset_insurances")
+        includes_array = [ :corporate_company ]
         includes_array << :asset_insurance if has_insurance_table
 
         @assets = Asset.includes(includes_array).all
@@ -28,26 +33,28 @@ module Api
         # Filter by status
         @assets = @assets.where(status: params[:status]) if params[:status].present?
 
-        # Search
+        # Search using SSoT SearchService
         if params[:search].present?
-          @assets = @assets.where(
-            "name ILIKE ? OR make ILIKE ? OR model ILIKE ? OR registration_number ILIKE ?",
-            "%#{params[:search]}%", "%#{params[:search]}%",
-            "%#{params[:search]}%", "%#{params[:search]}%"
+          @assets = SearchService.apply(
+            @assets,
+            params[:search],
+            columns: %w[name make model registration_number],
+            mode: params[:search_mode] || 'contains',
+            model: Asset
           )
         end
 
         # Build include hash based on what tables exist
-        include_hash = { company: { only: [:id, :name] } }
+        include_hash = { corporate_company: {} }
         if has_insurance_table
-          include_hash[:asset_insurance] = { only: [:id, :renewal_date, :status], methods: [:days_until_renewal] }
+          include_hash[:asset_insurance] = { methods: [ :days_until_renewal ] }
         end
 
         render json: {
           success: true,
           assets: @assets.as_json(
             include: include_hash,
-            methods: [:display_name, :needs_attention?, :insurance_expired?, :service_overdue?]
+            methods: [ :display_name, :company_name, :company_code, :assigned_to_name, :needs_attention?, :insurance_expired?, :service_overdue? ]
           )
         }
       end
@@ -58,12 +65,12 @@ module Api
           success: true,
           asset: @asset.as_json(
             include: {
-              company: { only: [:id, :name] },
+              corporate_company: {},
               asset_insurance: {
-                methods: [:days_until_renewal, :expired?, :expiring_soon?]
+                methods: [ :days_until_renewal, :expired?, :expiring_soon? ]
               }
             },
-            methods: [:display_name, :age_in_years, :total_maintenance_cost, :depreciation_amount]
+            methods: [ :display_name, :age_in_years, :total_maintenance_cost, :depreciation_amount, :thumbnail_url, :photo_urls, :photos_count ]
           )
         }
       end
@@ -82,8 +89,8 @@ module Api
         if @asset.save
           render json: {
             success: true,
-            message: 'Asset created successfully',
-            asset: @asset.as_json(methods: [:display_name])
+            message: "Asset created successfully",
+            asset: @asset.as_json(methods: [ :display_name ])
           }, status: :created
         else
           render json: {
@@ -105,8 +112,8 @@ module Api
         if @asset.update(asset_params)
           render json: {
             success: true,
-            message: 'Asset updated successfully',
-            asset: @asset.as_json(methods: [:display_name])
+            message: "Asset updated successfully",
+            asset: @asset.as_json(methods: [ :display_name ])
           }
         else
           render json: {
@@ -121,7 +128,7 @@ module Api
         @asset.destroy
         render json: {
           success: true,
-          message: 'Asset deleted successfully'
+          message: "Asset deleted successfully"
         }
       end
 
@@ -134,8 +141,8 @@ module Api
         render json: {
           success: true,
           service_history: services.as_json(
-            include: { user: { only: [:id, :name, :email] } },
-            methods: [:display_name, :formatted_service_type, :days_since_service]
+            include: { user: {} },
+            methods: [ :display_name, :formatted_service_type, :days_since_service ]
           )
         }
       end
@@ -152,8 +159,8 @@ module Api
         if service.save
           render json: {
             success: true,
-            message: 'Service record added successfully',
-            service: service.as_json(methods: [:display_name, :formatted_service_type])
+            message: "Service record added successfully",
+            service: service.as_json(methods: [ :display_name, :formatted_service_type ])
           }, status: :created
         else
           render json: {
@@ -169,7 +176,7 @@ module Api
           render json: {
             success: true,
             insurance: @asset.asset_insurance.as_json(
-              methods: [:days_until_renewal, :expired?, :expiring_soon?, :display_name]
+              methods: [ :days_until_renewal, :expired?, :expiring_soon?, :display_name ]
             )
           }
         else
@@ -187,8 +194,8 @@ module Api
           if insurance.update(insurance_params)
             render json: {
               success: true,
-              message: 'Insurance updated successfully',
-              insurance: insurance.as_json(methods: [:days_until_renewal])
+              message: "Insurance updated successfully",
+              insurance: insurance.as_json(methods: [ :days_until_renewal ])
             }
           else
             render json: {
@@ -201,8 +208,8 @@ module Api
           if insurance.save
             render json: {
               success: true,
-              message: 'Insurance added successfully',
-              insurance: insurance.as_json(methods: [:days_until_renewal])
+              message: "Insurance added successfully",
+              insurance: insurance.as_json(methods: [ :days_until_renewal ])
             }, status: :created
           else
             render json: {
@@ -215,19 +222,240 @@ module Api
 
       # GET /api/v1/assets/:id/documents
       def documents
-        documents = @asset.company_documents.includes(:company, :user, :document_type_record).order(created_at: :desc)
+        documents = @asset.corporate_company_documents.includes(:corporate_company, :user, :document_type_record).order(created_at: :desc)
 
         render json: {
           success: true,
           documents: documents.as_json(
             include: {
-              company: { only: [:id, :name, :code] },
-              user: { only: [:id, :name, :email] },
-              document_type_record: { only: [:id, :name, :folder] }
+              corporate_company: {},
+              user: {},
+              document_type_record: {}
             },
-            methods: [:formatted_document_type, :file_size_mb]
+            methods: [ :formatted_document_type, :file_size_mb ]
           )
         }
+      end
+
+      # ==========================================
+      # DEPRECIATION ENDPOINTS
+      # ==========================================
+
+      # GET /api/v1/assets/:id/depreciation_profile
+      def depreciation_profile
+        profile = @asset.depreciation_profile
+
+        render json: {
+          success: true,
+          depreciation_profile: profile&.as_json(methods: [:current_book_wdv, :current_tax_wdv, :depreciable_amount])
+        }
+      end
+
+      # PATCH /api/v1/assets/:id/depreciation_profile
+      def update_depreciation_profile
+        profile = @asset.depreciation_profile || @asset.build_depreciation_profile
+
+        if profile.update(depreciation_profile_params)
+          render json: {
+            success: true,
+            message: "Depreciation profile updated",
+            depreciation_profile: profile.as_json(methods: [:current_book_wdv, :current_tax_wdv])
+          }
+        else
+          render json: {
+            success: false,
+            errors: profile.errors.full_messages
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # GET /api/v1/assets/:id/depreciation_schedule
+      def depreciation_schedule
+        schedules = @asset.depreciation_schedules.order(period_start: :asc)
+
+        render json: {
+          success: true,
+          depreciation_schedule: schedules.as_json,
+          summary: {
+            total_book_depreciation: schedules.sum(:book_depreciation),
+            total_tax_depreciation: schedules.sum(:tax_depreciation),
+            current_book_wdv: schedules.last&.book_closing_wdv,
+            current_tax_wdv: schedules.last&.tax_closing_wdv
+          }
+        }
+      end
+
+      # POST /api/v1/assets/:id/calculate_depreciation
+      def calculate_depreciation
+        financial_year = params[:financial_year] || AssetDepreciationSchedule.current_financial_year
+
+        service = AssetDepreciationService.new(@asset)
+
+        result = if params[:all_years]
+          service.calculate_all_years
+        else
+          service.calculate_for_year(financial_year)
+        end
+
+        if result[:success]
+          render json: {
+            success: true,
+            message: "Depreciation calculated",
+            **result
+          }
+        else
+          render json: {
+            success: false,
+            error: result[:error] || result[:errors]
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # GET /api/v1/assets/:id/depreciation_forecast
+      def depreciation_forecast
+        years = (params[:years] || 10).to_i.clamp(1, 50)
+
+        service = AssetDepreciationService.new(@asset)
+        result = service.forecast(years)
+
+        if result[:success]
+          render json: {
+            success: true,
+            forecasts: result[:forecasts]
+          }
+        else
+          render json: {
+            success: false,
+            error: result[:error]
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/assets/:id/dispose
+      def dispose
+        disposal = @asset.build_disposal(disposal_params)
+        disposal.user = current_user
+
+        # Calculate WDV at disposal
+        disposal.book_wdv_at_disposal = @asset.current_book_wdv
+        disposal.tax_wdv_at_disposal = @asset.current_tax_wdv
+
+        if disposal.save
+          render json: {
+            success: true,
+            message: "Asset disposed successfully",
+            disposal: disposal.as_json
+          }
+        else
+          render json: {
+            success: false,
+            errors: disposal.errors.full_messages
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # ==========================================
+      # EXPENSE ENDPOINTS
+      # ==========================================
+
+      # GET /api/v1/assets/:id/expenses
+      def expenses
+        expenses = @asset.expenses.includes(:user).order(expense_date: :desc)
+
+        render json: {
+          success: true,
+          expenses: expenses.as_json(include: { user: { only: [:id, :full_name] } }),
+          totals: {
+            total: @asset.expenses.sum(:amount),
+            by_type: @asset.expenses.group(:expense_type).sum(:amount)
+          }
+        }
+      end
+
+      # POST /api/v1/assets/:id/expenses
+      def add_expense
+        expense = @asset.expenses.build(expense_params)
+        expense.user = current_user
+
+        expense.receipt.attach(params[:receipt]) if params[:receipt].present?
+
+        if expense.save
+          render json: {
+            success: true,
+            message: "Expense added",
+            expense: expense.as_json
+          }, status: :created
+        else
+          render json: {
+            success: false,
+            errors: expense.errors.full_messages
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # ==========================================
+      # ODOMETER ENDPOINTS
+      # ==========================================
+
+      # GET /api/v1/assets/:id/odometer_readings
+      def odometer_readings
+        readings = @asset.odometer_readings.includes(:user).order(reading_date: :desc)
+
+        render json: {
+          success: true,
+          odometer_readings: readings.as_json(
+            include: { user: { only: [:id, :full_name] } },
+            methods: [:display_value, :distance_since_last]
+          ),
+          current: {
+            odometer_km: @asset.current_odometer,
+            hours: @asset.current_hours,
+            last_reading_date: @asset.last_reading_date
+          }
+        }
+      end
+
+      # POST /api/v1/assets/:id/odometer_readings
+      def add_odometer_reading
+        reading = @asset.odometer_readings.build(odometer_reading_params)
+        reading.user = current_user
+
+        reading.photo.attach(params[:photo]) if params[:photo].present?
+
+        if reading.save
+          render json: {
+            success: true,
+            message: "Reading recorded",
+            odometer_reading: reading.as_json(methods: [:display_value])
+          }, status: :created
+        else
+          render json: {
+            success: false,
+            errors: reading.errors.full_messages
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # ==========================================
+      # USER ASSIGNMENT
+      # ==========================================
+
+      # PATCH /api/v1/assets/:id/assign_user
+      def assign_user
+        if @asset.update(assigned_user_id: params[:user_id])
+          render json: {
+            success: true,
+            message: params[:user_id].present? ? "Asset assigned" : "Asset unassigned",
+            asset: @asset.as_json(
+              include: { assigned_user: { only: [:id, :full_name, :email] } }
+            )
+          }
+        else
+          render json: {
+            success: false,
+            errors: @asset.errors.full_messages
+          }, status: :unprocessable_entity
+        end
       end
 
       private
@@ -235,7 +463,7 @@ module Api
       def set_asset
         @asset = Asset.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Asset not found' }, status: :not_found
+        render json: { success: false, error: "Asset not found" }, status: :not_found
       end
 
       def asset_params
@@ -259,6 +487,34 @@ module Api
           :policy_number, :insurer_name, :broker_name, :broker_contact_name,
           :broker_email, :broker_phone, :start_date, :renewal_date,
           :payment_frequency, :premium_amount, :coverage_amount, :excess_amount, :status
+        )
+      end
+
+      def depreciation_profile_params
+        params.require(:depreciation_profile).permit(
+          :depreciable_cost, :residual_value, :book_method, :tax_method,
+          :effective_life_years, :book_rate, :tax_rate, :depreciation_start_date,
+          :in_low_value_pool, :pool_entry_date, :is_division_43, :division_43_rate,
+          :instant_writeoff_applied, :instant_writeoff_date
+        )
+      end
+
+      def disposal_params
+        params.require(:disposal).permit(
+          :disposal_date, :settlement_date, :disposal_type, :sale_proceeds,
+          :disposal_costs, :notes, :replacement_asset_id, :trade_in_value
+        )
+      end
+
+      def expense_params
+        params.require(:expense).permit(
+          :expense_date, :expense_type, :amount, :description, :vendor, :reference
+        )
+      end
+
+      def odometer_reading_params
+        params.require(:odometer_reading).permit(
+          :reading_date, :odometer_km, :hours, :reading_type, :notes
         )
       end
     end

@@ -3,7 +3,7 @@
 
 puts "\n🔧 Setting up Setup views on PRODUCTION...\n\n"
 
-tables = Table.where.not("name LIKE ?", "Import%").where.not(name: ["Table Views", "columns"]).order(:name)
+tables = Table.where.not("name LIKE ?", "Import%").where.not(name: [ "Table Views", "columns" ]).order(:name)
 puts "Processing #{tables.count} tables...\n\n"
 
 created_count = 0
@@ -26,7 +26,7 @@ tables.each do |table|
     # Note: 'select' and 'actions' are UI-only pseudo-columns, not database columns
     visible_columns = { "id" => true }
     all_columns.each { |col| visible_columns[col] = true }
-    column_order = ["select", "id", "actions"] + all_columns
+    column_order = [ "select", "id", "actions" ] + all_columns
 
     # Use update_columns to skip validations (view already exists)
     default_view.update_columns(
@@ -44,7 +44,7 @@ tables.each do |table|
       # Note: 'select' and 'actions' are UI-only pseudo-columns, not database columns
       visible_columns = { "id" => true }
       all_columns.each { |col| visible_columns[col] = true }
-      column_order = ["select", "id", "actions"] + all_columns
+      column_order = [ "select", "id", "actions" ] + all_columns
 
       TableView.create!(
         table_id: table.id,

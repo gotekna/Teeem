@@ -1,5 +1,5 @@
 class PayNowMailer < ApplicationMailer
-  default from: 'noreply@teeem.app'
+  default from: "noreply@teeem.app"
 
   # Sent to supervisors when a new Pay Now request is submitted
   def supervisor_review_needed(request, supervisor)
@@ -11,7 +11,7 @@ class PayNowMailer < ApplicationMailer
 
     mail(
       to: supervisor.email,
-      subject: "New Pay Now Request - #{@supplier.full_name} - PO ##{@purchase_order.purchase_order_number}"
+      subject: "New Pay Now Request - #{@supplier.display_name} - PO ##{@purchase_order.purchase_order_number}"
     )
   end
 

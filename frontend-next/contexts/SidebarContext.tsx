@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
 interface SidebarContextType {
@@ -21,45 +21,68 @@ function getBaseRoute(pathname: string): string {
   return parts[0] || "dashboard";
 }
 
+// Get state from localStorage synchronously
+function getStoredState(baseRoute: string): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const states: Record<string, boolean> = JSON.parse(saved);
+      return states[baseRoute] ?? false;
+    }
+  } catch {
+    // Ignore localStorage errors
+  }
+  return false;
+}
+
+// Save state to localStorage
+function saveState(baseRoute: string, expanded: boolean): void {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    const states: Record<string, boolean> = saved ? JSON.parse(saved) : {};
+    states[baseRoute] = expanded;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(states));
+  } catch {
+    // Ignore localStorage errors
+  }
+}
+
 export function SidebarProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const [isExpanded, setIsExpandedState] = useState(false);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const baseRoute = getBaseRoute(pathname);
+  const prevBaseRouteRef = useRef(baseRoute);
 
-  // Load saved state for current route on mount and route change
+  // Initialize state with stored value for initial route
+  const [isExpanded, setIsExpandedState] = useState(() => getStoredState(baseRoute));
+
+  // When base route changes, update expanded state from storage
+  // This replaces the key={baseRoute} pattern which caused remounts
   useEffect(() => {
-    const baseRoute = getBaseRoute(pathname);
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const states: Record<string, boolean> = JSON.parse(saved);
-        // Use saved state for this route, or default to false (collapsed)
-        setIsExpandedState(states[baseRoute] ?? false);
-      }
-    } catch (e) {
-      // Ignore localStorage errors
+    if (prevBaseRouteRef.current !== baseRoute) {
+      prevBaseRouteRef.current = baseRoute;
+      setIsExpandedState(getStoredState(baseRoute));
     }
-    setIsInitialized(true);
-  }, [pathname]);
+  }, [baseRoute]);
 
   // Wrapper to save state when changed
-  const setIsExpanded = (expanded: boolean) => {
-    setIsExpandedState(expanded);
-    const baseRoute = getBaseRoute(pathname);
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      const states: Record<string, boolean> = saved ? JSON.parse(saved) : {};
-      states[baseRoute] = expanded;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(states));
-    } catch (e) {
-      // Ignore localStorage errors
-    }
-  };
+  const setIsExpanded = useMemo(
+    () => (expanded: boolean) => {
+      setIsExpandedState(expanded);
+      saveState(baseRoute, expanded);
+    },
+    [baseRoute]
+  );
 
   const sidebarWidth = isExpanded ? EXPANDED_WIDTH : COLLAPSED_WIDTH;
 
+  const value = useMemo(
+    () => ({ isExpanded, setIsExpanded, sidebarWidth }),
+    [isExpanded, setIsExpanded, sidebarWidth]
+  );
+
   return (
-    <SidebarContext.Provider value={{ isExpanded, setIsExpanded, sidebarWidth }}>
+    <SidebarContext.Provider value={value}>
       {children}
     </SidebarContext.Provider>
   );

@@ -3,55 +3,55 @@ gold_standard = Table.find(166)
 
 missing_columns = [
   {
-    name: 'URL',
-    column_name: 'url',
-    column_type: 'url',
-    description: 'Web URL field',
+    name: "URL",
+    column_name: "url",
+    column_type: "url",
+    description: "Web URL field",
     position: gold_standard.columns.maximum(:position).to_i + 1
   },
   {
-    name: 'Date',
-    column_name: 'date_field',
-    column_type: 'date',
-    description: 'Date field (no time)',
+    name: "Date",
+    column_name: "date_field",
+    column_type: "date",
+    description: "Date field (no time)",
     position: gold_standard.columns.maximum(:position).to_i + 2
   },
   {
-    name: 'Date and Time',
-    column_name: 'date_and_time',
-    column_type: 'date_and_time',
-    description: 'Date with time field',
+    name: "Date and Time",
+    column_name: "date_and_time",
+    column_type: "date_and_time",
+    description: "Date with time field",
     position: gold_standard.columns.maximum(:position).to_i + 3
   },
   {
-    name: 'Whole Number',
-    column_name: 'whole_number',
-    column_type: 'whole_number',
-    description: 'Integer field',
+    name: "Whole Number",
+    column_name: "whole_number",
+    column_type: "whole_number",
+    description: "Integer field",
     position: gold_standard.columns.maximum(:position).to_i + 4
   },
   {
-    name: 'Lookup',
-    column_name: 'lookup_field',
-    column_type: 'lookup',
-    description: 'Link to another record',
+    name: "Lookup",
+    column_name: "lookup_field",
+    column_type: "lookup",
+    description: "Link to another record",
     lookup_table_id: 166,
-    lookup_display_column: 'item_code',
+    lookup_display_column: "item_code",
     position: gold_standard.columns.maximum(:position).to_i + 5
   },
   {
-    name: 'User',
-    column_name: 'user_field',
-    column_type: 'user',
-    description: 'User field',
+    name: "User",
+    column_name: "user_field",
+    column_type: "user",
+    description: "User field",
     position: gold_standard.columns.maximum(:position).to_i + 6
   },
   {
-    name: 'Computed',
-    column_name: 'computed_field',
-    column_type: 'computed',
-    description: 'Computed/formula field',
-    settings: { formula: 'CONCAT([item_code])' }.to_json,
+    name: "Computed",
+    column_name: "computed_field",
+    column_type: "computed",
+    description: "Computed/formula field",
+    settings: { formula: "CONCAT([item_code])" }.to_json,
     position: gold_standard.columns.maximum(:position).to_i + 7
   }
 ]

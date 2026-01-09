@@ -3,7 +3,7 @@
 module Api
   module V1
     class SmActivitiesController < ApplicationController
-      before_action :set_job, only: [:index, :feed]
+      before_action :set_job, only: [ :index, :feed ]
 
       # GET /api/v1/constructions/:job_id/activities
       # GET /api/v1/sm_activities
@@ -28,7 +28,7 @@ module Api
 
         activities = SmActivity
                      .for_construction(@job.id)
-                     .where('created_at > ?', since)
+                     .where("created_at > ?", since)
                      .recent
                      .limit(50)
 
@@ -91,7 +91,7 @@ module Api
                        .first(5)
                        .map do |user_id, count|
                          user = User.find_by(id: user_id)
-                         { user_id: user_id, name: user&.full_name, count: count }
+                         { user_id: user_id, name: user&.display_name, count: count }
                        end
 
         render json: {
@@ -117,15 +117,15 @@ module Api
           resource_id: params[:resource_id],
           type: params[:type],
           since: params[:since],
-          today: params[:today] == 'true',
-          this_week: params[:this_week] == 'true',
+          today: params[:today] == "true",
+          this_week: params[:this_week] == "true",
           limit: params[:limit]&.to_i || 50
         }.compact
       end
 
       def activity_json(activity)
         metadata = begin
-          JSON.parse(activity.metadata || '{}')
+          JSON.parse(activity.metadata || "{}")
         rescue StandardError
           {}
         end
@@ -139,7 +139,7 @@ module Api
           actor: {
             id: activity.user_id || activity.resource_id,
             name: activity.actor_name,
-            type: activity.user_id ? 'user' : 'resource'
+            type: activity.user_id ? "user" : "resource"
           },
           task: activity.task ? {
             id: activity.task.id,
@@ -156,11 +156,11 @@ module Api
         seconds = (Time.current - time).to_i
 
         case seconds
-        when 0..59 then 'just now'
+        when 0..59 then "just now"
         when 60..3599 then "#{seconds / 60}m ago"
         when 3600..86_399 then "#{seconds / 3600}h ago"
         when 86_400..604_799 then "#{seconds / 86_400}d ago"
-        else time.strftime('%b %d')
+        else time.strftime("%b %d")
         end
       end
     end

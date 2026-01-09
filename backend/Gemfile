@@ -3,7 +3,7 @@ source "https://rubygems.org"
 ruby "3.3.10"
 
 # Load environment variables from .env file
-gem "dotenv-rails", groups: [:development, :test]
+gem "dotenv-rails", groups: [ :development, :test ]
 
 # Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
 gem "rails", "~> 8.0.4"
@@ -40,6 +40,9 @@ gem "thruster", require: false
 # Use Active Storage variants [https://guides.rubyonrails.org/active_storage_overview.html#transforming-images]
 # gem "image_processing", "~> 1.2"
 
+# ActiveStorage file upload validation (size, content type)
+gem "active_storage_validations", "~> 2.0"
+
 # Use Rack CORS for handling Cross-Origin Resource Sharing (CORS), making cross-origin Ajax possible
 gem "rack-cors"
 
@@ -52,13 +55,24 @@ gem "creek", "~> 2.6"   # xlsx streaming parser (required by roo for xlsx suppor
 gem "caxlsx", "~> 4.1.0"  # Excel generation
 gem "caxlsx_rails", "~> 0.6.3"  # Rails integration for Excel export
 gem "pdf-reader", "~> 2.12"  # PDF text extraction for email attachments
+gem "business_time", "~> 0.13"  # Business days calculation for bill approval workflows
 gem "hexapdf", "~> 0.42"  # PDF manipulation for splitting documents
+gem "sablon", "~> 0.4"  # DOCX mail merge for document templates
+gem "docx", "~> 0.8"  # DOCX reading for Universal Document Reader
+gem "grover", "~> 1.1"  # HTML → PDF via Puppeteer (Tekna document templates)
 
 # Image management and scraping
 gem "cloudinary", "~> 2.1"  # Cloud image storage and CDN
+
+# S3-compatible cloud storage (AWS S3, Backblaze B2, MinIO, Wasabi)
+gem "aws-sdk-s3", "~> 1.170"  # S3 client for document providers
 gem "httparty", "~> 0.22"  # HTTP requests for image scraping
 gem "http", "~> 5.1"  # HTTP client for OAuth token refresh
 gem "mini_magick", "~> 4.12"  # Image processing
+gem "rtesseract", "~> 3.1"  # OCR with Tesseract for precise field location extraction
+
+# Web scraping and automation
+gem "selenium-webdriver", "~> 4.10"  # Browser automation for ASIC Connect scraping
 
 # OAuth2 for Xero integration
 gem "oauth2", "~> 2.0"  # OAuth2 authentication for Xero API
@@ -67,6 +81,9 @@ gem "rexml"  # XML parsing (required for ABN lookup service, removed from Ruby 3
 
 # SMS integration
 gem "twilio-ruby", "~> 7.3"  # Twilio SDK for SMS messaging
+
+# Payment processing
+gem "stripe", "~> 13.0"  # Stripe SDK for payment portal
 
 # AI integration for plan analysis
 gem "anthropic", "~> 0.3.0"  # Claude API for AI-powered plan review

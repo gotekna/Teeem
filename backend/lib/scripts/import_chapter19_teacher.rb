@@ -1,8 +1,9 @@
 # frozen_string_literal: true
+
 # Import Chapter 19 Teacher sections from TEEEM_TEACHER.md
 
-teacher_file = Rails.root.join('..', 'TEEEM_DOCS', 'TEEEM_TEACHER.md')
-content = File.read(teacher_file, encoding: 'UTF-8')
+teacher_file = Rails.root.join("..", "TEEEM_DOCS", "TEEEM_TEACHER.md")
+content = File.read(teacher_file, encoding: "UTF-8")
 
 # Extract Chapter 19 content
 if content =~ /# Chapter 19: (.+?)\n(.+?)(?=\n# Chapter 20:|\z)/m
@@ -20,7 +21,7 @@ if content =~ /# Chapter 19: (.+?)\n(.+?)(?=\n# Chapter 20:|\z)/m
     puts "\n  Importing §#{section_num}: #{title}"
 
     # Parse the body content
-    entry_type = 'component' # default
+    entry_type = "component" # default
     difficulty = nil
     summary = nil
     explanation = nil

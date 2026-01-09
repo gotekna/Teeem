@@ -303,8 +303,8 @@ Table Component Consolidation (Nov 2024) - Multiple table components created inc
 
 **Reference:**
 - [Pattern Library PATTERN-004](../PATTERN_LIBRARY.md#pattern-004-deprecated-table-component-usage)
-- [Lexicon §19.0: Table Consolidation](https://teeem-backend.../api/v1/trinity?category=lexicon&chapter=19)
-- [Teacher §19.1: Table Implementation](https://teeem-backend.../api/v1/trinity?category=teacher&chapter=19)
+- [Lexicon §19.0: Table Consolidation](https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=lexicon&chapter=19)
+- [Teacher §19.1: Table Implementation](https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=teacher&chapter=19)
 
 ---
 

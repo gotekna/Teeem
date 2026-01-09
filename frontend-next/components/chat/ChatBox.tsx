@@ -1,11 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { Send, X, Bookmark, Loader2 } from "lucide-react";
+import { Send, X, Bookmark } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
+import { PAGE_SIZE_REFERENCE } from "@/lib/constants/pagination-constants";
 import { cn } from "@/lib/utils";
 
 interface ChatMessage {
@@ -81,8 +83,9 @@ export function ChatBox({
 
   const loadConstructions = async () => {
     try {
+      // SSoT: Uses PAGE_SIZE_REFERENCE from pagination-constants.ts
       const response = await api.get<{ constructions: Construction[] }>("/api/v1/jobs", {
-        params: { status: "Active", per_page: 100 },
+        params: { status: "Active", per_page: PAGE_SIZE_REFERENCE },
       });
       setConstructions(response?.constructions || []);
     } catch (error) {
@@ -105,6 +108,7 @@ export function ChatBox({
     return () => {
       clearInterval(interval);
     };
+     
   }, [channel, projectId, userId, showSaveToJob]);
 
   React.useEffect(() => {
@@ -262,7 +266,7 @@ export function ChatBox({
       <ScrollArea className="flex-1 p-4">
         {loading ? (
           <div className="flex items-center justify-center h-full">
-            <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
+            <Spinner size={24} className="text-gray-500" />
           </div>
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
@@ -354,7 +358,7 @@ export function ChatBox({
           />
           <Button type="submit" disabled={sending || !newMessage.trim()}>
             {sending ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
+              <Spinner />
             ) : (
               <Send className="h-5 w-5" />
             )}

@@ -9,7 +9,7 @@ namespace :trinity do
     puts ""
 
     # Check if Trinity table exists
-    unless ActiveRecord::Base.connection.table_exists?('trinity')
+    unless ActiveRecord::Base.connection.table_exists?("trinity")
       puts "❌ Error: 'trinity' table does not exist in #{Rails.env} database"
       puts "This task should be run on Heroku production where Trinity table exists"
       puts ""
@@ -23,7 +23,7 @@ namespace :trinity do
     chapter_name = "Overview & System-Wide Rules"
 
     # Get current max section number for Chapter 1
-    max_section = Trinity.where(category: 'bible', chapter_number: chapter_number)
+    max_section = Trinity.where(category: "bible", chapter_number: chapter_number)
                         .maximum(:section_number)
                         &.to_f || 0
 
@@ -36,7 +36,7 @@ namespace :trinity do
 
     # PATTERN-001: Empty Array Assignment (Data Loss)
     rule1 = Trinity.find_or_create_by!(
-      category: 'bible',
+      category: "bible",
       chapter_number: chapter_number,
       section_number: (starting_section).to_s
     ) do |rule|
@@ -131,7 +131,7 @@ namespace :trinity do
 
     # PATTERN-002: Race Condition - Rapid State Updates
     rule2 = Trinity.find_or_create_by!(
-      category: 'bible',
+      category: "bible",
       chapter_number: chapter_number,
       section_number: (starting_section + 0.1).to_s
     ) do |rule|
@@ -157,7 +157,7 @@ namespace :trinity do
 
     # PATTERN-003: Infinite Cascade Loop
     rule3 = Trinity.find_or_create_by!(
-      category: 'bible',
+      category: "bible",
       chapter_number: chapter_number,
       section_number: (starting_section + 0.2).to_s
     ) do |rule|
@@ -183,7 +183,7 @@ namespace :trinity do
 
     # PATTERN-004: Deprecated Table Component Usage
     rule4 = Trinity.find_or_create_by!(
-      category: 'bible',
+      category: "bible",
       chapter_number: 19,  # UI/UX chapter
       section_number: "19.0"
     ) do |rule|

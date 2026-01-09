@@ -3,17 +3,19 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Plus, Loader2 } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
+import { Plus } from "lucide-react";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { useCorporateTable } from "@/hooks/use-corporate-table";
 import type { TableRow } from "@/components/table/types";
+import { TablePage } from "@/components/ui/page-wrappers";
+import { Spinner } from "@/components/ui/spinner";
 
 export default function AssetsPage() {
   const router = useRouter();
 
-  // Use the corporate table hook for assets
+  // Use the corporate table hook for assets (Gold Standard Table - Foundation ID 526)
   const {
-    columns,
     foundationId,
     entries: assets,
     isLoading,
@@ -41,7 +43,7 @@ export default function AssetsPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -56,37 +58,30 @@ export default function AssetsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Header */}
-      <div className="border-b pb-4">
-        <h1 className="text-2xl font-bold tracking-tight font-serif">Assets</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Manage company assets, equipment, and vehicles
-        </p>
-      </div>
-
-      {/* Assets Table */}
+    <TablePage>
       <TeeemTableView
         foundationId="assets"
         foundationIdNumeric={foundationId || 0}
         tableName="Assets"
         entries={assets}
-        columns={columns}
         onEdit={handleEdit}
         onDelete={handleDeleteWithConfirm}
         onBulkDelete={handleBulkDeleteWithConfirm}
         onRowDoubleClick={(asset) => router.push(`/corporate/assets/${asset.id}`)}
         enableExport={true}
-        enableSchemaEditor={false} // Assets don't have a Foundation for schema editing
-        hideUpdateViewButton={true}
+        enableSchemaEditor={true}
         onColumnUpdate={refreshColumns}
         leftActions={
-          <Button onClick={() => router.push("/corporate/assets/new")}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Asset
-          </Button>
+          <div className="flex items-center gap-2">
+            <BackButton fallbackHref="/corporate" />
+            <Button onClick={() => router.push("/corporate/assets/new")}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Asset
+            </Button>
+          </div>
         }
+        hideFooter={true}
       />
-    </div>
+    </TablePage>
   );
 }

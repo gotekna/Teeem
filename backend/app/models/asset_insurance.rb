@@ -9,12 +9,12 @@ class AssetInsurance < ApplicationRecord
   validates :coverage_amount, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
 
   # Scopes
-  scope :active, -> { where(status: 'active') }
-  scope :expired, -> { where(status: 'expired') }
+  scope :active, -> { where(status: "active") }
+  scope :expired, -> { where(status: "expired") }
   scope :expiring_soon, ->(days = 30) {
-    where('renewal_date BETWEEN ? AND ? AND status = ?', Date.today, days.days.from_now, 'active')
+    where("renewal_date BETWEEN ? AND ? AND status = ?", Date.today, days.days.from_now, "active")
   }
-  scope :overdue, -> { where('renewal_date < ? AND status = ?', Date.today, 'active') }
+  scope :overdue, -> { where("renewal_date < ? AND status = ?", Date.today, "active") }
 
   # Callbacks
   before_save :update_status_based_on_renewal_date
@@ -44,13 +44,13 @@ class AssetInsurance < ApplicationRecord
 
   def update_status_based_on_renewal_date
     if renewal_date.present? && renewal_date < Date.today
-      self.status = 'expired'
+      self.status = "expired"
     end
   end
 
   def create_activity
-    asset.company.company_activities.create!(
-      activity_type: 'asset_insurance_added',
+    asset.company.corporate_company_activities.create!(
+      activity_type: "asset_insurance_added",
       description: "Insurance added for #{asset.display_name}",
       metadata: {
         asset_id: asset.id,
@@ -66,12 +66,12 @@ class AssetInsurance < ApplicationRecord
   def create_update_activity
     return unless saved_changes.any?
 
-    asset.company.company_activities.create!(
-      activity_type: 'asset_insurance_updated',
+    asset.company.corporate_company_activities.create!(
+      activity_type: "asset_insurance_updated",
       description: "Insurance updated for #{asset.display_name}",
       metadata: {
         asset_id: asset.id,
-        changes: saved_changes.except('updated_at')
+        changes: saved_changes.except("updated_at")
       },
       performed_by: Current.user || User.first,
       occurred_at: Time.current

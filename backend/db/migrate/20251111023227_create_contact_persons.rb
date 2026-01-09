@@ -14,6 +14,6 @@ class CreateContactPersons < ActiveRecord::Migration[8.0]
 
     add_index :contact_persons, :email
     add_index :contact_persons, :xero_contact_person_id
-    add_index :contact_persons, [:contact_id, :is_primary]
+    add_index :contact_persons, [ :contact_id, :is_primary ]
   end
 end

@@ -3,7 +3,7 @@
 # Service to import Xero tracking categories as Jobs
 # Creates a Job for each tracking option under the "Job" tracking category
 class XeroTrackingImportService
-  TRACKING_CATEGORY_NAME = 'Job'
+  TRACKING_CATEGORY_NAME = "Job"
   RATE_LIMIT_SLEEP = 100 # milliseconds between operations
 
   attr_reader :stats
@@ -54,24 +54,24 @@ class XeroTrackingImportService
 
   # Fetch all tracking options for the "Job" category
   def fetch_tracking_options
-    result = @client.get('TrackingCategories')
+    result = @client.get("TrackingCategories")
 
     return [] unless result[:success]
 
-    categories = result[:data]['TrackingCategories'] || []
-    job_category = categories.find { |c| c['Name'] == TRACKING_CATEGORY_NAME }
+    categories = result[:data]["TrackingCategories"] || []
+    job_category = categories.find { |c| c["Name"] == TRACKING_CATEGORY_NAME }
 
     return [] unless job_category
 
     # Return only active options
-    job_category['Options']&.select { |o| o['Status'] == 'ACTIVE' } || []
+    job_category["Options"]&.select { |o| o["Status"] == "ACTIVE" } || []
   end
 
   private
 
   def import_tracking_option(option)
-    tracking_option_id = option['TrackingOptionID']
-    tracking_option_name = option['Name']
+    tracking_option_id = option["TrackingOptionID"]
+    tracking_option_name = option["Name"]
 
     # Check if job already linked to this tracking option
     existing_linked = Job.find_by(xero_tracking_option_id: tracking_option_id)
@@ -96,7 +96,7 @@ class XeroTrackingImportService
       # Create new job
       job = Job.create!(
         title: tracking_option_name,
-        status: 'Active',
+        status: "Active",
         xero_tracking_option_id: tracking_option_id,
         xero_tracking_option_name: tracking_option_name
         # site_supervisor_name is optional for Xero imports

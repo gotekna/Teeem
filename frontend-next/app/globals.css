@@ -1,5 +1,3 @@
-@import "leaflet/dist/leaflet.css";
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -56,7 +54,7 @@
     /* Surface Colors */
     --card: 45 18% 96%;
     --card-foreground: 240 10% 3.9%;
-    --popover: 45 18% 96%;
+    --popover: 0 0% 100%;
     --popover-foreground: 240 10% 3.9%;
 
     /* Brand Colors */
@@ -212,7 +210,7 @@
 
   /* Table header cells - uppercase labels */
   .table-header {
-    font-size: 11px;
+    font-size: 14px;
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -227,21 +225,21 @@
 
   /* Secondary content - emails, methods, notes */
   .table-cell-secondary {
-    font-size: 11px;
+    font-size: 13px;
     color: hsl(var(--muted-foreground));
   }
 
   /* Monospace content - IDs, dates, times, file sizes */
   .table-cell-mono {
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: 13px;
     color: hsl(var(--muted-foreground));
   }
 
   /* Currency/amounts - right-aligned monospace */
   .table-cell-currency {
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: 13px;
     text-align: right;
   }
 
@@ -411,12 +409,14 @@
   }
 }
 
+/* GPU-optimized shimmer animation using transform (not background-position)
+   transform is GPU-compositable and won't cause CLS (layout shifts) */
 @keyframes shimmer {
   0% {
-    background-position: 200% 0;
+    transform: translateX(-100%);
   }
   100% {
-    background-position: -200% 0;
+    transform: translateX(100%);
   }
 }
 
@@ -460,7 +460,7 @@
 .bg-primary:hover,
 button.bg-primary,
 a.bg-primary,
-[class*="bg-primary"]:not([class*="bg-primary/"]):not([class*="bg-primary-"]) {
+[class*="bg-primary"]:not([class*="bg-primary/"]):not([class*="bg-primary-"]):not([class*="]:bg-primary"]) {
   color: hsl(var(--primary-foreground)) !important;
 }
 
@@ -511,4 +511,18 @@ a.bg-primary svg {
 
 .animate-pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* ========================================
+   RADIX UI DROPDOWN Z-INDEX
+   SSoT: lib/constants/z-index-constants.ts
+
+   This rule applies to ALL Radix popper components:
+   Popover, Select, DropdownMenu, Tooltip, ComboboxDropdown
+
+   Value must be above Z_MODAL (1100) so dropdowns inside
+   dialogs appear correctly.
+   ======================================== */
+[data-radix-popper-content-wrapper] {
+  z-index: 1200 !important;
 }

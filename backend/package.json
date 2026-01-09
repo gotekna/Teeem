@@ -1,6 +1,12 @@
 {
+  "name": "api",
+  "private": true,
+  "engines": {
+    "node": "20.x"
+  },
   "dependencies": {
     "dompurify": "^3.3.0",
-    "isomorphic-dompurify": "^2.31.0"
+    "isomorphic-dompurify": "^2.31.0",
+    "puppeteer": "^21.0.0"
   }
 }

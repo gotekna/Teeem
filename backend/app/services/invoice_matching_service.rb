@@ -15,11 +15,11 @@ class InvoiceMatchingService
 
   def call
     # Extract invoice details
-    invoice_number = @invoice_data['InvoiceNumber']
-    invoice_id = @invoice_data['InvoiceID']
-    invoice_date = parse_date(@invoice_data['Date'] || @invoice_data['DateString'])
-    invoice_total = @invoice_data['Total'].to_f
-    supplier_name = @invoice_data.dig('Contact', 'Name')
+    invoice_number = @invoice_data["InvoiceNumber"]
+    invoice_id = @invoice_data["InvoiceID"]
+    invoice_date = parse_date(@invoice_data["Date"] || @invoice_data["DateString"])
+    invoice_total = @invoice_data["Total"].to_f
+    supplier_name = @invoice_data.dig("Contact", "Name")
 
     Rails.logger.info("Matching Xero invoice: #{invoice_number} (#{invoice_id}) - Total: #{invoice_total}")
 
@@ -86,7 +86,7 @@ class InvoiceMatchingService
 
     # Strategy 1: Check Reference field (highest priority - most reliable)
     # Suppliers often put PO numbers in the Reference field of Xero invoices
-    reference = @invoice_data['Reference']
+    reference = @invoice_data["Reference"]
     if reference.present?
       # Try exact match first
       po = PurchaseOrder.find_by(purchase_order_number: reference)
@@ -117,9 +117,9 @@ class InvoiceMatchingService
 
     # Strategy 3: Check LineItems descriptions
     # Some suppliers include PO numbers in line item descriptions
-    line_items = @invoice_data['LineItems'] || []
+    line_items = @invoice_data["LineItems"] || []
     line_items.each do |item|
-      description = item['Description']
+      description = item["Description"]
       next if description.blank?
 
       po_candidates = extract_po_numbers(description)
@@ -154,13 +154,13 @@ class InvoiceMatchingService
       if supplier
         # Find POs for this supplier that don't have invoices yet
         # and are within 10% of the invoice total
-        invoice_total = @invoice_data['Total'].to_f
+        invoice_total = @invoice_data["Total"].to_f
         tolerance = invoice_total * 0.1
 
         po = PurchaseOrder
           .where(supplier_id: supplier.id)
-          .where('payment_status = ? OR payment_status IS NULL', 'pending')
-          .where('total BETWEEN ? AND ?', invoice_total - tolerance, invoice_total + tolerance)
+          .where("payment_status = ? OR payment_status IS NULL", "pending")
+          .where("total BETWEEN ? AND ?", invoice_total - tolerance, invoice_total + tolerance)
           .order(created_at: :desc)
           .first
 
@@ -188,7 +188,7 @@ class InvoiceMatchingService
       matches = text.scan(pattern)
       matches.flatten.each do |match|
         # Extract just the number portion and format consistently
-        number = match.gsub(/[^\d]/, '')
+        number = match.gsub(/[^\d]/, "")
         next if number.blank?
 
         # Format as standard PO number
@@ -207,7 +207,7 @@ class InvoiceMatchingService
     return nil if text.blank?
 
     # Extract digits only
-    digits = text.gsub(/[^\d]/, '')
+    digits = text.gsub(/[^\d]/, "")
     return nil if digits.blank?
 
     # Convert to integer to remove leading zeros
@@ -222,7 +222,7 @@ class InvoiceMatchingService
 
     # Try with different zero-padding
     # "PO-123" could match "PO-000123"
-    number = candidate.gsub(/[^\d]/, '').to_i
+    number = candidate.gsub(/[^\d]/, "").to_i
     find_po_by_normalized_number(number)
   end
 
@@ -245,12 +245,12 @@ class InvoiceMatchingService
   end
 
   def find_supplier(supplier_name)
-    # Try exact match first
-    supplier = Contact.suppliers.find_by('LOWER(full_name) = ?', supplier_name.downcase)
+    # Try exact match first (suppliers are just contacts with purchase orders or bills)
+    supplier = Contact.find_by("LOWER(display_name) = ?", supplier_name.downcase)
     return supplier if supplier
 
     # Try fuzzy match (contains)
-    supplier = Contact.suppliers.where('LOWER(full_name) LIKE ?', "%#{supplier_name.downcase}%").first
+    supplier = Contact.where("LOWER(display_name) LIKE ?", "%#{supplier_name.downcase}%").first
     supplier
   end
 
@@ -272,11 +272,11 @@ class InvoiceMatchingService
 
   def status_message(status, invoice_total, po_total)
     case status
-    when 'complete'
+    when "complete"
       "Invoice amount ($#{invoice_total}) is within 5% of PO total ($#{po_total})"
-    when 'part_payment'
+    when "part_payment"
       "Invoice amount ($#{invoice_total}) is less than 95% of PO total ($#{po_total})"
-    when 'manual_review'
+    when "manual_review"
       if invoice_total > po_total
         "Invoice amount ($#{invoice_total}) exceeds PO total ($#{po_total}) by $#{(invoice_total - po_total).round(2)}"
       else

@@ -1,11 +1,11 @@
 class SubcontractorAccount < ApplicationRecord
   # Associations
   belongs_to :portal_user
-  belongs_to :invited_by_contact, class_name: 'Contact', optional: true
+  belongs_to :invited_by_contact, class_name: "Contact", optional: true
   has_many :kudos_events, dependent: :destroy
 
   # Enums
-  enum :account_tier, { free: 'free', paid: 'paid' }
+  enum :account_tier, { free: "free", paid: "paid" }
 
   # Validations
   validates :portal_user_id, presence: true, uniqueness: true
@@ -18,8 +18,8 @@ class SubcontractorAccount < ApplicationRecord
 
   # Scopes
   scope :active, -> { where.not(activated_at: nil) }
-  scope :free_tier, -> { where(account_tier: 'free') }
-  scope :paid_tier, -> { where(account_tier: 'paid') }
+  scope :free_tier, -> { where(account_tier: "free") }
+  scope :paid_tier, -> { where(account_tier: "paid") }
   scope :top_performers, -> { order(kudos_score: :desc) }
 
   # Instance Methods
@@ -46,7 +46,7 @@ class SubcontractorAccount < ApplicationRecord
     end
 
     # Normalize to 0-1000 scale
-    normalized_score = [[weighted_score, 0].max, 1000].min
+    normalized_score = [ [ weighted_score, 0 ].max, 1000 ].min
 
     update_column(:kudos_score, normalized_score.round(2))
   end

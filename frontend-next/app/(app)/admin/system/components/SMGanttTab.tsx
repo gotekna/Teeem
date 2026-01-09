@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useUrlTabs } from "@/hooks/useUrlTabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +17,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Loader2,
   Save,
   RotateCcw,
   Calendar,
@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 interface GanttConfig {
@@ -79,6 +80,7 @@ const COLOR_PRESETS = [
 ];
 
 export function SMGanttTab() {
+  const [activeTab, setActiveTab] = useUrlTabs("display", "gantt-tab");
   const { toast } = useToast();
   const [config, setConfig] = React.useState<GanttConfig>(DEFAULT_CONFIG);
   const [loading, setLoading] = React.useState(true);
@@ -99,7 +101,7 @@ export function SMGanttTab() {
       // Optionally try API if it exists in the future
       // const data = await api.get<GanttConfig>("/api/v1/gantt_config");
       // setConfig(data);
-    } catch (error) {
+    } catch {
       console.debug("Using default gantt config");
     } finally {
       setLoading(false);
@@ -147,7 +149,7 @@ export function SMGanttTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -169,7 +171,7 @@ export function SMGanttTab() {
           <Button onClick={handleSave} disabled={saving || !hasChanges}>
             {saving ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
                 Saving...
               </>
             ) : (
@@ -191,7 +193,7 @@ export function SMGanttTab() {
         </Card>
       )}
 
-      <Tabs defaultValue="display" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList>
           <TabsTrigger value="display" className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />

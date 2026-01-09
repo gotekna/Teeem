@@ -2,13 +2,13 @@ class SubcontractorActivationService
   # Activate a subcontractor account for a supplier contact
   def self.activate(contact, invited_by: nil, send_welcome: true)
     unless contact.supplier?
-      return { success: false, error: 'Contact must be a supplier' }
+      return { success: false, error: "Contact must be a supplier" }
     end
 
     # Check if already has portal access
-    existing_portal_user = PortalUser.find_by(contact: contact, portal_type: 'supplier')
+    existing_portal_user = PortalUser.find_by(contact: contact, portal_type: "supplier")
     if existing_portal_user
-      return { success: false, error: 'Contact already has portal access' }
+      return { success: false, error: "Contact already has portal access" }
     end
 
     ActiveRecord::Base.transaction do
@@ -20,7 +20,7 @@ class SubcontractorActivationService
         contact: contact,
         email: contact.email || generate_placeholder_email(contact),
         password: temp_password,
-        portal_type: 'supplier',
+        portal_type: "supplier",
         active: true
       )
 
@@ -39,7 +39,7 @@ class SubcontractorActivationService
         portal_user: portal_user,
         subcontractor_account: subcontractor_account,
         temporary_password: temp_password,
-        message: 'Subcontractor account activated successfully'
+        message: "Subcontractor account activated successfully"
       }
     end
   rescue ActiveRecord::RecordInvalid => e
@@ -50,7 +50,7 @@ class SubcontractorActivationService
 
   # Bulk activate multiple subcontractors
   def self.bulk_activate(contact_ids, invited_by: nil)
-    contacts = Contact.where(id: contact_ids, contact_type: 'supplier')
+    contacts = Contact.where(id: contact_ids, contact_type: "supplier")
 
     results = {
       total: contacts.count,
@@ -68,15 +68,15 @@ class SubcontractorActivationService
         results[:details] << {
           contact_id: contact.id,
           contact_name: contact.display_name,
-          status: 'activated',
+          status: "activated",
           temporary_password: result[:temporary_password]
         }
-      elsif result[:error]&.include?('already has portal access')
+      elsif result[:error]&.include?("already has portal access")
         results[:skipped] += 1
         results[:details] << {
           contact_id: contact.id,
           contact_name: contact.display_name,
-          status: 'skipped',
+          status: "skipped",
           reason: result[:error]
         }
       else
@@ -84,7 +84,7 @@ class SubcontractorActivationService
         results[:details] << {
           contact_id: contact.id,
           contact_name: contact.display_name,
-          status: 'failed',
+          status: "failed",
           error: result[:error]
         }
       end
@@ -95,10 +95,10 @@ class SubcontractorActivationService
 
   # Deactivate a subcontractor account
   def self.deactivate(contact, reason: nil)
-    portal_user = PortalUser.find_by(contact: contact, portal_type: 'supplier')
+    portal_user = PortalUser.find_by(contact: contact, portal_type: "supplier")
 
     unless portal_user
-      return { success: false, error: 'No portal account found for this contact' }
+      return { success: false, error: "No portal account found for this contact" }
     end
 
     ActiveRecord::Base.transaction do
@@ -112,7 +112,7 @@ class SubcontractorActivationService
       # Log deactivation reason
       if reason.present? && subcontractor_account
         metadata = subcontractor_account.metadata || {}
-        metadata['deactivation'] = {
+        metadata["deactivation"] = {
           reason: reason,
           deactivated_at: Time.current
         }
@@ -123,7 +123,7 @@ class SubcontractorActivationService
 
       {
         success: true,
-        message: 'Subcontractor account deactivated'
+        message: "Subcontractor account deactivated"
       }
     end
   rescue => e
@@ -132,10 +132,10 @@ class SubcontractorActivationService
 
   # Reactivate a deactivated account
   def self.reactivate(contact)
-    portal_user = PortalUser.find_by(contact: contact, portal_type: 'supplier')
+    portal_user = PortalUser.find_by(contact: contact, portal_type: "supplier")
 
     unless portal_user
-      return { success: false, error: 'No portal account found for this contact' }
+      return { success: false, error: "No portal account found for this contact" }
     end
 
     ActiveRecord::Base.transaction do
@@ -147,7 +147,7 @@ class SubcontractorActivationService
       # Log reactivation
       if subcontractor_account
         metadata = subcontractor_account.metadata || {}
-        metadata['reactivation'] = {
+        metadata["reactivation"] = {
           reactivated_at: Time.current
         }
         subcontractor_account.update(metadata: metadata)
@@ -157,7 +157,7 @@ class SubcontractorActivationService
 
       {
         success: true,
-        message: 'Subcontractor account reactivated'
+        message: "Subcontractor account reactivated"
       }
     end
   rescue => e
@@ -166,14 +166,14 @@ class SubcontractorActivationService
 
   # Send password reset instructions
   def self.send_password_reset(email)
-    portal_user = PortalUser.find_by(email: email, portal_type: 'supplier')
+    portal_user = PortalUser.find_by(email: email, portal_type: "supplier")
 
     unless portal_user
-      return { success: false, error: 'No account found with that email' }
+      return { success: false, error: "No account found with that email" }
     end
 
     unless portal_user.active?
-      return { success: false, error: 'Account is not active' }
+      return { success: false, error: "Account is not active" }
     end
 
     token = portal_user.generate_reset_token!
@@ -182,7 +182,7 @@ class SubcontractorActivationService
 
     {
       success: true,
-      message: 'Password reset instructions sent',
+      message: "Password reset instructions sent",
       reset_token: token # For testing only, remove in production
     }
   rescue => e
@@ -191,14 +191,14 @@ class SubcontractorActivationService
 
   # Reset password with token
   def self.reset_password(token, new_password)
-    portal_user = PortalUser.find_by(reset_password_token: token, portal_type: 'supplier')
+    portal_user = PortalUser.find_by(reset_password_token: token, portal_type: "supplier")
 
     unless portal_user
-      return { success: false, error: 'Invalid reset token' }
+      return { success: false, error: "Invalid reset token" }
     end
 
     unless portal_user.reset_token_valid?
-      return { success: false, error: 'Reset token has expired' }
+      return { success: false, error: "Reset token has expired" }
     end
 
     if portal_user.update(password: new_password)
@@ -206,12 +206,12 @@ class SubcontractorActivationService
 
       {
         success: true,
-        message: 'Password reset successfully'
+        message: "Password reset successfully"
       }
     else
       {
         success: false,
-        error: 'Password reset failed',
+        error: "Password reset failed",
         errors: portal_user.errors.full_messages
       }
     end
@@ -222,7 +222,7 @@ class SubcontractorActivationService
   # Upgrade account tier (free -> paid)
   def self.upgrade_tier(subcontractor_account, new_tier, payment_details: nil)
     unless SubcontractorAccount::ACCOUNT_TIERS.include?(new_tier)
-      return { success: false, error: 'Invalid account tier' }
+      return { success: false, error: "Invalid account tier" }
     end
 
     old_tier = subcontractor_account.account_tier
@@ -230,8 +230,8 @@ class SubcontractorActivationService
     if subcontractor_account.update(account_tier: new_tier)
       # Log tier change
       metadata = subcontractor_account.metadata || {}
-      metadata['tier_changes'] ||= []
-      metadata['tier_changes'] << {
+      metadata["tier_changes"] ||= []
+      metadata["tier_changes"] << {
         from: old_tier,
         to: new_tier,
         changed_at: Time.current,
@@ -250,7 +250,7 @@ class SubcontractorActivationService
     else
       {
         success: false,
-        error: 'Failed to upgrade account',
+        error: "Failed to upgrade account",
         errors: subcontractor_account.errors.full_messages
       }
     end
@@ -258,8 +258,8 @@ class SubcontractorActivationService
 
   # Get activation statistics
   def self.statistics
-    total_suppliers = Contact.where(contact_type: 'supplier').count
-    activated_suppliers = PortalUser.where(portal_type: 'supplier').count
+    total_suppliers = Contact.where(contact_type: "supplier").count
+    activated_suppliers = PortalUser.where(portal_type: "supplier").count
     active_accounts = SubcontractorAccount.where(active: true).count
     accounts_with_accounting = SubcontractorAccount.where(accounting_system_connected: true).count
 
@@ -273,7 +273,7 @@ class SubcontractorActivationService
       accounting_connection_rate: activated_suppliers.zero? ? 0 : (accounts_with_accounting.to_f / activated_suppliers * 100).round(2),
       tier_breakdown: SubcontractorAccount.group(:account_tier).count,
       average_kudos_score: SubcontractorAccount.where(active: true).average(:kudos_score)&.round(2) || 0,
-      recent_activations: PortalUser.where(portal_type: 'supplier')
+      recent_activations: PortalUser.where(portal_type: "supplier")
                                    .order(created_at: :desc)
                                    .limit(10)
                                    .map { |pu| activation_summary(pu) }
@@ -283,16 +283,16 @@ class SubcontractorActivationService
   # Send invitation to join portal
   def self.send_invitation(contact, invited_by: nil)
     unless contact.supplier?
-      return { success: false, error: 'Contact must be a supplier' }
+      return { success: false, error: "Contact must be a supplier" }
     end
 
     unless contact.email.present?
-      return { success: false, error: 'Contact must have an email address' }
+      return { success: false, error: "Contact must have an email address" }
     end
 
     # Check if already activated
-    if PortalUser.exists?(contact: contact, portal_type: 'supplier')
-      return { success: false, error: 'Contact already has portal access' }
+    if PortalUser.exists?(contact: contact, portal_type: "supplier")
+      return { success: false, error: "Contact already has portal access" }
     end
 
     # Generate invitation token
@@ -300,7 +300,7 @@ class SubcontractorActivationService
 
     # Store invitation in contact metadata
     metadata = contact.metadata || {}
-    metadata['portal_invitation'] = {
+    metadata["portal_invitation"] = {
       token: invitation_token,
       invited_by_id: invited_by&.id,
       invited_at: Time.current,
@@ -312,7 +312,7 @@ class SubcontractorActivationService
 
     {
       success: true,
-      message: 'Invitation sent',
+      message: "Invitation sent",
       invitation_token: invitation_token,
       expires_at: 7.days.from_now
     }
@@ -325,16 +325,16 @@ class SubcontractorActivationService
     contact = Contact.where("metadata->>'portal_invitation' LIKE ?", "%#{invitation_token}%").first
 
     unless contact
-      return { success: false, error: 'Invalid invitation token' }
+      return { success: false, error: "Invalid invitation token" }
     end
 
-    invitation_data = contact.metadata&.dig('portal_invitation')
-    unless invitation_data && invitation_data['expires_at'] && Time.parse(invitation_data['expires_at']) > Time.current
-      return { success: false, error: 'Invitation has expired' }
+    invitation_data = contact.metadata&.dig("portal_invitation")
+    unless invitation_data && invitation_data["expires_at"] && Time.parse(invitation_data["expires_at"]) > Time.current
+      return { success: false, error: "Invitation has expired" }
     end
 
     # Activate account
-    invited_by = User.find_by(id: invitation_data['invited_by_id'])
+    invited_by = User.find_by(id: invitation_data["invited_by_id"])
     result = activate(contact, invited_by: invited_by&.contact, send_welcome: false)
 
     if result[:success]
@@ -343,10 +343,10 @@ class SubcontractorActivationService
 
       # Clear invitation
       metadata = contact.metadata
-      metadata.delete('portal_invitation')
+      metadata.delete("portal_invitation")
       contact.update(metadata: metadata)
 
-      result.merge(message: 'Account activated successfully')
+      result.merge(message: "Account activated successfully")
     else
       result
     end
@@ -356,7 +356,7 @@ class SubcontractorActivationService
 
   def self.generate_temporary_password
     # Generate a secure 16-character password
-    charset = ('A'..'Z').to_a + ('a'..'z').to_a + ('0'..'9').to_a + ['@', '$', '!', '%', '*', '?', '&']
+    charset = ("A".."Z").to_a + ("a".."z").to_a + ("0".."9").to_a + [ "@", "$", "!", "%", "*", "?", "&" ]
     password = Array.new(16) { charset.sample }.join
 
     # Ensure it meets all requirements

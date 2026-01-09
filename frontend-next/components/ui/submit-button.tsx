@@ -1,6 +1,7 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+
+import { Spinner } from "@/components/ui/spinner";
 import * as React from "react";
 import { useFormStatus } from "react-dom";
 import { cn } from "@/lib/utils";
@@ -36,7 +37,7 @@ const SubmitButton = React.forwardRef<HTMLButtonElement, SubmitButtonProps>(
       >
         {isSubmitting ? (
           <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            <Spinner size={16} className="mr-2" />
             {loadingText || children}
           </>
         ) : (

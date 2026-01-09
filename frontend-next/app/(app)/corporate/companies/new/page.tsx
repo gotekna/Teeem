@@ -15,7 +15,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Loader2, Save } from "lucide-react";
+import { Save, Search } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 
 interface CompanyGroup {
@@ -26,6 +28,7 @@ interface CompanyGroup {
 export default function NewCompanyPage() {
   const router = useRouter();
   const [saving, setSaving] = React.useState(false);
+  const [lookingUp, setLookingUp] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [companyGroups, setCompanyGroups] = React.useState<CompanyGroup[]>([]);
 
@@ -48,6 +51,7 @@ export default function NewCompanyPage() {
     accounting_method: "",
     shares_on_issue: "",
     company_group_id: "",
+    business_names: "",
   });
 
   // Load company groups for dropdown
@@ -66,6 +70,60 @@ export default function NewCompanyPage() {
   const handleChange = (field: string, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     setError(null);
+  };
+
+  // ASIC lookup by ABN
+  const handleAsicLookup = async () => {
+    const abn = formData.abn.replace(/\s/g, "");
+    const acn = formData.acn.replace(/\s/g, "");
+
+    if (!abn && !acn) {
+      setError("Enter an ABN or ACN to lookup");
+      return;
+    }
+
+    try {
+      setLookingUp(true);
+      setError(null);
+
+      const response = await api.post<{
+        success: boolean;
+        form_data?: {
+          name: string;
+          abn: string;
+          acn: string;
+          entity_type: string;
+          gst_registration_status: string;
+          registered_address: string;
+          trading_names: string;
+          status: string;
+        };
+        error?: string;
+      }>("/api/v1/asic/auto_populate", { abn, acn });
+
+      if (response?.success && response.form_data) {
+        const data = response.form_data;
+        setFormData((prev) => ({
+          ...prev,
+          name: data.name || prev.name,
+          abn: data.abn || prev.abn,
+          acn: data.acn || prev.acn,
+          entity_type: data.entity_type === "proprietary_limited" ? "Company" :
+                       data.entity_type === "trust" ? "Trust" : prev.entity_type,
+          gst_registration_status: data.gst_registration_status === "registered" ? "Registered" :
+                                   data.gst_registration_status === "not_registered" ? "Not Registered" : prev.gst_registration_status,
+          registered_office_address: data.registered_address || prev.registered_office_address,
+          business_names: data.trading_names || prev.business_names,
+          status: data.status === "active" ? "Active" : data.status === "inactive" ? "Inactive" : prev.status,
+        }));
+      } else {
+        setError(response?.error || "Lookup failed");
+      }
+    } catch (err) {
+      setError("ASIC lookup failed. Check the ABN/ACN and try again.");
+    } finally {
+      setLookingUp(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -110,9 +168,7 @@ export default function NewCompanyPage() {
     <div className="flex flex-col h-full max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
-        <Button variant="ghost" size="icon" onClick={() => router.back()}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
+        <BackButton fallbackHref="/corporate" />
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-serif">Add New Company</h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -232,7 +288,28 @@ export default function NewCompanyPage() {
           {/* Registration Numbers */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Registration Numbers</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">Registration Numbers</CardTitle>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAsicLookup}
+                  disabled={lookingUp || (!formData.abn && !formData.acn)}
+                >
+                  {lookingUp ? (
+                    <>
+                      <Spinner size={16} className="mr-2" />
+                      Looking up...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="h-4 w-4 mr-2" />
+                      ASIC Lookup
+                    </>
+                  )}
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -263,6 +340,15 @@ export default function NewCompanyPage() {
                     placeholder="000 000 000"
                   />
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="business_names">Business Names (Trading As)</Label>
+                <Input
+                  id="business_names"
+                  value={formData.business_names}
+                  onChange={(e) => handleChange("business_names", e.target.value)}
+                  placeholder="Auto-populated from ASIC lookup"
+                />
               </div>
             </CardContent>
           </Card>
@@ -387,13 +473,11 @@ export default function NewCompanyPage() {
 
           {/* Actions */}
           <div className="flex justify-end gap-3 pb-6">
-            <Button type="button" variant="outline" onClick={() => router.back()}>
-              Cancel
-            </Button>
+            <BackButton fallbackHref="/corporate/companies" label="Cancel" variant="outline" />
             <Button type="submit" disabled={saving}>
               {saving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Creating...
                 </>
               ) : (

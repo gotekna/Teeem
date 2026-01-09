@@ -30,8 +30,8 @@ class ContactActivity < ApplicationRecord
       metadata: {
         action: action,
         changes: changes,
-        xero_contact_id: xero_data['ContactID'],
-        xero_name: xero_data['Name'],
+        xero_contact_id: xero_data["ContactID"],
+        xero_name: xero_data["Name"],
         synced_at: Time.current
       },
       performed_by: nil, # System action
@@ -43,12 +43,12 @@ class ContactActivity < ApplicationRecord
 
   def self.generate_sync_description(action, changes)
     case action
-    when 'created'
+    when "created"
       "Contact created from Xero"
-    when 'updated'
-      field_names = changes.keys.map { |k| k.to_s.humanize }.join(', ')
+    when "updated"
+      field_names = changes.keys.map { |k| k.to_s.humanize }.join(", ")
       "Synced from Xero: updated #{field_names}"
-    when 'matched'
+    when "matched"
       "Matched with existing Xero contact"
     else
       "Synced from Xero"

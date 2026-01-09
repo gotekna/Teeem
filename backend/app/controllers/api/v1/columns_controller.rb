@@ -2,12 +2,17 @@ module Api
   module V1
     class ColumnsController < ApplicationController
       before_action :set_foundation
-      before_action :set_column, only: [:update, :destroy]
+      before_action :set_column, only: [ :update, :destroy ]
 
       # POST /api/v1/foundations/:foundation_id/columns
       def create
         column = @foundation.columns.build(column_params)
         column.position = @foundation.columns.maximum(:position).to_i + 1
+
+        # Auto-detect Australian column types if not explicitly set
+        if column.column_name.present? && column.column_type.blank?
+          column.column_type = auto_detect_australian_column_type(column.column_name)
+        end
 
         if column.save
           # Use add_column for existing foundations (preserves data)
@@ -58,11 +63,17 @@ module Api
         Rails.logger.info "🔴 COLUMN UPDATE - Before: header_align=#{@column.header_align}, data_align=#{@column.data_align}"
         Rails.logger.info "📥 COLUMN UPDATE - Params received: #{column_params.inspect}"
 
-        # Track if structural changes are being made (require table rebuild)
-        structural_change = column_params[:column_name].present? && column_params[:column_name] != @column.column_name ||
-                           column_params[:column_type].present? && column_params[:column_type] != @column.column_type
+        # Auto-detect Australian column types if column_name changed and type not explicitly set
+        params_hash = column_params.to_h
+        if params_hash[:column_name].present? && params_hash[:column_type].blank?
+          params_hash[:column_type] = auto_detect_australian_column_type(params_hash[:column_name])
+        end
 
-        update_result = @column.update(column_params)
+        # Track if structural changes are being made (require table rebuild)
+        structural_change = params_hash[:column_name].present? && params_hash[:column_name] != @column.column_name ||
+                           params_hash[:column_type].present? && params_hash[:column_type] != @column.column_type
+
+        update_result = @column.update(params_hash)
         Rails.logger.info "📊 COLUMN UPDATE - Update result: #{update_result}"
         Rails.logger.info "🔵 COLUMN UPDATE - After: header_align=#{@column.header_align}, data_align=#{@column.data_align}"
         Rails.logger.info "❌ COLUMN UPDATE - Errors: #{@column.errors.full_messages.inspect}" unless update_result
@@ -152,12 +163,12 @@ module Api
       def lookup_options
         column = @foundation.columns.find(params[:id])
 
-        unless column.column_type.in?(['lookup', 'multiple_lookups'])
-          return render json: { error: 'Not a lookup column' }, status: :bad_request
+        unless column.column_type.in?([ "lookup", "multiple_lookups" ])
+          return render json: { error: "Not a lookup column" }, status: :bad_request
         end
 
         unless column.lookup_foundation
-          return render json: { error: 'Lookup foundation not configured' }, status: :unprocessable_entity
+          return render json: { error: "Lookup foundation not configured" }, status: :unprocessable_entity
         end
 
         target_foundation = column.lookup_foundation
@@ -166,7 +177,8 @@ module Api
         options = records.map do |record|
           option = {
             id: record.id,
-            display: record.send(column.lookup_display_column).to_s
+            # SSoT: Use DisplayValueResolver for fallback chain
+            display: DisplayValueResolver.resolve_lookup(record, column)
           }
           # Include display_order if the lookup table has that column (for workflow sorting)
           # Check for common ordering column names: display_order, position, sort_order, order
@@ -198,7 +210,7 @@ module Api
         formula_expression = params[:formula]
 
         if formula_expression.blank?
-          return render json: { error: 'Formula is required' }, status: :bad_request
+          return render json: { error: "Formula is required" }, status: :bad_request
         end
 
         # Get a sample record to test with (first record or a specific one if provided)
@@ -214,7 +226,7 @@ module Api
         unless record
           return render json: {
             success: false,
-            error: 'No records available to test the formula. Please add at least one record first.'
+            error: "No records available to test the formula. Please add at least one record first."
           }
         end
 
@@ -250,12 +262,12 @@ module Api
       def lookup_search
         column = @foundation.columns.find(params[:id])
 
-        unless column.column_type.in?(['lookup', 'multiple_lookups'])
-          return render json: { error: 'Not a lookup column' }, status: :bad_request
+        unless column.column_type.in?([ "lookup", "multiple_lookups" ])
+          return render json: { error: "Not a lookup column" }, status: :bad_request
         end
 
         unless column.lookup_foundation
-          return render json: { error: 'Lookup foundation not configured' }, status: :unprocessable_entity
+          return render json: { error: "Lookup foundation not configured" }, status: :unprocessable_entity
         end
 
         search_term = params[:q].to_s.strip
@@ -274,7 +286,7 @@ module Api
           # If no searchable columns defined, search all text/string columns
           if searchable_columns.empty?
             searchable_columns = target_foundation.columns
-              .where(column_type: ['single_line_text', 'email', 'phone', 'url', 'multiple_lines_text'])
+              .where(column_type: [ "single_line_text", "email", "phone", "url", "multiple_lines_text" ])
               .pluck(:column_name)
           end
 
@@ -283,7 +295,7 @@ module Api
             # Sanitize column names to prevent SQL injection
             search_conditions = searchable_columns.map { |col|
               "#{model.connection.quote_column_name(col)} ILIKE :search"
-            }.join(' OR ')
+            }.join(" OR ")
             records = model.where(search_conditions, search: "%#{search_term}%")
               .limit(20)
               .order(:id)
@@ -297,21 +309,25 @@ module Api
           end
         end
 
+        # Performance: Cache text columns query outside the loop (avoids N+1)
+        text_columns = target_foundation.columns
+          .where(column_type: [ "single_line_text", "email", "phone", "url" ])
+          .limit(3)
+          .to_a
+
         # Build result with display value and additional context
         results = records.map do |record|
-          # Get all text columns for context
+          # Get all text columns for context (using cached columns)
           context_fields = {}
-          target_foundation.columns
-            .where(column_type: ['single_line_text', 'email', 'phone', 'url'])
-            .limit(3)
-            .each do |col|
-              value = record.send(col.column_name)
-              context_fields[col.name] = value if value.present?
-            end
+          text_columns.each do |col|
+            value = record.send(col.column_name)
+            context_fields[col.name] = value if value.present?
+          end
 
           {
             id: record.id,
-            display: record.send(column.lookup_display_column).to_s,
+            # SSoT: Use DisplayValueResolver for fallback chain
+            display: DisplayValueResolver.resolve_lookup(record, column),
             context: context_fields
           }
         rescue => e
@@ -338,8 +354,8 @@ module Api
       def choices
         column = find_column_by_id_or_name(params[:id])
 
-        unless column.column_type.in?(['single_select', 'multi_select', 'choice', 'dropdown', 'select'])
-          return render json: { error: 'Not a choice column' }, status: :bad_request
+        unless column.column_type.in?([ "single_select", "multi_select", "choice", "dropdown", "select" ])
+          return render json: { error: "Not a choice column" }, status: :bad_request
         end
 
         model = @foundation.dynamic_model
@@ -373,7 +389,7 @@ module Api
           # Sort by the saved order, putting unlisted items at the end alphabetically
           choices_data.sort_by do |c|
             index = column.choices_order.index(c[:value])
-            [index.nil? ? 1 : 0, index || 0, c[:value].downcase]
+            [ index.nil? ? 1 : 0, index || 0, c[:value].downcase ]
           end
         else
           choices_data.sort_by { |c| c[:value].downcase }
@@ -398,11 +414,11 @@ module Api
         new_value = params[:value]
 
         if new_value.blank?
-          return render json: { error: 'value is required' }, status: :bad_request
+          return render json: { error: "value is required" }, status: :bad_request
         end
 
-        unless column.column_type.in?(['single_select', 'multi_select', 'choice', 'dropdown', 'select'])
-          return render json: { error: 'Not a choice column' }, status: :bad_request
+        unless column.column_type.in?([ "single_select", "multi_select", "choice", "dropdown", "select" ])
+          return render json: { error: "Not a choice column" }, status: :bad_request
         end
 
         # Initialize available_choices array if it doesn't exist
@@ -410,7 +426,7 @@ module Api
 
         # Check if choice already exists
         if available_choices.include?(new_value)
-          return render json: { error: 'Choice already exists' }, status: :bad_request
+          return render json: { error: "Choice already exists" }, status: :bad_request
         end
 
         # Add the new choice
@@ -433,11 +449,11 @@ module Api
         new_order = params[:order] || []
 
         if new_order.empty?
-          return render json: { error: 'order array is required' }, status: :bad_request
+          return render json: { error: "order array is required" }, status: :bad_request
         end
 
-        unless column.column_type.in?(['single_select', 'multi_select', 'choice', 'dropdown', 'select'])
-          return render json: { error: 'Not a choice column' }, status: :bad_request
+        unless column.column_type.in?([ "single_select", "multi_select", "choice", "dropdown", "select" ])
+          return render json: { error: "Not a choice column" }, status: :bad_request
         end
 
         # Save the order
@@ -460,7 +476,7 @@ module Api
         new_value = params[:new_value]
 
         if old_value.blank? || new_value.blank?
-          return render json: { error: 'Both old_value and new_value are required' }, status: :bad_request
+          return render json: { error: "Both old_value and new_value are required" }, status: :bad_request
         end
 
         model = @foundation.dynamic_model
@@ -492,7 +508,7 @@ module Api
         target_value = params[:target_value]
 
         if source_values.empty? || target_value.blank?
-          return render json: { error: 'source_values and target_value are required' }, status: :bad_request
+          return render json: { error: "source_values and target_value are required" }, status: :bad_request
         end
 
         model = @foundation.dynamic_model
@@ -527,7 +543,7 @@ module Api
         replacement_value = params[:replacement_value]
 
         if value.blank?
-          return render json: { error: 'value is required' }, status: :bad_request
+          return render json: { error: "value is required" }, status: :bad_request
         end
 
         model = @foundation.dynamic_model
@@ -561,13 +577,13 @@ module Api
       def set_foundation
         @foundation = Foundation.includes(:columns).find(params[:foundation_id])
       rescue ActiveRecord::RecordNotFound
-        render json: { error: 'Foundation not found' }, status: :not_found
+        render json: { error: "Foundation not found" }, status: :not_found
       end
 
       def set_column
         @column = @foundation.columns.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { error: 'Column not found' }, status: :not_found
+        render json: { error: "Column not found" }, status: :not_found
       end
 
       # Find column by numeric ID or by column_name string
@@ -582,7 +598,7 @@ module Api
       end
 
       def column_params
-        params.require(:column).permit(
+        permitted = params.require(:column).permit(
           :name,
           :column_name,
           :column_type,
@@ -599,12 +615,21 @@ module Api
           :max_value,
           :validation_message,
           :lookup_foundation_id,
+          :lookup_foundation_slug,  # SSoT: Prefer slug over ID
           :lookup_display_column,
           :is_multiple,
           :header_align,
           :data_align,
-          available_choices: []
+          available_choices: [],
+          choice_descriptions: {}  # SSoT: descriptions for each choice value
         )
+
+        # SSoT: If slug is provided, use it as the input for resolution
+        if permitted[:lookup_foundation_slug].present?
+          permitted[:lookup_foundation_slug_input] = permitted.delete(:lookup_foundation_slug)
+        end
+
+        permitted
       end
 
       def column_json(column)
@@ -618,7 +643,7 @@ module Api
           min_length: column.min_length,
           default_value: column.default_value,
           description: column.description,
-          searchable: column.searchable,
+          searchable: column.searchable != false, # SSoT: Never return NULL, default to true
           is_title: column.is_title,
           is_unique: column.is_unique,
           required: column.required,
@@ -627,11 +652,12 @@ module Api
           validation_message: column.validation_message,
           position: column.position,
           lookup_foundation_id: column.lookup_foundation_id,
+          lookup_foundation_slug: column.lookup_foundation_slug,  # SSoT: Always return slug
           lookup_display_column: column.lookup_display_column,
           is_multiple: column.is_multiple,
           has_cross_table_refs: column.has_cross_table_refs,
-          header_align: column.header_align || 'left',
-          data_align: column.data_align || 'left'
+          header_align: column.header_align || "left",
+          data_align: column.data_align || "left"
         }
       end
 
@@ -645,14 +671,14 @@ module Api
           next unless view.columns.is_a?(Hash)
 
           # Add to visible columns (visible by default for new columns)
-          if view.columns['visible'].is_a?(Hash)
-            view.columns['visible'][column.column_name] = true
+          if view.columns["visible"].is_a?(Hash)
+            view.columns["visible"][column.column_name] = true
           end
 
           # Add to column order (at the end)
-          if view.columns['order'].is_a?(Array)
-            unless view.columns['order'].include?(column.column_name)
-              view.columns['order'] << column.column_name
+          if view.columns["order"].is_a?(Array)
+            unless view.columns["order"].include?(column.column_name)
+              view.columns["order"] << column.column_name
             end
           end
 
@@ -678,14 +704,14 @@ module Api
           modified = false
 
           # Remove from visible columns
-          if view.columns['visible'].is_a?(Hash) && view.columns['visible'].key?(column_name)
-            view.columns['visible'].delete(column_name)
+          if view.columns["visible"].is_a?(Hash) && view.columns["visible"].key?(column_name)
+            view.columns["visible"].delete(column_name)
             modified = true
           end
 
           # Remove from column order
-          if view.columns['order'].is_a?(Array) && view.columns['order'].include?(column_name)
-            view.columns['order'].delete(column_name)
+          if view.columns["order"].is_a?(Array) && view.columns["order"].include?(column_name)
+            view.columns["order"].delete(column_name)
             modified = true
           end
 
@@ -710,7 +736,7 @@ module Api
           lookup_refs.each do |ref|
             ref_foundation = ref.foundation
             warnings << {
-              type: 'lookup',
+              type: "lookup",
               message: "Column '#{ref.name}' in foundation '#{ref_foundation&.name || 'Unknown'}' uses this column as its display value",
               column_id: ref.id,
               column_name: ref.name,
@@ -721,14 +747,14 @@ module Api
         end
 
         # Check if this column is referenced in computed/formula columns (same foundation)
-        formula_refs = @foundation.columns.where(column_type: 'computed')
+        formula_refs = @foundation.columns.where(column_type: "computed")
         formula_refs.each do |formula_col|
           # Check if the formula references this column name
           # Formulas typically reference columns by name like {column_name} or column_name
           formula = formula_col.default_value.to_s
           if formula.include?(column.column_name) || formula.include?("{#{column.column_name}}")
             warnings << {
-              type: 'formula',
+              type: "formula",
               message: "Formula column '#{formula_col.name}' references this column",
               column_id: formula_col.id,
               column_name: formula_col.name,
@@ -739,11 +765,11 @@ module Api
         end
 
         # Check if this column is used as a lookup display column within the same foundation
-        same_foundation_lookups = @foundation.columns.where(column_type: ['lookup', 'multiple_lookups'])
+        same_foundation_lookups = @foundation.columns.where(column_type: [ "lookup", "multiple_lookups" ])
           .where(lookup_display_column: column.column_name)
         same_foundation_lookups.each do |lookup_col|
           warnings << {
-            type: 'lookup_display',
+            type: "lookup_display",
             message: "Lookup column '#{lookup_col.name}' uses this column as its display value",
             column_id: lookup_col.id,
             column_name: lookup_col.name,
@@ -753,6 +779,27 @@ module Api
         end
 
         warnings
+      end
+
+      # Auto-detect Australian column types based on column name (Gold Standard compliance)
+      # Returns the appropriate Gold Standard column type or "single_line_text" as fallback
+      def auto_detect_australian_column_type(column_name)
+        case column_name.to_s
+        when /^(tax_number|abn)$/i
+          "abn"
+        when /^(company_number|acn)$/i
+          "acn"
+        when /^(bank_bsb|bsb)$/i
+          "bsb"
+        when /^(bank_account_number|bank_account)$/i
+          "bank_account"
+        when /^postcode$/i
+          "postcode"
+        when /^tfn$/i
+          "tfn"
+        else
+          "single_line_text" # Default fallback
+        end
       end
     end
   end

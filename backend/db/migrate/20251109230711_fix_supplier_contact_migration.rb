@@ -69,7 +69,7 @@ class FixSupplierContactMigration < ActiveRecord::Migration[8.0]
               is_active: contact_at_old_id.is_active,
               supplier_code: contact_at_old_id.supplier_code,
               address: contact_at_old_id.address || contact_at_supplier_id.address,
-              notes: [contact_at_supplier_id.notes, contact_at_old_id.notes].compact.join("\n\n---\n\n")
+              notes: [ contact_at_supplier_id.notes, contact_at_old_id.notes ].compact.join("\n\n---\n\n")
             )
           end
 

@@ -1,10 +1,10 @@
 class PricebookItem < ApplicationRecord
-  self.table_name = 'pricebook'
+  self.table_name = "pricebooks"  # Table renamed from pricebook (Rails convention)
 
   # Associations
-  belongs_to :supplier, class_name: 'Contact', foreign_key: 'supplier_id', optional: true
-  belongs_to :default_supplier, class_name: 'Contact', foreign_key: 'default_supplier_id', optional: true
-  belongs_to :pricebook_category, foreign_key: 'category_id', optional: true
+  belongs_to :supplier, class_name: "Contact", foreign_key: "supplier_id", optional: true
+  belongs_to :default_supplier, class_name: "Contact", foreign_key: "default_supplier_id", optional: true
+  belongs_to :pricebook_category, foreign_key: "category_id", optional: true
   has_many :price_histories, dependent: :destroy
 
   # Attribute for skipping price history callback
@@ -21,10 +21,16 @@ class PricebookItem < ApplicationRecord
   before_save :update_price_timestamp, if: :will_save_change_to_current_price?
   after_update :track_price_change, if: :should_track_price_change?
 
+  # SSoT: Update contact's cached supplier flag when pricebook item changes
+  after_commit :refresh_supplier_cached_flag, on: [:create, :destroy]
+  after_commit :refresh_supplier_cached_flag_on_supplier_change, on: :update, if: :saved_change_to_supplier_id?
+
   # Scopes
   scope :active, -> { where(is_active: true) }
   scope :needs_pricing, -> { where(needs_pricing_review: true) }
   scope :by_category, ->(category) { where(category: category) if category.present? }
+  scope :by_colour, ->(colour) { where(colour: colour) if colour.present? }
+  scope :with_colour, -> { where.not(colour: [nil, ""]) }
   scope :by_supplier, ->(supplier_id) {
     return all if supplier_id.blank?
 
@@ -32,7 +38,7 @@ class PricebookItem < ApplicationRecord
     # 1. The default supplier (default_supplier_id)
     # 2. OR appears in the price history (price_histories.supplier_id)
     left_joins(:price_histories)
-      .where('pricebook.default_supplier_id = :supplier_id OR price_histories.supplier_id = :supplier_id',
+      .where("pricebooks.default_supplier_id = :supplier_id OR price_histories.supplier_id = :supplier_id",
              supplier_id: supplier_id)
       .distinct
   }
@@ -50,23 +56,23 @@ class PricebookItem < ApplicationRecord
     # Calculate risk using SQL conditions based on price_freshness_status
     # This is a simplified version optimized for database queries
     case level
-    when 'critical'
+    when "critical"
       # High risk: no price OR price > 6 months old
-      where('current_price IS NULL OR current_price = 0 OR price_last_updated_at IS NULL OR price_last_updated_at < ?', 6.months.ago)
-    when 'high'
+      where("current_price IS NULL OR current_price = 0 OR price_last_updated_at IS NULL OR price_last_updated_at < ?", 6.months.ago)
+    when "high"
       # Medium-high risk: price 3-6 months old AND has some volatility
-      where('current_price IS NOT NULL AND current_price > 0')
-        .where('price_last_updated_at >= ? AND price_last_updated_at < ?', 6.months.ago, 3.months.ago)
-    when 'medium'
+      where("current_price IS NOT NULL AND current_price > 0")
+        .where("price_last_updated_at >= ? AND price_last_updated_at < ?", 6.months.ago, 3.months.ago)
+    when "medium"
       # Medium risk: price < 3 months but missing supplier info
-      where('current_price IS NOT NULL AND current_price > 0')
-        .where('price_last_updated_at >= ?', 3.months.ago)
-        .where('supplier_id IS NULL OR brand IS NULL OR category IS NULL')
-    when 'low'
+      where("current_price IS NOT NULL AND current_price > 0")
+        .where("price_last_updated_at >= ?", 3.months.ago)
+        .where("supplier_id IS NULL OR brand IS NULL OR category IS NULL")
+    when "low"
       # Low risk: recent price AND has supplier info
-      where('current_price IS NOT NULL AND current_price > 0')
-        .where('price_last_updated_at >= ?', 3.months.ago)
-        .where('supplier_id IS NOT NULL')
+      where("current_price IS NOT NULL AND current_price > 0")
+        .where("price_last_updated_at >= ?", 3.months.ago)
+        .where("supplier_id IS NOT NULL")
     end
   }
 
@@ -77,12 +83,18 @@ class PricebookItem < ApplicationRecord
     # Sanitize the query for ILIKE pattern matching
     sanitized_query = PricebookItem.sanitize_sql_like(query)
 
-    # Search in both the tsvector column AND supplier name (contact full_name)
-    # We do a simple ILIKE search on supplier name (joined) and tsquery on searchable_text
+    # Search in multiple ways:
+    # 1. Full-text search via tsvector (for complete word matches)
+    # 2. ILIKE on item_code (for partial code matches like "AIRSI" → "AIRSI25")
+    # 3. ILIKE on item_name (for partial name matches)
+    # 4. ILIKE on supplier name (joined contact display_name)
     # Note: Using distinct is important because left_joins can create duplicates if multiple suppliers match
     left_joins(:supplier)
       .where(
-        "pricebook.searchable_text @@ plainto_tsquery('english', :query) OR contacts.full_name ILIKE :like_query",
+        "pricebooks.searchable_text @@ plainto_tsquery('english', :query) " \
+        "OR pricebooks.item_code ILIKE :like_query " \
+        "OR pricebooks.item_name ILIKE :like_query " \
+        "OR contacts.display_name ILIKE :like_query",
         query: query,
         like_query: "%#{sanitized_query}%"
       )
@@ -99,13 +111,19 @@ class PricebookItem < ApplicationRecord
   end
 
   # Instance methods
+
+  # Display name for lookups (used by DisplayValueResolver)
+  def display_name
+    item_name.presence || item_code
+  end
+
   def display_price
     return "No price" if current_price.nil?
     "$#{'%.2f' % current_price}"
   end
 
   def price_with_unit
-    return "#{display_price} per #{unit_of_measure}"
+    "#{display_price} per #{unit_of_measure}"
   end
 
   def has_supplier?
@@ -118,6 +136,12 @@ class PricebookItem < ApplicationRecord
 
   def latest_price_change
     price_histories.order(created_at: :desc).first
+  end
+
+  # Get the current active price for this item
+  # The "Active" price is simply the current_price field
+  def active_price
+    current_price
   end
 
   def price_trend(days: 90)
@@ -142,47 +166,47 @@ class PricebookItem < ApplicationRecord
   end
 
   def price_freshness_status
-    return 'missing' if current_price.nil? || current_price.zero?
-    return 'unknown' if price_last_updated_at.nil?
+    return "missing" if current_price.nil? || current_price.zero?
+    return "unknown" if price_last_updated_at.nil?
 
     days = price_age_in_days
 
     if days < 90  # Less than 3 months
-      'fresh'
+      "fresh"
     elsif days < 180  # 3-6 months
-      'needs_confirmation'
+      "needs_confirmation"
     else  # 6+ months
-      'outdated'
+      "outdated"
     end
   end
 
   def price_freshness_label
     case price_freshness_status
-    when 'fresh'
-      'Fresh'
-    when 'needs_confirmation'
-      'Needs Confirmation'
-    when 'outdated'
-      'Outdated'
-    when 'missing'
-      'No Price'
-    when 'unknown'
-      'Unknown Age'
+    when "fresh"
+      "Fresh"
+    when "needs_confirmation"
+      "Needs Confirmation"
+    when "outdated"
+      "Outdated"
+    when "missing"
+      "No Price"
+    when "unknown"
+      "Unknown Age"
     end
   end
 
   def price_freshness_color
     case price_freshness_status
-    when 'fresh'
-      'green'
-    when 'needs_confirmation'
-      'orange'
-    when 'outdated'
-      'red'
-    when 'missing'
-      'red'
-    when 'unknown'
-      'gray'
+    when "fresh"
+      "green"
+    when "needs_confirmation"
+      "orange"
+    when "outdated"
+      "red"
+    when "missing"
+      "red"
+    when "unknown"
+      "gray"
     end
   end
 
@@ -201,7 +225,7 @@ class PricebookItem < ApplicationRecord
     # Response time contributes 30 points (inverse - faster is better)
     # Assume 48 hours is baseline, < 12 hours is excellent
     if supplier.avg_response_time
-      time_score = [30 - (supplier.avg_response_time / 2.0), 0].max
+      time_score = [ 30 - (supplier.avg_response_time / 2.0), 0 ].max
       score += time_score
     end
 
@@ -210,7 +234,7 @@ class PricebookItem < ApplicationRecord
 
   # Price Volatility (based on price history)
   def price_volatility
-    return 'unknown' if price_histories.loaded? ? price_histories.size < 2 : price_histories.count < 2
+    return "unknown" if price_histories.loaded? ? price_histories.size < 2 : price_histories.count < 2
 
     # Calculate coefficient of variation from last 6 months
     # Filter in memory to avoid N+1 queries when price_histories is eager loaded
@@ -220,7 +244,7 @@ class PricebookItem < ApplicationRecord
       .map(&:new_price)
       .compact
 
-    return 'stable' if recent_prices.size < 2
+    return "stable" if recent_prices.size < 2
 
     mean = recent_prices.sum / recent_prices.size.to_f
     variance = recent_prices.map { |p| (p - mean) ** 2 }.sum / recent_prices.size
@@ -230,21 +254,21 @@ class PricebookItem < ApplicationRecord
     cv = mean.zero? ? 0 : (std_dev / mean * 100)
 
     if cv < 5
-      'stable'
+      "stable"
     elsif cv < 15
-      'moderate'
+      "moderate"
     else
-      'volatile'
+      "volatile"
     end
   end
 
   def price_volatility_score
     case price_volatility
-    when 'stable'
+    when "stable"
       0  # No risk
-    when 'moderate'
+    when "moderate"
       25  # Some risk
-    when 'volatile'
+    when "volatile"
       50  # High risk
     else
       10  # Unknown = slight risk
@@ -268,17 +292,17 @@ class PricebookItem < ApplicationRecord
 
     # Price freshness contributes 40 points
     case price_freshness_status
-    when 'fresh'
+    when "fresh"
       score += 0
-    when 'needs_confirmation'
+    when "needs_confirmation"
       score += 20
-    when 'outdated', 'unknown'
+    when "outdated", "unknown"
       score += 40
     end
 
     # Supplier reliability contributes 20 points (inverse)
     reliability = supplier_reliability_score
-    score += [20 - (reliability / 5.0), 0].max
+    score += [ 20 - (reliability / 5.0), 0 ].max
 
     # Price volatility contributes 20 points
     score += price_volatility_score * 0.4
@@ -286,46 +310,46 @@ class PricebookItem < ApplicationRecord
     # Missing info contributes 20 points
     score += missing_info_score * 0.33
 
-    [score.round, 100].min
+    [ score.round, 100 ].min
   end
 
   def risk_level
     score = risk_score
 
     if score < 25
-      'low'
+      "low"
     elsif score < 50
-      'medium'
+      "medium"
     elsif score < 75
-      'high'
+      "high"
     else
-      'critical'
+      "critical"
     end
   end
 
   def risk_level_label
     case risk_level
-    when 'low'
-      'Low Risk'
-    when 'medium'
-      'Medium Risk'
-    when 'high'
-      'High Risk'
-    when 'critical'
-      'Critical'
+    when "low"
+      "Low Risk"
+    when "medium"
+      "Medium Risk"
+    when "high"
+      "High Risk"
+    when "critical"
+      "Critical"
     end
   end
 
   def risk_level_color
     case risk_level
-    when 'low'
-      'green'
-    when 'medium'
-      'yellow'
-    when 'high'
-      'orange'
-    when 'critical'
-      'red'
+    when "low"
+      "green"
+    when "medium"
+      "yellow"
+    when "high"
+      "orange"
+    when "critical"
+      "red"
     end
   end
 
@@ -359,5 +383,30 @@ class PricebookItem < ApplicationRecord
 
   def update_price_timestamp
     self.price_last_updated_at = Time.current if current_price.present?
+  end
+
+  # SSoT: Refresh contact's is_supplier_cached flag
+  def refresh_supplier_cached_flag
+    return unless supplier_id.present?
+    supplier&.refresh_supplier_flag!
+  rescue StandardError => e
+    Rails.logger.error("PricebookItem##{id}: Failed to refresh supplier flag - #{e.message}")
+  end
+
+  # SSoT: Handle supplier_id change - refresh both old and new supplier
+  def refresh_supplier_cached_flag_on_supplier_change
+    old_supplier_id, new_supplier_id = saved_change_to_supplier_id
+
+    # Refresh old supplier (may no longer be a supplier)
+    if old_supplier_id.present?
+      Contact.find_by(id: old_supplier_id)&.refresh_supplier_flag!
+    end
+
+    # Refresh new supplier
+    if new_supplier_id.present?
+      Contact.find_by(id: new_supplier_id)&.refresh_supplier_flag!
+    end
+  rescue StandardError => e
+    Rails.logger.error("PricebookItem##{id}: Failed to refresh supplier flag on change - #{e.message}")
   end
 end

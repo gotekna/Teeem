@@ -9,11 +9,11 @@ class JobClaim < ApplicationRecord
 
   # Enums
   enum :status, {
-    draft: 'draft',
-    submitted: 'submitted',
-    authorised: 'authorised',
-    paid: 'paid',
-    voided: 'voided'
+    draft: "draft",
+    submitted: "submitted",
+    authorised: "authorised",
+    paid: "paid",
+    voided: "voided"
   }, default: :draft
 
   # Validations
@@ -27,12 +27,12 @@ class JobClaim < ApplicationRecord
 
   # Scopes
   scope :recent, -> { order(date: :desc, created_at: :desc) }
-  scope :unpaid, -> { where.not(status: 'paid') }
+  scope :unpaid, -> { where.not(status: "paid") }
   scope :by_job, ->(job_id) { where(job_id: job_id) if job_id.present? }
 
   # Instance Methods
   def paid?
-    status == 'paid'
+    status == "paid"
   end
 
   def payment_percentage

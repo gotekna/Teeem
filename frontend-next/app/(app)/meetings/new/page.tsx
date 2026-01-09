@@ -16,7 +16,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Video, MapPin } from "lucide-react";
+import { Video, MapPin } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 
 interface MeetingFormData {
@@ -84,11 +86,7 @@ export default function NewMeetingPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/meetings">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
+        <BackButton fallbackHref="/meetings" />
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-serif">Schedule Meeting</h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -239,7 +237,7 @@ export default function NewMeetingPage() {
           <Button type="submit" disabled={loading}>
             {loading ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Spinner size={16} className="mr-2" />
                 Scheduling...
               </>
             ) : (

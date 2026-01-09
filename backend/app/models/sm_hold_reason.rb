@@ -23,14 +23,14 @@ class SmHoldReason < ApplicationRecord
 
   # Default reasons to seed
   DEFAULTS = [
-    { name: 'WHS Incident', description: 'Workplace health and safety incident on site', sequence_order: 1 },
-    { name: 'Weather', description: 'Adverse weather conditions preventing work', sequence_order: 2 },
-    { name: 'Permit Delay', description: 'Waiting for council or building permits', sequence_order: 3 },
-    { name: 'Client Request', description: 'Client requested hold on works', sequence_order: 4 },
-    { name: 'Material Shortage', description: 'Critical materials unavailable', sequence_order: 5 },
-    { name: 'Subcontractor Issue', description: 'Subcontractor unable to proceed', sequence_order: 6 },
-    { name: 'Design Change', description: 'Awaiting design changes or approvals', sequence_order: 7 },
-    { name: 'Other', description: 'Other reason (specify in release notes)', sequence_order: 8 }
+    { name: "WHS Incident", description: "Workplace health and safety incident on site", sequence_order: 1 },
+    { name: "Weather", description: "Adverse weather conditions preventing work", sequence_order: 2 },
+    { name: "Permit Delay", description: "Waiting for council or building permits", sequence_order: 3 },
+    { name: "Client Request", description: "Client requested hold on works", sequence_order: 4 },
+    { name: "Material Shortage", description: "Critical materials unavailable", sequence_order: 5 },
+    { name: "Subcontractor Issue", description: "Subcontractor unable to proceed", sequence_order: 6 },
+    { name: "Design Change", description: "Awaiting design changes or approvals", sequence_order: 7 },
+    { name: "Other", description: "Other reason (specify in release notes)", sequence_order: 8 }
   ].freeze
 
   # Seed default reasons

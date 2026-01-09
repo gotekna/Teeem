@@ -10,8 +10,8 @@ class SmResource < ApplicationRecord
 
   # Associations
   belongs_to :user, optional: true
-  has_many :resource_allocations, class_name: 'SmResourceAllocation', dependent: :destroy
-  has_many :time_entries, class_name: 'SmTimeEntry', dependent: :destroy
+  has_many :resource_allocations, class_name: "SmResourceAllocation", dependent: :destroy
+  has_many :time_entries, class_name: "SmTimeEntry", dependent: :destroy
   has_many :tasks, through: :resource_allocations, source: :task
 
   # Validations
@@ -20,22 +20,22 @@ class SmResource < ApplicationRecord
 
   # Scopes
   scope :active, -> { where(is_active: true) }
-  scope :people, -> { where(resource_type: 'person') }
-  scope :equipment, -> { where(resource_type: 'equipment') }
-  scope :materials, -> { where(resource_type: 'material') }
+  scope :people, -> { where(resource_type: "person") }
+  scope :equipment, -> { where(resource_type: "equipment") }
+  scope :materials, -> { where(resource_type: "material") }
   scope :ordered, -> { order(:name) }
 
   # Helper to check type
   def person?
-    resource_type == 'person'
+    resource_type == "person"
   end
 
   def equipment?
-    resource_type == 'equipment'
+    resource_type == "equipment"
   end
 
   def material?
-    resource_type == 'material'
+    resource_type == "material"
   end
 
   # Get total hours allocated for a date range

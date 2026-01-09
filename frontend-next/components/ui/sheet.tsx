@@ -21,7 +21,9 @@ const SheetOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SheetPrimitive.Overlay
     className={cn(
-      "fixed inset-0 z-50 bg-[#f6f6f3]/60 dark:bg-black/60 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+      // Start below header (top-12 = 48px) so header/breadcrumb stay accessible
+      // z-[130] to be above EntityConfigurationTab (z-[120]) fullscreen overlay
+      "fixed top-12 left-0 right-0 bottom-0 z-[130] bg-background/60 dark:bg-background/80 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
       className,
     )}
     {...props}
@@ -31,18 +33,26 @@ const SheetOverlay = React.forwardRef<
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName;
 
 const sheetVariants = cva(
-  "fixed z-50 gap-4 transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-200 data-[state=open]:duration-300",
+  // Start below header (top-12 = 48px) so header/breadcrumb stay accessible
+  // z-[130] to be above EntityConfigurationTab (z-[120]) fullscreen overlay
+  "fixed z-[130] gap-4 transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-200 data-[state=open]:duration-300",
   {
     variants: {
       side: {
-        top: "inset-x-0 top-0 data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
+        top: "inset-x-0 top-12 data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
         bottom:
           "inset-x-0 bottom-0 data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
-        left: "inset-y-0 left-0 h-full w-3/4 data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm",
+        left: "top-12 bottom-0 left-0 w-3/4 data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm",
         right:
-          "inset-y-0 right-0 h-full w-3/4 data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-[520px]",
+          "top-12 bottom-0 right-0 w-3/4 data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-[520px]",
+        "right-half":
+          "top-12 bottom-0 right-0 w-[50vw] min-w-[50vw] max-w-[50vw] data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
         "right-full":
-          "inset-y-0 right-0 h-full w-[calc(100vw-64px)] data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
+          "top-12 bottom-0 right-0 w-[calc(100vw-64px)] data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
+        "right-xl":
+          "top-12 bottom-0 right-0 w-[600px] max-w-[600px] data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
+        "right-wide":
+          "top-12 bottom-0 right-0 w-[800px] max-w-[800px] data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
       },
     },
     defaultVariants: {
@@ -86,7 +96,7 @@ const SheetContent = React.forwardRef<
             ref={contentRef}
             tabIndex={-1}
             className={cn(
-              "border w-full h-full bg-[#FAFAF9] dark:bg-[#0C0C0C] p-6 relative overflow-hidden outline-none",
+              "border w-full h-full bg-background p-6 relative outline-none",
               className,
             )}
           >

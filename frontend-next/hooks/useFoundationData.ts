@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { TableColumn, TableRow } from '@/components/table/types';
+import { isHiddenSystemColumn, isVisibleSystemColumn } from '@/lib/constants/system-columns';
 
 /**
  * API column format (what the backend returns)
@@ -126,9 +127,6 @@ export function useFoundationData(
     }
   }, [autoLoad, loadData]);
 
-  // System columns to hide
-  const SYSTEM_COLUMNS = ['created_at', 'updated_at', 'deleted_at'];
-
   // Transform API columns to TeeemTableView format
   const columns: TableColumn[] = useMemo(() => {
     if (!foundation?.columns) return [];
@@ -138,8 +136,12 @@ export function useFoundationData(
     ];
 
     foundation.columns.forEach((col) => {
-      // Skip system columns
-      if (SYSTEM_COLUMNS.includes(col.column_name)) return;
+      // Skip hidden system columns (e.g., deleted_at)
+      if (isHiddenSystemColumn(col.column_name)) return;
+
+      // Check if this is a visible system column (id, created_at, updated_at)
+      // These should be visible but non-editable with yellow highlight
+      const isSystemCol = isVisibleSystemColumn(col.column_name);
 
       tableColumns.push({
         id: col.id,
@@ -152,10 +154,10 @@ export function useFoundationData(
         filterable: true,
         width: getDefaultWidth(col.column_name, col.column_type),
         choices: col.available_choices,
-        lookup_config: col.lookup_foundation_id ? {
-          target_table_id: col.lookup_foundation_id,
-          display_column: col.lookup_display_column,
-        } : undefined,
+        lookup_foundation_id: col.lookup_foundation_id,
+        lookup_display_column: col.lookup_display_column,
+        // SSoT: System columns are visible but non-editable (GOLD_STANDARD_TABLE.md)
+        ...(isSystemCol && { editable: false, isSystemColumn: true }),
       });
     });
 

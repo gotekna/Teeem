@@ -1,12 +1,12 @@
 module Api
   module V1
     class BankAccountsController < ApplicationController
-      before_action :set_bank_account, only: [:show, :update, :destroy]
+      before_action :set_bank_account, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/bank_accounts
       # GET /api/v1/companies/:company_id/bank_accounts
       def index
-        @bank_accounts = BankAccount.includes(:company).all
+        @bank_accounts = BankAccount.includes(:corporate_company).all
 
         # Filter by company (from nested route or query param)
         company_id = params[:company_id]
@@ -18,8 +18,8 @@ module Api
         render json: {
           success: true,
           bank_accounts: @bank_accounts.as_json(
-            include: { company: { only: [:id, :name] } },
-            methods: [:display_name, :masked_account_number, :formatted_bsb]
+            include: { corporate_company: {} },
+            methods: [ :display_name, :masked_account_number, :formatted_bsb, :last_transaction_date, :first_transaction_date ]
           )
         }
       end
@@ -29,8 +29,8 @@ module Api
         render json: {
           success: true,
           bank_account: @bank_account.as_json(
-            include: { company: { only: [:id, :name] } },
-            methods: [:display_name, :formatted_bsb]
+            include: { corporate_company: {} },
+            methods: [ :display_name, :formatted_bsb ]
           )
         }
       end
@@ -42,8 +42,8 @@ module Api
         if @bank_account.save
           render json: {
             success: true,
-            message: 'Bank account created successfully',
-            bank_account: @bank_account.as_json(methods: [:display_name, :formatted_bsb])
+            message: "Bank account created successfully",
+            bank_account: @bank_account.as_json(methods: [ :display_name, :formatted_bsb ])
           }, status: :created
         else
           render json: {
@@ -58,8 +58,8 @@ module Api
         if @bank_account.update(bank_account_params)
           render json: {
             success: true,
-            message: 'Bank account updated successfully',
-            bank_account: @bank_account.as_json(methods: [:display_name, :formatted_bsb])
+            message: "Bank account updated successfully",
+            bank_account: @bank_account.as_json(methods: [ :display_name, :formatted_bsb ])
           }
         else
           render json: {
@@ -74,7 +74,7 @@ module Api
         @bank_account.destroy
         render json: {
           success: true,
-          message: 'Bank account deleted successfully'
+          message: "Bank account deleted successfully"
         }
       end
 
@@ -83,7 +83,7 @@ module Api
       def set_bank_account
         @bank_account = BankAccount.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Bank account not found' }, status: :not_found
+        render json: { success: false, error: "Bank account not found" }, status: :not_found
       end
 
       def bank_account_params

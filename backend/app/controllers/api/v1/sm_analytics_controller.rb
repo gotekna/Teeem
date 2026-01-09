@@ -97,7 +97,7 @@ module Api
         unless active_baseline
           return render json: {
             success: false,
-            error: 'No active baseline found. Create a baseline first.'
+            error: "No active baseline found. Create a baseline first."
           }, status: :not_found
         end
 
@@ -155,7 +155,7 @@ module Api
           baseline_date: baseline.baseline_date,
           is_active: baseline.is_active,
           task_count: baseline.task_count,
-          created_by: baseline.created_by&.full_name,
+          created_by: baseline.created_by&.display_name,
           created_at: baseline.created_at
         }
       end

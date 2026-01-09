@@ -11,7 +11,7 @@ class ConsolidationReconciliationService
     report = ReconciliationReport.create!(
       company_group: company_group,
       as_of_date: as_of_date,
-      status: 'running',
+      status: "running",
       started_at: Time.current
     )
 
@@ -47,7 +47,7 @@ class ConsolidationReconciliationService
 
   # Get current intercompany relationships and balances
   def intercompany_relationships
-    companies = company_group.companies.to_a
+    companies = company_group.corporate_companies.to_a
     relationships = []
 
     # For each pair of companies, find balances
@@ -106,8 +106,8 @@ class ConsolidationReconciliationService
     {
       company_id: company.id,
       company_name: company.name,
-      total_receivables: balances.where('amount > 0').sum(:amount),
-      total_payables: balances.where('amount < 0').sum(:amount).abs,
+      total_receivables: balances.where("amount > 0").sum(:amount),
+      total_payables: balances.where("amount < 0").sum(:amount).abs,
       net_position: balances.sum(:amount),
       balance_count: balances.count,
       related_companies: balances.map do |b|
@@ -131,7 +131,7 @@ class ConsolidationReconciliationService
 
   def sync_xero_balances
     # For each company with a Xero connection, try to fetch intercompany balances
-    company_group.companies.each do |company|
+    company_group.corporate_companies.each do |company|
       connection = company.company_xero_connection
       next unless connection&.connected?
 
@@ -147,7 +147,7 @@ class ConsolidationReconciliationService
   def sync_xero_balances_for_company(company, connection)
     # Get contacts from Xero that match other companies in the group
     client = XeroApiClient.new
-    group_company_names = company_group.companies.where.not(id: company.id).pluck(:name)
+    group_company_names = company_group.corporate_companies.where.not(id: company.id).pluck(:name)
 
     # Fetch aged receivables and payables from Xero
     # This would require implementing aged_receivables and aged_payables endpoints in XeroApiClient
@@ -212,9 +212,9 @@ class ConsolidationReconciliationService
   def categorize_severity(discrepancy)
     abs_discrepancy = discrepancy.abs
     case
-    when abs_discrepancy < 100 then 'low'
-    when abs_discrepancy < 10_000 then 'medium'
-    else 'high'
+    when abs_discrepancy < 100 then "low"
+    when abs_discrepancy < 10_000 then "medium"
+    else "high"
     end
   end
 end

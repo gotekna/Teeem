@@ -1,0 +1,39 @@
+class ContactEmail < ApplicationRecord
+  belongs_to :contact
+
+  # Explicit presence validation (also enforced by belongs_to in Rails 5+)
+  validates :contact_id, presence: true
+  validates :email, presence: true, format: { with: URI::MailTo::EMAIL_REGEXP }
+  validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
+
+  scope :ordered, -> { order(:position) }
+  scope :primary, -> { where(is_primary: true) }
+
+  # Auto-set position if not provided
+  before_validation :set_position, on: :create
+
+  # If this is set as primary, unset all other primary emails for this contact
+  # This runs BEFORE validation to ensure single primary is enforced correctly
+  before_validation :ensure_single_primary
+
+  private
+
+  def set_position
+    return if position.present?
+    max_position = contact.contact_emails.maximum(:position) || -1
+    self.position = max_position + 1
+  end
+
+  def ensure_single_primary
+    return unless is_primary? && (new_record? || is_primary_changed?)
+    return unless contact_id.present?
+
+    # For new records, unset all existing primaries
+    # For existing records, exclude self from the update
+    if new_record?
+      ContactEmail.where(contact_id: contact_id, is_primary: true).update_all(is_primary: false)
+    else
+      ContactEmail.where(contact_id: contact_id, is_primary: true).where.not(id: id).update_all(is_primary: false)
+    end
+  end
+end

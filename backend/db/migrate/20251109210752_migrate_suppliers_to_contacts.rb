@@ -66,7 +66,7 @@ class MigrateSuppliersToContacts < ActiveRecord::Migration[8.0]
     # Rollback: Remove supplier type from contacts
     say_with_time "Rolling back supplier migration..." do
       Contact.where("'supplier' = ANY(contact_types)").find_each do |contact|
-        contact.contact_types = contact.contact_types - ['supplier']
+        contact.contact_types = contact.contact_types - [ 'supplier' ]
         contact.save!
       end
     end

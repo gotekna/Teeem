@@ -3,9 +3,9 @@
 # SmCommentMention - Tracks @mentions in comments
 #
 class SmCommentMention < ApplicationRecord
-  belongs_to :comment, class_name: 'SmComment', foreign_key: 'sm_comment_id'
+  belongs_to :comment, class_name: "SmComment", foreign_key: "sm_comment_id"
   belongs_to :user, optional: true
-  belongs_to :resource, class_name: 'SmResource', optional: true
+  belongs_to :resource, class_name: "SmResource", optional: true
 
   validates :comment, presence: true
   validate :must_have_user_or_resource
@@ -28,6 +28,6 @@ class SmCommentMention < ApplicationRecord
   def must_have_user_or_resource
     return if user_id.present? || resource_id.present?
 
-    errors.add(:base, 'Must mention either a user or resource')
+    errors.add(:base, "Must mention either a user or resource")
   end
 end

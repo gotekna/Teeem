@@ -23,16 +23,16 @@ module Api
           render json: {
             success: true,
             data: {
-              upcoming: tasks.where(status: 'not_started').map { |t| task_json(t) },
-              in_progress: tasks.where(status: 'started').map { |t| task_json(t) },
-              completed: tasks.where(status: 'completed').map { |t| task_json(t) },
+              upcoming: tasks.where(status: "not_started").map { |t| task_json(t) },
+              in_progress: tasks.where(status: "started").map { |t| task_json(t) },
+              completed: tasks.where(status: "completed").map { |t| task_json(t) },
               all_tasks: tasks.map { |t| task_json(t) }
             },
             summary: {
               total: tasks.count,
-              not_started: tasks.where(status: 'not_started').count,
-              started: tasks.where(status: 'started').count,
-              completed: tasks.where(status: 'completed').count
+              not_started: tasks.where(status: "not_started").count,
+              started: tasks.where(status: "started").count,
+              completed: tasks.where(status: "completed").count
             }
           }
         end
@@ -57,12 +57,12 @@ module Api
           if params[:confirm_schedule] == true && task.supplier_confirmed_at.nil?
             task.supplier_confirmed_at = Time.current
             SmActivity.track(
-              'task_updated',
+              "task_updated",
               construction: task.construction,
               task: task,
               metadata: {
                 task_name: task.name,
-                changes: { 'supplier_confirmed' => [false, true] },
+                changes: { "supplier_confirmed" => [ false, true ] },
                 supplier_name: current_contact.name
               }
             )
@@ -91,7 +91,7 @@ module Api
 
           if comment.save
             SmActivity.track(
-              'comment_added',
+              "comment_added",
               construction: task.construction,
               task: task,
               trackable: comment,
@@ -142,13 +142,13 @@ module Api
           task = supplier_tasks.find(params[:id])
 
           photo = task.task_photos.new(
-            photo_type: params[:photo_type] || 'progress',
+            photo_type: params[:photo_type] || "progress",
             caption: params[:caption]
           )
 
           # Handle base64 image
           if params[:image_data].present?
-            result = CloudinaryService.upload_base64(params[:image_data], folder: 'sm_task_photos')
+            result = CloudinaryService.upload_base64(params[:image_data], folder: "sm_task_photos")
             photo.photo_url = result[:url] if result[:success]
           end
 
@@ -241,7 +241,7 @@ module Api
           {
             id: comment.id,
             body: comment.body,
-            author_name: comment.author&.full_name || 'Supplier',
+            author_name: comment.author&.display_name || "Supplier",
             created_at: comment.created_at,
             edited: comment.edited?
           }

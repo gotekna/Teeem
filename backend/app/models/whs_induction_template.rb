@@ -1,6 +1,7 @@
 class WHSInductionTemplate < ApplicationRecord
   # Associations
-  has_many :whs_inductions
+  # Prevent deletion if inductions exist using this template (data integrity)
+  has_many :whs_inductions, dependent: :restrict_with_error
 
   # Constants
   INDUCTION_TYPES = %w[company_wide site_specific project_specific visitor].freeze
@@ -26,13 +27,13 @@ class WHSInductionTemplate < ApplicationRecord
   def has_video_content?
     return false unless content_sections.present?
 
-    content_sections.any? { |section| section['video_url'].present? }
+    content_sections.any? { |section| section["video_url"].present? }
   end
 
   def total_quiz_questions
     return 0 unless has_quiz? && content_sections.present?
 
-    content_sections.sum { |section| section.dig('quiz_questions')&.length || 0 }
+    content_sections.sum { |section| section.dig("quiz_questions")&.length || 0 }
   end
 
   def never_expires?

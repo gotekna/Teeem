@@ -44,14 +44,14 @@ class ContactAutoMergeService
   private
 
   def find_duplicate_groups
-    contacts = Contact.where(deleted: [false, nil])
-                     .select(:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :xero_id, :xero_contact_status, :rating, :notes, :contact_types, :website, :address)
+    contacts = Contact.where(deleted: [ false, nil ])
+                     .select(:id, :display_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :xero_id, :xero_contact_status, :rating, :notes, :roles, :website, :address)
 
     groups = []
     seen_ids = Set.new
 
     # Group by normalized full name
-    by_name = contacts.group_by { |c| normalize_name(c.full_name) }
+    by_name = contacts.group_by { |c| normalize_name(c.display_name) }
     by_name.each do |normalized, group|
       next if normalized.blank? || group.size < 2
       next if group.all? { |c| seen_ids.include?(c.id) }
@@ -70,7 +70,7 @@ class ContactAutoMergeService
 
   def normalize_name(name)
     return nil if name.blank?
-    name.to_s.downcase.gsub(/\s+/, ' ').strip
+    name.to_s.downcase.gsub(/\s+/, " ").strip
   end
 
   def process_duplicate_group(group)
@@ -86,7 +86,7 @@ class ContactAutoMergeService
     target = scored.first[:contact]
     sources = scored[1..-1].map { |s| s[:contact] }
 
-    Rails.logger.info "[ContactAutoMerge] Group '#{group[:match_value]}': keeping #{target.id} (#{target.full_name}, score=#{scored.first[:score]}), merging #{sources.map(&:id).join(', ')}"
+    Rails.logger.info "[ContactAutoMerge] Group '#{group[:match_value]}': keeping #{target.id} (#{target.display_name}, score=#{scored.first[:score]}), merging #{sources.map(&:id).join(', ')}"
 
     if target.xero_id.present?
       @stats[:xero_connections_preserved] += 1
@@ -98,10 +98,10 @@ class ContactAutoMergeService
       @stats[:contacts_deleted] += sources.size
       @stats[:merged_groups] << {
         target_id: target.id,
-        target_name: target.full_name,
+        target_name: target.display_name,
         target_xero: target.xero_id.present?,
         source_ids: sources.map(&:id),
-        source_names: sources.map(&:full_name)
+        source_names: sources.map(&:display_name)
       }
     else
       # Actually perform the merge
@@ -124,13 +124,13 @@ class ContactAutoMergeService
     score += 5 if contact.mobile_phone.present?
     score += 5 if contact.office_phone.present?
     score += 3 if contact.website.present?
-    score += 3 if contact.address.present?
+    score += 3 if contact.contact_addresses.any?
     score += 2 if contact.notes.present?
     score += 2 if contact.rating.to_i > 0
-    score += contact.contact_types.to_a.size * 2 # More contact types = more data
+    score += contact.roles.to_a.size * 2 # More roles = more data
 
     # Prefer active Xero contacts
-    score += 20 if contact.xero_contact_status == 'ACTIVE'
+    score += 20 if contact.xero_contact_status == "ACTIVE"
 
     score
   end
@@ -138,25 +138,72 @@ class ContactAutoMergeService
   def merge_contacts(target, sources, group_name)
     ActiveRecord::Base.transaction do
       sources.each do |source|
-        # Merge contact types
-        merged_types = (target.contact_types.to_a + source.contact_types.to_a).uniq
-        target.update!(contact_types: merged_types)
+        # Merge roles
+        merged_roles = (target.roles.to_a + source.roles.to_a).uniq
+        target.update!(roles: merged_roles)
 
-        # Fill in missing contact information from source
+        # Fill in missing legacy contact information from source
         target.update!(email: source.email) if target.email.blank? && source.email.present?
         target.update!(mobile_phone: source.mobile_phone) if target.mobile_phone.blank? && source.mobile_phone.present?
         target.update!(office_phone: source.office_phone) if target.office_phone.blank? && source.office_phone.present?
         target.update!(website: source.website) if target.website.blank? && source.website.present?
-        target.update!(address: source.address) if target.address.blank? && source.address.present?
+
+        # Merge contact_emails (SSoT) - transfer unique emails, skip duplicates
+        source.contact_emails.each do |src_email|
+          next if target.contact_emails.exists?(email: src_email.email)
+          next if target.email == src_email.email
+
+          has_primary = target.contact_emails.exists?(is_primary: true)
+          target.contact_emails.create!(
+            email: src_email.email,
+            is_primary: src_email.is_primary && !has_primary,
+            label: src_email.label,
+            position: target.contact_emails.count
+          )
+        end
+
+        # Merge contact_phones (SSoT) - transfer unique phones, skip duplicates
+        source.contact_phones.each do |src_phone|
+          normalized = src_phone.phone_number.to_s.gsub(/\D/, '')
+          existing_phones = target.contact_phones.pluck(:phone_number).map { |p| p.to_s.gsub(/\D/, '') }
+          next if existing_phones.include?(normalized)
+
+          has_primary = target.contact_phones.exists?(is_primary: true)
+          target.contact_phones.create!(
+            phone_number: src_phone.phone_number,
+            phone_type: src_phone.phone_type,
+            is_primary: src_phone.is_primary && !has_primary,
+            label: src_phone.label,
+            position: target.contact_phones.count
+          )
+        end
+
+        # Merge contact_addresses (SSoT) - transfer by address_type, skip duplicates
+        source.contact_addresses.each do |src_addr|
+          next if target.contact_addresses.exists?(address_type: src_addr.address_type)
+
+          has_primary = target.contact_addresses.exists?(is_primary: true)
+          target.contact_addresses.create!(
+            address_type: src_addr.address_type,
+            line1: src_addr.line1,
+            line2: src_addr.line2,
+            line3: src_addr.line3,
+            line4: src_addr.line4,
+            city: src_addr.city,
+            region: src_addr.region,
+            postal_code: src_addr.postal_code,
+            country: src_addr.country,
+            is_primary: src_addr.is_primary && !has_primary
+          )
+        end
 
         # Keep Xero connection if target doesn't have one but source does
-        if target.xero_id.blank? && source.xero_id.present?
-          target.update!(
-            xero_id: source.xero_id,
-            xero_contact_status: source.xero_contact_status
-          )
-          @stats[:xero_connections_preserved] += 1
-          Rails.logger.info "[ContactAutoMerge] Transferred Xero connection from #{source.id} to #{target.id}"
+        # SSoT: Use contact_external_links (xero_links) not legacy xero_id column
+        if target.xero_links.empty? && source.xero_links.any?
+          links_count = source.xero_links.count
+          source.xero_links.update_all(contact_id: target.id)
+          @stats[:xero_connections_preserved] += links_count
+          Rails.logger.info "[ContactAutoMerge] Transferred #{links_count} Xero link(s) from #{source.id} to #{target.id}"
         end
 
         # Merge supplier-specific fields (if both are suppliers)
@@ -179,6 +226,113 @@ class ContactAutoMergeService
         PurchaseOrder.where(supplier_id: source.id).update_all(supplier_id: target.id)
         PriceHistory.where(supplier_id: source.id).update_all(supplier_id: target.id)
 
+        # Transfer ContactRelationships (company/employee relationships) with validation
+        # Outgoing relationships (source is the person, related_contact is the company)
+        source.outgoing_relationships.each do |relationship|
+          # Check if target already has this relationship
+          existing = target.outgoing_relationships.find_by(
+            related_contact_id: relationship.related_contact_id,
+            relationship_type: relationship.relationship_type
+          )
+
+          if existing
+            # Relationship already exists, destroy the duplicate
+            relationship.destroy
+          else
+            # Validate entity types for employee_of relationships
+            if relationship.relationship_type == "employee_of"
+              unless %w[person sole_trader].include?(target.entity_type)
+                Rails.logger.warn "[ContactAutoMerge] Skipping invalid employee_of: #{target.display_name} (#{target.entity_type}) cannot be employee"
+                relationship.destroy
+                next
+              end
+            end
+
+            # Transfer relationship to target (check return value)
+            unless relationship.update(source_contact_id: target.id)
+              Rails.logger.warn "[ContactAutoMerge] Failed to transfer relationship #{relationship.id}: #{relationship.errors.full_messages.join(', ')}"
+              relationship.destroy
+            end
+          end
+        end
+
+        # Incoming relationships (source is the company, related_contact is the person)
+        source.incoming_relationships.each do |relationship|
+          # Check if target already has this relationship
+          existing = target.incoming_relationships.find_by(
+            source_contact_id: relationship.source_contact_id,
+            relationship_type: relationship.relationship_type
+          )
+
+          if existing
+            # Relationship already exists, destroy the duplicate
+            relationship.destroy
+          else
+            # Validate entity types for employee_of relationships
+            if relationship.relationship_type == "employee_of"
+              unless %w[company trust].include?(target.entity_type)
+                Rails.logger.warn "[ContactAutoMerge] Skipping invalid employee_of: #{target.display_name} (#{target.entity_type}) cannot be employer"
+                relationship.destroy
+                next
+              end
+            end
+
+            # Transfer relationship to target (check return value)
+            unless relationship.update(related_contact_id: target.id)
+              Rails.logger.warn "[ContactAutoMerge] Failed to transfer relationship #{relationship.id}: #{relationship.errors.full_messages.join(', ')}"
+              relationship.destroy
+            end
+          end
+        end
+
+        # Transfer primary_company_id if source has one and target doesn't
+        if source.primary_company_id.present? && target.primary_company_id.blank?
+          target.update!(primary_company_id: source.primary_company_id)
+        end
+
+        # Transfer Xero links (contact_external_links)
+        source.xero_links.each do |xero_link|
+          # Check if target already has a link to this Xero tenant
+          existing = target.xero_links.find_by(
+            tenant_id: xero_link.tenant_id,
+            source: xero_link.source
+          )
+
+          if existing
+            # Target already linked to this Xero tenant, keep target's link and delete source's
+            Rails.logger.info "[ContactAutoMerge] Target already linked to #{xero_link.tenant_name}, keeping target's link"
+            xero_link.destroy
+          else
+            # Transfer this Xero link to target
+            xero_link.update(contact_id: target.id)
+            Rails.logger.info "[ContactAutoMerge] Transferred Xero link to #{xero_link.tenant_name}"
+          end
+        end
+
+        # Transfer job associations
+        source.job_contacts.each do |job_contact|
+          # Check if target already has this job association
+          existing = target.job_contacts.find_by(job_id: job_contact.job_id)
+
+          if existing
+            job_contact.destroy
+          else
+            job_contact.update(contact_id: target.id)
+          end
+        end
+
+        # Transfer case associations
+        source.case_contacts.each do |case_contact|
+          # Check if target already has this case association
+          existing = target.case_contacts.find_by(case_record_id: case_contact.case_record_id)
+
+          if existing
+            case_contact.destroy
+          else
+            case_contact.update(contact_id: target.id)
+          end
+        end
+
         # Soft delete the source contact
         source.update!(deleted: true)
 
@@ -188,10 +342,10 @@ class ContactAutoMergeService
 
       @stats[:merged_groups] << {
         target_id: target.id,
-        target_name: target.full_name,
+        target_name: target.display_name,
         target_xero: target.xero_id.present?,
         source_ids: sources.map(&:id),
-        source_names: sources.map(&:full_name)
+        source_names: sources.map(&:display_name)
       }
     end
 

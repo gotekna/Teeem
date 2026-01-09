@@ -11,7 +11,7 @@ class CreateFolderTemplateItems < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :folder_template_items, [:folder_template_id, :order]
+    add_index :folder_template_items, [ :folder_template_id, :order ]
     add_index :folder_template_items, :level
   end
 end

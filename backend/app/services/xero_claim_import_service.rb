@@ -3,7 +3,7 @@
 # Service to import ALL sales invoices (ACCREC) from Xero as JobClaims
 # These are invoices sent TO clients for work completed on jobs
 class XeroClaimImportService
-  TRACKING_CATEGORY_NAME = 'Job'
+  TRACKING_CATEGORY_NAME = "Job"
   RATE_LIMIT_SLEEP = 100 # milliseconds between operations
 
   attr_reader :stats
@@ -66,12 +66,12 @@ class XeroClaimImportService
   private
 
   def fetch_tracking_category_id
-    result = @client.get('TrackingCategories')
+    result = @client.get("TrackingCategories")
     return nil unless result[:success]
 
-    categories = result[:data]['TrackingCategories'] || []
-    job_category = categories.find { |c| c['Name'] == TRACKING_CATEGORY_NAME }
-    job_category&.dig('TrackingCategoryID')
+    categories = result[:data]["TrackingCategories"] || []
+    job_category = categories.find { |c| c["Name"] == TRACKING_CATEGORY_NAME }
+    job_category&.dig("TrackingCategoryID")
   end
 
   def fetch_all_sales_invoices
@@ -82,10 +82,10 @@ class XeroClaimImportService
     page = 1
 
     loop do
-      result = with_rate_limit_retry { @client.get('Invoices', { where: 'Type=="ACCREC"', page: page }) }
+      result = with_rate_limit_retry { @client.get("Invoices", { where: 'Type=="ACCREC"', page: page }) }
       break unless result[:success]
 
-      invoices = result[:data]['Invoices'] || []
+      invoices = result[:data]["Invoices"] || []
       break if invoices.empty?
 
       all_invoices.concat(invoices)
@@ -104,7 +104,7 @@ class XeroClaimImportService
     # This is slow but necessary to get tracking data
     all_invoices.map.with_index do |invoice, index|
       Rails.logger.info("Fetching details for invoice #{index + 1}/#{all_invoices.length}...") if (index + 1) % 50 == 0
-      detail = fetch_invoice_details(invoice['InvoiceID'])
+      detail = fetch_invoice_details(invoice["InvoiceID"])
       # Rate limit between individual fetches - Xero allows ~60 calls/min
       sleep(1.1)
       detail || invoice
@@ -115,7 +115,7 @@ class XeroClaimImportService
     result = with_rate_limit_retry { @client.get("Invoices/#{invoice_id}") }
     return nil unless result[:success]
 
-    invoices = result[:data]['Invoices'] || []
+    invoices = result[:data]["Invoices"] || []
     invoices.first
   end
 
@@ -138,8 +138,8 @@ class XeroClaimImportService
   end
 
   def import_invoice(invoice)
-    invoice_id = invoice['InvoiceID']
-    invoice_number = invoice['InvoiceNumber']
+    invoice_id = invoice["InvoiceID"]
+    invoice_number = invoice["InvoiceNumber"]
 
     # Check if claim already exists for this invoice
     existing_claim = JobClaim.find_by(xero_invoice_id: invoice_id)
@@ -166,7 +166,7 @@ class XeroClaimImportService
     end
 
     # Find contact if available
-    contact = find_contact(invoice['Contact'])
+    contact = find_contact(invoice["Contact"])
 
     # Calculate total for line items with this tracking option
     job_total = calculate_job_total(invoice, tracking_option_id)
@@ -181,13 +181,13 @@ class XeroClaimImportService
       invoice_number: invoice_number,
       description: claim_name.truncate(500),
       amount: job_total,
-      amount_paid: invoice['AmountPaid'] || 0,
+      amount_paid: invoice["AmountPaid"] || 0,
       status: determine_status(invoice),
-      date: parse_xero_date(invoice['Date']),
-      due_date: parse_xero_date(invoice['DueDate']),
+      date: parse_xero_date(invoice["Date"]),
+      due_date: parse_xero_date(invoice["DueDate"]),
       xero_invoice_id: invoice_id,
-      xero_contact_id: invoice.dig('Contact', 'ContactID'),
-      contact_name: invoice.dig('Contact', 'Name'),
+      xero_contact_id: invoice.dig("Contact", "ContactID"),
+      contact_name: invoice.dig("Contact", "Name"),
       contact_id: contact&.id
     )
 
@@ -196,12 +196,12 @@ class XeroClaimImportService
   end
 
   def extract_tracking_option_id(invoice)
-    line_items = invoice['LineItems'] || []
+    line_items = invoice["LineItems"] || []
 
     line_items.each do |line|
-      (line['Tracking'] || []).each do |tracking|
-        if tracking['TrackingCategoryID'] == @tracking_category_id
-          return tracking['TrackingOptionID']
+      (line["Tracking"] || []).each do |tracking|
+        if tracking["TrackingCategoryID"] == @tracking_category_id
+          return tracking["TrackingOptionID"]
         end
       end
     end
@@ -210,49 +210,49 @@ class XeroClaimImportService
   end
 
   def calculate_job_total(invoice, tracking_option_id)
-    line_items = invoice['LineItems'] || []
+    line_items = invoice["LineItems"] || []
 
     # Sum only line items that are tracked to this job
     matching_lines = line_items.select do |line|
-      (line['Tracking'] || []).any? do |t|
-        t['TrackingOptionID'] == tracking_option_id
+      (line["Tracking"] || []).any? do |t|
+        t["TrackingOptionID"] == tracking_option_id
       end
     end
 
-    matching_lines.sum { |line| (line['LineAmount'] || 0).to_f }
+    matching_lines.sum { |line| (line["LineAmount"] || 0).to_f }
   end
 
   def build_description(invoice, tracking_option_id)
-    line_items = invoice['LineItems'] || []
+    line_items = invoice["LineItems"] || []
 
     # Get descriptions from matching line items
     matching_lines = line_items.select do |line|
-      (line['Tracking'] || []).any? do |t|
-        t['TrackingOptionID'] == tracking_option_id
+      (line["Tracking"] || []).any? do |t|
+        t["TrackingOptionID"] == tracking_option_id
       end
     end
 
-    descriptions = matching_lines.map { |l| l['Description'] }.compact.uniq
+    descriptions = matching_lines.map { |l| l["Description"] }.compact.uniq
 
     if descriptions.any?
-      descriptions.join('; ').truncate(400)
+      descriptions.join("; ").truncate(400)
     else
       "Progress claim imported from Xero"
     end
   end
 
   def determine_status(invoice)
-    case invoice['Status']
-    when 'PAID'
-      'paid'
-    when 'AUTHORISED'
-      'authorised'
-    when 'SUBMITTED'
-      'submitted'
-    when 'VOIDED'
-      'voided'
+    case invoice["Status"]
+    when "PAID"
+      "paid"
+    when "AUTHORISED"
+      "authorised"
+    when "SUBMITTED"
+      "submitted"
+    when "VOIDED"
+      "voided"
     else
-      'draft'
+      "draft"
     end
   end
 
@@ -269,16 +269,25 @@ class XeroClaimImportService
   def find_contact(xero_contact)
     return nil unless xero_contact
 
-    xero_id = xero_contact['ContactID']
+    xero_id = xero_contact["ContactID"]
     return nil unless xero_id
 
-    # Try to find by xero_id first
-    contact = Contact.find_by(xero_id: xero_id)
-    return contact if contact
+    # Get tenant_id from current Xero credential
+    tenant_id = XeroCredential.current&.tenant_id
+
+    # Try to find via WarehouseContact first (SSoT for Xero contact linking)
+    if tenant_id.present?
+      warehouse_contact = WarehouseContact.find_by(xero_id: xero_id, tenant_id: tenant_id)
+      return warehouse_contact.contact if warehouse_contact&.contact
+    end
+
+    # Fallback: Try to find via contact_external_links (SSoT)
+    link = ContactExternalLink.xero.find_by(external_contact_id: xero_id)
+    return link.contact if link&.contact
 
     # Try to find by name
-    contact_name = xero_contact['Name']
-    contact = Contact.find_by("LOWER(full_name) = ?", contact_name.downcase) if contact_name
+    contact_name = xero_contact["Name"]
+    contact = Contact.find_by("LOWER(display_name) = ?", contact_name.downcase) if contact_name
     contact
   end
 end

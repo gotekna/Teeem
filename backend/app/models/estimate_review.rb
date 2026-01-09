@@ -4,10 +4,10 @@ class EstimateReview < ApplicationRecord
 
   # Enums
   enum :status, {
-    pending: 'pending',
-    processing: 'processing',
-    completed: 'completed',
-    failed: 'failed'
+    pending: "pending",
+    processing: "processing",
+    completed: "completed",
+    failed: "failed"
   }, prefix: true, default: :pending
 
   # Serializations
@@ -22,21 +22,21 @@ class EstimateReview < ApplicationRecord
   }, allow_nil: true
 
   # Scopes
-  scope :completed, -> { where(status: 'completed') }
+  scope :completed, -> { where(status: "completed") }
   scope :recent, -> { order(created_at: :desc) }
-  scope :failed, -> { where(status: 'failed') }
+  scope :failed, -> { where(status: "failed") }
 
   # Methods
   def completed?
-    status == 'completed'
+    status == "completed"
   end
 
   def processing?
-    status == 'processing'
+    status == "processing"
   end
 
   def failed?
-    status == 'failed'
+    status == "failed"
   end
 
   def total_discrepancies

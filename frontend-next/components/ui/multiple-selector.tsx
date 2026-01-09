@@ -1,7 +1,8 @@
+ 
 "use client";
 
 import { Command as CommandPrimitive, useCommandState } from "cmdk";
-import { X } from "lucide-react";
+import { X, Check } from "lucide-react";
 import * as React from "react";
 import { forwardRef, useEffect } from "react";
 
@@ -406,10 +407,11 @@ const MultipleSelector = React.forwardRef<
     }, [creatable, emptyIndicator, onSearch, options]);
 
     const selectables = React.useMemo<GroupOption>(
-      () => removePickedOption(options, selected),
-      [options, selected],
+      () => options, // Keep all options visible, even if selected
+      [options],
     );
 
+     
     const commandFilter = React.useCallback(() => {
       if (commandProps?.filter) {
         return commandProps.filter;
@@ -446,8 +448,7 @@ const MultipleSelector = React.forwardRef<
           className={cn(
             "min-h-10 border-b border-border text-sm",
             {
-              "py-1": selected.length !== 0,
-              "cursor-text": !disabled && selected.length !== 0,
+              "cursor-text": !disabled,
             },
             className,
           )}
@@ -456,83 +457,78 @@ const MultipleSelector = React.forwardRef<
             inputRef?.current?.focus();
           }}
         >
-          <div className="relative flex flex-nowrap gap-1 overflow-x-auto scrollbar-hide">
-            {selected.map((option) => {
-              return (
-                <Badge
-                  key={option.value}
-                  className={cn(
-                    "data-[disabled]:bg-muted-foreground data-[disabled]:text-muted data-[disabled]:hover:bg-muted-foreground flex-shrink-0",
-                    "data-[fixed]:bg-muted-foreground data-[fixed]:text-muted data-[fixed]:hover:bg-muted-foreground",
-                    badgeClassName,
-                  )}
-                  data-fixed={option.fixed}
-                  data-disabled={disabled || undefined}
-                >
-                  {option.label}
-                  <button
-                    type="button"
-                    className={cn(
-                      "ml-1 outline-none",
-                      (disabled || option.fixed) && "hidden",
-                    )}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        handleUnselect(option);
-                      }
-                    }}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }}
-                    onClick={() => handleUnselect(option)}
-                  >
-                    <X className="size-3 text-muted-foreground hover:text-foreground" />
-                  </button>
-                </Badge>
-              );
-            })}
-            <CommandPrimitive.Input
-              {...inputProps}
-              ref={inputRef}
-              value={inputValue}
-              disabled={disabled}
-              onValueChange={(value) => {
-                setInputValue(value);
-                inputProps?.onValueChange?.(value);
-              }}
-              onBlur={(event) => {
-                if (!onScrollbar) {
-                  setOpen(false);
-                }
-                inputProps?.onBlur?.(event);
-              }}
-              onFocus={(event) => {
-                setOpen(true);
-                triggerSearchOnFocus && onSearch?.(debouncedSearchTerm);
-                inputProps?.onFocus?.(event);
-              }}
-              placeholder={
-                hidePlaceholderWhenSelected && selected.length !== 0
-                  ? ""
-                  : placeholder
+          {/* Search input - always on top for easy access */}
+          <CommandPrimitive.Input
+            {...inputProps}
+            ref={inputRef}
+            value={inputValue}
+            disabled={disabled}
+            onValueChange={(value) => {
+              setInputValue(value);
+              inputProps?.onValueChange?.(value);
+            }}
+            onBlur={(event) => {
+              if (!onScrollbar) {
+                setOpen(false);
               }
-              className={cn(
-                "flex-1 bg-transparent outline-none placeholder:text-muted-foreground",
-                {
-                  "w-full": hidePlaceholderWhenSelected,
-                  "py-1": selected.length === 0,
-                  "ml-1": selected.length !== 0,
-                },
-                inputProps?.className,
-              )}
-            />
-          </div>
+              inputProps?.onBlur?.(event);
+            }}
+            onFocus={(event) => {
+              setOpen(true);
+              triggerSearchOnFocus && onSearch?.(debouncedSearchTerm);
+              inputProps?.onFocus?.(event);
+            }}
+            placeholder={placeholder || "Search..."}
+            className={cn(
+              "w-full bg-transparent outline-none placeholder:text-muted-foreground py-2 px-1",
+              inputProps?.className,
+            )}
+          />
+          {/* Selected items below search */}
+          {selected.length > 0 && (
+            <div className="relative flex flex-wrap gap-1 pb-2 px-1">
+              {selected.map((option) => {
+                return (
+                  <Badge
+                    key={option.value}
+                    className={cn(
+                      "data-[disabled]:bg-muted-foreground data-[disabled]:text-muted data-[disabled]:hover:bg-muted-foreground",
+                      "data-[fixed]:bg-muted-foreground data-[fixed]:text-muted data-[fixed]:hover:bg-muted-foreground",
+                      badgeClassName,
+                    )}
+                    data-fixed={option.fixed}
+                    data-disabled={disabled || undefined}
+                  >
+                    {option.label}
+                    <button
+                      type="button"
+                      className={cn(
+                        "ml-1 outline-none",
+                        (disabled || option.fixed) && "hidden",
+                      )}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          handleUnselect(option);
+                        }
+                      }}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                      onClick={() => handleUnselect(option)}
+                    >
+                      <X className="size-3 text-muted-foreground hover:text-foreground" />
+                    </button>
+                  </Badge>
+                );
+              })}
+            </div>
+          )}
         </div>
         <div className="relative">
           {open && (
             <CommandList
-              className="absolute top-1 z-10 w-full bg-popover text-popover-foreground shadow-md border border-border outline-none animate-in max-h-[200px] overflow-auto"
+              className="absolute top-1 z-10 w-full bg-popover text-popover-foreground shadow-md border border-border outline-none animate-in max-h-[300px] overflow-auto"
               onMouseLeave={() => {
                 setOnScrollbar(false);
               }}
@@ -559,24 +555,36 @@ const MultipleSelector = React.forwardRef<
                       className="h-full overflow-auto"
                     >
                       {dropdowns.map((option) => {
+                        const isSelected = selected.some((s) => s.value === option.value);
                         return (
                           <CommandItem
                             key={option.value}
-                            value={option.value}
+                            value={option.label}
                             disabled={option.disable}
                             onMouseDown={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
                             }}
                             onSelect={() => {
-                              if (selected.length >= maxSelected) {
+                              setInputValue("");
+                              const newOptions = isSelected
+                                ? selected.filter((s) => s.value !== option.value)
+                                : selected.length >= maxSelected
+                                ? selected
+                                : [...selected, option];
+
+                              if (!isSelected && selected.length >= maxSelected) {
                                 onMaxSelected?.(selected.length);
                                 return;
                               }
-                              setInputValue("");
-                              const newOptions = [...selected, option];
+
                               setSelected(newOptions);
                               onChange?.(newOptions);
+
+                              // Keep dropdown open for multiple selections
+                              setTimeout(() => {
+                                inputRef.current?.focus();
+                              }, 0);
                             }}
                             className={cn(
                               "cursor-pointer w-full",
@@ -584,7 +592,17 @@ const MultipleSelector = React.forwardRef<
                                 "cursor-default text-muted-foreground",
                             )}
                           >
-                            {renderOption ? renderOption(option) : option.label}
+                            <div className="flex items-center gap-2 w-full">
+                              <div className={cn(
+                                "flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                                isSelected ? "bg-primary text-primary-foreground" : "opacity-50"
+                              )}>
+                                {isSelected && <Check className="h-3 w-3" />}
+                              </div>
+                              <span className="flex-1">
+                                {renderOption ? renderOption(option) : option.label}
+                              </span>
+                            </div>
                           </CommandItem>
                         );
                       })}

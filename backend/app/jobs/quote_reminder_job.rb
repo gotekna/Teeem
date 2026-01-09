@@ -55,8 +55,8 @@ class QuoteReminderJob < ApplicationJob
     # Find quote requests that are pending and old enough for a reminder
     reminder_threshold = 24.hours.ago # Send reminder if no response after 24 hours
 
-    quote_requests = QuoteRequest.where(status: 'pending_response')
-                                .where('created_at < ?', reminder_threshold)
+    quote_requests = QuoteRequest.where(status: "pending_response")
+                                .where("created_at < ?", reminder_threshold)
 
     Rails.logger.info("Checking #{quote_requests.count} quote requests for reminders")
 
@@ -126,28 +126,29 @@ class QuoteReminderJob < ApplicationJob
   def reminder_sent_recently?(quote_request)
     # Check if reminder was sent in last 24 hours
     metadata = quote_request.metadata || {}
-    last_reminder = metadata['last_reminder_sent_at']
+    last_reminder = metadata["last_reminder_sent_at"]
 
     return false unless last_reminder
 
     Time.parse(last_reminder) > 24.hours.ago
-  rescue
+  rescue StandardError => e
+    Rails.logger.warn "[QuoteReminderJob] Failed to parse last_reminder_sent_at: #{e.message}"
     false
   end
 
   def mark_reminder_sent(quote_request)
     metadata = quote_request.metadata || {}
-    metadata['last_reminder_sent_at'] = Time.current.to_s
-    metadata['reminder_count'] = (metadata['reminder_count'] || 0) + 1
+    metadata["last_reminder_sent_at"] = Time.current.to_s
+    metadata["reminder_count"] = (metadata["reminder_count"] || 0) + 1
 
     quote_request.update(metadata: metadata)
   end
 
   def twilio_configured?
-    ENV['TWILIO_ACCOUNT_SID'].present? && ENV['TWILIO_AUTH_TOKEN'].present?
+    ENV["TWILIO_ACCOUNT_SID"].present? && ENV["TWILIO_AUTH_TOKEN"].present?
   end
 
   def portal_url
-    ENV['PORTAL_URL'] || 'https://portal.teeem.com'
+    ENV["PORTAL_URL"] || "https://portal.teeem.com"
   end
 end

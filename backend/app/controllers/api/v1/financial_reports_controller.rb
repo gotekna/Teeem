@@ -1,7 +1,7 @@
 module Api
   module V1
     class FinancialReportsController < ApplicationController
-      before_action :set_company, only: [:balance_sheet, :profit_loss, :job_profitability]
+      before_action :set_company, only: [ :balance_sheet, :profit_loss, :job_profitability ]
 
       # GET /api/v1/financial_reports/balance_sheet
       def balance_sheet
@@ -60,7 +60,7 @@ module Api
       def job_profitability
         service = FinancialReportingService.new(company: @company)
 
-        construction_ids = params[:job_ids]&.split(',')&.map(&:to_i)
+        construction_ids = params[:job_ids]&.split(",")&.map(&:to_i)
         from_date = params[:from_date] ? Date.parse(params[:from_date]) : nil
         to_date = params[:to_date] ? Date.parse(params[:to_date]) : Date.current
 
@@ -127,10 +127,10 @@ module Api
 
       def set_company
         @company = if params[:company_id]
-                    Company.find(params[:company_id])
-                  else
+                    CorporateCompany.find(params[:company_id])
+        else
                     current_user.company
-                  end
+        end
       rescue ActiveRecord::RecordNotFound
         render json: {
           success: false,

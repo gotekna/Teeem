@@ -17,7 +17,7 @@
 
 class PayNowWeeklyLimit < ApplicationRecord
   # Relationships
-  belongs_to :set_by, class_name: 'User', optional: true
+  belongs_to :set_by, class_name: "User", optional: true
   has_many :pay_now_requests, dependent: :nullify
 
   # Validations
@@ -34,16 +34,16 @@ class PayNowWeeklyLimit < ApplicationRecord
 
   # Scopes
   scope :active, -> { where(active: true) }
-  scope :for_week, ->(date) { where('week_start_date <= ? AND week_end_date >= ?', date, date) }
+  scope :for_week, ->(date) { where("week_start_date <= ? AND week_end_date >= ?", date, date) }
   scope :current_week, -> {
-    today = CompanySetting.today
+    today = CorporateCompanySetting.today
     for_week(today).active.first
   }
 
   # Class methods
   def self.current
     # Get or create current week's limit
-    today = CompanySetting.today
+    today = CorporateCompanySetting.today
     week_start = today.beginning_of_week(:monday)
 
     current_limit = for_week(week_start).active.first
@@ -51,7 +51,7 @@ class PayNowWeeklyLimit < ApplicationRecord
     unless current_limit
       # Create new week limit with previous week's total or default to 0
       previous_limit_value = PayNowWeeklyLimit.where(active: true)
-                                              .where('week_start_date < ?', week_start)
+                                              .where("week_start_date < ?", week_start)
                                               .order(week_start_date: :desc)
                                               .limit(1)
                                               .pluck(:total_limit)
@@ -70,16 +70,16 @@ class PayNowWeeklyLimit < ApplicationRecord
 
   def self.set_limit(amount, user:)
     # Set new limit for current week
-    today = CompanySetting.today
+    today = CorporateCompanySetting.today
     week_start = today.beginning_of_week(:monday)
 
     transaction do
       # Deactivate any existing limits for this week
-      where('week_start_date = ?', week_start).update_all(active: false)
+      where("week_start_date = ?", week_start).update_all(active: false)
 
       # Get current usage if there was an active limit
-      current_usage = PayNowRequest.where(status: ['approved', 'paid'])
-                                   .where('created_at >= ? AND created_at <= ?', week_start, week_start.end_of_week(:monday))
+      current_usage = PayNowRequest.where(status: [ "approved", "paid" ])
+                                   .where("created_at >= ? AND created_at <= ?", week_start, week_start.end_of_week(:monday))
                                    .sum(:discounted_amount)
 
       # Create new limit
@@ -90,7 +90,7 @@ class PayNowWeeklyLimit < ApplicationRecord
         week_end_date: week_start.end_of_week(:monday),
         set_by: user,
         previous_limit: PayNowWeeklyLimit.where(active: false)
-                                        .where('week_start_date = ?', week_start)
+                                        .where("week_start_date = ?", week_start)
                                         .order(created_at: :desc)
                                         .limit(1)
                                         .pluck(:total_limit)
@@ -155,14 +155,14 @@ class PayNowWeeklyLimit < ApplicationRecord
   def set_week_dates
     return if week_start_date.present? && week_end_date.present?
 
-    today = CompanySetting.today
+    today = CorporateCompanySetting.today
     self.week_start_date = today.beginning_of_week(:monday)
     self.week_end_date = today.end_of_week(:monday)
   end
 
   def week_end_after_start
     if week_end_date.present? && week_start_date.present? && week_end_date < week_start_date
-      errors.add(:week_end_date, 'must be after week start date')
+      errors.add(:week_end_date, "must be after week start date")
     end
   end
 end

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { query, queryOne } from "@/lib/db";
+import { COMPANY_TIMEZONE } from "@/lib/timezone-utils";
 
 interface CompanySettings {
   id: number;
@@ -37,10 +38,11 @@ export async function GET() {
       LIMIT 1
     `);
 
+    // SSoT: Uses COMPANY_TIMEZONE from timezone-utils.ts
     if (!settings) {
       return NextResponse.json({
         company_name: "TEEEM",
-        timezone: "Australia/Brisbane",
+        timezone: COMPANY_TIMEZONE,
         working_days: {
           monday: true,
           tuesday: true,

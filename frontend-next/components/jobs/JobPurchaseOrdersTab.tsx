@@ -1,26 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -29,65 +13,77 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Plus,
-  MoreVertical,
-  Eye,
-  Pencil,
-  Trash2,
-  Search,
-  Loader2,
-  ShoppingCart,
-  ChevronsUpDown,
-  Check,
   AlertTriangle,
   X,
+  Check,
+  CornerDownRight,
+  ExternalLink,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import TeeemTableView from "@/components/table/TeeemTableView";
+import type { TableRow } from "@/components/table/types";
+import { Spinner } from "@/components/ui/spinner";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+
+// Foundation table name for Purchase Orders
+const PURCHASE_ORDERS_TABLE_NAME = "purchase-orders";
+
+// Internal team roles for assignment (SSoT: JobPeopleTab.tsx INTERNAL_ROLES)
+const INTERNAL_TEAM_ROLES = [
+  { key: "supervisor", label: "Supervisor" },
+  { key: "site_coordinator", label: "Site Coordinator" },
+  { key: "estimator", label: "Estimator" },
+  { key: "internal_sales", label: "Internal Sales" },
+  { key: "coordinator", label: "Client Coordinator" },
+] as const;
 
 interface Contact {
   id: number;
-  full_name: string;
   display_name?: string;
+  employee_names?: string[];
+  employee_count?: number;
 }
 
-interface TaskTemplate {
+// Extended ComboboxItem with employee data for cascading view
+interface SupplierItem {
+  id: string;
+  label: string;
+  searchText?: string;
+  employeeNames: string[];
+}
+
+// SmTask represents a task from the job's schedule
+// PO modal shows tasks where po_required=true so user can link PO to specific task
+interface SmTask {
   id: number;
   name: string;
-  category?: string;
-  default_duration_days?: number;
+  task_number?: number;
+  po_required?: boolean;
+  supplier_id?: number;
+  assigned_user_id?: number;
+  assigned_role?: string;
 }
 
-interface PurchaseOrder {
+interface User {
   id: number;
-  purchase_order_number: string;
-  description?: string;
-  status: string;
-  total: number;
-  required_date?: string;
-  supplier?: {
-    id: number;
-    full_name?: string;
-    display_name?: string;
-  };
-  schedule_task?: {
-    id: number;
-    title: string;
-  };
+  name: string;
+}
+
+// Role from /api/v1/roles
+interface Role {
+  id: number;
+  value: string;  // e.g., "supervisor"
+  label: string;  // e.g., "Supervisor"
+}
+
+// Job's internal team member (from job_contacts)
+interface JobInternalTeamMember {
+  role: string;
+  user_id: number | null;
+  user?: { id: number; name: string };
 }
 
 interface JobPurchaseOrdersTabProps {
@@ -95,81 +91,61 @@ interface JobPurchaseOrdersTabProps {
   jobTitle?: string;
 }
 
-const STATUS_VARIANTS: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
-  pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-  approved: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-  sent: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
-  received: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-  paid: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400",
-  cancelled: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-};
-
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-}
-
-function formatDate(dateString: string | undefined): string {
-  if (!dateString) return "-";
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
-
 export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabProps) {
   const router = useRouter();
-  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("");
+  const { user: currentUser } = useAuth();
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [taskTemplates, setTaskTemplates] = useState<TaskTemplate[]>([]);
+  const [poTasks, setPoTasks] = useState<SmTask[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [internalTeam, setInternalTeam] = useState<JobInternalTeamMember[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
-  const [loadingTasks, setLoadingTasks] = useState(false);
+  const [loadingPoTasks, setLoadingPoTasks] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Form state
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
-  const [selectedTemplate, setSelectedTemplate] = useState<TaskTemplate | null>(null);
-  const [contactOpen, setContactOpen] = useState(false);
-  const [taskOpen, setTaskOpen] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<SmTask | null>(null);
+  const [customTaskName, setCustomTaskName] = useState("");
+  const [assignedUserId, setAssignedUserId] = useState<string>("");
+  const [assignedRole, setAssignedRole] = useState<string>("");
 
-  // Delete confirmation
-  const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [deleting, setDeleting] = useState(false);
-
-  useEffect(() => {
-    loadPurchaseOrders();
-  }, [jobId]);
-
-  const loadPurchaseOrders = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get<{ purchase_orders: PurchaseOrder[] }>(
-        `/api/v1/purchase_orders?job_id=${jobId}`
-      );
-      setPurchaseOrders(response?.purchase_orders || []);
-    } catch (err) {
-      console.error("Failed to load purchase orders:", err);
-    } finally {
-      setLoading(false);
+  // Handle row click - navigate to PO detail page
+  const handleRowClick = useCallback((row: TableRow) => {
+    const poNumber = row.purchase_order_number as string | undefined;
+    const slug = poNumber?.replace('PO-', '') || row.id;
+    if (slug) {
+      router.push(`/purchase_orders/${slug}`);
     }
-  };
+  }, [router]);
+
+  // Handle inline row update - use slug-based API
+  const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
+    try {
+      await api.patch(`/api/v1/foundations/${PURCHASE_ORDERS_TABLE_NAME}/records/${rowId}`, {
+        record: { [field]: value }
+      });
+      setRefreshKey(k => k + 1);
+    } catch (err) {
+      console.error("Failed to update purchase order:", err);
+      throw err;
+    }
+  }, []);
 
   const loadContacts = async () => {
     if (contacts.length > 0) return;
     try {
       setLoadingContacts(true);
-      const response = await api.get<{ contacts: Contact[] }>("/api/v1/contacts?type=suppliers");
+      // FRC FIX: Use entity_type filter instead of type=suppliers
+      // type=suppliers only returns contacts with is_supplier_cached=true (existing suppliers with POs)
+      // But we need to show ALL potential suppliers (companies/trusts/sole_traders)
+      // so users can create their first PO for a new supplier
+      const response = await api.get<{ contacts: Contact[] }>("/api/v1/contacts?entity_type=company,trust,sole_trader");
       setContacts(response?.contacts || []);
     } catch (err) {
       console.error("Failed to load contacts:", err);
@@ -178,52 +154,158 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     }
   };
 
-  const loadTaskTemplates = async () => {
-    if (taskTemplates.length > 0) return;
+  // Load PO tasks from job's schedule (sm_tasks where po_required=true)
+  // This shows actual tasks from this job that can have a PO created
+  const loadPoTasks = async () => {
+    if (poTasks.length > 0) return;
     try {
-      setLoadingTasks(true);
-      const response = await api.get<{ task_templates: TaskTemplate[] }>(
-        `/api/v1/task_templates`
+      setLoadingPoTasks(true);
+      // Get sm_tasks for this job - use lightweight endpoint for fast loading
+      const response = await api.get<{ sm_tasks: SmTask[] }>(
+        `/api/v1/jobs/${jobId}/sm_tasks?for=select`
       );
-      setTaskTemplates(response?.task_templates || []);
+      // Filter for po_required tasks and sort by task_number then name
+      const filteredTasks = (response?.sm_tasks || [])
+        .filter(t => t.po_required)
+        .sort((a, b) => {
+          if (a.task_number && b.task_number) return a.task_number - b.task_number;
+          if (a.task_number) return -1;
+          if (b.task_number) return 1;
+          return a.name.localeCompare(b.name);
+        });
+      setPoTasks(filteredTasks);
     } catch (err) {
-      console.error("Failed to load task templates:", err);
+      console.error("Failed to load PO tasks:", err);
     } finally {
-      setLoadingTasks(false);
+      setLoadingPoTasks(false);
     }
+  };
+
+  // Load users for assignment dropdown
+  const loadUsers = async () => {
+    if (users.length > 0) return;
+    try {
+      const response = await api.get<{ users?: User[] } | User[]>("/api/v1/users");
+      setUsers(Array.isArray(response) ? response : response?.users || []);
+    } catch (err) {
+      console.error("Failed to load users:", err);
+    }
+  };
+
+  // Load roles for assignment dropdown
+  const loadRoles = async () => {
+    if (roles.length > 0) return;
+    try {
+      const response = await api.get<Role[]>("/api/v1/roles");
+      setRoles(Array.isArray(response) ? response : []);
+    } catch (err) {
+      console.error("Failed to load roles:", err);
+    }
+  };
+
+  // Load job's internal team members (Supervisor, Site Coordinator, etc.)
+  const loadInternalTeam = async () => {
+    try {
+      const response = await api.get<{ job_contacts: JobInternalTeamMember[] }>(
+        `/api/v1/jobs/${jobId}/job_contacts`
+      );
+      // Filter for internal team roles only (those with user_id)
+      const internalRoleKeys = INTERNAL_TEAM_ROLES.map(r => r.key) as string[];
+      const team = (response?.job_contacts || []).filter(
+        jc => internalRoleKeys.includes(jc.role) && jc.user_id
+      );
+      setInternalTeam(team);
+    } catch (err) {
+      console.error("Failed to load internal team:", err);
+    }
+  };
+
+  // Get the user assigned to a role on this job
+  const getTeamMemberForRole = (roleKey: string): JobInternalTeamMember | undefined => {
+    return internalTeam.find(m => m.role === roleKey);
+  };
+
+  // Handle role button click - auto-fill user if assigned on job
+  const handleRoleClick = (roleKey: string) => {
+    // Find the Role ID for this key
+    const role = roles.find(r => r.value === roleKey);
+    const roleId = role ? String(role.id) : "";
+
+    if (assignedRole === roleId) {
+      // Deselect
+      setAssignedRole("");
+      setAssignedUserId(currentUser ? String(currentUser.id) : "");
+    } else {
+      // Select role and auto-fill user if one is assigned to this role
+      setAssignedRole(roleId);
+      const teamMember = getTeamMemberForRole(roleKey);
+      if (teamMember?.user_id) {
+        setAssignedUserId(String(teamMember.user_id));
+      }
+    }
+  };
+
+  // Check if a role button is selected (by Role ID)
+  const isRoleButtonSelected = (roleKey: string): boolean => {
+    const role = roles.find(r => r.value === roleKey);
+    return role ? assignedRole === String(role.id) : false;
   };
 
   const handleOpenCreateModal = async () => {
     setError(null);
     setSelectedContact(null);
-    setSelectedTemplate(null);
+    setSelectedTask(null);
+    setCustomTaskName("");
+    // Default assignment to current user
+    setAssignedUserId(currentUser ? String(currentUser.id) : "");
+    setAssignedRole("");
     setShowCreateModal(true);
-    await Promise.all([loadContacts(), loadTaskTemplates()]);
+    await Promise.all([loadContacts(), loadPoTasks(), loadUsers(), loadRoles(), loadInternalTeam()]);
   };
 
-  const handleCreate = async () => {
+  // Create PO and optionally navigate to detail page
+  const handleCreate = async (openAfterCreate = false) => {
     if (!selectedContact) {
-      setError("Please select a contact");
+      setError("Please select a supplier");
       return;
     }
-    if (!selectedTemplate) {
-      setError("Please select a task template");
+    // Either select a task OR enter a custom task name
+    if (!selectedTask && !customTaskName.trim()) {
+      setError("Please select a PO task or enter a custom task name");
       return;
     }
 
     try {
       setSaving(true);
       setError(null);
-      await api.post(`/api/v1/purchase_orders`, {
+      // SSoT: Every PO must link to a real SmTask via sm_task_id
+      // - If existing task selected: send schedule_task_id → backend links it
+      // - If custom task name: send task_name → backend CREATES SmTask then links it
+      const response = await api.post<{ purchase_order: { id: number; purchase_order_number: string } }>(`/api/v1/purchase_orders`, {
         purchase_order: {
           job_id: jobId,
           supplier_id: selectedContact.id,
-          task_template_id: selectedTemplate.id,
+          // Existing task: link directly
+          schedule_task_id: selectedTask?.id || null,
+          // Custom task: backend creates SmTask with this name
+          task_name: !selectedTask && customTaskName.trim() ? customTaskName.trim() : null,
           status: "draft",
+          // Assignment info for custom tasks (role is Role.id integer)
+          ...(customTaskName.trim() && !selectedTask && {
+            assigned_user_id: assignedUserId ? Number(assignedUserId) : null,
+            assigned_role: assignedRole ? Number(assignedRole) : null,
+          }),
         },
       });
       setShowCreateModal(false);
-      await loadPurchaseOrders();
+      setRefreshKey(k => k + 1);
+
+      // Navigate to PO detail page if requested
+      if (openAfterCreate && response?.purchase_order) {
+        const poNumber = response.purchase_order.purchase_order_number;
+        const slug = poNumber?.replace('PO-', '') || response.purchase_order.id;
+        router.push(`/purchase_orders/${slug}`);
+      }
     } catch (err) {
       console.error("Failed to create purchase order:", err);
       setError("Failed to create purchase order");
@@ -232,246 +314,25 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     }
   };
 
-  const handleDelete = async () => {
-    if (!deleteId) return;
-    try {
-      setDeleting(true);
-      await api.delete(`/api/v1/purchase_orders/${deleteId}`);
-      setDeleteId(null);
-      await loadPurchaseOrders();
-    } catch (err) {
-      console.error("Failed to delete purchase order:", err);
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  const filteredPOs = purchaseOrders.filter((po) => {
-    const supplierName = po.supplier?.display_name || po.supplier?.full_name || "";
-    const matchesSearch =
-      !searchQuery ||
-      po.purchase_order_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      supplierName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      po.description?.toLowerCase().includes(searchQuery.toLowerCase());
-
-    const matchesStatus = !statusFilter || po.status === statusFilter;
-
-    return matchesSearch && matchesStatus;
-  });
-
-  // Stats
-  const totalValue = purchaseOrders.reduce((sum, po) => sum + (Number(po.total) || 0), 0);
-  const draftCount = purchaseOrders.filter((po) => po.status === "draft").length;
-  const pendingCount = purchaseOrders.filter((po) => po.status === "pending").length;
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
 
   return (
-    <div className="space-y-6">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold">{purchaseOrders.length}</div>
-            <p className="text-sm text-muted-foreground">Total POs</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold">{formatCurrency(totalValue)}</div>
-            <p className="text-sm text-muted-foreground">Total Value</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-gray-600">{draftCount}</div>
-            <p className="text-sm text-muted-foreground">Drafts</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-yellow-600">{pendingCount}</div>
-            <p className="text-sm text-muted-foreground">Pending Approval</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Header with Actions */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <ShoppingCart className="h-6 w-6 text-muted-foreground" />
-          <div>
-            <h3 className="text-lg font-semibold">Purchase Orders</h3>
-            <p className="text-sm text-muted-foreground">
-              Manage purchase orders for {jobTitle || "this job"}
-            </p>
-          </div>
-        </div>
-        <Button onClick={handleOpenCreateModal}>
-          <Plus className="h-4 w-4 mr-2" />
-          New Purchase Order
-        </Button>
-      </div>
-
-      {/* Filters */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search PO number, supplier..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="h-10 px-3 py-2 border border-input rounded-md text-sm bg-background"
-        >
-          <option value="">All Statuses</option>
-          <option value="draft">Draft</option>
-          <option value="pending">Pending</option>
-          <option value="approved">Approved</option>
-          <option value="sent">Sent</option>
-          <option value="received">Received</option>
-          <option value="paid">Paid</option>
-          <option value="cancelled">Cancelled</option>
-        </select>
-      </div>
-
-      {/* PO Table */}
-      {filteredPOs.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <ShoppingCart className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-            <p className="text-muted-foreground">
-              {searchQuery || statusFilter
-                ? "No purchase orders match your filters"
-                : "No purchase orders yet"}
-            </p>
-            {!searchQuery && !statusFilter && (
-              <Button className="mt-4" onClick={handleOpenCreateModal}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create First PO
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>PO Number</TableHead>
-                  <TableHead>Supplier</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Required Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredPOs.map((po) => (
-                  <TableRow
-                    key={po.id}
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => router.push(`/purchase_orders/${po.id}`)}
-                  >
-                    <TableCell className="font-medium">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          router.push(`/purchase_orders/${po.id}`);
-                        }}
-                        className="text-primary hover:underline"
-                      >
-                        {po.purchase_order_number}
-                      </button>
-                    </TableCell>
-                    <TableCell>
-                      {po.supplier ? (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            router.push(`/contacts/${po.supplier!.id}`);
-                          }}
-                          className="text-primary hover:underline"
-                        >
-                          {po.supplier.display_name || po.supplier.full_name}
-                        </button>
-                      ) : (
-                        "-"
-                      )}
-                    </TableCell>
-                    <TableCell className="max-w-xs truncate">
-                      {po.description || "-"}
-                    </TableCell>
-                    <TableCell>{formatDate(po.required_date)}</TableCell>
-                    <TableCell>
-                      <Badge className={STATUS_VARIANTS[po.status] || STATUS_VARIANTS.draft}>
-                        {po.status.charAt(0).toUpperCase() + po.status.slice(1)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatCurrency(Number(po.total) || 0)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                          <Button variant="ghost" size="icon">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              router.push(`/purchase_orders/${po.id}`);
-                            }}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            View
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              router.push(`/purchase_orders/${po.id}/edit`);
-                            }}
-                          >
-                            <Pencil className="h-4 w-4 mr-2" />
-                            Edit
-                          </DropdownMenuItem>
-                          {po.status !== "paid" && (
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDeleteId(po.id);
-                              }}
-                              className="text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+    <div className="flex flex-col h-full -mx-4">
+      {/* TeeemTableView with server-side filtering by job_id */}
+      {/* SSoT: onAddRow opens the PO modal - single way to create POs */}
+      <TeeemTableView
+        key={refreshKey}
+        foundationId={PURCHASE_ORDERS_TABLE_NAME}
+        autoFetchRecords={true}
+        initialFilters={[
+          { id: "job-filter", column: "job_id", operator: "=", value: String(jobId) }
+        ]}
+        tableName="Purchase Orders"
+        enableExport={true}
+        onRefresh={() => setRefreshKey(k => k + 1)}
+        onRowDoubleClick={handleRowClick}
+        onRowUpdate={handleRowUpdate}
+        onAddRow={handleOpenCreateModal}
+      />
 
       {/* Create PO Modal */}
       <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
@@ -502,167 +363,233 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
             {/* Supplier (Contact) Select */}
             <div className="space-y-2">
               <Label>Supplier</Label>
-              <Popover open={contactOpen} onOpenChange={setContactOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={contactOpen}
-                    className="w-full justify-between"
-                    disabled={loadingContacts}
-                  >
-                    {loadingContacts ? (
-                      <span className="text-muted-foreground">Loading suppliers...</span>
-                    ) : selectedContact ? (
-                      selectedContact.display_name || selectedContact.full_name
-                    ) : (
-                      <span className="text-muted-foreground">Select supplier...</span>
-                    )}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[400px] p-0">
-                  <Command>
-                    <CommandInput placeholder="Search suppliers..." />
-                    <CommandList>
-                      <CommandEmpty>No supplier found.</CommandEmpty>
-                      <CommandGroup>
-                        {contacts.map((contact) => (
-                          <CommandItem
-                            key={contact.id}
-                            value={contact.display_name || contact.full_name}
-                            onSelect={() => {
-                              setSelectedContact(contact);
-                              setContactOpen(false);
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                selectedContact?.id === contact.id ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            {contact.display_name || contact.full_name}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+              <ComboboxDropdown<SupplierItem>
+                items={contacts.map((contact) => ({
+                  id: String(contact.id),
+                  label: contact.display_name || `Contact ${contact.id}`,
+                  // Include employee names in searchText so searching "Sandy" finds "Titus Tekform Pty Ltd"
+                  searchText: contact.employee_names?.join(" ") || undefined,
+                  employeeNames: contact.employee_names || [],
+                }))}
+                selectedItem={selectedContact ? {
+                  id: String(selectedContact.id),
+                  label: selectedContact.display_name || `Contact ${selectedContact.id}`,
+                  searchText: selectedContact.employee_names?.join(" ") || undefined,
+                  employeeNames: selectedContact.employee_names || [],
+                } : undefined}
+                onSelect={(item) => {
+                  const contact = contacts.find((c) => String(c.id) === item.id);
+                  setSelectedContact(contact || null);
+                }}
+                placeholder={loadingContacts ? "Loading suppliers..." : "Select supplier..."}
+                searchPlaceholder="Search suppliers..."
+                emptyResults="No supplier found."
+                disabled={loadingContacts}
+                isLoading={loadingContacts}
+                renderListItem={({ isChecked, item, searchTerm }) => {
+                  // Find matching employees based on search term
+                  const searchLower = searchTerm.toLowerCase();
+                  const matchingEmployees = searchTerm
+                    ? item.employeeNames.filter(name =>
+                        name.toLowerCase().includes(searchLower)
+                      )
+                    : [];
+
+                  // Check if company name matches (not just employee)
+                  const companyMatches = item.label.toLowerCase().includes(searchLower);
+
+                  return (
+                    <div className="flex flex-col w-full">
+                      <div className="flex items-center">
+                        <Check
+                          className={`mr-2 h-4 w-4 flex-shrink-0 ${
+                            isChecked ? "opacity-100" : "opacity-0"
+                          }`}
+                        />
+                        <span className="truncate">{item.label}</span>
+                      </div>
+                      {/* Show matching employees when search matches employee name (not company name) */}
+                      {matchingEmployees.length > 0 && !companyMatches && (
+                        <div className="ml-6 mt-0.5">
+                          {matchingEmployees.slice(0, 2).map((employee, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center text-xs text-muted-foreground"
+                            >
+                              <CornerDownRight className="h-3 w-3 mr-1 flex-shrink-0" />
+                              <span className="truncate">{employee} (Employee)</span>
+                            </div>
+                          ))}
+                          {matchingEmployees.length > 2 && (
+                            <div className="text-xs text-muted-foreground ml-4">
+                              +{matchingEmployees.length - 2} more
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }}
+              />
             </div>
 
-            {/* Task Template Select */}
+            {/* PO Task Select - tasks from job's schedule */}
             <div className="space-y-2">
-              <Label>Task Template</Label>
-              <Popover open={taskOpen} onOpenChange={setTaskOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={taskOpen}
-                    className="w-full justify-between"
-                    disabled={loadingTasks}
-                  >
-                    {loadingTasks ? (
-                      <span className="text-muted-foreground">Loading templates...</span>
-                    ) : selectedTemplate ? (
-                      <div className="flex flex-col items-start">
-                        <span>{selectedTemplate.name}</span>
-                        {selectedTemplate.category && (
-                          <span className="text-xs text-muted-foreground">
-                            {selectedTemplate.category}
+              <Label>PO Task</Label>
+              <ComboboxDropdown
+                items={poTasks.map((task) => ({
+                  id: String(task.id),
+                  label: task.task_number ? `${task.task_number}. ${task.name}` : task.name,
+                }))}
+                selectedItem={selectedTask ? {
+                  id: String(selectedTask.id),
+                  label: selectedTask.task_number ? `${selectedTask.task_number}. ${selectedTask.name}` : selectedTask.name,
+                } : undefined}
+                onSelect={(item) => {
+                  const task = poTasks.find((t) => String(t.id) === item.id);
+                  setSelectedTask(task || null);
+                  // Clear custom task name when selecting a task
+                  if (task) setCustomTaskName("");
+                }}
+                placeholder={loadingPoTasks ? "Loading tasks..." : "Select PO task..."}
+                searchPlaceholder="Search tasks..."
+                emptyResults={poTasks.length === 0 ? "No PO tasks on this job" : "No task found."}
+                disabled={loadingPoTasks}
+                isLoading={loadingPoTasks}
+                clearable={!!selectedTask}
+                onClear={() => setSelectedTask(null)}
+              />
+            </div>
+
+            {/* OR divider */}
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="flex-1 border-t" />
+              <span>OR</span>
+              <div className="flex-1 border-t" />
+            </div>
+
+            {/* Custom Task Name - alternative to selecting from list */}
+            <div className="space-y-2">
+              <Label>Custom Task Name</Label>
+              <Input
+                value={customTaskName}
+                onChange={(e) => {
+                  setCustomTaskName(e.target.value);
+                  // Clear selected task when typing custom name
+                  if (e.target.value) setSelectedTask(null);
+                }}
+                placeholder="Enter custom task name..."
+                disabled={!!selectedTask}
+              />
+            </div>
+
+            {/* Assign To - Only show when typing custom task name */}
+            {customTaskName.trim() && (
+              <div className="space-y-3">
+                <Label>Assign To</Label>
+                {/* Quick-select buttons for job's internal team */}
+                <div className="flex flex-wrap gap-2">
+                  {INTERNAL_TEAM_ROLES.map((role) => {
+                    const teamMember = getTeamMemberForRole(role.key);
+                    const isSelected = isRoleButtonSelected(role.key);
+                    return (
+                      <Button
+                        key={role.key}
+                        type="button"
+                        variant={isSelected ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => handleRoleClick(role.key)}
+                        className={cn(
+                          "text-xs flex-col h-auto py-1.5 px-3",
+                          isSelected && "ring-2 ring-offset-1"
+                        )}
+                      >
+                        <span>{role.label}</span>
+                        {teamMember?.user?.name && (
+                          <span className={cn(
+                            "text-[10px] font-normal",
+                            isSelected ? "text-primary-foreground/80" : "text-muted-foreground"
+                          )}>
+                            {teamMember.user.name}
                           </span>
                         )}
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground">Select task template...</span>
-                    )}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[400px] p-0">
-                  <Command>
-                    <CommandInput placeholder="Search templates..." />
-                    <CommandList>
-                      <CommandEmpty>
-                        {taskTemplates.length === 0
-                          ? "No task templates available"
-                          : "No template found."}
-                      </CommandEmpty>
-                      <CommandGroup>
-                        {taskTemplates.map((template) => (
-                          <CommandItem
-                            key={template.id}
-                            value={template.name}
-                            onSelect={() => {
-                              setSelectedTemplate(template);
-                              setTaskOpen(false);
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                selectedTemplate?.id === template.id ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            <div className="flex flex-col">
-                              <span>{template.name}</span>
-                              {template.category && (
-                                <span className="text-xs text-muted-foreground">
-                                  {template.category}
-                                </span>
-                              )}
-                            </div>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
+                      </Button>
+                    );
+                  })}
+                </div>
+                {/* Role dropdown - select any role */}
+                <ComboboxDropdown
+                  items={roles.map((role) => ({
+                    id: String(role.id),
+                    label: role.label,
+                  }))}
+                  selectedItem={assignedRole ? {
+                    id: assignedRole,
+                    label: roles.find(r => String(r.id) === assignedRole)?.label || "Select role",
+                  } : undefined}
+                  onSelect={(item) => setAssignedRole(item.id)}
+                  placeholder="Select role..."
+                  searchPlaceholder="Search roles..."
+                  emptyResults="No role found."
+                  clearable={!!assignedRole}
+                  onClear={() => setAssignedRole("")}
+                />
+                {/* User dropdown - select any user */}
+                <ComboboxDropdown
+                  items={users.map((user) => ({
+                    id: String(user.id),
+                    label: user.name,
+                  }))}
+                  selectedItem={assignedUserId ? {
+                    id: assignedUserId,
+                    label: users.find(u => String(u.id) === assignedUserId)?.name || "Select user",
+                  } : undefined}
+                  onSelect={(item) => {
+                    setAssignedUserId(item.id);
+                    // Clear role if user manually selects a different user
+                    const roleUser = assignedRole ? getTeamMemberForRole(assignedRole) : null;
+                    if (roleUser && String(roleUser.user_id) !== item.id) {
+                      setAssignedRole("");
+                    }
+                  }}
+                  placeholder="Select user..."
+                  searchPlaceholder="Search users..."
+                  emptyResults="No user found."
+                  clearable={!!assignedUserId}
+                  onClear={() => {
+                    setAssignedUserId("");
+                    setAssignedRole("");
+                  }}
+                />
+              </div>
+            )}
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:gap-2">
             <Button variant="outline" onClick={() => setShowCreateModal(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button onClick={handleCreate} disabled={saving}>
+            <Button variant="outline" onClick={() => handleCreate(false)} disabled={saving}>
               {saving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Creating...
                 </>
               ) : (
-                "Create Purchase Order"
+                "Create"
               )}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Purchase Order</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this purchase order? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteId(null)} disabled={deleting}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
-              {deleting ? (
+            <Button onClick={() => handleCreate(true)} disabled={saving}>
+              {saving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Deleting...
+                  <Spinner size={16} className="mr-2" />
+                  Creating...
                 </>
               ) : (
-                "Delete"
+                <>
+                  Save & Open
+                  <ExternalLink className="h-4 w-4 ml-2" />
+                </>
               )}
             </Button>
           </DialogFooter>

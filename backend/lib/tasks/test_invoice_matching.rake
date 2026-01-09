@@ -23,7 +23,7 @@ namespace :test do
       { number: "PO-000001", total: 1000.00 },
       { number: "PO-000123", total: 2500.00 },
       { number: "PO-123456", total: 5000.00 },
-      { number: "PO-000999", total: 750.00 },
+      { number: "PO-000999", total: 750.00 }
     ]
 
     created_pos = []
@@ -36,8 +36,8 @@ namespace :test do
         po.assign_attributes(
           construction: construction,
           supplier: supplier,
-          status: 'sent',
-          payment_status: 'pending',
+          status: "sent",
+          payment_status: "pending",
           total: po_data[:total],
           sub_total: po_data[:total],
           tax: 0
@@ -59,7 +59,7 @@ namespace :test do
       # Exact match tests
       {
         name: "Exact PO number",
-        invoice: { 'InvoiceNumber' => 'PO-000001', 'Total' => 1000.00 },
+        invoice: { "InvoiceNumber" => "PO-000001", "Total" => 1000.00 },
         expected_po: "PO-000001",
         confidence: "High"
       },
@@ -67,7 +67,7 @@ namespace :test do
       # No dash
       {
         name: "PO number without dash",
-        invoice: { 'InvoiceNumber' => 'PO123456', 'Total' => 5000.00 },
+        invoice: { "InvoiceNumber" => "PO123456", "Total" => 5000.00 },
         expected_po: "PO-123456",
         confidence: "High"
       },
@@ -75,7 +75,7 @@ namespace :test do
       # Lowercase
       {
         name: "Lowercase PO number",
-        invoice: { 'InvoiceNumber' => 'po-000123', 'Total' => 2500.00 },
+        invoice: { "InvoiceNumber" => "po-000123", "Total" => 2500.00 },
         expected_po: "PO-000123",
         confidence: "High"
       },
@@ -83,7 +83,7 @@ namespace :test do
       # With space
       {
         name: "PO number with space",
-        invoice: { 'InvoiceNumber' => 'PO 123456', 'Total' => 5000.00 },
+        invoice: { "InvoiceNumber" => "PO 123456", "Total" => 5000.00 },
         expected_po: "PO-123456",
         confidence: "High"
       },
@@ -91,7 +91,7 @@ namespace :test do
       # P.O. format
       {
         name: "P.O. with periods",
-        invoice: { 'InvoiceNumber' => 'P.O. 000123', 'Total' => 2500.00 },
+        invoice: { "InvoiceNumber" => "P.O. 000123", "Total" => 2500.00 },
         expected_po: "PO-000123",
         confidence: "High"
       },
@@ -99,7 +99,7 @@ namespace :test do
       # Purchase Order spelled out
       {
         name: "Purchase Order spelled out",
-        invoice: { 'InvoiceNumber' => 'Purchase Order 123456', 'Total' => 5000.00 },
+        invoice: { "InvoiceNumber" => "Purchase Order 123456", "Total" => 5000.00 },
         expected_po: "PO-123456",
         confidence: "High"
       },
@@ -107,7 +107,7 @@ namespace :test do
       # Embedded in text
       {
         name: "PO number embedded in text",
-        invoice: { 'InvoiceNumber' => 'Invoice for PO-000001', 'Total' => 1000.00 },
+        invoice: { "InvoiceNumber" => "Invoice for PO-000001", "Total" => 1000.00 },
         expected_po: "PO-000001",
         confidence: "Medium"
       },
@@ -116,9 +116,9 @@ namespace :test do
       {
         name: "PO in Reference field",
         invoice: {
-          'InvoiceNumber' => 'INV-9999',
-          'Reference' => 'PO-000123',
-          'Total' => 2500.00
+          "InvoiceNumber" => "INV-9999",
+          "Reference" => "PO-000123",
+          "Total" => 2500.00
         },
         expected_po: "PO-000123",
         confidence: "High"
@@ -127,14 +127,14 @@ namespace :test do
       # Different zero-padding (normalized matching)
       {
         name: "Different zero-padding (PO-1 → PO-000001)",
-        invoice: { 'InvoiceNumber' => 'PO-1', 'Total' => 1000.00 },
+        invoice: { "InvoiceNumber" => "PO-1", "Total" => 1000.00 },
         expected_po: "PO-000001",
         confidence: "Medium"
       },
 
       {
         name: "Different zero-padding (PO-123 → PO-000123)",
-        invoice: { 'InvoiceNumber' => 'PO-123', 'Total' => 2500.00 },
+        invoice: { "InvoiceNumber" => "PO-123", "Total" => 2500.00 },
         expected_po: "PO-000123",
         confidence: "Medium"
       },
@@ -143,11 +143,11 @@ namespace :test do
       {
         name: "PO number in LineItem description",
         invoice: {
-          'InvoiceNumber' => 'INV-8888',
-          'LineItems' => [
-            { 'Description' => 'Materials for PO-000999' }
+          "InvoiceNumber" => "INV-8888",
+          "LineItems" => [
+            { "Description" => "Materials for PO-000999" }
           ],
-          'Total' => 750.00
+          "Total" => 750.00
         },
         expected_po: "PO-000999",
         confidence: "Medium"
@@ -163,9 +163,9 @@ namespace :test do
       {
         name: "Supplier + amount matching (fallback - may fail if no pending POs)",
         invoice: {
-          'InvoiceNumber' => 'INV-7777',
-          'Contact' => { 'Name' => 'Test Supplier Inc' },
-          'Total' => 750.00  # Close to PO-000999 amount
+          "InvoiceNumber" => "INV-7777",
+          "Contact" => { "Name" => "Test Supplier Inc" },
+          "Total" => 750.00  # Close to PO-000999 amount
         },
         expected_po: "PO-000999",
         confidence: "Low",
@@ -177,9 +177,9 @@ namespace :test do
       {
         name: "No matching PO found",
         invoice: {
-          'InvoiceNumber' => 'INV-6666',
-          'Contact' => { 'Name' => 'Different Supplier' },
-          'Total' => 99999.00
+          "InvoiceNumber" => "INV-6666",
+          "Contact" => { "Name" => "Different Supplier" },
+          "Total" => 99999.00
         },
         expected_po: nil,
         confidence: "None"
@@ -195,9 +195,9 @@ namespace :test do
 
       # Add default fields if not present
       invoice_data = test[:invoice].merge({
-        'InvoiceID' => "TEST-INV-#{index}",
-        'Date' => Time.current.to_s,
-        'Contact' => test[:invoice]['Contact'] || { 'Name' => supplier.name }
+        "InvoiceID" => "TEST-INV-#{index}",
+        "Date" => Time.current.to_s,
+        "Contact" => test[:invoice]["Contact"] || { "Name" => supplier.name }
       })
 
       # Call the service
@@ -265,7 +265,7 @@ namespace :test do
     puts "\nCleaning up test data..."
     created_pos.each do |po|
       # Only delete if created in this test run and has no real data
-      if po.invoice_reference.nil? || po.invoice_reference.start_with?('TEST-')
+      if po.invoice_reference.nil? || po.invoice_reference.start_with?("TEST-")
         po.destroy
         puts "  Deleted #{po.purchase_order_number}"
       end

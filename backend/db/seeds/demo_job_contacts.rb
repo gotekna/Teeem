@@ -11,104 +11,104 @@ def create_contact(attrs)
   contact
 end
 
-# Create some companies (using full_name for display, company_name_or_trust for legal name)
+# Create some companies (using display_name for display, company_name_or_trust for legal name)
 acme_corp = create_contact(
-  full_name: "ACME Construction Pty Ltd",
+  display_name: "ACME Construction Pty Ltd",
   company_name_or_trust: "ACME Construction Pty Ltd",
   email: "info@acmeconstruction.com.au",
   mobile_phone: "0412 345 678",
   office_phone: "07 3333 4444",
   entity_type: "company",
-  contact_types: ["customer"],
+  contact_types: [ "customer" ],
   is_active: true
 )
-puts "  Created company: #{acme_corp.full_name}"
+puts "  Created company: #{acme_corp.display_name}"
 
 sunshine_builders = create_contact(
-  full_name: "Sunshine Builders",
+  display_name: "Sunshine Builders",
   company_name_or_trust: "Sunshine Builders Pty Ltd",
   email: "contact@sunshinebuilders.com.au",
   mobile_phone: "0423 456 789",
   office_phone: "07 3222 5555",
   entity_type: "company",
-  contact_types: ["customer"],
+  contact_types: [ "customer" ],
   is_active: true
 )
-puts "  Created company: #{sunshine_builders.full_name}"
+puts "  Created company: #{sunshine_builders.display_name}"
 
 westpac_bank = create_contact(
-  full_name: "Westpac Banking Corporation",
+  display_name: "Westpac Banking Corporation",
   company_name_or_trust: "Westpac Banking Corporation",
   email: "loans@westpac.com.au",
   office_phone: "13 20 32",
   entity_type: "company",
-  contact_types: ["customer"],
+  contact_types: [ "customer" ],
   is_active: true
 )
-puts "  Created company: #{westpac_bank.full_name}"
+puts "  Created company: #{westpac_bank.display_name}"
 
 # Create some people
 john_smith = create_contact(
   first_name: "John",
   last_name: "Smith",
-  full_name: "John Smith",
+  display_name: "John Smith",
   email: "john.smith@acmeconstruction.com.au",
   mobile_phone: "0412 111 222",
   entity_type: "person",
-  contact_types: ["customer"],
+  contact_types: [ "customer" ],
   is_active: true
 )
-puts "  Created person: #{john_smith.full_name}"
+puts "  Created person: #{john_smith.display_name}"
 
 sarah_jones = create_contact(
   first_name: "Sarah",
   last_name: "Jones",
-  full_name: "Sarah Jones",
+  display_name: "Sarah Jones",
   email: "sarah.jones@email.com",
   mobile_phone: "0423 222 333",
   entity_type: "person",
-  contact_types: ["customer"],
+  contact_types: [ "customer" ],
   is_active: true
 )
-puts "  Created person: #{sarah_jones.full_name}"
+puts "  Created person: #{sarah_jones.display_name}"
 
 mike_wilson = create_contact(
   first_name: "Mike",
   last_name: "Wilson",
-  full_name: "Mike Wilson",
+  display_name: "Mike Wilson",
   email: "mike.wilson@sunshinebuilders.com.au",
   mobile_phone: "0434 333 444",
   entity_type: "person",
-  contact_types: ["customer"],
+  contact_types: [ "customer" ],
   is_active: true
 )
-puts "  Created person: #{mike_wilson.full_name}"
+puts "  Created person: #{mike_wilson.display_name}"
 
 emma_broker = create_contact(
   first_name: "Emma",
   last_name: "Thompson",
-  full_name: "Emma Thompson",
+  display_name: "Emma Thompson",
   email: "emma@mortgagebrokers.com.au",
   mobile_phone: "0445 444 555",
   entity_type: "person",
-  contact_types: ["sales"],
+  contact_types: [ "sales" ],
   primary_role: "Mortgage Broker",
   is_active: true
 )
-puts "  Created person: #{emma_broker.full_name}"
+puts "  Created person: #{emma_broker.display_name}"
 
 bank_manager = create_contact(
   first_name: "David",
   last_name: "Chen",
-  full_name: "David Chen",
+  display_name: "David Chen",
   email: "david.chen@westpac.com.au",
   mobile_phone: "0456 555 666",
   entity_type: "person",
-  contact_types: ["customer"],
+  contact_types: [ "customer" ],
   primary_role: "Bank Manager",
   is_active: true
 )
-puts "  Created person: #{bank_manager.full_name}"
+puts "  Created person: #{bank_manager.display_name}"
 
 # Create relationships
 puts "\nCreating relationships..."
@@ -122,7 +122,7 @@ ContactRelationship.find_or_create_by!(
   rel.is_active = true
   rel.role_in_relationship = "Managing Director"
 end
-puts "  #{john_smith.full_name} is employee_of #{acme_corp.full_name}"
+puts "  #{john_smith.display_name} is employee_of #{acme_corp.display_name}"
 
 # Sarah Jones is a director of ACME Corp
 ContactRelationship.find_or_create_by!(
@@ -133,7 +133,7 @@ ContactRelationship.find_or_create_by!(
   rel.is_active = true
   rel.role_in_relationship = "Director"
 end
-puts "  #{sarah_jones.full_name} is director_of #{acme_corp.full_name}"
+puts "  #{sarah_jones.display_name} is director_of #{acme_corp.display_name}"
 
 # Mike Wilson is an employee of Sunshine Builders
 ContactRelationship.find_or_create_by!(
@@ -144,7 +144,7 @@ ContactRelationship.find_or_create_by!(
   rel.is_active = true
   rel.role_in_relationship = "Project Manager"
 end
-puts "  #{mike_wilson.full_name} is employee_of #{sunshine_builders.full_name}"
+puts "  #{mike_wilson.display_name} is employee_of #{sunshine_builders.display_name}"
 
 # Sarah and John are family members
 ContactRelationship.find_or_create_by!(
@@ -155,7 +155,7 @@ ContactRelationship.find_or_create_by!(
   rel.is_active = true
   rel.notes = "Spouse"
 end
-puts "  #{sarah_jones.full_name} is family_member of #{john_smith.full_name}"
+puts "  #{sarah_jones.display_name} is family_member of #{john_smith.display_name}"
 
 # David Chen works at Westpac
 ContactRelationship.find_or_create_by!(
@@ -166,7 +166,7 @@ ContactRelationship.find_or_create_by!(
   rel.is_active = true
   rel.role_in_relationship = "Branch Manager"
 end
-puts "  #{bank_manager.full_name} is employee_of #{westpac_bank.full_name}"
+puts "  #{bank_manager.display_name} is employee_of #{westpac_bank.display_name}"
 
 # Create a demo job
 puts "\nCreating demo job..."
@@ -204,7 +204,7 @@ JobContact.create!(
   role: "client",
   primary: true
 )
-puts "  Added #{john_smith.full_name} as Client (Primary)"
+puts "  Added #{john_smith.display_name} as Client (Primary)"
 
 # Secondary client - ACME Corp
 JobContact.create!(
@@ -213,7 +213,7 @@ JobContact.create!(
   role: "client",
   primary: false
 )
-puts "  Added #{acme_corp.full_name} as Client"
+puts "  Added #{acme_corp.display_name} as Client"
 
 # Client Representative - Sarah Jones
 JobContact.create!(
@@ -222,7 +222,7 @@ JobContact.create!(
   role: "client_representative",
   primary: false
 )
-puts "  Added #{sarah_jones.full_name} as Client Representative"
+puts "  Added #{sarah_jones.display_name} as Client Representative"
 
 # Client Broker - Emma Thompson
 JobContact.create!(
@@ -231,7 +231,7 @@ JobContact.create!(
   role: "client_broker",
   primary: false
 )
-puts "  Added #{emma_broker.full_name} as Client Broker"
+puts "  Added #{emma_broker.display_name} as Client Broker"
 
 # Client Bank - Westpac
 JobContact.create!(
@@ -240,7 +240,7 @@ JobContact.create!(
   role: "client_bank",
   primary: false
 )
-puts "  Added #{westpac_bank.full_name} as Client Bank"
+puts "  Added #{westpac_bank.display_name} as Client Bank"
 
 # Add internal team member if user exists
 if user
@@ -264,6 +264,6 @@ puts "\nContacts with relationships:"
 job.job_contacts.includes(contact: :outgoing_relationships).each do |jc|
   next unless jc.contact
   rel_count = jc.contact.outgoing_relationships.count
-  puts "  - #{jc.contact.full_name} (#{jc.role}): #{rel_count} relationship(s)"
+  puts "  - #{jc.contact.display_name} (#{jc.role}): #{rel_count} relationship(s)"
 end
 puts "\nVisit /jobs/#{job.id} to see the People tab with relationships!"

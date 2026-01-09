@@ -1,9 +1,9 @@
 class CompanyImportService
   # Individual company sheets that have detailed data
   COMPANY_SHEETS = [
-    'Co Invest Homes', 'Co Invest Capital', 'W2G', 'THSI', 'Team Harder Family Trust',
-    'Prov1322', 'Gen2612', 'Team Harder Super Fund', 'Team Harder', 'Tekna Homes',
-    'Tekna Drafting', 'Tekna Admin', 'Tekna', 'The Promise Family Trust', 'The Promise QLD PTY LTD'
+    "Co Invest Homes", "Co Invest Capital", "W2G", "THSI", "Team Harder Family Trust",
+    "Prov1322", "Gen2612", "Team Harder Super Fund", "Team Harder", "Tekna Homes",
+    "Tekna Drafting", "Tekna Admin", "Tekna", "The Promise Family Trust", "The Promise QLD PTY LTD"
   ].freeze
 
   def initialize(file_path)
@@ -79,72 +79,86 @@ class CompanyImportService
     result
   end
 
+  # Calculate health for a single company (reusable helper)
+  def self.calculate_company_health(company)
+    issues = []
+    warnings = []
+
+    # Critical issues
+    issues << "Missing ACN" if company.acn.blank?
+    issues << "Missing ABN" if company.abn.blank?
+    issues << "No current directors" if company.corporate_company_directors.current.empty?
+    issues << "Missing registered office address" if company.registered_office_address.blank?
+
+    # Warnings
+    warnings << "Missing TFN" if company.tfn.blank?
+    warnings << "No bank accounts" if company.bank_accounts.empty?
+    warnings << "No shareholders recorded" if company.corporate_company_shareholdings.empty?
+    warnings << "Missing date of incorporation" if company.date_incorporated.blank?
+    warnings << "No secretary appointed" unless company.corporate_company_directors.current.any? { |d| d.position&.include?("secretary") }
+    warnings << "No public officer appointed" unless company.corporate_company_directors.current.any? { |d| d.position&.include?("public_officer") }
+    warnings << "Missing corporate key" if company.corporate_key.blank?
+    warnings << "Missing ASIC credentials" if company.asic_username.blank?
+    warnings << "Review date overdue" if company.review_date.present? && company.review_date < Date.today
+    warnings << "Missing principal place of business" if company.principal_place_of_business.blank?
+
+    # Compliance warnings
+    overdue = company.corporate_company_compliance_items.where("due_date < ? AND completed = ?", Date.today, false).count
+    warnings << "#{overdue} overdue compliance items" if overdue > 0
+
+    upcoming = company.corporate_company_compliance_items.where("due_date BETWEEN ? AND ?", Date.today, 30.days.from_now).where(completed: false).count
+    warnings << "#{upcoming} compliance items due within 30 days" if upcoming > 0
+
+    # Calculate health score
+    total_checks = 15
+    passed = total_checks - issues.count - (warnings.count * 0.5)
+    health_score = [ (passed / total_checks * 100).round, 0 ].max
+
+    health_status = case health_score
+    when 90..100 then "excellent"
+    when 70..89 then "good"
+    when 50..69 then "needs_attention"
+    else "critical"
+    end
+
+    {
+      id: company.id,
+      name: company.name,
+      group: company.group_name,
+      status: company.status,
+      health_score: health_score,
+      health_status: health_status,
+      issues: issues,
+      warnings: warnings,
+      director_count: company.corporate_company_directors.current.count,
+      bank_account_count: company.bank_accounts.where(status: "active").count,
+      shareholder_count: company.corporate_company_shareholdings.count,
+      has_acn: company.acn.present?,
+      has_abn: company.abn.present?,
+      has_tfn: company.tfn.present?,
+      has_registered_office: company.registered_office_address.present?,
+      has_corporate_key: company.corporate_key.present?,
+      review_date: company.review_date,
+      review_overdue: company.review_date.present? && company.review_date < Date.today
+    }
+  end
+
+  # Get health for a single company by ID (fast endpoint)
+  def self.company_health(company_id)
+    company = CorporateCompany
+      .includes(:corporate_company_directors, :bank_accounts, :corporate_company_shareholdings, :corporate_company_compliance_items)
+      .find_by(id: company_id)
+
+    return nil unless company
+
+    calculate_company_health(company)
+  end
+
   # Generate health report for all companies
   def self.health_report
-    companies = Company.includes(:company_directors, :bank_accounts, :company_shareholdings, :company_compliance_items).all
+    companies = CorporateCompany.includes(:corporate_company_directors, :bank_accounts, :corporate_company_shareholdings, :corporate_company_compliance_items).all
 
-    companies.map do |company|
-      issues = []
-      warnings = []
-
-      # Critical issues
-      issues << 'Missing ACN' if company.acn.blank?
-      issues << 'Missing ABN' if company.abn.blank?
-      issues << 'No current directors' if company.company_directors.current.empty?
-      issues << 'Missing registered office address' if company.registered_office_address.blank?
-
-      # Warnings
-      warnings << 'Missing TFN' if company.tfn.blank?
-      warnings << 'No bank accounts' if company.bank_accounts.empty?
-      warnings << 'No shareholders recorded' if company.company_shareholdings.empty?
-      warnings << 'Missing date of incorporation' if company.date_incorporated.blank?
-      warnings << 'No secretary appointed' unless company.company_directors.current.any? { |d| d.position&.include?('secretary') }
-      warnings << 'No public officer appointed' unless company.company_directors.current.any? { |d| d.position&.include?('public_officer') }
-      warnings << 'Missing corporate key' if company.corporate_key.blank?
-      warnings << 'Missing ASIC credentials' if company.asic_username.blank?
-      warnings << 'Review date overdue' if company.review_date.present? && company.review_date < Date.today
-      warnings << 'Missing principal place of business' if company.principal_place_of_business.blank?
-
-      # Compliance warnings
-      overdue = company.company_compliance_items.where('due_date < ? AND completed = ?', Date.today, false).count
-      warnings << "#{overdue} overdue compliance items" if overdue > 0
-
-      upcoming = company.company_compliance_items.where('due_date BETWEEN ? AND ?', Date.today, 30.days.from_now).where(completed: false).count
-      warnings << "#{upcoming} compliance items due within 30 days" if upcoming > 0
-
-      # Calculate health score
-      total_checks = 15
-      passed = total_checks - issues.count - (warnings.count * 0.5)
-      health_score = [(passed / total_checks * 100).round, 0].max
-
-      health_status = case health_score
-                      when 90..100 then 'excellent'
-                      when 70..89 then 'good'
-                      when 50..69 then 'needs_attention'
-                      else 'critical'
-                      end
-
-      {
-        id: company.id,
-        name: company.name,
-        group: company.group_name,
-        status: company.status,
-        health_score: health_score,
-        health_status: health_status,
-        issues: issues,
-        warnings: warnings,
-        director_count: company.company_directors.current.count,
-        bank_account_count: company.bank_accounts.where(status: 'active').count,
-        shareholder_count: company.company_shareholdings.count,
-        has_acn: company.acn.present?,
-        has_abn: company.abn.present?,
-        has_tfn: company.tfn.present?,
-        has_registered_office: company.registered_office_address.present?,
-        has_corporate_key: company.corporate_key.present?,
-        review_date: company.review_date,
-        review_overdue: company.review_date.present? && company.review_date < Date.today
-      }
-    end.sort_by { |h| h[:health_score] }
+    companies.map { |company| calculate_company_health(company) }.sort_by { |h| h[:health_score] }
   end
 
   # Enrich company data from individual sheets
@@ -164,7 +178,7 @@ class CompanyImportService
 
   def reload_companies
     count = 0
-    sheet = @spreadsheet.sheet('All Companies')
+    sheet = @spreadsheet.sheet("All Companies")
     return 0 unless sheet.present?
 
     (2..sheet.last_row).each do |row_num|
@@ -172,7 +186,7 @@ class CompanyImportService
       next if row[1].blank? # Skip if company name is blank
 
       company_name = row[1].to_s.strip
-      company = Company.find_by('LOWER(name) LIKE ?', "%#{company_name.downcase.gsub(/\s+pty\s+ltd.*$/i, '').strip}%")
+      company = CorporateCompany.find_by("LOWER(name) LIKE ?", "%#{company_name.downcase.gsub(/\s+pty\s+ltd.*$/i, '').strip}%")
 
       next unless company
 
@@ -180,7 +194,7 @@ class CompanyImportService
       updates[:review_date] = parse_date(row[2]) if row[2].present?
       updates[:acn] = clean_acn(row[3]) if row[3].present? && company.acn.blank?
       updates[:abn] = clean_abn(row[4]) if row[4].present? && company.abn.blank?
-      updates[:tfn] = row[5].to_s.gsub(/\s/, '') if row[5].present? && company.tfn.blank?
+      updates[:tfn] = row[5].to_s.gsub(/\s/, "") if row[5].present? && company.tfn.blank?
       updates[:date_incorporated] = parse_date(row[7]) if row[7].present? && company.date_incorporated.blank?
       updates[:corporate_key] = row[8].to_s if row[8].present? && company.corporate_key.blank?
       updates[:asic_username] = row[9].to_s if row[9].present? && company.asic_username.blank?
@@ -202,7 +216,7 @@ class CompanyImportService
 
   def reload_directors
     count = 0
-    sheet = @spreadsheet.sheet('Director Details (2)')
+    sheet = @spreadsheet.sheet("Director Details (2)")
     return 0 unless sheet.present?
 
     (2..sheet.last_row).each do |row_num|
@@ -217,14 +231,14 @@ class CompanyImportService
       # Columns: Given Names, Family Name, Director Number, Date Of Birth, Place of Birth, State, Country, Residential Address, TFN, Directors ID
       # Indices: 0            1            2                3               4               5      6        7                    8    10 (column K)
       updates = {
-        full_name: "#{row[0]} #{row[1]}".strip,
+        display_name: "#{row[0]} #{row[1]}".strip,
         date_of_birth: parse_date(row[3]),
         place_of_birth: row[4].to_s,
         birth_state: row[5].to_s,
         birth_country: row[6].to_s,
         residential_address: row[7].to_s,
-        tfn: row[8].to_s.gsub(/\s/, ''),
-        director_id: row[10].to_s.gsub(/\s/, '') # Column K (index 10)
+        tfn: row[8].to_s.gsub(/\s/, ""),
+        director_id: row[10].to_s.gsub(/\s/, "") # Column K (index 10)
       }
 
       contact.assign_attributes(updates.compact_blank)
@@ -241,7 +255,7 @@ class CompanyImportService
 
   def reload_bank_accounts
     count = 0
-    sheet = @spreadsheet.sheet('Bank Accounts ')
+    sheet = @spreadsheet.sheet("Bank Accounts ")
     return 0 unless sheet.present?
 
     (3..sheet.last_row).each do |row_num|
@@ -249,7 +263,7 @@ class CompanyImportService
       next if row[1].blank? # Skip if entity name is blank
 
       entity_name = row[1].to_s.strip
-      company = Company.find_by('LOWER(name) LIKE ?', "%#{entity_name.downcase}%")
+      company = CorporateCompany.find_by("LOWER(name) LIKE ?", "%#{entity_name.downcase}%")
       next unless company
 
       bsb = clean_bsb(row[3])
@@ -266,7 +280,7 @@ class CompanyImportService
         institution_name: row[2].to_s.strip,
         date_opened: parse_date(row[5]),
         date_closed: parse_date(row[6]),
-        status: row[6].present? ? 'closed' : 'active'
+        status: row[6].present? ? "closed" : "active"
       )
 
       if bank_account.new_record? || bank_account.changed?
@@ -297,8 +311,8 @@ class CompanyImportService
     return unless company_name.present?
 
     # Find company by partial name match
-    search_name = company_name.gsub(/\s+pty\s+ltd.*$/i, '').strip
-    company = Company.find_by('LOWER(name) LIKE ?', "%#{search_name.downcase}%")
+    search_name = company_name.gsub(/\s+pty\s+ltd.*$/i, "").strip
+    company = CorporateCompany.find_by("LOWER(name) LIKE ?", "%#{search_name.downcase}%")
 
     return unless company
 
@@ -316,54 +330,54 @@ class CompanyImportService
       label = row[0].to_s.strip.downcase
 
       case label
-      when 'acn:'
+      when "acn:"
         updates[:acn] = clean_acn(row[1]) if row[1].present? && company.acn.blank?
         # TFN is often in column 5 of this row
-        updates[:tfn] = row[5].to_s.gsub(/\s/, '') if row[5].present? && company.tfn.blank?
-      when 'abn:'
+        updates[:tfn] = row[5].to_s.gsub(/\s/, "") if row[5].present? && company.tfn.blank?
+      when "abn:"
         # ABN is in column after ACN
-      when 'tfn:'
-        updates[:tfn] = row[1].to_s.gsub(/\s/, '') if row[1].present? && company.tfn.blank?
-      when 'date incorporated'
+      when "tfn:"
+        updates[:tfn] = row[1].to_s.gsub(/\s/, "") if row[1].present? && company.tfn.blank?
+      when "date incorporated"
         updates[:date_incorporated] = parse_date(row[1]) if row[1].present? && company.date_incorporated.blank?
         # Shares on issue is often in column 3-4 of this row
-        updates[:shares_on_issue] = row[3].to_i if row[3].present? && row[2].to_s.downcase.include?('shares')
-      when 'shares on issue'
+        updates[:shares_on_issue] = row[3].to_i if row[3].present? && row[2].to_s.downcase.include?("shares")
+      when "shares on issue"
         updates[:shares_on_issue] = row[1].to_i if row[1].present?
-      when 'purpose:'
+      when "purpose:"
         updates[:purpose] = row[1].to_s if row[1].present? && company.purpose.blank?
         # Check if it's a trustee (column 2 often has "Is it a Trustee")
-        if row[1].to_s.downcase.include?('trustee') || row[2].to_s.downcase.include?('trustee')
+        if row[1].to_s.downcase.include?("trustee") || row[2].to_s.downcase.include?("trustee")
           updates[:is_trustee] = true
         end
-      when 'trust name / trustee'
+      when "trust name / trustee"
         updates[:is_trustee] = true
         updates[:trust_name] = row[1].to_s if row[1].present? && company.trust_name.blank?
-      when 'registered office'
+      when "registered office"
         updates[:registered_office_address] = row[1].to_s if row[1].present? && company.registered_office_address.blank?
         # Principal place of business is often in column 3-4 of this row
-        if row[2].to_s.downcase.include?('principal')
+        if row[2].to_s.downcase.include?("principal")
           updates[:principal_place_of_business] = row[3].to_s if row[3].present? && company.principal_place_of_business.blank?
         end
-      when 'principal place of business'
+      when "principal place of business"
         # Principal place is in a different column
         updates[:principal_place_of_business] = row[5].to_s if row[5].present? && company.principal_place_of_business.blank?
-      when 'folder storage'
+      when "folder storage"
         # Code is often in column 3-4 of this row
-        if row[2].to_s.downcase.include?('abbreviation')
+        if row[2].to_s.downcase.include?("abbreviation")
           updates[:code] = row[3].to_s if row[3].present? && company.code.blank?
         end
-      when 'current director'
-        directors_data << { name: row[1].to_s, position: 'director', date: parse_date(row[2]) }
-      when 'current secretary'
-        directors_data << { name: row[1].to_s, position: 'secretary', date: parse_date(row[2]) }
-      when 'current shareholdings'
+      when "current director"
+        directors_data << { name: row[1].to_s, position: "director", date: parse_date(row[2]) }
+      when "current secretary"
+        directors_data << { name: row[1].to_s, position: "secretary", date: parse_date(row[2]) }
+      when "current shareholdings"
         if row[1].present?
           # Row format: Current Shareholdings, Shareholder Name, [blank], Shares, Beneficially Held
           shareholdings_data << {
             name: row[1].to_s,
             shares: row[2].to_i.positive? ? row[2].to_i : row[3].to_i,
-            beneficially_held: row[3].to_s.downcase == 'yes' || row[4].to_s.downcase == 'yes'
+            beneficially_held: row[3].to_s.downcase == "yes" || row[4].to_s.downcase == "yes"
           }
         end
       end
@@ -386,15 +400,15 @@ class CompanyImportService
     directors_data.each do |dir_data|
       next if dir_data[:name].blank?
 
-      names = dir_data[:name].split(' ')
-      contact = Contact.find_by('LOWER(full_name) LIKE ?', "%#{dir_data[:name].downcase}%")
+      names = dir_data[:name].split(" ")
+      contact = Contact.find_by("LOWER(display_name) LIKE ?", "%#{dir_data[:name].downcase}%")
 
       next unless contact
 
-      existing = company.company_directors.find_by(contact: contact, is_current: true)
+      existing = company.corporate_company_directors.find_by(contact: contact, is_current: true)
       next if existing
 
-      company.company_directors.find_or_create_by!(
+      company.corporate_company_directors.find_or_create_by!(
         contact: contact,
         position: dir_data[:position],
         appointment_date: dir_data[:date] || company.date_incorporated,
@@ -407,18 +421,18 @@ class CompanyImportService
       next if share_data[:name].blank? || share_data[:shares].to_i.zero?
 
       # Try to find shareholder as a company first, then as a contact
-      shareholder = Company.find_by('LOWER(name) LIKE ?', "%#{share_data[:name].downcase}%")
-      shareholder ||= Contact.find_by('LOWER(full_name) LIKE ?', "%#{share_data[:name].downcase}%")
+      shareholder = CorporateCompany.find_by("LOWER(name) LIKE ?", "%#{share_data[:name].downcase}%")
+      shareholder ||= Contact.find_by("LOWER(display_name) LIKE ?", "%#{share_data[:name].downcase}%")
 
       next unless shareholder
 
-      existing = company.company_shareholdings.find_by(shareholder: shareholder)
+      existing = company.corporate_company_shareholdings.find_by(shareholder: shareholder)
       next if existing
 
-      company.company_shareholdings.create!(
+      company.corporate_company_shareholdings.create!(
         shareholder: shareholder,
         number_of_shares: share_data[:shares],
-        share_class: 'ordinary',
+        share_class: "ordinary",
         acquired_date: company.date_incorporated,
         beneficially_held: share_data[:beneficially_held] || false
       )
@@ -429,7 +443,7 @@ class CompanyImportService
 
   def import_companies
     count = 0
-    sheet = @spreadsheet.sheet('All Companies')
+    sheet = @spreadsheet.sheet("All Companies")
 
     return 0 unless sheet.present?
 
@@ -453,10 +467,10 @@ class CompanyImportService
         gst_registration_status: row[10],
         accounting_method: row[11],
         shares_on_issue: row[12]&.to_i,
-        status: 'active'
+        status: "active"
       }
 
-      company = Company.create!(company_data)
+      company = CorporateCompany.create!(company_data)
       count += 1
 
       @import_log << "Imported company: #{company.name}"
@@ -469,7 +483,7 @@ class CompanyImportService
 
   def import_directors
     count = 0
-    sheet = @spreadsheet.sheet('Director Details')
+    sheet = @spreadsheet.sheet("Director Details")
 
     return 0 unless sheet.present?
 
@@ -486,7 +500,7 @@ class CompanyImportService
       )
 
       contact.assign_attributes(
-        full_name: "#{row[0]} #{row[1]}",
+        display_name: "#{row[0]} #{row[1]}",
         email: row[2],
         mobile_phone: row[3],
         date_of_birth: parse_date(row[4]),
@@ -498,7 +512,7 @@ class CompanyImportService
       contact.save!
       count += 1
 
-      @import_log << "Imported director: #{contact.full_name}"
+      @import_log << "Imported director: #{contact.display_name}"
     rescue StandardError => e
       @errors << "Row #{row_num}: Failed to import director - #{e.message}"
     end
@@ -508,7 +522,7 @@ class CompanyImportService
 
   def import_bank_accounts
     count = 0
-    sheet = @spreadsheet.sheet('Bank Accounts')
+    sheet = @spreadsheet.sheet("Bank Accounts")
 
     return 0 unless sheet.present?
 
@@ -519,7 +533,7 @@ class CompanyImportService
       next if row[0].blank? # Skip if company name is blank
 
       # Find company by name
-      company = Company.find_by(name: row[0])
+      company = CorporateCompany.find_by(name: row[0])
 
       unless company
         @errors << "Row #{row_num}: Company not found - #{row[0]}"
@@ -535,7 +549,7 @@ class CompanyImportService
         description: row[5],
         date_opened: parse_date(row[6]),
         date_closed: parse_date(row[7]),
-        status: row[7].present? ? 'closed' : 'active'
+        status: row[7].present? ? "closed" : "active"
       }
 
       BankAccount.create!(account_data)
@@ -563,17 +577,17 @@ class CompanyImportService
 
   def clean_acn(value)
     return nil if value.blank?
-    value.to_s.gsub(/[^0-9]/, '')
+    value.to_s.gsub(/[^0-9]/, "")
   end
 
   def clean_abn(value)
     return nil if value.blank?
-    value.to_s.gsub(/[^0-9]/, '')
+    value.to_s.gsub(/[^0-9]/, "")
   end
 
   def clean_bsb(value)
     return nil if value.blank?
-    value.to_s.gsub(/[^0-9]/, '')
+    value.to_s.gsub(/[^0-9]/, "")
   end
 
   def parse_date(value)
@@ -592,7 +606,7 @@ class CompanyImportService
     return false if value.blank?
 
     case value.to_s.downcase
-    when 'yes', 'true', '1', 'y'
+    when "yes", "true", "1", "y"
       true
     else
       false
@@ -604,16 +618,16 @@ class CompanyImportService
 
     # Map Excel group names to database values
     case value.to_s.downcase
-    when 'tekna'
-      'tekna'
-    when 'team harder'
-      'team_harder'
-    when 'promise'
-      'promise'
-    when 'charity'
-      'charity'
+    when "tekna"
+      "tekna"
+    when "team harder"
+      "team_harder"
+    when "promise"
+      "promise"
+    when "charity"
+      "charity"
     else
-      'other'
+      "other"
     end
   end
 end

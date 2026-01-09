@@ -2,16 +2,16 @@ namespace :teeem do
   namespace :gold_standard do
     desc "Add system columns (id, created_at, updated_at) to Gold Standard table"
     task add_system_columns: :environment do
-      # Find the Gold Standard Reference table (ID: 1)
-      table = Table.find_by(id: 1)
+      # SSoT: Use slug lookup, not hardcoded numeric ID (differs per environment)
+      foundation = Foundation.find_by(slug: 'gold_standard_table')
 
-      unless table
-        puts "Error: Gold Standard Reference table not found!"
+      unless foundation
+        puts "Error: Gold Standard Reference foundation not found!"
         exit 1
       end
 
-      puts "Adding system columns to: #{table.name} (ID: #{table.id})"
-      puts "Current columns: #{table.columns.count}"
+      puts "Adding system columns to: #{foundation.name} (ID: #{foundation.id})"
+      puts "Current columns: #{foundation.columns.count}"
 
       # System columns to add
       system_columns = [
@@ -50,7 +50,7 @@ namespace :teeem do
 
       system_columns.each do |col_data|
         # Check if column already exists
-        existing = table.columns.find_by(column_name: col_data[:column_name])
+        existing = foundation.columns.find_by(column_name: col_data[:column_name])
 
         if existing
           puts "  Skipped: #{col_data[:name]} (already exists)"
@@ -59,7 +59,7 @@ namespace :teeem do
         end
 
         # Create the column
-        column = table.columns.create!(col_data)
+        column = foundation.columns.create!(col_data)
         puts "  Added: #{col_data[:name]} (column_name: #{col_data[:column_name]})"
         added += 1
       rescue => e
@@ -67,14 +67,14 @@ namespace :teeem do
       end
 
       # Reorder all columns by position
-      table.columns.order(:position).each_with_index do |col, index|
+      foundation.columns.order(:position).each_with_index do |col, index|
         col.update_column(:position, index + 1)
       end
 
       puts "\nSummary:"
       puts "  Added: #{added}"
       puts "  Skipped: #{skipped}"
-      puts "  Total columns now: #{table.columns.count}"
+      puts "  Total columns now: #{foundation.columns.count}"
       puts "\nDone! System columns have been added to the Gold Standard table."
     end
   end

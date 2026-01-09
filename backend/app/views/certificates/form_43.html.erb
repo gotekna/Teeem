@@ -1,0 +1,214 @@
+<div class="page">
+  <!-- Header -->
+  <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
+    <div>
+      <div style="font-size: 10pt; color: #666;">Queensland Government</div>
+      <div style="font-size: 9pt; color: #666;">Building Act 1975</div>
+    </div>
+    <div style="text-align: right;">
+      <div style="font-size: 10pt; font-weight: bold;">Form 43</div>
+      <div style="font-size: 9pt; color: #666;">Version 3 (Sept 2021)</div>
+    </div>
+  </div>
+
+  <!-- Title -->
+  <div class="form-title">Aspect certificate (QBCC licensee)</div>
+  <div class="form-subtitle">Building Regulation 2021, Schedule 1, Part 3, Division 3</div>
+
+  <!-- Section 1: Scope -->
+  <div class="section">
+    <div style="font-weight: bold; margin-bottom: 8px;">1. Indicate the scope of the aspect/s</div>
+    <table class="bordered-table">
+      <tr>
+        <td style="width: 50%;">
+          <div class="checkbox<%= @aspect_description&.downcase&.include?('insulation') ? ' checked' : '' %>"></div>
+          Insulation
+        </td>
+        <td style="width: 50%;">
+          <div class="checkbox<%= @aspect_description&.downcase&.include?('termite') ? ' checked' : '' %>"></div>
+          Termite management system
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <div class="checkbox<%= @aspect_description&.downcase&.include?('waterproof') ? ' checked' : '' %>"></div>
+          Wet area waterproofing
+        </td>
+        <td>
+          <div class="checkbox<%= @aspect_description&.downcase&.include?('roof') ? ' checked' : '' %>"></div>
+          Roof sheeting and batten installation
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <div class="checkbox<%= @aspect_description&.downcase&.include?('glaz') ? ' checked' : '' %>"></div>
+          Glazing
+        </td>
+        <td>
+          <div class="checkbox<%= @aspect_description&.downcase&.include?('balustrade') ? ' checked' : '' %>"></div>
+          Balustrade
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <div class="checkbox<%= @aspect_description&.downcase&.include?('garage') || @aspect_description&.downcase&.include?('roller') ? ' checked' : '' %>"></div>
+          Garage doors/roller doors
+        </td>
+        <td>
+          <div class="checkbox"></div>
+          Other: <span style="border-bottom: 1px solid #000; display: inline-block; min-width: 150px;"><%= @aspect_description unless @aspect_description&.downcase&.include?('insulation') || @aspect_description&.downcase&.include?('waterproof') %></span>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Section 2: Property Description -->
+  <div class="section">
+    <div style="font-weight: bold; margin-bottom: 8px;">2. Property description</div>
+    <table class="bordered-table">
+      <tr>
+        <td style="width: 30%;"><strong>Street address:</strong></td>
+        <td><%= @property_address %></td>
+      </tr>
+      <tr>
+        <td><strong>Lot/Plan:</strong></td>
+        <td><%= @lot_plan %></td>
+      </tr>
+      <tr>
+        <td><strong>Building approval no.:</strong></td>
+        <td><%= @building_approval_number %></td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Section 3: Building/Structure Description -->
+  <div class="section">
+    <div style="font-weight: bold; margin-bottom: 8px;">3. Building/structure description</div>
+    <table class="bordered-table">
+      <tr>
+        <td style="width: 30%;"><strong>Building class:</strong></td>
+        <td><%= @building_class %></td>
+      </tr>
+      <tr>
+        <td><strong>Description:</strong></td>
+        <td><%= @job&.title || 'Residential dwelling' %></td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Section 4: Description of Aspect(s) Certified -->
+  <div class="section">
+    <div style="font-weight: bold; margin-bottom: 8px;">4. Description of aspect/s certified</div>
+    <table class="bordered-table">
+      <tr>
+        <td>
+          <strong>Aspect:</strong> <%= @aspect_description %><br>
+          <% if @form_number.present? %>
+            <strong>Form Number:</strong> <%= @form_number %><br>
+          <% end %>
+          <strong>Location:</strong> As per approved plans and specifications<br>
+          <strong>Date of inspection:</strong> <%= @certification_date_formatted %>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Section 5: Basis of Certification -->
+  <div class="section">
+    <div style="font-weight: bold; margin-bottom: 8px;">5. Basis of certification</div>
+    <table class="bordered-table">
+      <tr>
+        <td>
+          <p style="margin-bottom: 10px;"><%= @basis_of_certification %></p>
+          <p class="small-text">
+            The work has been carried out in accordance with the Building Act 1975,
+            the Building Code of Australia, and applicable Australian Standards.
+          </p>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Section 6: Reference Documentation -->
+  <div class="section">
+    <div style="font-weight: bold; margin-bottom: 8px;">6. Reference documentation</div>
+    <table class="bordered-table">
+      <tr>
+        <td>
+          <ul style="margin-left: 15px;">
+            <% @reference_documents&.each do |doc| %>
+              <li><%= doc %></li>
+            <% end %>
+          </ul>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Section 7: QBCC Licensee Details -->
+  <div class="section">
+    <div style="font-weight: bold; margin-bottom: 8px;">7. QBCC licensee details</div>
+    <table class="bordered-table">
+      <tr>
+        <td style="width: 30%;"><strong>Name:</strong></td>
+        <td><%= @licensee_name %></td>
+      </tr>
+      <tr>
+        <td><strong>Business name:</strong></td>
+        <td><%= @licensee_business_name %></td>
+      </tr>
+      <tr>
+        <td><strong>Licence class:</strong></td>
+        <td><%= @licensee_licence_class %></td>
+      </tr>
+      <tr>
+        <td><strong>Licence number:</strong></td>
+        <td><%= @licensee_licence_number %></td>
+      </tr>
+      <tr>
+        <td><strong>Address:</strong></td>
+        <td><%= @licensee_address %></td>
+      </tr>
+      <tr>
+        <td><strong>Phone:</strong></td>
+        <td><%= @licensee_phone %></td>
+      </tr>
+      <tr>
+        <td><strong>Email:</strong></td>
+        <td><%= @licensee_email %></td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Section 8: Signature -->
+  <div class="section" style="border-bottom: none;">
+    <div style="font-weight: bold; margin-bottom: 8px;">8. Signature of QBCC licensee</div>
+    <table class="bordered-table">
+      <tr>
+        <td style="width: 50%;">
+          <div class="field-label">Signature:</div>
+          <div class="signature-box">
+            <% if @licensee_signature_data_url.present? %>
+              <img src="<%= @licensee_signature_data_url %>" alt="Signature" class="signature-img">
+            <% end %>
+          </div>
+        </td>
+        <td style="width: 50%;">
+          <div class="field-label">Date:</div>
+          <div class="field-value"><%= @certification_date_formatted %></div>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Footer -->
+  <div style="margin-top: 20px; padding-top: 10px; border-top: 1px solid #ccc;">
+    <p class="small-text" style="text-align: center;">
+      This certificate is issued under the Building Act 1975 and Building Regulation 2021.
+      A copy of this certificate must be given to the building certifier within 5 business days of completing the work.
+    </p>
+    <p class="small-text" style="text-align: center; margin-top: 5px;">
+      Generated: <%= @certification_date_long %> | Job: J<%= @job&.id&.to_s&.rjust(3, '0') %>
+    </p>
+  </div>
+</div>

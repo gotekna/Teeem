@@ -1,9 +1,11 @@
 class WHSActionItem < ApplicationRecord
   # Polymorphic association - can belong to inspection, incident, or hazard
   belongs_to :actionable, polymorphic: true
-  belongs_to :assigned_to_user, class_name: 'User', optional: true
-  belongs_to :created_by, class_name: 'User'
-  belongs_to :project_task, optional: true
+  belongs_to :assigned_to_user, class_name: "User", optional: true
+  belongs_to :created_by, class_name: "User"
+
+  # SSoT task system (SmTask via tasks table)
+  belongs_to :sm_task, optional: true
 
   # Constants
   ACTION_TYPES = %w[immediate short_term long_term preventative].freeze
@@ -16,49 +18,49 @@ class WHSActionItem < ApplicationRecord
   validates :priority, presence: true, inclusion: { in: PRIORITIES }
   validates :status, presence: true, inclusion: { in: STATUSES }
 
-  # Callbacks
-  after_create :create_project_task_if_needed
-  after_save :sync_with_project_task
+  # Callbacks - SmTask is THE ONE task system (SSoT)
+  after_create :create_sm_task_if_needed
+  after_save :sync_with_sm_task
   before_save :set_completion_timestamp
 
   # Scopes
-  scope :open, -> { where(status: 'open') }
-  scope :in_progress, -> { where(status: 'in_progress') }
-  scope :completed, -> { where(status: 'completed') }
-  scope :pending, -> { where(status: ['open', 'in_progress']) }
+  scope :open, -> { where(status: "open") }
+  scope :in_progress, -> { where(status: "in_progress") }
+  scope :completed, -> { where(status: "completed") }
+  scope :pending, -> { where(status: [ "open", "in_progress" ]) }
   scope :by_priority, ->(priority) { where(priority: priority) }
-  scope :critical, -> { where(priority: 'critical') }
-  scope :high_priority, -> { where(priority: ['critical', 'high']) }
+  scope :critical, -> { where(priority: "critical") }
+  scope :high_priority, -> { where(priority: [ "critical", "high" ]) }
   scope :assigned_to, ->(user) { where(assigned_to_user: user) }
-  scope :overdue, -> { where('due_date < ? AND status NOT IN (?)', CompanySetting.today, ['completed', 'cancelled']) }
-  scope :due_soon, ->(days = 7) { where('due_date <= ? AND due_date >= ? AND status NOT IN (?)', CompanySetting.today + days.days, CompanySetting.today, ['completed', 'cancelled']) }
+  scope :overdue, -> { where("due_date < ? AND status NOT IN (?)", CorporateCompanySetting.today, [ "completed", "cancelled" ]) }
+  scope :due_soon, ->(days = 7) { where("due_date <= ? AND due_date >= ? AND status NOT IN (?)", CorporateCompanySetting.today + days.days, CorporateCompanySetting.today, [ "completed", "cancelled" ]) }
 
   # State machine methods
   def can_start?
-    status == 'open'
+    status == "open"
   end
 
   def can_complete?
-    status.in?(['open', 'in_progress'])
+    status.in?([ "open", "in_progress" ])
   end
 
   def start!
     return false unless can_start?
-    update!(status: 'in_progress')
+    update!(status: "in_progress")
   end
 
   def complete!(notes = nil)
     return false unless can_complete?
 
     update!(
-      status: 'completed',
+      status: "completed",
       completed_at: Time.current,
       completion_notes: notes
     )
   end
 
   def cancel!
-    update!(status: 'cancelled')
+    update!(status: "cancelled")
   end
 
   # Helper methods
@@ -66,29 +68,29 @@ class WHSActionItem < ApplicationRecord
     return false unless due_date.present?
     return false if completed? || cancelled?
 
-    due_date < CompanySetting.today
+    due_date < CorporateCompanySetting.today
   end
 
   def due_soon?(days = 7)
     return false unless due_date.present?
     return false if completed? || cancelled?
 
-    due_date <= CompanySetting.today + days.days && due_date >= CompanySetting.today
+    due_date <= CorporateCompanySetting.today + days.days && due_date >= CorporateCompanySetting.today
   end
 
   def days_until_due
     return nil unless due_date.present?
     return 0 if overdue?
 
-    (due_date - CompanySetting.today).to_i
+    (due_date - CorporateCompanySetting.today).to_i
   end
 
   def completed?
-    status == 'completed'
+    status == "completed"
   end
 
   def cancelled?
-    status == 'cancelled'
+    status == "cancelled"
   end
 
   def assigned?
@@ -101,11 +103,11 @@ class WHSActionItem < ApplicationRecord
 
   def source_description
     case actionable_type
-    when 'WhsInspection'
+    when "WhsInspection"
       "Inspection: #{actionable.inspection_number}"
-    when 'WhsIncident'
+    when "WhsIncident"
       "Incident: #{actionable.incident_number}"
-    when 'WhsSwmsHazard'
+    when "WhsSwmsHazard"
       "SWMS Hazard: #{actionable.hazard_description.truncate(50)}"
     else
       actionable_type
@@ -114,74 +116,79 @@ class WHSActionItem < ApplicationRecord
 
   private
 
-  def create_project_task_if_needed
-    return if project_task.present?
-    return unless assigned_to_user.present?
-
-    # Create task in project task system
-    project = find_related_project
-    if project
-      task = project.project_tasks.create!(
-        name: title,
-        description: description,
-        task_type: 'whs_action',
-        category: 'safety',
-        status: status_for_project_task,
-        assigned_to: assigned_to_user,
-        planned_end_date: due_date,
-        duration_days: 1
-      )
-      update_column(:project_task_id, task.id)
-    end
-  rescue => e
-    Rails.logger.error("Failed to create project task for WHS action item #{id}: #{e.message}")
-    # Don't fail the action item creation if task creation fails
-  end
-
-  def sync_with_project_task
-    return unless project_task.present?
-    return unless saved_change_to_status? || saved_change_to_due_date?
-
-    project_task.update(
-      status: status_for_project_task,
-      planned_end_date: due_date
-    )
-  rescue => e
-    Rails.logger.error("Failed to sync project task for WHS action item #{id}: #{e.message}")
-  end
-
-  def find_related_project
-    # Find the project (construction) related to this action item
-    case actionable_type
-    when 'WhsInspection'
-      actionable.construction
-    when 'WhsIncident'
-      actionable.construction
-    when 'WhsSwmsHazard'
-      actionable.whs_swms.construction
-    else
-      nil
-    end
-  end
-
   def set_completion_timestamp
-    if status_changed? && status == 'completed'
+    if status_changed? && status == "completed"
       self.completed_at = Time.current
     end
   end
 
-  def status_for_project_task
-    case status
-    when 'open'
-      'not_started'
-    when 'in_progress'
-      'in_progress'
-    when 'completed'
-      'completed'
-    when 'cancelled'
-      'cancelled'
+  def create_sm_task_if_needed
+    return if sm_task.present?
+    return unless assigned_to_user.present?
+
+    # Find the related job (construction)
+    job = find_related_job
+    return unless job
+
+    task = job.sm_tasks.create!(
+      name: "WHS: #{title}",
+      description: description,
+      trade: "WHS",
+      stage: source_type,
+      status: status_for_sm_task,
+      assigned_user: assigned_to_user,
+      start_date: CorporateCompanySetting.today,
+      end_date: due_date || CorporateCompanySetting.today + 7.days,
+      duration_days: due_date ? [(due_date - CorporateCompanySetting.today).to_i, 1].max : 7,
+      created_by: created_by
+    )
+    update_column(:sm_task_id, task.id)
+  rescue StandardError => e
+    Rails.logger.error("[WHS→SmTask] Failed to create SmTask for action item #{id}: #{e.message}")
+    # Don't fail the action item creation if task creation fails
+  end
+
+  # NEW: SmTask sync
+  def sync_with_sm_task
+    return unless sm_task.present?
+    return unless saved_change_to_status? || saved_change_to_due_date?
+
+    sm_task.update(
+      status: status_for_sm_task,
+      end_date: due_date
+    )
+  rescue StandardError => e
+    Rails.logger.error("[WHS→SmTask] Failed to sync SmTask for action item #{id}: #{e.message}")
+  end
+
+  def find_related_job
+    # Find the job (construction) related to this action item
+    case actionable_type
+    when "WhsInspection"
+      actionable.job
+    when "WhsIncident"
+      actionable.job
+    when "WhsSwmsHazard"
+      actionable.whs_swms&.job
     else
-      'not_started'
+      nil
+    end
+  rescue StandardError
+    nil
+  end
+
+  def status_for_sm_task
+    case status
+    when "open"
+      "not_started"
+    when "in_progress"
+      "started"  # SmTask uses "started" not "in_progress"
+    when "completed"
+      "completed"
+    when "cancelled"
+      "completed"  # No cancelled in SmTask, mark as completed
+    else
+      "not_started"
     end
   end
 end

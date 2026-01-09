@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import {
   ArrowLeft,
   Building2,
@@ -12,9 +13,16 @@ import {
   EyeOff,
   Copy,
   Check,
-  Loader2,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface Company {
   id: number;
@@ -51,6 +59,7 @@ export default function AsicLoginsPage() {
 
   React.useEffect(() => {
     loadAsicLogins();
+     
   }, [selectedGroup]);
 
   const loadCompanyGroups = async () => {
@@ -96,7 +105,7 @@ export default function AsicLoginsPage() {
     const groupId = e.target.value;
     setSelectedGroup(groupId);
     if (groupId) {
-      router.push(`/corporate/asic-logins?company_group_id=${groupId}`);
+      router.push(`/corporate/asic-logins/group/${groupId}`);
     } else {
       router.push("/corporate/asic-logins");
     }
@@ -105,7 +114,7 @@ export default function AsicLoginsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -140,22 +149,22 @@ export default function AsicLoginsPage() {
       {/* Table */}
       <Card>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-border">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Company</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Group</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">ACN</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Corporate Key</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Username</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Password</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Recovery Q&A</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
+          <Table className="min-w-full">
+            <TableHeader className="bg-muted/50">
+              <TableRow>
+                <TableHead className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Company</TableHead>
+                <TableHead className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Group</TableHead>
+                <TableHead className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">ACN</TableHead>
+                <TableHead className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Corporate Key</TableHead>
+                <TableHead className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Username</TableHead>
+                <TableHead className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Password</TableHead>
+                <TableHead className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Recovery Q&A</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody className="divide-y divide-border">
               {companies.map((company) => (
-                <tr key={company.id} className="hover:bg-muted/50">
-                  <td className="px-6 py-4 whitespace-nowrap">
+                <TableRow key={company.id} className="hover:bg-muted/50">
+                  <TableCell className="px-6 py-4 whitespace-nowrap">
                     <div
                       className="flex items-center cursor-pointer"
                       onClick={() => router.push(`/corporate/companies/${company.id}`)}
@@ -163,14 +172,14 @@ export default function AsicLoginsPage() {
                       <Building2 className="h-5 w-5 text-muted-foreground mr-2" />
                       <span className="text-sm font-medium text-primary hover:underline">{company.name}</span>
                     </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
+                  </TableCell>
+                  <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
                     {company.company_group_name || "-"}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-mono">
+                  </TableCell>
+                  <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-mono">
                     {company.formatted_acn || company.acn || "-"}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  </TableCell>
+                  <TableCell className="px-6 py-4 whitespace-nowrap">
                     {company.corporate_key ? (
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-mono">{company.corporate_key}</span>
@@ -188,8 +197,8 @@ export default function AsicLoginsPage() {
                     ) : (
                       <span className="text-sm text-muted-foreground">-</span>
                     )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  </TableCell>
+                  <TableCell className="px-6 py-4 whitespace-nowrap">
                     {company.asic_username ? (
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-mono">{company.asic_username}</span>
@@ -207,8 +216,8 @@ export default function AsicLoginsPage() {
                     ) : (
                       <span className="text-sm text-muted-foreground">-</span>
                     )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  </TableCell>
+                  <TableCell className="px-6 py-4 whitespace-nowrap">
                     {company.asic_password ? (
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-mono">
@@ -234,8 +243,8 @@ export default function AsicLoginsPage() {
                     ) : (
                       <span className="text-sm text-muted-foreground">-</span>
                     )}
-                  </td>
-                  <td className="px-6 py-4">
+                  </TableCell>
+                  <TableCell className="px-6 py-4">
                     {company.recovery_question ? (
                       <div className="space-y-1">
                         <p className="text-xs text-muted-foreground">{company.recovery_question}</p>
@@ -266,22 +275,22 @@ export default function AsicLoginsPage() {
                     ) : (
                       <span className="text-sm text-muted-foreground">-</span>
                     )}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
               {companies.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center">
+                <TableRow>
+                  <TableCell colSpan={7} className="px-6 py-12 text-center">
                     <Key className="mx-auto h-12 w-12 text-muted-foreground" />
                     <h3 className="mt-2 text-sm font-medium">No ASIC logins found</h3>
                     <p className="mt-1 text-sm text-muted-foreground">
                       {selectedGroup ? "No companies with ASIC credentials in this group." : "No companies with ASIC credentials found."}
                     </p>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </Card>
 

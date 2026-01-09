@@ -4,6 +4,7 @@ import { useTaskHub, SmTask } from '@/contexts/TaskHubContext';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
+import { TaskExpandedRow } from '../TaskExpandedRow';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,10 +18,15 @@ import {
   CheckCircle,
   Pause,
   AlertTriangle,
+  Eye,
   Lock,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useMemo } from 'react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { getTaskRowColorClass, getTaskColorClasses } from '../TaskColorSettings';
 
 const statusColors: Record<string, string> = {
   not_started: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
@@ -39,6 +45,13 @@ export function ListView() {
     selectAll,
     deselectAll,
     updateTask,
+    expandedTaskId,
+    toggleTaskExpansion,
+    startTask,
+    completeTask,
+    setTaskHold,
+    confirmTask,
+    supplierConfirmTask,
   } = useTaskHub();
 
   const [sort, setSort] = useState<{ field: SortField; direction: SortDirection }>({
@@ -115,7 +128,7 @@ export function ListView() {
   return (
     <div className="border rounded overflow-hidden">
       {/* Header */}
-      <div className="grid grid-cols-[28px_1fr_70px_60px_60px_100px_70px_32px] gap-1 px-2 py-1.5 bg-muted/50 text-[11px] font-medium text-muted-foreground border-b">
+      <div className="grid grid-cols-[28px_1fr_130px_60px_60px_100px_70px_32px] gap-1 px-2 py-1.5 bg-muted/50 text-[11px] font-medium text-muted-foreground border-b">
         <div>
           <Checkbox
             checked={allSelected}
@@ -124,7 +137,7 @@ export function ListView() {
           />
         </div>
         <SortHeader field="name">Task</SortHeader>
-        <SortHeader field="status">Status</SortHeader>
+        <div className="text-center">Progress</div>
         <SortHeader field="start_date">Start</SortHeader>
         <SortHeader field="end_date">End</SortHeader>
         <SortHeader field="job_name">Job</SortHeader>
@@ -133,87 +146,192 @@ export function ListView() {
       </div>
 
       {/* Rows */}
-      <div className="divide-y divide-border/50 max-h-[calc(100vh-280px)] overflow-y-auto">
-        {sortedTasks.map(task => (
-          <div
-            key={task.id}
-            className={cn(
-              'grid grid-cols-[28px_1fr_70px_60px_60px_100px_70px_32px] gap-1 px-2 py-1 items-center text-xs hover:bg-muted/30',
-              selectedTaskIds.has(task.id) && 'bg-primary/5',
-              task.is_overdue && task.status !== 'completed' && 'bg-red-50/50 dark:bg-red-950/20'
-            )}
-          >
-            <div>
-              <Checkbox
-                checked={selectedTaskIds.has(task.id)}
-                onCheckedChange={() => toggleTaskSelection(task.id)}
-                className="h-3.5 w-3.5"
-              />
-            </div>
+      <div className="divide-y divide-border/50 max-h-[600px] overflow-y-auto">
+        {sortedTasks.map(task => {
+          const isExpanded = expandedTaskId === task.id;
+          return (
+            <div key={task.id}>
+              <div
+                onClick={() => toggleTaskExpansion(task.id)}
+                className={cn(
+                  'grid grid-cols-[28px_1fr_130px_60px_60px_100px_70px_32px] gap-1 px-2 py-1 items-center text-xs hover:bg-muted/30 cursor-pointer',
+                  selectedTaskIds.has(task.id) && 'bg-primary/5',
+                  getTaskRowColorClass(task),
+                  isExpanded && 'bg-muted/50'
+                )}
+              >
+                <div onClick={(e) => e.stopPropagation()}>
+                  <Checkbox
+                    checked={selectedTaskIds.has(task.id)}
+                    onCheckedChange={() => toggleTaskSelection(task.id)}
+                    className="h-3.5 w-3.5"
+                  />
+                </div>
 
-            <div className="flex items-center gap-1 min-w-0">
-              <span className="font-mono text-[10px] text-muted-foreground">#{task.task_number}</span>
-              <span className={cn('truncate', task.status === 'completed' && 'line-through text-muted-foreground')}>
-                {task.name}
-              </span>
-              {task.is_overdue && task.status !== 'completed' && (
-                <AlertTriangle className="h-3 w-3 text-red-500 shrink-0" />
-              )}
-              {task.locked && (
-                <Lock className="h-3 w-3 text-orange-500 shrink-0" />
-              )}
-            </div>
-
-            <div>
-              <Badge className={cn('text-[10px] px-1.5 py-0 h-4', statusColors[task.status])}>
-                {task.status === 'not_started' ? 'todo' : task.status === 'started' ? 'active' : 'done'}
-              </Badge>
-            </div>
-
-            <div className="text-[11px] text-muted-foreground">{formatDate(task.start_date)}</div>
-            <div className="text-[11px] text-muted-foreground">{formatDate(task.end_date)}</div>
-
-            <div className="text-[11px] text-muted-foreground truncate">
-              {task.job_name && task.job_name !== 'Personal Task' ? task.job_name : '-'}
-            </div>
-
-            <div className="text-[11px]">
-              {task.trade ? (
-                <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">{task.trade}</Badge>
-              ) : '-'}
-            </div>
-
-            <div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-6 w-6">
-                    <MoreHorizontal className="h-3.5 w-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="text-xs">
-                  {task.status !== 'started' && (
-                    <DropdownMenuItem onClick={() => handleStatusChange(task, 'started')} className="text-xs">
-                      <Play className="h-3 w-3 mr-1.5" />
-                      Start
-                    </DropdownMenuItem>
+                <div className="flex items-center gap-1 min-w-0">
+                  {isExpanded ? (
+                    <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
+                  ) : (
+                    <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
                   )}
-                  {task.status !== 'completed' && (
-                    <DropdownMenuItem onClick={() => handleStatusChange(task, 'completed')} className="text-xs">
-                      <CheckCircle className="h-3 w-3 mr-1.5" />
-                      Complete
-                    </DropdownMenuItem>
+                  <span className="font-mono text-[10px] text-muted-foreground">#{task.task_number}</span>
+                  <span className={cn('truncate', task.status === 'completed' && 'line-through text-muted-foreground')}>
+                    {task.name}
+                  </span>
+                  {task.is_overdue && task.status !== 'completed' && (
+                    <AlertTriangle className="h-3 w-3 text-red-500 shrink-0" />
                   )}
-                  {task.status === 'started' && (
-                    <DropdownMenuItem onClick={() => handleStatusChange(task, 'not_started')} className="text-xs">
-                      <Pause className="h-3 w-3 mr-1.5" />
-                      Pause
-                    </DropdownMenuItem>
+                  {task.locked && (
+                    <Lock className="h-3 w-3 text-orange-500 shrink-0" />
                   )}
-                </DropdownMenuContent>
-              </DropdownMenu>
+                  {task.is_following && (
+                    <Badge variant="outline" className={cn("h-4 px-1 text-[10px] gap-0.5 shrink-0", getTaskColorClasses('following').text)}>
+                      <Eye className="h-2.5 w-2.5" />
+                      Following
+                    </Badge>
+                  )}
+                </div>
+
+                {/* Inline Status Checkboxes */}
+                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                  <TooltipProvider delayDuration={300}>
+                    {/* Started - always show */}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div>
+                          <Checkbox
+                            checked={task.status === 'started' || task.status === 'completed'}
+                            onCheckedChange={(checked) => {
+                              if (checked) startTask(task.id);
+                              else updateTask(task.id, { status: 'not_started' });
+                            }}
+                            disabled={task.status === 'completed'}
+                            className="h-3.5 w-3.5 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
+                          />
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="text-[10px]">Started</TooltipContent>
+                    </Tooltip>
+
+                    {/* PO-only checkboxes */}
+                    {task.purchase_order_id && (
+                      <>
+                        {/* Hold */}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div>
+                              <Checkbox
+                                checked={task.hold}
+                                onCheckedChange={(checked) => setTaskHold(task.id, !!checked)}
+                                className="h-3.5 w-3.5 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
+                              />
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-[10px]">Hold</TooltipContent>
+                        </Tooltip>
+
+                        {/* Confirmed */}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div>
+                              <Checkbox
+                                checked={task.confirm}
+                                onCheckedChange={(checked) => {
+                                  if (checked) confirmTask(task.id, new Date().toISOString().split('T')[0]);
+                                  else updateTask(task.id, { confirm: false });
+                                }}
+                                className="h-3.5 w-3.5 data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
+                              />
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-[10px]">Confirmed</TooltipContent>
+                        </Tooltip>
+
+                        {/* Supplier */}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div>
+                              <Checkbox
+                                checked={task.supplier_confirm}
+                                onCheckedChange={(checked) => {
+                                  if (checked) supplierConfirmTask(task.id, new Date().toISOString().split('T')[0]);
+                                  else updateTask(task.id, { supplier_confirm: false });
+                                }}
+                                className="h-3.5 w-3.5 data-[state=checked]:bg-purple-500 data-[state=checked]:border-purple-500"
+                              />
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-[10px]">Supplier</TooltipContent>
+                        </Tooltip>
+                      </>
+                    )}
+
+                    {/* Done - always show */}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div>
+                          <Checkbox
+                            checked={task.status === 'completed'}
+                            onCheckedChange={(checked) => {
+                              if (checked) completeTask(task.id);
+                              else updateTask(task.id, { status: 'started' });
+                            }}
+                            className="h-3.5 w-3.5 data-[state=checked]:bg-gray-500 data-[state=checked]:border-gray-500"
+                          />
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="text-[10px]">Done</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+
+                <div className="text-[11px] text-muted-foreground">{formatDate(task.start_date)}</div>
+                <div className="text-[11px] text-muted-foreground">{formatDate(task.end_date)}</div>
+
+                <div className="text-[11px] text-muted-foreground truncate">
+                  {task.job_name && task.job_name !== 'Personal Task' ? task.job_name : '-'}
+                </div>
+
+                <div className="text-[11px]">
+                  {task.trade ? (
+                    <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">{task.trade}</Badge>
+                  ) : '-'}
+                </div>
+
+                <div onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-6 w-6">
+                        <MoreHorizontal className="h-3.5 w-3.5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="text-xs">
+                      {task.status !== 'started' && (
+                        <DropdownMenuItem onClick={() => handleStatusChange(task, 'started')} className="text-xs">
+                          <Play className="h-3 w-3 mr-1.5" />
+                          Start
+                        </DropdownMenuItem>
+                      )}
+                      {task.status !== 'completed' && (
+                        <DropdownMenuItem onClick={() => handleStatusChange(task, 'completed')} className="text-xs">
+                          <CheckCircle className="h-3 w-3 mr-1.5" />
+                          Complete
+                        </DropdownMenuItem>
+                      )}
+                      {task.status === 'started' && (
+                        <DropdownMenuItem onClick={() => handleStatusChange(task, 'not_started')} className="text-xs">
+                          <Pause className="h-3 w-3 mr-1.5" />
+                          Pause
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+              {isExpanded && <TaskExpandedRow task={task} />}
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {sortedTasks.length === 0 && (
           <div className="text-center py-8 text-xs text-muted-foreground">

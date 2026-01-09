@@ -3,7 +3,7 @@ class WHSInduction < ApplicationRecord
   belongs_to :whs_induction_template, foreign_key: :whs_induction_template_id
   belongs_to :job, optional: true
   belongs_to :user, optional: true
-  belongs_to :conducted_by_user, class_name: 'User'
+  belongs_to :conducted_by_user, class_name: "User"
 
   # Constants
   STATUSES = %w[valid expired superseded].freeze
@@ -23,34 +23,34 @@ class WHSInduction < ApplicationRecord
   before_save :check_expiry_status
 
   # Scopes
-  scope :valid, -> { where(status: 'valid') }
-  scope :expired, -> { where(status: 'expired') }
+  scope :valid, -> { where(status: "valid") }
+  scope :expired, -> { where(status: "expired") }
   scope :expiring_soon, ->(days = 30) {
-    where(status: 'valid')
-      .where('expiry_date IS NOT NULL AND expiry_date <= ?', CompanySetting.today + days.days)
+    where(status: "valid")
+      .where("expiry_date IS NOT NULL AND expiry_date <= ?", CorporateCompanySetting.today + days.days)
   }
   scope :for_construction, ->(job_id) { where(job_id: job_id) }  # Kept for backward compatibility
   scope :by_type, ->(type) { where(induction_type: type) }
-  scope :by_worker, ->(name) { where('worker_name ILIKE ?', "%#{name}%") }
+  scope :by_worker, ->(name) { where("worker_name ILIKE ?", "%#{name}%") }
   scope :recent, -> { order(completion_date: :desc) }
 
   # Helper methods
   def expired?
-    status == 'expired' || (expiry_date.present? && expiry_date < CompanySetting.today)
+    status == "expired" || (expiry_date.present? && expiry_date < CorporateCompanySetting.today)
   end
 
   def expiring_soon?(days = 30)
     return false unless expiry_date.present?
     return false if expired?
 
-    expiry_date <= CompanySetting.today + days.days
+    expiry_date <= CorporateCompanySetting.today + days.days
   end
 
   def days_until_expiry
     return nil unless expiry_date.present?
     return 0 if expired?
 
-    (expiry_date - CompanySetting.today).to_i
+    (expiry_date - CorporateCompanySetting.today).to_i
   end
 
   def has_quiz?
@@ -74,7 +74,7 @@ class WHSInduction < ApplicationRecord
 
   def supersede!(new_induction)
     transaction do
-      update!(status: 'superseded')
+      update!(status: "superseded")
       new_induction.save! if new_induction.new_record?
     end
   end
@@ -84,11 +84,11 @@ class WHSInduction < ApplicationRecord
   def generate_certificate_number
     return if certificate_number.present?
 
-    date_str = CompanySetting.today.strftime('%Y%m%d')
-    last_induction = WhsInduction.where('certificate_number LIKE ?', "IND-#{date_str}-%")
+    date_str = CorporateCompanySetting.today.strftime("%Y%m%d")
+    last_induction = WhsInduction.where("certificate_number LIKE ?", "IND-#{date_str}-%")
                                   .order(:certificate_number).last
 
-    sequence = last_induction ? last_induction.certificate_number.split('-').last.to_i + 1 : 1
+    sequence = last_induction ? last_induction.certificate_number.split("-").last.to_i + 1 : 1
     self.certificate_number = "IND-#{date_str}-#{sequence.to_s.rjust(3, '0')}"
   end
 
@@ -100,8 +100,8 @@ class WHSInduction < ApplicationRecord
   end
 
   def check_expiry_status
-    if expiry_date.present? && expiry_date < CompanySetting.today && status == 'valid'
-      self.status = 'expired'
+    if expiry_date.present? && expiry_date < CorporateCompanySetting.today && status == "valid"
+      self.status = "expired"
     end
   end
 

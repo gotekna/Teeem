@@ -15,7 +15,7 @@ class AssetServiceHistory < ApplicationRecord
   # Scopes
   scope :recent, -> { order(service_date: :desc) }
   scope :by_type, ->(type) { where(service_type: type) }
-  scope :by_year, ->(year) { where('EXTRACT(YEAR FROM service_date) = ?', year) }
+  scope :by_year, ->(year) { where("EXTRACT(YEAR FROM service_date) = ?", year) }
 
   # Callbacks
   after_create :create_activity
@@ -27,7 +27,7 @@ class AssetServiceHistory < ApplicationRecord
   end
 
   def formatted_service_type
-    service_type.to_s.titleize.gsub('_', ' ')
+    service_type.to_s.titleize.gsub("_", " ")
   end
 
   def days_since_service
@@ -38,8 +38,8 @@ class AssetServiceHistory < ApplicationRecord
   private
 
   def create_activity
-    asset.company.company_activities.create!(
-      activity_type: 'asset_service_recorded',
+    asset.company.corporate_company_activities.create!(
+      activity_type: "asset_service_recorded",
       description: "Service recorded for #{asset.display_name}: #{formatted_service_type}",
       metadata: {
         asset_id: asset.id,
@@ -56,8 +56,8 @@ class AssetServiceHistory < ApplicationRecord
   def update_asset_last_service
     # Update asset metadata with last service info
     asset.metadata ||= {}
-    asset.metadata['last_service_date'] = service_date
-    asset.metadata['last_service_type'] = service_type
+    asset.metadata["last_service_date"] = service_date
+    asset.metadata["last_service_type"] = service_type
     asset.save
   end
 end

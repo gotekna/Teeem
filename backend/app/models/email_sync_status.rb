@@ -4,15 +4,15 @@ class EmailSyncStatus < ApplicationRecord
   validates :user_id, uniqueness: true
 
   enum :status, {
-    pending: 'pending',
-    syncing: 'syncing',
-    completed: 'completed',
-    failed: 'failed'
+    pending: "pending",
+    syncing: "syncing",
+    completed: "completed",
+    failed: "failed"
   }, default: :pending
 
   scope :needs_sync, -> {
-    where(status: ['pending', 'completed'])
-      .where('last_sync_at IS NULL OR last_sync_at < ?', 10.minutes.ago)
+    where(status: [ "pending", "completed" ])
+      .where("last_sync_at IS NULL OR last_sync_at < ?", 10.minutes.ago)
   }
 
   def mark_syncing!

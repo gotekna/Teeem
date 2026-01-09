@@ -18,7 +18,7 @@ FactoryBot.define do
     critical_po { false }
     require_photo { false }
     require_certificate { false }
-    require_supervisor_check { false }
+    confirm { false }
     auto_complete_predecessors { false }
     has_subtasks { false }
     manual_task { false }
@@ -26,11 +26,10 @@ FactoryBot.define do
     order_required { false }
     call_up_required { false }
     plan_required { false }
-    manually_positioned { false }
+    hold { false }
 
     # Lock hierarchy flags
     supplier_confirm { false }
-    confirm { false }
     start { false }
     complete { false }
 
@@ -46,7 +45,7 @@ FactoryBot.define do
     subtask_count { nil }
 
     # Array fields
-    documentation_category_ids { [] }
+    # NOTE: documentation_category_ids removed - use DocumentType + SmScheduleMasterDocumentType
     supervisor_checklist_template_ids { [] }
 
     # Text fields

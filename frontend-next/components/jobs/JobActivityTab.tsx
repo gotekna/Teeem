@@ -20,6 +20,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { PAGE_SIZE_LIST } from "@/lib/constants/pagination-constants";
 
 interface Activity {
   id: number;
@@ -93,6 +94,7 @@ export function JobActivityTab({ jobId }: JobActivityTabProps) {
     if (jobId) {
       loadActivities();
     }
+     
   }, [jobId, page]);
 
   const loadActivities = async () => {
@@ -108,11 +110,12 @@ export function JobActivityTab({ jobId }: JobActivityTabProps) {
           total_count: number;
         };
         error?: string;
+      // SSoT: Uses PAGE_SIZE_LIST from pagination-constants.ts
       }>(`/api/v1/jobs/${jobId}/activities`, {
-        params: { page, per_page: 50 },
+        params: { page, per_page: PAGE_SIZE_LIST },
       });
 
-      if (response.success) {
+      if (response?.success) {
         setActivities(response.activities || []);
         setTotalPages(response.meta?.total_pages || 1);
         setTotalCount(response.meta?.total_count || 0);

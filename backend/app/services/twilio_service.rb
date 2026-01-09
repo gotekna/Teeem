@@ -1,14 +1,14 @@
 class TwilioService
   class << self
     def send_sms(to:, body:, contact:, user: nil)
-      settings = CompanySetting.first
+      settings = CorporateCompanySetting.first
 
       unless settings&.twilio_enabled?
-        return { success: false, error: 'Twilio is not configured. Please configure Twilio in Settings.' }
+        return { success: false, error: "Twilio is not configured. Please configure Twilio in Settings." }
       end
 
       unless settings.twilio_account_sid.present? && settings.twilio_auth_token.present? && settings.twilio_phone_number.present?
-        return { success: false, error: 'Twilio credentials are incomplete. Please check your settings.' }
+        return { success: false, error: "Twilio credentials are incomplete. Please check your settings." }
       end
 
       begin
@@ -26,7 +26,7 @@ class TwilioService
           from_phone: settings.twilio_phone_number,
           to_phone: to,
           body: body,
-          direction: 'outbound',
+          direction: "outbound",
           status: message.status,
           twilio_sid: message.sid,
           sent_at: Time.current
@@ -42,8 +42,8 @@ class TwilioService
           from_phone: settings.twilio_phone_number,
           to_phone: to,
           body: body,
-          direction: 'outbound',
-          status: 'failed',
+          direction: "outbound",
+          status: "failed",
           error_message: e.message,
           sent_at: Time.current
         )
@@ -67,7 +67,7 @@ class TwilioService
 
       unless contact
         Rails.logger.warn "Received SMS from unknown number: #{from_phone}"
-        return { success: false, error: 'Contact not found for this phone number' }
+        return { success: false, error: "Contact not found for this phone number" }
       end
 
       sms = SmsMessage.create!(
@@ -75,8 +75,8 @@ class TwilioService
         from_phone: from_phone,
         to_phone: to_phone,
         body: body,
-        direction: 'inbound',
-        status: 'received',
+        direction: "inbound",
+        status: "received",
         twilio_sid: message_sid,
         received_at: Time.current
       )
@@ -95,14 +95,14 @@ class TwilioService
     end
 
     def test_connection
-      settings = CompanySetting.first
+      settings = CorporateCompanySetting.first
 
       unless settings&.twilio_enabled?
-        return { success: false, error: 'Twilio is not enabled' }
+        return { success: false, error: "Twilio is not enabled" }
       end
 
       unless settings.twilio_account_sid.present? && settings.twilio_auth_token.present?
-        return { success: false, error: 'Twilio credentials are missing' }
+        return { success: false, error: "Twilio credentials are missing" }
       end
 
       begin
@@ -136,7 +136,7 @@ class TwilioService
       return contact if contact
 
       # Try partial match (last 9 digits for Australian numbers)
-      last_digits = normalized.gsub(/\D/, '').last(9)
+      last_digits = normalized.gsub(/\D/, "").last(9)
 
       Contact.where("mobile_phone LIKE ? OR office_phone LIKE ?", "%#{last_digits}", "%#{last_digits}").first
     end
@@ -145,16 +145,16 @@ class TwilioService
       return phone unless phone
 
       # Remove all non-digit characters
-      digits = phone.gsub(/\D/, '')
+      digits = phone.gsub(/\D/, "")
 
       # Convert Australian numbers to +61 format
-      if digits.length == 10 && digits.start_with?('04')
+      if digits.length == 10 && digits.start_with?("04")
         # 0412345678 -> +61412345678
         "+61#{digits[1..]}"
-      elsif digits.length == 11 && digits.start_with?('614')
+      elsif digits.length == 11 && digits.start_with?("614")
         # 61412345678 -> +61412345678
         "+#{digits}"
-      elsif digits.start_with?('61')
+      elsif digits.start_with?("61")
         # Assume it's already in correct format
         "+#{digits}"
       else

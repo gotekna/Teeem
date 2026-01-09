@@ -33,9 +33,14 @@ frontend/build/
 frontend/.next/
 frontend/coverage/
 
+# frontend-next
+frontend-next/.next/
+frontend-next/node_modules/
+frontend-next/coverage/
+
 # Backend (Rails)
 backend/tmp/
-backend/log/*.log
+backend/log/
 backend/storage/
 backend/public/packs/
 backend/public/assets/
@@ -43,6 +48,8 @@ backend/.bundle/
 backend/vendor/bundle/
 backend/config/master.key
 backend/config/credentials/*.key
+backend/*.dump
+*.dump
 
 # Database
 *.sqlite3
@@ -61,6 +68,7 @@ tmp/
 
 # Claude Code local settings
 .claude/settings.local.json
+.env*.local
 
 # User-specific files
 David

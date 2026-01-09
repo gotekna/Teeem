@@ -1,18 +1,48 @@
-default: &default
+# ============================================
+# SOLID QUEUE CONFIGURATION
+# ============================================
+# Queue process config (workers, dispatchers, scheduler).
+# Recurring tasks are defined separately in config/recurring.yml
+#
+# NOTE: YAML anchors/aliases (<<: *default) removed for Psych 5.x compatibility
+#
+# QUEUE PRIORITY ORDER (first = highest priority):
+# - default: BPMN workflows, user-triggered jobs (must run fast)
+# - solid_queue_recurring: Scheduled recurring tasks
+# - xero_bulk: Xero API bulk operations (rate-limited)
+# - low: Background analytics, warehouse jobs (can wait)
+
+production:
+  workers:
+    - queues: [default, solid_queue_recurring, xero_bulk, low]
+      threads: 3
+      processes: 1
+      polling_interval: 0.1
+
   dispatchers:
     - polling_interval: 1
       batch_size: 500
-  workers:
-    - queues: "*"
-      threads: 3
-      processes: <%= ENV.fetch("JOB_CONCURRENCY", 1) %>
-      polling_interval: 0.1
+
+  scheduler:
+    recurring_tasks: config/recurring.yml
 
 development:
-  <<: *default
+  workers:
+    - queues: [default, solid_queue_recurring, xero_bulk, low]
+      threads: 3
+      processes: 1
+      polling_interval: 0.1
+
+  dispatchers:
+    - polling_interval: 1
+      batch_size: 500
+
+  scheduler:
+    recurring_tasks: config/recurring.yml
 
 test:
-  <<: *default
-
-production:
-  <<: *default
+  workers:
+    - queues: [default, solid_queue_recurring, xero_bulk, low]
+      threads: 1
+      processes: 1
+      polling_interval: 0.1

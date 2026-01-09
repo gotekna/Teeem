@@ -39,7 +39,7 @@ po_data = [
   { po_number: "PO-054181", description: "Req Electrician - Fit Off", supplier: "Sparky", total: 8000, category: "ELECTRICAL", creates_schedule: true },
   { po_number: "PO-054182", description: "Req Plumber - Fit Off", supplier: "Plumbing Co", total: 6000, category: "PLUMBER", creates_schedule: true },
   { po_number: "PO-054183", description: "Req Builders Clean", supplier: "Cleaning Co", total: 2500, category: "CLEANING", creates_schedule: true },
-  { po_number: "PO-054184", description: "Do Council Final Inspection", supplier: "Council", total: 500, category: "ADMIN", creates_schedule: true },
+  { po_number: "PO-054184", description: "Do Council Final Inspection", supplier: "Council", total: 500, category: "ADMIN", creates_schedule: true }
 ]
 
 # Import Purchase Orders

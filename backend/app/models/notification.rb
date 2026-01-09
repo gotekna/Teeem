@@ -4,6 +4,9 @@ class Notification < ApplicationRecord
   belongs_to :user
   belongs_to :notifiable, polymorphic: true, optional: true
 
+  # Allowed polymorphic types for notifiable (security: prevents arbitrary type injection)
+  ALLOWED_NOTIFIABLE_TYPES = %w[SmTask EmailWarehouse EmailSnooze].freeze
+
   # Notification types
   TYPES = %w[
     task_assigned
@@ -11,11 +14,21 @@ class Notification < ApplicationRecord
     task_overdue
     task_completed
     task_started
+    task_created_from_email
+    task_email_reply
     mention
+    email_reminder
+    email_snooze_wakeup
+    task_followed
+    task_updated_followed
+    task_comment_followed
+    question_delegated
+    question_answered
   ].freeze
 
   validates :notification_type, presence: true, inclusion: { in: TYPES }
   validates :title, presence: true
+  validates :notifiable_type, inclusion: { in: ALLOWED_NOTIFIABLE_TYPES }, allow_nil: true
 
   scope :unread, -> { where(read: false) }
   scope :read, -> { where(read: true) }

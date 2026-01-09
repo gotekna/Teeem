@@ -1,5 +1,5 @@
 class Api::V1::WHSInspectionsController < ApplicationController
-  before_action :set_whs_inspection, only: [:show, :update, :destroy, :start, :complete]
+  before_action :set_whs_inspection, only: [ :show, :update, :destroy, :start, :complete ]
 
   # GET /api/v1/whs_inspections
   def index
@@ -16,13 +16,13 @@ class Api::V1::WHSInspectionsController < ApplicationController
     inspections = inspections.by_type(params[:inspection_type]) if params[:inspection_type].present?
 
     # Apply overdue filter
-    inspections = inspections.overdue if params[:overdue] == 'true'
+    inspections = inspections.overdue if params[:overdue] == "true"
 
     # Apply upcoming filter
-    inspections = inspections.upcoming if params[:upcoming] == 'true'
+    inspections = inspections.upcoming if params[:upcoming] == "true"
 
     # Apply critical issues filter
-    inspections = inspections.with_critical_issues if params[:critical_issues] == 'true'
+    inspections = inspections.with_critical_issues if params[:critical_issues] == "true"
 
     inspections = inspections.includes(:job, :whs_inspection_template, :inspector_user, :created_by, :whs_inspection_items)
                              .order(scheduled_date: :desc)
@@ -55,7 +55,7 @@ class Api::V1::WHSInspectionsController < ApplicationController
     else
       render json: {
         success: false,
-        error: inspection.errors.full_messages.join(', ')
+        error: inspection.errors.full_messages.join(", ")
       }, status: :unprocessable_entity
     end
   end
@@ -73,7 +73,7 @@ class Api::V1::WHSInspectionsController < ApplicationController
     else
       render json: {
         success: false,
-        error: @whs_inspection.errors.full_messages.join(', ')
+        error: @whs_inspection.errors.full_messages.join(", ")
       }, status: :unprocessable_entity
     end
   end
@@ -83,12 +83,12 @@ class Api::V1::WHSInspectionsController < ApplicationController
     if @whs_inspection.destroy
       render json: {
         success: true,
-        data: { message: 'Inspection deleted successfully' }
+        data: { message: "Inspection deleted successfully" }
       }
     else
       render json: {
         success: false,
-        error: 'Failed to delete inspection'
+        error: "Failed to delete inspection"
       }, status: :unprocessable_entity
     end
   end
@@ -103,7 +103,7 @@ class Api::V1::WHSInspectionsController < ApplicationController
     else
       render json: {
         success: false,
-        error: 'Cannot start inspection'
+        error: "Cannot start inspection"
       }, status: :unprocessable_entity
     end
   end
@@ -118,7 +118,7 @@ class Api::V1::WHSInspectionsController < ApplicationController
     else
       render json: {
         success: false,
-        error: 'Cannot complete inspection'
+        error: "Cannot complete inspection"
       }, status: :unprocessable_entity
     end
   end
@@ -139,17 +139,15 @@ class Api::V1::WHSInspectionsController < ApplicationController
 
   def serialization_includes
     {
-      job: { only: [:id, :name, :construction_number] },
-      whs_inspection_template: { only: [:id, :name, :inspection_type] },
-      inspector_user: { only: [:id, :name, :email] },
-      created_by: { only: [:id, :name, :email] },
-      meeting: { only: [:id, :title, :start_time] },
-      whs_inspection_items: {
-        only: [:id, :item_description, :category, :result, :notes, :photo_urls, :action_required, :position]
-      },
+      job: {},
+      whs_inspection_template: {},
+      inspector_user: {},
+      created_by: {},
+      meeting: {},
+      whs_inspection_items: {},
       whs_action_items: {
         include: {
-          assigned_to_user: { only: [:id, :name] }
+          assigned_to_user: {}
         }
       }
     }

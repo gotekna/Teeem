@@ -9,9 +9,9 @@
 # - Instructions for other workers
 #
 class SmVoiceNote < ApplicationRecord
-  belongs_to :task, class_name: 'SmTask', foreign_key: 'sm_task_id'
-  belongs_to :recorded_by, class_name: 'User', optional: true
-  belongs_to :resource, class_name: 'SmResource', optional: true
+  belongs_to :task, class_name: "SmTask", foreign_key: "sm_task_id"
+  belongs_to :recorded_by, class_name: "User", optional: true
+  belongs_to :resource, class_name: "SmResource", optional: true
 
   validates :audio_url, presence: true
   validates :duration_seconds, numericality: { greater_than: 0 }, allow_nil: true
@@ -32,7 +32,7 @@ class SmVoiceNote < ApplicationRecord
 
     minutes = duration_seconds / 60
     seconds = duration_seconds % 60
-    format('%d:%02d', minutes, seconds)
+    format("%d:%02d", minutes, seconds)
   end
 
   def transcribe!

@@ -1,21 +1,472 @@
-# examples:
-#   periodic_cleanup:
-#     class: CleanSoftDeletedRecordsJob
-#     queue: background
-#     args: [ 1000, { batch_size: 500 } ]
-#     schedule: every hour
-#   periodic_cleanup_with_command:
-#     command: "SoftDeletedRecord.due.delete_all"
-#     priority: 2
-#     schedule: at 5am every day
+# ============================================
+# SOLID QUEUE RECURRING TASKS - Single Source of Truth
+# ============================================
+# All recurring jobs are defined here.
+# This is the ONLY config file for recurring tasks.
+#
+# IMPORTANT: SolidQueue 1.1.0+ expects recurring tasks
+# in a separate file (config/recurring.yml), not in queue.yml
+#
 
-production:
-  clear_solid_queue_finished_jobs:
-    command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
-    schedule: every hour at minute 12
+# ============================================
+# SYSTEM MAINTENANCE
+# ============================================
+clear_solid_queue_finished_jobs:
+  command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
+  schedule: every hour at minute 12
 
-  xero_invoice_incremental_sync:
-    class: XeroInvoiceSyncJob
-    queue: default
-    args: [{ incremental: true }]
-    schedule: every 30 minutes
+# Monitor database connection pool usage (Option C refactor)
+# Detects exhaustion BEFORE failures - other jobs check cache to skip if critical
+connection_health_monitor:
+  class: ConnectionHealthMonitorJob
+  queue: low
+  schedule: every 5 minutes
+
+# ============================================
+# PERFORMANCE OBSERVATORY
+# Zero-impact performance monitoring for API requests and Web Vitals
+# ============================================
+# Flush performance metrics from memory buffer to database
+# Runs every 30 seconds to ensure timely data availability
+# Buffer auto-flushes at 80% capacity as additional safety
+flush_performance_buffer:
+  class: FlushPerformanceBufferJob
+  queue: low
+  schedule: every 30 seconds
+
+# Cleanup old performance data (90+ days retention)
+# Runs daily at 4am Brisbane time (off-peak)
+cleanup_performance_data:
+  class: CleanupPerformanceDataJob
+  queue: low
+  schedule: every day at 4:00 am
+
+# Refresh materialized views and run anomaly detection
+# Views pre-aggregate metrics for fast dashboard queries
+# Anomaly detector uses z-score analysis to find issues
+refresh_performance_mv:
+  class: RefreshPerformanceMvJob
+  queue: low
+  schedule: every 5 minutes
+
+# Calculate SLO snapshots and error budgets daily
+# Runs at 1am to ensure previous day's data is complete
+calculate_slo_snapshots:
+  class: CalculateSloSnapshotsJob
+  queue: low
+  schedule: every day at 1:00 am
+
+# ============================================
+# TOKEN REFRESH (every 15 minutes)
+# Proactively refresh OAuth tokens before expiry
+# Uses 15-minute buffer to catch expirations early
+# ============================================
+refresh_integration_tokens:
+  class: RefreshIntegrationTokensJob
+  queue: default
+  schedule: every 15 minutes
+
+# ============================================
+# EMAIL SYNC - Org-wide via app permissions
+# ============================================
+# Syncs ALL mailboxes using Microsoft app credentials (no per-user OAuth needed)
+org_email_sync:
+  class: OrgEmailSyncJob
+  queue: low
+  schedule: every 15 minutes
+
+# ============================================
+# XERO INTEGRATION
+# ============================================
+# SSoT: Xero sync is LIVE via webhooks (configured 2025-12-18)
+# Webhooks handle: Contacts, Invoices, Billing subscriptions
+# URL: https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/xero/webhooks
+# ============================================
+
+# REMOVED (2025-12-18): Scheduled syncs replaced by live webhooks
+# - xero_invoice_incremental_sync (was: every 30 minutes)
+# - xero_contact_sync (was: every 30 minutes)
+
+# SELF-HEALING: Health monitor catches any webhook failures
+# Runs less frequently now that webhooks are primary
+xero_health_monitor:
+  class: XeroHealthMonitorJob
+  queue: default
+  schedule: every 2 hours
+
+# Bank transaction sync (no webhook available for bank transactions)
+xero_bank_transaction_sync:
+  class: XeroBankTransactionSyncJob
+  queue: low
+  schedule: every 6 hours at minute 30
+
+# Cleanup stale Xero external links (7+ days old)
+# Removes links to archived/deleted Xero contacts after grace period
+cleanup_stale_xero_links:
+  class: CleanupStaleXeroLinksJob
+  queue: low
+  schedule: at 3am every day
+
+# Corporate company Xero data sync (monthly P&L, accounts, invoices)
+# Syncs to local database for fast access - runs daily at 6am
+corporate_xero_data_sync:
+  class: CorporateXeroSyncJob
+  queue: low
+  schedule: at 6am every day
+
+# GL Backup Sync - catches any webhook failures
+# SSoT: Webhooks are primary for GL sync, this is BACKUP only
+# Syncs tenants that are stale (>4 hours since last sync)
+gl_sync_backup:
+  class: GlSyncBackupJob
+  queue: low
+  schedule: every 6 hours at minute 15
+
+# ============================================
+# CORPORATE FINANCIAL REPORTS
+# ============================================
+# Monthly P&L and Balance Sheet generation for all Xero-connected companies
+# Runs on the 1st of each month at 4am Brisbane time
+# Stores data in profit_loss_reports and balance_sheet_reports tables
+# Also uploads PDF reports to SharePoint
+
+corporate_financial_reports_monthly:
+  class: CorporateFinancialReportsJob
+  queue: low
+  schedule: every month on the 1st at 4am
+
+# Monthly bank statement PDF generation for all corporate bank accounts
+# Runs on the 2nd of each month at 5am (after bank transaction sync completes)
+# Uses BankStatementTemplate branding and uploads to SharePoint BANK folder
+corporate_bank_statements_monthly:
+  class: CorporateBankStatementsJob
+  queue: low
+  schedule: every month on the 2nd at 5am
+
+# ============================================
+# RECURRING INVOICES (T.A.S.)
+# ============================================
+# Daily generation of recurring invoices that are due
+# Runs at 6am Brisbane time to generate invoices for the day
+# Auto-approves if configured, sends email notifications
+recurring_invoice_generation:
+  class: RecurringInvoiceGenerationJob
+  queue: default
+
+# ============================================
+# SCHEDULED INVOICES (T.A.S.)
+# ============================================
+# Process invoices scheduled for future delivery
+# Runs every 15 minutes to check for due invoices
+# Sends email if send_email flag is set
+process_scheduled_invoices:
+  class: ProcessScheduledInvoicesJob
+  queue: default
+  schedule: every 15 minutes
+
+# ============================================
+# SCHEDULED EMAILS
+# ============================================
+# Process emails scheduled for future delivery
+# Runs every 5 minutes to check for due emails
+process_scheduled_emails:
+  class: ProcessScheduledEmailsJob
+  queue: default
+  schedule: every 5 minutes
+
+# ============================================
+# SCHEDULED REPORTS (T.A.S.)
+# ============================================
+# Auto-generate and email reports (P&L, Balance Sheet, etc.)
+# Runs every hour to check for due report schedules
+# Supports daily, weekly, monthly, and quarterly frequencies
+process_scheduled_reports:
+  class: ProcessScheduledReportsJob
+  queue: low
+  schedule: every hour at minute 5
+
+# ============================================
+# ASSET REGISTER (World-Class Asset Management)
+# ============================================
+# Monthly depreciation calculation for all assets
+# Runs on the 1st of each month at 3am Brisbane time
+# Calculates book and tax depreciation for current financial year
+asset_depreciation_monthly:
+  class: AssetDepreciationMonthlyJob
+  queue: low
+  schedule: every month on the 1st at 3am
+
+# Monthly depreciation journal posting to Xero
+# Runs on the 5th of each month at 6am (after calculations are complete)
+# Posts manual journals: Debit Depreciation Expense, Credit Accumulated Depreciation
+asset_depreciation_journals_monthly:
+  class: AssetDepreciationJournalJob
+  queue: low
+  schedule: every month on the 5th at 6am
+
+# Daily insurance expiry check
+# Sends notifications for assets with expiring or expired insurance
+asset_insurance_expiry_check:
+  class: AssetInsuranceExpiryJob
+  queue: low
+  schedule: at 7am every day
+
+# ============================================
+# DATA WAREHOUSE RECURRING JOBS
+# ============================================
+
+# Fast views refresh hourly (concurrent-safe, no table locks)
+# Only refreshes: mv_job_summary, mv_job_document_status, mv_invoice_po_reconciliation
+warehouse_refresh_views_fast:
+  class: RefreshMaterializedViewsJob
+  queue: low
+  args: ["fast"]
+  schedule: every hour at minute 5
+
+# Full views refresh daily at 2am Brisbane (off-peak)
+# Refreshes all 12 views including slow financial summaries
+warehouse_refresh_views_full:
+  class: RefreshMaterializedViewsJob
+  queue: low
+  args: ["all"]
+  schedule: at 2am every day
+
+# Capture daily job snapshots (for historical trends)
+warehouse_daily_snapshot:
+  class: DailyJobSnapshotJob
+  queue: low
+  schedule: at 2am every day
+
+# Sync Xero invoice attachments (PDFs) - runs after invoice sync
+warehouse_xero_attachments:
+  class: XeroAttachmentSyncJob
+  queue: low
+  args: [null, { limit: 50 }]
+  schedule: every 2 hours at minute 45
+
+# Upload Xero PDFs to SharePoint - catches any that failed instant upload
+# SSoT: Instant upload happens in XeroAttachmentSyncService.upload_to_sharepoint
+# This backfill catches failures and runs frequently to stay near-live
+warehouse_sharepoint_upload:
+  class: XeroSharepointUploadBackfillJob
+  queue: low
+  args: [{ limit: 50, dry_run: false }]
+  schedule: every 30 minutes
+
+# SSoT Health Monitor - DISABLED (job removed, depends on unmigrated table)
+# xero_sync_health_monitor:
+#   class: XeroSyncHealthMonitorJob
+#   queue: default
+#   schedule: every 5 minutes
+
+# Batch document verification (AI classification)
+warehouse_document_verification:
+  class: BatchDocumentVerificationJob
+  queue: low
+  args: [{ limit: 25 }]
+  schedule: every 4 hours at minute 30
+
+# Sync job documents from OneDrive to database (data warehouse)
+# Moved from every 6h to daily 3am off-peak to avoid blocking worker threads
+warehouse_job_documents_sync:
+  class: JobDocumentSyncJob
+  queue: low
+  schedule: at 3am every day
+
+# ============================================
+# ACCOUNTS PAYABLE - BILL INBOX
+# ============================================
+
+# Monitor Pay@tekna.com.au for incoming invoices
+bill_inbox_sync:
+  class: BillInboxSyncJob
+  queue: default
+  schedule: every 15 minutes
+
+# ============================================
+# BPMN WORKFLOW TASKS
+# ============================================
+
+# Send reminder notifications for tasks due soon or overdue
+bpmn_due_date_reminders:
+  class: BpmnDueDateReminderJob
+  queue: default
+  schedule: every 2 hours
+
+# ============================================
+# EMAIL MAINTENANCE
+# ============================================
+
+# Clean up expired ephemeral emails daily (GitHub notifications, calendar, etc.)
+cleanup_ephemeral_emails:
+  class: CleanupEphemeralEmailsJob
+  queue: low
+  args: [{ dry_run: false, delete_from_outlook: true }]
+  schedule: at 3am every day
+
+# Sync IMAP email accounts (unified inbox)
+# Reduced from 15min to 2min for faster email delivery
+imap_email_sync:
+  class: ImapSyncJob
+  queue: default
+  schedule: every 2 minutes
+
+# Wake up snoozed emails that have reached their snooze time
+# Runs every minute for responsive snooze experience
+email_snooze_wakeup:
+  class: EmailSnoozeWakeupJob
+  queue: default
+  schedule: every 1 minute
+
+# Process email reminders that are due
+# Runs every minute for responsive reminder experience
+email_reminders:
+  class: EmailReminderJob
+  queue: default
+  schedule: every 1 minute
+
+# ============================================
+# EMAIL TO JOB / EMAIL TO TASK
+# ============================================
+# Process emails sent to newjob@tekna.com.au and create job proposals
+# Runs every 5 minutes for responsive job creation
+process_new_job_emails:
+  class: ProcessNewJobEmailsJob
+  queue: default
+  schedule: every 5 minutes
+
+# Process emails sent to newtask@tekna.com.au and create tasks
+# Runs every 5 minutes for responsive task creation
+process_new_task_emails:
+  class: ProcessNewTaskEmailsJob
+  queue: default
+  schedule: every 5 minutes
+
+# ============================================
+# FOUNDATION SYSTEM HEALTH
+# ============================================
+
+# Daily health check - runs all health checks, auto-fixes issues, and caches results
+# Runs at 6am Brisbane time to populate cache for instant health dashboard loading
+daily_health_check:
+  class: DailyHealthCheckJob
+  queue: low
+  schedule: at 6am every day
+
+# Monitor Foundation metadata sync (detect drift between DB schema and Foundation columns)
+# Sends alerts if columns are missing from Foundation system
+foundation_sync_monitor:
+  class: FoundationSyncMonitorJob
+  queue: low
+  schedule: at 4am every day
+
+# ============================================
+# WEATHER MONITORING
+# ============================================
+
+# Auto-detect rainfall for all active jobs and create rain log entries
+# Runs at 5am Brisbane time when yesterday's weather data is fully available
+check_yesterday_rain:
+  class: CheckYesterdayRainJob
+  queue: low
+  schedule: at 5am every day
+
+# ============================================
+# PLAN UPLOADS MAINTENANCE
+# ============================================
+
+# Clean up orphaned staging files from failed plan uploads
+# Runs daily at 4am to delete staging files older than 24 hours
+plan_staging_cleanup:
+  class: PlanStagingCleanupJob
+  queue: low
+  schedule: at 4am every day
+
+# ============================================
+# SCHEDULE MASTER (SM GANTT)
+# ============================================
+
+# Daily generation of recurring tasks
+# Runs at 6:30am Brisbane time (after rollover, before work starts)
+# - Finds all active recurring task definitions due for generation
+# - Creates SmTask instances for upcoming dates (advance_days ahead)
+# - Skips weekends/holidays/user leave if configured
+# - Sends notifications to assignees
+sm_recurring_task_generation:
+  class: SmRecurringTaskGenerationJob
+  queue: default
+  schedule: at 6:30am every day
+
+# Send notifications for overdue tasks
+# Runs at 8am Brisbane time (after work starts, before standup)
+# - Finds tasks with end_date < today that aren't completed
+# - Only sends ONE notification per task (won't spam daily)
+# - Notifies assigned user
+task_overdue_notifications:
+  class: TaskOverdueNotificationJob
+  queue: default
+  schedule: at 8am every day
+
+# Nightly rollover of past-due tasks
+# Runs at midnight Brisbane time to:
+# - Find all not_started tasks with start_date < today
+# - Move them forward to today (preserving duration)
+# - Soft-delete broken predecessor dependencies
+# - Cascade to affected successor tasks
+# - Log all changes to sm_rollover_logs
+sm_rollover:
+  class: SmRolloverJob
+  queue: critical
+  schedule: at midnight every day
+
+# ============================================
+# SITE PRESENCE & COST INTELLIGENCE
+# ============================================
+# Photo-verified time tracking with simPRO-style costing
+# See: .claude/plans/piped-orbiting-whisper.md
+
+# Generate AI timesheet suggestions for yesterday's work
+# Runs at 6am Brisbane time to analyze previous day's sessions/photos
+# Creates AiTimesheetSuggestion records for worker review
+generate_ai_timesheet_suggestions:
+  class: GenerateAiTimesheetSuggestionsJob
+  queue: default
+  schedule: at 6am every day
+
+# Generate daily progress reports from site photos
+# Runs at 7pm Brisbane time to analyze today's work photos
+# Uses Claude Vision to detect work completed
+generate_daily_progress_report:
+  class: GenerateDailyProgressReportJob
+  queue: low
+  schedule: at 7pm every day
+
+# ============================================
+# SAAS CUSTOMER BILLING
+# ============================================
+# Monthly billing record generation for SaaS customers
+# Runs on the 3rd of each month at 6am Brisbane time
+# - Creates SaasBillingRecord for each active SaaS customer
+# - Calculates tiered fees based on customer turnover
+# - Creates ReferralCommission records for L1/L2 referrers
+# - Updates network fee caches for eligibility tracking
+# - Re-evaluates pending commissions that may now be eligible
+monthly_saas_billing:
+  class: MonthlySaasBillingJob
+  queue: default
+  schedule: every month on the 3rd at 6am
+
+# ============================================
+# SSOT COMPLIANCE
+# ============================================
+
+# Weekly Gold Standard compliance audit
+# Runs Monday 6am Brisbane time (start of week)
+# - Checks all columns match current type definition versions
+# - Logs compliance score to system
+# - Alerts if score drops below threshold
+# Commented out - invalid schedule format crashes worker
+# gold_standard_compliance_check:
+#   class: GoldStandardComplianceCheckJob
+#   queue: low
+#   schedule: at 6am on Monday

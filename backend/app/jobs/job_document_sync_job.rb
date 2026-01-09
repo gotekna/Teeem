@@ -1,0 +1,221 @@
+# frozen_string_literal: true
+
+# Background job for syncing job documents from OneDrive to the database
+# This populates the JobDocument table (data warehouse pattern) for instant lookups
+#
+# Usage:
+#   JobDocumentSyncJob.perform_later(job_id)  # Sync a single job
+#   JobDocumentSyncJob.perform_later          # Sync all jobs with OneDrive folders
+#
+class JobDocumentSyncJob < ApplicationJob
+  queue_as :default
+
+  # Retry on Microsoft Graph API errors with exponential backoff
+  retry_on MicrosoftGraphClient::APIError, wait: :exponentially_longer, attempts: 3
+
+  # Cache key for tracking last full sync time
+  LAST_FULL_SYNC_CACHE_KEY = "job_document_sync:last_full_sync"
+  # Minimum interval between full syncs (4 hours)
+  FULL_SYNC_MIN_INTERVAL = 4.hours
+
+  def perform(job_id = nil)
+    # Smart skip for full syncs: Don't run if we ran recently
+    # This prevents the job from blocking worker threads when data hasn't changed
+    if job_id.nil?
+      last_full_sync = Rails.cache.read(LAST_FULL_SYNC_CACHE_KEY)
+      if last_full_sync && last_full_sync > FULL_SYNC_MIN_INTERVAL.ago
+        Rails.logger.info("[JobDocumentSync] Skipping full sync - last ran #{last_full_sync.iso8601} (< #{FULL_SYNC_MIN_INTERVAL.inspect} ago)")
+        return { skipped: true, last_sync: last_full_sync }
+      end
+    end
+
+    credential = MicrosoftCredential.sharepoint_credential
+    unless credential
+      Rails.logger.warn("[JobDocumentSync] No active OneDrive credential found")
+      return { success: false, error: "No OneDrive credential" }
+    end
+
+    @client = MicrosoftGraphClient.new(credential)
+    @drive_id = credential.drive_id
+    @stats = { synced: 0, updated: 0, removed: 0, errors: [] }
+
+    if job_id
+      sync_single_job(Job.find(job_id))
+    else
+      sync_all_jobs
+      # Record full sync completion for smart skip logic
+      Rails.cache.write(LAST_FULL_SYNC_CACHE_KEY, Time.current, expires_in: FULL_SYNC_MIN_INTERVAL * 2)
+    end
+
+    Rails.logger.info("[JobDocumentSync] Complete: #{@stats.inspect}")
+    @stats
+  rescue StandardError => e
+    Rails.logger.error("[JobDocumentSync] Failed: #{e.message}")
+    Rails.logger.error(e.backtrace.first(10).join("\n"))
+    raise
+  end
+
+  private
+
+  def sync_all_jobs
+    # Only sync jobs that have SharePoint folders
+    jobs_with_folders = Job.where(sharepoint_folder_status: "completed")
+    Rails.logger.info("[JobDocumentSync] Syncing #{jobs_with_folders.count} jobs with SharePoint folders")
+
+    jobs_with_folders.find_each do |job|
+      sync_single_job(job)
+    end
+  end
+
+  def sync_single_job(job)
+    Rails.logger.info("[JobDocumentSync] Syncing job #{job.id}: #{job.title}")
+
+    # SSoT: Use stored folder ID if available (stable, survives renames)
+    # Fall back to name search if no ID stored (legacy jobs)
+    job_folder = nil
+    folder_id = job.sharepoint_folder_id
+
+    if folder_id.present?
+      # Use stored folder ID for direct lookup (faster, more reliable)
+      begin
+        job_folder = @client.get("/drives/#{@drive_id}/items/#{folder_id}")
+        Rails.logger.info("[JobDocumentSync] Found folder by stored ID for job #{job.id}")
+      rescue MicrosoftGraphClient::APIError => e
+        if e.message.include?("itemNotFound")
+          Rails.logger.warn("[JobDocumentSync] Stored folder ID invalid for job #{job.id}, falling back to search")
+          job.update_column(:sharepoint_folder_id, nil)  # Clear invalid ID
+          folder_id = nil
+        else
+          raise
+        end
+      end
+    end
+
+    # Fall back to name search if no stored ID
+    if job_folder.nil?
+      job_folder = @client.find_job_folder(job)
+      unless job_folder
+        Rails.logger.warn("[JobDocumentSync] No SharePoint folder found for job #{job.id}")
+        return
+      end
+      # Backfill: Store the folder ID for next time
+      if job_folder["id"].present? && job.sharepoint_folder_id.blank?
+        job.update_column(:sharepoint_folder_id, job_folder["id"])
+        Rails.logger.info("[JobDocumentSync] Backfilled folder ID for job #{job.id}")
+      end
+    end
+
+    # Get all files recursively from the job folder
+    files = list_all_files(job_folder["id"])
+    Rails.logger.info("[JobDocumentSync] Found #{files.length} files in job #{job.id}")
+
+    # Track which sharepoint_item_ids we've seen (to detect deleted files)
+    seen_item_ids = []
+
+    files.each do |file|
+      seen_item_ids << file[:id]
+      sync_file_to_database(job, file)
+    end
+
+    # Mark missing files (deleted from SharePoint)
+    removed_count = job.job_documents
+      .where.not(sharepoint_item_id: seen_item_ids)
+      .update_all(sync_status: "missing")
+    @stats[:removed] += removed_count
+  rescue MicrosoftGraphClient::APIError => e
+    @stats[:errors] << { job_id: job.id, error: e.message }
+    Rails.logger.error("[JobDocumentSync] Failed to sync job #{job.id}: #{e.message}")
+  end
+
+  def sync_file_to_database(job, file)
+    job_doc = JobDocument.find_or_initialize_by(sharepoint_item_id: file[:id])
+    is_new = job_doc.new_record?
+
+    # Detect if file was renamed in SharePoint (name changed but ID is the same)
+    # Preserve original_file_name for audit trail
+    if !is_new && job_doc.file_name != file[:name]
+      Rails.logger.info("[JobDocumentSync] Detected rename: #{job_doc.file_name} → #{file[:name]}")
+      # Store original name if not already set
+      job_doc.original_file_name ||= job_doc.file_name
+    end
+
+    # For new files, set original_file_name to current name
+    if is_new
+      job_doc.original_file_name = file[:name]
+    end
+
+    job_doc.assign_attributes(
+      job: job,
+      sharepoint_drive_id: @drive_id,
+      file_name: file[:name],
+      file_size: file[:size],
+      folder_path: file[:folder_path],
+      web_url: file[:web_url],
+      thumbnail_url: file[:thumbnail_url],
+      last_modified_at: file[:modified],
+      sync_status: "synced",
+      last_synced_at: Time.current
+    )
+
+    # document_type detection happens automatically via before_save callback
+    job_doc.save!
+
+    if is_new
+      @stats[:synced] += 1
+    else
+      @stats[:updated] += 1
+    end
+  rescue StandardError => e
+    @stats[:errors] << { file: file[:name], error: e.message }
+    Rails.logger.error("[JobDocumentSync] Failed to sync file #{file[:name]}: #{e.message}")
+  end
+
+  # Recursively list all files from a folder (similar to JobDocumentMigrationService)
+  def list_all_files(root_folder_id, max_depth: 5)
+    files = []
+    folders_to_process = [ [ root_folder_id, 0, "" ] ] # [folder_id, depth, path]
+
+    while folders_to_process.any?
+      current_id, depth, current_path = folders_to_process.shift
+
+      begin
+        # Start with initial URL for this folder
+        url = "/drives/#{@drive_id}/items/#{current_id}/children?$select=id,name,size,webUrl,lastModifiedDateTime,file,folder&$expand=thumbnails&$top=200"
+
+        # Follow pagination to get ALL items (fixes bug where folders >200 items were truncated)
+        while url
+          result = @client.get(url)
+
+          result["value"]&.each do |item|
+            if item["file"]
+              # Extract thumbnail URLs from Microsoft Graph response (publicly accessible)
+              thumbnails = item.dig("thumbnails", 0) || {}
+              thumbnail_url = thumbnails.dig("medium", "url") || thumbnails.dig("small", "url")
+
+              files << {
+                id: item["id"],
+                name: item["name"],
+                size: item["size"],
+                web_url: item["webUrl"],
+                modified: item["lastModifiedDateTime"],
+                folder_path: current_path,
+                thumbnail_url: thumbnail_url
+              }
+            elsif item["folder"] && depth < max_depth
+              folder_name = item["name"]
+              new_path = current_path.empty? ? folder_name : "#{current_path}/#{folder_name}"
+              folders_to_process << [ item["id"], depth + 1, new_path ]
+            end
+          end
+
+          # Follow @odata.nextLink for pagination (Microsoft Graph returns this when more items exist)
+          url = result["@odata.nextLink"]
+        end
+      rescue MicrosoftGraphClient::APIError => e
+        Rails.logger.warn("[JobDocumentSync] Failed to list folder #{current_id}: #{e.message}")
+      end
+    end
+
+    files
+  end
+end

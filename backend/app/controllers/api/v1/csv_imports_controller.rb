@@ -6,7 +6,7 @@ module Api
         unless params[:csv_file].present?
           render json: {
             success: false,
-            error: 'CSV file is required'
+            error: "CSV file is required"
           }, status: :unprocessable_entity
           return
         end
@@ -14,7 +14,7 @@ module Api
         unless params[:site_supervisor_name].present?
           render json: {
             success: false,
-            error: 'Site supervisor name is required'
+            error: "Site supervisor name is required"
           }, status: :unprocessable_entity
           return
         end
@@ -38,13 +38,14 @@ module Api
         # Import job and POs in a transaction
         ActiveRecord::Base.transaction do
           # Create Construction (job)
+          # SSoT: Use contract_price as THE ONE
           construction = Job.create!(
             title: parse_result[:job_name],
             site_supervisor_name: params[:site_supervisor_name],
             site_supervisor_email: params[:site_supervisor_email],
             site_supervisor_phone: params[:site_supervisor_phone],
-            contract_value: params[:contract_value].presence || parse_result[:summary][:total_amount],
-            status: params[:status].presence || 'Active'
+            contract_price: params[:contract_value].presence || parse_result[:summary][:total_amount],
+            status: params[:status].presence || "Active"
           )
 
           # Create Purchase Orders
@@ -55,7 +56,7 @@ module Api
             begin
               po = construction.purchase_orders.create!(
                 po_number: po_data[:po_number],
-                supplier_name: po_data[:supplier_name] || 'TBD',
+                supplier_name: po_data[:supplier_name] || "TBD",
                 description: po_data[:description],
                 sub_total: po_data[:subtotal] || po_data[:total],
                 tax: po_data[:tax] || 0,
@@ -100,7 +101,7 @@ module Api
       rescue ActiveRecord::RecordInvalid => e
         render json: {
           success: false,
-          error: 'Failed to create job',
+          error: "Failed to create job",
           details: e.record.errors.full_messages
         }, status: :unprocessable_entity
 
@@ -110,7 +111,7 @@ module Api
 
         render json: {
           success: false,
-          error: 'An error occurred while importing the CSV',
+          error: "An error occurred while importing the CSV",
           details: e.message
         }, status: :internal_server_error
       end

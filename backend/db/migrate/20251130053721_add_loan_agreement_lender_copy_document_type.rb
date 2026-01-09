@@ -6,7 +6,7 @@ class AddLoanAgreementLenderCopyDocumentType < ActiveRecord::Migration[8.0]
       dt.description = 'Loan agreement where this entity is the lender (Loan to format)'
       dt.category = 'corporate'
       dt.primary_tab = 'LOANS'
-      dt.tabs = ['LOANS']
+      dt.tabs = [ 'LOANS' ]
       dt.active = true
     end
   end

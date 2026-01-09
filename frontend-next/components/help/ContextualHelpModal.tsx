@@ -11,7 +11,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { X, Search, BookOpen, Loader2 } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
+import { X, Search, BookOpen } from "lucide-react";
 import { api } from "@/lib/api";
 import { getChapterName } from "@/lib/helpMapping";
 
@@ -45,6 +46,7 @@ export function ContextualHelpModal({
     if (isOpen && chapter !== null) {
       loadHelpContent();
     }
+     
   }, [isOpen, chapter, section]);
 
   const loadHelpContent = async () => {
@@ -178,7 +180,7 @@ export function ContextualHelpModal({
         <ScrollArea className="flex-1 p-6">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-12 w-12 animate-spin text-indigo-600" />
+              <Spinner size={48} className="text-indigo-600" />
             </div>
           ) : (
             <div className="prose prose-sm dark:prose-invert max-w-none">

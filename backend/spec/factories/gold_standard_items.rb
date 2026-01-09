@@ -23,12 +23,12 @@ FactoryBot.define do
     url { "https://example.com/page#{rand(100)}" }
     gps_coordinates { "#{rand(-90.0..90.0).round(6)},#{rand(-180.0..180.0).round(6)}" }
     color_picker { "#%06x" % rand(0xffffff) }
-    boolean { [true, false].sample }
+    boolean { [ true, false ].sample }
 
     # Lookup and choice fields
-    choice { ["Option A", "Option B", "Option C"].sample }
+    choice { [ "Option A", "Option B", "Option C" ].sample }
     lookup { "Lookup Value #{rand(100)}" }
-    multiple_lookups { ["Value1", "Value2", "Value3"].sample(2).to_json }
+    multiple_lookups { [ "Value1", "Value2", "Value3" ].sample(2).to_json }
 
     # Other fields
     user { rand(1..10) }
@@ -81,7 +81,7 @@ FactoryBot.define do
       boolean { true }
       choice { "Complete Choice" }
       lookup { "Complete Lookup" }
-      multiple_lookups { ["Lookup1", "Lookup2"].to_json }
+      multiple_lookups { [ "Lookup1", "Lookup2" ].to_json }
       user { 1 }
       computed { "Complete Computed" }
       action_buttons { "complete_button" }

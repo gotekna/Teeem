@@ -52,7 +52,7 @@ class ErrorReportingService
 
       # Take first 10 lines, filter to app code only
       app_lines = backtrace.first(10).select do |line|
-        line.include?(Rails.root.to_s) && !line.include?('/vendor/') && !line.include?('/gems/')
+        line.include?(Rails.root.to_s) && !line.include?("/vendor/") && !line.include?("/gems/")
       end
 
       # If no app lines, take first 3 overall lines
@@ -97,8 +97,8 @@ class ErrorReportingService
 
       Sentry.with_scope do |scope|
         # Add context
-        scope.set_context('error_data', error_data[:context])
-        scope.set_extra('filtered_backtrace', error_data[:backtrace])
+        scope.set_context("error_data", error_data[:context])
+        scope.set_extra("filtered_backtrace", error_data[:backtrace])
 
         # Capture exception
         Sentry.capture_exception(exception)
@@ -108,9 +108,9 @@ class ErrorReportingService
     def should_send_to_sentry?(exception)
       # Don't send common/expected errors to Sentry
       excluded_errors = [
-        'ActionController::RoutingError',
-        'ActiveRecord::RecordNotFound',
-        'ActionController::ParameterMissing'
+        "ActionController::RoutingError",
+        "ActiveRecord::RecordNotFound",
+        "ActionController::ParameterMissing"
       ]
 
       !excluded_errors.include?(exception.class.name)

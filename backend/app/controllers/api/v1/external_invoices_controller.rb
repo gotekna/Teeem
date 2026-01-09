@@ -4,7 +4,7 @@ module Api
       # GET /api/v1/external_invoices
       # List invoices with optional filtering
       def index
-        invoices = ExternalInvoice.active
+        invoices = ExternalInvoice.active.includes(:job)
 
         # Filter by source
         invoices = invoices.where(source: params[:source]) if params[:source].present?
@@ -52,12 +52,39 @@ module Api
       def show
         invoice = ExternalInvoice.find(params[:id])
 
+        # Check if PDF is available in SharePoint (SSoT)
+        pdf_doc = invoice.corporate_company_documents.find_by(document_type: document_type_for(invoice.invoice_type))
+        has_pdf = pdf_doc&.sharepoint_file_id.present?
+
         render json: {
           success: true,
-          data: serialize_invoice(invoice, include_details: true)
+          data: serialize_invoice(invoice, include_details: true).merge(
+            has_pdf: has_pdf,
+            pdf_synced_at: pdf_doc&.created_at&.iso8601
+          )
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Invoice not found' }, status: :not_found
+        render json: { success: false, error: "Invoice not found" }, status: :not_found
+      end
+
+      # GET /api/v1/external_invoices/by_external_id/:external_id
+      # Find invoice by Xero ID (external_id) - for invoice detail modal
+      def by_external_id
+        invoice = ExternalInvoice.find_by!(external_id: params[:external_id])
+
+        # Check if PDF is available in SharePoint (SSoT)
+        pdf_doc = invoice.corporate_company_documents.find_by(document_type: document_type_for(invoice.invoice_type))
+        has_pdf = pdf_doc&.sharepoint_file_id.present?
+
+        render json: {
+          success: true,
+          data: serialize_invoice(invoice, include_details: true).merge(
+            has_pdf: has_pdf,
+            pdf_synced_at: pdf_doc&.created_at&.iso8601
+          )
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Invoice not found" }, status: :not_found
       end
 
       # GET /api/v1/external_invoices/by_job/:job_id
@@ -66,6 +93,7 @@ module Api
         job = Job.find(params[:job_id])
 
         invoices = ExternalInvoice.active
+                                  .includes(:job)
                                   .where(job_id: job.id)
                                   .order(invoice_date: :desc)
 
@@ -75,7 +103,24 @@ module Api
         quotes = invoices.quotes
 
         # Get last sync time
-        last_sync = ExternalInvoice.where(source: 'xero').maximum(:last_synced_at)
+        last_sync = ExternalInvoice.where(source: "xero").maximum(:last_synced_at)
+
+        # Get claim invoice patterns from job's schedule master template
+        claim_patterns = []
+        if job.job_type&.sm_schedule_master_template_id.present?
+          claim_tasks = SmScheduleMaster.where(is_claim_task: true)
+                                        .where("sm_template_ids @> ?", [job.job_type.sm_schedule_master_template_id].to_json)
+                                        .where.not(claim_invoice_pattern: [nil, ""])
+                                        .select(:name, :claim_invoice_pattern, :claim_percentage)
+                                        .order(:sequence_order)
+          claim_patterns = claim_tasks.map do |task|
+            {
+              task_name: task.name,
+              pattern: task.claim_invoice_pattern,
+              percentage: task.claim_percentage&.to_f
+            }
+          end
+        end
 
         render json: {
           success: true,
@@ -90,16 +135,17 @@ module Api
             total_quotes: quotes.count,
             job_id: job.id,
             job_title: job.title,
-            tracking_option_name: job.xero_tracking_option_name
+            tracking_option_name: job.xero_tracking_option_name,
+            claim_invoice_patterns: claim_patterns
           },
           meta: {
-            source: 'local_cache',
+            source: "local_cache",
             last_synced_at: last_sync&.iso8601,
             cache_age_seconds: last_sync ? (Time.current - last_sync).to_i : nil
           }
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Job not found' }, status: :not_found
+        render json: { success: false, error: "Job not found" }, status: :not_found
       end
 
       # GET /api/v1/external_invoices/by_tracking
@@ -110,7 +156,7 @@ module Api
         unless tracking_option_name.present?
           return render json: {
             success: false,
-            error: 'tracking_option_name is required'
+            error: "tracking_option_name is required"
           }, status: :bad_request
         end
 
@@ -119,10 +165,10 @@ module Api
 
         if job
           # Use job_id for fast lookup
-          invoices = ExternalInvoice.active.where(job_id: job.id)
+          invoices = ExternalInvoice.active.includes(:job).where(job_id: job.id)
         else
           # Fall back to searching tracking_data JSON (slower but works for unlinked)
-          invoices = ExternalInvoice.active.with_tracking(tracking_option_name)
+          invoices = ExternalInvoice.active.includes(:job).with_tracking(tracking_option_name)
         end
 
         invoices = invoices.order(invoice_date: :desc)
@@ -131,7 +177,7 @@ module Api
         bills = invoices.bills
 
         # Get last sync time
-        last_sync = ExternalInvoice.where(source: 'xero').maximum(:last_synced_at)
+        last_sync = ExternalInvoice.where(source: "xero").maximum(:last_synced_at)
 
         render json: {
           success: true,
@@ -143,7 +189,7 @@ module Api
             tracking_option_name: tracking_option_name
           },
           meta: {
-            source: 'local_cache',
+            source: "local_cache",
             last_synced_at: last_sync&.iso8601,
             cache_age_seconds: last_sync ? (Time.current - last_sync).to_i : nil
           }
@@ -151,11 +197,12 @@ module Api
       end
 
       # GET /api/v1/external_invoices/by_contact/:contact_id
-      # Get all invoices for a TEEEM contact
+      # Get all invoices for a TEEEM contact, grouped by Xero tenant
       def by_contact
         contact = Contact.find(params[:contact_id])
 
         invoices = ExternalInvoice.active
+                                  .includes(:job)
                                   .where(contact_id: contact.id)
                                   .order(invoice_date: :desc)
 
@@ -164,12 +211,52 @@ module Api
         credit_notes = invoices.credit_notes
         quotes = invoices.quotes
 
-        # Get last sync time
-        last_sync = ExternalInvoice.where(source: 'xero').maximum(:last_synced_at)
+        # Get last sync time - SSoT: use this contact's most recent sync, not global
+        contact_last_sync = invoices.maximum(:last_synced_at)
+
+        # Group invoices by tenant_id for tabbed display
+        grouped_by_tenant = invoices.group_by(&:tenant_id)
+
+        # Build tenant info lookup
+        tenant_info = {}
+        grouped_by_tenant.keys.compact.each do |tenant_id|
+          config = SyncConfiguration.find_by(xero_tenant_id: tenant_id)
+          tenant_info[tenant_id] = {
+            tenant_id: tenant_id,
+            tenant_name: config&.xero_tenant_name || "Unknown Xero Company",
+            badge_color: config&.badge_color || "blue"
+          }
+        end
+
+        # Build by_tenant response
+        by_tenant = {}
+        grouped_by_tenant.each do |tenant_id, tenant_invoices|
+          next unless tenant_id
+
+          tenant_sales = tenant_invoices.select(&:sales_invoice?)
+          tenant_bills = tenant_invoices.select(&:bill?)
+          tenant_credit_notes = tenant_invoices.select(&:credit_note?)
+          tenant_quotes = tenant_invoices.select(&:quote?)
+
+          by_tenant[tenant_id] = {
+            tenant_info: tenant_info[tenant_id],
+            invoices: tenant_sales.map { |inv| serialize_invoice(inv) },
+            bills: tenant_bills.map { |inv| serialize_invoice(inv) },
+            credit_notes: tenant_credit_notes.map { |inv| serialize_invoice(inv) },
+            quotes: tenant_quotes.map { |inv| serialize_invoice(inv) },
+            total_invoices: tenant_sales.count,
+            total_bills: tenant_bills.count,
+            total_credit_notes: tenant_credit_notes.count,
+            total_quotes: tenant_quotes.count
+          }
+        end
 
         render json: {
           success: true,
           data: {
+            # Grouped by tenant (new - for tabbed display)
+            by_tenant: by_tenant,
+            # Flat lists (backwards compatible)
             invoices: sales_invoices.map { |inv| serialize_invoice(inv) },
             bills: bills.map { |inv| serialize_invoice(inv) },
             credit_notes: credit_notes.map { |inv| serialize_invoice(inv) },
@@ -182,13 +269,14 @@ module Api
             contact_name: contact.display_name
           },
           meta: {
-            source: 'local_cache',
-            last_synced_at: last_sync&.iso8601,
-            cache_age_seconds: last_sync ? (Time.current - last_sync).to_i : nil
+            source: "local_cache",
+            tenant_count: by_tenant.keys.count,
+            last_synced_at: contact_last_sync&.iso8601,
+            cache_age_seconds: contact_last_sync ? (Time.current - contact_last_sync).to_i : nil
           }
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Contact not found' }, status: :not_found
+        render json: { success: false, error: "Contact not found" }, status: :not_found
       end
 
       # GET /api/v1/external_invoices/sync_status
@@ -214,8 +302,8 @@ module Api
       # Trigger a background sync (for admin/manual refresh)
       def trigger_sync
         # For now, run sync inline (later can move to background job)
-        source = params[:source] || 'xero'
-        incremental = params[:incremental] != 'false'
+        source = params[:source] || "xero"
+        incremental = params[:incremental] != "false"
 
         service = ExternalInvoiceSyncService.new(source: source)
 
@@ -240,7 +328,7 @@ module Api
       # POST /api/v1/external_invoices/push_pending
       # Push all pending invoices to Xero
       def push_pending
-        source = params[:source] || 'xero'
+        source = params[:source] || "xero"
         tenant_id = params[:tenant_id]
 
         service = ExternalInvoiceSyncService.new(source: source, tenant_id: tenant_id)
@@ -265,20 +353,20 @@ module Api
         push_to_xero = params[:push_to_xero] != false
 
         unless tenant_id.present?
-          return render json: { success: false, error: 'tenant_id is required' }, status: :bad_request
+          return render json: { success: false, error: "tenant_id is required" }, status: :bad_request
         end
 
         # Build invoice attributes from params
         invoice_attrs = {
-          invoice_type: params[:invoice_type] || 'sales_invoice',
-          status: params[:status] || 'draft',
+          invoice_type: params[:invoice_type] || "sales_invoice",
+          status: params[:status] || "draft",
           invoice_date: params[:invoice_date] || Date.current,
           due_date: params[:due_date],
           reference: params[:reference],
           contact_id: params[:contact_id],
           job_id: params[:job_id],
           line_items: params[:line_items] || [],
-          currency_code: params[:currency_code] || 'AUD',
+          currency_code: params[:currency_code] || "AUD",
           subtotal: params[:subtotal],
           total_tax: params[:total_tax],
           total: params[:total]
@@ -288,24 +376,24 @@ module Api
         if invoice_attrs[:contact_id].present?
           link = ContactExternalLink.find_by(
             contact_id: invoice_attrs[:contact_id],
-            source: 'xero',
+            source: "xero",
             tenant_id: tenant_id
           )
           invoice_attrs[:external_contact_id] = link&.external_contact_id
           invoice_attrs[:contact_name] = link&.contact&.display_name
         end
 
-        service = ExternalInvoiceSyncService.new(source: 'xero', tenant_id: tenant_id)
+        service = ExternalInvoiceSyncService.new(source: "xero", tenant_id: tenant_id)
 
         if push_to_xero
           invoice = service.create_and_push(invoice_attrs, tenant_id: tenant_id)
         else
           invoice = ExternalInvoice.create!(
-            source: 'xero',
+            source: "xero",
             tenant_id: tenant_id,
             created_in_teeem: true,
             pending_push: true,
-            sync_direction: 'export_only',
+            sync_direction: "export_only",
             teeem_updated_at: Time.current,
             **invoice_attrs
           )
@@ -354,7 +442,7 @@ module Api
           data: serialize_invoice(invoice, include_details: true)
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Invoice not found' }, status: :not_found
+        render json: { success: false, error: "Invoice not found" }, status: :not_found
       rescue StandardError => e
         Rails.logger.error("Update invoice failed: #{e.message}")
         render json: {
@@ -363,14 +451,137 @@ module Api
         }, status: :unprocessable_entity
       end
 
+      # GET /api/v1/external_invoices/:id/pdf
+      # Returns PDF from SharePoint via sharepoint_file_id (SSoT)
+      # No fallback - fail fast if SharePoint doesn't work
+      def pdf
+        invoice = ExternalInvoice.find(params[:id])
+
+        # Check warehouse for existing PDF linked to this invoice
+        existing_pdf = invoice.corporate_company_documents.find_by(document_type: document_type_for(invoice.invoice_type))
+
+        if existing_pdf&.sharepoint_file_id.present?
+          content = fetch_from_sharepoint(existing_pdf.sharepoint_file_id)
+          if content
+            send_data content,
+                      filename: existing_pdf.file_name || "invoice.pdf",
+                      type: "application/pdf",
+                      disposition: "inline"
+            return
+          end
+          # SharePoint fetch failed - return error, don't fallback
+          render json: { success: false, error: "SharePoint fetch failed for document #{existing_pdf.id}" }, status: :service_unavailable
+          return
+        end
+
+        # No PDF in warehouse - fetch from Xero on-demand and store
+        service = XeroAttachmentSyncService.new(invoice)
+        result = service.sync!
+
+        if result[:pdf]&.sharepoint_file_id.present?
+          content = fetch_from_sharepoint(result[:pdf].sharepoint_file_id)
+          if content
+            send_data content,
+                      filename: result[:pdf].file_name || "invoice.pdf",
+                      type: "application/pdf",
+                      disposition: "inline"
+            return
+          end
+          render json: { success: false, error: "SharePoint fetch failed after Xero sync" }, status: :service_unavailable
+          return
+        end
+
+        # Xero sync failed or no sharepoint_file_id
+        error_msg = result[:errors].first || "PDF not available - no sharepoint_file_id"
+        render json: { success: false, error: error_msg }, status: :not_found
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Invoice not found" }, status: :not_found
+      rescue StandardError => e
+        Rails.logger.error("PDF fetch failed: #{e.message}")
+        render json: { success: false, error: "Failed to fetch PDF: #{e.message}" }, status: :internal_server_error
+      end
+
+      # Fetch file content from SharePoint using OrganizationSharePointCredential
+      # This bypasses Active Storage's SharePointService which has config issues
+      def fetch_from_sharepoint(file_id)
+        credential = MicrosoftCredential.sharepoint_credential
+        return nil unless credential&.valid_credential?
+
+        graph_client = MicrosoftGraphClient.new(credential)
+        graph_client.download_file(file_id)
+      rescue MicrosoftGraphClient::AuthenticationError => e
+        Rails.logger.error("SharePoint auth failed: #{e.message}")
+        nil
+      rescue MicrosoftGraphClient::APIError => e
+        Rails.logger.error("SharePoint API error: #{e.message}")
+        nil
+      rescue StandardError => e
+        Rails.logger.error("SharePoint fetch error: #{e.message}")
+        nil
+      end
+
+      # GET /api/v1/external_invoices/:id/attachments
+      # List all attachments for this invoice
+      def attachments
+        invoice = ExternalInvoice.find(params[:id])
+
+        # Return documents linked to this invoice (SharePoint SSoT)
+        documents = invoice.corporate_company_documents.map do |doc|
+          {
+            id: doc.id,
+            title: doc.title,
+            file_name: doc.file_name,
+            document_type: doc.document_type,
+            folder: doc.folder,
+            file_size: doc.file_size,
+            mime_type: doc.mime_type,
+            has_file: doc.sharepoint_file_id.present?,
+            sharepoint_file_id: doc.sharepoint_file_id,
+            created_at: doc.created_at.iso8601
+          }
+        end
+
+        render json: {
+          success: true,
+          data: documents,
+          meta: {
+            invoice_id: invoice.id,
+            invoice_number: invoice.invoice_number,
+            count: documents.count
+          }
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Invoice not found" }, status: :not_found
+      end
+
       private
 
+      # Maps invoice_type to the document_type used in CorporateCompanyDocument
+      # Must match XeroAttachmentSyncService.document_type_for_invoice
+      def document_type_for(invoice_type)
+        case invoice_type
+        when "sales_invoice" then "Sales Document"
+        when "bill" then "Purchases"
+        when "quote" then "Estimation"
+        when "credit_note" then "other"
+        else "other"
+        end
+      end
+
       def serialize_invoice(invoice, include_details: false)
+        # Look up tenant name from SyncConfiguration
+        tenant_name = nil
+        if invoice.tenant_id.present?
+          config = SyncConfiguration.find_by(xero_tenant_id: invoice.tenant_id)
+          tenant_name = config&.xero_tenant_name
+        end
+
         data = {
           id: invoice.id,
           source: invoice.source,
           external_id: invoice.external_id,
           tenant_id: invoice.tenant_id,
+          tenant_name: tenant_name,
           invoice_number: invoice.invoice_number,
           reference: invoice.reference,
           invoice_type: invoice.invoice_type,

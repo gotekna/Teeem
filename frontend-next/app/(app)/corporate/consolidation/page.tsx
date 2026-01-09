@@ -4,6 +4,7 @@ import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Select,
   SelectContent,
@@ -20,7 +21,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Loader2,
   RefreshCw,
   CheckCircle,
   AlertTriangle,
@@ -101,6 +101,7 @@ export default function ConsolidationPage() {
     if (selectedGroupId) {
       loadGroupDetails();
     }
+     
   }, [selectedGroupId, asOfDate]);
 
   const loadGroups = async () => {
@@ -109,7 +110,7 @@ export default function ConsolidationPage() {
       const response = await api.get<{ success: boolean; groups: CompanyGroup[] }>(
         "/api/v1/consolidation"
       );
-      if (response.success) {
+      if (response?.success) {
         setGroups(response.groups);
         // Auto-select first group with companies
         const firstWithCompanies = response.groups.find(g => g.companies_count > 1);
@@ -136,7 +137,7 @@ export default function ConsolidationPage() {
         relationships: IntercompanyRelationship[];
       }>(`/api/v1/consolidation/${selectedGroupId}?as_of_date=${asOfDate}`);
 
-      if (response.success) {
+      if (response?.success) {
         setGroupDetail(response.group);
         setSummary(response.summary);
         setRelationships(response.relationships);
@@ -190,7 +191,7 @@ export default function ConsolidationPage() {
   if (loading && groups.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -232,7 +233,7 @@ export default function ConsolidationPage() {
             disabled={!selectedGroupId || reconciling}
           >
             {reconciling ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              <Spinner size={16} className="mr-2" />
             ) : (
               <RefreshCw className="h-4 w-4 mr-2" />
             )}
@@ -343,7 +344,7 @@ export default function ConsolidationPage() {
         <CardContent>
           {loading ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <Spinner size={24} className="text-muted-foreground" />
             </div>
           ) : relationships.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">

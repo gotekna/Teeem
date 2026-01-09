@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import {
   DndContext,
   closestCenter,
@@ -9,8 +10,6 @@ import {
   useSensor,
   useSensors,
   DragEndEvent,
-  DragOverlay,
-  DragStartEvent,
 } from "@dnd-kit/core";
 import {
   arrayMove,
@@ -33,7 +32,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Loader2,
   RefreshCw,
   Download,
   CheckCircle,
@@ -48,7 +46,18 @@ import {
   Eye,
   EyeOff,
   GripVertical,
+  Receipt,
+  Wallet,
+  Building2,
+  ImageIcon,
+  DollarSign,
+  FolderTree,
+  Copy,
+  X,
+  LayoutList,
+  TableProperties,
   Trash2,
+  Briefcase,
 } from "lucide-react";
 import {
   Dialog,
@@ -65,13 +74,21 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import TeeemTableView from "@/components/table/TeeemTableView";
+import { ViewTableView, type ViewTableColumn } from "@/components/table/ViewTableView";
+import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { TableColumn, TableRow as TableRowType, SavedView } from "@/components/table/types";
-// GlobalViewsManager is now handled internally by TeeemTableView when foundationIdNumeric is set
+import { BillsInvoiceViewer, BillDetail } from "@/components/invoice/BillsInvoiceViewer";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { SharePointPathConfigurator } from "@/components/ui/sharepoint-path-configurator";
+import { UIComponentsPlaygroundTab } from "./UIComponentsPlaygroundTab";
+import { ColumnTypeDefinitionsTab } from "./ColumnTypeDefinitionsTab";
+import { SortableList, SortableItem, DragHandle, ItemBadge } from "@/components/ui/dnd";
+import { Spinner } from "@/components/ui/spinner";
 
 interface ColumnType {
   columnName: string;
@@ -109,7 +126,6 @@ interface SyncData {
 
 // Sortable field item for drag and drop
 interface SortableFieldItemProps {
-  id: string;
   col: { column_name: string; name: string; column_type: string };
   isVisible: boolean;
   order: number;
@@ -118,7 +134,6 @@ interface SortableFieldItemProps {
 }
 
 function SortableFieldItem({
-  id,
   col,
   isVisible,
   order,
@@ -132,7 +147,7 @@ function SortableFieldItem({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id });
+  } = useSortable({ id: col.column_name });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -222,27 +237,46 @@ function GoldStandardDataTab() {
   const [viewingEntry, setViewingEntry] = React.useState<TableRowType | null>(null);
 
   // Initialize visible fields and order when columns load
+  // Per GOLD_STANDARD_TABLE.md: System columns (id, created_at, updated_at) MUST be visible
   React.useEffect(() => {
     if (rawColumns.length > 0 && visibleFields.size === 0) {
-      // Default: show common field types
+      // Default: show common field types INCLUDING system columns
       const defaultVisibleTypes = ['short_text', 'long_text', 'number', 'whole_number', 'currency', 'date', 'boolean', 'email', 'dropdown', 'percentage'];
-      const nonSystemCols = rawColumns.filter(col => !['id', 'created_at', 'updated_at'].includes(col.column_name));
+      const systemColumns = ['id', 'created_at', 'updated_at'];
 
-      const visibleCols = nonSystemCols.filter(col => defaultVisibleTypes.includes(col.column_type));
-      const hiddenCols = nonSystemCols.filter(col => !defaultVisibleTypes.includes(col.column_type));
+      // Include ALL columns (system columns are visible but not editable)
+      const allCols = rawColumns;
+
+      const visibleCols = allCols.filter(col =>
+        defaultVisibleTypes.includes(col.column_type) || systemColumns.includes(col.column_name)
+      );
+      const hiddenCols = allCols.filter(col =>
+        !defaultVisibleTypes.includes(col.column_type) && !systemColumns.includes(col.column_name)
+      );
 
       setVisibleFields(new Set(visibleCols.map(col => col.column_name)));
 
-      // Initialize field order: visible fields 1-N, hidden fields 100+
+      // Initialize field order: system columns first, then visible, then hidden
       const initialOrder: Record<string, number> = {};
-      visibleCols.forEach((col, idx) => {
-        initialOrder[col.column_name] = idx + 1;
+      let orderIdx = 1;
+
+      // System columns get priority positions
+      allCols.filter(col => systemColumns.includes(col.column_name)).forEach((col) => {
+        initialOrder[col.column_name] = orderIdx++;
       });
+
+      // Then visible non-system columns
+      visibleCols.filter(col => !systemColumns.includes(col.column_name)).forEach((col) => {
+        initialOrder[col.column_name] = orderIdx++;
+      });
+
+      // Hidden columns get high order numbers
       hiddenCols.forEach((col, idx) => {
         initialOrder[col.column_name] = 100 + idx;
       });
       setFieldOrder(initialOrder);
     }
+
   }, [rawColumns]);
 
   const updateFieldOrder = (columnName: string, newOrder: number) => {
@@ -404,6 +438,7 @@ function GoldStandardDataTab() {
 
   React.useEffect(() => {
     loadData();
+     
   }, []);
 
   const loadData = async () => {
@@ -425,7 +460,7 @@ function GoldStandardDataTab() {
             available_choices?: string[];
           }>;
         };
-      }>("/api/v1/foundations/1");
+      }>("/api/v1/foundations/gold_standard_table");
 
       // Fetch gold standard items
       const itemsData = await api.get<{
@@ -471,11 +506,12 @@ function GoldStandardDataTab() {
       }
 
       // Load views for this foundation
+      // SSoT: Use slug, not numeric ID (which differs per environment)
       try {
         const viewsData = await api.get<{
           success: boolean;
           views: SavedView[];
-        }>("/api/v1/foundation_views?foundation_id=1");
+        }>("/api/v1/foundation_views?foundation_id=gold_standard_table");
 
         if (viewsData?.views) {
           setPreloadedViews(viewsData.views);
@@ -496,10 +532,6 @@ function GoldStandardDataTab() {
     }
   };
 
-  const handleEdit = async (entry: TableRowType) => {
-    // TODO: Implement edit modal
-    console.log("Edit:", entry);
-  };
 
   const handleDelete = async (entry: TableRowType) => {
     if (!confirm("Are you sure you want to delete this item?")) return;
@@ -640,33 +672,6 @@ function GoldStandardDataTab() {
       });
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleDuplicateEntry = async (entry: TableRowType) => {
-    // Create a copy without id
-    const duplicateData: Record<string, unknown> = {};
-    rawColumns.forEach((col) => {
-      duplicateData[col.column_name] = entry[col.column_name];
-    });
-
-    try {
-      const response = await api.post<{ success: boolean; item: TableRowType }>("/api/v1/gold_standard_table", {
-        gold_standard_table: duplicateData,
-      });
-      if (response?.success && response.item) {
-        setEntries((prev) => [...prev, response.item]);
-      } else {
-        await loadData();
-      }
-      toast({ title: "Success", description: "Item duplicated successfully" });
-    } catch (error) {
-      console.error("Failed to duplicate:", error);
-      toast({
-        title: "Error",
-        description: "Failed to duplicate item",
-        variant: "destructive",
-      });
     }
   };
 
@@ -827,31 +832,21 @@ function GoldStandardDataTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">Gold Standard Table Data</h2>
-          <p className="text-sm text-muted-foreground">
-            Live database table demonstrating all TeeemTableView column types and features.
-            <span className="ml-2 text-xs font-mono text-muted-foreground">Table #1</span>
-          </p>
-        </div>
-      </div>
-
+    <div className="h-full flex flex-col">
       <TeeemTableView
         entries={entries}
-        columns={columns}
-        foundationId="gold-standard"
-        foundationIdNumeric={1}
-        tableName="Gold Standard"
-        onView={handleView}
-        onEdit={handleOpenEditDialog}
+        // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
+        totalCount={entries.length}
+        foundationId="gold_standard_table"
+        tableName="Gold Standard Table"
+        // SSoT: onView, onEdit, onDelete (Add/Edit/View/Delete buttons) are now auto-enabled
+        // by TeeemTableView when foundationIdNumeric is set. No need to pass custom handlers.
         onDelete={handleDelete}
         onBulkDelete={handleBulkDelete}
         onRowDoubleClick={handleRowDoubleClick}
@@ -863,338 +858,44 @@ function GoldStandardDataTab() {
         enableImport={true}
         enableExport={true}
         enableSchemaEditor={true}
-        initialShowTotals={false}
+        initialShowTotals={true}
+        // ============================================================================
+        // DEMO: Custom Action Placeholders
+        // These show all available customization points for page-specific buttons
+        // ============================================================================
         leftActions={
-          <Button variant="default" size="sm" onClick={handleOpenAddDialog}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Item
+          <Button variant="outline" size="sm" className="gap-1.5" title="leftActions prop - page-specific buttons go here">
+            <Settings className="h-4 w-4" />
+            leftActions
           </Button>
         }
-        // Note: Filters button is auto-enabled by TeeemTableView when foundationIdNumeric is set
+        customActions={
+          <Button variant="ghost" size="icon" className="h-8 w-8" title="customActions prop - extra action buttons">
+            <Briefcase className="h-4 w-4" />
+          </Button>
+        }
+        customBulkActions={(selectedIds, clearSelection) => (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              alert(`customBulkActions prop - runs on ${selectedIds.length} selected rows`);
+            }}
+            title="customBulkActions prop - bulk operations for selected rows"
+          >
+            <Copy className="h-4 w-4 mr-1.5" />
+            customBulkActions ({selectedIds.length})
+          </Button>
+        )}
       />
-
-      {/* Add Item Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={(open) => {
-        setShowAddDialog(open);
-        if (!open) {
-          setShowMoreFields(false);
-          setShowFieldConfig(false);
-        }
-      }}>
-        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto p-6">
-          <DialogHeader className="pb-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <DialogTitle>Add New Item</DialogTitle>
-                <DialogDescription>
-                  Create a new gold standard item with sample data for all column types.
-                </DialogDescription>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowFieldConfig(!showFieldConfig)}
-                className="text-muted-foreground"
-              >
-                <Settings className="h-4 w-4 mr-1" />
-                Fields
-              </Button>
-            </div>
-          </DialogHeader>
-
-          {/* Field Configuration Panel */}
-          {showFieldConfig && (
-            <div className="border rounded-md p-4 mb-4 bg-muted/30">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-medium">Drag to reorder, or type order number</span>
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" onClick={showAllFields} className="text-xs h-7">
-                    Show All
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={hideAllFields} className="text-xs h-7">
-                    Hide All
-                  </Button>
-                </div>
-              </div>
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
-              >
-                <SortableContext
-                  items={getSortedColumns().map(c => c.column_name)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  <div className="space-y-1">
-                    {getSortedColumns().map((col) => (
-                      <SortableFieldItem
-                        key={col.column_name}
-                        id={col.column_name}
-                        col={col}
-                        isVisible={visibleFields.has(col.column_name)}
-                        order={fieldOrder[col.column_name] || 0}
-                        onToggleVisibility={toggleFieldVisibility}
-                        onUpdateOrder={updateFieldOrder}
-                      />
-                    ))}
-                  </div>
-                </SortableContext>
-              </DndContext>
-            </div>
-          )}
-
-          {/* Visible Fields */}
-          <div className="grid grid-cols-2 gap-4 py-4">
-            {getSortedColumns()
-              .filter((col) => visibleFields.has(col.column_name))
-              .map((col) => (
-              <div key={col.column_name}>
-                {renderFormField(col)}
-              </div>
-            ))}
-          </div>
-
-          {/* Hidden Fields - Collapsible */}
-          {getSortedColumns().filter((col) => !visibleFields.has(col.column_name)).length > 0 && (
-            <Collapsible open={showMoreFields} onOpenChange={setShowMoreFields}>
-              <CollapsibleTrigger className="text-muted-foreground hover:text-foreground">
-                {showMoreFields ? "Hide" : "Show"} Hidden Fields ({getSortedColumns().filter((col) => !visibleFields.has(col.column_name)).length})
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t mt-2">
-                  {getSortedColumns()
-                    .filter((col) => !visibleFields.has(col.column_name))
-                    .map((col) => (
-                    <div key={col.column_name}>
-                      {renderFormField(col)}
-                    </div>
-                  ))}
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-          )}
-
-          {visibleFields.size === 0 && !showMoreFields && (
-            <div className="text-center py-8 text-muted-foreground">
-              <p>No fields visible. Click &quot;Fields&quot; to configure which fields to show.</p>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSaveItem} disabled={saving}>
-              {saving ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                <>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Item
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Item Dialog */}
-      <Dialog open={showEditDialog} onOpenChange={(open) => {
-        setShowEditDialog(open);
-        if (!open) {
-          setShowMoreFields(false);
-          setShowFieldConfig(false);
-        }
-      }}>
-        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto p-6">
-          <DialogHeader className="pb-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <DialogTitle>Edit Item</DialogTitle>
-                <DialogDescription>
-                  Update the gold standard item values.
-                </DialogDescription>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowFieldConfig(!showFieldConfig)}
-                className="text-muted-foreground"
-              >
-                <Settings className="h-4 w-4 mr-1" />
-                Fields
-              </Button>
-            </div>
-          </DialogHeader>
-
-          {/* Field Configuration Panel */}
-          {showFieldConfig && (
-            <div className="border rounded-md p-4 mb-4 bg-muted/30">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-medium">Drag to reorder, or type order number</span>
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" onClick={showAllFields} className="text-xs h-7">
-                    Show All
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={hideAllFields} className="text-xs h-7">
-                    Hide All
-                  </Button>
-                </div>
-              </div>
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
-              >
-                <SortableContext
-                  items={getSortedColumns().map(c => c.column_name)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  <div className="space-y-1">
-                    {getSortedColumns().map((col) => (
-                      <SortableFieldItem
-                        key={col.column_name}
-                        id={col.column_name}
-                        col={col}
-                        isVisible={visibleFields.has(col.column_name)}
-                        order={fieldOrder[col.column_name] || 0}
-                        onToggleVisibility={toggleFieldVisibility}
-                        onUpdateOrder={updateFieldOrder}
-                      />
-                    ))}
-                  </div>
-                </SortableContext>
-              </DndContext>
-            </div>
-          )}
-
-          {/* Visible Fields */}
-          <div className="grid grid-cols-2 gap-4 py-4">
-            {getSortedColumns()
-              .filter((col) => visibleFields.has(col.column_name))
-              .map((col) => (
-              <div key={col.column_name}>
-                {renderFormField(col)}
-              </div>
-            ))}
-          </div>
-
-          {/* Hidden Fields - Collapsible */}
-          {getSortedColumns().filter((col) => !visibleFields.has(col.column_name)).length > 0 && (
-            <Collapsible open={showMoreFields} onOpenChange={setShowMoreFields}>
-              <CollapsibleTrigger className="text-muted-foreground hover:text-foreground">
-                {showMoreFields ? "Hide" : "Show"} Hidden Fields ({getSortedColumns().filter((col) => !visibleFields.has(col.column_name)).length})
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t mt-2">
-                  {getSortedColumns()
-                    .filter((col) => !visibleFields.has(col.column_name))
-                    .map((col) => (
-                    <div key={col.column_name}>
-                      {renderFormField(col)}
-                    </div>
-                  ))}
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-          )}
-
-          {visibleFields.size === 0 && !showMoreFields && (
-            <div className="text-center py-8 text-muted-foreground">
-              <p>No fields visible. Click &quot;Fields&quot; to configure which fields to show.</p>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSaveItem} disabled={saving}>
-              {saving ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Pencil className="h-4 w-4 mr-2" />
-                  Save Changes
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Note: GlobalViewsManager is now handled by TeeemTableView internally when foundationIdNumeric is set */}
-
-      {/* View Item Dialog (Read-only) */}
-      <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Eye className="h-5 w-5" />
-              View Item #{viewingEntry?.id}
-            </DialogTitle>
-            <DialogDescription>
-              Read-only view of this record
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="py-4 space-y-4">
-            {viewingEntry && rawColumns.map((col) => {
-              const value = viewingEntry[col.column_name];
-              if (value === null || value === undefined || value === '') return null;
-
-              return (
-                <div key={col.column_name} className="grid grid-cols-3 gap-4 items-start">
-                  <Label className="text-sm font-medium text-muted-foreground">
-                    {col.name || col.column_name}
-                  </Label>
-                  <div className="col-span-2 text-sm">
-                    {col.column_type === 'boolean' ? (
-                      <Badge variant={value ? "default" : "secondary"}>
-                        {value ? "Yes" : "No"}
-                      </Badge>
-                    ) : col.column_type === 'date' || col.column_type === 'date_and_time' ? (
-                      new Date(String(value)).toLocaleString()
-                    ) : col.column_type === 'currency' ? (
-                      `$${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-                    ) : col.column_type === 'percentage' ? (
-                      `${Number(value)}%`
-                    ) : (
-                      String(value)
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowViewDialog(false)}>
-              Close
-            </Button>
-            <Button onClick={() => {
-              setShowViewDialog(false);
-              if (viewingEntry) handleOpenEditDialog(viewingEntry);
-            }}>
-              <Pencil className="h-4 w-4 mr-2" />
-              Edit
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* SSoT: Add/Edit/View dialogs are now handled automatically by TeeemTableView
+          when foundationIdNumeric is set. No custom dialogs needed here. */}
     </div>
   );
 }
 
 // Column Info Tab - shows column type reference
 function GoldStandardTableTab() {
-  const { toast } = useToast();
   const [columns, setColumns] = React.useState<ColumnType[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [dataSource, setDataSource] = React.useState("Loading...");
@@ -1223,10 +924,13 @@ function GoldStandardTableTab() {
             example: "1, 2, 3, 100",
             usedFor: "Primary key for identifying records",
           },
-          ...data.data.map((col) => ({
-            ...col,
-            icon: col.icon || "📝",
-          })),
+          // Filter out system columns from API data (we add them manually above/below)
+          ...data.data
+            .filter((col) => !["id", "created_at", "updated_at"].includes(col.columnName))
+            .map((col) => ({
+              ...col,
+              icon: col.icon || "📝",
+            })),
           {
             columnName: "created_at",
             sqlType: "TIMESTAMP",
@@ -1309,7 +1013,7 @@ function GoldStandardTableTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -1474,6 +1178,639 @@ function GoldStandardTableTab() {
   );
 }
 
+// Gold Standard Bills/Invoice Tab - Uses the SSoT BillsInvoiceViewer component
+function GoldStandardBillsInvoiceTab() {
+  const { toast } = useToast();
+  const [bills, setBills] = React.useState<BillDetail[]>([]);
+  const [selectedBill, setSelectedBill] = React.useState<BillDetail | null>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  // Load bills on mount
+  React.useEffect(() => {
+    loadBills();
+  }, []);
+
+  const loadBills = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get<{ success: boolean; bills: BillDetail[] }>("/api/v1/bill_inbox?per_page=20");
+      if (response?.bills && response.bills.length > 0) {
+        setBills(response.bills);
+        // Select the first bill with a PDF if available
+        const billWithPdf = response.bills.find(b => b["has_invoice_file?"]) || response.bills[0];
+        setSelectedBill(billWithPdf);
+      }
+    } catch (error) {
+      console.error("Failed to load bills:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load bills. Make sure you have bills in the system.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="h-full">
+      {/* SSoT Component - BillsInvoiceViewer is THE ONE component for bill viewing */}
+      <BillsInvoiceViewer
+        bill={selectedBill}
+        bills={bills}
+        onBillSelect={setSelectedBill}
+        onRefresh={loadBills}
+        showLiveDataBadge={true}
+        loading={loading}
+        height="100%"
+      />
+
+      {/* Info Box */}
+      {!loading && selectedBill && (
+        <Card className="bg-muted/50 mt-4">
+          <CardContent className="flex gap-3 pt-6">
+            <Info className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-muted-foreground">
+              <p className="font-medium text-foreground mb-1">SSoT Component:</p>
+              <ul className="list-disc list-inside space-y-1">
+                <li>This is THE ONE component for bills/invoice viewing</li>
+                <li>Changes to BillsInvoiceViewer are reflected here AND in Finance → Bills</li>
+                <li>Located at: <code className="text-xs bg-muted px-1 rounded">components/invoice/BillsInvoiceViewer.tsx</code></li>
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// Gold SharePoint Path Viewer Tab - Uses the SSoT SharePointPathConfigurator component
+function GoldSharePointPathViewerTab() {
+  return (
+    <div className="space-y-4">
+      {/* SSoT Component - loads/saves from backend API */}
+      <SharePointPathConfigurator
+        defaultScope="job"
+        showAllScopes={true}
+        showBrowser={true}
+        showSaveButton={true}
+      />
+
+      {/* Info Box */}
+      <Card className="bg-muted/50">
+        <CardContent className="flex gap-3 pt-6">
+          <Info className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-muted-foreground">
+            <p className="font-medium text-foreground mb-1">SSoT Architecture:</p>
+            <ul className="list-disc list-inside space-y-1">
+              <li>This is THE ONE component for SharePoint path configuration</li>
+              <li>Data stored in <code className="text-xs bg-muted px-1 rounded">CorporateCompanySetting</code> (SSoT)</li>
+              <li>API: <code className="text-xs bg-muted px-1 rounded">GET/PATCH /api/v1/corporate_company_settings/sharepoint</code></li>
+              <li>Backend methods: <code className="text-xs bg-muted px-1 rounded">CorporateCompanySetting.job_path</code>, <code className="text-xs bg-muted px-1 rounded">.company_path</code>, etc.</li>
+              <li>Component: <code className="text-xs bg-muted px-1 rounded">components/ui/sharepoint-path-configurator.tsx</code></li>
+              <li>Admin Config: <code className="text-xs bg-muted px-1 rounded">Admin &gt; System &gt; Company &gt; SharePoint tab</code></li>
+            </ul>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// Gold Document Types Tab - Shows the document type editor component
+function GoldDocumentTypesTab() {
+  return <GoldDocumentTypeEditor />;
+}
+
+// Embedded Document Type Editor Component
+function GoldDocumentTypeEditor() {
+  const { toast } = useToast();
+  const [documentTypes, setDocumentTypes] = React.useState<Array<{ id: number; name: string; abbreviation?: string; scope?: string }>>([]);
+  const [selectedId, setSelectedId] = React.useState<number | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [documentType, setDocumentType] = React.useState<any>(null);
+  const [saving, setSaving] = React.useState(false);
+
+  // Drag and drop state
+  const [draggedPlaceholder, setDraggedPlaceholder] = React.useState<string | null>(null);
+  const [draggedFromField, setDraggedFromField] = React.useState<"file_name" | "display_name" | "source" | null>(null);
+  const [draggedIndex, setDraggedIndex] = React.useState<number | null>(null);
+  const [dropTarget, setDropTarget] = React.useState<{ field: "file_name" | "display_name"; index: number } | null>(null);
+
+  // Display options
+  const [displayNameSameAsFileName, setDisplayNameSameAsFileName] = React.useState(true);
+  const [showFullDescription, setShowFullDescription] = React.useState(true);
+  const [removeCompanyName, setRemoveCompanyName] = React.useState(true);
+  const [placeholderSearch, setPlaceholderSearch] = React.useState("");
+  const [hidePlaceholderDescriptions, setHidePlaceholderDescriptions] = React.useState(false);
+
+  // Preview company
+  const [previewCompanyId, setPreviewCompanyId] = React.useState<number | null>(null);
+  const [companies, setCompanies] = React.useState<Array<{id: number; name: string; code: string}>>([]);
+
+  // Placeholder definitions
+  const BASE_PLACEHOLDERS = {
+    company: [
+      { code: "{CompanyCode}", example: "TH", longCode: "{CompanyName}", longExample: "Tekna Homes", color: "purple" },
+      { code: "{CompanyGroup}", example: "Tekna Group", color: "purple" },
+      { code: "{LoanID}", example: "L001", longCode: "{LoanName}", longExample: "Loan to ABC Trust", color: "purple" },
+      { code: "{AssetCode}", example: "PROP1", longCode: "{AssetName}", longExample: "123 Main Street", color: "purple" },
+      { code: "{FY}", label: "FY{FY}", example: "FY25", color: "purple" },
+      { code: "{Period}", example: "Q1", longCode: "{PeriodLong}", longExample: "Q1 Jul-Sep", color: "purple" },
+      { code: "{Year}", example: "25", longCode: "{YearLong}", longExample: "2025", color: "purple" },
+      { code: "{Day}", example: "09", longCode: "{DayLong}", longExample: "9th", color: "purple" },
+      { code: "{MonthYear}", example: "Oct-25", longCode: "{MonthYearLong}", longExample: "October 2025", color: "purple" },
+      { code: "{YYYYMMDD}", example: "2025-10-09", longCode: "{DateISO}", longExample: "2025-10-09", color: "purple" },
+      { code: "{DDMMYYYY}", example: "09-10-2025", longCode: "{DateAU}", longExample: "9 October 2025", color: "purple" },
+      { code: "{Date}", example: "17-12-2025", color: "purple" },
+      { code: "{Description}", example: "Example", color: "purple" },
+    ],
+    job: [
+      { code: "{JobCode}", example: "J069", color: "orange" },
+      { code: "{JobTitle}", example: "83 West Ridge", color: "orange" },
+      { code: "{BA}", example: "BA", longCode: "{BuildingApproval}", longExample: "Building Approval", color: "orange" },
+      { code: "{FIA}", example: "FIA", longCode: "{FinalInspectionCertificate}", longExample: "Final Inspection Certificate", color: "orange" },
+      { code: "{Occ}", example: "Occ", longCode: "{CertificateOfOccupancy}", longExample: "Certificate of Occupancy", color: "orange" },
+      { code: "{Consultant}", example: "ABC Eng", color: "orange" },
+      { code: "{Number}", example: "01", color: "orange" },
+      { code: "{Date}", example: "17-12-2025", color: "orange" },
+      { code: "{Description}", example: "Example", color: "orange" },
+      { code: "{Category}", example: "Plans", color: "orange" },
+    ]
+  };
+
+  // Load document types list
+  React.useEffect(() => {
+    loadDocumentTypes();
+    loadCompanies();
+  }, []);
+
+  const loadDocumentTypes = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get<{ success: boolean; data: any[] }>("/api/v1/document_types");
+      if (response.success && Array.isArray(response.data)) {
+        const sorted = response.data
+          .map((dt: any) => ({ id: dt.id, name: dt.name, abbreviation: dt.abbreviation, scope: dt.scope || "company" }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+        setDocumentTypes(sorted);
+        // Select first one by default
+        if (sorted.length > 0) {
+          setSelectedId(sorted[0].id);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load document types:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadCompanies = async () => {
+    try {
+      const response = await api.get<any>('/api/v1/companies');
+      const companiesData = response.data?.companies || response.companies || response.data || response;
+      if (Array.isArray(companiesData)) {
+        const corporateLinkedCompanies = companiesData.filter((c: any) => c.company_group_id != null);
+        setCompanies(corporateLinkedCompanies);
+        if (corporateLinkedCompanies.length > 0) {
+          const teknaHomes = corporateLinkedCompanies.find((c: any) =>
+            c.code === "TH" || c.name?.toLowerCase().includes("tekna")
+          );
+          setPreviewCompanyId(teknaHomes ? teknaHomes.id : corporateLinkedCompanies[0].id);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load companies:", error);
+    }
+  };
+
+  // Load selected document type details
+  React.useEffect(() => {
+    if (selectedId) {
+      loadDocumentType(selectedId);
+    }
+  }, [selectedId]);
+
+  const loadDocumentType = async (id: number) => {
+    try {
+      const response = await api.get<{ data: any }>(`/api/v1/document_types/${id}`);
+      setDocumentType(response.data);
+    } catch (error) {
+      console.error("Failed to load document type:", error);
+    }
+  };
+
+  const updateField = (field: string, value: any) => {
+    if (!documentType) return;
+    setDocumentType({ ...documentType, [field]: value });
+  };
+
+  const handleSave = async () => {
+    if (!documentType) return;
+    try {
+      setSaving(true);
+      await api.patch(`/api/v1/document_types/${documentType.id}`, {
+        document_type: documentType
+      });
+      toast({ title: "Success", description: "Document type saved successfully" });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to save document type", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Parse tokens from value
+  const parseTokens = (value: string): { type: "text" | "placeholder"; value: string }[] => {
+    if (!value) return [];
+    const tokens: { type: "text" | "placeholder"; value: string }[] = [];
+    const regex = /(\{[^}]+\})/g;
+    let lastIndex = 0;
+    let match;
+    while ((match = regex.exec(value)) !== null) {
+      if (match.index > lastIndex) {
+        const textValue = value.slice(lastIndex, match.index);
+        if (textValue.trim()) {
+          tokens.push({ type: "text", value: textValue.trim() });
+        }
+      }
+      tokens.push({ type: "placeholder", value: match[0] });
+      lastIndex = regex.lastIndex;
+    }
+    if (lastIndex < value.length) {
+      const textValue = value.slice(lastIndex);
+      if (textValue.trim()) {
+        tokens.push({ type: "text", value: textValue.trim() });
+      }
+    }
+    return tokens;
+  };
+
+  const rebuildFromTokens = (tokens: { type: "text" | "placeholder"; value: string }[]): string => {
+    if (tokens.length === 0) return "";
+    return tokens.map((token, index) => {
+      if (index === 0) return token.value.trimStart();
+      const prevToken = tokens[index - 1];
+      if (prevToken.type === "placeholder") {
+        return " " + token.value.trimStart();
+      }
+      if (token.type === "placeholder" && !prevToken.value.endsWith(" ")) {
+        return " " + token.value;
+      }
+      return token.value;
+    }).join("").trim();
+  };
+
+  // Get available placeholders based on scope
+  const getAvailablePlaceholders = () => {
+    const scope = documentType?.scope || "company";
+    const docTypePlaceholder = {
+      code: "{DocTypeCode}",
+      example: documentType?.abbreviation || "AA",
+      longCode: "{DocTypeName}",
+      longExample: documentType?.name?.replace(/^[A-Z0-9]+\s*-\s*/, "").trim() || "Accountant Advice",
+      color: "blue" as const
+    };
+
+    let basePlaceholders;
+    if (scope === "both") {
+      basePlaceholders = [...BASE_PLACEHOLDERS.company, ...BASE_PLACEHOLDERS.job];
+    } else {
+      basePlaceholders = BASE_PLACEHOLDERS[scope as keyof typeof BASE_PLACEHOLDERS] || BASE_PLACEHOLDERS.company;
+    }
+
+    const placeholders = [docTypePlaceholder, ...basePlaceholders];
+
+    if (placeholderSearch.trim()) {
+      const search = placeholderSearch.toLowerCase();
+      return placeholders.filter((p: any) =>
+        p.code.toLowerCase().includes(search) ||
+        p.longCode?.toLowerCase().includes(search) ||
+        p.example?.toLowerCase().includes(search)
+      );
+    }
+    return placeholders;
+  };
+
+  const getPlaceholderColor = (placeholder: string): string => {
+    if (placeholder === "{DocTypeCode}" || placeholder === "{DocTypeName}") return "blue";
+    const allPlaceholders = [...BASE_PLACEHOLDERS.company, ...BASE_PLACEHOLDERS.job];
+    const found = allPlaceholders.find((p: { code: string; longCode?: string }) => p.code === placeholder || p.longCode === placeholder);
+    return found?.color || "purple";
+  };
+
+  const generatePreview = (value: string): string => {
+    if (!value) return "";
+    let preview = value;
+    const selectedCompany = previewCompanyId ? companies.find(c => c.id === previewCompanyId) : null;
+    preview = preview.replace(/\{DocTypeCode\}/g, documentType?.abbreviation || "");
+    preview = preview.replace(/\{DocTypeName\}/g, documentType?.name?.replace(/^[A-Z0-9]+\s*-\s*/, "").trim() || "");
+    preview = preview.replace(/\{CompanyCode\}/g, selectedCompany?.code || "TH");
+    preview = preview.replace(/\{CompanyName\}/g, selectedCompany?.name || "Tekna Homes");
+    preview = preview.replace(/\{Date\}/g, new Date().toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-"));
+    preview = preview.replace(/\{Description\}/g, "Example");
+    return preview.trim();
+  };
+
+  // Drag handlers
+  const handleDragStartFromSource = (e: React.DragEvent, placeholder: string) => {
+    setDraggedPlaceholder(placeholder);
+    setDraggedFromField("source");
+    e.dataTransfer.effectAllowed = "copy";
+    e.dataTransfer.setData("text/plain", placeholder);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedPlaceholder(null);
+    setDraggedFromField(null);
+    setDraggedIndex(null);
+    setDropTarget(null);
+  };
+
+  const handleDropOnContainer = (e: React.DragEvent, field: "file_name" | "display_name") => {
+    e.preventDefault();
+    if (!documentType) return;
+    const placeholder = e.dataTransfer.getData("text/plain");
+    if (!placeholder || draggedFromField !== "source") return;
+    const currentValue = documentType[field] || "";
+    const newValue = currentValue + (currentValue ? " " : "") + placeholder;
+    updateField(field, newValue);
+    handleDragEnd();
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  };
+
+  const removeToken = (field: "file_name" | "display_name", index: number) => {
+    if (!documentType) return;
+    const tokens = parseTokens(documentType[field] || "");
+    const newTokens = tokens.filter((_, i) => i !== index);
+    updateField(field, rebuildFromTokens(newTokens));
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Spinner size={32} className="text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex gap-4">
+      {/* Left: Document Type Selector */}
+      <div className="w-64 shrink-0 border rounded-lg p-3 max-h-[600px] overflow-auto">
+        <Label className="text-sm font-semibold mb-2 block">Select Document Type</Label>
+        <div className="space-y-1">
+          {documentTypes.map(dt => (
+            <button
+              key={dt.id}
+              onClick={() => setSelectedId(dt.id)}
+              className={cn(
+                "w-full text-left px-3 py-2 rounded text-sm transition-colors",
+                selectedId === dt.id
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-muted"
+              )}
+            >
+              <div className="font-medium truncate">{dt.abbreviation || "—"}</div>
+              <div className="text-xs opacity-70 truncate">{dt.name}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Right: Editor */}
+      <div className="flex-1 min-w-0 overflow-auto">
+        {documentType ? (
+          <div className="space-y-4">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  {documentType.name}
+                  {documentType.abbreviation && (
+                    <Badge variant="outline" className="font-mono">{documentType.abbreviation}</Badge>
+                  )}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Scope: {documentType.scope || "company"} • {documentType.documents_count || 0} documents
+                </p>
+              </div>
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? <Spinner size={16} className="mr-2" /> : null}
+                Save Changes
+              </Button>
+            </div>
+
+            {/* Preview Company */}
+            <div className="flex items-center gap-2">
+              <Label className="text-sm text-muted-foreground shrink-0">Preview Company:</Label>
+              <select
+                value={previewCompanyId?.toString() || ""}
+                onChange={(e) => setPreviewCompanyId(e.target.value ? parseInt(e.target.value) : null)}
+                className="h-8 px-2 text-sm border rounded bg-background"
+              >
+                {companies.map(c => (
+                  <option key={c.id} value={c.id}>{c.code} - {c.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex gap-4">
+              {/* File Name / Display Name builders */}
+              <div className="flex-1 space-y-4">
+                {/* File Name */}
+                <div className="space-y-2">
+                  <Label>File Name</Label>
+                  <div
+                    className={cn(
+                      "min-h-[60px] p-3 border rounded-md bg-background flex flex-wrap gap-1 items-center transition-colors",
+                      draggedFromField && "border-dashed border-2 border-green-400 bg-green-50/50"
+                    )}
+                    onDrop={(e) => handleDropOnContainer(e, "file_name")}
+                    onDragOver={handleDragOver}
+                  >
+                    {parseTokens(documentType.file_name || "").map((token, index) => (
+                      <Badge
+                        key={index}
+                        className={cn(
+                          "font-mono text-xs px-3 py-1.5",
+                          token.type === "placeholder"
+                            ? getPlaceholderColor(token.value) === "blue"
+                              ? "bg-blue-100 text-blue-700 border-blue-300"
+                              : getPlaceholderColor(token.value) === "orange"
+                                ? "bg-orange-100 text-orange-700 border-orange-300"
+                                : "bg-purple-100 text-purple-700 border-purple-300"
+                            : "bg-gray-100 text-gray-700 border-gray-300"
+                        )}
+                      >
+                        <GripVertical className="h-3 w-3 mr-1 inline" />
+                        {token.value}
+                        <button onClick={() => removeToken("file_name", index)} className="ml-2 hover:text-destructive">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                    {parseTokens(documentType.file_name || "").length === 0 && (
+                      <span className="text-sm text-muted-foreground">Drag placeholders here</span>
+                    )}
+                  </div>
+                  <div className="text-sm p-2 bg-green-50 rounded border border-green-200">
+                    <span className="text-muted-foreground">Preview: </span>
+                    <span className="font-mono font-semibold text-green-700">
+                      {generatePreview(documentType.file_name || "") || "(empty)"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Display Name */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Display Name</Label>
+                    <div className="flex items-center gap-4 text-sm">
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <Checkbox checked={removeCompanyName} onCheckedChange={(c) => setRemoveCompanyName(!!c)} />
+                        <span className="text-muted-foreground">Hide Company</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <Checkbox checked={displayNameSameAsFileName} onCheckedChange={(c) => setDisplayNameSameAsFileName(!!c)} />
+                        <span className="text-muted-foreground">Same as File Name</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <Checkbox checked={showFullDescription} onCheckedChange={(c) => setShowFullDescription(!!c)} />
+                        <span className="text-muted-foreground">Full Description</span>
+                      </label>
+                    </div>
+                  </div>
+                  <div
+                    className={cn(
+                      "min-h-[60px] p-3 border rounded-md bg-background flex flex-wrap gap-1 items-center transition-colors",
+                      displayNameSameAsFileName && "opacity-50 pointer-events-none",
+                      !displayNameSameAsFileName && draggedFromField && "border-dashed border-2 border-green-400 bg-green-50/50"
+                    )}
+                    onDrop={(e) => !displayNameSameAsFileName && handleDropOnContainer(e, "display_name")}
+                    onDragOver={handleDragOver}
+                  >
+                    {parseTokens(documentType.display_name || "").map((token, index) => (
+                      <Badge
+                        key={index}
+                        className={cn(
+                          "font-mono text-xs px-3 py-1.5",
+                          token.type === "placeholder"
+                            ? getPlaceholderColor(token.value) === "blue"
+                              ? "bg-blue-100 text-blue-700 border-blue-300"
+                              : getPlaceholderColor(token.value) === "orange"
+                                ? "bg-orange-100 text-orange-700 border-orange-300"
+                                : "bg-purple-100 text-purple-700 border-purple-300"
+                            : "bg-gray-100 text-gray-700 border-gray-300"
+                        )}
+                      >
+                        <GripVertical className="h-3 w-3 mr-1 inline" />
+                        {token.value}
+                        <button onClick={() => removeToken("display_name", index)} className="ml-2 hover:text-destructive">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                    {parseTokens(documentType.display_name || "").length === 0 && (
+                      <span className="text-sm text-muted-foreground">Drag placeholders here</span>
+                    )}
+                  </div>
+                  <div className="text-sm p-2 bg-green-50 rounded border border-green-200">
+                    <span className="text-muted-foreground">Preview: </span>
+                    <span className="font-mono font-semibold text-green-700">
+                      {generatePreview(documentType.display_name || "") || "(empty)"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Placeholders Panel */}
+              <div className="w-64 shrink-0">
+                <div className="p-3 bg-muted/30 rounded-lg border sticky top-0">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Label className="text-xs font-semibold">Placeholders</Label>
+                    <Input
+                      placeholder="Search..."
+                      value={placeholderSearch}
+                      onChange={(e) => setPlaceholderSearch(e.target.value)}
+                      className="h-6 text-xs flex-1"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <label className="flex items-center gap-1 cursor-pointer">
+                      <Checkbox
+                        checked={hidePlaceholderDescriptions}
+                        onCheckedChange={(c) => setHidePlaceholderDescriptions(!!c)}
+                        className="h-3 w-3"
+                      />
+                      <span className="text-[10px] text-muted-foreground">Hide descriptions</span>
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1 text-[9px] font-semibold text-muted-foreground mb-1">
+                    <div>SHORT</div>
+                    <div>LONG</div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5 max-h-[400px] overflow-y-auto">
+                    {getAvailablePlaceholders().map((p: any, idx: number) => (
+                      <React.Fragment key={`${p.code}-${idx}`}>
+                        <div
+                          draggable
+                          onDragStart={(e) => handleDragStartFromSource(e, p.code)}
+                          onDragEnd={handleDragEnd}
+                          className={cn(
+                            "cursor-grab px-1.5 py-1 rounded border text-[10px]",
+                            p.color === "blue" ? "bg-blue-50 border-blue-200" :
+                            p.color === "orange" ? "bg-orange-50 border-orange-200" :
+                            "bg-purple-50 border-purple-200"
+                          )}
+                        >
+                          <div className="font-mono font-medium">{(p.label || p.code).replace(/[{}]/g, '')}</div>
+                          {!hidePlaceholderDescriptions && (
+                            <div className="text-muted-foreground truncate">{p.example}</div>
+                          )}
+                        </div>
+                        {p.longCode ? (
+                          <div
+                            draggable
+                            onDragStart={(e) => handleDragStartFromSource(e, p.longCode)}
+                            onDragEnd={handleDragEnd}
+                            className={cn(
+                              "cursor-grab px-1.5 py-1 rounded border text-[10px]",
+                              p.color === "blue" ? "bg-blue-50 border-blue-200" :
+                              p.color === "orange" ? "bg-orange-50 border-orange-200" :
+                              "bg-purple-50 border-purple-200"
+                            )}
+                          >
+                            <div className="font-mono font-medium truncate">{p.longCode.replace(/[{}]/g, '')}</div>
+                            {!hidePlaceholderDescriptions && (
+                              <div className="text-muted-foreground truncate">{p.longExample}</div>
+                            )}
+                          </div>
+                        ) : <div />}
+                      </React.Fragment>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-64 text-muted-foreground">
+            Select a document type to edit
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SyncCheckTab() {
   const [syncData, setSyncData] = React.useState<SyncData | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -1505,7 +1842,7 @@ function SyncCheckTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -1668,13 +2005,344 @@ function SyncCheckTab() {
   );
 }
 
-export function GoldStandardTab() {
+// =============================================================================
+// DEMO: ViewTableView - THE ACTUAL COMPONENT
+// =============================================================================
+
+function ViewTableViewDemo() {
+  // Sample data
+  const sampleData = [
+    { id: 1, code: "ACC-001", name: "Revenue Account", type: "Revenue", amount: 125000.50, status: "Active", date: "2024-12-15", email: "finance@company.com", active: true },
+    { id: 2, code: "ACC-002", name: "Expense Account", type: "Expense", amount: 45230.00, status: "Active", date: "2024-12-14", email: "accounts@company.com", active: true },
+    { id: 3, code: "ACC-003", name: "Asset Account", type: "Asset", amount: 890000.00, status: "Pending", date: "2024-12-13", email: "assets@company.com", active: true },
+    { id: 4, code: "ACC-004", name: "Liability Account", type: "Liability", amount: 250000.00, status: "Active", date: "2024-12-12", email: "liability@company.com", active: false },
+    { id: 5, code: "ACC-005", name: "Equity Account", type: "Equity", amount: 500000.00, status: "Archived", date: "2024-12-11", email: "equity@company.com", active: true },
+    { id: 6, code: "ACC-006", name: "Cost of Goods", type: "Expense", amount: 78500.25, status: "Active", date: "2024-12-10", email: "cogs@company.com", active: true },
+    { id: 7, code: "ACC-007", name: "Sales Revenue", type: "Revenue", amount: 345000.00, status: "Active", date: "2024-12-09", email: "sales@company.com", active: true },
+    { id: 8, code: "ACC-008", name: "Bank Account", type: "Asset", amount: 1250000.00, status: "Active", date: "2024-12-08", email: "bank@company.com", active: true },
+  ];
+
+  const columns: ViewTableColumn[] = [
+    { key: "code", label: "Code", width: 100 },
+    { key: "name", label: "Name", width: 200 },
+    { key: "type", label: "Type", width: 100, type: "choice", choices: ["Revenue", "Expense", "Asset", "Liability", "Equity"] },
+    { key: "amount", label: "Amount", width: 120, type: "currency", align: "right" },
+    { key: "status", label: "Status", width: 100, type: "badge", choices: ["Active", "Pending", "Archived"] },
+    { key: "date", label: "Date", width: 100, type: "date" },
+    { key: "email", label: "Email", width: 180 },
+    { key: "active", label: "Active", width: 80, type: "boolean" },
+  ];
+
   return (
-    <Tabs defaultValue="table" className="space-y-6">
-      <TabsList>
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <TableProperties className="h-5 w-5" />
+            ViewTableView Demo
+          </CardTitle>
+          <CardDescription>
+            View-only table with TeeemTableView styling. Supports sorting, filtering, search.
+            No Foundation API required.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="h-[400px]">
+            <ViewTableView
+              tableName="Sample Accounts"
+              entries={sampleData}
+              columns={columns}
+              onRowClick={(row) => console.log("Row clicked:", row)}
+              enableExport
+              enableSearch
+              enableFilters
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Props Preview */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Usage Example</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <pre className="text-xs bg-muted p-3 rounded-md overflow-x-auto">
+{`import { ViewTableView } from "@/components/table/ViewTableView";
+
+<ViewTableView
+  tableName="Sample Accounts"
+  entries={accounts}
+  columns={[
+    { key: "code", label: "Code", width: 100 },
+    { key: "name", label: "Name" },
+    { key: "amount", label: "Amount", type: "currency", align: "right" },
+    { key: "status", label: "Status", type: "badge", choices: ["Active", "Pending"] },
+    { key: "active", label: "Active", type: "boolean" },
+  ]}
+  onRowClick={(row) => console.log(row)}
+  enableFilters
+  enableSearch
+  enableExport
+/>`}
+          </pre>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// =============================================================================
+// DEMO: SetupTable Preview
+// =============================================================================
+
+interface SetupItem {
+  id: number;
+  name: string;
+  color: string;
+  active: boolean;
+}
+
+function SetupTableDemo() {
+  const [items, setItems] = React.useState<SetupItem[]>([
+    { id: 1, name: "House", color: "#3b82f6", active: true },
+    { id: 2, name: "Duplex", color: "#3b82f6", active: true },
+    { id: 3, name: "Townhouse", color: "#3b82f6", active: true },
+    { id: 4, name: "Micro Apartment", color: "#3b82f6", active: true },
+    { id: 5, name: "Co Living", color: "#3b82f6", active: true },
+    { id: 6, name: "NDIS House", color: "#3b82f6", active: true },
+    { id: 7, name: "NDIS Units", color: "#3b82f6", active: false },
+  ]);
+
+  const [editingItem, setEditingItem] = React.useState<SetupItem | null>(null);
+  const [showAddDialog, setShowAddDialog] = React.useState(false);
+  const [newItemName, setNewItemName] = React.useState("");
+
+  const handleReorder = (newItems: SetupItem[]) => {
+    setItems(newItems);
+  };
+
+  const handleAdd = () => {
+    if (newItemName.trim()) {
+      const newItem: SetupItem = {
+        id: Math.max(...items.map(i => i.id)) + 1,
+        name: newItemName.trim(),
+        color: "#3b82f6",
+        active: true,
+      };
+      setItems([...items, newItem]);
+      setNewItemName("");
+      setShowAddDialog(false);
+    }
+  };
+
+  const handleDelete = (item: SetupItem) => {
+    setItems(items.filter(i => i.id !== item.id));
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <LayoutList className="h-5 w-5" />
+            SetupTable Demo
+          </CardTitle>
+          <CardDescription>
+            Editable config list with drag-and-drop reordering.
+            Uses existing SortableList/SortableItem components.
+            Drag items to reorder, click edit/delete buttons.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          {/* Header with icon, title and Add button - THE SetupTable pattern */}
+          <div className="px-4 py-3 border-b flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Briefcase className="h-5 w-5 text-muted-foreground" />
+              <h3 className="font-semibold">Job Types</h3>
+            </div>
+            <Button size="sm" onClick={() => setShowAddDialog(true)}>
+              <Plus className="h-4 w-4 mr-1" />
+              Add
+            </Button>
+          </div>
+
+          {/* Sortable List */}
+          <div className="p-2">
+            <SortableList items={items} onReorder={handleReorder}>
+              {items.map((item, index) => (
+                <SortableItem
+                  key={item.id}
+                  id={item.id}
+                  position={index + 1}
+                  showHandle
+                  showBadge
+                  variant="card"
+                  className="mb-1"
+                  actions={
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingItem(item);
+                        }}
+                      >
+                        <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(item);
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  }
+                >
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: item.color }}
+                    />
+                    <span className={cn("text-sm", !item.active && "text-muted-foreground line-through")}>
+                      {item.name}
+                    </span>
+                    {!item.active && (
+                      <Badge variant="outline" className="text-[9px] h-4">Inactive</Badge>
+                    )}
+                  </div>
+                </SortableItem>
+              ))}
+            </SortableList>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Add Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Job Type</DialogTitle>
+            <DialogDescription>Enter a name for the new job type.</DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="new-name">Name</Label>
+            <Input
+              id="new-name"
+              value={newItemName}
+              onChange={(e) => setNewItemName(e.target.value)}
+              placeholder="Enter name..."
+              onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
+            <Button onClick={handleAdd}>Add</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={!!editingItem} onOpenChange={(open) => !open && setEditingItem(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Job Type</DialogTitle>
+            <DialogDescription>Update the job type name and status.</DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div>
+              <Label htmlFor="edit-name">Name</Label>
+              <Input
+                id="edit-name"
+                value={editingItem?.name || ""}
+                onChange={(e) => setEditingItem(editingItem ? { ...editingItem, name: e.target.value } : null)}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="edit-active"
+                checked={editingItem?.active || false}
+                onCheckedChange={(checked) =>
+                  setEditingItem(editingItem ? { ...editingItem, active: checked === true } : null)
+                }
+              />
+              <Label htmlFor="edit-active">Active</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingItem(null)}>Cancel</Button>
+            <Button onClick={() => {
+              if (editingItem) {
+                setItems(items.map(i => i.id === editingItem.id ? editingItem : i));
+                setEditingItem(null);
+              }
+            }}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Props Preview */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Usage Example</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <pre className="text-xs bg-muted p-3 rounded-md overflow-x-auto">
+{`<SetupTable
+  title="Job Types"
+  icon={Briefcase}
+  items={jobTypes}
+  getLabel={(item) => item.name}
+  getColor={(item) => item.color}
+  onAdd={() => setShowAddModal(true)}
+  onEdit={(item) => setEditingItem(item)}
+  onDelete={(item) => handleDelete(item)}
+  onReorder={(items) => saveOrder(items)}
+/>`}
+          </pre>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+interface GoldStandardTabProps {
+  subtab?: string;
+}
+
+export function GoldStandardTab({ subtab }: GoldStandardTabProps) {
+  const router = useRouter();
+  const activeTab = subtab || "table";
+
+  const setActiveTab = React.useCallback((tab: string) => {
+    router.push(`/admin/system/components/${tab}`, { scroll: false });
+  }, [router]);
+
+  return (
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+      <TabsList className="flex-wrap h-auto gap-1">
         <TabsTrigger value="table" className="flex items-center gap-2">
           <Database className="h-4 w-4" />
           Gold Standard Table
+        </TabsTrigger>
+        <TabsTrigger value="document-types" className="flex items-center gap-2">
+          <FileText className="h-4 w-4" />
+          Gold Document Types
+        </TabsTrigger>
+        <TabsTrigger value="invoice" className="flex items-center gap-2">
+          <Receipt className="h-4 w-4" />
+          Gold Bills/Invoice Viewer
+        </TabsTrigger>
+        <TabsTrigger value="sharepoint-paths" className="flex items-center gap-2">
+          <FolderTree className="h-4 w-4" />
+          Gold SharePoint Path Viewer
         </TabsTrigger>
         <TabsTrigger value="column-info" className="flex items-center gap-2">
           <FileText className="h-4 w-4" />
@@ -1684,18 +2352,62 @@ export function GoldStandardTab() {
           <GitCompare className="h-4 w-4" />
           Sync Check
         </TabsTrigger>
+        <TabsTrigger value="ui-components" className="flex items-center gap-2">
+          <Settings className="h-4 w-4" />
+          UI Components
+        </TabsTrigger>
+        <TabsTrigger value="column-types-ssot" className="flex items-center gap-2 bg-blue-100 dark:bg-blue-900/30">
+          <Settings className="h-4 w-4" />
+          Column Types (SSoT)
+        </TabsTrigger>
+        <TabsTrigger value="view-table-demo" className="flex items-center gap-2 bg-green-100 dark:bg-green-900/30">
+          <TableProperties className="h-4 w-4" />
+          ViewTable Demo
+        </TabsTrigger>
+        <TabsTrigger value="setup-table-demo" className="flex items-center gap-2 bg-green-100 dark:bg-green-900/30">
+          <LayoutList className="h-4 w-4" />
+          SetupTable Demo
+        </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="table">
+      <TabsContent value="table" className="mt-0 flex-1 min-h-0 flex flex-col">
         <GoldStandardDataTab />
       </TabsContent>
 
-      <TabsContent value="column-info">
+      <TabsContent value="document-types" className="mt-0">
+        <GoldDocumentTypesTab />
+      </TabsContent>
+
+      <TabsContent value="invoice" className="mt-0">
+        <GoldStandardBillsInvoiceTab />
+      </TabsContent>
+
+      <TabsContent value="sharepoint-paths" className="mt-0">
+        <GoldSharePointPathViewerTab />
+      </TabsContent>
+
+      <TabsContent value="column-info" className="mt-0">
         <GoldStandardTableTab />
       </TabsContent>
 
-      <TabsContent value="sync-check">
+      <TabsContent value="sync-check" className="mt-0">
         <SyncCheckTab />
+      </TabsContent>
+
+      <TabsContent value="ui-components" className="mt-0">
+        <UIComponentsPlaygroundTab />
+      </TabsContent>
+
+      <TabsContent value="column-types-ssot" className="mt-0">
+        <ColumnTypeDefinitionsTab />
+      </TabsContent>
+
+      <TabsContent value="view-table-demo" className="mt-0">
+        <ViewTableViewDemo />
+      </TabsContent>
+
+      <TabsContent value="setup-table-demo" className="mt-0">
+        <SetupTableDemo />
       </TabsContent>
     </Tabs>
   );

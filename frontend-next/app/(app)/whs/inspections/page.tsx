@@ -1,162 +1,31 @@
 "use client";
 
-import { useCallback } from "react";
-import Link from "next/link";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader } from "@/components/ui/loader";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import { useFoundationById } from "@/hooks/useFoundationById";
-import {
-  Plus,
-  ArrowLeft,
-  CheckCircle,
-  Clock,
-  AlertTriangle,
-  ClipboardCheck,
-} from "lucide-react";
-import { api } from "@/lib/api";
-
-// Foundation ID for WHS Inspections table
-const WHS_INSPECTIONS_FOUNDATION_ID = 209;
+import { Plus } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 
 export default function WHSInspectionsPage() {
-  // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, refresh } = useFoundationById(WHS_INSPECTIONS_FOUNDATION_ID);
-
-  // Handle inline row update
-  const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
-    try {
-      await api.patch(`/api/v1/foundations/${WHS_INSPECTIONS_FOUNDATION_ID}/records/${rowId}`, {
-        record: { [field]: value }
-      });
-      refresh();
-    } catch (error) {
-      console.error("Failed to update inspection:", error);
-      throw error;
-    }
-  }, [refresh]);
-
-  // Stats from records
-  const stats = {
-    total: records.length,
-    completed: records.filter((i) => i.status === "completed").length,
-    scheduled: records.filter((i) => i.status === "scheduled").length,
-    overdue: records.filter((i) => i.status === "overdue").length,
-    avgScore: Math.round(
-      records
-        .filter((i) => i.score !== undefined && i.score !== null)
-        .reduce((sum, i) => sum + (Number(i.score) || 0), 0) /
-        (records.filter((i) => i.score !== undefined && i.score !== null).length || 1)
-    ),
-  };
-
-  // Get score color
-  const getScoreColor = (score: number): string => {
-    if (score >= 90) return "text-green-600";
-    if (score >= 70) return "text-yellow-600";
-    return "text-red-600";
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loader />
-      </div>
-    );
-  }
-
-  // Left actions - New Inspection button
+  // Left actions - Back button + action buttons
   const leftActions = (
-    <Button>
-      <Plus className="h-4 w-4 mr-2" />
-      New Inspection
-    </Button>
+    <div className="flex items-center gap-2">
+      <BackButton fallbackHref="/whs" />
+      <Button>
+        <Plus className="h-4 w-4 mr-2" />
+        New Inspection
+      </Button>
+    </div>
   );
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/whs">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight font-serif">Site Inspections</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Conduct and track workplace safety inspections
-              <span className="ml-2 text-xs font-mono">Table #209</span>
-            </p>
-          </div>
-        </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          New Inspection
-        </Button>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
-              <span className="text-2xl font-bold">{stats.total}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Total Inspections</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <span className="text-2xl font-bold text-green-600">{stats.completed}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Completed</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-blue-600" />
-              <span className="text-2xl font-bold text-blue-600">{stats.scheduled}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Scheduled</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-red-600" />
-              <span className="text-2xl font-bold text-red-600">{stats.overdue}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Overdue</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className={`text-2xl font-bold ${getScoreColor(stats.avgScore)}`}>
-              {stats.avgScore}%
-            </div>
-            <p className="text-sm text-muted-foreground">Avg. Score</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Table */}
+    <div className="flex flex-col h-full -mx-4">
       <TeeemTableView
-        entries={records}
-        columns={columns}
-        foundationId={String(WHS_INSPECTIONS_FOUNDATION_ID)}
-        foundationIdNumeric={WHS_INSPECTIONS_FOUNDATION_ID}
-        tableName={foundation?.name || "Site Inspections"}
+        foundationId="whs_inspections"
+        autoFetchRecords={true}
+        tableName="Site Inspections"
         enableExport={true}
-        onRefresh={refresh}
-        onRowUpdate={handleRowUpdate}
         leftActions={leftActions}
+        hideFooter={true}
       />
     </div>
   );

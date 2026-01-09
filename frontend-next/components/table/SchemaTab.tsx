@@ -19,7 +19,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { getColumnTypeEmoji, getColumnTypeLabel } from "@/lib/column-types";
+import { getColumnTypeEmoji, getColumnTypeLabel } from "@/lib/column-type-registry";
 import { Key, Link, Calculator, Copy, Check } from "lucide-react";
 import { TableColumn } from "./types";
 
@@ -87,10 +87,10 @@ export function SchemaTab({ foundationId, columns, tableName, onRefresh }: Schem
   useEffect(() => {
     const fetchFoundationNames = async () => {
       try {
-        // Get lookup target IDs from lookup_config
+        // Get lookup target IDs from lookup_foundation_id
         const lookupFoundationIds = columns
-          .filter((c) => c.lookup_config?.target_table_id)
-          .map((c) => c.lookup_config?.target_table_id)
+          .filter((c) => c.lookup_foundation_id)
+          .map((c) => c.lookup_foundation_id)
           .filter((id, index, self) => id && self.indexOf(id) === index) as number[];
 
         if (lookupFoundationIds.length === 0) {
@@ -184,7 +184,7 @@ export function SchemaTab({ foundationId, columns, tableName, onRefresh }: Schem
               const isUnique = details.is_unique as boolean | undefined;
               const maxLength = details.max_length as number | undefined;
               const description = details.description as string | undefined;
-              const lookupFoundationId = (details.lookup_foundation_id as number) || column.lookup_config?.target_table_id;
+              const lookupFoundationId = (details.lookup_foundation_id as number) || column.lookup_foundation_id;
               const isMultiple = details.is_multiple as boolean | undefined;
 
               return (

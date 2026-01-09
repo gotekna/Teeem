@@ -1,7 +1,7 @@
-require 'anthropic'
+require "anthropic"
 
 class JobEstimatorService
-  CLAUDE_MODEL = 'claude-3-haiku-20240307'
+  CLAUDE_MODEL = "claude-3-haiku-20240307"
   MAX_TOKENS = 2000
 
   class AIExtractionError < StandardError; end
@@ -31,7 +31,7 @@ class JobEstimatorService
     Rails.logger.error "Claude returned invalid JSON: #{e.message}"
     {
       success: false,
-      error: 'AI returned invalid response',
+      error: "AI returned invalid response",
       raw_response: response
     }
   rescue StandardError => e
@@ -46,13 +46,14 @@ class JobEstimatorService
 
   def build_analysis_prompt
     # Gather job information
-    job_title = @job.title || 'Untitled Job'
-    job_type = @job.job_type&.name || 'Unknown'
-    job_status = @job.job_status&.name || 'Unknown'
-    contract_value = @job.contract_value
+    job_title = @job.title || "Untitled Job"
+    job_type = @job.job_type&.name || "Unknown"
+    job_status = @job.job_status&.name || "Unknown"
+    # SSoT: contract_price is THE ONE
+    contract = @job.contract_price
     location = extract_location
     client_info = extract_client_info
-    description = @job.description || @job.scope_of_work || ''
+    description = @job.description || @job.scope_of_work || ""
 
     <<~PROMPT
       You are a construction estimator analyzing a construction job in Australia.
@@ -61,7 +62,7 @@ class JobEstimatorService
       - Title: #{job_title}
       - Type: #{job_type}
       - Status: #{job_status}
-      - Contract Value: #{contract_value ? "$#{contract_value}" : 'Not specified'}
+      - Contract Value: #{contract ? "$#{contract}" : 'Not specified'}
       - Location: #{location}
       - Client: #{client_info}
       - Description: #{description.present? ? description : 'No description provided'}
@@ -115,30 +116,30 @@ class JobEstimatorService
     parts << @job.site_state if @job.site_state.present?
     parts << @job.site_postcode if @job.site_postcode.present?
 
-    location = parts.join(', ')
-    location.present? ? location : 'Location not specified'
+    location = parts.join(", ")
+    location.present? ? location : "Location not specified"
   end
 
   def extract_client_info
     # Try to get primary client from job_contacts
-    primary_client = @job.job_contacts.find_by(role: 'client', primary: true)
+    primary_client = @job.job_contacts.find_by(role: "client", primary: true)
     if primary_client&.contact
       contact = primary_client.contact
-      return "#{contact.full_name} (#{contact.email})"
+      return "#{contact.display_name} (#{contact.email})"
     end
 
     # Fallback to any client
-    any_client = @job.job_contacts.find_by(role: 'client')
+    any_client = @job.job_contacts.find_by(role: "client")
     if any_client&.contact
       contact = any_client.contact
-      return "#{contact.full_name}"
+      return "#{contact.display_name}"
     end
 
-    'Client not specified'
+    "Client not specified"
   end
 
   def call_claude_api(prompt)
-    api_key = ENV['ANTHROPIC_API_KEY']
+    api_key = ENV["ANTHROPIC_API_KEY"]
     raise AIExtractionError, "ANTHROPIC_API_KEY not configured" unless api_key
 
     client = Anthropic::Client.new(

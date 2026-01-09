@@ -7,7 +7,7 @@ class FeatureTracker < ApplicationRecord
 
   before_save :auto_complete_system
 
-  scope :ordered, -> { joins(:feature_chapter).order('feature_chapters.sort_order', 'feature_chapters.chapter_number', :sort_order, :feature_name) }
+  scope :ordered, -> { joins(:feature_chapter).order("feature_chapters.sort_order", "feature_chapters.chapter_number", :sort_order, :feature_name) }
   scope :by_chapter, ->(chapter) { where(chapter: chapter) }
   scope :by_feature_chapter, ->(chapter_id) { where(feature_chapter_id: chapter_id) }
   scope :system_complete, -> { where(system_complete: true) }
@@ -27,7 +27,7 @@ class FeatureTracker < ApplicationRecord
 
   def completion_percentage
     total = 5
-    completed = [system_complete, dev_checked, tester_checked, ui_checked, user_checked].count(true)
+    completed = [ system_complete, dev_checked, tester_checked, ui_checked, user_checked ].count(true)
     (completed.to_f / total * 100).round
   end
 

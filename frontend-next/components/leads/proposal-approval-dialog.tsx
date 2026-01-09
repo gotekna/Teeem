@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader } from "@/components/ui/loader";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Search,
   X,
@@ -35,7 +35,7 @@ import { api } from "@/lib/api";
 
 interface Contact {
   id: number;
-  full_name: string;
+  display_name: string;
   email?: string;
   company_name?: string;
 }
@@ -101,7 +101,6 @@ export function ProposalApprovalDialog({
   priceOverride,
 }: ProposalApprovalDialogProps) {
   const data = proposal.extracted_data || {};
-  const email = proposal.email || {};
 
   // Contact states
   const [clientContact, setClientContact] = useState<ExtractedContact | null>(null);
@@ -141,6 +140,7 @@ export function ProposalApprovalDialog({
     }
 
     loadJobOptions();
+     
   }, [open]);
 
   const loadJobOptions = async () => {
@@ -203,7 +203,7 @@ export function ProposalApprovalDialog({
   const handleSetClient = (contact: Contact) => {
     setClientContact({
       contact_id: contact.id,
-      name: contact.full_name,
+      name: contact.display_name,
       email: contact.email,
       contact_exists: true,
     });
@@ -216,7 +216,7 @@ export function ProposalApprovalDialog({
         ...externalSalesContacts,
         {
           contact_id: contact.id,
-          name: contact.full_name,
+          name: contact.display_name,
           email: contact.email,
           contact_exists: true,
         },
@@ -228,7 +228,7 @@ export function ProposalApprovalDialog({
   const handleSetReferral = (contact: Contact) => {
     setReferralContact({
       contact_id: contact.id,
-      name: contact.full_name,
+      name: contact.display_name,
       email: contact.email,
       contact_exists: true,
     });
@@ -333,7 +333,7 @@ export function ProposalApprovalDialog({
                 autoFocus
               />
             </div>
-            {searching && <Loader className="h-4 w-4" />}
+            {searching && <Spinner className="h-4 w-4" />}
             {searchResults.length > 0 && (
               <div className="border rounded-md max-h-48 overflow-y-auto">
                 {searchResults.map((contact) => (
@@ -343,7 +343,7 @@ export function ProposalApprovalDialog({
                     onClick={() => onSelect(contact)}
                     className="w-full text-left px-3 py-2 hover:bg-muted border-b last:border-b-0"
                   >
-                    <div className="font-medium text-sm">{contact.full_name}</div>
+                    <div className="font-medium text-sm">{contact.display_name}</div>
                     {contact.email && (
                       <div className="text-xs text-muted-foreground">{contact.email}</div>
                     )}
@@ -427,7 +427,7 @@ export function ProposalApprovalDialog({
                           onClick={() => handleAddExternalSales(contact)}
                           className="w-full text-left px-3 py-2 hover:bg-muted border-b last:border-b-0"
                         >
-                          <div className="font-medium text-sm">{contact.full_name}</div>
+                          <div className="font-medium text-sm">{contact.display_name}</div>
                           {contact.email && (
                             <div className="text-xs text-muted-foreground">{contact.email}</div>
                           )}

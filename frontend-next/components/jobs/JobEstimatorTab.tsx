@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Sparkles,
   ClipboardList,
@@ -12,8 +13,10 @@ import {
   Lightbulb,
   Clock,
   FileText,
-  Loader2,
+  ChefHat,
+  ArrowRight,
 } from "lucide-react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 
 interface EstimatedScope {
@@ -34,7 +37,7 @@ interface Analysis {
 
 interface Job {
   id: number;
-  title: string;
+  name: string;
   estimator_analysis?: Analysis;
 }
 
@@ -94,7 +97,32 @@ export function JobEstimatorTab({ jobId, job }: JobEstimatorTabProps) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Recipes Link */}
+      <Card className="border-primary/20 hover:border-primary/40 transition-colors">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                <ChefHat className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-lg font-medium">Recipes</h2>
+                <p className="text-sm text-muted-foreground">
+                  Manage cost recipes for materials, labour, and assemblies
+                </p>
+              </div>
+            </div>
+            <Link href="/recipes">
+              <Button variant="outline" className="gap-2">
+                Open Recipes
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* AI Estimator Header */}
       <Card>
         <CardContent className="p-6">
           <div className="flex items-start justify-between">
@@ -117,7 +145,7 @@ export function JobEstimatorTab({ jobId, job }: JobEstimatorTabProps) {
             <Button onClick={handleAnalyze} disabled={loading}>
               {loading ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Analyzing...
                 </>
               ) : (
@@ -163,7 +191,7 @@ export function JobEstimatorTab({ jobId, job }: JobEstimatorTabProps) {
       {loading && !analysis && (
         <Card>
           <CardContent className="py-12 text-center">
-            <Loader2 className="mx-auto h-12 w-12 text-primary animate-spin" />
+            <Spinner size={48} className="mx-auto text-primary" />
             <h3 className="mt-4 text-sm font-medium">Analyzing Job...</h3>
             <p className="mt-1 text-sm text-muted-foreground">
               This may take a moment while we process the job data

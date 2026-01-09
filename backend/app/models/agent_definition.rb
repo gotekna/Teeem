@@ -2,9 +2,9 @@
 
 class AgentDefinition < ApplicationRecord
   # Associations
-  belongs_to :created_by, class_name: 'User', optional: true
-  belongs_to :updated_by, class_name: 'User', optional: true
-  belongs_to :last_run_by, class_name: 'User', optional: true
+  belongs_to :created_by, class_name: "User", optional: true
+  belongs_to :updated_by, class_name: "User", optional: true
+  belongs_to :last_run_by, class_name: "User", optional: true
 
   # Validations
   validates :agent_id, presence: true, uniqueness: true
@@ -31,7 +31,7 @@ class AgentDefinition < ApplicationRecord
       total_runs: total_runs + 1,
       successful_runs: successful_runs + 1,
       last_run_at: Time.current,
-      last_status: 'success',
+      last_status: "success",
       last_message: message,
       last_run_details: details,
       last_run_by_name: user_name
@@ -53,7 +53,7 @@ class AgentDefinition < ApplicationRecord
       total_runs: total_runs + 1,
       failed_runs: failed_runs + 1,
       last_run_at: Time.current,
-      last_status: 'failure',
+      last_status: "failure",
       last_message: message,
       last_run_details: details,
       last_run_by_name: user_name
@@ -82,10 +82,49 @@ class AgentDefinition < ApplicationRecord
   # Last run status emoji
   def status_emoji
     case last_status
-    when 'success' then '✅'
-    when 'failure' then '❌'
-    when 'error' then '⚠️'
-    else '⚡'
+    when "success" then "✅"
+    when "failure" then "❌"
+    when "error" then "⚠️"
+    else "⚡"
     end
+  end
+
+  # Health status for admin display
+  # Returns: healthy, warning, broken, deprecated
+  def health_status
+    return "deprecated" unless active?
+    return "broken" unless file_exists?
+    return "warning" if stale?
+
+    "healthy"
+  end
+
+  # Check if the agent's source file exists
+  def file_exists?
+    path = source_path
+    return true if path.blank?
+
+    project_root = Rails.root.parent
+    full_path = project_root.join(path)
+    File.exist?(full_path)
+  end
+
+  # Get source path from metadata
+  def source_path
+    metadata&.dig("source_path")
+  end
+
+  # Check if agent hasn't been run in 30+ days
+  def stale?
+    return true if last_run_at.nil? && total_runs.zero?
+
+    last_run_at.present? && last_run_at < 30.days.ago
+  end
+
+  # Days since last run
+  def days_since_last_run
+    return nil if last_run_at.nil?
+
+    ((Time.current - last_run_at) / 1.day).to_i
   end
 end

@@ -1,7 +1,7 @@
 module Api
   module V1
     class EmailJobProposalsController < ApplicationController
-      before_action :set_proposal, only: [:show, :approve, :reject, :re_extract]
+      before_action :set_proposal, only: [ :show, :approve, :reject, :re_extract ]
 
       # GET /api/v1/email_job_proposals
       # List proposals with filtering
@@ -10,17 +10,17 @@ module Api
           .includes(:email_warehouse, :created_by_user, :approved_by_user, :job)
 
         # Filter by status (default: pending)
-        status = params[:status] || 'pending'
+        status = params[:status] || "pending"
         proposals = proposals.where(status: status) if status.present?
 
         # Filter by current user's proposals
-        if params[:my_proposals] == 'true'
+        if params[:my_proposals] == "true"
           proposals = proposals.for_user(current_user)
         end
 
         # Pagination
         page = (params[:page] || 1).to_i
-        per_page = [(params[:per_page] || 20).to_i, 100].min
+        per_page = [ (params[:per_page] || 20).to_i, 100 ].min
         total = proposals.count
 
         proposals = proposals.recent.offset((page - 1) * per_page).limit(per_page)
@@ -52,39 +52,39 @@ module Api
         email = EmailWarehouse.find(params[:email_warehouse_id])
 
         # Check if email has already been actioned (rejected or assigned to job)
-        if email.match_type == 'rejected'
+        if email.match_type == "rejected"
           return render json: {
             success: false,
-            error: 'This email was previously rejected and cannot create a new proposal'
+            error: "This email was previously rejected and cannot create a new proposal"
           }, status: :unprocessable_entity
         end
 
         if email.job_id.present?
           return render json: {
             success: false,
-            error: 'This email is already assigned to a job'
+            error: "This email is already assigned to a job"
           }, status: :unprocessable_entity
         end
 
         # Check if proposal already exists for this email
         existing_proposal = EmailJobProposal.find_by(
           email_warehouse: email,
-          status: ['pending', 'approved']
+          status: [ "pending", "approved" ]
         )
 
         if existing_proposal
           return render json: {
             success: false,
-            error: 'Proposal already exists for this email',
+            error: "Proposal already exists for this email",
             proposal: serialize_proposal(existing_proposal)
           }, status: :unprocessable_entity
         end
 
-        # Sync PDF attachments from Outlook if not already synced
+        # Sync PDF attachments if not already synced
+        # SSoT: Per-user Outlook credentials removed - uses org credentials
         if email.has_attachments && !email.files.attached?
           begin
-            outlook_service = OutlookService.new(current_user)
-            email.sync_attachments_from_outlook(outlook_service)
+            email.sync_attachments!
           rescue StandardError => e
             Rails.logger.error "Failed to sync attachments: #{e.message}"
             # Continue with proposal creation even if attachment sync fails
@@ -126,7 +126,8 @@ module Api
         end
 
         # Get user edits from params (optional)
-        user_edits = (params[:user_edits] || params[:edits] || {}).to_unsafe_h
+        raw_edits = params[:user_edits] || params[:edits] || {}
+        user_edits = raw_edits.respond_to?(:to_unsafe_h) ? raw_edits.to_unsafe_h : raw_edits
 
         # Create job using service
         service = EmailToJobService.new(@proposal.email_warehouse, user: current_user)
@@ -157,20 +158,20 @@ module Api
       # POST /api/v1/email_job_proposals/:id/reject
       # Reject proposal
       def reject
-        unless @proposal.pending?
+        unless @proposal.pending? || @proposal.error?
           return render json: {
             success: false,
-            error: "Proposal is not pending (status: #{@proposal.status})"
+            error: "Proposal is not pending or error (status: #{@proposal.status})"
           }, status: :unprocessable_entity
         end
 
-        reason = params[:reason] || 'No reason provided'
+        reason = params[:reason] || "No reason provided"
         @proposal.mark_rejected!(reason: reason)
 
         render json: {
           success: true,
           proposal: serialize_proposal(@proposal),
-          message: 'Proposal rejected'
+          message: "Proposal rejected"
         }
 
       rescue StandardError => e
@@ -184,24 +185,20 @@ module Api
       # POST /api/v1/email_job_proposals/:id/re_extract
       # Re-extract data from email and PDFs with latest extraction logic
       def re_extract
-        unless @proposal.pending?
+        unless @proposal.pending? || @proposal.error?
           return render json: {
             success: false,
-            error: "Can only re-extract pending proposals (current status: #{@proposal.status})"
+            error: "Can only re-extract pending or error proposals (current status: #{@proposal.status})"
           }, status: :unprocessable_entity
         end
 
         email = @proposal.email_warehouse
 
-        # Sync PDF attachments from Outlook if not already synced
+        # Sync PDF attachments if not already synced
+        # SSoT: Per-user Outlook credentials removed - uses org credentials
         if email.has_attachments && !email.files.attached?
           begin
-            outlook_service = OutlookService.new(current_user)
-            # Get fresh attachment count from Outlook
-            outlook_email = outlook_service.get_email(email.outlook_id)
-            email.update(attachment_count: outlook_email[:attachment_count]) if outlook_email[:attachment_count]
-
-            email.sync_attachments_from_outlook(outlook_service)
+            email.sync_attachments!
             Rails.logger.info "Synced attachments for email #{email.id} during re-extraction"
           rescue StandardError => e
             Rails.logger.error "Failed to sync attachments during re-extraction: #{e.message}"
@@ -216,10 +213,12 @@ module Api
 
         processing_time = ((Time.current - start_time) * 1000).round
 
-        # Update proposal with new extracted data
+        # Update proposal with new extracted data (reset to pending if was error)
         @proposal.update!(
           extracted_data: extracted_data,
-          processing_time_ms: processing_time
+          processing_time_ms: processing_time,
+          status: "pending",
+          error_message: nil
         )
 
         Rails.logger.info "Re-extracted proposal #{@proposal.id}: confidence=#{extracted_data['confidence_score']}"
@@ -266,8 +265,8 @@ module Api
           rejection_reason: proposal.rejection_reason,
           error_message: proposal.error_message,
 
-          # Email summary
-          email: {
+          # Email summary (may be nil if email was deleted)
+          email: proposal.email_warehouse ? {
             id: proposal.email_warehouse.id,
             subject: proposal.email_warehouse.subject,
             from_email: proposal.email_warehouse.from_email,
@@ -276,14 +275,14 @@ module Api
             has_attachments: proposal.email_warehouse.has_attachments,
             attachment_count: proposal.email_warehouse.attachment_count,
             pdf_count: proposal.email_warehouse.files.count
-          },
+          } : nil,
 
-          # User info
-          created_by: {
+          # User info (may be nil for system-created proposals)
+          created_by: proposal.created_by_user ? {
             id: proposal.created_by_user.id,
             name: proposal.created_by_user.name,
             email: proposal.created_by_user.email
-          },
+          } : nil,
 
           # Job info (if approved)
           job: proposal.job ? {

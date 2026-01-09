@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
 import {
   ArrowLeft,
   Calendar,
@@ -16,10 +17,17 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
-  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface ComplianceItem {
   id: number;
@@ -70,6 +78,7 @@ export default function ComplianceCalendarPage() {
 
   React.useEffect(() => {
     loadCalendarData();
+     
   }, [filters, currentMonth]);
 
   const loadCompanyGroups = async () => {
@@ -161,7 +170,7 @@ export default function ComplianceCalendarPage() {
   if (loading && !calendarData) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -314,7 +323,7 @@ export default function ComplianceCalendarPage() {
                         {day.items.slice(0, 3).map((item, i) => (
                           <div
                             key={i}
-                            onClick={() => router.push(`/corporate/companies/${item.company_id}?tab=compliance`)}
+                            onClick={() => router.push(`/corporate/companies/${item.company_id}/compliance`)}
                             className={cn(
                               "text-xs p-1 rounded cursor-pointer truncate",
                               item.is_overdue
@@ -345,52 +354,52 @@ export default function ComplianceCalendarPage() {
       {viewMode === "list" && (
         <Card>
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-border">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Due Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Company</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Title</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Type</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
+            <Table className="min-w-full">
+              <TableHeader className="bg-muted/50">
+                <TableRow>
+                  <TableHead className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Due Date</TableHead>
+                  <TableHead className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Company</TableHead>
+                  <TableHead className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Title</TableHead>
+                  <TableHead className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Type</TableHead>
+                  <TableHead className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody className="divide-y divide-border">
                 {calendarData?.items?.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
+                  <TableRow>
+                    <TableCell colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
                       No compliance items found
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ) : (
                   calendarData?.items?.map((item) => (
-                    <tr
+                    <TableRow
                       key={item.id}
-                      onClick={() => router.push(`/corporate/companies/${item.company_id}?tab=compliance`)}
+                      onClick={() => router.push(`/corporate/companies/${item.company_id}/compliance`)}
                       className="hover:bg-muted/50 cursor-pointer"
                     >
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      <TableCell className="px-4 py-3 whitespace-nowrap">
                         <span className={item.is_overdue ? "text-red-600 font-medium" : ""}>
                           {new Date(item.due_date).toLocaleDateString("en-AU")}
                         </span>
                         {item.is_overdue && (
                           <span className="ml-2 text-xs text-red-500">({Math.abs(item.days_until_due)} days overdue)</span>
                         )}
-                      </td>
-                      <td className="px-4 py-3">
+                      </TableCell>
+                      <TableCell className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <Building2 className="h-4 w-4 text-muted-foreground" />
                           <span className="text-sm font-medium">{item.company_name}</span>
                           {item.company_code && <span className="text-xs text-muted-foreground">({item.company_code})</span>}
                         </div>
-                      </td>
-                      <td className="px-4 py-3 text-sm">{item.title}</td>
-                      <td className="px-4 py-3">
+                      </TableCell>
+                      <TableCell className="px-4 py-3 text-sm">{item.title}</TableCell>
+                      <TableCell className="px-4 py-3">
                         <span className="text-sm text-muted-foreground capitalize">{item.item_type?.replace(/_/g, " ")}</span>
                         {item.asic_related && <Badge className="ml-2 bg-purple-100 text-purple-700">ASIC</Badge>}
                         {item.ato_related && <Badge className="ml-2 bg-blue-100 text-blue-700">ATO</Badge>}
-                      </td>
-                      <td className="px-4 py-3">
+                      </TableCell>
+                      <TableCell className="px-4 py-3">
                         {item.completed ? (
                           <span className="inline-flex items-center gap-1 text-green-600">
                             <CheckCircle className="h-4 w-4" />
@@ -404,12 +413,12 @@ export default function ComplianceCalendarPage() {
                         ) : (
                           <span className="text-muted-foreground">Pending</span>
                         )}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))
                 )}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </Card>
       )}
@@ -434,7 +443,7 @@ export default function ComplianceCalendarPage() {
             <Card key={companyId}>
               <CardContent className="p-4">
                 <div
-                  onClick={() => router.push(`/corporate/companies/${companyId}?tab=compliance`)}
+                  onClick={() => router.push(`/corporate/companies/${companyId}/compliance`)}
                   className="flex items-center justify-between mb-3 cursor-pointer hover:text-primary"
                 >
                   <div className="flex items-center gap-2">

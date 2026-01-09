@@ -8,7 +8,7 @@ class CreatePurchaseOrderDocuments < ActiveRecord::Migration[8.0]
     end
 
     # Add unique index to prevent duplicate associations
-    add_index :purchase_order_documents, [:purchase_order_id, :document_task_id],
+    add_index :purchase_order_documents, [ :purchase_order_id, :document_task_id ],
               unique: true, name: 'index_po_documents_on_po_and_document'
   end
 end

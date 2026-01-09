@@ -1,7 +1,7 @@
 class AddDisplayOrderToTableViews < ActiveRecord::Migration[8.0]
   def change
     add_column :table_views, :display_order, :integer, default: 0
-    add_index :table_views, [:table_id, :user_id, :display_order], name: 'index_table_views_on_table_user_order'
+    add_index :table_views, [ :table_id, :user_id, :display_order ], name: 'index_table_views_on_table_user_order'
 
     # Backfill existing records with sequential order based on created_at
     reversible do |dir|

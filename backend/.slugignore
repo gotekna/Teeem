@@ -1,0 +1,66 @@
+# Ignore logs (61MB+)
+log/
+*.log
+
+# Ignore tmp files (35MB+)
+tmp/
+
+# Ignore node_modules (shouldn't be in Rails backend)
+node_modules/
+
+# Ignore test/spec files
+spec/
+test/
+.rspec
+
+# Ignore documentation and markdown files
+README.md
+CONTRIBUTING.md
+*.md
+
+# Ignore large CSV/Excel data files
+# *.csv - TEMPORARILY DISABLED TO ALLOW price_histories_import.csv
+# !price_histories_import.csv
+*.xlsx
+*.xls
+
+# Ignore development/test gems artifacts
+.ruby-lsp/
+coverage/
+
+# Ignore git artifacts
+.git/
+.gitignore
+.gitattributes
+
+# Ignore IDE/editor files
+.vscode/
+.idea/
+.cursor/
+.claude/
+*.swp
+*.swo
+
+# Ignore CI/CD files
+.github/
+.gitlab-ci.yml
+
+# Ignore Docker files (using Heroku, not Docker)
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Ignore Kamal deployment files
+.kamal/
+
+# Ignore local environment files
+.env
+.env.*
+!.env.example
+
+# Ignore ML service if not needed on Heroku
+ml_service/
+
+# Ignore seed data files if large
+db/seeds/
+db/data/

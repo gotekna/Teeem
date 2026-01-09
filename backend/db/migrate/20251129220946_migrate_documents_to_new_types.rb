@@ -86,36 +86,36 @@ class MigrateDocumentsToNewTypes < ActiveRecord::Migration[8.0]
     other_docs = CompanyDocument.where(document_type: 'other')
 
     # Sub-Category A: Register Documents (34 docs)
-    register_patterns = ['register of members', 'register of loans', 'member register', 'loan register']
+    register_patterns = [ 'register of members', 'register of loans', 'member register', 'loan register' ]
     count = update_by_title_patterns(other_docs, register_patterns, doc_types['Share Registry'])
     puts "Migrated #{count} 'other' documents: Register → Share Registry"
 
     # Sub-Category B: Corporate Keys (8 docs)
-    key_patterns = ['corporate key', 'asic key', 'company key']
+    key_patterns = [ 'corporate key', 'asic key', 'company key' ]
     count = update_by_title_patterns(other_docs, key_patterns, doc_types['ASIC Company Key'])
     puts "Migrated #{count} 'other' documents: Keys → ASIC Company Key"
 
     # Sub-Category C: Financials/Tax in #N/A folder
-    financials_patterns = ['financials']
+    financials_patterns = [ 'financials' ]
     count = update_by_title_patterns(other_docs, financials_patterns, doc_types['Draft Financials'])
     puts "Migrated #{count} 'other' documents: Financials → Draft Financials"
 
-    tax_return_patterns = ['tax return']
+    tax_return_patterns = [ 'tax return' ]
     count = update_by_title_patterns(other_docs, tax_return_patterns, doc_types['CTR - Company Tax Return'])
     puts "Migrated #{count} 'other' documents: Tax Return → CTR"
 
     # Sub-Category D: Director Changes (8 docs)
-    director_patterns = ['resignation of director', 'consent.*director', 'appoint.*director', 'director.*consent', 'director.*appoint']
+    director_patterns = [ 'resignation of director', 'consent.*director', 'appoint.*director', 'director.*consent', 'director.*appoint' ]
     count = update_by_title_patterns(other_docs, director_patterns, doc_types['ASIC Form 484 - Director Changes'])
     puts "Migrated #{count} 'other' documents: Director Changes → ASIC Form 484"
 
     # Sub-Category E: Share Transfers (3 docs)
-    transfer_patterns = ['share transfer']
+    transfer_patterns = [ 'share transfer' ]
     count = update_by_title_patterns(other_docs, transfer_patterns, doc_types['Share Transfer'])
     puts "Migrated #{count} 'other' documents: Share Transfer → Share Transfer"
 
     # Sub-Category F: Asset Related (4 docs)
-    asset_patterns = ['sale of', 'deed of gift', 'bullion', 'asset']
+    asset_patterns = [ 'sale of', 'deed of gift', 'bullion', 'asset' ]
     count = update_by_title_patterns(other_docs, asset_patterns, doc_types['Asset'])
     puts "Migrated #{count} 'other' documents: Assets → Asset"
 
@@ -128,7 +128,7 @@ class MigrateDocumentsToNewTypes < ActiveRecord::Migration[8.0]
     tax_returns = CompanyDocument.where(document_type: 'tax_return').includes(:company)
 
     # Trust/Super companies → TTR
-    trust_keywords = ['ATF', 'Trust', 'Super Fund', 'SMSF']
+    trust_keywords = [ 'ATF', 'Trust', 'Super Fund', 'SMSF' ]
     trust_count = 0
     company_count = 0
 

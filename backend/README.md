@@ -1,6 +1,6 @@
-# TEEEM Backend API
+# TEEEM API
 
-Rails API backend for TEEEM application.
+Rails API for TEEEM application.
 
 ## Setup
 

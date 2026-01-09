@@ -12,8 +12,8 @@ class CreateMeetingParticipants < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :meeting_participants, [:meeting_id, :user_id], unique: true, where: "user_id IS NOT NULL"
-    add_index :meeting_participants, [:meeting_id, :contact_id], unique: true, where: "contact_id IS NOT NULL"
+    add_index :meeting_participants, [ :meeting_id, :user_id ], unique: true, where: "user_id IS NOT NULL"
+    add_index :meeting_participants, [ :meeting_id, :contact_id ], unique: true, where: "contact_id IS NOT NULL"
     add_index :meeting_participants, :response_status
 
     # Constraint: must have either user_id or contact_id

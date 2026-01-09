@@ -68,7 +68,7 @@ module Api
               company_id: company_id,
               company_name: data[:company].name,
               company_code: data[:company].company_code,
-              company_group: data[:company].company_group&.name,
+              company_group: data[:company].corporate_group&.name,
               overdue_count: data[:overdue_count],
               pending_count: data[:pending_count],
               total_count: data[:total_count],
@@ -100,7 +100,7 @@ module Api
 
         render json: {
           success: true,
-          message: 'Reminders queued'
+          message: "Reminders queued"
         }
       end
 
@@ -113,7 +113,7 @@ module Api
           start_date: params[:start_date].present? ? Date.parse(params[:start_date]) : nil,
           end_date: params[:end_date].present? ? Date.parse(params[:end_date]) : nil,
           status: params[:status],
-          include_completed: params[:include_completed] == 'true'
+          include_completed: params[:include_completed] == "true"
         }
       end
 
@@ -124,7 +124,7 @@ module Api
             company_id: item.company_id,
             company_name: item.company.name,
             company_code: item.company.code,
-            company_group: item.company.company_group&.name,
+            company_group: item.company.corporate_group&.name,
             item_type: item.item_type,
             title: item.title,
             description: item.description,

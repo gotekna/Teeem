@@ -8,7 +8,7 @@ module Api
 
         # Build relationships map for user foundations
         user_relationships = []
-        Column.where(column_type: 'lookup').includes(:foundation, :lookup_foundation).each do |col|
+        Column.where(column_type: "lookup").includes(:foundation, :lookup_foundation).each do |col|
           next unless col.lookup_foundation
 
           user_relationships << {
@@ -20,7 +20,7 @@ module Api
             to_table_id: "user_#{col.lookup_foundation_id}",
             to_table_name: col.lookup_foundation.name,
             to_table_slug: col.lookup_foundation.slug,
-            relationship_type: col.is_multiple ? 'many_to_many' : 'many_to_one',
+            relationship_type: col.is_multiple ? "many_to_many" : "many_to_one",
             required: col.required
           }
         end
@@ -47,6 +47,7 @@ module Api
                 is_unique: col.is_unique,
                 is_title: col.is_title,
                 lookup_foundation_id: col.lookup_foundation_id,
+                lookup_foundation_slug: col.lookup_foundation_slug,  # SSoT: Always include slug
                 lookup_foundation_name: col.lookup_foundation&.name,
                 is_multiple: col.is_multiple
               }
@@ -56,26 +57,26 @@ module Api
 
         # Get system tables and their foreign keys
         excluded_tables = [
-          'ar_internal_metadata',
-          'schema_migrations',
-          'solid_queue_blocked_executions',
-          'solid_queue_claimed_executions',
-          'solid_queue_failed_executions',
-          'solid_queue_jobs',
-          'solid_queue_pauses',
-          'solid_queue_processes',
-          'solid_queue_ready_executions',
-          'solid_queue_recurring_executions',
-          'solid_queue_recurring_tasks',
-          'solid_queue_scheduled_executions',
-          'solid_queue_semaphores',
-          'foundations',
-          'columns',
-          'versions'
+          "ar_internal_metadata",
+          "schema_migrations",
+          "solid_queue_blocked_executions",
+          "solid_queue_claimed_executions",
+          "solid_queue_failed_executions",
+          "solid_queue_jobs",
+          "solid_queue_pauses",
+          "solid_queue_processes",
+          "solid_queue_ready_executions",
+          "solid_queue_recurring_executions",
+          "solid_queue_recurring_tasks",
+          "solid_queue_scheduled_executions",
+          "solid_queue_semaphores",
+          "foundations",
+          "columns",
+          "versions"
         ]
 
         all_db_tables = ActiveRecord::Base.connection.tables
-        system_tables = all_db_tables.reject { |t| t.start_with?('user_') || excluded_tables.include?(t) }
+        system_tables = all_db_tables.reject { |t| t.start_with?("user_") || excluded_tables.include?(t) }
 
         system_tables_data = system_tables.map do |table_name|
           columns = get_system_table_columns(table_name)
@@ -149,33 +150,33 @@ module Api
           end
 
           # Determine foundation type and usage status
-          type = if foundation.table_type == 'system'
-                   'system'
-                 elsif db_name.include?('_import_')
-                   'import'
-                 else
-                   'user'
-                 end
+          type = if foundation.table_type == "system"
+                   "system"
+          elsif db_name.include?("_import_")
+                   "import"
+          else
+                   "user"
+          end
 
           # Determine usage_status for better categorization
-          usage_status = if foundation.table_type == 'system' && has_column_metadata
-                           'TEEEMTableView'
-                         elsif foundation.table_type == 'system'
-                           'Rails System'
-                         elsif rails_internal_tables.include?(db_name)
-                           'Needs Deleting'  # Rails internal wrongly added to foundations
-                         elsif teeem_core_tables.include?(db_name)
-                           'Needs Deleting'  # Core tables shouldn't be in foundations table
-                         elsif !has_column_metadata && type == 'user'
+          usage_status = if foundation.table_type == "system" && has_column_metadata
+                           "TEEEMTableView"
+          elsif foundation.table_type == "system"
+                           "Rails System"
+          elsif rails_internal_tables.include?(db_name)
+                           "Needs Deleting"  # Rails internal wrongly added to foundations
+          elsif teeem_core_tables.include?(db_name)
+                           "Needs Deleting"  # Core tables shouldn't be in foundations table
+          elsif !has_column_metadata && type == "user"
                            # User foundation without column metadata - likely orphaned
-                           'Needs Deleting'
-                         elsif type == 'import'
-                           'Import'
-                         elsif has_column_metadata
-                           'User Table'
-                         else
-                           'Unknown'
-                         end
+                           "Needs Deleting"
+          elsif type == "import"
+                           "Import"
+          elsif has_column_metadata
+                           "User Table"
+          else
+                           "Unknown"
+          end
 
           {
             id: foundation.id,
@@ -223,7 +224,7 @@ module Api
       # These are now properly registered in the foundations table with numeric IDs
       def in_memory_tables
         # Get all system foundations from the database
-        system_foundations = Foundation.where(table_type: 'system').order(:name)
+        system_foundations = Foundation.where(table_type: "system").order(:name)
 
         foundations = system_foundations.map do |foundation|
           # Get column count and record count from the actual database table
@@ -255,7 +256,7 @@ module Api
           success: true,
           tables: foundations,
           count: foundations.length,
-          note: 'System foundations now have proper numeric IDs in the foundations registry. The legacy_id (slug) is preserved for backwards compatibility with existing saved views.'
+          note: "System foundations now have proper numeric IDs in the foundations registry. The legacy_id (slug) is preserved for backwards compatibility with existing saved views."
         }
       end
 
@@ -265,31 +266,31 @@ module Api
 
         # Security: Validate that the table exists and is not in excluded list
         excluded_tables = [
-          'ar_internal_metadata',
-          'schema_migrations',
-          'solid_queue_blocked_executions',
-          'solid_queue_claimed_executions',
-          'solid_queue_failed_executions',
-          'solid_queue_jobs',
-          'solid_queue_pauses',
-          'solid_queue_processes',
-          'solid_queue_ready_executions',
-          'solid_queue_recurring_executions',
-          'solid_queue_recurring_tasks',
-          'solid_queue_scheduled_executions',
-          'solid_queue_semaphores',
-          'foundations',
-          'columns',
-          'versions'
+          "ar_internal_metadata",
+          "schema_migrations",
+          "solid_queue_blocked_executions",
+          "solid_queue_claimed_executions",
+          "solid_queue_failed_executions",
+          "solid_queue_jobs",
+          "solid_queue_pauses",
+          "solid_queue_processes",
+          "solid_queue_ready_executions",
+          "solid_queue_recurring_executions",
+          "solid_queue_recurring_tasks",
+          "solid_queue_scheduled_executions",
+          "solid_queue_semaphores",
+          "foundations",
+          "columns",
+          "versions"
         ]
 
         unless ActiveRecord::Base.connection.table_exists?(table_name)
-          render json: { error: 'Table not found' }, status: :not_found
+          render json: { error: "Table not found" }, status: :not_found
           return
         end
 
-        if table_name.start_with?('user_') || excluded_tables.include?(table_name)
-          render json: { error: 'Access denied' }, status: :forbidden
+        if table_name.start_with?("user_") || excluded_tables.include?(table_name)
+          render json: { error: "Access denied" }, status: :forbidden
           return
         end
 
@@ -309,20 +310,20 @@ module Api
         }
       rescue => e
         Rails.logger.error "Failed to fetch columns for #{table_name}: #{e.message}"
-        render json: { error: 'Failed to fetch table columns' }, status: :internal_server_error
+        render json: { error: "Failed to fetch table columns" }, status: :internal_server_error
       end
 
       # POST /api/v1/schema/sync_system_tables
       # Audits all system tables and returns sync status
       def sync_system_tables
         # Prevent caching of sync results
-        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-        response.headers['Pragma'] = 'no-cache'
-        response.headers['Expires'] = '0'
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
 
         # Disable ActiveRecord query cache for this request
         ActiveRecord::Base.uncached do
-          system_foundations = Foundation.where(table_type: 'system').order(:name)
+          system_foundations = Foundation.where(table_type: "system").order(:name)
 
           results = system_foundations.map do |foundation|
             audit_system_foundation(foundation)
@@ -330,9 +331,9 @@ module Api
 
           # Calculate summary
           total = results.length
-          synced = results.count { |r| r[:status] == 'synced' }
-          warnings = results.count { |r| r[:status] == 'warning' }
-          errors = results.count { |r| r[:status] == 'error' }
+          synced = results.count { |r| r[:status] == "synced" }
+          warnings = results.count { |r| r[:status] == "warning" }
+          errors = results.count { |r| r[:status] == "error" }
 
           render json: {
             success: true,
@@ -351,25 +352,25 @@ module Api
       # POST /api/v1/schema/sync_has_ui_from_production
       # Fetches has_ui values from production and syncs to local database
       def sync_has_ui_from_production
-        require 'net/http'
-        require 'json'
+        require "net/http"
+        require "json"
 
-        production_url = 'https://teeem-backend-447058022b51.herokuapp.com/api/v1/schema/tables'
+        production_url = "https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/schema/tables"
 
         begin
           uri = URI(production_url)
           response = Net::HTTP.get(uri)
           production_data = JSON.parse(response)
 
-          unless production_data['tables']
-            render json: { success: false, error: 'No tables data from production' }, status: :unprocessable_entity
+          unless production_data["tables"]
+            render json: { success: false, error: "No tables data from production" }, status: :unprocessable_entity
             return
           end
 
           # Build a map of table_id -> has_ui from production
           production_has_ui = {}
-          production_data['tables'].each do |t|
-            production_has_ui[t['id']] = t['has_ui'] if t['has_ui'].present?
+          production_data["tables"].each do |t|
+            production_has_ui[t["id"]] = t["has_ui"] if t["has_ui"].present?
           end
 
           updated = []
@@ -384,10 +385,10 @@ module Api
                 foundation.update!(has_ui: new_value)
                 updated << { id: foundation.id, name: foundation.name, old: old_value, new: new_value }
               else
-                skipped << { id: foundation.id, name: foundation.name, reason: 'already_synced' }
+                skipped << { id: foundation.id, name: foundation.name, reason: "already_synced" }
               end
             else
-              skipped << { id: foundation.id, name: foundation.name, reason: 'not_in_production' }
+              skipped << { id: foundation.id, name: foundation.name, reason: "not_in_production" }
             end
           end
 
@@ -432,6 +433,7 @@ module Api
             validation_message: col.validation_message,
             position: col.position,
             lookup_foundation_id: col.lookup_foundation_id,
+            lookup_foundation_slug: col.lookup_foundation_slug,  # SSoT: Always include slug
             lookup_foundation_name: col.lookup_foundation&.name,
             lookup_display_column: col.lookup_display_column,
             is_multiple: col.is_multiple,
@@ -450,7 +452,7 @@ module Api
         }
       rescue => e
         Rails.logger.error "Failed to fetch all columns: #{e.message}"
-        render json: { error: 'Failed to fetch columns' }, status: :internal_server_error
+        render json: { error: "Failed to fetch columns" }, status: :internal_server_error
       end
 
       private
@@ -485,7 +487,7 @@ module Api
             column_type: map_sql_type_to_display(col.sql_type),
             required: !col.null,
             is_unique: false,
-            is_title: col.name == 'name' || col.name == 'title',
+            is_title: col.name == "name" || col.name == "title",
             is_multiple: false
           }
         end
@@ -513,7 +515,7 @@ module Api
               to_table_id: "system_#{fk.to_table}",
               to_table_name: fk.to_table.titleize,
               to_table_slug: fk.to_table.parameterize,
-              relationship_type: 'many_to_one',
+              relationship_type: "many_to_one",
               required: true # Foreign keys are typically required
             }
           end
@@ -527,22 +529,21 @@ module Api
 
       def get_system_table_icon(table_name)
         icons = {
-          'constructions' => '🏗️',
-          'designs' => '📐',
-          'estimates' => '📊',
-          'purchase_orders' => '📦',
-          'suppliers' => '🏭',
-          'contacts' => '👤',
-          'pricebook_items' => '💰',
-          'price_histories' => '📈',
-          'projects' => '📋',
-          'project_tasks' => '✓',
-          'schedule_tasks' => '📅',
-          'users' => '👥',
-          'import_sessions' => '📥',
-          'grok_plans' => '🤖',
-          'xero_credentials' => '🔐',
-          'one_drive_credentials' => '☁️'
+          "constructions" => "🏗️",
+          "designs" => "📐",
+          "estimates" => "📊",
+          "purchase_orders" => "📦",
+          "suppliers" => "🏭",
+          "contacts" => "👤",
+          "pricebook_items" => "💰",
+          "price_histories" => "📈",
+          "projects" => "📋",
+          "tasks" => "✓",  # SSoT: SmTask (tasks table)
+          "users" => "👥",
+          "import_sessions" => "📥",
+          "grok_plans" => "🤖",
+          "xero_credentials" => "🔐"
+          # REMOVED: one_drive_credentials - legacy table dropped Jan 2026
         }
 
         icons[table_name]
@@ -551,21 +552,21 @@ module Api
       def map_sql_type_to_display(sql_type)
         case sql_type
         when /^character varying/, /^varchar/, /^text/
-          'text'
+          "text"
         when /^integer/, /^bigint/, /^smallint/
-          'number'
+          "number"
         when /^numeric/, /^decimal/, /^real/, /^double/
-          'number'
+          "number"
         when /^boolean/
-          'boolean'
+          "boolean"
         when /^date$/
-          'date'
+          "date"
         when /^timestamp/, /^datetime/
-          'datetime'
+          "datetime"
         when /^json/
-          'json'
+          "json"
         else
-          'text'
+          "text"
         end
       end
 
@@ -575,28 +576,27 @@ module Api
 
         # Map of model class names to their database table names
         table_mapping = {
-          'FinancialTransaction' => 'financial_transactions',
-          'GoldStandardItem' => 'gold_standard_items',
-          'TrinityEntry' => 'trinity_entries',
-          'Trinity' => 'trinity',
-          'Construction' => 'constructions',
-          'PricebookItem' => 'pricebook',
-          'WhsSwms' => 'whs_swms',
-          'WhsActionItem' => 'whs_action_items',
-          'WhsInduction' => 'whs_inductions',
-          'WhsInspection' => 'whs_inspections',
-          'WhsIncident' => 'whs_incidents',
-          'ContactRole' => 'contact_roles',
-          'User' => 'users',
-          'InspiringQuote' => 'inspiring_quotes',
-          'Contact' => 'contacts',
-          'Estimate' => 'estimates',
-          'PurchaseOrder' => 'purchase_orders',
-          'SmTask' => 'sm_tasks',
-          'SmResource' => 'sm_resources',
-          'SmTimeEntry' => 'sm_time_entries',
-          'PriceHistory' => 'price_histories',
-          'Job' => 'jobs'
+          "FinancialTransaction" => "financial_transactions",
+          "GoldStandardItem" => "gold_standard_items",
+          "TrinityEntry" => "trinity_entries",
+          "Trinity" => "trinity",
+          "Construction" => "constructions",
+          "PricebookItem" => "pricebook",
+          "WhsSwms" => "whs_swms",
+          "WhsActionItem" => "whs_action_items",
+          "WhsInduction" => "whs_inductions",
+          "WhsInspection" => "whs_inspections",
+          "WhsIncident" => "whs_incidents",
+          "User" => "users",
+          "InspiringQuote" => "inspiring_quotes",
+          "Contact" => "contacts",
+          "Estimate" => "estimates",
+          "PurchaseOrder" => "purchase_orders",
+          "SmTask" => "sm_tasks",
+          "SmResource" => "sm_resources",
+          "SmTimeEntry" => "sm_time_entries",
+          "PriceHistory" => "price_histories",
+          "Job" => "jobs"
         }
 
         table_mapping[model_class] || model_class.underscore.pluralize
@@ -684,12 +684,12 @@ module Api
 
         # Determine overall status
         status = if issues.any?
-                   'error'
-                 elsif warnings.any?
-                   'warning'
-                 else
-                   'synced'
-                 end
+                   "error"
+        elsif warnings.any?
+                   "warning"
+        else
+                   "synced"
+        end
 
         {
           foundation_id: foundation.id,

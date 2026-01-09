@@ -7,7 +7,7 @@ class ImportJob < ApplicationJob
 
     # Update progress: starting
     import_session.update(
-      status: 'processing',
+      status: "processing",
       progress: 0,
       total_rows: 0,
       processed_rows: 0
@@ -42,7 +42,7 @@ class ImportJob < ApplicationJob
       failed_count = import_result[:failed_count] || 0
 
       import_session.update(
-        status: 'completed',
+        status: "completed",
         progress: 100,
         total_rows: imported_count + failed_count,
         processed_rows: imported_count,
@@ -62,7 +62,7 @@ class ImportJob < ApplicationJob
       Rails.logger.error e.backtrace.join("\n")
 
       import_session.update(
-        status: 'failed',
+        status: "failed",
         error_message: e.message,
         completed_at: Time.current
       )

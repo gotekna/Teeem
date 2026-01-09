@@ -3,7 +3,7 @@
 module Api
   module V1
     class SmResourcesController < ApplicationController
-      before_action :set_resource, only: [:show, :update, :destroy, :schedule, :allocations, :allocate]
+      before_action :set_resource, only: [ :show, :update, :destroy, :schedule, :allocations, :allocate ]
 
       # GET /api/v1/sm_resources
       def index
@@ -13,18 +13,30 @@ module Api
         @resources = @resources.where(resource_type: params[:type]) if params[:type].present?
 
         # Filter by active status
-        @resources = @resources.active if params[:active_only] == 'true'
+        @resources = @resources.active if params[:active_only] == "true"
+
+        # Performance: Consolidate 5 COUNT queries into 1 GROUP BY query
+        # Before: 5 separate queries (total, active, people, equipment, materials)
+        # After: 1 query with GROUP BY resource_type, is_active
+        counts_by_type_and_status = SmResource.group(:resource_type, :is_active).count
+
+        # Compute totals from grouped counts
+        total_count = counts_by_type_and_status.values.sum
+        active_count = counts_by_type_and_status.select { |k, _| k[1] == true }.values.sum
+        people_count = counts_by_type_and_status.select { |k, _| k[0] == "people" }.values.sum
+        equipment_count = counts_by_type_and_status.select { |k, _| k[0] == "equipment" }.values.sum
+        materials_count = counts_by_type_and_status.select { |k, _| k[0] == "materials" }.values.sum
 
         render json: {
           success: true,
           resources: @resources.map { |r| resource_to_json(r) },
           meta: {
-            total_count: SmResource.count,
-            active_count: SmResource.active.count,
+            total_count: total_count,
+            active_count: active_count,
             by_type: {
-              people: SmResource.people.count,
-              equipment: SmResource.equipment.count,
-              materials: SmResource.materials.count
+              people: people_count,
+              equipment: equipment_count,
+              materials: materials_count
             }
           }
         }
@@ -45,7 +57,7 @@ module Api
         if @resource.save
           render json: {
             success: true,
-            message: 'Resource created successfully',
+            message: "Resource created successfully",
             resource: resource_to_json(@resource)
           }, status: :created
         else
@@ -79,19 +91,20 @@ module Api
           @resource.update!(is_active: false)
           render json: {
             success: true,
-            message: 'Resource deactivated (has associated allocations)'
+            message: "Resource deactivated (has associated allocations)"
           }
         else
           @resource.destroy
           render json: {
             success: true,
-            message: 'Resource deleted successfully'
+            message: "Resource deleted successfully"
           }
         end
       end
 
       # GET /api/v1/sm_resources/availability
       # Check resource availability for a date range
+      # Performance: Batch loads allocated/logged hours to avoid N+1 queries
       def availability
         start_date = Date.parse(params[:start_date])
         end_date = Date.parse(params[:end_date])
@@ -99,9 +112,23 @@ module Api
         resources = SmResource.active
         resources = resources.where(resource_type: params[:type]) if params[:type].present?
 
+        resource_ids = resources.pluck(:id)
+
+        # Performance: Pre-fetch allocated hours with GROUP BY (avoids N+1)
+        allocated_by_resource = SmResourceAllocation
+          .where(sm_resource_id: resource_ids, allocation_date: start_date..end_date)
+          .group(:sm_resource_id)
+          .sum(:allocated_hours)
+
+        # Performance: Pre-fetch logged hours with GROUP BY (avoids N+1)
+        logged_by_resource = TimeEntry
+          .where(sm_resource_id: resource_ids, entry_date: start_date..end_date)
+          .group(:sm_resource_id)
+          .sum(:total_hours)
+
         availability_data = resources.map do |resource|
-          allocated = resource.allocated_hours_for_range(start_date, end_date)
-          logged = resource.logged_hours_for_range(start_date, end_date)
+          allocated = allocated_by_resource[resource.id] || 0
+          logged = logged_by_resource[resource.id] || 0
           days = (end_date - start_date).to_i + 1
           capacity = (resource.availability_hours_per_day || 8) * days
 
@@ -126,7 +153,7 @@ module Api
       rescue ArgumentError => e
         render json: {
           success: false,
-          error: 'Invalid date format'
+          error: "Invalid date format"
         }, status: :unprocessable_entity
       end
 
@@ -199,9 +226,9 @@ module Api
 
         dates = if params[:dates].present?
                   params[:dates].map { |d| Date.parse(d) }
-                else
+        else
                   nil
-                end
+        end
 
         result = service.allocate_to_task(
           task: task,
@@ -246,7 +273,7 @@ module Api
       rescue ActiveRecord::RecordNotFound
         render json: {
           success: false,
-          error: 'Resource not found'
+          error: "Resource not found"
         }, status: :not_found
       end
 

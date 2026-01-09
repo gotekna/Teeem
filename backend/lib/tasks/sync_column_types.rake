@@ -1,10 +1,10 @@
-require 'csv'
+require "csv"
 
 namespace :teeem do
   namespace :column_types do
-    desc 'Sync all column type definitions from CSV to all sources'
+    desc "Sync all column type definitions from CSV to all sources"
     task sync_from_csv: :environment do
-      csv_path = Rails.root.join('..', 'TEEEM_DOCS', 'gold_standard_columns.csv')
+      csv_path = Rails.root.join("..", "TEEEM_DOCS", "gold_standard_columns.csv")
 
       unless File.exist?(csv_path)
         puts "❌ CSV file not found at: #{csv_path}"
@@ -19,17 +19,17 @@ namespace :teeem do
       column_definitions = []
       # Map CSV column names to actual column types
       column_type_mapping = {
-        'created_at' => 'date_and_time',  # created_at is a date_and_time type
-        'updated_at' => 'date_and_time',  # updated_at is a date_and_time type
-        'checkbox' => 'boolean'            # checkbox is a boolean type
+        "created_at" => "date_and_time",  # created_at is a date_and_time type
+        "updated_at" => "date_and_time",  # updated_at is a date_and_time type
+        "checkbox" => "boolean"            # checkbox is a boolean type
       }
 
       CSV.foreach(csv_path, headers: true) do |row|
-        csv_column_name = row['Column Name (Database)']
-        next if csv_column_name == 'id' # Skip ID, it's auto-generated
+        csv_column_name = row["Column Name (Database)"]
+        next if csv_column_name == "id" # Skip ID, it's auto-generated
 
         # Skip system columns that are auto-generated
-        next if ['created_at', 'updated_at'].include?(csv_column_name)
+        next if [ "created_at", "updated_at" ].include?(csv_column_name)
 
         # Map checkbox to boolean
         actual_column_type = column_type_mapping[csv_column_name] || csv_column_name
@@ -37,12 +37,12 @@ namespace :teeem do
         column_definitions << {
           column_type: actual_column_type,
           csv_name: csv_column_name,
-          display_name: row['Display Name'],
-          sql_type: row['SQL Type'],
-          display_type: row['Display Type'],
-          validation_rules: row['Validation Rules'],
-          example: row['Example'],
-          used_for: row['Used For']
+          display_name: row["Display Name"],
+          sql_type: row["SQL Type"],
+          display_type: row["Display Type"],
+          validation_rules: row["Validation Rules"],
+          example: row["Example"],
+          used_for: row["Used For"]
         }
       end
 
@@ -51,7 +51,7 @@ namespace :teeem do
 
       # 1. Update Gold Standard Table
       puts "1️⃣  Updating Gold Standard Reference table..."
-      gold_table = Table.find_by(id: 1) || Table.find_by(name: 'Gold Standard Reference')
+      gold_table = Table.find_by(id: 1) || Table.find_by(name: "Gold Standard Reference")
 
       unless gold_table
         puts "❌ Gold Standard Reference table not found"
@@ -82,7 +82,7 @@ namespace :teeem do
           }
 
           # For lookup columns, set a dummy lookup_table_id to pass validation
-          if defn[:column_type].in?(['lookup', 'multiple_lookups'])
+          if defn[:column_type].in?([ "lookup", "multiple_lookups" ])
             attrs[:lookup_table_id] = gold_table.id  # Self-reference as example
           end
 
@@ -134,7 +134,7 @@ namespace :teeem do
 
         entry = Trinity.find_or_initialize_by(
           section_number: entry_number,
-          category: 'teacher'
+          category: "teacher"
         )
 
         entry.update!(
@@ -145,8 +145,8 @@ namespace :teeem do
           examples: defn[:example],
           dense_index: dense_index,
           chapter_number: section_number,
-          chapter_name: 'Column Types',
-          entry_type: 'component'
+          chapter_name: "Column Types",
+          entry_type: "component"
         )
 
         puts "   ✅ #{entry_number} - #{title}"
@@ -199,7 +199,7 @@ namespace :teeem do
       puts ""
     end
 
-    desc 'Import column types CSV to Gold Standard table'
+    desc "Import column types CSV to Gold Standard table"
     task import_csv: :environment do
       # Prompt for CSV path
       print "Enter path to gold_standard_columns.csv: "
@@ -211,7 +211,7 @@ namespace :teeem do
       end
 
       puts "🔄 Importing column types from CSV..."
-      Rake::Task['teeem:column_types:sync_from_csv'].invoke
+      Rake::Task["teeem:column_types:sync_from_csv"].invoke
     end
   end
 end

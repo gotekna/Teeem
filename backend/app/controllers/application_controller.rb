@@ -1,4 +1,6 @@
 class ApplicationController < ActionController::API
+  include SsotAuthorization
+
   before_action :authorize_request
   after_action :update_last_seen
 
@@ -8,12 +10,13 @@ class ApplicationController < ActionController::API
   rescue_from ActiveRecord::RecordInvalid, with: :handle_validation_error
   rescue_from ActionController::ParameterMissing, with: :handle_parameter_missing
   rescue_from ActiveRecord::DeleteRestrictionError, with: :handle_delete_restriction
+  rescue_from ActiveStorage::FileNotFoundError, with: :handle_file_not_found
 
   private
 
   def authorize_request
-    header = request.headers['Authorization']
-    header = header.split(' ').last if header
+    header = request.headers["Authorization"]
+    header = header.split(" ").last if header
 
     begin
       decoded = JsonWebToken.decode(header)
@@ -23,26 +26,35 @@ class ApplicationController < ActionController::API
     end
 
     # Require authentication - no default user fallback
+    # Use throw :abort to properly halt the filter chain in Rails API mode
     unless @current_user
-      render json: { error: 'Unauthorized' }, status: :unauthorized
+      render json: { error: "Unauthorized" }, status: :unauthorized
+      return false  # Explicitly halt the filter chain
     end
+    true
   end
 
   def current_user
     @current_user
   end
 
+  # Get the organization for the current request
+  # TODO: Add proper multi-org support when users can belong to multiple orgs
+  def current_organization
+    @current_organization ||= Organization.first
+  end
+
   def require_admin
     unless current_user&.admin?
-      render json: { error: 'Unauthorized. Admin access required.' }, status: :forbidden
+      render json: { error: "Unauthorized. Admin access required." }, status: :forbidden
     end
   end
 
   # Try to set current_user from token if present, but don't require it
   # Used for endpoints that work for both authenticated and unauthenticated users
   def set_current_user_if_token_present
-    header = request.headers['Authorization']
-    header = header.split(' ').last if header
+    header = request.headers["Authorization"]
+    header = header.split(" ").last if header
     return unless header
 
     begin
@@ -76,14 +88,14 @@ class ApplicationController < ActionController::API
   def handle_not_found(exception)
     render json: {
       success: false,
-      error: 'Resource not found'
+      error: "Resource not found"
     }, status: :not_found
   end
 
   def handle_validation_error(exception)
     render json: {
       success: false,
-      error: 'Validation failed',
+      error: "Validation failed",
       errors: exception.record.errors.full_messages
     }, status: :unprocessable_entity
   end
@@ -101,5 +113,13 @@ class ApplicationController < ActionController::API
       error: "Cannot delete this record because it has associated dependencies. Please remove or reassign the dependent records first.",
       error_code: "HAS_DEPENDENCIES"
     }, status: :unprocessable_entity
+  end
+
+  def handle_file_not_found(exception)
+    Rails.logger.warn("File not found in storage: #{exception.message}")
+    render json: {
+      success: false,
+      error: "File not found in storage"
+    }, status: :not_found
   end
 end

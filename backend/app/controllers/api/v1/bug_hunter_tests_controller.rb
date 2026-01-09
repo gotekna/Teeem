@@ -7,91 +7,91 @@ class Api::V1::BugHunterTestsController < ApplicationController
 
     tests = [
       {
-        id: 'duplicate-api-calls',
-        name: 'Duplicate API Call Detection',
-        type: 'Performance',
-        rules: 'Detects duplicate API calls to the same task within short time windows',
+        id: "duplicate-api-calls",
+        name: "Duplicate API Call Detection",
+        type: "Performance",
+        rules: "Detects duplicate API calls to the same task within short time windows",
         can_run_visual: true
       },
       {
-        id: 'excessive-reloads',
-        name: 'Excessive Gantt Reload Detection',
-        type: 'Performance',
-        rules: 'Monitors Gantt chart reloads to prevent screen flashing',
+        id: "excessive-reloads",
+        name: "Excessive Gantt Reload Detection",
+        type: "Performance",
+        rules: "Monitors Gantt chart reloads to prevent screen flashing",
         can_run_visual: true
       },
       {
-        id: 'slow-drag-operations',
-        name: 'Slow Drag Operation Detection',
-        type: 'Performance',
-        rules: 'Identifies drag operations that take too long to complete',
+        id: "slow-drag-operations",
+        name: "Slow Drag Operation Detection",
+        type: "Performance",
+        rules: "Identifies drag operations that take too long to complete",
         can_run_visual: true
       },
       {
-        id: 'api-call-patterns',
-        name: 'API Call Pattern Analysis',
-        type: 'Analysis',
-        rules: 'Analyzes API call patterns to identify inefficiencies',
+        id: "api-call-patterns",
+        name: "API Call Pattern Analysis",
+        type: "Analysis",
+        rules: "Analyzes API call patterns to identify inefficiencies",
         can_run_visual: false
       },
       {
-        id: 'cascade-event-tracking',
-        name: 'Cascade Event Tracking',
-        type: 'Cascade',
-        rules: 'Tracks cascade events to verify dependency updates work correctly',
+        id: "cascade-event-tracking",
+        name: "Cascade Event Tracking",
+        type: "Cascade",
+        rules: "Tracks cascade events to verify dependency updates work correctly",
         can_run_visual: true
       },
       {
-        id: 'state-update-batching',
-        name: 'State Update Batching',
-        type: 'Performance',
-        rules: 'Verifies that state updates are batched efficiently',
+        id: "state-update-batching",
+        name: "State Update Batching",
+        type: "Performance",
+        rules: "Verifies that state updates are batched efficiently",
         can_run_visual: false
       },
       {
-        id: 'lock-state-monitoring',
-        name: 'Lock State Monitoring',
-        type: 'Concurrency',
-        rules: 'Monitors lock states to prevent race conditions',
+        id: "lock-state-monitoring",
+        name: "Lock State Monitoring",
+        type: "Concurrency",
+        rules: "Monitors lock states to prevent race conditions",
         can_run_visual: false
       },
       {
-        id: 'performance-timing',
-        name: 'Performance Timing Analysis',
-        type: 'Performance',
-        rules: 'Analyzes overall performance timing and identifies bottlenecks',
+        id: "performance-timing",
+        name: "Performance Timing Analysis",
+        type: "Performance",
+        rules: "Analyzes overall performance timing and identifies bottlenecks",
         can_run_visual: false
       },
       {
-        id: 'health-status',
-        name: 'Health Status Assessment',
-        type: 'Analysis',
-        rules: 'Provides overall health status (healthy, warning, critical)',
+        id: "health-status",
+        name: "Health Status Assessment",
+        type: "Analysis",
+        rules: "Provides overall health status (healthy, warning, critical)",
         can_run_visual: false
       },
       {
-        id: 'actionable-recommendations',
-        name: 'Actionable Recommendations',
-        type: 'Analysis',
-        rules: 'Generates actionable recommendations to fix detected issues',
+        id: "actionable-recommendations",
+        name: "Actionable Recommendations",
+        type: "Analysis",
+        rules: "Generates actionable recommendations to fix detected issues",
         can_run_visual: false
       },
       {
-        id: 'gantt-cascade-e2e',
-        name: 'Gantt Cascade E2E Test',
-        type: 'E2E',
-        rules: 'Full Playwright E2E test: Tests cascade without flicker, detects infinite loops, monitors API calls and Gantt reloads',
+        id: "gantt-cascade-e2e",
+        name: "Gantt Cascade E2E Test",
+        type: "E2E",
+        rules: "Full Playwright E2E test: Tests cascade without flicker, detects infinite loops, monitors API calls and Gantt reloads",
         can_run_visual: true,
         needs_template: true
       },
       {
-        id: 'working-days-enforcement',
-        name: 'Working Days Enforcement',
-        type: 'Backend',
-        rules: gantt_rules[:working_days] || 'Verifies unlocked tasks are only on working days configured in Company Settings. Locked tasks can be on any day',
+        id: "working-days-enforcement",
+        name: "Working Days Enforcement",
+        type: "Backend",
+        rules: gantt_rules[:working_days] || "Verifies unlocked tasks are only on working days configured in Company Settings. Locked tasks can be on any day",
         can_run_visual: false,
         needs_template: true,
-        source: 'Company Settings (working_days)'
+        source: "Company Settings (working_days)"
       }
     ]
 
@@ -110,10 +110,10 @@ class Api::V1::BugHunterTestsController < ApplicationController
         message: params[:message] || "Test #{test_id} completed",
         duration: params[:duration] || 0
       }
-    elsif test_id == 'gantt-cascade-e2e'
+    elsif test_id == "gantt-cascade-e2e"
       # Special handling for Playwright E2E test
       result = run_playwright_test
-    elsif test_id == 'working-days-enforcement'
+    elsif test_id == "working-days-enforcement"
       # Run working days enforcement backend test
       result = run_working_days_test(params[:template_id])
     else
@@ -129,7 +129,7 @@ class Api::V1::BugHunterTestsController < ApplicationController
     # Save test run to history
     test_run = BugHunterTestRun.create!(
       test_id: test_id,
-      status: result[:passed] ? 'pass' : 'fail',
+      status: result[:passed] ? "pass" : "fail",
       message: result[:message],
       duration: result[:duration],
       template_id: params[:template_id],
@@ -140,7 +140,7 @@ class Api::V1::BugHunterTestsController < ApplicationController
   rescue => e
     BugHunterTestRun.create!(
       test_id: test_id,
-      status: 'error',
+      status: "error",
       message: e.message,
       console_output: e.backtrace&.join("\n")
     )
@@ -152,7 +152,7 @@ class Api::V1::BugHunterTestsController < ApplicationController
   def history
     runs = BugHunterTestRun.recent
 
-    render json: runs.as_json(only: [:id, :test_id, :status, :message, :duration, :template_id, :created_at, :console_output])
+    render json: runs.as_json
   end
 
   # DELETE /api/v1/bug_hunter_tests/cleanup
@@ -167,7 +167,7 @@ class Api::V1::BugHunterTestsController < ApplicationController
   private
 
   def load_gantt_rules
-    bible_path = Rails.root.join('..', 'GANTT_BIBLE_COLUMNS.md')
+    bible_path = Rails.root.join("..", "GANTT_BIBLE_COLUMNS.md")
     return {} unless File.exist?(bible_path)
 
     content = File.read(bible_path)
@@ -178,7 +178,7 @@ class Api::V1::BugHunterTestsController < ApplicationController
       working_days_section = $1.strip
       # Extract the core rule text
       if working_days_section =~ /\*\*Core Rule:\*\*\s+(.+?)(?=\n\n|\*\*)/m
-        rules[:working_days] = $1.strip.gsub(/\s+/, ' ')
+        rules[:working_days] = $1.strip.gsub(/\s+/, " ")
       end
     end
 
@@ -187,7 +187,7 @@ class Api::V1::BugHunterTestsController < ApplicationController
       lock_section = $1
       # Get the full hierarchy list
       hierarchy_items = lock_section.scan(/\d+\.\s+`(\w+)`/).flatten
-      rules[:lock_hierarchy] = hierarchy_items.join(' → ') if hierarchy_items.any?
+      rules[:lock_hierarchy] = hierarchy_items.join(" → ") if hierarchy_items.any?
     end
 
     rules
@@ -199,9 +199,9 @@ class Api::V1::BugHunterTestsController < ApplicationController
   def run_working_days_test(template_id)
     start_time = Time.now
 
-    # Get the template, or use the default Schedule Master template
-    template_id = template_id || ScheduleTemplate.where(is_default: true).first&.id || 5
-    template = ScheduleTemplate.find_by(id: template_id)
+    # Get the template, or use the default Schedule Master template (SmScheduleMasterTemplate is THE ONE - SSoT)
+    template_id = template_id || SmScheduleMasterTemplate.default_template.first&.id || 1
+    template = SmScheduleMasterTemplate.find_by(id: template_id)
 
     unless template
       return {
@@ -212,26 +212,26 @@ class Api::V1::BugHunterTestsController < ApplicationController
     end
 
     # Test: Verify all unlocked tasks are on working days (based on company settings)
-    company_settings = CompanySetting.instance
+    company_settings = CorporateCompanySetting.instance
 
     # RULE #9.3: Use company timezone, not server timezone
-    timezone = company_settings.timezone || 'UTC'
+    timezone = company_settings.timezone || "UTC"
     reference_date = Time.now.in_time_zone(timezone).to_date
 
     # Get working days configuration
     working_days = company_settings.working_days || {
-      'monday' => true,
-      'tuesday' => true,
-      'wednesday' => true,
-      'thursday' => true,
-      'friday' => true,
-      'saturday' => false,
-      'sunday' => false
+      "monday" => true,
+      "tuesday" => true,
+      "wednesday" => true,
+      "thursday" => true,
+      "friday" => true,
+      "saturday" => false,
+      "sunday" => false
     }
 
     # Helper: Check if a date is a working day
     def is_working_day?(date, working_days)
-      day_name = date.strftime('%A').downcase
+      day_name = date.strftime("%A").downcase
       working_days[day_name] == true
     end
 
@@ -266,9 +266,9 @@ class Api::V1::BugHunterTestsController < ApplicationController
         project_start_date + task.start_date.days
       end
 
-      day_name = actual_date.strftime('%A').downcase
+      day_name = actual_date.strftime("%A").downcase
       is_working_day = working_days[day_name] == true
-      is_locked = task.supplier_confirm? || task.confirm? || task.start? || task.complete? || task.manually_positioned?
+      is_locked = task.supplier_confirm? || task.confirm? || task.start? || task.complete? || task.hold?
 
       if is_locked
         total_locked_tasks += 1
@@ -329,30 +329,39 @@ class Api::V1::BugHunterTestsController < ApplicationController
   end
 
   def run_playwright_test
-    require 'open3'
-    require 'timeout'
+    require "open3"
+    require "timeout"
 
-    frontend_path = Rails.root.join('..', 'frontend')
+    frontend_path = Rails.root.join("..", "frontend")
     start_time = Time.now
 
     # Get template ID from params, default to 4 (Bug Hunter Schedule Master)
-    # Validate template_id to prevent command injection
-    raw_template_id = params[:template_id] || '4'
-    unless raw_template_id.to_s =~ /\A\d+\z/
-      raise ArgumentError, "Invalid template_id: must be a positive integer"
-    end
-    template_id = raw_template_id.to_i.to_s
+    # Sanitize template_id to prevent command injection - convert to integer then string
+    raw_template_id = params[:template_id] || 4
 
-    # Set environment variable for the Playwright test
-    env = {
-      'GANTT_TEST_TEMPLATE_ID' => template_id
+    # Validate it's a number and convert to integer (eliminates any injection risk)
+    begin
+      template_id_int = Integer(raw_template_id)
+      raise ArgumentError, "Invalid template_id: must be positive" if template_id_int <= 0
+    rescue ArgumentError, TypeError => e
+      raise ArgumentError, "Invalid template_id: must be a positive integer (#{e.message})"
+    end
+
+    # Convert to string after validation (guaranteed safe)
+    safe_template_id = template_id_int.to_s
+
+    # Set environment variable for the Playwright test (safe - no user input)
+    safe_env = {
+      "GANTT_TEST_TEMPLATE_ID" => safe_template_id
     }
 
-    # Run the Playwright test with timeout
+    # Run the Playwright test with timeout (command is hardcoded, env is sanitized)
+    # Brakeman warning can be ignored: template_id validated with Integer() above
+    # and command args are separated (not shell string) preventing injection
     stdout, stderr, status = Timeout.timeout(120) do
       Open3.capture3(
-        env,
-        'npm run test:gantt',
+        safe_env,
+        "npm", "run", "test:gantt",  # Separated args prevent shell injection
         chdir: frontend_path
       )
     end
@@ -365,21 +374,21 @@ class Api::V1::BugHunterTestsController < ApplicationController
 
     # Extract meaningful message from output
     message = if passed
-      if output.include?('TEST PASSED')
-        'E2E test passed: No infinite loop, backend cascade working'
+      if output.include?("TEST PASSED")
+        "E2E test passed: No infinite loop, backend cascade working"
       else
-        'E2E test completed successfully'
+        "E2E test completed successfully"
       end
     else
       # Try to extract failure reason
-      if output.include?('duplicate API calls')
-        'Failed: Duplicate API calls detected (infinite loop)'
-      elsif output.include?('Multiple Gantt reloads')
-        'Failed: Multiple Gantt reloads detected (flickering)'
-      elsif output.include?('Backend cascade not detected')
-        'Failed: Backend cascade not working'
+      if output.include?("duplicate API calls")
+        "Failed: Duplicate API calls detected (infinite loop)"
+      elsif output.include?("Multiple Gantt reloads")
+        "Failed: Multiple Gantt reloads detected (flickering)"
+      elsif output.include?("Backend cascade not detected")
+        "Failed: Backend cascade not working"
       else
-        'E2E test failed - see logs for details'
+        "E2E test failed - see logs for details"
       end
     end
 
@@ -392,7 +401,7 @@ class Api::V1::BugHunterTestsController < ApplicationController
   rescue Timeout::Error
     {
       passed: false,
-      message: 'Test timeout after 2 minutes',
+      message: "Test timeout after 2 minutes",
       duration: 120
     }
   rescue => e

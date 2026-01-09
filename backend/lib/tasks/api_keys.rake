@@ -6,9 +6,9 @@ namespace :api_keys do
 
     # Create the integration record
     integration = ExternalIntegration.create_with_api_key!(
-      name: 'unreal_engine',
+      name: "unreal_engine",
       api_key: api_key,
-      description: 'Unreal Engine estimates import integration'
+      description: "Unreal Engine estimates import integration"
     )
 
     puts "=" * 80

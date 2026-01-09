@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Lead,
   LeadStatus,
@@ -30,7 +31,7 @@ import {
   PROJECT_TYPE_LABELS,
   DWELLING_TYPE_LABELS,
 } from "@/types/leads";
-import { Loader2 } from "lucide-react";
+
 
 interface LeadFormProps {
   open: boolean;
@@ -446,7 +447,7 @@ export function LeadForm({ open, onOpenChange, lead, onSubmit }: LeadFormProps) 
               Cancel
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {loading && <Spinner size={16} className="mr-2" />}
               {isEditing ? "Save Changes" : "Create Lead"}
             </Button>
           </div>

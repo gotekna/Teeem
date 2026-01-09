@@ -1,3 +1,4 @@
+ 
 "use client";
 
 import * as React from "react";
@@ -7,13 +8,8 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  GanttChart,
-  defaultStatuses,
-  type GanttFeature,
-  type GanttGroup,
-  type GanttMarkerType,
-} from "@/components/ui/gantt";
+import { GanttCanvasView } from "@/components/gantt-canvas";
+import type { GanttTask } from "@/lib/gantt/types";
 import { addDays, startOfWeek } from "date-fns";
 import {
   Calendar,
@@ -61,6 +57,7 @@ function useInView(options = {}) {
     }
 
     return () => observer.disconnect();
+     
   }, []);
 
   return { ref, isInView };
@@ -195,83 +192,72 @@ export default function LandingPage() {
     }
   }, [isAuthenticated, loading, router]);
 
-  // Gantt chart demo data
+  // Gantt chart demo data - using GanttTask format for Canvas
   const today = new Date();
   const projectStart = startOfWeek(today);
 
-  const [demoFeatures] = useState<GanttFeature[]>([
+  const [demoTasks] = useState<GanttTask[]>([
     {
       id: "site-setup",
       name: "Site Setup",
-      startAt: projectStart,
-      endAt: addDays(projectStart, 2),
-      status: defaultStatuses[2],
+      startDate: projectStart,
+      endDate: addDays(projectStart, 2),
+      status: "completed",
       progress: 100,
     },
-  ]);
-
-  const [demoGroups] = useState<GanttGroup[]>([
     {
-      id: "slab-foundation",
-      name: "Slab & Foundation",
-      features: [
-        {
-          id: "excavation",
-          name: "Excavation",
-          startAt: addDays(projectStart, 3),
-          endAt: addDays(projectStart, 5),
-          status: defaultStatuses[2],
-          progress: 100,
-        },
-        {
-          id: "pour-slab",
-          name: "Pour Concrete Slab",
-          startAt: addDays(projectStart, 6),
-          endAt: addDays(projectStart, 7),
-          status: defaultStatuses[2],
-          progress: 100,
-          lock: "supplierConfirmed",
-        },
-      ],
+      id: "excavation",
+      name: "Excavation",
+      startDate: addDays(projectStart, 3),
+      endDate: addDays(projectStart, 5),
+      status: "completed",
+      progress: 100,
+      predecessorIds: ["site-setup"],
     },
     {
-      id: "frame-stage",
-      name: "Frame Stage",
-      features: [
-        {
-          id: "frame-external",
-          name: "Frame External Walls",
-          startAt: addDays(projectStart, 10),
-          endAt: addDays(projectStart, 14),
-          status: defaultStatuses[1],
-          progress: 60,
-        },
-        {
-          id: "frame-internal",
-          name: "Frame Internal Walls",
-          startAt: addDays(projectStart, 15),
-          endAt: addDays(projectStart, 18),
-          status: defaultStatuses[0],
-        },
-        {
-          id: "roof-trusses",
-          name: "Roof Trusses",
-          startAt: addDays(projectStart, 19),
-          endAt: addDays(projectStart, 21),
-          status: defaultStatuses[0],
-          lock: "supplierConfirmed",
-        },
-      ],
+      id: "pour-slab",
+      name: "Pour Concrete Slab",
+      startDate: addDays(projectStart, 6),
+      endDate: addDays(projectStart, 7),
+      status: "completed",
+      progress: 100,
+      locked: "supplierConfirmed",
+      predecessorIds: ["excavation"],
+    },
+    {
+      id: "frame-external",
+      name: "Frame External Walls",
+      startDate: addDays(projectStart, 10),
+      endDate: addDays(projectStart, 14),
+      status: "in-progress",
+      progress: 60,
+      predecessorIds: ["pour-slab"],
+    },
+    {
+      id: "frame-internal",
+      name: "Frame Internal Walls",
+      startDate: addDays(projectStart, 15),
+      endDate: addDays(projectStart, 18),
+      status: "not-started",
+      predecessorIds: ["frame-external"],
+    },
+    {
+      id: "roof-trusses",
+      name: "Roof Trusses",
+      startDate: addDays(projectStart, 19),
+      endDate: addDays(projectStart, 21),
+      status: "not-started",
+      locked: "supplierConfirmed",
+      predecessorIds: ["frame-internal"],
     },
   ]);
 
-  const demoMarkers: GanttMarkerType[] = [
-    {
-      id: "frame-inspection",
-      date: addDays(projectStart, 21),
-      label: "Frame Inspection",
-      color: "bg-accent-blue",
-    },
+  const demoDependencies = [
+    { fromId: "site-setup", toId: "excavation" },
+    { fromId: "excavation", toId: "pour-slab" },
+    { fromId: "pour-slab", toId: "frame-external" },
+    { fromId: "frame-external", toId: "frame-internal" },
+    { fromId: "frame-internal", toId: "roof-trusses" },
   ];
 
   const features = [
@@ -401,11 +387,11 @@ export default function LandingPage() {
   }, [workflowRef.isInView, workflowSteps.length]);
 
   // Animation refs
-  const heroRef = useInView();
-  const ganttRef = useInView();
-  const aiRef = useInView();
-  const invoiceRef = useInView();
-  const featuresRef = useInView();
+  const { ref: heroRef, isInView: heroIsInView } = useInView();
+  const { ref: ganttRef, isInView: ganttIsInView } = useInView();
+  const { ref: aiRef, isInView: aiIsInView } = useInView();
+  const { ref: invoiceRef, isInView: invoiceIsInView } = useInView();
+  const { ref: featuresRef, isInView: featuresIsInView } = useInView();
 
   return (
     <div className="min-h-screen bg-background">
@@ -457,9 +443,9 @@ export default function LandingPage() {
 
         <div className="max-w-7xl mx-auto relative">
           <div
-            ref={heroRef.ref}
+            ref={heroRef}
             className={`text-center max-w-4xl mx-auto transition-all duration-1000 ${
-              heroRef.isInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+              heroIsInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
             }`}
           >
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-secondary text-sm mb-8">
@@ -646,9 +632,9 @@ export default function LandingPage() {
       <section id="gantt" className="py-20 px-4 sm:px-6 lg:px-8 bg-secondary/10">
         <div className="max-w-7xl mx-auto">
           <div
-            ref={ganttRef.ref}
+            ref={ganttRef}
             className={`transition-all duration-1000 ${
-              ganttRef.isInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+              ganttIsInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
             }`}
           >
             <div className="text-center mb-12">
@@ -691,13 +677,10 @@ export default function LandingPage() {
                 </div>
               </div>
               <div className="h-[400px]">
-                <GanttChart
-                  features={demoFeatures}
-                  groups={demoGroups}
-                  markers={demoMarkers}
-                  defaultRange="daily"
-                  showControls={true}
-                  title="Construction Timeline"
+                <GanttCanvasView
+                  staticTasks={demoTasks}
+                  staticDependencies={demoDependencies}
+                  showToolbar={false}
                   className="h-full"
                 />
               </div>
@@ -740,9 +723,9 @@ export default function LandingPage() {
       <section id="ai" className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div
-            ref={aiRef.ref}
+            ref={aiRef}
             className={`transition-all duration-1000 ${
-              aiRef.isInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+              aiIsInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
             }`}
           >
             <div className="text-center mb-16">
@@ -770,8 +753,8 @@ export default function LandingPage() {
                   }`}
                   style={{
                     transitionDelay: `${index * 100}ms`,
-                    transform: aiRef.isInView ? "translateY(0)" : "translateY(20px)",
-                    opacity: aiRef.isInView ? 1 : 0
+                    transform: aiIsInView ? "translateY(0)" : "translateY(20px)",
+                    opacity: aiIsInView ? 1 : 0
                   }}
                 >
                   <CardHeader>
@@ -938,9 +921,9 @@ export default function LandingPage() {
       <section id="documents" className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div
-            ref={invoiceRef.ref}
+            ref={invoiceRef}
             className={`transition-all duration-1000 ${
-              invoiceRef.isInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+              invoiceIsInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
             }`}
           >
             <div className="grid lg:grid-cols-2 gap-16 items-center">
@@ -1039,9 +1022,9 @@ export default function LandingPage() {
       <section id="features" className="py-20 px-4 sm:px-6 lg:px-8 bg-secondary/10">
         <div className="max-w-7xl mx-auto">
           <div
-            ref={featuresRef.ref}
+            ref={featuresRef}
             className={`transition-all duration-1000 ${
-              featuresRef.isInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+              featuresIsInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
             }`}
           >
             <div className="text-center mb-16">
@@ -1058,9 +1041,9 @@ export default function LandingPage() {
                   key={index}
                   className="bg-card hover:bg-card/80 hover:border-primary/30 transition-all duration-500 hover:-translate-y-1"
                   style={{
-                    transitionDelay: featuresRef.isInView ? `${index * 75}ms` : "0ms",
-                    transform: featuresRef.isInView ? "translateY(0)" : "translateY(20px)",
-                    opacity: featuresRef.isInView ? 1 : 0
+                    transitionDelay: featuresIsInView ? `${index * 75}ms` : "0ms",
+                    transform: featuresIsInView ? "translateY(0)" : "translateY(20px)",
+                    opacity: featuresIsInView ? 1 : 0
                   }}
                 >
                   <CardHeader>

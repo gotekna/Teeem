@@ -27,6 +27,6 @@ class SupervisorChecklistTemplate < ApplicationRecord
   end
 
   def set_default_response_type
-    self.response_type ||= 'checkbox'
+    self.response_type ||= "checkbox"
   end
 end

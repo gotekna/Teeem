@@ -79,8 +79,8 @@ class CreateSmTemplateRows < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :sm_template_rows, [:sm_template_id, :task_number], unique: true
-    add_index :sm_template_rows, [:sm_template_id, :sequence_order]
+    add_index :sm_template_rows, [ :sm_template_id, :task_number ], unique: true
+    add_index :sm_template_rows, [ :sm_template_id, :sequence_order ]
     add_index :sm_template_rows, :trade
     add_index :sm_template_rows, :stage
     add_index :sm_template_rows, :is_active

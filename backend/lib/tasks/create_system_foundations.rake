@@ -7,41 +7,42 @@ namespace :teeem do
     # Define all system models that should have foundations
     # This reads directly from the database schema - the source of truth
     system_models = [
-      { model: 'Job', icon: '🏗️', feature: 'Jobs' },
-      { model: 'User', icon: '👥', feature: 'Company', name: 'User Management' },
-      { model: 'Contact', icon: '👤', feature: 'Contacts' },
-      { model: 'Supplier', icon: '🏭', feature: 'Suppliers' },
-      { model: 'PurchaseOrder', icon: '📦', feature: 'Purchase Orders' },
-      { model: 'Estimate', icon: '📊', feature: 'Estimates' },
-      { model: 'PricebookItem', icon: '💰', feature: 'Pricebook' },
-      { model: 'PriceHistory', icon: '📈', feature: 'Pricebook' },
-      { model: 'SmTask', icon: '📅', feature: 'Schedule Manager', name: 'SM Tasks' },
-      { model: 'SmResource', icon: '👷', feature: 'Schedule Manager', name: 'SM Resources' },
-      { model: 'Project', icon: '📋', feature: 'Projects' },
-      { model: 'ProjectTask', icon: '✓', feature: 'Projects' },
-      { model: 'ContactRole', icon: '🏷️', feature: 'Company', name: 'Contact Roles' },
-      { model: 'Role', icon: '🔐', feature: 'Company', name: 'Roles' },
-      { model: 'JobType', icon: '📁', feature: 'Jobs', name: 'Job Types' },
-      { model: 'JobStatus', icon: '🚦', feature: 'Jobs', name: 'Job Statuses' },
-      { model: 'JobStage', icon: '📊', feature: 'Jobs', name: 'Job Stages' },
-      { model: 'Meeting', icon: '📅', feature: 'Meetings' },
-      { model: 'MeetingType', icon: '🏷️', feature: 'Meetings', name: 'Meeting Types' },
-      { model: 'WhsSwms', icon: '⚠️', feature: 'WHS', name: 'SWMS' },
-      { model: 'WhsInduction', icon: '📋', feature: 'WHS', name: 'Inductions' },
-      { model: 'WhsInspection', icon: '🔍', feature: 'WHS', name: 'Inspections' },
-      { model: 'WhsIncident', icon: '🚨', feature: 'WHS', name: 'Incidents' },
-      { model: 'Trinity', icon: '📚', feature: 'Documentation' },
-      { model: 'GoldStandardTable', icon: '⭐', feature: 'System', name: 'Gold Standard' },
-      { model: 'InspiringQuote', icon: '💬', feature: 'System', name: 'Inspiring Quotes' },
-      { model: 'ScheduleTemplate', icon: '📋', feature: 'Schedule Manager', name: 'Schedule Templates' },
-      { model: 'FolderTemplate', icon: '📁', feature: 'System', name: 'Folder Templates' },
+      { model: "Job", icon: "🏗️", feature: "Jobs" },
+      { model: "User", icon: "👥", feature: "Company", name: "User Management" },
+      { model: "Contact", icon: "👤", feature: "Contacts" },
+      { model: "Supplier", icon: "🏭", feature: "Suppliers" },
+      { model: "PurchaseOrder", icon: "📦", feature: "Purchase Orders" },
+      { model: "Estimate", icon: "📊", feature: "Estimates" },
+      { model: "PricebookItem", icon: "💰", feature: "Pricebook" },
+      { model: "PriceHistory", icon: "📈", feature: "Pricebook" },
+      { model: "SmTask", icon: "📅", feature: "Schedule Manager", name: "SM Tasks" },
+      { model: "SmResource", icon: "👷", feature: "Schedule Manager", name: "SM Resources" },
+      { model: "Project", icon: "📋", feature: "Projects" },
+      { model: "ProjectTask", icon: "✓", feature: "Projects" },
+      { model: "Role", icon: "🔐", feature: "Company", name: "Roles" },
+      { model: "JobType", icon: "📁", feature: "Jobs", name: "Job Types" },
+      { model: "JobStatus", icon: "🚦", feature: "Jobs", name: "Job Statuses" },
+      { model: "JobStage", icon: "📊", feature: "Jobs", name: "Job Stages" },
+      { model: "Meeting", icon: "📅", feature: "Meetings" },
+      { model: "MeetingType", icon: "🏷️", feature: "Meetings", name: "Meeting Types" },
+      { model: "WhsSwms", icon: "⚠️", feature: "WHS", name: "SWMS" },
+      { model: "WhsInduction", icon: "📋", feature: "WHS", name: "Inductions" },
+      { model: "WhsInspection", icon: "🔍", feature: "WHS", name: "Inspections" },
+      { model: "WhsIncident", icon: "🚨", feature: "WHS", name: "Incidents" },
+      { model: "Trinity", icon: "📚", feature: "Documentation" },
+      { model: "GoldStandardTable", icon: "⭐", feature: "System", name: "Gold Standard" },
+      { model: "InspiringQuote", icon: "💬", feature: "System", name: "Inspiring Quotes" },
+      { model: "ScheduleTemplate", icon: "📋", feature: "Schedule Manager", name: "Schedule Templates" },
+      # NOTE: FolderTemplate removed - SSoT: EntityTab is now the source of truth for folder structure
       # Added for TeeemTableView migration
-      { model: 'Lead', icon: '🎯', feature: 'Sales', name: 'Leads' },
-      { model: 'QuoteRequest', icon: '📝', feature: 'Procurement', name: 'Quote Requests' },
-      { model: 'Document', icon: '📄', feature: 'Documents' },
-      { model: 'TaskTemplate', icon: '📋', feature: 'Templates', name: 'Task Templates' },
-      { model: 'EmailJobProposal', icon: '📧', feature: 'Sales', name: 'Email Proposals' },
-      { model: 'PortalUser', icon: '🌐', feature: 'Portal', name: 'Portal Users' },
+      { model: "Lead", icon: "🎯", feature: "Sales", name: "Leads" },
+      { model: "QuoteRequest", icon: "📝", feature: "Procurement", name: "Quote Requests" },
+      { model: "Document", icon: "📄", feature: "Documents" },
+      { model: "TaskTemplate", icon: "📋", feature: "Templates", name: "Task Templates" },
+      { model: "EmailJobProposal", icon: "📧", feature: "Sales", name: "Email Proposals" },
+      { model: "PortalUser", icon: "🌐", feature: "Portal", name: "Portal Users" },
+      { model: "BillInbox", icon: "📬", feature: "Finance", name: "Bill Inbox" },
+      { model: "SmScheduleMaster", icon: "📋", feature: "Schedule Manager", name: "SM Schedule Master" }
     ]
 
     created = 0
@@ -77,7 +78,7 @@ namespace :teeem do
             name: name,
             slug: slug,
             database_table_name: table_name,
-            table_type: 'system',
+            table_type: "system",
             icon: config[:icon],
             feature: config[:feature],
             is_live: true,
@@ -93,7 +94,7 @@ namespace :teeem do
             plural_name: name,
             slug: slug,
             database_table_name: table_name,
-            table_type: 'system',
+            table_type: "system",
             model_class: model_class,
             icon: config[:icon],
             feature: config[:feature],
@@ -151,25 +152,25 @@ namespace :teeem do
   def map_sql_type(sql_type)
     case sql_type.downcase
     when /^character varying/, /^varchar/
-      'single_line_text'
+      "single_line_text"
     when /^text/
-      'multiple_lines_text'
+      "multiple_lines_text"
     when /^integer/, /^bigint/, /^smallint/
-      'whole_number'
+      "whole_number"
     when /^numeric/, /^decimal/
-      'currency'
+      "currency"
     when /^double/, /^float/, /^real/
-      'number'
+      "number"
     when /^boolean/
-      'boolean'
+      "boolean"
     when /^date$/
-      'date'
+      "date"
     when /^timestamp/, /^datetime/
-      'date_and_time'
+      "date_and_time"
     when /^json/, /^jsonb/
-      'multiple_lines_text'
+      "multiple_lines_text"
     else
-      'single_line_text'
+      "single_line_text"
     end
   end
 end

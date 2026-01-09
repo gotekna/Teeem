@@ -1,4 +1,4 @@
-require 'caxlsx'
+require "caxlsx"
 
 class PriceHistoryExportService
   attr_reader :supplier_id, :category, :item_ids, :errors
@@ -26,7 +26,7 @@ class PriceHistoryExportService
       {
         success: true,
         filename: generate_filename,
-        content_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        content_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         data: package.to_stream.read,
         total_items: items.count
       }
@@ -60,23 +60,23 @@ class PriceHistoryExportService
       # Add header row - no styling to avoid corruption
       # Columns match the import format for easy round-trip editing
       sheet.add_row([
-        'Item ID',
-        'Item Code',
-        'Item Name',
-        'Category',
-        'Unit of Measure',
-        'Current Price',
-        'Supplier',
-        'Date Effective',
-        'LGA',
-        'Brand',
-        'Notes'
+        "Item ID",
+        "Item Code",
+        "Item Name",
+        "Category",
+        "Unit of Measure",
+        "Current Price",
+        "Supplier",
+        "Date Effective",
+        "LGA",
+        "Brand",
+        "Notes"
       ])
 
       # Add data rows - one row per item with current price only
       items.each do |item|
         # Use default_supplier (Contact with supplier type)
-        supplier_name = item.default_supplier&.full_name
+        supplier_name = item.default_supplier&.display_name
 
         sheet.add_row([
           item.id,
@@ -98,7 +98,7 @@ class PriceHistoryExportService
   end
 
   def generate_filename
-    parts = ["pricebook"]
+    parts = [ "pricebook" ]
 
     if @item_ids.present?
       parts << "selected_#{@item_ids.length}_items"
@@ -106,7 +106,7 @@ class PriceHistoryExportService
       if @supplier_id.present?
         # Find Contact with supplier type
         supplier = Contact.find_by(id: @supplier_id)
-        parts << sanitize_filename(supplier.full_name) if supplier
+        parts << sanitize_filename(supplier.display_name) if supplier
       end
 
       if @category.present?
@@ -114,13 +114,13 @@ class PriceHistoryExportService
       end
     end
 
-    parts << CompanySetting.today.strftime("%Y%m%d")
+    parts << CorporateCompanySetting.today.strftime("%Y%m%d")
 
     "#{parts.join('_')}.xlsx"
   end
 
   def sanitize_filename(name)
-    name.to_s.gsub(/[^a-zA-Z0-9_-]/, '_').gsub(/_+/, '_')
+    name.to_s.gsub(/[^a-zA-Z0-9_-]/, "_").gsub(/_+/, "_")
   end
 
   def sanitize_cell_value(value)
@@ -136,7 +136,7 @@ class PriceHistoryExportService
     end
 
     # Remove any invalid UTF-8 sequences
-    clean_value = clean_value.encode('UTF-8', invalid: :replace, undef: :replace, replace: '')
+    clean_value = clean_value.encode("UTF-8", invalid: :replace, undef: :replace, replace: "")
 
     # Remove control characters one by one to avoid regex issues
     # Keep only printable characters, tabs, newlines, and carriage returns

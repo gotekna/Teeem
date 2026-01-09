@@ -100,7 +100,7 @@ function Calendar({
           defaultClassNames.week_number,
         ),
         day: cn(
-          "group/day relative aspect-square h-full w-full select-none p-0 text-center [&:first-child_button[data-range-middle=true]]:rounded-l-full [&:last-child_button[data-range-middle=true]]:rounded-r-full",
+          "group/day relative aspect-square h-full w-full select-none p-0 text-center !text-foreground [&:first-child_button[data-range-middle=true]]:rounded-l-full [&:last-child_button[data-range-middle=true]]:rounded-r-full",
           defaultClassNames.day,
         ),
         range_start: cn(
@@ -199,11 +199,11 @@ function CalendarDayButton({
       data-range-middle={modifiers.range_middle}
       className={cn(
         "flex aspect-square h-auto w-full min-w-[--cell-size] flex-col gap-1 font-normal leading-none group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 [&>span]:text-xs [&>span]:opacity-70",
+        "!text-foreground",
         "data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground data-[selected-single=true]:rounded-full",
         "data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground data-[range-start=true]:rounded-full",
         "data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground data-[range-end=true]:rounded-full",
         "data-[range-middle=true]:bg-accent data-[range-middle=true]:text-accent-foreground data-[range-middle=true]:rounded-none",
-        defaultClassNames.day,
         className,
         "hover:bg-accent hover:text-accent-foreground hover:!rounded-full",
       )}

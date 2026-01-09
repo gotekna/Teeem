@@ -11,7 +11,7 @@ if view
 
     # Remove ted_number from order if present
     if cols['order'].is_a?(Array)
-      cols['order'] = cols['order'] - ['ted_number']
+      cols['order'] = cols['order'] - [ 'ted_number' ]
     end
 
     view.update!(columns: cols)

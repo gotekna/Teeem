@@ -1,6 +1,6 @@
 "use client";
 
-import { Contract, ContractSigner, ESIGN_STATUS_CONFIG } from "@/types/contracts";
+import { Contract, ESIGN_STATUS_CONFIG } from "@/types/contracts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -37,10 +37,6 @@ export function SignatureStatusTracker({
 }: SignatureStatusTrackerProps) {
   const signers = contract.signers || [];
 
-  const getStatusIcon = (status: keyof typeof STATUS_ICONS) => {
-    const Icon = STATUS_ICONS[status];
-    return <Icon className="h-4 w-4" />;
-  };
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return null;
@@ -88,7 +84,7 @@ export function SignatureStatusTracker({
 
         {/* Signers List */}
         <div className="space-y-3">
-          {signers.map((signer, index) => {
+          {signers.map((signer) => {
             const statusConfig = ESIGN_STATUS_CONFIG[signer.status];
             const Icon = STATUS_ICONS[signer.status];
 

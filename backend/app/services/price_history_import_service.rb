@@ -1,17 +1,17 @@
-require 'roo'
+require "roo"
 
 class PriceHistoryImportService
   attr_reader :file_path, :errors, :warnings, :effective_date_override
 
   # Valid LGA values from PriceHistory model
   VALID_LGAS = [
-    'Toowoomba Regional Council',
-    'Lockyer Valley Regional Council',
-    'City of Gold Coast',
-    'Brisbane City Council',
-    'Sunshine Coast Regional Council',
-    'Redland City Council',
-    'Scenic Rim Regional Council'
+    "Toowoomba Regional Council",
+    "Lockyer Valley Regional Council",
+    "City of Gold Coast",
+    "Brisbane City Council",
+    "Sunshine Coast Regional Council",
+    "Redland City Council",
+    "Scenic Rim Regional Council"
   ].freeze
 
   def initialize(file_path, effective_date: nil)
@@ -65,7 +65,7 @@ class PriceHistoryImportService
     end
 
     extension = File.extname(@file_path).downcase
-    unless ['.csv', '.xlsx', '.xls'].include?(extension)
+    unless [ ".csv", ".xlsx", ".xls" ].include?(extension)
       @errors << "Invalid file format. Please upload CSV or Excel files only."
       return false
     end
@@ -81,20 +81,20 @@ class PriceHistoryImportService
     end
 
     # Validate required headers - accept both "historical price" and "current price"
-    has_item_id = headers.key?('item id')
-    has_price = headers.key?('historical price') || headers.key?('current price')
+    has_item_id = headers.key?("item id")
+    has_price = headers.key?("historical price") || headers.key?("current price")
 
     if !has_item_id || !has_price
       missing = []
-      missing << 'item id' unless has_item_id
-      missing << 'historical price or current price' unless has_price
+      missing << "item id" unless has_item_id
+      missing << "historical price or current price" unless has_price
       @errors << "Missing required columns: #{missing.join(', ')}"
       return nil
     end
 
     # Normalize price column name to 'historical price' for backward compatibility
-    if headers.key?('current price') && !headers.key?('historical price')
-      headers['historical price'] = headers['current price']
+    if headers.key?("current price") && !headers.key?("historical price")
+      headers["historical price"] = headers["current price"]
     end
 
     headers
@@ -160,43 +160,43 @@ class PriceHistoryImportService
     data = {}
 
     # Item ID (required)
-    data[:item_id] = spreadsheet.cell(row_num, headers['item id'])&.to_i
+    data[:item_id] = spreadsheet.cell(row_num, headers["item id"])&.to_i
 
     # Price History ID (optional - for updates)
-    data[:history_id] = spreadsheet.cell(row_num, headers['price history id'])&.to_i if headers['price history id']
+    data[:history_id] = spreadsheet.cell(row_num, headers["price history id"])&.to_i if headers["price history id"]
 
     # Historical Price (required)
-    data[:historical_price] = parse_currency(spreadsheet.cell(row_num, headers['historical price']))
+    data[:historical_price] = parse_currency(spreadsheet.cell(row_num, headers["historical price"]))
 
     # Previous Price (optional)
-    data[:previous_price] = parse_currency(spreadsheet.cell(row_num, headers['previous price'])) if headers['previous price']
+    data[:previous_price] = parse_currency(spreadsheet.cell(row_num, headers["previous price"])) if headers["previous price"]
 
     # Date Effective (optional)
-    if headers['date effective']
-      date_cell = spreadsheet.cell(row_num, headers['date effective'])
+    if headers["date effective"]
+      date_cell = spreadsheet.cell(row_num, headers["date effective"])
       data[:date_effective] = parse_date(date_cell)
     end
 
     # Supplier (optional)
-    if headers['supplier']
-      supplier_name = spreadsheet.cell(row_num, headers['supplier'])&.to_s&.strip
+    if headers["supplier"]
+      supplier_name = spreadsheet.cell(row_num, headers["supplier"])&.to_s&.strip
       data[:supplier] = find_or_create_supplier(supplier_name) if supplier_name.present?
     end
 
     # LGA (optional)
-    if headers['lga']
-      lga_value = spreadsheet.cell(row_num, headers['lga'])&.to_s&.strip
+    if headers["lga"]
+      lga_value = spreadsheet.cell(row_num, headers["lga"])&.to_s&.strip
       data[:lga] = validate_lga(lga_value) if lga_value.present?
     end
 
     # Change Reason (optional)
-    if headers['change reason']
-      data[:change_reason] = spreadsheet.cell(row_num, headers['change reason'])&.to_s&.strip
+    if headers["change reason"]
+      data[:change_reason] = spreadsheet.cell(row_num, headers["change reason"])&.to_s&.strip
     end
 
     # Quote Reference (optional)
-    if headers['quote reference']
-      data[:quote_reference] = spreadsheet.cell(row_num, headers['quote reference'])&.to_s&.strip
+    if headers["quote reference"]
+      data[:quote_reference] = spreadsheet.cell(row_num, headers["quote reference"])&.to_s&.strip
     end
 
     data
@@ -210,7 +210,7 @@ class PriceHistoryImportService
     end
 
     # Determine effective date: override > row data > today
-    effective_date = @effective_date_override || row_data[:date_effective] || CompanySetting.today
+    effective_date = @effective_date_override || row_data[:date_effective] || CorporateCompanySetting.today
 
     # Create new price history record
     PriceHistory.new(
@@ -220,7 +220,7 @@ class PriceHistoryImportService
       supplier_id: row_data[:supplier]&.id,
       lga: row_data[:lga],
       date_effective: effective_date,
-      change_reason: row_data[:change_reason] || 'imported_from_excel',
+      change_reason: row_data[:change_reason] || "imported_from_excel",
       quote_reference: row_data[:quote_reference]
     )
   end
@@ -247,7 +247,7 @@ class PriceHistoryImportService
     return value.to_f if value.is_a?(Numeric)
 
     # Handle string values (remove currency symbols and commas)
-    value.to_s.gsub(/[$,]/, '').to_f
+    value.to_s.gsub(/[$,]/, "").to_f
   end
 
   def parse_date(value)
@@ -267,13 +267,17 @@ class PriceHistoryImportService
   def find_or_create_supplier(name)
     return nil if name.blank?
 
-    # Try to find existing supplier contact
-    supplier = Contact.suppliers.find_by("LOWER(full_name) = ?", name.downcase)
+    # Try to find existing contact by name (suppliers are just contacts with purchase orders/pricebook items)
+    supplier = Contact.find_by("LOWER(display_name) = ?", name.downcase)
 
-    # Create new supplier contact if not found
+    # Create new contact if not found
     unless supplier
-      supplier = Contact.create(full_name: name, contact_types: ['supplier'], is_active: true)
-      @warnings << "Created new supplier: #{name}"
+      supplier = Contact.create!(
+        display_name: name,
+        entity_type: "company", # Default to company for suppliers
+        is_active: true
+      )
+      @warnings << "Created new contact: #{name}"
     end
 
     supplier

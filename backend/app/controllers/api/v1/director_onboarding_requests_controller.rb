@@ -2,15 +2,15 @@ module Api
   module V1
     class DirectorOnboardingRequestsController < ApplicationController
       # Skip authentication for public form submission
-      skip_before_action :authorize_request, only: [:show_public, :submit, :upload_document]
+      skip_before_action :authorize_request, only: [ :show_public, :submit, :upload_document ]
 
-      before_action :set_request, only: [:show, :update, :destroy, :approve, :reject]
-      before_action :set_public_request, only: [:show_public, :submit, :upload_document]
+      before_action :set_request, only: [ :show, :update, :destroy, :approve, :reject ]
+      before_action :set_public_request, only: [ :show_public, :submit, :upload_document ]
 
       # GET /api/v1/director_onboarding_requests
       # Admin view - list all requests
       def index
-        requests = DirectorOnboardingRequest.includes(:contact, :company, :reviewed_by, :invited_by)
+        requests = DirectorOnboardingRequest.includes(:contact, :corporate_company, :reviewed_by, :invited_by)
 
         # Filter by status
         if params[:status].present?
@@ -45,7 +45,7 @@ module Api
       # Public view - for directors to fill in their details
       def show_public
         unless @request.token_valid?
-          render json: { error: 'This link has expired' }, status: :gone
+          render json: { error: "This link has expired" }, status: :gone
           return
         end
 
@@ -122,12 +122,12 @@ module Api
       # Public action - director submits their information
       def submit
         unless @request.token_valid?
-          render json: { error: 'This link has expired' }, status: :gone
+          render json: { error: "This link has expired" }, status: :gone
           return
         end
 
         if @request.submitted?
-          render json: { error: 'This form has already been submitted' }, status: :unprocessable_entity
+          render json: { error: "This form has already been submitted" }, status: :unprocessable_entity
           return
         end
 
@@ -137,7 +137,7 @@ module Api
         end
 
         render json: {
-          message: 'Thank you! Your information has been submitted for review.',
+          message: "Thank you! Your information has been submitted for review.",
           request: {
             id: @request.id,
             status: @request.status,
@@ -152,7 +152,7 @@ module Api
       # Admin action - approve request and create contact
       def approve
         unless @request.submitted?
-          render json: { error: 'Can only approve submitted requests' }, status: :unprocessable_entity
+          render json: { error: "Can only approve submitted requests" }, status: :unprocessable_entity
           return
         end
 
@@ -162,9 +162,9 @@ module Api
         )
 
         render json: {
-          message: 'Director onboarding approved',
+          message: "Director onboarding approved",
           request: serialize_request(@request, full: true),
-          contact: @request.contact.as_json(only: [:id, :full_name, :email])
+          contact: @request.contact.as_json
         }
       rescue ActiveRecord::RecordInvalid => e
         render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
@@ -174,7 +174,7 @@ module Api
       # Admin action - reject request
       def reject
         unless @request.submitted?
-          render json: { error: 'Can only reject submitted requests' }, status: :unprocessable_entity
+          render json: { error: "Can only reject submitted requests" }, status: :unprocessable_entity
           return
         end
 
@@ -184,7 +184,7 @@ module Api
         )
 
         render json: {
-          message: 'Director onboarding rejected',
+          message: "Director onboarding rejected",
           request: serialize_request(@request)
         }
       end
@@ -201,7 +201,7 @@ module Api
         email_result = send_invitation_email(@request)
 
         render json: {
-          message: 'Invitation resent',
+          message: "Invitation resent",
           access_url: onboarding_url(@request.access_token),
           email_sent: email_result[:success],
           email_error: email_result[:error]
@@ -212,24 +212,24 @@ module Api
       # Public action - upload document directly to SharePoint/OneDrive
       def upload_document
         unless @request.token_valid?
-          render json: { error: 'This link has expired' }, status: :gone
+          render json: { error: "This link has expired" }, status: :gone
           return
         end
 
         unless params[:file].present?
-          render json: { error: 'No file provided' }, status: :bad_request
+          render json: { error: "No file provided" }, status: :bad_request
           return
         end
 
         unless params[:document_type].present?
-          render json: { error: 'Document type is required' }, status: :bad_request
+          render json: { error: "Document type is required" }, status: :bad_request
           return
         end
 
         begin
           service = DirectorDocumentUploadService.new
           result = service.upload_document(
-            director_name: @request.full_name,
+            director_name: @request.display_name,
             document_type: params[:document_type],
             file: params[:file]
           )
@@ -251,7 +251,7 @@ module Api
           end
         rescue => e
           Rails.logger.error "Document upload failed: #{e.message}"
-          render json: { error: 'Upload failed. Please try again.' }, status: :internal_server_error
+          render json: { error: "Upload failed. Please try again." }, status: :internal_server_error
         end
       end
 
@@ -264,7 +264,7 @@ module Api
       def set_public_request
         @request = DirectorOnboardingRequest.find_by!(access_token: params[:access_token])
       rescue ActiveRecord::RecordNotFound
-        render json: { error: 'Invalid or expired link' }, status: :not_found
+        render json: { error: "Invalid or expired link" }, status: :not_found
       end
 
       def create_params
@@ -318,7 +318,7 @@ module Api
           status: request.status,
           first_name: request.first_name,
           last_name: request.last_name,
-          full_name: request.full_name,
+          display_name: request.display_name,
           email: request.email,
           mobile_phone: request.mobile_phone,
           company_id: request.company_id,
@@ -353,8 +353,8 @@ module Api
             consent_given_at: request.consent_given_at,
             consent_ip_address: request.consent_ip_address,
             review_notes: request.review_notes,
-            reviewed_by: request.reviewed_by&.as_json(only: [:id, :name, :email]),
-            invited_by: request.invited_by&.as_json(only: [:id, :name, :email]),
+            reviewed_by: request.reviewed_by&.as_json(),
+            invited_by: request.invited_by&.as_json(),
             contact_id: request.contact_id
           )
         end
@@ -364,47 +364,47 @@ module Api
 
       def required_fields_config
         [
-          { field: 'first_name', label: 'First Name', required: true },
-          { field: 'last_name', label: 'Last Name', required: true },
-          { field: 'email', label: 'Email Address', required: true },
-          { field: 'mobile_phone', label: 'Mobile Phone', required: true },
-          { field: 'date_of_birth', label: 'Date of Birth', required: true, type: 'date' },
-          { field: 'place_of_birth', label: 'Place of Birth', required: false },
-          { field: 'birth_state', label: 'Birth State', required: false },
-          { field: 'birth_country', label: 'Birth Country', required: false },
-          { field: 'residential_address', label: 'Residential Address', required: true },
-          { field: 'director_id', label: 'Director ID Number', required: true },
-          { field: 'drivers_licence', label: 'Drivers Licence Number', required: true },
-          { field: 'drivers_licence_expiry', label: 'Drivers Licence Expiry Date', required: true, type: 'date' },
-          { field: 'passport_number', label: 'Passport Number', required: false },
-          { field: 'passport_expiry', label: 'Passport Expiry Date', required: false, type: 'date' },
-          { field: 'drivers_licence_front_url', label: 'Drivers Licence (Front)', required: true, type: 'file' },
-          { field: 'drivers_licence_back_url', label: 'Drivers Licence (Back)', required: true, type: 'file' },
-          { field: 'photo_url', label: 'Photo', required: true, type: 'file' },
-          { field: 'passport_url', label: 'Passport Photo Page', required: false, type: 'file' },
-          { field: 'director_id_confirmation_url', label: 'Director ID Confirmation', required: false, type: 'file' }
+          { field: "first_name", label: "First Name", required: true },
+          { field: "last_name", label: "Last Name", required: true },
+          { field: "email", label: "Email Address", required: true },
+          { field: "mobile_phone", label: "Mobile Phone", required: true },
+          { field: "date_of_birth", label: "Date of Birth", required: true, type: "date" },
+          { field: "place_of_birth", label: "Place of Birth", required: false },
+          { field: "birth_state", label: "Birth State", required: false },
+          { field: "birth_country", label: "Birth Country", required: false },
+          { field: "residential_address", label: "Residential Address", required: true },
+          { field: "director_id", label: "Director ID Number", required: true },
+          { field: "drivers_licence", label: "Drivers Licence Number", required: true },
+          { field: "drivers_licence_expiry", label: "Drivers Licence Expiry Date", required: true, type: "date" },
+          { field: "passport_number", label: "Passport Number", required: false },
+          { field: "passport_expiry", label: "Passport Expiry Date", required: false, type: "date" },
+          { field: "drivers_licence_front_url", label: "Drivers Licence (Front)", required: true, type: "file" },
+          { field: "drivers_licence_back_url", label: "Drivers Licence (Back)", required: true, type: "file" },
+          { field: "photo_url", label: "Photo", required: true, type: "file" },
+          { field: "passport_url", label: "Passport Photo Page", required: false, type: "file" },
+          { field: "director_id_confirmation_url", label: "Director ID Confirmation", required: false, type: "file" }
         ]
       end
 
       def onboarding_url(token)
         # Frontend URL for the public onboarding form
-        frontend_host = ENV['FRONTEND_URL'] || (Rails.env.production? ? 'https://teeem.vercel.app' : 'https://teeemrob.vercel.app')
+        frontend_host = ENV["FRONTEND_URL"] || (Rails.env.production? ? "https://teeem.vercel.app" : "https://teeemrob.vercel.app")
         "#{frontend_host}/director-onboarding/#{token}"
       end
 
       def document_type_to_field(document_type)
         mapping = {
-          'drivers_licence_front' => :drivers_licence_front_url,
-          'drivers_licence_back' => :drivers_licence_back_url,
-          'passport' => :passport_url,
-          'photo' => :photo_url,
-          'director_id_confirmation' => :director_id_confirmation_url
+          "drivers_licence_front" => :drivers_licence_front_url,
+          "drivers_licence_back" => :drivers_licence_back_url,
+          "passport" => :passport_url,
+          "photo" => :photo_url,
+          "director_id_confirmation" => :director_id_confirmation_url
         }
         mapping[document_type]
       end
 
       def send_invitation_email(onboarding_request)
-        return { success: false, error: 'No email address' } if onboarding_request.email.blank?
+        return { success: false, error: "No email address" } if onboarding_request.email.blank?
 
         begin
           # Pass current_user so email shows "User Name via Tekna Homes" as sender

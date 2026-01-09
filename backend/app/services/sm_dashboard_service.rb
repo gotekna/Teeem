@@ -21,11 +21,11 @@ class SmDashboardService
     completed = tasks.completed.count
     in_progress = tasks.started.count
     not_started = tasks.not_started.count
-    on_hold = tasks.where(is_hold_task: true).where.not(status: 'completed').count
+    on_hold = tasks.where(is_hold_task: true).where.not(status: "completed").count
 
     # Calculate schedule health
-    overdue = tasks.where('end_date < ? AND status != ?', Date.current, 'completed').count
-    due_this_week = tasks.where(end_date: Date.current..(Date.current + 7.days)).where.not(status: 'completed').count
+    overdue = tasks.where("end_date < ? AND status != ?", Date.current, "completed").count
+    due_this_week = tasks.where(end_date: Date.current..(Date.current + 7.days)).where.not(status: "completed").count
 
     {
       task_counts: {
@@ -48,7 +48,7 @@ class SmDashboardService
       timeline: {
         earliest_start: tasks.minimum(:start_date),
         latest_end: tasks.maximum(:end_date),
-        days_remaining: tasks.where.not(status: 'completed').maximum(:end_date)&.then { |d| (d - Date.current).to_i }
+        days_remaining: tasks.where.not(status: "completed").maximum(:end_date)&.then { |d| (d - Date.current).to_i }
       }
     }
   end
@@ -135,7 +135,7 @@ class SmDashboardService
 
     time_entries.each do |entry|
       rate = entry.resource.hourly_rate || 0
-      multiplier = entry.entry_type == 'overtime' ? 1.5 : 1.0
+      multiplier = entry.entry_type == "overtime" ? 1.5 : 1.0
       cost = entry.total_hours * rate * multiplier
 
       labor_cost += cost
@@ -145,7 +145,7 @@ class SmDashboardService
       by_resource_type[type_key] = (by_resource_type[type_key] || 0) + cost
 
       # By trade
-      trade = entry.resource.trade || 'Other'
+      trade = entry.resource.trade || "Other"
       by_trade[trade] = (by_trade[trade] || 0) + cost
 
       # By task
@@ -208,7 +208,7 @@ class SmDashboardService
 
       weeks_data << {
         week_start: current_week,
-        week_label: current_week.strftime('%b %d'),
+        week_label: current_week.strftime("%b %d"),
         tasks_completed: completed_this_week,
         hours_logged: hours_logged.round(1),
         hours_approved: hours_approved.round(1),
@@ -229,7 +229,7 @@ class SmDashboardService
 
     tasks = base_tasks
       .where(start_date: start_date..end_date)
-      .where.not(status: 'completed')
+      .where.not(status: "completed")
       .includes(:supplier, :assigned_user)
       .order(:start_date)
 
@@ -247,7 +247,7 @@ class SmDashboardService
 
       {
         date: date,
-        day_name: date.strftime('%A'),
+        day_name: date.strftime("%A"),
         is_weekend: date.saturday? || date.sunday?,
         tasks_starting: day_tasks.count,
         tasks: day_tasks.map { |t| { id: t.id, name: t.name, trade: t.trade } },
@@ -296,7 +296,7 @@ class SmDashboardService
     return 100 if total == 0
     overdue_ratio = overdue.to_f / total
     score = ((1 - overdue_ratio) * 100).round(0)
-    [score, 0].max
+    [ score, 0 ].max
   end
 
   def calculate_working_days(start_date, end_date)
@@ -308,10 +308,10 @@ class SmDashboardService
 
   def utilization_status(percent)
     case percent
-    when 0..50 then 'under'
-    when 50..80 then 'optimal'
-    when 80..100 then 'high'
-    else 'over'
+    when 0..50 then "under"
+    when 50..80 then "optimal"
+    when 80..100 then "high"
+    else "over"
     end
   end
 
@@ -335,8 +335,8 @@ class SmDashboardService
 
     over_allocated.each do |r|
       alerts << {
-        type: 'over_allocated',
-        severity: 'warning',
+        type: "over_allocated",
+        severity: "warning",
         resource_id: r[:id],
         resource_name: r[:name],
         message: "#{r[:name]} is #{r[:utilization].round(0)}% allocated"
@@ -345,8 +345,8 @@ class SmDashboardService
 
     under_utilized.each do |r|
       alerts << {
-        type: 'under_utilized',
-        severity: 'info',
+        type: "under_utilized",
+        severity: "info",
         resource_id: r[:id],
         resource_name: r[:name],
         message: "#{r[:name]} is only #{r[:utilization].round(0)}% utilized"
@@ -359,7 +359,7 @@ class SmDashboardService
   def calculate_budget
     # Try to get budget from construction or project settings
     if @construction_id
-      construction = Construction.find_by(id: @construction_id)
+      construction = Job.find_by(id: @construction_id)
       return construction.labor_budget if construction&.respond_to?(:labor_budget)
     end
     nil

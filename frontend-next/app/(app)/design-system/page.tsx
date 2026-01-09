@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader } from "@/components/ui/loader";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import {
   AlertCircle,
@@ -36,7 +37,6 @@ import {
   DollarSign,
   Plus,
   Search,
-  Filter,
   LayoutGrid,
   List,
   TrendingUp,
@@ -208,6 +208,25 @@ function StatsCardDemo() {
 }
 
 export default function DesignSystemPage() {
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // Path-based tab navigation
+  const activeTab = React.useMemo(() => {
+    const parts = pathname.replace("/design-system", "").split("/").filter(Boolean);
+    return parts[0] || null;
+  }, [pathname]);
+
+  React.useEffect(() => {
+    if (activeTab === null) {
+      router.replace("/design-system/kanban", { scroll: false });
+    }
+  }, [activeTab, router]);
+
+  const setActiveTab = React.useCallback((tab: string) => {
+    router.push(`/design-system/${tab}`, { scroll: false });
+  }, [router]);
+
   return (
     <div className="space-y-8 pb-12">
       {/* Header */}
@@ -219,7 +238,7 @@ export default function DesignSystemPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="kanban" className="space-y-6">
+      <Tabs value={activeTab || "kanban"} onValueChange={setActiveTab} className="space-y-6">
         <TabsList>
           <TabsTrigger value="kanban">Kanban & Pipeline</TabsTrigger>
           <TabsTrigger value="cards">Cards & Stats</TabsTrigger>
@@ -642,7 +661,7 @@ export default function DesignSystemPage() {
             </CardHeader>
             <CardContent className="flex items-center gap-8">
               <div className="flex flex-col items-center gap-2">
-                <Loader />
+                <Spinner />
                 <span className="text-xs text-muted-foreground">Default</span>
               </div>
               <div className="flex flex-col items-center gap-2">

@@ -10,7 +10,7 @@ class SmActivityService
     # Task activities
     def task_created(task, user:)
       SmActivity.track(
-        'task_created',
+        "task_created",
         construction: task.construction,
         user: user,
         task: task,
@@ -28,11 +28,11 @@ class SmActivityService
       return if changes.blank?
 
       # Determine specific activity type
-      activity_type = if changes.key?('status')
-                        'task_status_changed'
-                      else
-                        'task_updated'
-                      end
+      activity_type = if changes.key?("status")
+                        "task_status_changed"
+      else
+                        "task_updated"
+      end
 
       SmActivity.track(
         activity_type,
@@ -43,20 +43,20 @@ class SmActivityService
         metadata: {
           task_name: task.name,
           changes: changes,
-          old_status: changes['status']&.first,
-          new_status: changes['status']&.last
+          old_status: changes["status"]&.first,
+          new_status: changes["status"]&.last
         }
       )
 
       # Check for milestone completion
-      if changes['status']&.last == 'completed' && task.is_milestone?
+      if changes["status"]&.last == "completed" && task.is_milestone?
         milestone_reached(task, user: user)
       end
     end
 
     def task_deleted(task, user:)
       SmActivity.track(
-        'task_deleted',
+        "task_deleted",
         construction: task.construction,
         user: user,
         task: task,
@@ -69,7 +69,7 @@ class SmActivityService
 
     def task_assigned(task, assignee:, user:)
       SmActivity.track(
-        'task_assigned',
+        "task_assigned",
         construction: task.construction,
         user: user,
         task: task,
@@ -77,7 +77,7 @@ class SmActivityService
         metadata: {
           task_name: task.name,
           assignee_id: assignee.id,
-          assignee_name: assignee.respond_to?(:full_name) ? assignee.full_name : assignee.name
+          assignee_name: assignee.respond_to?(:display_name) ? assignee.display_name : assignee.name
         }
       )
     end
@@ -85,7 +85,7 @@ class SmActivityService
     # Resource activities
     def resource_assigned(task, resource:, user:)
       SmActivity.track(
-        'resource_assigned',
+        "resource_assigned",
         construction: task.construction,
         user: user,
         resource: resource,
@@ -101,7 +101,7 @@ class SmActivityService
 
     def resource_removed(task, resource:, user:)
       SmActivity.track(
-        'resource_removed',
+        "resource_removed",
         construction: task.construction,
         user: user,
         resource: resource,
@@ -117,7 +117,7 @@ class SmActivityService
     def photo_uploaded(photo, user:)
       task = photo.task
       SmActivity.track(
-        'photo_uploaded',
+        "photo_uploaded",
         construction: task.construction,
         user: user,
         task: task,
@@ -133,7 +133,7 @@ class SmActivityService
     def photo_deleted(photo, user:)
       task = photo.task
       SmActivity.track(
-        'photo_deleted',
+        "photo_deleted",
         construction: task.construction,
         user: user,
         task: task,
@@ -148,7 +148,7 @@ class SmActivityService
     def voice_note_added(voice_note, user:)
       task = voice_note.task
       SmActivity.track(
-        'voice_note_added',
+        "voice_note_added",
         construction: task.construction,
         user: user,
         task: task,
@@ -162,7 +162,7 @@ class SmActivityService
 
     # Check-in activities
     def checkin(checkin, user:)
-      activity_type = checkin.checkin_type == 'arrival' ? 'checkin_arrival' : 'checkin_departure'
+      activity_type = checkin.checkin_type == "arrival" ? "checkin_arrival" : "checkin_departure"
 
       SmActivity.track(
         activity_type,
@@ -185,7 +185,7 @@ class SmActivityService
     # Schedule activities
     def schedule_updated(construction, user:, changes_summary:)
       SmActivity.track(
-        'schedule_updated',
+        "schedule_updated",
         construction: construction,
         user: user,
         metadata: {
@@ -197,7 +197,7 @@ class SmActivityService
     # Dependency activities
     def dependency_added(task, predecessor:, user:)
       SmActivity.track(
-        'dependency_added',
+        "dependency_added",
         construction: task.construction,
         user: user,
         task: task,
@@ -211,7 +211,7 @@ class SmActivityService
 
     def dependency_removed(task, predecessor:, user:)
       SmActivity.track(
-        'dependency_removed',
+        "dependency_removed",
         construction: task.construction,
         user: user,
         task: task,
@@ -225,7 +225,7 @@ class SmActivityService
     # Milestone activities
     def milestone_reached(task, user:)
       SmActivity.track(
-        'milestone_reached',
+        "milestone_reached",
         construction: task.construction,
         user: user,
         task: task,
@@ -248,7 +248,7 @@ class SmActivityService
       activities = activities.this_week if filters[:this_week]
       activities = activities.today if filters[:today]
 
-      activities = activities.where('created_at > ?', filters[:since]) if filters[:since]
+      activities = activities.where("created_at > ?", filters[:since]) if filters[:since]
 
       activities.limit(filters[:limit] || 50)
     end

@@ -19,7 +19,7 @@ class CreateQuoteRequests < ActiveRecord::Migration[8.0]
     add_index :quote_requests, :status
     add_index :quote_requests, :requested_date
     add_index :quote_requests, :trade_category
-    add_index :quote_requests, [:construction_id, :status]
+    add_index :quote_requests, [ :construction_id, :status ]
     add_index :quote_requests, :created_at
     add_index :quote_requests, :selected_quote_response_id
   end

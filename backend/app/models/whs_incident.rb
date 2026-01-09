@@ -1,8 +1,11 @@
 class WHSIncident < ApplicationRecord
   # Associations
   belongs_to :job, optional: true
-  belongs_to :reported_by_user, class_name: 'User'
-  belongs_to :investigated_by_user, class_name: 'User', optional: true
+  belongs_to :reported_by_user, class_name: "User"
+  belongs_to :investigated_by_user, class_name: "User", optional: true
+
+  # SSoT task system (SmTask via tasks table)
+  belongs_to :sm_task, optional: true
 
   has_many :whs_action_items, as: :actionable, dependent: :destroy
 
@@ -32,38 +35,39 @@ class WHSIncident < ApplicationRecord
   before_validation :generate_incident_number, on: :create
   before_validation :set_report_date, on: :create
   before_save :check_workcov_notification_requirement
-  after_create :create_investigation_task
+  after_create :create_sm_task_if_needed
+  after_save :sync_with_sm_task
 
   # Scopes
-  scope :reported, -> { where(status: 'reported') }
-  scope :under_investigation, -> { where(status: 'under_investigation') }
-  scope :actions_required, -> { where(status: 'actions_required') }
-  scope :closed, -> { where(status: 'closed') }
+  scope :reported, -> { where(status: "reported") }
+  scope :under_investigation, -> { where(status: "under_investigation") }
+  scope :actions_required, -> { where(status: "actions_required") }
+  scope :closed, -> { where(status: "closed") }
   scope :for_construction, ->(job_id) { where(job_id: job_id) }  # Kept for backward compatibility
   scope :by_category, ->(category) { where(incident_category: category) }
   scope :by_severity, ->(severity) { where(severity_level: severity) }
-  scope :lti, -> { where(incident_category: 'lti') }
-  scope :near_miss, -> { where(incident_category: 'near_miss') }
+  scope :lti, -> { where(incident_category: "lti") }
+  scope :near_miss, -> { where(incident_category: "near_miss") }
   scope :requiring_workcov, -> { where(workcov_notification_required: true) }
-  scope :this_month, -> { where('incident_date >= ?', CompanySetting.today.beginning_of_month) }
+  scope :this_month, -> { where("incident_date >= ?", CorporateCompanySetting.today.beginning_of_month) }
   scope :recent, -> { order(incident_date: :desc) }
 
   # State machine methods
   def can_investigate?
-    status == 'reported'
+    status == "reported"
   end
 
   def can_close?
-    status == 'actions_required' && all_actions_completed?
+    status == "actions_required" && all_actions_completed?
   end
 
   def investigate!(investigating_user)
     return false unless can_investigate?
 
     update!(
-      status: 'under_investigation',
+      status: "under_investigation",
       investigated_by_user: investigating_user,
-      investigation_date: CompanySetting.today
+      investigation_date: CorporateCompanySetting.today
     )
   end
 
@@ -71,7 +75,7 @@ class WHSIncident < ApplicationRecord
     return false unless can_close?
 
     update!(
-      status: 'closed',
+      status: "closed",
       closed_at: Time.current,
       closure_notes: closure_notes_text
     )
@@ -79,15 +83,15 @@ class WHSIncident < ApplicationRecord
 
   # Helper methods
   def lost_time_injury?
-    incident_category == 'lti'
+    incident_category == "lti"
   end
 
   def near_miss?
-    incident_category == 'near_miss'
+    incident_category == "near_miss"
   end
 
   def critical?
-    severity_level == 'critical'
+    severity_level == "critical"
   end
 
   def investigated?
@@ -95,15 +99,15 @@ class WHSIncident < ApplicationRecord
   end
 
   def closed?
-    status == 'closed'
+    status == "closed"
   end
 
   def all_actions_completed?
-    whs_action_items.where.not(status: 'completed').none?
+    whs_action_items.where.not(status: "completed").none?
   end
 
   def open_actions_count
-    whs_action_items.where.not(status: ['completed', 'cancelled']).count
+    whs_action_items.where.not(status: [ "completed", "cancelled" ]).count
   end
 
   def workcov_notified?
@@ -111,7 +115,7 @@ class WHSIncident < ApplicationRecord
   end
 
   def days_since_incident
-    (CompanySetting.today - incident_date.to_date).to_i
+    (CorporateCompanySetting.today - incident_date.to_date).to_i
   end
 
   def witness_count
@@ -131,11 +135,11 @@ class WHSIncident < ApplicationRecord
   def generate_incident_number
     return if incident_number.present?
 
-    date_str = CompanySetting.today.strftime('%Y%m%d')
-    last_incident = WhsIncident.where('incident_number LIKE ?', "INC-#{date_str}-%")
+    date_str = CorporateCompanySetting.today.strftime("%Y%m%d")
+    last_incident = WhsIncident.where("incident_number LIKE ?", "INC-#{date_str}-%")
                                 .order(:incident_number).last
 
-    sequence = last_incident ? last_incident.incident_number.split('-').last.to_i + 1 : 1
+    sequence = last_incident ? last_incident.incident_number.split("-").last.to_i + 1 : 1
     self.incident_number = "INC-#{date_str}-#{sequence.to_s.rjust(3, '0')}"
   end
 
@@ -149,38 +153,63 @@ class WHSIncident < ApplicationRecord
     # - Serious injury or illness (LTI, medical treatment)
     # - Dangerous incident
 
-    if incident_category.in?(['lti', 'medical_treatment', 'dangerous_occurrence'])
+    if incident_category.in?([ "lti", "medical_treatment", "dangerous_occurrence" ])
       self.workcov_notification_required = true
-      self.notifiable_incident = true if severity_level.in?(['high', 'critical'])
+      self.notifiable_incident = true if severity_level.in?([ "high", "critical" ])
     end
   end
 
-  def create_investigation_task
-    return unless construction.present?
+  def create_sm_task_if_needed
+    return if sm_task.present?
+    return unless job.present?
 
-    # Map severity to priority
-    task_priority = case severity_level
-    when 'critical' then 'critical'
-    when 'high' then 'high'
-    else 'medium'
-    end
-
-    # Find WPHS Appointees
+    # Find WPHS Appointee for assignment
     wphs_appointee = User.where(wphs_appointee: true).first
 
-    construction.project_tasks.create!(
-      name: "Investigate Incident #{incident_number}",
+    task = job.sm_tasks.create!(
+      name: "WHS: Investigate Incident #{incident_number}",
       description: "Investigate incident: #{what_happened}",
-      task_type: 'whs_investigation',
-      category: 'safety',
-      status: 'not_started',
-      assigned_to: wphs_appointee,
-      planned_end_date: CompanySetting.today + 3.days,
+      trade: "WHS",
+      stage: "Incident Investigation",
+      status: status_for_sm_task,
+      assigned_user: wphs_appointee,
+      start_date: CorporateCompanySetting.today,
+      end_date: CorporateCompanySetting.today + 3.days,
       duration_days: 3,
-      tags: ['whs', 'incident', severity_level]
+      created_by: reported_by_user
     )
-  rescue => e
-    Rails.logger.error("Failed to create investigation task for incident #{id}: #{e.message}")
+    update_column(:sm_task_id, task.id)
+  rescue StandardError => e
+    Rails.logger.error("[WHS→SmTask] Failed to create SmTask for incident #{id}: #{e.message}")
     # Don't fail incident creation if task creation fails
+  end
+
+  def sync_with_sm_task
+    return unless sm_task.present?
+    return unless saved_change_to_status?
+
+    sm_task.update(status: status_for_sm_task)
+  rescue StandardError => e
+    Rails.logger.error("[WHS→SmTask] Failed to sync SmTask for incident #{id}: #{e.message}")
+  end
+
+  def status_for_sm_task
+    case status
+    when "reported"
+      "not_started"
+    when "under_investigation"
+      "started"  # SmTask uses "started" not "in_progress"
+    when "actions_required"
+      "started"  # Still in progress, waiting for actions
+    when "closed"
+      "completed"
+    else
+      "not_started"
+    end
+  end
+
+  # Alias for backward compatibility (job was previously called construction)
+  def construction
+    job
   end
 end

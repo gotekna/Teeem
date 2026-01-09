@@ -6,15 +6,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
-  User,
   Plus,
   Trash2,
   Star,
   X,
   Search,
   Users,
+  User,
   Building2,
   Wrench,
   Calculator,
@@ -26,15 +25,33 @@ import {
   ChevronDown,
   ChevronRight,
   Briefcase,
+  MapPin,
+  FileText,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { PAGE_SIZE_AUTOCOMPLETE } from "@/lib/constants/pagination-constants";
 
 interface Contact {
   id: number;
-  full_name?: string;
+  display_name?: string;
   company_name?: string;
+  company_name_or_trust?: string;
   email?: string;
   mobile_phone?: string;
+  phone?: string;
+  office_phone?: string;
+  address?: string;
+  postcode?: string;
+  entity_type?: string;
+  abn?: string;
+  acn?: string;
+}
+
+interface RelatedJob {
+  id: number;
+  address: string;
+  job_status?: string;
+  contract_value?: number;
 }
 
 interface JobContact {
@@ -55,6 +72,8 @@ interface JobContact {
     related_contact: Contact;
   }>;
   relationships_count?: number;
+  related_jobs?: RelatedJob[];
+  related_jobs_count?: number;
 }
 
 interface User {
@@ -131,16 +150,6 @@ const getRoleBadgeClasses = (color: string) => {
   return colorMap[color] || colorMap.gray;
 };
 
-function getInitials(name: string | undefined | null): string {
-  if (!name) return "?";
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
-
 export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
   const router = useRouter();
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -151,6 +160,7 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Contact[]>([]);
   const [searching, setSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false); // Track if a search has completed
   const [error, setError] = useState<string | null>(null);
   const [expandedContacts, setExpandedContacts] = useState<Set<number>>(new Set());
 
@@ -159,6 +169,7 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
   useEffect(() => {
     loadContacts();
     loadUsers();
+     
   }, [jobId]);
 
   // Auto-focus search input when adding
@@ -202,27 +213,40 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
       }
     }, 300);
     return () => clearTimeout(timer);
+     
   }, [searchQuery, addingRole]);
 
   const searchContacts = async (query: string) => {
     if (!query || query.length < 2) {
       setSearchResults([]);
+      setHasSearched(false); // Reset when query is cleared/too short
       return;
     }
 
     try {
       setSearching(true);
+      console.log("[JobPeopleTab] Searching contacts with query:", query);
+      // SSoT: Uses PAGE_SIZE_AUTOCOMPLETE from pagination-constants.ts
       const response = await api.get<{ contacts?: Contact[] }>("/api/v1/contacts", {
-        params: { search: query, per_page: 10 },
+        params: { search: query, per_page: PAGE_SIZE_AUTOCOMPLETE },
+        dedupe: false, // Disable deduplication for search
       });
 
+      console.log("[JobPeopleTab] API response:", response);
+      console.log("[JobPeopleTab] Contacts returned:", response.contacts?.length || 0);
+
       const existingForRole = contacts.filter((c) => c.role === addingRole).map((c) => c.contact_id);
+      console.log("[JobPeopleTab] Existing contacts for role", addingRole, ":", existingForRole);
+
       const filtered = (response.contacts || []).filter(
         (contact) => !existingForRole.includes(contact.id)
       );
+      console.log("[JobPeopleTab] Filtered results:", filtered.length);
       setSearchResults(filtered);
+      setHasSearched(true); // Mark that a search has completed
     } catch (err) {
-      console.error("Failed to search contacts:", err);
+      console.error("[JobPeopleTab] Failed to search contacts:", err);
+      setHasSearched(true); // Also set on error so user knows search ran
     } finally {
       setSearching(false);
     }
@@ -333,7 +357,7 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
   const getContactDisplayName = (contact?: Contact) => {
     if (!contact) return "Unknown";
     return (
-      contact.full_name ||
+      contact.display_name ||
       contact.company_name ||
       "Unnamed Contact"
     );
@@ -413,7 +437,7 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
               </div>
             )}
 
-            {!searching && searchQuery.length >= 2 && searchResults.length === 0 && (
+            {!searching && hasSearched && searchResults.length === 0 && (
               <div className="mt-2 text-sm text-muted-foreground text-center py-2">
                 No contacts found
               </div>
@@ -540,7 +564,10 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
         // External roles - collapsible rows
         return group.roles.map((role) => {
           const roleContacts = contactsByRole[role.key] || [];
-          if (roleContacts.length === 0 && group.key === "client") return null;
+          // Always show client and client_representative (needed for QBCC contracts)
+          // Hide other client sub-roles (broker, bank) when empty
+          const alwaysShowRoles = ["client", "client_representative"];
+          if (roleContacts.length === 0 && group.key === "client" && !alwaysShowRoles.includes(role.key)) return null;
 
           const RoleIcon = role.icon;
           return (
@@ -575,9 +602,9 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
               {roleContacts.map((contact) => {
                 const isExpanded = expandedContacts.has(contact.id);
                 const displayName =
-                  contact.contact?.full_name || contact.contact?.company_name || "Unknown";
+                  contact.contact?.display_name || contact.contact?.company_name || "Unknown";
                 const email = contact.contact?.email;
-                const mobile = contact.contact?.mobile_phone;
+                const mobile = contact.contact?.phone || contact.contact?.mobile_phone;
                 const isPrimary = contact.primary;
 
                 return (
@@ -675,9 +702,14 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
                               <CardContent className="p-4 space-y-2">
                                 <p className="font-medium text-sm">{displayName}</p>
                                 <Badge className={getRoleBadgeClasses(role.color)}>{role.label}</Badge>
+                                {contact.contact?.entity_type && contact.contact.entity_type !== 'person' && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {contact.contact.entity_type.replace('_', ' ')}
+                                  </Badge>
+                                )}
                                 {email && (
                                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                    <Mail className="h-3.5 w-3.5" />
+                                    <Mail className="h-3.5 w-3.5 shrink-0" />
                                     <a href={`mailto:${email}`} className="hover:text-primary">
                                       {email}
                                     </a>
@@ -685,15 +717,70 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
                                 )}
                                 {mobile && (
                                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                    <Phone className="h-3.5 w-3.5" />
+                                    <Phone className="h-3.5 w-3.5 shrink-0" />
                                     <a href={`tel:${mobile}`} className="hover:text-primary">
                                       {mobile}
                                     </a>
                                   </div>
                                 )}
+                                {contact.contact?.address && (
+                                  <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                                    <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                                    <span>
+                                      {contact.contact.address}
+                                      {contact.contact.postcode && ` ${contact.contact.postcode}`}
+                                    </span>
+                                  </div>
+                                )}
                               </CardContent>
                             </Card>
                           </div>
+
+                          {/* Contract Info (for clients) */}
+                          {role.key === 'client' && (
+                            <div>
+                              <h4 className="font-medium text-sm mb-3 flex items-center gap-2">
+                                <FileText className="h-4 w-4" />
+                                Contract Info
+                              </h4>
+                              <Card>
+                                <CardContent className="p-4 space-y-2 text-xs">
+                                  {contact.contact?.entity_type === 'company' && (
+                                    <>
+                                      {contact.contact.acn && (
+                                        <div className="flex justify-between">
+                                          <span className="text-muted-foreground">ACN:</span>
+                                          <span className="font-mono">{contact.contact.acn}</span>
+                                        </div>
+                                      )}
+                                      {contact.contact.abn && (
+                                        <div className="flex justify-between">
+                                          <span className="text-muted-foreground">ABN:</span>
+                                          <span className="font-mono">{contact.contact.abn}</span>
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+                                  {contact.contact?.entity_type === 'trust' && (
+                                    <div className="text-muted-foreground">
+                                      Trust - check trustee in Related Contacts
+                                    </div>
+                                  )}
+                                  {(!contact.contact?.address) && (
+                                    <div className="text-amber-600 dark:text-amber-400">
+                                      ⚠️ No address - required for contract
+                                    </div>
+                                  )}
+                                  {(!contact.contact?.entity_type || contact.contact.entity_type === 'person') &&
+                                   !contact.contact?.abn && !contact.contact?.acn && (
+                                    <div className="text-muted-foreground">
+                                      Individual (person)
+                                    </div>
+                                  )}
+                                </CardContent>
+                              </Card>
+                            </div>
+                          )}
 
                           {/* Related Contacts */}
                           <div>
@@ -713,7 +800,7 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
                                         }
                                         className="font-medium text-xs text-primary hover:underline"
                                       >
-                                        {rel.related_contact.full_name ||
+                                        {rel.related_contact.display_name ||
                                           rel.related_contact.company_name}
                                       </button>
                                       <p className="text-xs text-muted-foreground mt-0.5">
@@ -730,15 +817,53 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
                             )}
                           </div>
 
-                          {/* Related Jobs */}
+                          {/* Related Jobs - shows other jobs this contact is associated with */}
                           <div>
                             <h4 className="font-medium text-sm mb-3 flex items-center gap-2">
                               <Briefcase className="h-4 w-4" />
                               Related Jobs
+                              <Badge variant="secondary">{contact.related_jobs_count || 0}</Badge>
                             </h4>
-                            <p className="text-xs text-muted-foreground italic">
-                              View contact profile for full job history
-                            </p>
+                            {contact.related_jobs && contact.related_jobs.length > 0 ? (
+                              <div className="space-y-2">
+                                {contact.related_jobs.map((relJob) => (
+                                  <Card key={relJob.id}>
+                                    <CardContent className="p-3">
+                                      <button
+                                        onClick={() => router.push(`/jobs/${relJob.id}`)}
+                                        className="font-medium text-xs text-primary hover:underline text-left"
+                                      >
+                                        {relJob.address}
+                                      </button>
+                                      <div className="flex items-center gap-2 mt-1">
+                                        {relJob.job_status && (
+                                          <Badge variant="outline" className="text-xs">
+                                            {relJob.job_status}
+                                          </Badge>
+                                        )}
+                                        {relJob.contract_value && relJob.contract_value > 0 && (
+                                          <span className="text-xs text-muted-foreground">
+                                            ${relJob.contract_value.toLocaleString()}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </CardContent>
+                                  </Card>
+                                ))}
+                                {(contact.related_jobs_count || 0) > 5 && (
+                                  <button
+                                    onClick={() => router.push(`/contacts/${contact.contact_id}`)}
+                                    className="text-xs text-primary hover:underline"
+                                  >
+                                    View all {contact.related_jobs_count} jobs →
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-muted-foreground italic">
+                                No other jobs for this contact
+                              </p>
+                            )}
                           </div>
                         </div>
                       </div>

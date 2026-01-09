@@ -40,7 +40,7 @@ class SmAiService
 
   # Predict delays based on historical data and current status
   def delay_predictions
-    tasks = construction.sm_tasks.where.not(status: 'completed')
+    tasks = construction.sm_tasks.where.not(status: "completed")
     predictions = []
 
     tasks.each do |task|
@@ -75,7 +75,7 @@ class SmAiService
 
       if utilization > 100
         suggestions << {
-          type: 'overallocation',
+          type: "overallocation",
           resource_id: resource.id,
           resource_name: resource.name,
           utilization: utilization,
@@ -85,7 +85,7 @@ class SmAiService
         }
       elsif utilization < 50
         suggestions << {
-          type: 'underutilization',
+          type: "underutilization",
           resource_id: resource.id,
           resource_name: resource.name,
           utilization: utilization,
@@ -99,11 +99,11 @@ class SmAiService
     # Find tasks without resources
     unassigned = construction.sm_tasks.left_joins(:resource_allocations)
                              .where(sm_resource_allocations: { id: nil })
-                             .where.not(status: 'completed')
+                             .where.not(status: "completed")
 
     unassigned.each do |task|
       suggestions << {
-        type: 'unassigned',
+        type: "unassigned",
         task_id: task.id,
         task_name: task.name,
         message: "Task '#{task.name}' has no resources assigned",
@@ -118,8 +118,8 @@ class SmAiService
   # Estimate task duration using AI/historical data
   def estimate_duration(task_name:, trade:, scope: nil)
     # Look for similar completed tasks
-    similar_tasks = SmTask.where(status: 'completed')
-                          .where('LOWER(trade) = ?', trade.to_s.downcase)
+    similar_tasks = SmTask.where(status: "completed")
+                          .where("LOWER(trade) = ?", trade.to_s.downcase)
 
     if similar_tasks.any?
       avg_duration = similar_tasks.average(:duration_days).to_f
@@ -142,8 +142,8 @@ class SmAiService
       {
         estimated_days: default,
         range: { min: default - 2, max: default + 5, average: default },
-        confidence: 'low',
-        based_on: 'trade defaults (no historical data)'
+        confidence: "low",
+        based_on: "trade defaults (no historical data)"
       }
     end
   end
@@ -175,7 +175,7 @@ class SmAiService
           # Check if they actually need to be sequential
           unless requires_sequence?(pred, task)
             suggestions << {
-              type: 'parallel_opportunity',
+              type: "parallel_opportunity",
               task_id: task.id,
               predecessor_id: pred.id,
               message: "'#{task.name}' could potentially run in parallel with '#{pred.name}'",
@@ -205,10 +205,10 @@ class SmAiService
       resource_allocs.combination(2).each do |a1, a2|
         if dates_overlap?(a1.task, a2.task)
           suggestions << {
-            type: 'resource_conflict',
+            type: "resource_conflict",
             resource_id: resource.id,
             resource_name: resource.name,
-            task_ids: [a1.sm_task_id, a2.sm_task_id],
+            task_ids: [ a1.sm_task_id, a2.sm_task_id ],
             message: "#{resource.name} is assigned to overlapping tasks: '#{a1.task.name}' and '#{a2.task.name}'",
             priority: 9
           }
@@ -229,7 +229,7 @@ class SmAiService
       # Suggest crashing critical tasks
       if task.duration_days && task.duration_days > 3
         suggestions << {
-          type: 'crash_opportunity',
+          type: "crash_opportunity",
           task_id: task.id,
           task_name: task.name,
           message: "'#{task.name}' is on critical path. Consider adding resources to reduce duration.",
@@ -241,7 +241,7 @@ class SmAiService
       # Suggest fast-tracking
       if task.successors.any?
         suggestions << {
-          type: 'fast_track',
+          type: "fast_track",
           task_id: task.id,
           task_name: task.name,
           message: "Consider starting '#{task.successors.first.name}' before '#{task.name}' completes (fast-tracking)",
@@ -260,7 +260,7 @@ class SmAiService
     tasks.each do |task|
       if task.predecessors.count >= 3
         suggestions << {
-          type: 'bottleneck',
+          type: "bottleneck",
           task_id: task.id,
           task_name: task.name,
           predecessor_count: task.predecessors.count,
@@ -277,13 +277,13 @@ class SmAiService
     risk = 0.0
 
     # Factor 1: Behind schedule
-    if task.start_date && task.start_date < Date.current && task.status == 'not_started'
+    if task.start_date && task.start_date < Date.current && task.status == "not_started"
       days_late = (Date.current - task.start_date).to_i
-      risk += [days_late * 0.1, 0.4].min
+      risk += [ days_late * 0.1, 0.4 ].min
     end
 
     # Factor 2: Dependencies not complete
-    incomplete_deps = task.predecessors.where.not(status: 'completed').count
+    incomplete_deps = task.predecessors.where.not(status: "completed").count
     risk += incomplete_deps * 0.15
 
     # Factor 3: No resources assigned
@@ -295,25 +295,25 @@ class SmAiService
     # Factor 5: Historical performance of trade
     risk += trade_risk_factor(task.trade)
 
-    [risk, 1.0].min
+    [ risk, 1.0 ].min
   end
 
   def risk_level(score)
     case score
-    when 0..0.3 then 'low'
-    when 0.3..0.6 then 'medium'
-    when 0.6..0.8 then 'high'
-    else 'critical'
+    when 0..0.3 then "low"
+    when 0.3..0.6 then "medium"
+    when 0.6..0.8 then "high"
+    else "critical"
     end
   end
 
   def identify_risk_factors(task)
     factors = []
 
-    factors << 'Task is overdue to start' if task.start_date && task.start_date < Date.current && task.status == 'not_started'
-    factors << 'Waiting on incomplete dependencies' if task.predecessors.where.not(status: 'completed').any?
-    factors << 'No resources assigned' if task.resource_allocations.empty?
-    factors << 'On critical path' if on_critical_path?(task)
+    factors << "Task is overdue to start" if task.start_date && task.start_date < Date.current && task.status == "not_started"
+    factors << "Waiting on incomplete dependencies" if task.predecessors.where.not(status: "completed").any?
+    factors << "No resources assigned" if task.resource_allocations.empty?
+    factors << "On critical path" if on_critical_path?(task)
 
     factors
   end
@@ -321,10 +321,10 @@ class SmAiService
   def recommend_actions(task, risk_score)
     actions = []
 
-    actions << 'Assign resources immediately' if task.resource_allocations.empty?
-    actions << 'Follow up on predecessor tasks' if task.predecessors.where.not(status: 'completed').any?
-    actions << 'Consider crashing or fast-tracking' if risk_score > 0.6
-    actions << 'Add buffer time to schedule' if risk_score > 0.4
+    actions << "Assign resources immediately" if task.resource_allocations.empty?
+    actions << "Follow up on predecessor tasks" if task.predecessors.where.not(status: "completed").any?
+    actions << "Consider crashing or fast-tracking" if risk_score > 0.6
+    actions << "Add buffer time to schedule" if risk_score > 0.4
 
     actions
   end
@@ -343,8 +343,8 @@ class SmAiService
 
   def recommend_resource_for_task(task)
     # Find available resources matching the trade
-    available = SmResource.where(resource_type: 'labor')
-                          .where('LOWER(trade) = ? OR trade IS NULL', task.trade.to_s.downcase)
+    available = SmResource.where(resource_type: "labor")
+                          .where("LOWER(trade) = ? OR trade IS NULL", task.trade.to_s.downcase)
                           .first
 
     if available
@@ -374,49 +374,49 @@ class SmAiService
   def trade_risk_factor(trade)
     # Historical delay rates by trade (could be calculated from data)
     trade_risks = {
-      'concrete' => 0.1,
-      'framing' => 0.05,
-      'electrical' => 0.08,
-      'plumbing' => 0.1,
-      'roofing' => 0.15, # Weather dependent
-      'painting' => 0.05,
-      'landscaping' => 0.12 # Weather dependent
+      "concrete" => 0.1,
+      "framing" => 0.05,
+      "electrical" => 0.08,
+      "plumbing" => 0.1,
+      "roofing" => 0.15, # Weather dependent
+      "painting" => 0.05,
+      "landscaping" => 0.12 # Weather dependent
     }
     trade_risks[trade.to_s.downcase] || 0.07
   end
 
   def calculate_confidence(sample_size)
     case sample_size
-    when 0..2 then 'very_low'
-    when 3..5 then 'low'
-    when 6..10 then 'medium'
-    when 11..20 then 'high'
-    else 'very_high'
+    when 0..2 then "very_low"
+    when 3..5 then "low"
+    when 6..10 then "medium"
+    when 11..20 then "high"
+    else "very_high"
     end
   end
 
   def default_duration_for_trade(trade)
     defaults = {
-      'siteworks' => 5,
-      'concrete' => 7,
-      'framing' => 10,
-      'roofing' => 5,
-      'electrical' => 8,
-      'plumbing' => 8,
-      'hvac' => 6,
-      'insulation' => 3,
-      'drywall' => 7,
-      'painting' => 5,
-      'flooring' => 4,
-      'cabinets' => 3,
-      'fixtures' => 2,
-      'landscaping' => 5
+      "siteworks" => 5,
+      "concrete" => 7,
+      "framing" => 10,
+      "roofing" => 5,
+      "electrical" => 8,
+      "plumbing" => 8,
+      "hvac" => 6,
+      "insulation" => 3,
+      "drywall" => 7,
+      "painting" => 5,
+      "flooring" => 4,
+      "cabinets" => 3,
+      "fixtures" => 2,
+      "landscaping" => 5
     }
     defaults[trade.to_s.downcase] || 5
   end
 
   def llm_configured?
-    ENV['OPENAI_API_KEY'].present? || ENV['ANTHROPIC_API_KEY'].present?
+    ENV["OPENAI_API_KEY"].present? || ENV["ANTHROPIC_API_KEY"].present?
   end
 
   def build_summary_prompt(tasks, evm, critical_path)

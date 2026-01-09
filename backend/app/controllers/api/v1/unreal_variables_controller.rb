@@ -1,7 +1,7 @@
 module Api
   module V1
     class UnrealVariablesController < ApplicationController
-      before_action :set_unreal_variable, only: [:show, :update, :destroy]
+      before_action :set_unreal_variable, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/unreal_variables
       def index

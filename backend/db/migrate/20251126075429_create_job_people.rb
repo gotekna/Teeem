@@ -10,7 +10,7 @@ class CreateJobPeople < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :job_people, [:job_id, :contact_id], unique: true
-    add_index :job_people, [:job_id, :is_primary]
+    add_index :job_people, [ :job_id, :contact_id ], unique: true
+    add_index :job_people, [ :job_id, :is_primary ]
   end
 end

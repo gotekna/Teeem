@@ -1,4 +1,28 @@
 {
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit(**/frontend-next/**/*.tsx)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd frontend-next && npx tsc --noEmit 2>&1 | tail -10 || true",
+            "statusMessage": "Type checking..."
+          }
+        ]
+      },
+      {
+        "matcher": "Edit(**/backend/**/*.rb)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd backend && bundle exec rubocop --format simple $FILE 2>&1 | tail -5 || true",
+            "statusMessage": "Linting Ruby..."
+          }
+        ]
+      }
+    ]
+  },
   "permissions": {
     "defaultMode": "bypassPermissions",
     "allow": [
@@ -26,8 +50,8 @@
       "Bash(git commit:*)",
       "Bash(npm install:*)",
       "Bash(npx tailwindcss:*)",
-      "Bash(curl -s https://teeem-backend-39604ccca45a.herokuapp.com/)",
-      "Bash(curl -s https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/tables)",
+      "Bash(curl -s https://teeemlive-ce8e2660a615.herokuapp.com/)",
+      "Bash(curl -s https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/tables)",
       "Bash(awk:*)",
       "Bash(bin/rails server:*)",
       "Bash(lsof:*)",

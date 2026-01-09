@@ -10,13 +10,13 @@ namespace :corporate do
 
       # Navigate to folder
       root_items = client.get("/drives/#{drive_id}/root/children")
-      corporate_folder = root_items['value'].find { |item| item['name'] == 'Corporate File' && item['folder'] }
+      corporate_folder = root_items["value"].find { |item| item["name"] == "Corporate File" && item["folder"] }
 
       corporate_items = client.get("/drives/#{drive_id}/items/#{corporate_folder['id']}/children")
-      tekna_group = corporate_items['value'].find { |item| item['name'] == 'Tekna Group' && item['folder'] }
+      tekna_group = corporate_items["value"].find { |item| item["name"] == "Tekna Group" && item["folder"] }
 
       tekna_group_items = client.get("/drives/#{drive_id}/items/#{tekna_group['id']}/children")
-      tekna_drafting_folder = tekna_group_items['value'].find { |item| item['name'] == 'Tekna Drafting' && item['folder'] }
+      tekna_drafting_folder = tekna_group_items["value"].find { |item| item["name"] == "Tekna Drafting" && item["folder"] }
 
       puts "Folder: #{tekna_drafting_folder['webUrl']}"
       puts ""
@@ -27,13 +27,13 @@ namespace :corporate do
       puts "Contents:"
       puts "-" * 80
 
-      items['value'].each do |item|
-        if item['folder']
+      items["value"].each do |item|
+        if item["folder"]
           puts "📁 #{item['name']}"
           # List subfolder contents
           subfolder_items = client.get("/drives/#{drive_id}/items/#{item['id']}/children")
-          subfolder_items['value'].each do |subitem|
-            prefix = subitem['folder'] ? "  📁" : "  📄"
+          subfolder_items["value"].each do |subitem|
+            prefix = subitem["folder"] ? "  📁" : "  📄"
             puts "#{prefix} #{subitem['name']}"
           end
         else

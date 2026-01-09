@@ -2,11 +2,14 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EntityTabsTable } from "./EntityTabsTable";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -38,26 +41,35 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Plus,
-  Loader2,
   MoreHorizontal,
   Pencil,
   Trash2,
   Search,
   Building2,
   ExternalLink,
+  FolderOpen,
+  LayoutGrid,
+  GripVertical,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
-const COMPANY_GROUPS = [
-  { value: "all", label: "All Groups" },
-  { value: "tekna", label: "Tekna" },
-  { value: "team_harder", label: "Team Harder" },
-  { value: "promise", label: "Promise" },
-  { value: "charity", label: "Charity" },
-  { value: "other", label: "Other" },
-];
+interface CompanyGroup {
+  id: number;
+  name: string;
+  code?: string;
+  description?: string;
+  default_registered_office?: string;
+  default_principal_place?: string;
+  default_accountant?: string;
+  default_accountant_contact?: string;
+  active?: boolean;
+  companies_count?: number;
+}
 
 const COMPANY_STATUSES = [
   { value: "all", label: "All Statuses" },
@@ -67,37 +79,417 @@ const COMPANY_STATUSES = [
   { value: "dormant", label: "Dormant" },
 ];
 
+const ENTITY_TYPES = [
+  { value: "all", label: "All Types" },
+  { value: "Company", label: "Company" },
+  { value: "Trust", label: "Trust" },
+  { value: "Superfund", label: "Superfund" },
+];
+
 interface Company {
   id: number;
   name: string;
+  code?: string;
   abn: string;
   acn: string;
-  group: string;
+  company_group_id?: number;
+  group?: string;
   status: string;
   type: string;
+  entity_type?: string;
   address: string;
   email: string;
   phone: string;
   sharepoint_url?: string;
 }
 
-export function CorporateTab() {
+// ===== GROUPS SUB-TAB =====
+function GroupsSubTab() {
+  const { toast } = useToast();
+  const [groups, setGroups] = React.useState<CompanyGroup[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [showDialog, setShowDialog] = React.useState(false);
+  const [editingGroup, setEditingGroup] = React.useState<CompanyGroup | null>(null);
+  const [saving, setSaving] = React.useState(false);
+  const [deleting, setDeleting] = React.useState<number | null>(null);
+
+  const [formData, setFormData] = React.useState({
+    name: "",
+    code: "",
+    description: "",
+    default_registered_office: "",
+    default_principal_place: "",
+    default_accountant: "",
+    default_accountant_contact: "",
+  });
+
+  React.useEffect(() => {
+    loadGroups();
+     
+  }, []);
+
+  const loadGroups = async () => {
+    setLoading(true);
+    try {
+      const response = await api.get<{ success: boolean; data: CompanyGroup[] }>("/api/v1/company_groups");
+      setGroups(response.data || []);
+    } catch (error) {
+      console.error("Failed to load groups:", error);
+      toast({ title: "Error", description: "Failed to load company groups", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      code: "",
+      description: "",
+      default_registered_office: "",
+      default_principal_place: "",
+      default_accountant: "",
+      default_accountant_contact: "",
+    });
+    setEditingGroup(null);
+  };
+
+  const handleOpenAddDialog = () => {
+    resetForm();
+    setShowDialog(true);
+  };
+
+  const handleOpenEditDialog = (group: CompanyGroup) => {
+    setFormData({
+      name: group.name,
+      code: group.code || "",
+      description: group.description || "",
+      default_registered_office: group.default_registered_office || "",
+      default_principal_place: group.default_principal_place || "",
+      default_accountant: group.default_accountant || "",
+      default_accountant_contact: group.default_accountant_contact || "",
+    });
+    setEditingGroup(group);
+    setShowDialog(true);
+  };
+
+  const handleSave = async () => {
+    if (!formData.name.trim()) {
+      toast({ title: "Error", description: "Group name is required", variant: "destructive" });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      if (editingGroup) {
+        await api.patch(`/api/v1/company_groups/${editingGroup.id}`, { company_group: formData });
+        toast({ title: "Success", description: "Group updated successfully" });
+      } else {
+        await api.post("/api/v1/company_groups", { company_group: formData });
+        toast({ title: "Success", description: "Group created successfully" });
+      }
+      setShowDialog(false);
+      resetForm();
+      loadGroups();
+    } catch (error) {
+      console.error("Failed to save group:", error);
+      toast({ title: "Error", description: "Failed to save group", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (group: CompanyGroup) => {
+    if (group.companies_count && group.companies_count > 0) {
+      toast({
+        title: "Cannot Delete",
+        description: `This group has ${group.companies_count} companies. Reassign them first.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!confirm(`Delete group "${group.name}"? This cannot be undone.`)) return;
+
+    setDeleting(group.id);
+    try {
+      await api.delete(`/api/v1/company_groups/${group.id}`);
+      toast({ title: "Success", description: "Group deleted successfully" });
+      loadGroups();
+    } catch (error) {
+      console.error("Failed to delete group:", error);
+      toast({ title: "Error", description: "Failed to delete group", variant: "destructive" });
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Spinner size={32} className="text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-medium">Company Groups</h3>
+          <p className="text-sm text-muted-foreground">
+            Manage company groups to organize related entities
+          </p>
+        </div>
+        <Button onClick={handleOpenAddDialog}>
+          <Plus className="h-4 w-4 mr-2" />
+          Create Group
+        </Button>
+      </div>
+
+      {groups.length === 0 ? (
+        <Card>
+          <CardContent className="py-12">
+            <div className="text-center text-muted-foreground">
+              <FolderOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium">No groups yet</p>
+              <p className="text-sm mt-1">Create your first company group to get started</p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Group Name</TableHead>
+                <TableHead>CGC</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Companies</TableHead>
+                <TableHead>Default Accountant</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="w-[50px]"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {groups.map((group) => (
+                <TableRow key={group.id}>
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/30">
+                        <FolderOpen className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                      </div>
+                      <div className="font-medium">{group.name}</div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="font-mono text-muted-foreground">
+                    {group.code || "-"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground max-w-[200px] truncate">
+                    {group.description || "-"}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="secondary">{group.companies_count || 0}</Badge>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {group.default_accountant || "-"}
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      className={cn(
+                        group.active !== false
+                          ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+                          : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"
+                      )}
+                    >
+                      {group.active !== false ? "Active" : "Inactive"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" disabled={deleting === group.id}>
+                          {deleting === group.id ? (
+                            <Spinner size={16} />
+                          ) : (
+                            <MoreHorizontal className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleOpenEditDialog(group)}>
+                          <Pencil className="h-4 w-4 mr-2" />
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href="/corporate/groups">
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            View in Corporate
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-destructive"
+                          onClick={() => handleDelete(group)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      )}
+
+      {/* Create/Edit Group Dialog */}
+      <Dialog open={showDialog} onOpenChange={(open) => {
+        setShowDialog(open);
+        if (!open) resetForm();
+      }}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>{editingGroup ? "Edit Group" : "Create New Group"}</DialogTitle>
+            <DialogDescription>
+              {editingGroup
+                ? "Update the group details below."
+                : "Create a new company group to organize related companies and trusts."
+              }
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-3 gap-4">
+              <div className="col-span-2 grid gap-2">
+                <Label htmlFor="group-name">Name *</Label>
+                <Input
+                  id="group-name"
+                  placeholder="e.g., Smith Family Group"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="group-code">Company Group Code (CGC)</Label>
+                <Input
+                  id="group-code"
+                  placeholder="e.g., SFG"
+                  value={formData.code}
+                  onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                  maxLength={10}
+                  className="font-mono"
+                />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="group-description">Description</Label>
+              <Textarea
+                id="group-description"
+                placeholder="Optional description of this group"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="group-registered-office">Default Registered Office</Label>
+              <Input
+                id="group-registered-office"
+                placeholder="Address for registered office"
+                value={formData.default_registered_office}
+                onChange={(e) => setFormData({ ...formData, default_registered_office: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="group-principal-place">Default Principal Place of Business</Label>
+              <Input
+                id="group-principal-place"
+                placeholder="Address for principal place"
+                value={formData.default_principal_place}
+                onChange={(e) => setFormData({ ...formData, default_principal_place: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="group-accountant">Default Accountant</Label>
+                <Input
+                  id="group-accountant"
+                  placeholder="Accountant name"
+                  value={formData.default_accountant}
+                  onChange={(e) => setFormData({ ...formData, default_accountant: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="group-accountant-contact">Accountant Contact</Label>
+                <Input
+                  id="group-accountant-contact"
+                  placeholder="Contact details"
+                  value={formData.default_accountant_contact}
+                  onChange={(e) => setFormData({ ...formData, default_accountant_contact: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowDialog(false);
+              resetForm();
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={saving || !formData.name.trim()}>
+              {saving && <Spinner size={16} className="mr-2" />}
+              {editingGroup ? "Save Changes" : "Create Group"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ===== COMPANIES SUB-TAB =====
+function CompaniesSubTab() {
   const { toast } = useToast();
   const [companies, setCompanies] = React.useState<Company[]>([]);
+  const [groups, setGroups] = React.useState<CompanyGroup[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [selectedGroup, setSelectedGroup] = React.useState("all");
+  const [selectedGroupId, setSelectedGroupId] = React.useState("all");
   const [selectedStatus, setSelectedStatus] = React.useState("all");
+  const [selectedEntityType, setSelectedEntityType] = React.useState("all");
   const [searchTerm, setSearchTerm] = React.useState("");
   const [showAddDialog, setShowAddDialog] = React.useState(false);
   const [editingCompany, setEditingCompany] = React.useState<Company | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [deleting, setDeleting] = React.useState<number | null>(null);
 
+  // Add Existing Contact state
+  const [showAddExistingDialog, setShowAddExistingDialog] = React.useState(false);
+  const [contactSearchResults, setContactSearchResults] = React.useState<Array<{
+    id: number;
+    display_name: string;
+    entity_type: string;
+    abn?: string;
+    acn?: string;
+  }>>([]);
+  const [selectedContactForAdd, setSelectedContactForAdd] = React.useState<{
+    id: number;
+    display_name: string;
+    entity_type: string;
+    abn?: string;
+    acn?: string;
+  } | null>(null);
+  const [contactSearchQuery, setContactSearchQuery] = React.useState("");
+  const [searchingContacts, setSearchingContacts] = React.useState(false);
+  const [selectedGroupForAdd, setSelectedGroupForAdd] = React.useState("");
+  const [addingToCorporate, setAddingToCorporate] = React.useState(false);
+
   const [formData, setFormData] = React.useState({
     name: "",
+    code: "",
     abn: "",
     acn: "",
-    group: "other",
+    company_group_id: "",
     status: "active",
     type: "",
     address: "",
@@ -105,59 +497,48 @@ export function CorporateTab() {
     phone: "",
   });
 
-  React.useEffect(() => {
-    loadCompanies();
-  }, [selectedGroup, selectedStatus]);
+  const loadGroups = async () => {
+    try {
+      const response = await api.get<{ success: boolean; data: CompanyGroup[] }>("/api/v1/company_groups");
+      setGroups(response.data || []);
+    } catch (error) {
+      console.error("Failed to load groups:", error);
+    }
+  };
 
-  const loadCompanies = async () => {
+  const loadCompanies = React.useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (selectedGroup !== "all") params.append("group", selectedGroup);
+      if (selectedGroupId !== "all") params.append("company_group_id", selectedGroupId);
       if (selectedStatus !== "all") params.append("status", selectedStatus);
+      if (selectedEntityType !== "all") params.append("entity_type", selectedEntityType);
 
-      const data = await api.get<Company[]>(`/api/v1/companies?${params}`);
-      setCompanies(data);
+      const response = await api.get<{ companies: Company[] }>(`/api/v1/companies?${params}`);
+      setCompanies(response.companies || []);
     } catch (error) {
       console.error("Failed to load companies:", error);
-      // Mock data for development
-      setCompanies([
-        {
-          id: 1,
-          name: "Tekna Homes Pty Ltd",
-          abn: "12 345 678 901",
-          acn: "123 456 789",
-          group: "tekna",
-          status: "active",
-          type: "Builder",
-          address: "123 Main St, Brisbane QLD 4000",
-          email: "info@teknahomes.com.au",
-          phone: "07 1234 5678",
-        },
-        {
-          id: 2,
-          name: "Promise Developments",
-          abn: "98 765 432 109",
-          acn: "987 654 321",
-          group: "promise",
-          status: "active",
-          type: "Developer",
-          address: "456 Queen St, Brisbane QLD 4000",
-          email: "info@promise.com.au",
-          phone: "07 9876 5432",
-        },
-      ]);
+      setCompanies([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedGroupId, selectedStatus, selectedEntityType]);
+
+  React.useEffect(() => {
+    loadGroups();
+  }, []);
+
+  React.useEffect(() => {
+    loadCompanies();
+  }, [selectedGroupId, selectedStatus, selectedEntityType, loadCompanies]);
 
   const handleOpenAddDialog = () => {
     setFormData({
       name: "",
+      code: "",
       abn: "",
       acn: "",
-      group: "other",
+      company_group_id: "",
       status: "active",
       type: "",
       address: "",
@@ -168,12 +549,78 @@ export function CorporateTab() {
     setShowAddDialog(true);
   };
 
+  // Search for existing contacts not yet in corporate
+  const searchContacts = React.useCallback(async (query: string) => {
+    if (!query || query.length < 2) {
+      setContactSearchResults([]);
+      return;
+    }
+    setSearchingContacts(true);
+    try {
+      const params = new URLSearchParams({
+        search: query,
+        entity_type: "company,trust",
+        not_corporate: "true",
+      });
+      const response = await api.get<{ contacts: Array<{ id: number; display_name: string; entity_type: string; abn?: string; acn?: string }> }>(
+        `/api/v1/contacts?${params}`
+      );
+      setContactSearchResults(response.contacts || []);
+    } catch (error) {
+      console.error("Failed to search contacts:", error);
+      setContactSearchResults([]);
+    } finally {
+      setSearchingContacts(false);
+    }
+  }, []);
+
+  // Debounced search
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      if (contactSearchQuery) {
+        searchContacts(contactSearchQuery);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [contactSearchQuery, searchContacts]);
+
+  // Add existing contact to corporate
+  // SSoT: Creates CorporateCompany record linked to the Contact
+  const handleAddToCorporate = async () => {
+    if (!selectedContactForAdd || !selectedGroupForAdd) {
+      toast({ title: "Error", description: "Please select a contact and company group", variant: "destructive" });
+      return;
+    }
+
+    setAddingToCorporate(true);
+    try {
+      // SSoT: Use create_from_contact endpoint which properly creates CorporateCompany
+      await api.post("/api/v1/companies/create_from_contact", {
+        contact_id: selectedContactForAdd.id,
+        company_group_id: parseInt(selectedGroupForAdd),
+      });
+      toast({ title: "Success", description: `${selectedContactForAdd.display_name} added to corporate` });
+      setShowAddExistingDialog(false);
+      setSelectedContactForAdd(null);
+      setContactSearchQuery("");
+      setContactSearchResults([]);
+      setSelectedGroupForAdd("");
+      loadCompanies();
+    } catch (error) {
+      console.error("Failed to add contact to corporate:", error);
+      toast({ title: "Error", description: "Failed to add contact to corporate", variant: "destructive" });
+    } finally {
+      setAddingToCorporate(false);
+    }
+  };
+
   const handleOpenEditDialog = (company: Company) => {
     setFormData({
       name: company.name,
+      code: company.code || "",
       abn: company.abn || "",
       acn: company.acn || "",
-      group: company.group || "other",
+      company_group_id: company.company_group_id?.toString() || "",
       status: company.status || "active",
       type: company.type || "",
       address: company.address || "",
@@ -192,11 +639,22 @@ export function CorporateTab() {
 
     setSaving(true);
     try {
+      // Only send fields that exist on CorporateCompany model
+      const payload = {
+        name: formData.name,
+        code: formData.code || undefined,
+        abn: formData.abn || undefined,
+        acn: formData.acn || undefined,
+        status: formData.status || undefined,
+        entity_type: formData.type || undefined,
+        company_group_id: formData.company_group_id && formData.company_group_id !== "none" ? parseInt(formData.company_group_id) : null,
+      };
+
       if (editingCompany) {
-        await api.patch(`/api/v1/companies/${editingCompany.id}`, { company: formData });
+        await api.patch(`/api/v1/companies/${editingCompany.id}`, { company: payload });
         toast({ title: "Success", description: "Company updated successfully" });
       } else {
-        await api.post("/api/v1/companies", { company: formData });
+        await api.post("/api/v1/companies", { company: payload });
         toast({ title: "Success", description: "Company created successfully" });
       }
       setShowAddDialog(false);
@@ -249,6 +707,14 @@ export function CorporateTab() {
     }
   };
 
+  const getGroupName = (company: Company) => {
+    if (company.company_group_id) {
+      const group = groups.find(g => g.id === company.company_group_id);
+      return group?.name || "Unknown";
+    }
+    return company.group || "-";
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -262,14 +728,15 @@ export function CorporateTab() {
               className="pl-8"
             />
           </div>
-          <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-            <SelectTrigger className="w-[150px]">
+          <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
+            <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Group" />
             </SelectTrigger>
             <SelectContent>
-              {COMPANY_GROUPS.map((group) => (
-                <SelectItem key={group.value} value={group.value}>
-                  {group.label}
+              <SelectItem value="all">All Groups</SelectItem>
+              {groups.map((group) => (
+                <SelectItem key={group.id} value={group.id.toString()}>
+                  {group.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -286,23 +753,42 @@ export function CorporateTab() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={selectedEntityType} onValueChange={setSelectedEntityType}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Type" />
+            </SelectTrigger>
+            <SelectContent>
+              {ENTITY_TYPES.map((type) => (
+                <SelectItem key={type.value} value={type.value}>
+                  {type.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        <Button onClick={handleOpenAddDialog}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Company
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setShowAddExistingDialog(true)}>
+            <Search className="h-4 w-4 mr-2" />
+            Add Existing
+          </Button>
+          <Button onClick={handleOpenAddDialog}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Company
+          </Button>
+        </div>
       </div>
 
       <Card>
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner size={32} className="text-muted-foreground" />
           </div>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Company</TableHead>
+                <TableHead>Code</TableHead>
                 <TableHead>ABN/ACN</TableHead>
                 <TableHead>Group</TableHead>
                 <TableHead>Status</TableHead>
@@ -313,7 +799,7 @@ export function CorporateTab() {
             <TableBody>
               {filteredCompanies.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                     No companies found.
                   </TableCell>
                 </TableRow>
@@ -338,6 +824,9 @@ export function CorporateTab() {
                         </div>
                       </div>
                     </TableCell>
+                    <TableCell className="font-mono text-muted-foreground">
+                      {company.code || "-"}
+                    </TableCell>
                     <TableCell>
                       <div className="text-sm">
                         {company.abn && <p>ABN: {company.abn}</p>}
@@ -346,7 +835,7 @@ export function CorporateTab() {
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="capitalize">
-                        {company.group?.replace("_", " ") || "Other"}
+                        {getGroupName(company)}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -354,13 +843,21 @@ export function CorporateTab() {
                         {company.status?.replace("_", " ") || "Active"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{company.type || "-"}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={cn(
+                        company.entity_type === "Company" && "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800",
+                        company.entity_type === "Trust" && "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800",
+                        company.entity_type === "Superfund" && "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800"
+                      )}>
+                        {company.entity_type || "-"}
+                      </Badge>
+                    </TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" disabled={deleting === company.id}>
                             {deleting === company.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <Spinner size={16} />
                             ) : (
                               <MoreHorizontal className="h-4 w-4" />
                             )}
@@ -418,8 +915,8 @@ export function CorporateTab() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
+            <div className="grid grid-cols-4 gap-4">
+              <div className="col-span-2 space-y-2">
                 <Label htmlFor="name">Company Name *</Label>
                 <Input
                   id="name"
@@ -428,10 +925,21 @@ export function CorporateTab() {
                 />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="code">Code</Label>
+                <Input
+                  id="code"
+                  placeholder="e.g., TEK"
+                  value={formData.code}
+                  onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                  maxLength={10}
+                  className="font-mono"
+                />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="type">Type</Label>
                 <Input
                   id="type"
-                  placeholder="e.g., Builder, Developer"
+                  placeholder="e.g., Builder"
                   value={formData.type}
                   onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                 />
@@ -459,18 +967,19 @@ export function CorporateTab() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="group">Group</Label>
+                <Label htmlFor="company_group_id">Company Group</Label>
                 <Select
-                  value={formData.group}
-                  onValueChange={(value) => setFormData({ ...formData, group: value })}
+                  value={formData.company_group_id}
+                  onValueChange={(value) => setFormData({ ...formData, company_group_id: value })}
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Select a group" />
                   </SelectTrigger>
                   <SelectContent>
-                    {COMPANY_GROUPS.filter((g) => g.value !== "all").map((group) => (
-                      <SelectItem key={group.value} value={group.value}>
-                        {group.label}
+                    <SelectItem value="none">No Group</SelectItem>
+                    {groups.map((group) => (
+                      <SelectItem key={group.id} value={group.id.toString()}>
+                        {group.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -530,7 +1039,7 @@ export function CorporateTab() {
             <Button onClick={handleSave} disabled={saving}>
               {saving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Saving...
                 </>
               ) : editingCompany ? (
@@ -542,6 +1051,224 @@ export function CorporateTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Add Existing Contact Dialog */}
+      <Dialog open={showAddExistingDialog} onOpenChange={(open) => {
+        setShowAddExistingDialog(open);
+        if (!open) {
+          setSelectedContactForAdd(null);
+          setContactSearchQuery("");
+          setContactSearchResults([]);
+          setSelectedGroupForAdd("");
+        }
+      }}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Add Existing Contact to Corporate</DialogTitle>
+            <DialogDescription>
+              Search for an existing company or trust contact and assign it to a company group.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            {/* Search Input */}
+            <div className="grid gap-2">
+              <Label>Search Contacts</Label>
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Type to search companies/trusts..."
+                  value={contactSearchQuery}
+                  onChange={(e) => setContactSearchQuery(e.target.value)}
+                  className="pl-8"
+                />
+              </div>
+            </div>
+
+            {/* Search Results */}
+            {searchingContacts ? (
+              <div className="flex items-center justify-center py-4">
+                <Spinner size={20} className="text-muted-foreground" />
+              </div>
+            ) : contactSearchResults.length > 0 ? (
+              <div className="max-h-48 overflow-y-auto border rounded-md">
+                {contactSearchResults.map((contact) => (
+                  <div
+                    key={contact.id}
+                    className={cn(
+                      "flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50 border-b last:border-b-0",
+                      selectedContactForAdd?.id === contact.id && "bg-muted"
+                    )}
+                    onClick={() => setSelectedContactForAdd(contact)}
+                  >
+                    <div className="p-2 rounded-lg bg-muted">
+                      <Building2 className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{contact.display_name}</p>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Badge variant="outline" className="text-xs">
+                          {contact.entity_type}
+                        </Badge>
+                        {contact.abn && <span>ABN: {contact.abn}</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : contactSearchQuery.length >= 2 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No contacts found. Try a different search term.
+              </p>
+            ) : null}
+
+            {/* Selected Contact Preview */}
+            {selectedContactForAdd && (
+              <div className="p-3 border rounded-md bg-muted/30">
+                <div className="flex items-center gap-2 mb-2">
+                  <Building2 className="h-4 w-4 text-primary" />
+                  <span className="font-medium">{selectedContactForAdd.display_name}</span>
+                  <Badge variant="outline" className={cn(
+                    "text-xs",
+                    selectedContactForAdd.entity_type === "company" && "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300",
+                    selectedContactForAdd.entity_type === "trust" && "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300"
+                  )}>
+                    {selectedContactForAdd.entity_type}
+                  </Badge>
+                </div>
+                {selectedContactForAdd.abn && (
+                  <p className="text-xs text-muted-foreground">ABN: {selectedContactForAdd.abn}</p>
+                )}
+              </div>
+            )}
+
+            {/* Company Group Selector */}
+            <div className="grid gap-2">
+              <Label>Company Group *</Label>
+              <Select
+                value={selectedGroupForAdd}
+                onValueChange={setSelectedGroupForAdd}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a company group" />
+                </SelectTrigger>
+                <SelectContent>
+                  {groups.map((group) => (
+                    <SelectItem key={group.id} value={group.id.toString()}>
+                      {group.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddExistingDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAddToCorporate}
+              disabled={addingToCorporate || !selectedContactForAdd || !selectedGroupForAdd}
+            >
+              {addingToCorporate ? (
+                <>
+                  <Spinner size={16} className="mr-2" />
+                  Adding...
+                </>
+              ) : (
+                "Add to Corporate"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ===== COMPANY TABS CONFIG SUB-TAB =====
+
+// Overview sub-tabs - these are pure UI structure, not database-driven
+// They define the sections within the Overview tab on company pages
+// SSoT: Xero tabs loaded from API - minimal fallback only
+const XERO_TABS_FALLBACK = [
+  { id: "connection", name: "Connection", type: "functional", enabled: true },
+];
+
+// Entity tab interface (matches API response)
+interface EntityTab {
+  id: string;
+  name: string;
+  type: string;
+  group: string;
+  icon?: string;
+  entity_types: string[];
+  enabled?: boolean;
+  order_position?: number;
+  description?: string;
+  component?: string;
+  // SharePoint folder config
+  has_sharepoint_folder?: boolean;
+  sharepoint_folder_path?: string;
+  sub_tabs?: Array<{ key: string; name: string; folder: string }>;
+  document_types?: Array<{ id: number; name: string; display_name: string; is_primary: boolean }>;
+}
+
+function CompanyTabsSubTab() {
+  // Use the new EntityTabsTable component for all entity tab configuration
+  // This provides inline SharePoint path editing, expandable sub-tabs, and drag-to-reorder
+  return <EntityTabsTable />;
+}
+
+// ===== MAIN CORPORATE TAB =====
+export function CorporateTab() {
+  const [activeSubTab, setActiveSubTab] = React.useState("groups");
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Corporate Administration</h2>
+          <p className="text-sm text-muted-foreground">
+            Manage company groups and corporate entities
+          </p>
+        </div>
+        <Link
+          href="/corporate"
+          className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+        >
+          Go to Corporate Dashboard
+          <ExternalLink className="h-4 w-4" />
+        </Link>
+      </div>
+
+      <Tabs value={activeSubTab} onValueChange={setActiveSubTab}>
+        <TabsList>
+          <TabsTrigger value="groups" className="flex items-center gap-2">
+            <FolderOpen className="h-4 w-4" />
+            Groups
+          </TabsTrigger>
+          <TabsTrigger value="companies" className="flex items-center gap-2">
+            <Building2 className="h-4 w-4" />
+            Companies
+          </TabsTrigger>
+          <TabsTrigger value="company-tabs" className="flex items-center gap-2">
+            <LayoutGrid className="h-4 w-4" />
+            Entity Tabs
+          </TabsTrigger>
+        </TabsList>
+
+        <div className="mt-6">
+          <TabsContent value="groups">
+            <GroupsSubTab />
+          </TabsContent>
+          <TabsContent value="companies">
+            <CompaniesSubTab />
+          </TabsContent>
+          <TabsContent value="company-tabs">
+            <CompanyTabsSubTab />
+          </TabsContent>
+        </div>
+      </Tabs>
     </div>
   );
 }

@@ -14,10 +14,10 @@ namespace :contacts do
 
     Contact.find_each do |c|
       next unless is_company?(c.full_name, company_patterns)
-      next if c.entity_type == 'company' # Already correct
+      next if c.entity_type == "company" # Already correct
 
       begin
-        updates = { entity_type: 'company' }
+        updates = { entity_type: "company" }
 
         # Set company_name_or_trust if blank
         updates[:company_name_or_trust] = c.full_name if c.company_name_or_trust.blank?
@@ -47,7 +47,7 @@ namespace :contacts do
   task check_companies: :environment do
     company_patterns = XeroContactSyncService::COMPANY_INDICATORS
 
-    mismatched = Contact.where.not(entity_type: 'company').select do |c|
+    mismatched = Contact.where.not(entity_type: "company").select do |c|
       company_patterns.any? { |p| c.full_name.to_s.match?(p) }
     end
 
@@ -115,7 +115,7 @@ namespace :contacts do
     print "Type 'yes' to continue: "
     confirmation = STDIN.gets&.chomp
 
-    unless confirmation == 'yes'
+    unless confirmation == "yes"
       puts "Aborted."
       exit 1
     end

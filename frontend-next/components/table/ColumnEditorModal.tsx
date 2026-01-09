@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -24,8 +24,6 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  X,
-  Loader2,
   Save,
   Lock,
   Info,
@@ -45,14 +43,17 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
-import { getColumnTypeEmoji, COLUMN_TYPES } from "@/lib/column-types";
+import { getColumnTypeEmoji, getColumnTypes, getTypeDefinition } from "@/lib/column-type-registry";
 import type { TableColumn } from "./types";
+import { useSetAtom } from "jotai";
+import { invalidateColumnsCacheAtom } from "@/lib/column-state-atoms";
 
 interface ColumnEditorModalProps {
   isOpen: boolean;
   column: TableColumn | null;
-  foundationId: number | null;
+  foundationId: number | string | null;
   allColumns: TableColumn[];
   onClose: () => void;
   onUpdate: () => void;
@@ -71,19 +72,17 @@ interface EditedColumn {
   lookup_display_column: string;
 }
 
-// Get column metadata from COLUMN_TYPES
+// Get column metadata from SSoT registry
 const getColumnMetadata = (columnType: string) => {
-  const columnTypeDef = COLUMN_TYPES.find(
-    (type) => type.value === columnType
-  );
+  const columnTypeDef = getTypeDefinition(columnType);
 
   if (columnTypeDef) {
     return {
-      sqlType: columnTypeDef.sqlType || "Unknown",
-      validation: columnTypeDef.validationRules || "No validation rules defined",
-      usedFor: columnTypeDef.usedFor || "No description available",
-      example: columnTypeDef.example || "No example available",
-      label: columnTypeDef.label || columnType,
+      sqlType: columnTypeDef.sql_type || "Unknown",
+      validation: columnTypeDef.validation_message || "No validation rules defined",
+      usedFor: columnTypeDef.used_for || "No description available",
+      example: columnTypeDef.example_values || "No example available",
+      label: columnTypeDef.display_name || columnType,
       icon: getColumnTypeEmoji(columnType),
     };
   }
@@ -107,6 +106,10 @@ export function ColumnEditorModal({
   onUpdate,
 }: ColumnEditorModalProps) {
   const { toast } = useToast();
+
+  // Get cache invalidation function
+  const invalidateColumnsCache = useSetAtom(invalidateColumnsCacheAtom);
+
   const [activeTab, setActiveTab] = useState<"info" | "type" | "formula" | "choices" | "lookup">("info");
   const [editedColumn, setEditedColumn] = useState<EditedColumn>({
     name: "",
@@ -125,10 +128,7 @@ export function ColumnEditorModal({
   const [newColumnType, setNewColumnType] = useState("");
   const [availableTables, setAvailableTables] = useState<Array<{ id: number; name: string }>>([]);
   const [loadingTables, setLoadingTables] = useState(false);
-  const [targetTableColumns, setTargetTableColumns] = useState<Array<{ column_name: string; name: string }>>([]);
-  const [loadingTargetColumns, setLoadingTargetColumns] = useState(false);
   const [targetTableRecords, setTargetTableRecords] = useState<Array<{ id: number; display: string }>>([]);
-  const [loadingTargetRecords, setLoadingTargetRecords] = useState(false);
 
   // System-generated columns
   const isSystemGenerated = column
@@ -142,7 +142,7 @@ export function ColumnEditorModal({
       setLoadingTables(true);
       try {
         const response = await api.get<{ success: boolean; foundations: Array<{ id: number; name: string }> }>("/api/v1/foundations");
-        if (response?.foundations) {
+        if (response?.foundations && Array.isArray(response.foundations)) {
           setAvailableTables(response.foundations.sort((a, b) => a.name.localeCompare(b.name)));
         }
       } catch (error) {
@@ -154,46 +154,7 @@ export function ColumnEditorModal({
     loadTables();
   }, [isOpen]);
 
-  // Load columns from target table when lookup_table_id changes
-  useEffect(() => {
-    const loadTargetColumns = async () => {
-      // Clear existing columns immediately when table ID changes
-      setTargetTableColumns([]);
-
-      if (!editedColumn.lookup_table_id) {
-        return;
-      }
-
-      const tableIdToLoad = editedColumn.lookup_table_id;
-      const tableName = availableTables.find(t => t.id === tableIdToLoad)?.name || 'Unknown';
-      setLoadingTargetColumns(true);
-      console.log('[ColumnEditorModal] Loading columns for target table:', tableIdToLoad, '(' + tableName + ')');
-
-      try {
-        const response = await api.get<{ success: boolean; foundation: { columns: Array<{ column_name: string; name: string }> } }>(
-          `/api/v1/foundations/${tableIdToLoad}`
-        );
-        console.log('[ColumnEditorModal] Response for table', tableIdToLoad, ':', response);
-
-        // Check if the table ID is still the same (avoid race condition)
-        if (response?.foundation?.columns) {
-          console.log('[ColumnEditorModal] Setting columns for table', tableIdToLoad, ':', response.foundation.columns);
-          setTargetTableColumns(response.foundation.columns);
-        } else {
-          console.warn('[ColumnEditorModal] No columns in response for table', tableIdToLoad);
-          setTargetTableColumns([]);
-        }
-      } catch (error) {
-        console.error("Failed to load target table columns:", error);
-        setTargetTableColumns([]);
-      } finally {
-        setLoadingTargetColumns(false);
-      }
-    };
-    loadTargetColumns();
-    // Only depend on lookup_table_id - availableTables is just for logging
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editedColumn.lookup_table_id]);
+  // Note: Target table columns loading was removed as the state was never used
 
   // Load records from target table when lookup_table_id changes
   useEffect(() => {
@@ -205,7 +166,6 @@ export function ColumnEditorModal({
       }
 
       const tableIdToLoad = editedColumn.lookup_table_id;
-      setLoadingTargetRecords(true);
       console.log('[ColumnEditorModal] Loading records for target table:', tableIdToLoad);
 
       try {
@@ -227,8 +187,6 @@ export function ColumnEditorModal({
       } catch (error) {
         console.error("Failed to load target table records:", error);
         setTargetTableRecords([]);
-      } finally {
-        setLoadingTargetRecords(false);
       }
     };
     loadTargetRecords();
@@ -237,8 +195,8 @@ export function ColumnEditorModal({
   // Sync state when column changes
   useEffect(() => {
     if (column) {
-      console.log('[ColumnEditorModal] Column changed:', column.key, 'lookup_config:', column.lookup_config);
-      const newLookupTableId = column.lookup_config?.target_table_id || null;
+      console.log('[ColumnEditorModal] Column changed:', column.key, 'lookup_foundation_id:', column.lookup_foundation_id);
+      const newLookupTableId = column.lookup_foundation_id || null;
       console.log('[ColumnEditorModal] Setting lookup_table_id to:', newLookupTableId);
 
       setEditedColumn({
@@ -251,13 +209,13 @@ export function ColumnEditorModal({
         formula: (column as any).formula || "",
         choices: column.choices || [],
         lookup_table_id: newLookupTableId,
-        lookup_display_column: column.lookup_config?.display_column || "",
+        lookup_display_column: column.lookup_display_column || "",
       });
       setNewColumnType(column.column_type || "text");
     }
   }, [column]);
 
-  const hasChanges = useCallback(() => {
+  const hasChanges = () => {
     if (!column) return false;
     return (
       editedColumn.name !== column.label ||
@@ -265,7 +223,7 @@ export function ColumnEditorModal({
       editedColumn.data_align !== ((column as any).data_align || "left") ||
       editedColumn.column_group !== ((column as any).column_group || "")
     );
-  }, [column, editedColumn]);
+  };
 
   const handleSave = async () => {
     if (!column || !foundationId) return;
@@ -309,6 +267,12 @@ export function ColumnEditorModal({
 
       console.log('[ColumnEditorModal] Saved column with choices:', editedColumn.choices);
       toast({ title: "Success", description: "Column updated successfully" });
+
+      // Invalidate columns cache so ViewManagerSheet shows the updated column
+      if (foundationId) {
+        invalidateColumnsCache(foundationId);
+      }
+
       onUpdate();
       onClose();
     } catch (error) {
@@ -353,6 +317,12 @@ export function ColumnEditorModal({
       });
 
       toast({ title: "Success", description: "Column type changed successfully" });
+
+      // Invalidate columns cache so ViewManagerSheet shows the type change
+      if (foundationId) {
+        invalidateColumnsCache(foundationId);
+      }
+
       onUpdate();
       onClose();
     } catch (error) {
@@ -642,7 +612,7 @@ export function ColumnEditorModal({
                           <SelectValue placeholder="Select new type" />
                         </SelectTrigger>
                         <SelectContent>
-                          {COLUMN_TYPES.map((type) => (
+                          {getColumnTypes().map((type) => (
                             <SelectItem key={type.value} value={type.value}>
                               <span className="flex items-center gap-2">
                                 <span>{getColumnTypeEmoji(type.value)}</span>
@@ -662,7 +632,7 @@ export function ColumnEditorModal({
                     >
                       {saving ? (
                         <>
-                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          <Spinner size={16} className="mr-2" />
                           Converting...
                         </>
                       ) : (
@@ -932,7 +902,7 @@ export function ColumnEditorModal({
                 >
                   {saving ? (
                     <>
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      <Spinner size={16} className="mr-2" />
                       Saving...
                     </>
                   ) : (
@@ -1032,7 +1002,7 @@ export function ColumnEditorModal({
                     >
                       {saving ? (
                         <>
-                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          <Spinner size={16} className="mr-2" />
                           Saving...
                         </>
                       ) : (
@@ -1107,16 +1077,14 @@ export function ColumnEditorModal({
                             lookup_display_column: value,
                           }))
                         }
-                        disabled={!editedColumn.lookup_table_id || loadingTargetRecords}
+                        disabled={!editedColumn.lookup_table_id}
                       >
                         <SelectTrigger>
                           <SelectValue
                             placeholder={
                               !editedColumn.lookup_table_id
                                 ? "Select a target table first"
-                                : loadingTargetRecords
-                                  ? "Loading values..."
-                                  : "Select display value"
+                                : "Select display value"
                             }
                           />
                         </SelectTrigger>
@@ -1178,7 +1146,7 @@ export function ColumnEditorModal({
                     >
                       {saving ? (
                         <>
-                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          <Spinner size={16} className="mr-2" />
                           Saving...
                         </>
                       ) : (
@@ -1252,7 +1220,7 @@ export function ColumnEditorModal({
                 <Button onClick={handleSave} disabled={saving || !hasChanges()}>
                   {saving ? (
                     <>
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      <Spinner size={16} className="mr-2" />
                       Saving...
                     </>
                   ) : (

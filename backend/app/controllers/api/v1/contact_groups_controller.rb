@@ -9,10 +9,7 @@ module Api
 
         render json: {
           success: true,
-          contact_groups: @contact_groups.as_json(only: [
-            :id, :name, :status, :xero_contact_group_id,
-            :created_at, :updated_at
-          ])
+          contact_groups: @contact_groups.as_json
         }
       end
 
@@ -21,7 +18,7 @@ module Api
       def set_contact
         @contact = Contact.find(params[:contact_id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Contact not found' }, status: :not_found
+        render json: { success: false, error: "Contact not found" }, status: :not_found
       end
     end
   end

@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,13 +14,25 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Moon, Sun } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Moon, Sun, Trash2 } from "lucide-react";
 import { useTheme } from "next-themes";
 
 export default function Home() {
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
+  const [showDeleteDialog, setShowDeleteDialog] = React.useState(false);
 
   return (
+    <div className="h-screen overflow-auto">
     <div className="min-h-screen p-8 space-y-8 max-w-6xl mx-auto pb-32">
       <div className="flex justify-between items-start">
         <div>
@@ -32,7 +45,7 @@ export default function Home() {
           <Button variant="outline" onClick={() => window.open('/admin', '_self')}>
             View Admin Template
           </Button>
-          <Button variant="outline" size="icon" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+          <Button variant="outline" size="icon" onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}>
             <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
             <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
           </Button>
@@ -589,12 +602,24 @@ export default function Home() {
                 </TableRow>
               </TableBody>
             </Table>
-            <div className="pt-4 border-t text-[11px] text-[#878787] space-y-1">
-              <p><strong>Header:</strong> 11px #878787, font-medium, h-10</p>
-              <p><strong>Cell:</strong> 11px foreground, py-2 px-4</p>
-              <p><strong>Amounts:</strong> font-mono, text-right</p>
-              <p><strong>IDs/Codes:</strong> font-mono</p>
-              <p><strong>Borders:</strong> border-b on rows, border-r on cells (except last)</p>
+            <div className="pt-4 border-t text-[11px] text-[#878787] space-y-2">
+              <p className="font-medium text-foreground text-xs mb-2">Typography & Sizing</p>
+              <p><strong>Table Headers:</strong> 14px, uppercase, font-medium (500), letter-spacing 0.05em</p>
+              <p><strong>Cascading Headers:</strong> 13px, bold (700)</p>
+              <p><strong>Table Cells:</strong> 13px, py-0.25 (1px vertical padding), px-1.5</p>
+              <p><strong>Amounts:</strong> 13px, font-mono, text-right</p>
+              <p><strong>IDs/Codes:</strong> 13px, font-mono</p>
+
+              <p className="font-medium text-foreground text-xs mt-4 mb-2">Layout & Spacing</p>
+              <p><strong>Table Layout:</strong> tableLayout: 'auto' (fills container width)</p>
+              <p><strong>Page Padding:</strong> py-6 px-4 (24px vertical, 16px horizontal)</p>
+              <p><strong>Column Width:</strong> Columns auto-expand to fill available space</p>
+
+              <p className="font-medium text-foreground text-xs mt-4 mb-2">Action Buttons</p>
+              <p><strong>Variant:</strong> ghost (no border, no background)</p>
+              <p><strong>Size:</strong> h-6 w-6 (24px square)</p>
+              <p><strong>Icons:</strong> h-4 w-4 (16px), Edit (Pencil) + Delete (Trash) only</p>
+              <p><strong>Hover:</strong> bg-gray-100, delete shows red text</p>
             </div>
           </CardContent>
         </Card>
@@ -848,6 +873,113 @@ export default function Home() {
             </CardContent>
           </Card>
 
+          {/* Confirmation Dialogs */}
+          <Card className="md:col-span-2 xl:col-span-3">
+            <CardHeader>
+              <CardTitle className="text-lg">Confirmation Dialogs</CardTitle>
+              <CardDescription>Destructive action confirmations ("Are you sure?")</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Live Demo */}
+                <div className="space-y-3">
+                  <p className="text-[11px] text-[#878787] font-medium">Live Demo</p>
+                  <Button
+                    variant="destructive"
+                    onClick={() => setShowDeleteDialog(true)}
+                    className="gap-2"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete Item
+                  </Button>
+                  <p className="text-[11px] text-[#606060]">
+                    Click to see the confirmation dialog pattern.
+                  </p>
+                </div>
+
+                {/* Structure */}
+                <div className="space-y-3">
+                  <p className="text-[11px] text-[#878787] font-medium">Dialog Structure</p>
+                  <div className="border p-4 space-y-3 bg-card">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">AlertDialogTitle</p>
+                      <p className="text-[11px] text-[#606060]">AlertDialogDescription</p>
+                    </div>
+                    <div className="flex gap-2 justify-end pt-2">
+                      <Button variant="outline" size="sm">Cancel</Button>
+                      <Button variant="destructive" size="sm">Delete</Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Specs */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-[11px]">
+                <div className="space-y-2">
+                  <p className="text-[#878787] font-medium">Title</p>
+                  <ul className="space-y-1">
+                    <li>• Use question format: "Delete Item?"</li>
+                    <li>• 18px font-medium (text-lg)</li>
+                    <li>• Left-aligned on desktop</li>
+                  </ul>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-[#878787] font-medium">Description</p>
+                  <ul className="space-y-1">
+                    <li>• Explain consequences clearly</li>
+                    <li>• Include "cannot be undone" if permanent</li>
+                    <li>• 14px text-text-secondary</li>
+                  </ul>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-[#878787] font-medium">Buttons</p>
+                  <ul className="space-y-1">
+                    <li>• Cancel: variant="outline" (left)</li>
+                    <li>• Confirm: variant="destructive" (right)</li>
+                    <li>• Action verb matches title: "Delete"</li>
+                  </ul>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Code Example */}
+              <div className="space-y-2">
+                <p className="text-[11px] text-[#878787] font-medium">Usage Pattern</p>
+                <pre className="text-[10px] bg-secondary p-4 overflow-x-auto font-mono">
+{`<AlertDialog open={showDialog} onOpenChange={setShowDialog}>
+  <AlertDialogContent>
+    <AlertDialogHeader>
+      <AlertDialogTitle>Delete Item?</AlertDialogTitle>
+      <AlertDialogDescription>
+        Are you sure you want to delete this item?
+        This action cannot be undone.
+      </AlertDialogDescription>
+    </AlertDialogHeader>
+    <AlertDialogFooter>
+      <AlertDialogCancel>Cancel</AlertDialogCancel>
+      <AlertDialogAction
+        onClick={handleDelete}
+        className="bg-destructive text-destructive-foreground"
+      >
+        Delete
+      </AlertDialogAction>
+    </AlertDialogFooter>
+  </AlertDialogContent>
+</AlertDialog>`}
+                </pre>
+              </div>
+
+              <div className="pt-2 border-t text-[11px] text-[#878787] space-y-1">
+                <p><strong>Overlay:</strong> bg-[#f6f6f3]/60 (light) • bg-[#0C0C0C]/80 (dark)</p>
+                <p><strong>Content:</strong> max-w-lg • p-6 • border • bg-background</p>
+                <p><strong>Animation:</strong> fade-in + zoom-in-95 + slide-in-from-top</p>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Status Indicators */}
           <Card>
             <CardHeader>
@@ -874,6 +1006,28 @@ export default function Home() {
           </Card>
         </div>
       </section>
+    </div>
+
+      {/* Delete Confirmation Dialog Demo */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Item?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this item? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => setShowDeleteDialog(false)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

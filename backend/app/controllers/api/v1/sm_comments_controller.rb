@@ -3,8 +3,8 @@
 module Api
   module V1
     class SmCommentsController < ApplicationController
-      before_action :set_task, only: [:index, :create]
-      before_action :set_comment, only: [:show, :update, :destroy, :replies]
+      before_action :set_task, only: [ :index, :create ]
+      before_action :set_comment, only: [ :show, :update, :destroy, :replies ]
 
       # GET /api/v1/sm_tasks/:task_id/comments
       def index
@@ -51,7 +51,7 @@ module Api
       # PATCH /api/v1/sm_comments/:id
       def update
         unless can_edit?(@comment)
-          return render json: { success: false, error: 'Not authorized' }, status: :forbidden
+          return render json: { success: false, error: "Not authorized" }, status: :forbidden
         end
 
         if @comment.update(comment_params)
@@ -70,7 +70,7 @@ module Api
       # DELETE /api/v1/sm_comments/:id
       def destroy
         unless can_delete?(@comment)
-          return render json: { success: false, error: 'Not authorized' }, status: :forbidden
+          return render json: { success: false, error: "Not authorized" }, status: :forbidden
         end
 
         @comment.soft_delete!
@@ -116,7 +116,7 @@ module Api
                    .for_user(current_user.id)
                    .unread
                    .recent
-                   .includes(comment: [:task, :author])
+                   .includes(comment: [ :task, :author ])
                    .limit(20)
 
         render json: {
@@ -131,7 +131,7 @@ module Api
         mention = SmCommentMention.find(params[:id])
 
         unless mention.user_id == current_user.id
-          return render json: { success: false, error: 'Not authorized' }, status: :forbidden
+          return render json: { success: false, error: "Not authorized" }, status: :forbidden
         end
 
         mention.mark_read!
@@ -178,7 +178,7 @@ module Api
           body: comment.body,
           author: {
             id: comment.author_id,
-            name: comment.author&.full_name || comment.author&.email,
+            name: comment.author&.display_name || comment.author&.email,
             avatar_url: comment.author&.avatar_url
           },
           parent_id: comment.parent_id,
@@ -209,7 +209,7 @@ module Api
           comment: {
             id: mention.comment.id,
             body: mention.comment.body.truncate(200),
-            author_name: mention.comment.author&.full_name
+            author_name: mention.comment.author&.display_name
           },
           task: {
             id: mention.comment.task.id,

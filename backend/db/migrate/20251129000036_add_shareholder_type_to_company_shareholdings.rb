@@ -10,6 +10,6 @@ class AddShareholderTypeToCompanyShareholdings < ActiveRecord::Migration[8.0]
     end
 
     # Add index for polymorphic association
-    add_index :company_shareholdings, [:shareholder_type, :shareholder_id], name: 'idx_shareholdings_polymorphic'
+    add_index :company_shareholdings, [ :shareholder_type, :shareholder_id ], name: 'idx_shareholdings_polymorphic'
   end
 end

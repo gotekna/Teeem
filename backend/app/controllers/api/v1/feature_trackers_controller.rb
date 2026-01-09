@@ -1,5 +1,5 @@
 class Api::V1::FeatureTrackersController < ApplicationController
-  before_action :set_feature_tracker, only: [:update, :destroy]
+  before_action :set_feature_tracker, only: [ :update, :destroy ]
 
   def index
     @feature_trackers = FeatureTracker.includes(:feature_chapter).ordered
@@ -25,11 +25,10 @@ class Api::V1::FeatureTrackersController < ApplicationController
     render json: {
       success: true,
       feature_trackers: @feature_trackers.as_json(
-        methods: [:completion_percentage, :fully_complete?, :chapter_display],
+        methods: [ :completion_percentage, :fully_complete?, :chapter_display ],
         include: {
           feature_chapter: {
-            only: [:id, :chapter_number, :name],
-            methods: [:display_name]
+            methods: [ :display_name ]
           }
         }
       ),
@@ -45,8 +44,8 @@ class Api::V1::FeatureTrackersController < ApplicationController
     if @feature_tracker.save
       render json: {
         success: true,
-        feature_tracker: @feature_tracker.as_json(methods: [:completion_percentage, :fully_complete?]),
-        message: 'Feature tracker created successfully'
+        feature_tracker: @feature_tracker.as_json(methods: [ :completion_percentage, :fully_complete? ]),
+        message: "Feature tracker created successfully"
       }, status: :created
     else
       render json: {
@@ -60,8 +59,8 @@ class Api::V1::FeatureTrackersController < ApplicationController
     if @feature_tracker.update(feature_tracker_params)
       render json: {
         success: true,
-        feature_tracker: @feature_tracker.as_json(methods: [:completion_percentage, :fully_complete?]),
-        message: 'Feature tracker updated successfully'
+        feature_tracker: @feature_tracker.as_json(methods: [ :completion_percentage, :fully_complete? ]),
+        message: "Feature tracker updated successfully"
       }
     else
       render json: {
@@ -75,7 +74,7 @@ class Api::V1::FeatureTrackersController < ApplicationController
     @feature_tracker.destroy
     render json: {
       success: true,
-      message: 'Feature tracker deleted successfully'
+      message: "Feature tracker deleted successfully"
     }
   end
 
@@ -86,7 +85,7 @@ class Api::V1::FeatureTrackersController < ApplicationController
   rescue ActiveRecord::RecordNotFound
     render json: {
       success: false,
-      error: 'Feature tracker not found'
+      error: "Feature tracker not found"
     }, status: :not_found
   end
 
@@ -96,16 +95,17 @@ class Api::V1::FeatureTrackersController < ApplicationController
 
     # Calculate competitor stats
     competitors = {
-      teeem: { field: :teeem_has, name: 'TEEEM', color: 'blue' },
-      simpro: { field: :simpro_has, name: 'Simpro', color: 'purple' },
-      buildertrend: { field: :buildertrend_has, name: 'BuilderTrend', color: 'green' },
-      buildexact: { field: :buildexact_has, name: 'BuildExact', color: 'orange' },
-      databuild: { field: :databuild_has, name: 'DataBuild', color: 'teal' },
-      clickhome: { field: :clickhome_has, name: 'ClickHome', color: 'pink' },
-      wunderbuilt: { field: :wunderbuilt_has, name: 'Wunderbuilt', color: 'yellow' },
-      smarterbuild: { field: :smarterbuild_has, name: 'SmarterBuild', color: 'gray' },
-      jacks: { field: :jacks_has, name: 'Jacks', color: 'red' },
-      clickup: { field: :clickup_has, name: 'ClickUp', color: 'indigo' }
+      teeem: { field: :teeem_has, name: "TEEEM", color: "blue" },
+      simpro: { field: :simpro_has, name: "Simpro", color: "purple" },
+      buildertrend: { field: :buildertrend_has, name: "BuilderTrend", color: "green" },
+      buildexact: { field: :buildexact_has, name: "BuildExact", color: "orange" },
+      databuild: { field: :databuild_has, name: "DataBuild", color: "teal" },
+      clickhome: { field: :clickhome_has, name: "ClickHome", color: "pink" },
+      wunderbuilt: { field: :wunderbuilt_has, name: "Wunderbuilt", color: "yellow" },
+      smarterbuild: { field: :smarterbuild_has, name: "SmarterBuild", color: "gray" },
+      jacks: { field: :jacks_has, name: "Jacks", color: "red" },
+      clickup: { field: :clickup_has, name: "ClickUp", color: "indigo" },
+      evolve: { field: :evolve_has, name: "Evolve", color: "green" }
     }
 
     competitor_stats = competitors.map do |key, config|
@@ -166,7 +166,8 @@ class Api::V1::FeatureTrackersController < ApplicationController
       :simpro_has,
       :smarterbuild_has,
       :clickhome_has,
-      :clickup_has
+      :clickup_has,
+      :evolve_has
     )
   end
 end

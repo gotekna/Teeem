@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader } from "@/components/ui/loader";
+import { Card, CardContent } from "@/components/ui/card";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Mail,
   CheckCircle,
@@ -17,13 +17,11 @@ import {
   User,
   Building2,
   Users,
-  Plus,
   RefreshCw,
   MapPin,
   DollarSign,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { ProposalApprovalDialog } from "./proposal-approval-dialog";
 
 interface EmailProposal {
   id: number;
@@ -55,6 +53,21 @@ interface EmailProposal {
       phone?: string;
       company?: string;
       contact_exists?: boolean;
+      is_likely_builder_employee?: boolean;
+      builder_company_name?: string;
+    };
+    sender_company?: {
+      name: string;
+      contact_id: number;
+      is_builder: boolean;
+      domain: string;
+    };
+    sender_info?: {
+      name?: string;
+      company?: string;
+      role?: string;
+      is_builder?: boolean;
+      phone?: string;
     };
     referral_contact?: {
       name?: string;
@@ -81,12 +94,12 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
   const router = useRouter();
   const [proposals, setProposals] = useState<EmailProposal[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedProposal, setSelectedProposal] = useState<EmailProposal | null>(null);
-  const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [processing, setProcessing] = useState<number | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved" | "rejected" | null>(null);
 
   useEffect(() => {
     loadProposals();
+     
   }, []);
 
   const loadProposals = async () => {
@@ -109,36 +122,8 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
   };
 
   const handleApprove = (proposalId: number) => {
-    const proposal = proposals.find((p) => p.id === proposalId);
-    if (proposal) {
-      setSelectedProposal(proposal);
-      setShowApprovalDialog(true);
-    }
-  };
-
-  const handleApproveWithEdits = async (proposalId: number, userEdits: Record<string, unknown>) => {
-    try {
-      setProcessing(proposalId);
-      const response = await api.post<{ success: boolean; job: { id: number } }>(
-        `/api/v1/email_job_proposals/${proposalId}/approve`,
-        { user_edits: userEdits }
-      );
-
-      if (response?.success) {
-        setShowApprovalDialog(false);
-        setSelectedProposal(null);
-        loadProposals();
-
-        if (response.job?.id) {
-          router.push(`/jobs/${response.job.id}`);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to approve proposal:", error);
-      alert("Failed to approve proposal");
-    } finally {
-      setProcessing(null);
-    }
+    // Navigate to new job page with proposal ID to pre-fill data
+    router.push(`/jobs/new?from_proposal=${proposalId}`);
   };
 
   const handleReject = async (proposalId: number) => {
@@ -239,7 +224,7 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[300px]">
-        <Loader />
+        <Spinner />
       </div>
     );
   }
@@ -260,9 +245,12 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
         </Button>
       </div>
 
-      {/* Stats */}
+      {/* Stats - clickable to filter */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
+        <Card
+          className={`cursor-pointer transition-all hover:ring-2 hover:ring-primary/50 ${statusFilter === "all" ? "ring-2 ring-primary" : ""}`}
+          onClick={() => setStatusFilter(statusFilter === "all" ? null : "all")}
+        >
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
               <Mail className="h-4 w-4 text-muted-foreground" />
@@ -271,7 +259,16 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
             <div className="text-2xl font-bold font-mono mt-1">{proposals.length}</div>
           </CardContent>
         </Card>
-        <Card className={pendingProposals.length > 0 ? "border-yellow-300 bg-yellow-50 dark:bg-yellow-900/10" : ""}>
+        <Card
+          className={`cursor-pointer transition-all hover:ring-2 hover:ring-yellow-400/50 ${
+            statusFilter === "pending"
+              ? "ring-2 ring-yellow-400"
+              : pendingProposals.length > 0
+                ? "border-yellow-300 bg-yellow-50 dark:bg-yellow-900/10"
+                : ""
+          }`}
+          onClick={() => setStatusFilter(statusFilter === "pending" ? null : "pending")}
+        >
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4 text-yellow-600" />
@@ -282,7 +279,10 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card
+          className={`cursor-pointer transition-all hover:ring-2 hover:ring-green-400/50 ${statusFilter === "approved" ? "ring-2 ring-green-400" : ""}`}
+          onClick={() => setStatusFilter(statusFilter === "approved" ? null : "approved")}
+        >
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
               <CheckCircle className="h-4 w-4 text-green-600" />
@@ -293,7 +293,10 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card
+          className={`cursor-pointer transition-all hover:ring-2 hover:ring-red-400/50 ${statusFilter === "rejected" ? "ring-2 ring-red-400" : ""}`}
+          onClick={() => setStatusFilter(statusFilter === "rejected" ? null : "rejected")}
+        >
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
               <XCircle className="h-4 w-4 text-red-600" />
@@ -306,35 +309,31 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
         </Card>
       </div>
 
-      {/* Pending Proposals */}
-      {pendingProposals.length > 0 && (
+      {/* Filtered View - when a filter is active */}
+      {statusFilter && (
         <div>
-          <h3 className="text-lg font-medium mb-4">
-            Pending Review
-            {pendingProposals.length > 1 && (
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium">
+              {statusFilter === "all" ? "All Proposals" : `${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} Proposals`}
               <span className="ml-2 text-sm text-muted-foreground">
-                (showing latest of {pendingProposals.length})
+                ({statusFilter === "all"
+                  ? proposals.length
+                  : statusFilter === "rejected"
+                    ? proposals.filter(p => p.status === "rejected" || p.status === "error").length
+                    : proposals.filter(p => p.status === statusFilter).length})
               </span>
-            )}
-          </h3>
-          <ProposalCard
-            proposal={pendingProposals[0]}
-            onApprove={handleApprove}
-            onReject={handleReject}
-            onReExtract={handleReExtract}
-            processing={processing}
-            getStatusBadge={getStatusBadge}
-            getConfidenceBadge={getConfidenceBadge}
-          />
-        </div>
-      )}
-
-      {/* Other Proposals */}
-      {otherProposals.length > 0 && (
-        <div>
-          <h3 className="text-lg font-medium mb-4">Previous Proposals</h3>
+            </h3>
+            <Button variant="ghost" size="sm" onClick={() => setStatusFilter(null)}>
+              Clear filter
+            </Button>
+          </div>
           <div className="space-y-4">
-            {otherProposals.map((proposal) => (
+            {(statusFilter === "all"
+              ? proposals
+              : statusFilter === "rejected"
+                ? proposals.filter(p => p.status === "rejected" || p.status === "error")
+                : proposals.filter(p => p.status === statusFilter)
+            ).map((proposal) => (
               <ProposalCard
                 key={proposal.id}
                 proposal={proposal}
@@ -344,11 +343,64 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
                 processing={processing}
                 getStatusBadge={getStatusBadge}
                 getConfidenceBadge={getConfidenceBadge}
-                readonly
+                readonly={proposal.status !== "pending" && proposal.status !== "error"}
               />
             ))}
           </div>
         </div>
+      )}
+
+      {/* Default View - Pending first, then others */}
+      {!statusFilter && (
+        <>
+          {/* Pending Proposals */}
+          {pendingProposals.length > 0 && (
+            <div>
+              <h3 className="text-lg font-medium mb-4">
+                Pending Review
+                <span className="ml-2 text-sm text-muted-foreground">
+                  ({pendingProposals.length})
+                </span>
+              </h3>
+              <div className="space-y-4">
+                {pendingProposals.map((proposal) => (
+                  <ProposalCard
+                    key={proposal.id}
+                    proposal={proposal}
+                    onApprove={handleApprove}
+                    onReject={handleReject}
+                    onReExtract={handleReExtract}
+                    processing={processing}
+                    getStatusBadge={getStatusBadge}
+                    getConfidenceBadge={getConfidenceBadge}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Other Proposals */}
+          {otherProposals.length > 0 && (
+            <div>
+              <h3 className="text-lg font-medium mb-4">Previous Proposals</h3>
+              <div className="space-y-4">
+                {otherProposals.map((proposal) => (
+                  <ProposalCard
+                    key={proposal.id}
+                    proposal={proposal}
+                    onApprove={handleApprove}
+                    onReject={handleReject}
+                    onReExtract={handleReExtract}
+                    processing={processing}
+                    getStatusBadge={getStatusBadge}
+                    getConfidenceBadge={getConfidenceBadge}
+                    readonly
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {proposals.length === 0 && (
@@ -359,17 +411,6 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
             Forward emails to newjob@tekna.com.au to create proposals
           </p>
         </div>
-      )}
-
-      {/* Approval Dialog */}
-      {showApprovalDialog && selectedProposal && (
-        <ProposalApprovalDialog
-          proposal={selectedProposal}
-          open={showApprovalDialog}
-          onOpenChange={setShowApprovalDialog}
-          onApprove={handleApproveWithEdits}
-          processing={processing === selectedProposal.id}
-        />
       )}
     </div>
   );
@@ -422,8 +463,9 @@ function ProposalCard({
             </div>
           </div>
 
-          {/* Actions */}
-          {!readonly && proposal.status === "pending" && (
+          {/* Actions - show Re-extract/Reject for error proposals even in readonly mode */}
+          {((!readonly && (proposal.status === "pending" || proposal.status === "error")) ||
+            (readonly && proposal.status === "error")) && (
             <div className="ml-4 flex gap-2">
               <Button
                 variant="outline"
@@ -434,24 +476,40 @@ function ProposalCard({
                 <RefreshCw className={`w-4 h-4 mr-1 ${processing === proposal.id ? "animate-spin" : ""}`} />
                 Re-extract
               </Button>
-              <Button
-                size="sm"
-                className="bg-green-600 hover:bg-green-700"
-                onClick={() => onApprove(proposal.id)}
-                disabled={processing === proposal.id}
-              >
-                <CheckCircle className="w-4 h-4 mr-1" />
-                Edit & Approve
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onReject(proposal.id)}
-                disabled={processing === proposal.id}
-              >
-                <XCircle className="w-4 h-4 mr-1" />
-                Reject
-              </Button>
+              {!readonly && proposal.status === "pending" && (
+                <>
+                  <Button
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700"
+                    onClick={() => onApprove(proposal.id)}
+                    disabled={processing === proposal.id}
+                  >
+                    <CheckCircle className="w-4 h-4 mr-1" />
+                    Review & Create Job
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onReject(proposal.id)}
+                    disabled={processing === proposal.id}
+                  >
+                    <XCircle className="w-4 h-4 mr-1" />
+                    Reject
+                  </Button>
+                </>
+              )}
+              {/* Allow rejecting error proposals */}
+              {proposal.status === "error" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onReject(proposal.id)}
+                  disabled={processing === proposal.id}
+                >
+                  <XCircle className="w-4 h-4 mr-1" />
+                  Reject
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -482,6 +540,9 @@ function ProposalCard({
               </div>
               {customer.email && <div className="ml-6 text-sm text-muted-foreground">{customer.email}</div>}
               {customer.phone && <div className="ml-6 text-sm text-muted-foreground">{customer.phone}</div>}
+              {customer.company && (
+                <div className="ml-6 text-sm text-muted-foreground">Company: {customer.company}</div>
+              )}
             </div>
           ) : (
             <div className="pl-6 text-sm text-muted-foreground italic">No client detected</div>

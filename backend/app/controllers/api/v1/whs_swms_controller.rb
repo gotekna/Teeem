@@ -1,5 +1,5 @@
 class Api::V1::WHSSWMSController < ApplicationController
-  before_action :set_whs_swms, only: [:show, :update, :destroy, :submit_for_approval, :approve, :reject, :supersede, :acknowledge]
+  before_action :set_whs_swms, only: [ :show, :update, :destroy, :submit_for_approval, :approve, :reject, :supersede, :acknowledge ]
 
   # GET /api/v1/whs_swms
   def index
@@ -13,7 +13,7 @@ class Api::V1::WHSSWMSController < ApplicationController
     swms = swms.where(status: params[:status]) if params[:status].present?
 
     # Apply company_wide filter
-    swms = swms.company_wide if params[:company_wide] == 'true'
+    swms = swms.company_wide if params[:company_wide] == "true"
 
     swms = swms.includes(:job, :created_by, :approved_by, :superseded_by, :whs_swms_hazards)
                 .order(created_at: :desc)
@@ -49,7 +49,7 @@ class Api::V1::WHSSWMSController < ApplicationController
     else
       render json: {
         success: false,
-        error: swms.errors.full_messages.join(', ')
+        error: swms.errors.full_messages.join(", ")
       }, status: :unprocessable_entity
     end
   end
@@ -67,7 +67,7 @@ class Api::V1::WHSSWMSController < ApplicationController
     else
       render json: {
         success: false,
-        error: @whs_swms.errors.full_messages.join(', ')
+        error: @whs_swms.errors.full_messages.join(", ")
       }, status: :unprocessable_entity
     end
   end
@@ -77,12 +77,12 @@ class Api::V1::WHSSWMSController < ApplicationController
     if @whs_swms.destroy
       render json: {
         success: true,
-        data: { message: 'SWMS deleted successfully' }
+        data: { message: "SWMS deleted successfully" }
       }
     else
       render json: {
         success: false,
-        error: 'Failed to delete SWMS'
+        error: "Failed to delete SWMS"
       }, status: :unprocessable_entity
     end
   end
@@ -97,7 +97,7 @@ class Api::V1::WHSSWMSController < ApplicationController
     else
       render json: {
         success: false,
-        error: 'Cannot submit SWMS for approval'
+        error: "Cannot submit SWMS for approval"
       }, status: :unprocessable_entity
     end
   end
@@ -113,7 +113,7 @@ class Api::V1::WHSSWMSController < ApplicationController
     else
       render json: {
         success: false,
-        error: 'Cannot approve SWMS'
+        error: "Cannot approve SWMS"
       }, status: :unprocessable_entity
     end
   end
@@ -125,7 +125,7 @@ class Api::V1::WHSSWMSController < ApplicationController
     if rejection_reason.blank?
       return render json: {
         success: false,
-        error: 'Rejection reason is required'
+        error: "Rejection reason is required"
       }, status: :unprocessable_entity
     end
 
@@ -138,7 +138,7 @@ class Api::V1::WHSSWMSController < ApplicationController
     else
       render json: {
         success: false,
-        error: 'Cannot reject SWMS'
+        error: "Cannot reject SWMS"
       }, status: :unprocessable_entity
     end
   end
@@ -150,14 +150,14 @@ class Api::V1::WHSSWMSController < ApplicationController
     if new_version.blank?
       return render json: {
         success: false,
-        error: 'New version number is required'
+        error: "New version number is required"
       }, status: :unprocessable_entity
     end
 
     # Create new SWMS with incremented version
     new_swms = @whs_swms.dup
     new_swms.version = new_version
-    new_swms.status = 'draft'
+    new_swms.status = "draft"
     new_swms.approved_by = nil
     new_swms.approved_at = nil
     new_swms.created_by = current_user
@@ -170,7 +170,7 @@ class Api::V1::WHSSWMSController < ApplicationController
     else
       render json: {
         success: false,
-        error: new_swms.errors.full_messages.join(', ')
+        error: new_swms.errors.full_messages.join(", ")
       }, status: :unprocessable_entity
     end
   end
@@ -189,7 +189,7 @@ class Api::V1::WHSSWMSController < ApplicationController
     else
       render json: {
         success: false,
-        error: acknowledgment.errors.full_messages.join(', ')
+        error: acknowledgment.errors.full_messages.join(", ")
       }, status: :unprocessable_entity
     end
   end
@@ -218,18 +218,18 @@ class Api::V1::WHSSWMSController < ApplicationController
 
   def serialization_includes
     {
-      job: { only: [:id, :title, :ted_number] },
-      created_by: { only: [:id, :name, :email] },
-      approved_by: { only: [:id, :name, :email] },
-      superseded_by: { only: [:id, :swms_number, :version] },
+      job: {},
+      created_by: {},
+      approved_by: {},
+      superseded_by: {},
       whs_swms_hazards: {
         include: {
-          whs_swms_controls: { only: [:id, :control_description, :control_type, :residual_risk_score] }
+          whs_swms_controls: {}
         }
       },
       whs_swms_acknowledgments: {
         include: {
-          user: { only: [:id, :name] }
+          user: {}
         }
       }
     }

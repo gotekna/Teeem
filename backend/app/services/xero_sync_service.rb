@@ -1,8 +1,8 @@
-require 'httparty'
+require "httparty"
 
 class XeroSyncService
   include HTTParty
-  base_uri 'https://api.xero.com/api.xro/2.0'
+  base_uri "https://api.xero.com/api.xro/2.0"
 
   class SyncError < StandardError; end
 
@@ -19,12 +19,12 @@ class XeroSyncService
 
       # Fetch accounts from Xero
       response = self.class.get(
-        '/Accounts',
+        "/Accounts",
         headers: {
-          'Authorization' => "Bearer #{access_token}",
-          'Xero-tenant-id' => @connection.xero_tenant_id,
-          'Accept' => 'application/json',
-          'Content-Type' => 'application/json'
+          "Authorization" => "Bearer #{access_token}",
+          "Xero-tenant-id" => @connection.xero_tenant_id,
+          "Accept" => "application/json",
+          "Content-Type" => "application/json"
         }
       )
 
@@ -35,7 +35,7 @@ class XeroSyncService
         raise SyncError, error_message
       end
 
-      accounts_data = JSON.parse(response.body)['Accounts'] || []
+      accounts_data = JSON.parse(response.body)["Accounts"] || []
 
       # Sync each account
       synced_count = 0
@@ -52,7 +52,7 @@ class XeroSyncService
       {
         success: true,
         synced_count: synced_count,
-        total_accounts: @connection.company_xero_accounts.count
+        total_accounts: @connection.corporate_company_xero_accounts.count
       }
     rescue XeroAuthService::AuthenticationError => e
       @connection.mark_error!(e.message)
@@ -71,21 +71,21 @@ class XeroSyncService
       access_token = @auth_service.get_valid_token(@connection)
 
       response = self.class.get(
-        '/Organisation',
+        "/Organisation",
         headers: {
-          'Authorization' => "Bearer #{access_token}",
-          'Xero-tenant-id' => @connection.xero_tenant_id,
-          'Accept' => 'application/json'
+          "Authorization" => "Bearer #{access_token}",
+          "Xero-tenant-id" => @connection.xero_tenant_id,
+          "Accept" => "application/json"
         }
       )
 
       if response.success?
-        org_data = JSON.parse(response.body)['Organisations'].first
+        org_data = JSON.parse(response.body)["Organisations"].first
 
         # Update connection with organization settings
         @connection.update(
-          accounting_method: org_data['SalesTaxBasis'], # CASH or ACCRUAL
-          financial_year_end: parse_xero_date(org_data['FinancialYearEndMonth'], org_data['FinancialYearEndDay'])
+          accounting_method: org_data["SalesTaxBasis"], # CASH or ACCRUAL
+          financial_year_end: parse_xero_date(org_data["FinancialYearEndMonth"], org_data["FinancialYearEndDay"])
         )
 
         Rails.logger.info("Synced organization settings for #{@connection.company.name}")
@@ -106,20 +106,20 @@ class XeroSyncService
       access_token = @auth_service.get_valid_token(@connection)
 
       response = self.class.get(
-        '/Reports/ProfitAndLoss',
+        "/Reports/ProfitAndLoss",
         query: {
-          fromDate: from_date.strftime('%Y-%m-%d'),
-          toDate: to_date.strftime('%Y-%m-%d')
+          fromDate: from_date.strftime("%Y-%m-%d"),
+          toDate: to_date.strftime("%Y-%m-%d")
         },
         headers: {
-          'Authorization' => "Bearer #{access_token}",
-          'Xero-tenant-id' => @connection.xero_tenant_id,
-          'Accept' => 'application/json'
+          "Authorization" => "Bearer #{access_token}",
+          "Xero-tenant-id" => @connection.xero_tenant_id,
+          "Accept" => "application/json"
         }
       )
 
       if response.success?
-        report_data = JSON.parse(response.body)['Reports'].first
+        report_data = JSON.parse(response.body)["Reports"].first
         {
           success: true,
           data: report_data
@@ -142,19 +142,19 @@ class XeroSyncService
       access_token = @auth_service.get_valid_token(@connection)
 
       response = self.class.get(
-        '/Reports/BalanceSheet',
+        "/Reports/BalanceSheet",
         query: {
-          date: as_at_date.strftime('%Y-%m-%d')
+          date: as_at_date.strftime("%Y-%m-%d")
         },
         headers: {
-          'Authorization' => "Bearer #{access_token}",
-          'Xero-tenant-id' => @connection.xero_tenant_id,
-          'Accept' => 'application/json'
+          "Authorization" => "Bearer #{access_token}",
+          "Xero-tenant-id" => @connection.xero_tenant_id,
+          "Accept" => "application/json"
         }
       )
 
       if response.success?
-        report_data = JSON.parse(response.body)['Reports'].first
+        report_data = JSON.parse(response.body)["Reports"].first
         {
           success: true,
           data: report_data
@@ -174,21 +174,21 @@ class XeroSyncService
   private
 
   def sync_account(account_data)
-    account = @connection.company_xero_accounts.find_or_initialize_by(
-      xero_account_id: account_data['AccountID']
+    account = @connection.corporate_company_xero_accounts.find_or_initialize_by(
+      xero_account_id: account_data["AccountID"]
     )
 
     account.assign_attributes(
-      account_code: account_data['Code'],
-      account_name: account_data['Name'],
-      account_type: account_data['Type'],
-      account_class: account_data['Class'],
-      tax_type: account_data['TaxType'],
-      description: account_data['Description'],
-      enable_payments_to_account: account_data['EnablePaymentsToAccount'] || false,
-      show_in_expense_claims: account_data['ShowInExpenseClaims'] || false,
-      status: account_data['Status'],
-      reporting_code_value: account_data['ReportingCodeName']
+      account_code: account_data["Code"],
+      account_name: account_data["Name"],
+      account_type: account_data["Type"],
+      account_class: account_data["Class"],
+      tax_type: account_data["TaxType"],
+      description: account_data["Description"],
+      enable_payments_to_account: account_data["EnablePaymentsToAccount"] || false,
+      show_in_expense_claims: account_data["ShowInExpenseClaims"] || false,
+      status: account_data["Status"],
+      reporting_code_value: account_data["ReportingCodeName"]
     )
 
     account.save!

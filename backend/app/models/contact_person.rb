@@ -1,5 +1,5 @@
 class ContactPerson < ApplicationRecord
-  self.table_name = 'contact_persons'
+  self.table_name = "contact_persons"
 
   belongs_to :contact
 
@@ -11,7 +11,7 @@ class ContactPerson < ApplicationRecord
   scope :secondary, -> { where(is_primary: false) }
 
   def display_name
-    [first_name, last_name].compact.join(' ').presence || email || "Contact Person ##{id}"
+    [ first_name, last_name ].compact.join(" ").presence || email || "Contact Person ##{id}"
   end
 
   private

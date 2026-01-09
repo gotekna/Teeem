@@ -5,7 +5,7 @@
 # See GANTT_ARCHITECTURE_PLAN.md Section 2.7
 #
 class SmWorkingDrawingPage < ApplicationRecord
-  belongs_to :task, class_name: 'SmTask'
+  belongs_to :task, class_name: "SmTask"
 
   validates :page_number, presence: true, uniqueness: { scope: :task_id }
   validates :image_url, presence: true

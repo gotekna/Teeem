@@ -13,7 +13,7 @@ class CreateProjectTaskChecklistItems < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :project_task_checklist_items, [:project_task_id, :sequence_order]
+    add_index :project_task_checklist_items, [ :project_task_id, :sequence_order ]
     add_index :project_task_checklist_items, :is_completed
   end
 end

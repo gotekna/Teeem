@@ -17,6 +17,6 @@ class CreatePortalUsers < ActiveRecord::Migration[8.0]
 
     add_index :portal_users, :email, unique: true
     add_index :portal_users, :reset_password_token, unique: true
-    add_index :portal_users, [:contact_id, :portal_type], unique: true
+    add_index :portal_users, [ :contact_id, :portal_type ], unique: true
   end
 end

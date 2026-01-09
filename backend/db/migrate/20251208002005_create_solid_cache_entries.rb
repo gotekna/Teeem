@@ -1,0 +1,18 @@
+class CreateSolidCacheEntries < ActiveRecord::Migration[8.0]
+  def change
+    # Skip if table already exists
+    return if table_exists?(:solid_cache_entries)
+
+    create_table :solid_cache_entries do |t|
+      t.binary :key, limit: 1024, null: false
+      t.binary :value, limit: 536_870_912, null: false
+      t.datetime :created_at, null: false
+      t.bigint :key_hash, null: false
+      t.integer :byte_size, null: false
+    end
+
+    add_index :solid_cache_entries, :byte_size
+    add_index :solid_cache_entries, [ :key_hash, :byte_size ]
+    add_index :solid_cache_entries, :key_hash, unique: true
+  end
+end

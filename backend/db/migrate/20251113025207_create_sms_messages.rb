@@ -16,8 +16,8 @@ class CreateSmsMessages < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :sms_messages, [:contact_id, :created_at]
+    add_index :sms_messages, [ :contact_id, :created_at ]
     add_index :sms_messages, :twilio_sid, unique: true
-    add_index :sms_messages, [:direction, :status]
+    add_index :sms_messages, [ :direction, :status ]
   end
 end

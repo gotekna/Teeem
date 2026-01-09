@@ -9,11 +9,11 @@ class PortalAccessLog < ApplicationRecord
   scope :recent, -> { order(created_at: :desc) }
   scope :by_portal_user, ->(user_id) { where(portal_user_id: user_id) }
   scope :by_action, ->(action) { where(action: action) }
-  scope :logins, -> { where(action: 'login') }
-  scope :logouts, -> { where(action: 'logout') }
-  scope :today, -> { where('created_at >= ?', Time.current.beginning_of_day) }
-  scope :last_week, -> { where('created_at >= ?', 1.week.ago) }
-  scope :last_month, -> { where('created_at >= ?', 1.month.ago) }
+  scope :logins, -> { where(action: "login") }
+  scope :logouts, -> { where(action: "logout") }
+  scope :today, -> { where("created_at >= ?", Time.current.beginning_of_day) }
+  scope :last_week, -> { where("created_at >= ?", 1.week.ago) }
+  scope :last_month, -> { where("created_at >= ?", 1.month.ago) }
 
   # Class methods
   def self.log_activity(portal_user, action, metadata = {}, request: nil)
@@ -40,21 +40,21 @@ class PortalAccessLog < ApplicationRecord
 
   # Instance methods
   def formatted_created_at
-    created_at.strftime('%Y-%m-%d %H:%M:%S')
+    created_at.strftime("%Y-%m-%d %H:%M:%S")
   end
 
   def action_description
     case action
-    when 'login' then 'Logged in'
-    when 'logout' then 'Logged out'
-    when 'view_po' then 'Viewed purchase order'
-    when 'view_payment' then 'Viewed payment'
-    when 'view_maintenance' then 'Viewed maintenance request'
-    when 'update_maintenance' then 'Updated maintenance request'
-    when 'download_document' then 'Downloaded document'
-    when 'view_gantt' then 'Viewed Gantt chart'
-    when 'view_rating' then 'Viewed ratings'
-    when 'view_dashboard' then 'Viewed dashboard'
+    when "login" then "Logged in"
+    when "logout" then "Logged out"
+    when "view_po" then "Viewed purchase order"
+    when "view_payment" then "Viewed payment"
+    when "view_maintenance" then "Viewed maintenance request"
+    when "update_maintenance" then "Updated maintenance request"
+    when "download_document" then "Downloaded document"
+    when "view_gantt" then "Viewed Gantt chart"
+    when "view_rating" then "Viewed ratings"
+    when "view_dashboard" then "Viewed dashboard"
     else action&.humanize
     end
   end

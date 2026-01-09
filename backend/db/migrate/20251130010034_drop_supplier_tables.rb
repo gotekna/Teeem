@@ -90,7 +90,7 @@ class DropSupplierTables < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :supplier_contacts, [:supplier_id, :contact_id], unique: true
+    add_index :supplier_contacts, [ :supplier_id, :contact_id ], unique: true
 
     # Recreate supplier_ratings table
     create_table :supplier_ratings do |t|
@@ -110,6 +110,6 @@ class DropSupplierTables < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :supplier_ratings, [:contact_id, :created_at]
+    add_index :supplier_ratings, [ :contact_id, :created_at ]
   end
 end

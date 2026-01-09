@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -26,18 +25,17 @@ import {
   ClipboardCheck,
   Plus,
   Search,
-  ArrowLeft,
-  Loader2,
   Calendar,
   CheckCircle,
   Clock,
   AlertTriangle,
   Users,
-  FileText,
   Copy,
   Eye,
   Edit,
 } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 
 interface SWMS {
@@ -90,7 +88,7 @@ export default function WHSSWMSPage() {
       try {
         const response = await api.get<{ swms: SWMS[] }>("/api/v1/whs/swms");
         setSwmsList(response.swms || []);
-      } catch (error) {
+      } catch {
         // Mock data
         setSwmsList([
           {
@@ -203,7 +201,7 @@ export default function WHSSWMSPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -213,11 +211,7 @@ export default function WHSSWMSPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/whs">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
+          <BackButton fallbackHref="/whs" />
           <div>
             <h1 className="text-2xl font-bold tracking-tight font-serif">SWMS Management</h1>
             <p className="text-sm text-muted-foreground mt-1">
@@ -229,40 +223,6 @@ export default function WHSSWMSPage() {
           <Plus className="h-4 w-4 mr-2" />
           Create SWMS
         </Button>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="text-2xl font-bold">{stats.total}</div>
-            <p className="text-sm text-muted-foreground">Total SWMS</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="text-2xl font-bold text-green-600">{stats.active}</div>
-            <p className="text-sm text-muted-foreground">Active</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="text-2xl font-bold text-gray-600">{stats.draft}</div>
-            <p className="text-sm text-muted-foreground">Draft</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="text-2xl font-bold text-red-600">{stats.expired}</div>
-            <p className="text-sm text-muted-foreground">Expired</p>
-          </CardContent>
-        </Card>
-        <Card className={stats.expiringSoon > 0 ? "border-orange-300 bg-orange-50 dark:bg-orange-900/10" : ""}>
-          <CardContent className="pt-4 pb-4">
-            <div className="text-2xl font-bold text-orange-600">{stats.expiringSoon}</div>
-            <p className="text-sm text-muted-foreground">Expiring Soon</p>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Filters */}

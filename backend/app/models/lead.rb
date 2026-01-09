@@ -34,7 +34,7 @@ class Lead < ApplicationRecord
     year = Date.current.year
     last_lead = Lead.where("lead_number LIKE ?", "LEAD-#{year}-%").order(:lead_number).last
     next_number = if last_lead
-      last_lead.lead_number.split('-').last.to_i + 1
+      last_lead.lead_number.split("-").last.to_i + 1
     else
       1
     end

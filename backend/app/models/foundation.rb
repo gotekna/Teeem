@@ -7,9 +7,12 @@ class Foundation < ApplicationRecord
   validates :database_table_name, presence: true, uniqueness: true
   validates :slug, presence: true, uniqueness: true
   validate :name_not_reserved
+  validate :model_class_exists, if: -> { model_class.present? }
+  validate :database_table_exists, on: :update, if: -> { table_type == "system" }
 
   before_validation :generate_database_table_name, if: -> { database_table_name.blank? }
   before_validation :generate_slug, if: -> { slug.blank? || name_changed? }
+  after_create :add_system_columns
 
   # Get the dynamically created ActiveRecord model for this foundation
   def dynamic_model
@@ -18,19 +21,21 @@ class Foundation < ApplicationRecord
     foundation_columns = columns.includes(:lookup_foundation) # Eager load for performance
 
     # For system foundations with a model_class defined, use the existing Rails model
-    if table_type == 'system' && model_class.present?
+    # SSoT: Fail loudly if model_class is invalid - never silently fall through
+    if table_type == "system" && model_class.present?
       begin
         @dynamic_model = model_class.constantize
         return @dynamic_model
       rescue NameError => e
-        Rails.logger.error "Failed to find model class #{model_class} for system foundation #{id}: #{e.message}"
-        # Fall through to dynamic model creation
+        # CRITICAL: Don't silently fall through - raise the error so it's fixed
+        raise "Foundation #{id} (#{slug}) has invalid model_class '#{model_class}': #{e.message}. " \
+              "Fix the model_class value or create the missing model file."
       end
     end
 
     # Generate a valid class name from the foundation name
     # Classify will handle spaces and special characters
-    class_name = name.gsub(/[^a-zA-Z0-9_]/, '').classify
+    class_name = name.gsub(/[^a-zA-Z0-9_]/, "").classify
     table_name = database_table_name
 
     # Check if class already exists and is an ActiveRecord model
@@ -70,7 +75,7 @@ class Foundation < ApplicationRecord
   # Reload the dynamic model (useful after adding columns or relationships)
   def reload_dynamic_model
     # Use the same sanitization as dynamic_model
-    class_name = name.gsub(/[^a-zA-Z0-9_]/, '').classify
+    class_name = name.gsub(/[^a-zA-Z0-9_]/, "").classify
     # Only try to remove the constant if it's a valid constant name
     begin
       Object.send(:remove_const, class_name) if Object.const_defined?(class_name)
@@ -90,10 +95,29 @@ class Foundation < ApplicationRecord
     end
   end
 
+  # SSoT: Validate model_class points to an existing Ruby class
+  # Prevents silent fallback to dynamic model creation
+  def model_class_exists
+    model_class.constantize
+  rescue NameError
+    errors.add(:model_class, "class '#{model_class}' does not exist - check for typos or create the model file")
+  end
+
+  # SSoT: Validate database_table_name points to an existing table
+  # Only runs on update for system tables (user tables are created dynamically)
+  def database_table_exists
+    return if database_table_name.blank?
+    unless ActiveRecord::Base.connection.table_exists?(database_table_name)
+      errors.add(:database_table_name, "table '#{database_table_name}' does not exist in the database")
+    end
+  rescue ActiveRecord::NoDatabaseError, ActiveRecord::ConnectionNotEstablished
+    # Skip validation if database is not available (e.g., during migrations)
+  end
+
   def generate_database_table_name
     # Generate a safe database table name from the name field
     # e.g., "My Contacts" => "my_contacts_abc123"
-    base_name = name.parameterize(separator: '_')
+    base_name = name.parameterize(separator: "_")
     # Add a random suffix to avoid collisions
     random_suffix = SecureRandom.hex(4)
     self.database_table_name = "user_#{base_name}_#{random_suffix}"
@@ -107,11 +131,11 @@ class Foundation < ApplicationRecord
 
   def add_lookup_associations(foundation_columns)
     # Add belongs_to associations for each lookup column
-    foundation_columns.where(column_type: 'lookup').each do |col|
+    foundation_columns.where(column_type: "lookup").each do |col|
       next unless col.lookup_foundation
 
       association_name = col.column_name.to_sym
-      target_class_name = col.lookup_foundation.name.gsub(/[^a-zA-Z0-9_]/, '').classify
+      target_class_name = col.lookup_foundation.name.gsub(/[^a-zA-Z0-9_]/, "").classify
 
       # Skip if association already defined
       next if @dynamic_model.reflect_on_association(association_name)
@@ -126,5 +150,22 @@ class Foundation < ApplicationRecord
         Rails.logger.error "Failed to add belongs_to association for #{association_name}: #{e.message}"
       end
     end
+  end
+
+  private
+
+  # Automatically add system columns (id, created_at, updated_at) when foundation is created
+  def add_system_columns
+    system_columns = [
+      { name: "ID", column_name: "id", column_type: "whole_number", column_group: "System", searchable: false, position: 0 },
+      { name: "Created At", column_name: "created_at", column_type: "date_and_time", column_group: "System", searchable: false, position: 998 },
+      { name: "Updated At", column_name: "updated_at", column_type: "date_and_time", column_group: "System", searchable: false, position: 999 }
+    ]
+
+    system_columns.each do |attrs|
+      columns.create(attrs)
+    end
+
+    Rails.logger.info "Added system columns to Foundation ##{id} (#{name})"
   end
 end

@@ -78,19 +78,48 @@ test:
 # Read https://guides.rubyonrails.org/configuring.html#configuring-a-database
 # for a full overview on how database connection configuration can be specified.
 #
+# =============================================================================
+# PRODUCTION DATABASE CONFIG (Option C Refactor)
+# =============================================================================
+# SSoT: Connection pool sizing for separate queue database
+#
+# Architecture (after Option C refactor):
+# - Primary DB (DATABASE_URL): Main app, cable, cache - Heroku essential-0 (20 conn)
+# - Queue DB (QUEUE_DATABASE_URL): SolidQueue - separate Heroku essential-0 (20 conn)
+#
+# CALCULATION (per dyno, PRIMARY DB):
+#   primary: 5 connections (main app queries)
+#   cable: 2 connections (ActionCable - minimal)
+#   cache: 2 connections (SolidCache - minimal)
+#   Total per dyno: 9 connections
+#   Web + Worker: 18 connections (leaves 2 headroom)
+#
+# CALCULATION (per dyno, QUEUE DB):
+#   queue: 5 connections
+#   Worker-only dyno: 5 connections (web doesn't use queue heavily)
+#
+# To provision queue database:
+#   heroku addons:create heroku-postgresql:essential-0 --app teeemlive --as QUEUE_DATABASE
+# =============================================================================
 production:
   primary:
     <<: *default
     url: <%= ENV["DATABASE_URL"] %>
+    pool: <%= ENV.fetch("DB_POOL_PRIMARY", 5) %>
   cable:
     <<: *default
     url: <%= ENV["DATABASE_URL"] %>
     migrations_paths: db/cable_migrate
+    pool: 2  # ActionCable needs minimal connections
   cache:
     <<: *default
     url: <%= ENV["DATABASE_URL"] %>
     migrations_paths: db/cache_migrate
+    pool: 2  # SolidCache needs minimal connections
   queue:
     <<: *default
-    url: <%= ENV["DATABASE_URL"] %>
+    # SSoT: Use separate queue database if available, else fallback to primary
+    # This allows deploying code first, then provisioning queue DB
+    url: <%= ENV.fetch("QUEUE_DATABASE_URL") { ENV["DATABASE_URL"] } %>
     migrations_paths: db/queue_migrate
+    pool: <%= ENV.fetch("DB_POOL_QUEUE", 5) %>

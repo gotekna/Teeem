@@ -14,7 +14,7 @@ class CreateBibleRules < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :bible_rules, [:chapter_number, :rule_number], unique: true
+    add_index :bible_rules, [ :chapter_number, :rule_number ], unique: true
     add_index :bible_rules, :chapter_number
   end
 end

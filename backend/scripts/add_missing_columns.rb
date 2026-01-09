@@ -89,7 +89,7 @@ all_tables.each do |table|
         required: !col.null,
         default_value: col.default,
         position: max_position + 1,
-        searchable: ['single_line_text', 'email', 'multiple_lines_text'].include?(column_type)
+        searchable: [ 'single_line_text', 'email', 'multiple_lines_text' ].include?(column_type)
       )
 
       puts "✅ Added: #{table.name}.#{col.name} (#{column_type})"

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,7 +30,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Plus,
-  Loader2,
   MoreHorizontal,
   Pencil,
   Trash2,
@@ -44,6 +43,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 interface WorkflowStep {
@@ -100,7 +100,9 @@ export function WorkflowsTab() {
 
   const loadWorkflows = async () => {
     try {
-      const data = await api.get<WorkflowDefinition[]>("/api/v1/workflow_definitions");
+      const response = await api.get<{ workflow_definitions: WorkflowDefinition[] } | WorkflowDefinition[]>("/api/v1/workflow_definitions");
+      // Handle both { workflow_definitions: [...] } and direct array responses
+      const data = Array.isArray(response) ? response : (response?.workflow_definitions || []);
       setWorkflows(data);
     } catch (error) {
       console.error("Failed to load workflows:", error);
@@ -236,7 +238,7 @@ export function WorkflowsTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -304,7 +306,7 @@ export function WorkflowsTab() {
                         disabled={deleting === workflow.id || toggling === workflow.id}
                       >
                         {deleting === workflow.id || toggling === workflow.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <Spinner size={16} />
                         ) : (
                           <MoreHorizontal className="h-4 w-4" />
                         )}
@@ -446,7 +448,7 @@ export function WorkflowsTab() {
             <Button onClick={handleSave} disabled={saving}>
               {saving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Saving...
                 </>
               ) : editingWorkflow ? (

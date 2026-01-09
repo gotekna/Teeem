@@ -4,27 +4,27 @@ class DocumentRelocateService
 
   def initialize(document)
     @document = document
-    @credential = OrganizationOneDriveCredential.active_credential
+    @credential = MicrosoftCredential.sharepoint_credential
     @client = MicrosoftGraphClient.new(@credential) if @credential
   end
 
   # Relocate document in OneDrive based on updated metadata
   # This handles:
-  # - Renaming the file (title change)
+  # - Renaming the file (file_name change)
   # - Moving to different company folder (company_id change)
   # - Moving to different subfolder (folder change)
-  def relocate!(new_company_id: nil, new_folder: nil, new_title: nil)
-    return { success: true, skipped: true, reason: 'No OneDrive file' } unless @document.onedrive_file_id.present?
-    return { success: false, error: 'No OneDrive credential' } unless @client
+  def relocate!(new_company_id: nil, new_folder: nil, new_file_name: nil)
+    return { success: true, skipped: true, reason: "No OneDrive file" } unless @document.sharepoint_file_id.present?
+    return { success: false, error: "No OneDrive credential" } unless @client
 
     actions = []
     drive_id = @credential.drive_id
 
     # Get current file info
-    current_file = @client.get("/drives/#{drive_id}/items/#{@document.onedrive_file_id}")
+    current_file = @client.get("/drives/#{drive_id}/items/#{@document.sharepoint_file_id}")
 
     # Determine what needs to change
-    needs_rename = new_title.present? && new_title != @document.title
+    needs_rename = new_file_name.present? && new_file_name != @document.file_name
     needs_move = (new_company_id.present? && new_company_id.to_s != @document.company_id.to_s) ||
                  (new_folder.present? && new_folder != @document.folder)
 
@@ -36,7 +36,7 @@ class DocumentRelocateService
       )
 
       unless target_folder_id
-        return { success: false, error: 'Target folder not found in OneDrive' }
+        return { success: false, error: "Target folder not found in OneDrive" }
       end
     end
 
@@ -46,27 +46,27 @@ class DocumentRelocateService
     # Add rename if needed
     if needs_rename
       # Preserve file extension
-      current_extension = File.extname(current_file['name'])
-      # Sanitize the title for OneDrive (remove illegal characters)
-      sanitized_title = sanitize_onedrive_filename(new_title)
-      new_name = sanitized_title.end_with?(current_extension) ? sanitized_title : "#{sanitized_title}#{current_extension}"
+      current_extension = File.extname(current_file["name"])
+      # Sanitize the file_name for OneDrive (remove illegal characters)
+      sanitized_name = sanitize_onedrive_filename(new_file_name)
+      new_name = sanitized_name.end_with?(current_extension) ? sanitized_name : "#{sanitized_name}#{current_extension}"
       update_payload[:name] = new_name
-      actions << { type: 'rename', from: current_file['name'], to: new_name }
+      actions << { type: "rename", from: current_file["name"], to: new_name }
     end
 
     # Add move if needed
     if needs_move && target_folder_id
       update_payload[:parentReference] = { id: target_folder_id }
-      actions << { type: 'move', to_folder: target_folder_id }
+      actions << { type: "move", to_folder: target_folder_id }
     end
 
     # Execute the update if there are changes
     if update_payload.present?
-      @client.patch("/drives/#{drive_id}/items/#{@document.onedrive_file_id}", update_payload)
+      @client.patch("/drives/#{drive_id}/items/#{@document.sharepoint_file_id}", update_payload)
 
       # Update the document record
       updates = {}
-      updates[:title] = new_title if needs_rename
+      updates[:file_name] = new_file_name if needs_rename
       updates[:company_id] = new_company_id if new_company_id.present?
       updates[:folder] = new_folder if new_folder.present?
 
@@ -78,7 +78,7 @@ class DocumentRelocateService
         message: "Document #{actions.map { |a| a[:type] }.join(' and ')} successful"
       }
     else
-      { success: true, skipped: true, reason: 'No changes required' }
+      { success: true, skipped: true, reason: "No changes required" }
     end
 
   rescue MicrosoftGraphClient::APIError => e
@@ -92,42 +92,31 @@ class DocumentRelocateService
   private
 
   # Sanitize filename for OneDrive - remove characters not allowed by Microsoft
-  # Invalid characters: " * : < > ? / \ |
-  # Also remove leading/trailing spaces and periods
+  # SSoT: Use centralized SharePoint filename sanitization
+  # See lib/sharepoint/filename_sanitizer.rb for rules
   def sanitize_onedrive_filename(filename)
-    return '' if filename.blank?
-
-    # Remove invalid characters for OneDrive/SharePoint
-    sanitized = filename.gsub(/["*:<>?\/\\|]/, '')
-
-    # Replace multiple spaces with single space
-    sanitized = sanitized.gsub(/\s+/, ' ')
-
-    # Remove leading/trailing spaces and periods
-    sanitized = sanitized.strip.gsub(/^\.+|\.+$/, '')
-
-    # Ensure not empty after sanitization
-    sanitized.presence || 'Untitled'
+    SharePoint::FilenameSanitizer.sanitize(filename)
   end
 
-  # Find the OneDrive folder ID for the target company/folder
+  # Find the SharePoint folder ID for the target company/folder
   def find_target_folder_id(company_id:, folder:)
-    company = Company.find_by(id: company_id)
+    company = CorporateCompany.find_by(id: company_id)
     return nil unless company
 
     drive_id = @credential.drive_id
 
     # First, find or verify company folder
-    company_folder_id = company.onedrive_folder_id
+    company_folder_id = company.sharepoint_folder_id
 
     unless company_folder_id
       # Try to find company folder by name in the root
-      root_items = @client.get("/drives/#{drive_id}/root:/00 TEEEM PRIVATE:/children")
-      company_folder = root_items['value']&.find { |item| item['name'] == company.name && item['folder'].present? }
-      company_folder_id = company_folder&.dig('id')
+      base_path = CorporateCompanySetting.company_documents_base_path
+      root_items = @client.get("/drives/#{drive_id}/root:/#{base_path}:/children")
+      company_folder = root_items["value"]&.find { |item| item["name"] == company.name && item["folder"].present? }
+      company_folder_id = company_folder&.dig("id")
 
       # Update company record if found
-      company.update(onedrive_folder_id: company_folder_id) if company_folder_id
+      company.update(sharepoint_folder_id: company_folder_id) if company_folder_id
     end
 
     return nil unless company_folder_id
@@ -137,12 +126,12 @@ class DocumentRelocateService
 
     # Find subfolder within company folder
     subfolders = @client.get("/drives/#{drive_id}/items/#{company_folder_id}/children")
-    target_subfolder = subfolders['value']&.find do |item|
-      item['folder'].present? && item['name'].upcase == folder.upcase
+    target_subfolder = subfolders["value"]&.find do |item|
+      item["folder"].present? && item["name"].upcase == folder.upcase
     end
 
     if target_subfolder
-      target_subfolder['id']
+      target_subfolder["id"]
     else
       # Create the folder if it doesn't exist
       create_folder(company_folder_id, folder)
@@ -156,16 +145,16 @@ class DocumentRelocateService
     result = @client.post("/drives/#{drive_id}/items/#{parent_id}/children", {
       name: folder_name.upcase,
       folder: {},
-      '@microsoft.graph.conflictBehavior' => 'fail'
+      "@microsoft.graph.conflictBehavior" => "fail"
     })
 
-    result['id']
+    result["id"]
   rescue MicrosoftGraphClient::APIError => e
     # Folder might already exist, try to get it
-    if e.message.include?('nameAlreadyExists')
+    if e.message.include?("nameAlreadyExists")
       subfolders = @client.get("/drives/#{drive_id}/items/#{parent_id}/children")
-      target = subfolders['value']&.find { |item| item['name'].upcase == folder_name.upcase }
-      return target['id'] if target
+      target = subfolders["value"]&.find { |item| item["name"].upcase == folder_name.upcase }
+      return target["id"] if target
     end
     nil
   end

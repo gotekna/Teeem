@@ -26,11 +26,11 @@ namespace :columns do
     }
 
     # Tables to skip (special handling required)
-    skip_tables = ['Trinity Bible', 'Trinity Teacher', 'Trinity Lexicon', 'User Management', 'Gold Standard Reference']
+    skip_tables = [ "Trinity Bible", "Trinity Teacher", "Trinity Lexicon", "User Management", "Gold Standard Reference" ]
 
     # Known renames: old_name => new_name
     known_renames = {
-      'construction_id' => 'job_id'
+      "construction_id" => "job_id"
     }
 
     Table.all.each do |table|
@@ -44,11 +44,11 @@ namespace :columns do
 
       # Get actual DB columns
       db_cols = ActiveRecord::Base.connection.columns(table.database_table_name).map(&:name)
-      db_cols -= ['id', 'created_at', 'updated_at']
+      db_cols -= [ "id", "created_at", "updated_at" ]
 
       # Get metadata columns
       meta_cols = table.columns.pluck(:column_name)
-      meta_cols -= ['id', 'created_at', 'updated_at', 'actions']
+      meta_cols -= [ "id", "created_at", "updated_at", "actions" ]
 
       # Find orphans (in DB but not in metadata)
       orphans = db_cols - meta_cols
@@ -115,7 +115,7 @@ namespace :columns do
   task sync_jobs: :environment do
     puts "🔧 Syncing Jobs table columns...\n"
 
-    table = Table.find_by(name: 'Jobs')
+    table = Table.find_by(name: "Jobs")
     unless table
       puts "❌ Jobs table not found!"
       exit 1
@@ -124,7 +124,7 @@ namespace :columns do
     db_cols = ActiveRecord::Base.connection.columns(table.database_table_name).map(&:name)
     meta_cols = table.columns.pluck(:column_name)
 
-    orphans = db_cols - meta_cols - ['id', 'created_at', 'updated_at']
+    orphans = db_cols - meta_cols - [ "id", "created_at", "updated_at" ]
 
     if orphans.empty?
       puts "✅ Jobs table columns are in sync!"
@@ -154,7 +154,7 @@ namespace :columns do
   end
 
   desc "Remove orphaned database column (dangerous - removes data)"
-  task :drop_column, [:table_name, :column_name] => :environment do |t, args|
+  task :drop_column, [ :table_name, :column_name ] => :environment do |t, args|
     table_name = args[:table_name]
     column_name = args[:column_name]
 
@@ -176,7 +176,7 @@ namespace :columns do
     print "⚠️  This will permanently delete the '#{column_name}' column and all its data from '#{table_name}'. Continue? (yes/no): "
     confirm = STDIN.gets.chomp
 
-    unless confirm.downcase == 'yes'
+    unless confirm.downcase == "yes"
       puts "Aborted."
       exit 0
     end
@@ -195,11 +195,11 @@ namespace :columns do
 
       # Get actual DB columns (excluding Rails defaults)
       db_cols = ActiveRecord::Base.connection.columns(table.database_table_name).map(&:name)
-      db_cols -= ['id', 'created_at', 'updated_at']
+      db_cols -= [ "id", "created_at", "updated_at" ]
 
       # Get metadata columns
       meta_cols = table.columns.pluck(:column_name)
-      meta_cols -= ['id', 'created_at', 'updated_at', 'actions']
+      meta_cols -= [ "id", "created_at", "updated_at", "actions" ]
 
       # Find orphans (in DB but not in metadata)
       orphans = db_cols - meta_cols
@@ -227,41 +227,41 @@ namespace :columns do
   def infer_column_type(db_col)
     case db_col.type
     when :string
-      if db_col.name.include?('email')
-        'email'
-      elsif db_col.name.include?('phone')
-        'phone'
-      elsif db_col.name.include?('url') || db_col.name.include?('link')
-        'url'
+      if db_col.name.include?("email")
+        "email"
+      elsif db_col.name.include?("phone")
+        "phone"
+      elsif db_col.name.include?("url") || db_col.name.include?("link")
+        "url"
       else
-        'single_line_text'
+        "single_line_text"
       end
     when :text
-      'multiple_lines_text'
+      "multiple_lines_text"
     when :integer, :bigint
-      if db_col.name.end_with?('_id')
-        'whole_number' # Could be a lookup - needs manual review
+      if db_col.name.end_with?("_id")
+        "whole_number" # Could be a lookup - needs manual review
       else
-        'whole_number'
+        "whole_number"
       end
     when :decimal, :float
-      if db_col.name.include?('percent')
-        'percentage'
-      elsif db_col.name.include?('price') || db_col.name.include?('cost') || db_col.name.include?('value') || db_col.name.include?('amount')
-        'currency'
+      if db_col.name.include?("percent")
+        "percentage"
+      elsif db_col.name.include?("price") || db_col.name.include?("cost") || db_col.name.include?("value") || db_col.name.include?("amount")
+        "currency"
       else
-        'decimal_number'
+        "decimal_number"
       end
     when :boolean
-      'boolean'
+      "boolean"
     when :date
-      'date'
+      "date"
     when :datetime, :timestamp
-      'date' # Or datetime if you have that type
+      "date" # Or datetime if you have that type
     when :json, :jsonb
-      'multiple_lines_text' # JSON display
+      "multiple_lines_text" # JSON display
     else
-      'single_line_text'
+      "single_line_text"
     end
   end
 end
@@ -270,40 +270,40 @@ end
 def infer_column_type(db_col)
   case db_col.type
   when :string
-    if db_col.name.include?('email')
-      'email'
-    elsif db_col.name.include?('phone')
-      'phone'
-    elsif db_col.name.include?('url') || db_col.name.include?('link')
-      'url'
+    if db_col.name.include?("email")
+      "email"
+    elsif db_col.name.include?("phone")
+      "phone"
+    elsif db_col.name.include?("url") || db_col.name.include?("link")
+      "url"
     else
-      'single_line_text'
+      "single_line_text"
     end
   when :text
-    'multiple_lines_text'
+    "multiple_lines_text"
   when :integer, :bigint
-    if db_col.name.end_with?('_id')
-      'whole_number'
+    if db_col.name.end_with?("_id")
+      "whole_number"
     else
-      'whole_number'
+      "whole_number"
     end
   when :decimal, :float
-    if db_col.name.include?('percent')
-      'percentage'
-    elsif db_col.name.include?('price') || db_col.name.include?('cost') || db_col.name.include?('value') || db_col.name.include?('amount')
-      'currency'
+    if db_col.name.include?("percent")
+      "percentage"
+    elsif db_col.name.include?("price") || db_col.name.include?("cost") || db_col.name.include?("value") || db_col.name.include?("amount")
+      "currency"
     else
-      'decimal_number'
+      "decimal_number"
     end
   when :boolean
-    'boolean'
+    "boolean"
   when :date
-    'date'
+    "date"
   when :datetime, :timestamp
-    'date'
+    "date"
   when :json, :jsonb
-    'multiple_lines_text'
+    "multiple_lines_text"
   else
-    'single_line_text'
+    "single_line_text"
   end
 end

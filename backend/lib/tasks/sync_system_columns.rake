@@ -5,7 +5,7 @@ namespace :teeem do
     puts "=" * 80
 
     # Get all system tables
-    system_tables = Table.where(table_type: 'system').order(:id)
+    system_tables = Table.where(table_type: "system").order(:id)
 
     total_tables = system_tables.count
     synced_count = 0
@@ -55,8 +55,8 @@ namespace :teeem do
               column_type: column_type,
               required: !db_col.null,
               is_unique: false,
-              is_title: col_name == 'name' || col_name == 'title',
-              searchable: ['name', 'title', 'description', 'email'].include?(col_name),
+              is_title: col_name == "name" || col_name == "title",
+              searchable: [ "name", "title", "description", "email" ].include?(col_name),
               position: table.columns.maximum(:position).to_i + 1
             )
           end
@@ -64,7 +64,7 @@ namespace :teeem do
 
         if extra_columns.any?
           # Filter out known virtual columns
-          virtual_columns = ['actions', 'action_buttons']
+          virtual_columns = [ "actions", "action_buttons" ]
           real_extra = extra_columns - virtual_columns
 
           if real_extra.any?
@@ -95,29 +95,28 @@ namespace :teeem do
 
     # Map of model class names to their database table names
     table_mapping = {
-      'FinancialTransaction' => 'financial_transactions',
-      'GoldStandardTable' => 'gold_standard_table',
-      'TrinityEntry' => 'trinity_entries',
-      'Trinity' => 'trinity',
-      'Construction' => 'constructions',
-      'PricebookItem' => 'pricebook',
-      'WhsSwms' => 'whs_swms',
-      'WhsActionItem' => 'whs_action_items',
-      'WhsInduction' => 'whs_inductions',
-      'WhsInspection' => 'whs_inspections',
-      'WhsIncident' => 'whs_incidents',
-      'ContactRole' => 'contact_roles',
-      'User' => 'users',
-      'InspiringQuote' => 'inspiring_quotes',
-      'Contact' => 'contacts',
-      'Estimate' => 'estimates',
-      'PurchaseOrder' => 'purchase_orders',
-      'SmTask' => 'sm_tasks',
-      'SmResource' => 'sm_resources',
-      'SmTimeEntry' => 'sm_time_entries',
-      'PriceHistory' => 'price_histories',
-      'Job' => 'jobs',
-      'Supplier' => 'suppliers'
+      "FinancialTransaction" => "financial_transactions",
+      "GoldStandardTable" => "gold_standard_table",
+      "TrinityEntry" => "trinity_entries",
+      "Trinity" => "trinity",
+      "Construction" => "constructions",
+      "PricebookItem" => "pricebook",
+      "WhsSwms" => "whs_swms",
+      "WhsActionItem" => "whs_action_items",
+      "WhsInduction" => "whs_inductions",
+      "WhsInspection" => "whs_inspections",
+      "WhsIncident" => "whs_incidents",
+      "User" => "users",
+      "InspiringQuote" => "inspiring_quotes",
+      "Contact" => "contacts",
+      "Estimate" => "estimates",
+      "PurchaseOrder" => "purchase_orders",
+      "SmTask" => "sm_tasks",
+      "SmResource" => "sm_resources",
+      "SmTimeEntry" => "sm_time_entries",
+      "PriceHistory" => "price_histories",
+      "Job" => "jobs",
+      "Supplier" => "suppliers"
     }
 
     table_mapping[model_class] || model_class.underscore.pluralize
@@ -127,27 +126,27 @@ namespace :teeem do
   def map_sql_type_to_column_type(sql_type)
     case sql_type.downcase
     when /^character varying/, /^varchar/
-      'single_line_text'
+      "single_line_text"
     when /^text/
-      'multiple_lines_text'
+      "multiple_lines_text"
     when /^integer/, /^bigint/, /^smallint/
-      'whole_number'
+      "whole_number"
     when /^numeric/, /^decimal/
-      'currency'
+      "currency"
     when /^double/, /^float/, /^real/
-      'number'
+      "number"
     when /^boolean/
-      'boolean'
+      "boolean"
     when /^date$/
-      'date'
+      "date"
     when /^timestamp/, /^datetime/
-      'date_and_time'
+      "date_and_time"
     when /^time$/
-      'date_and_time'
+      "date_and_time"
     when /^json/, /^jsonb/
-      'multiple_lines_text'
+      "multiple_lines_text"
     else
-      'single_line_text'
+      "single_line_text"
     end
   end
 end

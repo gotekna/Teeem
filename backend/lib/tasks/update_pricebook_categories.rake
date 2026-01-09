@@ -1,9 +1,9 @@
-require 'csv'
+require "csv"
 
 namespace :pricebook do
   desc "Update pricebook items with categories and suppliers from CSV"
   task update_categories: :environment do
-    csv_path = Rails.root.join('pricebook_import.csv')
+    csv_path = Rails.root.join("pricebook_import.csv")
 
     unless File.exist?(csv_path)
       puts "❌ CSV file not found at: #{csv_path}"
@@ -25,12 +25,12 @@ namespace :pricebook do
 
     supplier_cache = {}
 
-    CSV.foreach(csv_path, headers: true, encoding: 'UTF-8') do |row|
+    CSV.foreach(csv_path, headers: true, encoding: "UTF-8") do |row|
       stats[:total] += 1
 
-      code = row['code']&.strip
-      category = row['category']&.strip
-      supplier_name = row['default_supplier']&.strip
+      code = row["code"]&.strip
+      category = row["category"]&.strip
+      supplier_name = row["default_supplier"]&.strip
 
       next if code.blank?
 

@@ -38,7 +38,7 @@ def should_create_schedule_task?(desc)
   return false if desc.blank?
 
   # Skip financial/admin tasks that don't affect schedule
-  skip_keywords = ['pay external sales', 'retail profit', 'contingency', 'feaso']
+  skip_keywords = [ 'pay external sales', 'retail profit', 'contingency', 'feaso' ]
   desc_lower = desc.downcase
 
   !skip_keywords.any? { |keyword| desc_lower.include?(keyword) }

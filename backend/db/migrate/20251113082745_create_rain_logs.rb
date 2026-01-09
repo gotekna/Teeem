@@ -14,7 +14,7 @@ class CreateRainLogs < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :rain_logs, [:construction_id, :date], unique: true
+    add_index :rain_logs, [ :construction_id, :date ], unique: true
     add_index :rain_logs, :date
     add_index :rain_logs, :source
   end

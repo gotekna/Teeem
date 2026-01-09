@@ -90,7 +90,7 @@ class AddMissingColumnTypesToGoldStandard < ActiveRecord::Migration[7.0]
     return unless gold_standard
 
     # Remove the columns we added
-    column_names = ['url', 'date', 'date_and_time', 'whole_number', 'lookup', 'user', 'computed']
+    column_names = [ 'url', 'date', 'date_and_time', 'whole_number', 'lookup', 'user', 'computed' ]
     gold_standard.columns.where(column_name: column_names).destroy_all
 
     # Rebuild the table without these columns

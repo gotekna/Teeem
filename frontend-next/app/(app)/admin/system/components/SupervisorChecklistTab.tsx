@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,7 +23,6 @@ import {
 } from "@/components/ui/table";
 import {
   Plus,
-  Loader2,
   Pencil,
   Trash2,
   ClipboardCheck,
@@ -32,7 +31,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
-import { cn } from "@/lib/utils";
+import { Spinner } from "@/components/ui/spinner";
 
 interface ChecklistTemplate {
   id: number;
@@ -177,7 +176,7 @@ export function SupervisorChecklistTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -218,14 +217,14 @@ export function SupervisorChecklistTab() {
               <div className="space-y-2">
                 <Label htmlFor="new-category">Category</Label>
                 <Select
-                  value={formData.category}
-                  onValueChange={(value) => setFormData({ ...formData, category: value })}
+                  value={formData.category || "__none__"}
+                  onValueChange={(value) => setFormData({ ...formData, category: value === "__none__" ? "" : value })}
                 >
                   <SelectTrigger id="new-category">
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No category</SelectItem>
+                    <SelectItem value="__none__">No category</SelectItem>
                     {CATEGORIES.map((cat) => (
                       <SelectItem key={cat} value={cat}>
                         {cat}
@@ -266,7 +265,7 @@ export function SupervisorChecklistTab() {
               <div className="col-span-full flex gap-2">
                 <Button type="submit" disabled={saving}>
                   {saving ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Spinner size={16} className="mr-2" />
                   ) : (
                     <CheckCircle className="h-4 w-4 mr-2" />
                   )}
@@ -319,14 +318,14 @@ export function SupervisorChecklistTab() {
                     <TableCell>
                       {editingId === template.id ? (
                         <Select
-                          value={formData.category}
-                          onValueChange={(value) => setFormData({ ...formData, category: value })}
+                          value={formData.category || "__none__"}
+                          onValueChange={(value) => setFormData({ ...formData, category: value === "__none__" ? "" : value })}
                         >
                           <SelectTrigger className="w-[140px]">
                             <SelectValue placeholder="Select" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">No category</SelectItem>
+                            <SelectItem value="__none__">No category</SelectItem>
                             {CATEGORIES.map((cat) => (
                               <SelectItem key={cat} value={cat}>
                                 {cat}
@@ -378,7 +377,7 @@ export function SupervisorChecklistTab() {
                       {editingId === template.id ? (
                         <div className="flex items-center justify-end gap-2">
                           <Button size="sm" onClick={handleUpdate} disabled={saving}>
-                            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                            {saving ? <Spinner size={16} /> : "Save"}
                           </Button>
                           <Button
                             size="sm"
@@ -426,7 +425,7 @@ export function SupervisorChecklistTab() {
           <div className="text-sm text-blue-800 dark:text-blue-200">
             <p className="font-medium mb-2">How it works</p>
             <ul className="list-disc list-inside space-y-1">
-              <li>Create checklist items here (e.g., "Safety barriers installed", "Site induction completed")</li>
+              <li>Create checklist items here (e.g., &quot;Safety barriers installed&quot;, &quot;Site induction completed&quot;)</li>
               <li>In Schedule Master, assign these items to tasks that require supervisor checks</li>
               <li>When a job is created, checklist items are automatically added to assigned tasks</li>
               <li>Site supervisors check off items as they complete them</li>

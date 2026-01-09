@@ -1,5 +1,5 @@
 class Api::V1::WHSIncidentsController < ApplicationController
-  before_action :set_whs_incident, only: [:show, :update, :destroy, :investigate, :close, :notify_workcov]
+  before_action :set_whs_incident, only: [ :show, :update, :destroy, :investigate, :close, :notify_workcov ]
 
   # GET /api/v1/whs_incidents
   def index
@@ -19,16 +19,16 @@ class Api::V1::WHSIncidentsController < ApplicationController
     incidents = incidents.by_severity(params[:severity_level]) if params[:severity_level].present?
 
     # Apply LTI filter
-    incidents = incidents.lti if params[:lti] == 'true'
+    incidents = incidents.lti if params[:lti] == "true"
 
     # Apply near miss filter
-    incidents = incidents.near_miss if params[:near_miss] == 'true'
+    incidents = incidents.near_miss if params[:near_miss] == "true"
 
     # Apply WorkCover filter
-    incidents = incidents.requiring_workcov if params[:requiring_workcov] == 'true'
+    incidents = incidents.requiring_workcov if params[:requiring_workcov] == "true"
 
     # Apply this month filter
-    incidents = incidents.this_month if params[:this_month] == 'true'
+    incidents = incidents.this_month if params[:this_month] == "true"
 
     incidents = incidents.includes(:job, :reported_by_user, :investigated_by_user, :whs_action_items)
                          .recent
@@ -61,7 +61,7 @@ class Api::V1::WHSIncidentsController < ApplicationController
     else
       render json: {
         success: false,
-        error: incident.errors.full_messages.join(', ')
+        error: incident.errors.full_messages.join(", ")
       }, status: :unprocessable_entity
     end
   end
@@ -76,7 +76,7 @@ class Api::V1::WHSIncidentsController < ApplicationController
     else
       render json: {
         success: false,
-        error: @whs_incident.errors.full_messages.join(', ')
+        error: @whs_incident.errors.full_messages.join(", ")
       }, status: :unprocessable_entity
     end
   end
@@ -86,12 +86,12 @@ class Api::V1::WHSIncidentsController < ApplicationController
     if @whs_incident.destroy
       render json: {
         success: true,
-        data: { message: 'Incident deleted successfully' }
+        data: { message: "Incident deleted successfully" }
       }
     else
       render json: {
         success: false,
-        error: 'Failed to delete incident'
+        error: "Failed to delete incident"
       }, status: :unprocessable_entity
     end
   end
@@ -106,7 +106,7 @@ class Api::V1::WHSIncidentsController < ApplicationController
     else
       render json: {
         success: false,
-        error: 'Cannot start investigation'
+        error: "Cannot start investigation"
       }, status: :unprocessable_entity
     end
   end
@@ -118,7 +118,7 @@ class Api::V1::WHSIncidentsController < ApplicationController
     if closure_notes.blank?
       return render json: {
         success: false,
-        error: 'Closure notes are required'
+        error: "Closure notes are required"
       }, status: :unprocessable_entity
     end
 
@@ -130,7 +130,7 @@ class Api::V1::WHSIncidentsController < ApplicationController
     else
       render json: {
         success: false,
-        error: 'Cannot close incident. Ensure all action items are completed.'
+        error: "Cannot close incident. Ensure all action items are completed."
       }, status: :unprocessable_entity
     end
   end
@@ -142,12 +142,12 @@ class Api::V1::WHSIncidentsController < ApplicationController
     if workcov_reference.blank?
       return render json: {
         success: false,
-        error: 'WorkCover reference number is required'
+        error: "WorkCover reference number is required"
       }, status: :unprocessable_entity
     end
 
     if @whs_incident.update(
-      workcov_notification_date: CompanySetting.today,
+      workcov_notification_date: CorporateCompanySetting.today,
       workcov_reference_number: workcov_reference
     )
       render json: {
@@ -157,7 +157,7 @@ class Api::V1::WHSIncidentsController < ApplicationController
     else
       render json: {
         success: false,
-        error: 'Failed to record WorkCover notification'
+        error: "Failed to record WorkCover notification"
       }, status: :unprocessable_entity
     end
   end
@@ -184,12 +184,12 @@ class Api::V1::WHSIncidentsController < ApplicationController
 
   def serialization_includes
     {
-      job: { only: [:id, :name, :construction_number] },
-      reported_by_user: { only: [:id, :name, :email] },
-      investigated_by_user: { only: [:id, :name, :email] },
+      job: {},
+      reported_by_user: {},
+      investigated_by_user: {},
       whs_action_items: {
         include: {
-          assigned_to_user: { only: [:id, :name] }
+          assigned_to_user: {}
         }
       }
     }

@@ -9,9 +9,19 @@ module Api
 
         # Support both category ID (numeric) and category name (string)
         if category_param =~ /^\d+$/
-          # Numeric ID - look up the category name from documentation_categories
-          doc_category = DocumentationCategory.find_by(id: category_param)
-          category = doc_category&.name&.downcase&.gsub(' ', '-') || category_param
+          # Numeric ID - look up from EntityTab first (SSoT), then JobDocumentationTab, then DocumentationCategory
+          entity_tab = EntityTab.find_by(id: category_param)
+          if entity_tab
+            category = entity_tab.tab_key || entity_tab.display_name.downcase.gsub(" ", "-")
+          else
+            doc_tab = @job.job_documentation_tabs.find_by(id: category_param)
+            if doc_tab
+              category = doc_tab.name.downcase.gsub(" ", "-")
+            else
+              doc_category = DocumentationCategory.find_by(id: category_param)
+              category = doc_category&.name&.downcase&.gsub(" ", "-") || category_param
+            end
+          end
         else
           category = category_param
         end
@@ -41,20 +51,54 @@ module Api
         )
 
         unless params[:file].present?
-          return render json: { error: 'No file provided' }, status: :bad_request
+          return render json: { error: "No file provided" }, status: :bad_request
         end
 
-        # Attach the file using ActiveStorage
-        task.document.attach(params[:file])
+        uploaded_file = params[:file]
+        sharepoint_url = nil
+
+        # Try to upload to SharePoint first
+        begin
+          credential = MicrosoftCredential.sharepoint_credential
+          if credential&.valid_credential?
+            client = MicrosoftGraphClient.new(credential)
+
+            # Find the job folder
+            job_folder = client.find_job_folder(@job)
+            if job_folder
+              # Get the folder path from the documentation tab
+              tab = @job.job_documentation_tabs.find_by(id: params[:category])
+              folder_path = tab&.folder_path
+
+              if folder_path.present?
+                # Navigate to or create the target subfolder
+                target_folder = ensure_folder_path(client, job_folder["id"], folder_path)
+
+                if target_folder
+                  # Upload the file
+                  result = client.upload_file(uploaded_file, target_folder["id"], uploaded_file.original_filename)
+                  sharepoint_url = result["webUrl"] if result
+                end
+              end
+            end
+          end
+        rescue => e
+          Rails.logger.warn "SharePoint upload failed (will continue with local): #{e.message}"
+        end
+
+        # Also attach to ActiveStorage as backup
+        task.document.attach(uploaded_file)
         task.update(
           has_document: true,
           uploaded_at: Time.current,
-          uploaded_by: current_user&.email
+          uploaded_by: current_user&.email,
+          sharepoint_url: sharepoint_url
         )
 
         render json: {
-          message: 'Document uploaded successfully',
-          document_url: url_for(task.document),
+          message: "Document uploaded successfully",
+          document_url: sharepoint_url || url_for(task.document),
+          sharepoint_url: sharepoint_url,
           uploaded_at: task.uploaded_at
         }
       rescue => e
@@ -66,7 +110,7 @@ module Api
         task = DocumentTask.find(params[:id])
 
         unless task.has_document
-          return render json: { error: 'Cannot validate without a document' }, status: :bad_request
+          return render json: { error: "Cannot validate without a document" }, status: :bad_request
         end
 
         task.update(
@@ -76,7 +120,7 @@ module Api
         )
 
         render json: {
-          message: 'Document validated successfully',
+          message: "Document validated successfully",
           validated_at: task.validated_at,
           validated_by: task.validated_by
         }
@@ -90,6 +134,31 @@ module Api
         @job = Job.find(params[:job_id])
       end
 
+      # Navigate to or create nested folder path (e.g., "02 PreCon/Revit-DWG")
+      def ensure_folder_path(client, parent_folder_id, path)
+        current_folder_id = parent_folder_id
+        current_folder = nil
+
+        path.split("/").each do |folder_name|
+          next if folder_name.blank?
+
+          # Try to find the folder first
+          items = client.list_items(current_folder_id)
+          existing = items.find { |item| item["folder"] && item["name"] == folder_name }
+
+          if existing
+            current_folder = existing
+            current_folder_id = existing["id"]
+          else
+            # Create the folder
+            current_folder = client.create_folder(current_folder_id, folder_name)
+            current_folder_id = current_folder["id"]
+          end
+        end
+
+        current_folder
+      end
+
       def task_json(task)
         {
           id: task.id,
@@ -99,7 +168,8 @@ module Api
           category: task.category,
           has_document: task.has_document,
           is_validated: task.is_validated,
-          document_url: task.document.attached? ? url_for(task.document) : nil,
+          document_url: task.sharepoint_url || (task.document.attached? ? url_for(task.document) : nil),
+          sharepoint_url: task.sharepoint_url,
           uploaded_at: task.uploaded_at,
           validated_at: task.validated_at,
           validated_by: task.validated_by
@@ -124,42 +194,101 @@ module Api
 
       def default_tasks_for_category(category)
         case category
-        when 'site', 'site-plan'
+        when "site", "site-plan", "site-docs"
           [
-            { name: 'Survey Plan', description: 'Property survey plan documentation', required: true },
-            { name: 'Soil Test', description: 'Soil test report for foundations', required: true }
+            { name: "Survey Plan", description: "Property survey plan documentation", required: true },
+            { name: "Soil Test", description: "Soil test report for foundations", required: true }
           ]
-        when 'sales'
+        when "sales"
           [
-            { name: 'Sales Contract', description: 'Signed sales contract', required: true },
-            { name: 'Payment Schedule', description: 'Agreed payment schedule', required: true },
-            { name: 'Client Information Form', description: 'Completed client information', required: true }
+            { name: "Sales Contract", description: "Signed sales contract", required: true },
+            { name: "Payment Schedule", description: "Agreed payment schedule", required: true },
+            { name: "Client Information Form", description: "Completed client information", required: true }
           ]
-        when 'certification'
+        when "certification", "council"
           [
-            { name: 'Building Consent', description: 'Approved building consent', required: true },
-            { name: 'Engineering Certificates', description: 'Structural engineering certificates', required: true },
-            { name: 'Plumbing Certificate', description: 'Plumbing compliance certificate', required: false },
-            { name: 'Electrical Certificate', description: 'Electrical compliance certificate', required: false }
+            { name: "Building Consent", description: "Approved building consent", required: true },
+            { name: "Engineering Certificates", description: "Structural engineering certificates", required: true },
+            { name: "Plumbing Certificate", description: "Plumbing compliance certificate", required: false },
+            { name: "Electrical Certificate", description: "Electrical compliance certificate", required: false }
           ]
-        when 'client'
+        when "client"
           [
-            { name: 'Client ID Verification', description: 'Copy of client ID', required: true },
-            { name: 'Contact Details', description: 'Emergency contact information', required: true },
-            { name: 'Insurance Documents', description: 'Home insurance documents', required: false }
+            { name: "Client ID Verification", description: "Copy of client ID", required: true },
+            { name: "Contact Details", description: "Emergency contact information", required: true },
+            { name: "Insurance Documents", description: "Home insurance documents", required: false }
           ]
-        when 'client-photo'
+        when "client-photo", "site-photo", "slab-photo", "frame-photo", "enclosed-photo", "fixing-photo", "pc-photo", "supervisor-photo"
           [
-            { name: 'Before Photos', description: 'Site photos before construction', required: true },
-            { name: 'Progress Photos', description: 'Construction progress photos', required: false },
-            { name: 'Completion Photos', description: 'Final completion photos', required: true }
+            { name: "Before Photos", description: "Site photos before construction", required: true },
+            { name: "Progress Photos", description: "Construction progress photos", required: false },
+            { name: "Completion Photos", description: "Final completion photos", required: true }
           ]
-        when 'final-certificate'
+        when "final-certificate", "final-approval", "final-docs"
           [
-            { name: 'Code Compliance Certificate', description: 'CCC from council', required: true },
-            { name: 'Warranty Documents', description: 'Builder warranty documents', required: true },
-            { name: 'As-Built Plans', description: 'Final as-built construction plans', required: true },
-            { name: 'Maintenance Guide', description: 'Home maintenance guide', required: false }
+            { name: "Code Compliance Certificate", description: "CCC from council", required: true },
+            { name: "Warranty Documents", description: "Builder warranty documents", required: true },
+            { name: "As-Built Plans", description: "Final as-built construction plans", required: true },
+            { name: "Maintenance Guide", description: "Home maintenance guide", required: false }
+          ]
+        when "revit-dwg"
+          [
+            { name: "Architectural Revit Model", description: "Main architectural Revit file", required: true },
+            { name: "Structural Drawings", description: "Structural engineering drawings", required: true },
+            { name: "DWG Exports", description: "AutoCAD DWG exports", required: false }
+          ]
+        when "land-info"
+          [
+            { name: "Title Search", description: "Property title search document", required: true },
+            { name: "Survey Plan", description: "Land survey documentation", required: true },
+            { name: "Zoning Certificate", description: "Council zoning certificate", required: false }
+          ]
+        when "estimation"
+          [
+            { name: "Cost Estimate", description: "Detailed cost estimation", required: true },
+            { name: "Quantity Takeoff", description: "Material quantities", required: true },
+            { name: "Quote Comparison", description: "Supplier quote comparison", required: false }
+          ]
+        when "contracts"
+          [
+            { name: "Building Contract", description: "Signed building contract", required: true },
+            { name: "Variations", description: "Contract variations", required: false },
+            { name: "Progress Claims", description: "Progress claim documentation", required: false }
+          ]
+        when "colour-selection"
+          [
+            { name: "Colour Schedule", description: "Approved colour schedule", required: true },
+            { name: "Material Selections", description: "Material selection sheets", required: true }
+          ]
+        when "plans", "sales-plans", "certified-plans", "working-drawings"
+          [
+            { name: "Floor Plans", description: "Floor plan drawings", required: true },
+            { name: "Elevations", description: "Building elevations", required: true },
+            { name: "Sections", description: "Building sections", required: false }
+          ]
+        when "purchase-order", "accounts"
+          [
+            { name: "Purchase Orders", description: "Approved purchase orders", required: false },
+            { name: "Invoices", description: "Supplier invoices", required: false }
+          ]
+        when "ndis", "ndis-final"
+          [
+            { name: "NDIS Approval", description: "NDIS approval documentation", required: true },
+            { name: "SDA Assessment", description: "SDA assessment report", required: false }
+          ]
+        when "plumbing", "plumbing-final"
+          [
+            { name: "Plumbing Plan", description: "Plumbing layout plan", required: true },
+            { name: "Plumbing Certificate", description: "Plumbing compliance certificate", required: true }
+          ]
+        when "energy-efficiency"
+          [
+            { name: "Energy Report", description: "Energy efficiency report", required: true },
+            { name: "NatHERS Certificate", description: "NatHERS rating certificate", required: true }
+          ]
+        when "form-21"
+          [
+            { name: "Form 21", description: "Form 21 - Final Inspection", required: true }
           ]
         else
           []

@@ -30,7 +30,7 @@ DATABASE_URL=postgresql://user:password@localhost:5432/teeem_development
 
 For Heroku production, get the URL:
 ```bash
-heroku config:get DATABASE_URL --app teeem-backend
+heroku config:get DATABASE_URL --app teeemlive
 ```
 
 ## Step 3: Verify Setup (1 minute)

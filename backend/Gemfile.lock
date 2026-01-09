@@ -45,6 +45,12 @@ GEM
       erubi (~> 1.11)
       rails-dom-testing (~> 2.2)
       rails-html-sanitizer (~> 1.6)
+    active_storage_validations (2.0.4)
+      activejob (>= 6.1.4)
+      activemodel (>= 6.1.4)
+      activestorage (>= 6.1.4)
+      activesupport (>= 6.1.4)
+      marcel (>= 1.0.3)
     activejob (8.0.4)
       activesupport (= 8.0.4)
       globalid (>= 0.3.6)
@@ -81,6 +87,25 @@ GEM
       faraday (>= 1)
       faraday-multipart (>= 1)
     ast (2.4.3)
+    aws-eventstream (1.4.0)
+    aws-partitions (1.1199.0)
+    aws-sdk-core (3.240.0)
+      aws-eventstream (~> 1, >= 1.3.0)
+      aws-partitions (~> 1, >= 1.992.0)
+      aws-sigv4 (~> 1.9)
+      base64
+      bigdecimal
+      jmespath (~> 1, >= 1.6.1)
+      logger
+    aws-sdk-kms (1.118.0)
+      aws-sdk-core (~> 3, >= 3.239.1)
+      aws-sigv4 (~> 1.5)
+    aws-sdk-s3 (1.209.0)
+      aws-sdk-core (~> 3, >= 3.234.0)
+      aws-sdk-kms (~> 1)
+      aws-sigv4 (~> 1.5)
+    aws-sigv4 (1.12.1)
+      aws-eventstream (~> 1, >= 1.0.2)
     base64 (0.3.0)
     bcrypt (3.1.20)
     bcrypt_pbkdf (1.1.1)
@@ -93,6 +118,9 @@ GEM
     brakeman (7.1.1)
       racc
     builder (3.3.0)
+    business_time (0.13.0)
+      activesupport (>= 3.2.0)
+      tzinfo
     caxlsx (4.1.0)
       htmlentities (~> 4.3, >= 4.3.4)
       marcel (~> 1.0)
@@ -126,6 +154,9 @@ GEM
       concurrent-ruby
     diff-lcs (1.6.2)
     docile (1.4.1)
+    docx (0.10.0)
+      nokogiri (~> 1.13, >= 1.13.0)
+      rubyzip (>= 2.0, < 4)
     domain_name (0.6.20240107)
     dotenv (3.1.8)
     dotenv-rails (3.1.8)
@@ -173,6 +204,8 @@ GEM
     geom2d (0.4.1)
     globalid (1.3.0)
       activesupport (>= 6.1)
+    grover (1.2.4)
+      nokogiri (~> 1)
     hashdiff (1.2.1)
     hashery (2.1.2)
     hashie (5.0.0)
@@ -200,6 +233,7 @@ GEM
       pp (>= 0.6.0)
       rdoc (>= 4.0.0)
       reline (>= 0.4.2)
+    jmespath (1.6.2)
     json (2.16.0)
     jwt (2.10.2)
       base64
@@ -391,6 +425,7 @@ GEM
       rspec-mocks (~> 3.13)
       rspec-support (~> 3.13)
     rspec-support (3.13.6)
+    rtesseract (3.1.4)
     rubocop (1.81.7)
       json (~> 2.3)
       language_server-protocol (~> 3.17.0.2)
@@ -426,7 +461,16 @@ GEM
     ruby-progressbar (1.13.0)
     ruby-rc4 (0.1.5)
     rubyzip (2.4.1)
+    sablon (0.4.3)
+      nokogiri (>= 1.8.5)
+      rubyzip (>= 1.3.0)
     securerandom (0.4.1)
+    selenium-webdriver (4.39.0)
+      base64 (~> 0.2)
+      logger (~> 1.4)
+      rexml (~> 3.2, >= 3.2.5)
+      rubyzip (>= 1.2.2, < 4.0)
+      websocket (~> 1.0)
     sentry-rails (5.28.1)
       railties (>= 5.0)
       sentry-ruby (~> 5.28.1)
@@ -469,6 +513,7 @@ GEM
       net-ssh (>= 2.8.0)
       ostruct
     stringio (3.1.8)
+    stripe (13.5.1)
     thor (1.3.2)
     thruster (0.1.16)
     thruster (0.1.16-aarch64-linux)
@@ -497,6 +542,7 @@ GEM
       addressable (>= 2.8.0)
       crack (>= 0.3.2)
       hashdiff (>= 0.4.0, < 2.0.0)
+    websocket (1.2.11)
     websocket-driver (0.8.0)
       base64
       websocket-extensions (>= 0.1.0)
@@ -516,20 +562,25 @@ PLATFORMS
   x86_64-linux-musl
 
 DEPENDENCIES
+  active_storage_validations (~> 2.0)
   anthropic (~> 0.3.0)
+  aws-sdk-s3 (~> 1.170)
   bcrypt (~> 3.1.7)
   bootsnap
   brakeman
+  business_time (~> 0.13)
   caxlsx (~> 4.1.0)
   caxlsx_rails (~> 0.6.3)
   cloudinary (~> 2.1)
   creek (~> 2.6)
   debug
   dentaku
+  docx (~> 0.8)
   dotenv-rails
   factory_bot_rails (~> 6.4)
   faker (~> 3.5)
   fuzzy_match (~> 2.1)
+  grover (~> 1.1)
   hexapdf (~> 0.42)
   http (~> 5.1)
   httparty (~> 0.22)
@@ -547,8 +598,11 @@ DEPENDENCIES
   rexml
   roo (~> 2.10.0)
   rspec-rails (~> 7.1)
+  rtesseract (~> 3.1)
   rubocop-rails-omakase
   ruby-lsp
+  sablon (~> 0.4)
+  selenium-webdriver (~> 4.10)
   sentry-rails (~> 5.22)
   sentry-ruby (~> 5.22)
   shoulda-matchers (~> 6.4)
@@ -557,6 +611,7 @@ DEPENDENCIES
   solid_cache
   solid_queue (~> 1.1.0)
   spring
+  stripe (~> 13.0)
   thruster
   twilio-ruby (~> 7.3)
   tzinfo-data

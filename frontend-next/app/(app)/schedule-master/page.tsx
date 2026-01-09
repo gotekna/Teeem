@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Loader } from "@/components/ui/loader";
+import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -25,12 +26,8 @@ import {
   AlertTriangle,
   CheckCircle,
   PlayCircle,
-  PauseCircle,
-  ChevronRight,
-  BarChart3,
   TrendingUp,
   Briefcase,
-  Filter,
   Plus,
   MoreHorizontal,
   ArrowRight,
@@ -48,6 +45,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import TeeemTableView from "@/components/table/TeeemTableView";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -125,6 +123,26 @@ const taskStatusColors: Record<string, string> = {
 };
 
 export default function ScheduleMasterPage() {
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // URL is SSoT for tab state (path-based navigation)
+  const activeTab = useMemo(() => {
+    const parts = pathname.replace("/schedule-master", "").split("/").filter(Boolean);
+    return parts[0] || "overview";
+  }, [pathname]);
+
+  // Redirect to default tab if no tab in URL
+  useEffect(() => {
+    if (!pathname.includes("/schedule-master/")) {
+      router.replace("/schedule-master/overview", { scroll: false });
+    }
+  }, [pathname, router]);
+
+  const handleTabChange = useCallback((tabId: string) => {
+    router.push(`/schedule-master/${tabId}`, { scroll: false });
+  }, [router]);
+
   const [jobs, setJobs] = useState<Job[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
@@ -132,31 +150,59 @@ export default function ScheduleMasterPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedJob, setSelectedJob] = useState<string>("all");
-  const [activeTab, setActiveTab] = useState("overview");
 
+  // Lazy loading: track which tabs have loaded their data
+  const [loadedTabs, setLoadedTabs] = useState<Set<string>>(new Set());
+
+  // Load overview data on mount (jobs for progress display)
   useEffect(() => {
-    const loadData = async () => {
+    const loadOverviewData = async () => {
       setLoading(true);
       try {
-        const [jobsRes, tasksRes, resourcesRes] = await Promise.all([
-          api.get<{ jobs: Job[] }>("/api/v1/jobs"),
-          api.get<{ tasks: Task[] }>("/api/v1/sm_tasks"),
-          api.get<{ resources: Resource[] }>("/api/v1/sm_resources"),
-        ]);
+        // Only load jobs for overview - tasks are now in TeeemTableView
+        const jobsRes = await api.get<{ jobs: Job[] }>("/api/v1/jobs");
         setJobs(jobsRes.jobs || []);
-        setTasks(tasksRes.tasks || []);
-        setResources(resourcesRes.resources || []);
       } catch (error) {
-        console.error("Failed to load schedule data:", error);
+        console.error("Failed to load overview data:", error);
         setJobs(getMockJobs());
-        setTasks(getMockTasks());
-        setResources(getMockResources());
-        setTemplates(getMockTemplates());
       }
       setLoading(false);
+      setLoadedTabs(new Set(["overview"]));
     };
-    loadData();
+    loadOverviewData();
   }, []);
+
+  // Lazy load data when tab changes
+  useEffect(() => {
+    const loadTabData = async () => {
+      if (loadedTabs.has(activeTab)) return;
+
+      try {
+        if (activeTab === "resources" && resources.length === 0) {
+          const resourcesRes = await api.get<{ resources: Resource[] }>("/api/v1/sm_resources");
+          setResources(resourcesRes.resources || []);
+        } else if (activeTab === "critical" && tasks.length === 0) {
+          // Critical path needs tasks data
+          const tasksRes = await api.get<{ tasks: Task[] }>("/api/v1/sm_tasks");
+          setTasks(tasksRes.tasks || []);
+        } else if (activeTab === "templates" && templates.length === 0) {
+          // Load templates when tab is visited
+          setTemplates(getMockTemplates());
+        }
+      } catch (error) {
+        console.error(`Failed to load ${activeTab} data:`, error);
+        if (activeTab === "resources") setResources(getMockResources());
+        if (activeTab === "critical") setTasks(getMockTasks());
+        if (activeTab === "templates") setTemplates(getMockTemplates());
+      }
+
+      setLoadedTabs(prev => new Set([...prev, activeTab]));
+    };
+
+    if (activeTab && !loading) {
+      loadTabData();
+    }
+  }, [activeTab, loadedTabs, loading, resources.length, tasks.length, templates.length]);
 
   const stats: DashboardStats = {
     total_jobs: jobs.length,
@@ -174,21 +220,14 @@ export default function ScheduleMasterPage() {
     }).length,
   };
 
-  const filteredTasks = tasks.filter((task) => {
-    const matchesSearch =
-      task.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      task.job_name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesJob = selectedJob === "all" || task.job_id.toString() === selectedJob;
-    return matchesSearch && matchesJob;
-  });
-
+  // Note: Task filtering is now handled by TeeemTableView in the Tasks tab
   const criticalTasks = tasks.filter((t) => t.is_critical_path && t.status !== "completed");
   const blockedTasks = tasks.filter((t) => t.status === "blocked");
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader />
+        <Spinner />
       </div>
     );
   }
@@ -204,12 +243,6 @@ export default function ScheduleMasterPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" asChild>
-            <Link href="/gantt">
-              <BarChart3 className="h-4 w-4 mr-2" />
-              Gantt View
-            </Link>
-          </Button>
           <Button>
             <Plus className="h-4 w-4 mr-2" />
             Add Task
@@ -217,70 +250,8 @@ export default function ScheduleMasterPage() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Briefcase className="h-4 w-4 text-blue-600" />
-              <span className="text-xs text-muted-foreground">Active Jobs</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">{stats.total_jobs}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <PlayCircle className="h-4 w-4 text-green-600" />
-              <span className="text-xs text-muted-foreground">In Progress</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2 text-green-600">
-              {stats.active_tasks}
-            </div>
-          </CardContent>
-        </Card>
-        <Card className={stats.blocked_tasks > 0 ? "border-red-300 bg-red-50 dark:bg-red-900/10" : ""}>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-red-600" />
-              <span className="text-xs text-muted-foreground">Blocked</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2 text-red-600">
-              {stats.blocked_tasks}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-yellow-600" />
-              <span className="text-xs text-muted-foreground">Due This Week</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">{stats.tasks_due_this_week}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-purple-600" />
-              <span className="text-xs text-muted-foreground">Resources</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">{stats.resources_allocated}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-indigo-600" />
-              <span className="text-xs text-muted-foreground">Utilization</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">{stats.avg_utilization}%</div>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <div className="flex items-center justify-between">
           <TabsList>
             <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -488,60 +459,14 @@ export default function ScheduleMasterPage() {
         </TabsContent>
 
         <TabsContent value="tasks" className="mt-4">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="space-y-3">
-                {filteredTasks.map((task) => (
-                  <div
-                    key={task.id}
-                    className="flex items-center justify-between p-4 rounded-lg border hover:bg-secondary/50"
-                  >
-                    <div className="flex items-center gap-4">
-                      <Badge className={taskStatusColors[task.status]}>
-                        {task.status.replace("_", " ")}
-                      </Badge>
-                      <div>
-                        <div className="font-medium flex items-center gap-2">
-                          {task.name}
-                          {task.is_critical_path && (
-                            <Badge variant="destructive" className="text-xs">
-                              Critical
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-0.5">
-                          {task.job_name} • {task.trade}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-6">
-                      <div className="text-right">
-                        <div className="text-sm">
-                          {new Date(task.start_date).toLocaleDateString()} →{" "}
-                          {new Date(task.end_date).toLocaleDateString()}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {task.duration_days} days
-                        </div>
-                      </div>
-                      {task.assigned_to && (
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback className="text-xs">
-                            {task.assigned_to
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")}
-                          </AvatarFallback>
-                        </Avatar>
-                      )}
-                      <Progress value={task.progress} className="w-20 h-2" />
-                      <span className="text-sm font-mono w-10">{task.progress}%</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          {/* TeeemTableView handles its own loading, pagination, and virtualization */}
+          <div className="flex flex-col h-[calc(100vh-280px)] -mx-4">
+            <TeeemTableView
+              foundationId="sm-tasks"
+              autoFetchRecords
+              showHeader={false}
+            />
+          </div>
         </TabsContent>
 
         <TabsContent value="resources" className="mt-4">

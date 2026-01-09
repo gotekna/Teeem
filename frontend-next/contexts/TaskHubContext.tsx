@@ -5,6 +5,73 @@ import { api } from '@/lib/api';
 import { useAuth } from './AuthContext';
 
 // Types
+// Task attachment types
+export interface TaskAttachmentEmail {
+  id: number;
+  subject: string;
+  from_email: string;
+  from_name?: string;
+  to_emails?: string[];
+  received_at: string;
+  has_attachments: boolean;
+  conversation_id?: string;
+  thread_count?: number;
+  body_preview?: string;
+}
+
+export interface TaskAttachmentDocument {
+  id: number;
+  file_name: string;
+  display_name: string;
+  document_type?: string;
+  sharepoint_url?: string;
+  created_at: string;
+}
+
+export interface TaskAttachment {
+  id: number;
+  attachment_type: string;
+  notes?: string;
+  added_by?: string;
+  created_at: string;
+  email?: TaskAttachmentEmail;
+  document?: TaskAttachmentDocument;
+}
+
+export type ActionItemType = 'action' | 'question';
+
+export interface TaskActionItem {
+  id: number;
+  text: string;
+  item_type: ActionItemType;
+  checked: boolean;
+  position: number;
+  checked_by_id?: number;
+  checked_by_name?: string;
+  checked_at?: string;
+  response?: string;
+  responded_by_id?: number;
+  responded_by_name?: string;
+  responded_at?: string;
+  // Delegation fields
+  delegated?: boolean;
+  delegated_task_id?: number;
+  delegated_task?: {
+    id: number;
+    name: string;
+    status: string;
+    assigned_user_id?: number;
+    assigned_user_name?: string;
+  };
+}
+
+export interface TaskFollower {
+  id: number;
+  user_id: number;
+  user_name: string;
+  followed_at: string;
+}
+
 export interface SmTask {
   id: number;
   task_number: number;
@@ -26,22 +93,57 @@ export interface SmTask {
   // Assignment
   assigned_user_id?: number;
   assigned_user_name?: string;
+  assigned_role?: string;
   supplier_id?: number;
   supplier_name?: string;
 
   // Lock status
   locked: boolean;
-  lock_type?: 'supplier_confirm' | 'confirm' | 'started' | 'completed' | 'manually_positioned';
+  lock_type?: 'supplier_confirm' | 'confirm' | 'started' | 'completed' | 'hold';
 
   // Hold status
   is_hold_task: boolean;
   hold_reason?: string;
+  hold?: boolean;
+  hold_date?: string;
+
+  // Confirmation status (for PO tasks)
+  confirm?: boolean;
+  supplier_confirm?: boolean;
+  confirm_date?: string;
+  supplier_confirm_date?: string;
+  started_at?: string;
+  completed_at?: string;
+
+  // PO relationship
+  purchase_order_id?: number;
+  purchase_order_number?: string;
+  po_required?: boolean;
 
   // Computed fields
   is_overdue: boolean;
   days_until_due: number;
   predecessor_count?: number;
   successor_count?: number;
+
+  // Attachments
+  attachments_count?: number;
+  attachments?: TaskAttachment[];
+
+  // Privacy
+  is_private?: boolean;
+  created_by_id?: number;
+  created_by_name?: string;
+  // Last assigner (who assigned this task to current assignee)
+  last_assigner_id?: number;
+  last_assigner_name?: string;
+  is_following?: boolean;
+
+  // Action Items (checkable items within task)
+  action_items?: TaskActionItem[];
+
+  // Email keywords for auto-matching
+  email_keywords?: string;
 }
 
 export interface TaskFilters {
@@ -54,15 +156,24 @@ export interface TaskFilters {
   search: string;
   showMyTasksOnly: boolean;
   showOverdueOnly: boolean;
+  selectedUserId: number | 'unassigned' | null;
+  includeFollowing: boolean;
 }
 
-export type ViewType = 'board' | 'list' | 'my-tasks';
+export interface UserTaskCount {
+  id: number;
+  name: string;
+  count: number;
+}
+
+export type ViewType = 'board' | 'list' | 'my-tasks' | 'all' | 'workflow';
 
 export interface TaskHubState {
   tasks: SmTask[];
   filters: TaskFilters;
   activeView: ViewType;
   selectedTaskIds: Set<number>;
+  expandedTaskId: number | null;
   loading: boolean;
   error: string | null;
 }
@@ -104,6 +215,41 @@ export interface TaskHubContextType extends TaskHubState {
   selectAll: () => void;
   deselectAll: () => void;
 
+  // Expansion
+  expandTask: (taskId: number) => void;
+  collapseTask: () => void;
+  toggleTaskExpansion: (taskId: number) => void;
+  navigateToTask: (taskId: number) => void; // Clears filters and expands the task
+
+  // Task actions
+  startTask: (taskId: number) => Promise<void>;
+  completeTask: (taskId: number) => Promise<void>;
+  setTaskHold: (taskId: number, hold: boolean) => Promise<void>;
+  confirmTask: (taskId: number, date: string) => Promise<void>;
+  supplierConfirmTask: (taskId: number, date: string) => Promise<void>;
+
+  // Action items
+  addActionItem: (taskId: number, text: string, itemType?: ActionItemType) => Promise<TaskActionItem>;
+  bulkAddActionItems: (taskId: number, items: { text: string; item_type: ActionItemType }[]) => Promise<TaskActionItem[]>;
+  toggleActionItem: (taskId: number, itemId: number) => Promise<void>;
+  answerActionItem: (taskId: number, itemId: number, response: string) => Promise<TaskActionItem>;
+  updateActionItem: (taskId: number, itemId: number, text: string) => Promise<TaskActionItem>;
+  removeActionItem: (taskId: number, itemId: number) => Promise<void>;
+  delegateActionItem: (taskId: number, itemId: number, userId: number) => Promise<TaskActionItem>;
+
+  // Privacy
+  setTaskPrivacy: (taskId: number, isPrivate: boolean) => Promise<void>;
+
+  // Followers (for sharing private tasks)
+  getFollowers: (taskId: number) => Promise<TaskFollower[]>;
+  addFollower: (taskId: number, userId: number) => Promise<TaskFollower>;
+  removeFollower: (taskId: number, userId: number) => Promise<void>;
+
+  // User counts for "All" dropdown
+  userCounts: UserTaskCount[];
+  unassignedCount: number;
+  totalActiveCount: number;
+
   // Refresh
   refresh: () => Promise<void>;
 }
@@ -118,6 +264,8 @@ const defaultFilters: TaskFilters = {
   search: '',
   showMyTasksOnly: false,
   showOverdueOnly: false,
+  selectedUserId: null,
+  includeFollowing: false,
 };
 
 // Mock data for development testing - DISABLED to avoid confusion with real data
@@ -466,6 +614,11 @@ export const useTaskHub = (): TaskHubContextType => {
   return context;
 };
 
+// Optional version that returns null when outside provider (safe for components used globally)
+export const useOptionalTaskHub = (): TaskHubContextType | null => {
+  return useContext(TaskHubContext);
+};
+
 interface TaskHubProviderProps {
   children: ReactNode;
   initialJobId?: number;
@@ -475,13 +628,30 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
   const { user } = useAuth();
 
   const [tasks, setTasks] = useState<SmTask[]>([]);
+  const [activeView, setActiveViewState] = useState<ViewType>(() => {
+    // Load saved view from localStorage
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('taskHub_activeView') as ViewType;
+      if (saved && ['board', 'list', 'my-tasks', 'all', 'workflow'].includes(saved)) {
+        return saved;
+      }
+    }
+    return 'my-tasks';
+  });
+
   const [filters, setFiltersState] = useState<TaskFilters>(() => {
     // Load saved filters from localStorage
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('taskHub_filters');
+      const savedView = localStorage.getItem('taskHub_activeView') as ViewType;
       if (saved) {
         try {
-          return { ...defaultFilters, ...JSON.parse(saved) };
+          const parsedFilters = { ...defaultFilters, ...JSON.parse(saved) };
+          // Clear selectedUserId if view is "my-tasks" - user expects only their tasks
+          if (savedView === 'my-tasks' || !savedView) {
+            parsedFilters.selectedUserId = null;
+          }
+          return parsedFilters;
         } catch {
           // Ignore invalid JSON
         }
@@ -493,20 +663,40 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     };
   });
 
-  const [activeView, setActiveViewState] = useState<ViewType>(() => {
-    // Load saved view from localStorage
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('taskHub_activeView') as ViewType;
-      if (saved && ['board', 'list', 'my-tasks'].includes(saved)) {
-        return saved;
-      }
-    }
-    return 'my-tasks';
-  });
-
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<number>>(new Set());
+  const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // User counts for "All" dropdown filter
+  const [userCounts, setUserCounts] = useState<UserTaskCount[]>([]);
+  const [unassignedCount, setUnassignedCount] = useState(0);
+  const [totalActiveCount, setTotalActiveCount] = useState(0);
+
+  // Load user counts for dropdown
+  const loadUserCounts = useCallback(async () => {
+    try {
+      const response = await api.get<{
+        success: boolean;
+        users: UserTaskCount[];
+        unassigned: number;
+        total: number;
+      }>('/api/v1/sm_tasks/user_counts');
+
+      if (response.success) {
+        setUserCounts(response.users || []);
+        setUnassignedCount(response.unassigned || 0);
+        setTotalActiveCount(response.total || 0);
+      }
+    } catch (err) {
+      console.error('Failed to load user counts:', err);
+    }
+  }, []);
+
+  // Load user counts on mount and when tasks change
+  useEffect(() => {
+    loadUserCounts();
+  }, [loadUserCounts]);
 
   // Load tasks from API
   const loadTasks = useCallback(async () => {
@@ -521,8 +711,21 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
       if (filters.statuses.length > 0) {
         filters.statuses.forEach(s => params.append('statuses[]', s));
       }
-      if (filters.showMyTasksOnly && user?.id) {
-        params.append('assigned_user_id', user.id.toString());
+      // Filter by assigned_role matching user's roles (backend handles this)
+      if (filters.showMyTasksOnly || activeView === 'my-tasks') {
+        params.append('mine', 'true');
+        // Include tasks user is following
+        if (filters.includeFollowing) {
+          params.append('include_following', 'true');
+        }
+      }
+
+      // Filter by selected user in "All" dropdown
+      // Uses for_user_id to get all tasks user can work on (direct + role-based)
+      if (filters.selectedUserId === 'unassigned') {
+        params.append('unassigned', 'true');
+      } else if (filters.selectedUserId) {
+        params.append('for_user_id', filters.selectedUserId.toString());
       }
 
       const response = await api.get<{ tasks: SmTask[]; success: boolean }>(`/api/v1/sm_tasks?${params.toString()}`);
@@ -550,7 +753,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     } finally {
       setLoading(false);
     }
-  }, [filters.jobIds, filters.statuses, filters.showMyTasksOnly, user?.id]);
+  }, [filters.jobIds, filters.statuses, filters.showMyTasksOnly, filters.selectedUserId, filters.includeFollowing, activeView]);
 
   // Initial load
   useEffect(() => {
@@ -573,24 +776,37 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
   // Computed: filtered tasks
   const filteredTasks = useMemo(() => {
     return tasks.filter(task => {
+      // Helper to get display value from lookup or string
+      const getDisplayValue = (value: unknown): string | null => {
+        if (!value) return null;
+        if (typeof value === 'string') return value;
+        if (typeof value === 'object' && value !== null && 'display' in value) {
+          return String((value as { display: unknown }).display);
+        }
+        return String(value);
+      };
+
       // Search filter
       if (filters.search) {
         const searchLower = filters.search.toLowerCase();
+        const tradeDisplay = getDisplayValue(task.trade);
         const matchesSearch =
           task.name.toLowerCase().includes(searchLower) ||
           task.job_name?.toLowerCase().includes(searchLower) ||
-          task.trade?.toLowerCase().includes(searchLower) ||
+          tradeDisplay?.toLowerCase().includes(searchLower) ||
           task.assigned_user_name?.toLowerCase().includes(searchLower);
         if (!matchesSearch) return false;
       }
 
       // Trade filter
-      if (filters.trades.length > 0 && task.trade && !filters.trades.includes(task.trade)) {
+      const tradeValue = getDisplayValue(task.trade);
+      if (filters.trades.length > 0 && tradeValue && !filters.trades.includes(tradeValue)) {
         return false;
       }
 
       // Stage filter
-      if (filters.stages.length > 0 && task.stage && !filters.stages.includes(task.stage)) {
+      const stageValue = getDisplayValue(task.stage);
+      if (filters.stages.length > 0 && stageValue && !filters.stages.includes(stageValue)) {
         return false;
       }
 
@@ -617,11 +833,17 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     });
   }, [tasks, filters]);
 
-  // Computed: my tasks (assigned to current user)
+  // Computed: my tasks (assigned to user's roles - already filtered by API when activeView is 'my-tasks')
   const myTasks = useMemo(() => {
+    // When on my-tasks view, API already filters by assigned_role matching user's roles
+    // So all filteredTasks are "my tasks"
+    if (activeView === 'my-tasks') {
+      return filteredTasks;
+    }
+    // On other views, filter by assigned_user_id (for backwards compatibility)
     if (!user?.id) return [];
     return filteredTasks.filter(task => task.assigned_user_id === user.id);
-  }, [filteredTasks, user?.id]);
+  }, [filteredTasks, user?.id, activeView]);
 
   // Computed: overdue tasks
   const overdueTasks = useMemo(() => {
@@ -736,6 +958,169 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     }
   }, [tasks]);
 
+  // Action Items methods
+  const addActionItem = useCallback(async (taskId: number, text: string, itemType: ActionItemType = 'action'): Promise<TaskActionItem> => {
+    const response = await api.post<{ action_item: TaskActionItem; success: boolean }>(
+      `/api/v1/sm_tasks/${taskId}/action_items`,
+      { text, item_type: itemType }
+    );
+    if (response?.success && response?.action_item) {
+      // Update local task state
+      setTasks(prev => prev.map(t =>
+        t.id === taskId
+          ? { ...t, action_items: [...(t.action_items || []), response.action_item] }
+          : t
+      ));
+      return response.action_item;
+    }
+    throw new Error('Failed to add action item');
+  }, []);
+
+  const bulkAddActionItems = useCallback(async (taskId: number, items: { text: string; item_type: ActionItemType }[]): Promise<TaskActionItem[]> => {
+    const response = await api.post<{ action_items: TaskActionItem[]; success: boolean }>(
+      `/api/v1/sm_tasks/${taskId}/action_items/bulk`,
+      { items }
+    );
+    if (response?.success && response?.action_items) {
+      // Update local task state
+      setTasks(prev => prev.map(t =>
+        t.id === taskId
+          ? { ...t, action_items: [...(t.action_items || []), ...response.action_items] }
+          : t
+      ));
+      return response.action_items;
+    }
+    throw new Error('Failed to add action items');
+  }, []);
+
+  const toggleActionItem = useCallback(async (taskId: number, itemId: number) => {
+    const response = await api.post<{ action_item: TaskActionItem; success: boolean }>(
+      `/api/v1/sm_tasks/${taskId}/action_items/${itemId}/toggle`
+    );
+    if (response?.success && response?.action_item) {
+      // Update local task state
+      setTasks(prev => prev.map(t =>
+        t.id === taskId
+          ? {
+              ...t,
+              action_items: (t.action_items || []).map(item =>
+                item.id === itemId ? response.action_item : item
+              )
+            }
+          : t
+      ));
+    }
+  }, []);
+
+  const answerActionItem = useCallback(async (taskId: number, itemId: number, answerText: string): Promise<TaskActionItem> => {
+    const response = await api.post<{ action_item: TaskActionItem; success: boolean }>(
+      `/api/v1/sm_tasks/${taskId}/action_items/${itemId}/answer`,
+      { response: answerText }
+    );
+    if (response?.success && response?.action_item) {
+      setTasks(prev => prev.map(t =>
+        t.id === taskId
+          ? {
+              ...t,
+              action_items: (t.action_items || []).map(item =>
+                item.id === itemId ? response.action_item : item
+              )
+            }
+          : t
+      ));
+      return response.action_item;
+    }
+    throw new Error('Failed to answer question');
+  }, []);
+
+  const updateActionItem = useCallback(async (taskId: number, itemId: number, text: string): Promise<TaskActionItem> => {
+    const response = await api.patch<{ action_item: TaskActionItem; success: boolean }>(
+      `/api/v1/sm_tasks/${taskId}/action_items/${itemId}`,
+      { text }
+    );
+    if (response?.action_item) {
+      setTasks(prev => prev.map(t =>
+        t.id === taskId
+          ? {
+              ...t,
+              action_items: (t.action_items || []).map(item =>
+                item.id === itemId ? response.action_item : item
+              )
+            }
+          : t
+      ));
+      return response.action_item;
+    }
+    throw new Error('Failed to update action item');
+  }, []);
+
+  const removeActionItem = useCallback(async (taskId: number, itemId: number) => {
+    await api.delete(`/api/v1/sm_tasks/${taskId}/action_items/${itemId}`);
+    // Update local task state
+    setTasks(prev => prev.map(t =>
+      t.id === taskId
+        ? { ...t, action_items: (t.action_items || []).filter(item => item.id !== itemId) }
+        : t
+    ));
+  }, []);
+
+  const delegateActionItem = useCallback(async (taskId: number, itemId: number, userId: number): Promise<TaskActionItem> => {
+    const response = await api.post<{ action_item: TaskActionItem; delegated_task: SmTask; success: boolean }>(
+      `/api/v1/sm_tasks/${taskId}/action_items/${itemId}/delegate`,
+      { user_id: userId }
+    );
+    if (response?.success && response?.action_item) {
+      setTasks(prev => prev.map(t =>
+        t.id === taskId
+          ? {
+              ...t,
+              action_items: (t.action_items || []).map(item =>
+                item.id === itemId ? response.action_item : item
+              )
+            }
+          : t
+      ));
+      return response.action_item;
+    }
+    throw new Error('Failed to delegate question');
+  }, []);
+
+  const setTaskPrivacy = useCallback(async (taskId: number, isPrivate: boolean) => {
+    const originalTasks = [...tasks];
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, is_private: isPrivate } : t));
+
+    try {
+      await api.patch(`/api/v1/sm_tasks/${taskId}/privacy`, { is_private: isPrivate });
+    } catch (err) {
+      console.error('Failed to update task privacy:', err);
+      setTasks(originalTasks);
+      throw err;
+    }
+  }, [tasks]);
+
+  // Follower methods for sharing private tasks
+  const getFollowers = useCallback(async (taskId: number): Promise<TaskFollower[]> => {
+    const response = await api.get<{ followers: TaskFollower[]; success: boolean }>(
+      `/api/v1/sm_tasks/${taskId}/followers`
+    );
+    return response?.followers || [];
+  }, []);
+
+  const addFollower = useCallback(async (taskId: number, userId: number): Promise<TaskFollower> => {
+    const response = await api.post<{ follower: TaskFollower; success: boolean }>(
+      `/api/v1/sm_tasks/${taskId}/followers`,
+      { user_id: userId }
+    );
+    if (!response?.success || !response.follower) {
+      throw new Error('Failed to add follower');
+    }
+    return response.follower;
+  }, []);
+
+  const removeFollower = useCallback(async (taskId: number, userId: number): Promise<void> => {
+    await api.delete(`/api/v1/sm_tasks/${taskId}/followers/${userId}`);
+  }, []);
+
   const setActiveView = useCallback((view: ViewType) => {
     setActiveViewState(view);
   }, []);
@@ -780,9 +1165,68 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     setSelectedTaskIds(new Set());
   }, []);
 
+  // Expansion handlers
+  const expandTask = useCallback((taskId: number) => {
+    setExpandedTaskId(taskId);
+  }, []);
+
+  const collapseTask = useCallback(() => {
+    setExpandedTaskId(null);
+  }, []);
+
+  const toggleTaskExpansion = useCallback((taskId: number) => {
+    setExpandedTaskId(prev => prev === taskId ? null : taskId);
+  }, []);
+
+  // Navigate to a specific task (clears filters and expands)
+  const navigateToTask = useCallback((taskId: number) => {
+    // Clear filters to show all tasks
+    setFiltersState(defaultFilters);
+    // Switch to list view
+    setActiveViewState('list');
+    // Expand the target task
+    setExpandedTaskId(taskId);
+  }, []);
+
+  // Task action handlers
+  const startTask = useCallback(async (taskId: number) => {
+    const now = new Date().toISOString();
+    await updateTask(taskId, { status: 'started', started_at: now } as Partial<SmTask>);
+  }, [updateTask]);
+
+  const completeTask = useCallback(async (taskId: number) => {
+    try {
+      await api.post(`/api/v1/sm_tasks/${taskId}/complete`, {});
+      // Update local state with completion
+      const now = new Date().toISOString();
+      const today = new Date().toISOString().split('T')[0];
+      setTasks(prev => prev.map(t =>
+        t.id === taskId
+          ? { ...t, status: 'completed' as const, completed_at: now, end_date: today }
+          : t
+      ));
+    } catch (err) {
+      console.error('Failed to complete task:', err);
+      throw err;
+    }
+  }, []);
+
+  const setTaskHold = useCallback(async (taskId: number, hold: boolean) => {
+    await updateTask(taskId, { hold } as Partial<SmTask>);
+  }, [updateTask]);
+
+  const confirmTask = useCallback(async (taskId: number, date: string) => {
+    await updateTask(taskId, { confirm: true, hold_date: date } as Partial<SmTask>);
+  }, [updateTask]);
+
+  const supplierConfirmTask = useCallback(async (taskId: number, date: string) => {
+    await updateTask(taskId, { supplier_confirm: true, hold_date: date } as Partial<SmTask>);
+  }, [updateTask]);
+
   const refresh = useCallback(async () => {
     await loadTasks();
-  }, [loadTasks]);
+    await loadUserCounts();
+  }, [loadTasks, loadUserCounts]);
 
   const value: TaskHubContextType = {
     // State
@@ -790,6 +1234,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     filters,
     activeView,
     selectedTaskIds,
+    expandedTaskId,
     loading,
     error,
 
@@ -815,6 +1260,33 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     toggleTaskSelection,
     selectAll,
     deselectAll,
+    expandTask,
+    collapseTask,
+    toggleTaskExpansion,
+    navigateToTask,
+    startTask,
+    completeTask,
+    setTaskHold,
+    confirmTask,
+    supplierConfirmTask,
+    // Action items
+    addActionItem,
+    bulkAddActionItems,
+    toggleActionItem,
+    answerActionItem,
+    updateActionItem,
+    removeActionItem,
+    delegateActionItem,
+    // Privacy
+    setTaskPrivacy,
+    // Followers
+    getFollowers,
+    addFollower,
+    removeFollower,
+    // User counts for "All" dropdown
+    userCounts,
+    unassignedCount,
+    totalActiveCount,
     refresh,
   };
 

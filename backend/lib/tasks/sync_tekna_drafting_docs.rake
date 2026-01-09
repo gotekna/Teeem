@@ -21,7 +21,7 @@ namespace :corporate do
 
       # Find Corporate File folder
       root_items = client.get("/drives/#{drive_id}/root/children")
-      corporate_folder = root_items['value'].find { |item| item['name'] == 'Corporate File' && item['folder'] }
+      corporate_folder = root_items["value"].find { |item| item["name"] == "Corporate File" && item["folder"] }
 
       unless corporate_folder
         puts "❌ Corporate File folder not found"
@@ -30,7 +30,7 @@ namespace :corporate do
 
       # Find Tekna Group folder
       corporate_items = client.get("/drives/#{drive_id}/items/#{corporate_folder['id']}/children")
-      tekna_group = corporate_items['value'].find { |item| item['name'] == 'Tekna Group' && item['folder'] }
+      tekna_group = corporate_items["value"].find { |item| item["name"] == "Tekna Group" && item["folder"] }
 
       unless tekna_group
         puts "❌ Tekna Group folder not found"
@@ -39,7 +39,7 @@ namespace :corporate do
 
       # Find Tekna Drafting folder
       tekna_group_items = client.get("/drives/#{drive_id}/items/#{tekna_group['id']}/children")
-      tekna_drafting_folder = tekna_group_items['value'].find { |item| item['name'] == 'Tekna Drafting' && item['folder'] }
+      tekna_drafting_folder = tekna_group_items["value"].find { |item| item["name"] == "Tekna Drafting" && item["folder"] }
 
       unless tekna_drafting_folder
         puts "❌ Tekna Drafting folder not found"
@@ -53,8 +53,8 @@ namespace :corporate do
 
       # Link company to this OneDrive folder
       company.update!(
-        onedrive_folder_id: tekna_drafting_folder['id'],
-        onedrive_folder_path: 'Corporate File/Tekna Group/Tekna Drafting'
+        onedrive_folder_id: tekna_drafting_folder["id"],
+        onedrive_folder_path: "Corporate File/Tekna Group/Tekna Drafting"
       )
       puts "✅ Linked company to OneDrive folder"
       puts ""
@@ -64,7 +64,7 @@ namespace :corporate do
       puts "-" * 80
 
       all_documents = []
-      scan_folder_recursive(client, drive_id, tekna_drafting_folder['id'], all_documents, 'Tekna Drafting')
+      scan_folder_recursive(client, drive_id, tekna_drafting_folder["id"], all_documents, "Tekna Drafting")
 
       puts "Found #{all_documents.count} documents across all subfolders"
       puts ""
@@ -77,7 +77,7 @@ namespace :corporate do
       all_documents.each do |file|
         begin
           # Check if already synced
-          existing = company.company_documents.find_by(onedrive_file_id: file['id'])
+          existing = company.company_documents.find_by(sharepoint_file_id: file["id"])
 
           if existing
             puts "  ⏭️  Skipped (already synced): #{file['name']}"
@@ -86,22 +86,22 @@ namespace :corporate do
           end
 
           # Extract company code from filename (should be TD)
-          filename = file['name']
-          name_parts = filename.split(' ')
+          filename = file["name"]
+          name_parts = filename.split(" ")
           code = name_parts.last && company.code.present? && name_parts.last.upcase.include?(company.code.upcase) ? company.code.upcase : company.code
 
           # Create document record
           doc = company.company_documents.create!(
-            title: File.basename(filename, '.*'),
+            title: File.basename(filename, ".*"),
             description: "Synced from SharePoint: #{file[:folder_path]}",
-            document_type: 'other',
+            document_type: "other",
             file_name: filename,
-            file_size: file['size'],
-            onedrive_file_id: file['id'],
-            onedrive_download_url: file['webUrl'],
+            file_size: file["size"],
+            sharepoint_file_id: file["id"],
+            sharepoint_download_url: file["webUrl"],
             company_code: code,
-            storage_type: 'electronic',
-            folder: file[:folder_path] || 'Tekna Drafting'
+            storage_type: "electronic",
+            folder: file[:folder_path] || "Tekna Drafting"
           )
 
           puts "  ✅ Synced: #{filename}"
@@ -145,11 +145,11 @@ namespace :corporate do
 
     items = client.get("/drives/#{drive_id}/items/#{folder_id}/children")
 
-    items['value'].each do |item|
-      if item['folder']
+    items["value"].each do |item|
+      if item["folder"]
         # Recurse into subfolder
         subfolder_path = "#{folder_path}/#{item['name']}"
-        scan_folder_recursive(client, drive_id, item['id'], documents, subfolder_path, depth + 1)
+        scan_folder_recursive(client, drive_id, item["id"], documents, subfolder_path, depth + 1)
       else
         # Add file with folder path metadata
         item[:folder_path] = folder_path

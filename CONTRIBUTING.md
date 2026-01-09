@@ -62,7 +62,7 @@ cp .env.example .env
 
 **Pull Heroku Config (requires Heroku CLI access):**
 ```bash
-heroku config -a teeem-backend --shell > backend/.env
+heroku config -a teeemlive --shell > backend/.env
 ```
 
 ### 4. Install Dependencies
@@ -520,7 +520,7 @@ When changes are merged to `main`:
 2. Runs `bundle install`
 3. Runs database migrations: `bin/rails db:migrate`
 4. Restarts dynos
-5. Live at: `https://teeem-backend-447058022b51.herokuapp.com`
+5. Live at: `https://teeemlive-ce8e2660a615.herokuapp.com`
 
 **Frontend (Vercel):**
 1. Vercel detects changes in `frontend/` directory
@@ -545,8 +545,8 @@ git subtree push --prefix backend heroku main
 **Check Deployment Status:**
 ```bash
 # Backend (Heroku)
-heroku ps -a teeem-backend
-heroku logs --tail -a teeem-backend
+heroku ps -a teeemlive
+heroku logs --tail -a teeemlive
 
 # Frontend (Vercel)
 vercel ls
@@ -568,7 +568,7 @@ vercel ls
 - **Backend docs:** `/Users/jakebaird/teeem/backend/README.md`
 - **API docs:** `/Users/jakebaird/teeem/JOB_ESTIMATION_WORKFLOW.md`
 - **Environment setup:** `/Users/jakebaird/teeem/backend/.env.example`
-- **Heroku logs:** `heroku logs --tail -a teeem-backend`
+- **Heroku logs:** `heroku logs --tail -a teeemlive`
 
 **Common Issues:**
 

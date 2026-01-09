@@ -3,8 +3,8 @@
 module Api
   module V1
     class ImplementationPatternsController < ApplicationController
-      skip_before_action :authorize_request, only: [:index, :show, :stats]
-      before_action :set_pattern, only: [:show, :update, :destroy]
+      skip_before_action :authorize_request, only: [ :index, :show, :stats ]
+      before_action :set_pattern, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/implementation_patterns
       # Query params:
@@ -47,7 +47,7 @@ module Api
           render json: {
             success: true,
             data: pattern_json(@pattern, detailed: true),
-            message: 'Implementation pattern created successfully'
+            message: "Implementation pattern created successfully"
           }, status: :created
         else
           render json: {
@@ -63,7 +63,7 @@ module Api
           render json: {
             success: true,
             data: pattern_json(@pattern, detailed: true),
-            message: 'Implementation pattern updated successfully'
+            message: "Implementation pattern updated successfully"
           }
         else
           render json: {
@@ -78,7 +78,7 @@ module Api
         @pattern.destroy
         render json: {
           success: true,
-          message: 'Implementation pattern deleted successfully'
+          message: "Implementation pattern deleted successfully"
         }
       end
 
@@ -116,14 +116,14 @@ module Api
         if result
           render json: {
             success: true,
-            message: 'Teacher exported to TEEEM_TEACHER.md successfully',
-            file_path: Rails.root.join('..', 'TEEEM_DOCS', 'TEEEM_TEACHER.md').to_s,
+            message: "Teacher exported to TEEEM_TEACHER.md successfully",
+            file_path: Rails.root.join("..", "TEEEM_DOCS", "TEEEM_TEACHER.md").to_s,
             total_entries: ImplementationPattern.count
           }
         else
           render json: {
             success: false,
-            error: 'Export failed'
+            error: "Export failed"
           }, status: :internal_server_error
         end
       end
@@ -135,7 +135,7 @@ module Api
       rescue ActiveRecord::RecordNotFound
         render json: {
           success: false,
-          error: 'Implementation pattern not found'
+          error: "Implementation pattern not found"
         }, status: :not_found
       end
 
@@ -157,7 +157,7 @@ module Api
           :complexity,
           languages: [],
           tags: [],
-          code_examples: [:language, :code, :description],
+          code_examples: [ :language, :code, :description ],
           metadata: {}
         )
       end

@@ -1,7 +1,7 @@
 module Api
   module V1
     class MinuteTemplatesController < ApplicationController
-      before_action :set_minute_template, only: [:show, :update, :destroy, :preview]
+      before_action :set_minute_template, only: [ :show, :update, :destroy, :preview ]
 
       # GET /api/v1/minute_templates
       def index
@@ -13,7 +13,7 @@ module Api
         end
 
         # Filter by active status
-        @templates = @templates.where(active: true) unless params[:include_inactive] == 'true'
+        @templates = @templates.where(active: true) unless params[:include_inactive] == "true"
 
         @templates = @templates.order(:template_type, :name)
 
@@ -68,7 +68,7 @@ module Api
         if @minute_template.company_minutes.any?
           return render json: {
             success: false,
-            errors: ['Cannot delete template with existing minutes']
+            errors: [ "Cannot delete template with existing minutes" ]
           }, status: :unprocessable_entity
         end
 
@@ -83,17 +83,17 @@ module Api
 
         # Merge with sample data for missing variables
         sample_data = {
-          'company_name' => 'Sample Company Pty Ltd',
-          'acn' => '123 456 789',
-          'abn' => '12 345 678 901',
-          'director_name' => 'John Smith',
-          'secretary_name' => 'Jane Doe',
-          'registered_office' => '123 Sample Street, Brisbane QLD 4000',
-          'meeting_date' => Date.current.strftime('%d %B %Y'),
-          'resolution_date' => Date.current.strftime('%d %B %Y'),
-          'distribution_amount' => '$100,000.00',
-          'trust_name' => 'Sample Family Trust',
-          'beneficiary_name' => 'Sample Beneficiary'
+          "company_name" => "Sample Company Pty Ltd",
+          "acn" => "123 456 789",
+          "abn" => "12 345 678 901",
+          "director_name" => "John Smith",
+          "secretary_name" => "Jane Doe",
+          "registered_office" => "123 Sample Street, Brisbane QLD 4000",
+          "meeting_date" => Date.current.strftime("%d %B %Y"),
+          "resolution_date" => Date.current.strftime("%d %B %Y"),
+          "distribution_amount" => "$100,000.00",
+          "trust_name" => "Sample Family Trust",
+          "beneficiary_name" => "Sample Beneficiary"
         }
 
         merged_variables = sample_data.merge(variables.to_h)
@@ -153,7 +153,7 @@ module Api
       end
 
       def render_template(body, variables)
-        return '' unless body.present?
+        return "" unless body.present?
 
         result = body.dup
         variables.each do |key, value|

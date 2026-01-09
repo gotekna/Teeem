@@ -1,16 +1,21 @@
-# TableHealthCheck - Registry of health checks for tables
+# frozen_string_literal: true
+
+# TableHealthCheck - Database registry of health checks for tables
 #
-# Each record defines a health check that can be run against a table.
-# Health checks are looked up either by foundation_id (for user-created tables)
-# or by table_name (for system tables like contacts, jobs, etc.)
+# This model stores the configuration of health checks in the database.
+# The actual check logic is now in HealthChecks::* service classes.
 #
-# Example checks:
-# - Duplicate contacts (table_name: 'contacts', check_type: 'duplicates')
-# - Missing default supplier (foundation_id: 205, check_type: 'missing_required')
-# - Price mismatches (foundation_id: 205, check_type: 'data_mismatch')
+# For backwards compatibility, this model still supports:
+#   - Looking up checks by foundation_id or table_name
+#   - Executing checks via #execute
+#
+# NEW RECOMMENDED APPROACH:
+#   Use HealthChecks::Registry directly:
+#     HealthChecks::Registry.run_all(foundation_id: foundation.id)
+#     HealthChecks::Registry.system_health
 #
 class TableHealthCheck < ApplicationRecord
-  belongs_to :foundation, optional: true  # Optional for system tables
+  belongs_to :foundation, optional: true
 
   # Validations
   validates :check_type, presence: true
@@ -18,7 +23,6 @@ class TableHealthCheck < ApplicationRecord
   validates :api_endpoint, presence: true
   validates :severity, inclusion: { in: %w[critical warning info] }
 
-  # At least one identifier must be present
   validate :foundation_or_table_name_present
 
   # Scopes
@@ -28,18 +32,22 @@ class TableHealthCheck < ApplicationRecord
   scope :for_table, ->(table_name) { where(table_name: table_name) }
   scope :ordered, -> { order(display_order: :asc, created_at: :asc) }
 
-  # Severity levels (for display ordering)
-  SEVERITY_ORDER = { 'critical' => 0, 'warning' => 1, 'info' => 2 }.freeze
+  # Severity ordering (critical first)
+  SEVERITY_ORDER = HealthChecks::BaseCheck::SEVERITY_ORDER
+
+  # ============================================================================
+  # CLASS METHODS
+  # ============================================================================
 
   # Find all health checks for a given foundation or table
-  # Can be called with either a foundation_id (integer) or table_name (string)
+  # @param identifier [Integer, String] Foundation ID or table name
+  # @return [ActiveRecord::Relation]
   def self.for_table_or_foundation(identifier)
     if identifier.is_a?(Integer) || identifier.to_s.match?(/^\d+$/)
-      # Look up by foundation_id first
       checks = enabled.for_foundation(identifier.to_i).ordered
       return checks if checks.any?
 
-      # If no checks found by ID, try to find the foundation and look up by table name
+      # Fallback to table name lookup
       foundation = Foundation.find_by(id: identifier)
       if foundation&.database_table_name.present?
         enabled.for_table(foundation.database_table_name).ordered
@@ -47,16 +55,133 @@ class TableHealthCheck < ApplicationRecord
         none
       end
     else
-      # Look up by table name (string)
       enabled.for_table(identifier.to_s).ordered
     end
   end
 
-  # Execute this health check and return results
-  # Returns { success: true/false, count: N, items: [...] }
+  # Run all checks for a foundation using new service architecture
+  # @param foundation_id [Integer] Foundation ID
+  # @return [Hash] Health check results
+  def self.run_checks_for_foundation(foundation_id)
+    HealthChecks::Registry.run_all(foundation_id: foundation_id)
+  end
+
+  # Run all checks for a table using new service architecture
+  # @param table_name [String] Table name
+  # @return [Hash] Health check results
+  def self.run_checks_for_table(table_name)
+    HealthChecks::Registry.run_all(table_name: table_name)
+  end
+
+  # Get system-wide health summary
+  # @return [Hash] System health data
+  def self.system_health
+    HealthChecks::Registry.system_health
+  end
+
+  # ============================================================================
+  # INSTANCE METHODS
+  # ============================================================================
+
+  # Execute this health check
+  # Delegates to appropriate HealthChecks::* service
+  # @return [Hash] Check result with count, items, severity, etc.
   def execute
-    Rails.logger.info "[TableHealthCheck] Executing check '#{name}' via #{api_endpoint}"
-    result = fetch_check_results
+    Rails.logger.info "[TableHealthCheck] Executing check '#{name}' (#{check_type})"
+
+    # Try to delegate to new service architecture
+    result = delegate_to_service
+
+    if result
+      # Merge database config with service result
+      result.merge(
+        id: id,
+        name: name,
+        description: description,
+        icon: icon,
+        action_path: action_path
+      )
+    else
+      # Fallback to legacy execution
+      legacy_execute
+    end
+  rescue StandardError => e
+    Rails.logger.error "[TableHealthCheck] Error executing '#{name}': #{e.message}"
+    error_result(e.message)
+  end
+
+  private
+
+  def foundation_or_table_name_present
+    if foundation_id.blank? && table_name.blank?
+      errors.add(:base, "Either foundation_id or table_name must be present")
+    end
+  end
+
+  # Delegate to new HealthChecks::* service
+  def delegate_to_service
+    service_class = HealthChecks::Registry.for(foundation_id || table_name)
+    return nil unless service_class
+
+    # Map check_type/api_endpoint to service method
+    method_name = infer_service_method
+    return nil unless method_name
+
+    service = service_class.new
+    return nil unless service.respond_to?(method_name)
+
+    service.send(method_name)
+  end
+
+  # Infer service method from check_type or api_endpoint
+  def infer_service_method
+    # Map api_endpoint patterns to service methods
+    case api_endpoint
+    when %r{without_default_supplier}
+      :check_items_without_supplier
+    when %r{without_price_history}
+      :check_items_without_price_history
+    when %r{missing_photos}
+      :check_items_missing_photos
+    when %r{price_health_check}, %r{price_mismatch}
+      :check_price_mismatches
+    when %r{possible_duplicates}
+      :check_duplicate_names
+    when %r{without_start_date}
+      :check_jobs_without_start_date
+    when %r{without_contract_value}
+      :check_jobs_without_contract_value
+    when %r{without_abn}
+      :check_companies_without_abn
+    when %r{without_review_date}
+      :check_companies_without_review_date
+    when %r{needs_ai_verification}
+      :check_needs_ai_verification
+    when %r{needs_user_validation}
+      :check_needs_user_validation
+    when %r{ato_missing_bas}
+      :check_ato_missing_bas
+    when %r{ato_missing_tax_return}
+      :check_ato_missing_tax_return
+    when %r{bank_missing_statements}
+      :check_bank_missing_statements
+    when %r{asic_missing_annual}
+      :check_asic_missing_annual
+    when %r{financials_missing_annual}
+      :check_financials_missing_annual
+    when %r{missing_date}
+      :check_documents_missing_date
+    when %r{consolidation.*mismatch}i
+      :check_intercompany_mismatches
+    else
+      # Try to construct method name from check_type
+      :"check_#{check_type}"
+    end
+  end
+
+  # Legacy execution (fallback for unmapped checks)
+  def legacy_execute
+    Rails.logger.warn "[TableHealthCheck] Using legacy execution for '#{name}'"
     {
       id: id,
       check_type: check_type,
@@ -65,12 +190,14 @@ class TableHealthCheck < ApplicationRecord
       severity: severity,
       icon: icon,
       action_path: action_path,
-      count: result[:count] || 0,
-      items: result[:items] || [],
-      success: result[:success] != false
+      count: 0,
+      items: [],
+      success: true,
+      legacy: true
     }
-  rescue => e
-    Rails.logger.error "[TableHealthCheck] Error executing '#{name}': #{e.message}"
+  end
+
+  def error_result(message)
     {
       id: id,
       check_type: check_type,
@@ -82,504 +209,7 @@ class TableHealthCheck < ApplicationRecord
       count: 0,
       items: [],
       success: false,
-      error: e.message
-    }
-  end
-
-  private
-
-  def foundation_or_table_name_present
-    if foundation_id.blank? && table_name.blank?
-      errors.add(:base, "Either foundation_id or table_name must be present")
-    end
-  end
-
-  # Fetch results from the configured API endpoint
-  # This calls the endpoint internally (not via HTTP) for efficiency
-  def fetch_check_results
-    # Parse the endpoint to determine which controller/action to call
-    # Expected formats:
-    # - /api/v1/contacts/possible_duplicates
-    # - /api/v1/health/pricebook
-    # - /api/v1/pricebook/price_health_check
-
-    case api_endpoint
-    when '/api/v1/contacts/possible_duplicates'
-      fetch_duplicate_contacts
-    when '/api/v1/health/pricebook'
-      fetch_pricebook_health
-    when %r{/api/v1/pricebook_items/without_default_supplier}
-      fetch_items_without_default_supplier
-    when %r{/api/v1/pricebook_items/without_price_history}
-      fetch_items_without_price_history
-    when %r{/api/v1/pricebook_items/missing_photos}
-      fetch_items_missing_photos
-    when %r{/api/v1/pricebook/price_health_check}
-      fetch_price_mismatches
-    # Jobs health checks
-    when %r{/api/v1/jobs/without_start_date}
-      fetch_jobs_without_start_date
-    when %r{/api/v1/jobs/without_contract_value}
-      fetch_jobs_without_contract_value
-    # Companies health checks
-    when %r{/api/v1/companies/without_abn}
-      fetch_companies_without_abn
-    when %r{/api/v1/companies/without_review_date}
-      fetch_companies_without_review_date
-    # Company Documents health checks
-    when %r{/api/v1/company_documents/needs_ai_verification}
-      fetch_documents_needs_ai_verification
-    when %r{/api/v1/company_documents/needs_user_validation}
-      fetch_documents_needs_user_validation
-    # Document Compliance health checks (tab-based)
-    when %r{/api/v1/company_documents/ato_missing_bas}
-      fetch_ato_missing_bas
-    when %r{/api/v1/company_documents/ato_missing_tax_return}
-      fetch_ato_missing_tax_return
-    when %r{/api/v1/company_documents/bank_missing_statements}
-      fetch_bank_missing_statements
-    when %r{/api/v1/company_documents/asic_missing_annual}
-      fetch_asic_missing_annual
-    when %r{/api/v1/company_documents/financials_missing_annual}
-      fetch_financials_missing_annual
-    when %r{/api/v1/company_documents/missing_date}
-      fetch_documents_missing_date
-    when %r{/api/v1/company_documents/missing_fy}
-      fetch_documents_missing_fy
-    # Consolidation health checks
-    when %r{/api/v1/consolidation/mismatches}
-      fetch_intercompany_mismatches
-    else
-      # For unknown endpoints, return empty result
-      Rails.logger.warn "[TableHealthCheck] Unknown endpoint: #{api_endpoint}"
-      { count: 0, items: [] }
-    end
-  end
-
-  def fetch_duplicate_contacts
-    # Use the same logic as contacts_controller#possible_duplicates
-    duplicates = find_duplicate_groups
-    {
-      count: duplicates.sum { |group| group[:contacts].size },
-      items: duplicates.first(10).map { |group|
-        {
-          id: group[:contacts].first[:id],
-          display: "#{group[:contacts].size} contacts: #{group[:contacts].map { |c| c[:full_name] }.join(', ')}",
-          match_type: group[:match_type],
-          contacts: group[:contacts]
-        }
-      },
-      groups_count: duplicates.size
-    }
-  end
-
-  def find_duplicate_groups
-    # Find contacts with duplicate names (normalized)
-    contacts = Contact.where(deleted: [false, nil])
-                     .select(:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :xero_id, :xero_contact_status)
-
-    groups = []
-    seen_ids = Set.new
-
-    # Group by normalized full name
-    by_name = contacts.group_by { |c| normalize_name(c.full_name) }
-    by_name.each do |normalized, group|
-      next if normalized.blank? || group.size < 2
-      next if group.all? { |c| seen_ids.include?(c.id) }
-
-      groups << {
-        match_type: 'name',
-        match_value: normalized,
-        contacts: group.map { |c|
-          seen_ids << c.id
-          {
-            id: c.id,
-            full_name: c.full_name,
-            email: c.email,
-            mobile_phone: c.mobile_phone,
-            office_phone: c.office_phone,
-            xero_id: c.xero_id,
-            xero_status: c.xero_contact_status
-          }
-        }
-      }
-    end
-
-    groups
-  end
-
-  def normalize_name(name)
-    return nil if name.blank?
-    name.to_s.downcase.gsub(/\s+/, ' ').strip
-  end
-
-  def fetch_pricebook_health
-    # Aggregate multiple pricebook checks
-    items_without_supplier = PricebookItem.active.where(default_supplier_id: nil).count
-    {
-      count: items_without_supplier,
-      items: PricebookItem.active.where(default_supplier_id: nil)
-                         .select(:id, :item_code, :item_name)
-                         .limit(10)
-                         .map { |i| { id: i.id, display: "#{i.item_code} - #{i.item_name}" } }
-    }
-  end
-
-  def fetch_items_without_default_supplier
-    items = PricebookItem.active.where(default_supplier_id: nil)
-    {
-      count: items.count,
-      items: items.select(:id, :item_code, :item_name).limit(10).map { |i|
-        { id: i.id, display: "#{i.item_code} - #{i.item_name}" }
-      }
-    }
-  end
-
-  def fetch_items_without_price_history
-    items = PricebookItem.active
-                        .where.not(default_supplier_id: nil)
-                        .left_joins(:price_histories)
-                        .where(price_histories: { id: nil })
-    {
-      count: items.count,
-      items: items.select('pricebook_items.id, pricebook_items.item_code, pricebook_items.item_name')
-                 .limit(10).map { |i|
-        { id: i.id, display: "#{i.item_code} - #{i.item_name}" }
-      }
-    }
-  end
-
-  def fetch_items_missing_photos
-    items = PricebookItem.active
-                        .where(requires_photo: true)
-                        .where("image_url IS NULL OR image_url = ''")
-    {
-      count: items.count,
-      items: items.select(:id, :item_code, :item_name).limit(10).map { |i|
-        { id: i.id, display: "#{i.item_code} - #{i.item_name}" }
-      }
-    }
-  end
-
-  def fetch_price_mismatches
-    # Items where current_price doesn't match the latest price history
-    mismatches = []
-    PricebookItem.active.where.not(default_supplier_id: nil).find_each do |item|
-      latest_price = item.price_histories.order(effective_date: :desc).first
-      next unless latest_price
-      next if item.current_price == latest_price.new_price
-
-      mismatches << {
-        id: item.id,
-        display: "#{item.item_code}: $#{item.current_price} vs $#{latest_price.new_price}",
-        current: item.current_price,
-        history: latest_price.new_price
-      }
-      break if mismatches.size >= 10
-    end
-
-    {
-      count: mismatches.size,  # Note: This is just a sample, not full count
-      items: mismatches
-    }
-  end
-
-  # Jobs health check methods
-  def fetch_jobs_without_start_date
-    jobs = Job.where(start_date: nil)
-    {
-      count: jobs.count,
-      items: jobs.select(:id, :title, :ted_number).limit(10).map { |j|
-        { id: j.id, display: "#{j.ted_number || 'No TED'} - #{j.title}" }
-      }
-    }
-  end
-
-  def fetch_jobs_without_contract_value
-    jobs = Job.where(contract_value: [nil, 0])
-    {
-      count: jobs.count,
-      items: jobs.select(:id, :title, :ted_number).limit(10).map { |j|
-        { id: j.id, display: "#{j.ted_number || 'No TED'} - #{j.title}" }
-      }
-    }
-  end
-
-  # Companies health check methods
-  def fetch_companies_without_abn
-    companies = Company.where(abn: [nil, ''])
-    {
-      count: companies.count,
-      items: companies.select(:id, :name, :code).limit(10).map { |c|
-        { id: c.id, display: "#{c.code || c.id} - #{c.name}" }
-      }
-    }
-  end
-
-  def fetch_companies_without_review_date
-    companies = Company.where(review_date: nil)
-    {
-      count: companies.count,
-      items: companies.select(:id, :name, :code).limit(10).map { |c|
-        { id: c.id, display: "#{c.code || c.id} - #{c.name}" }
-      }
-    }
-  end
-
-  # Company Documents health check methods
-  def fetch_documents_needs_ai_verification
-    docs = CompanyDocument.where(ai_verification_status: [nil, 'pending'])
-    {
-      count: docs.count,
-      items: docs.includes(:company).limit(10).map { |d|
-        {
-          id: d.id,
-          display: "#{d.company&.name || 'Unknown'} - #{d.file_name || d.title || 'Unnamed'}",
-          company_id: d.company_id
-        }
-      }
-    }
-  end
-
-  def fetch_documents_needs_user_validation
-    docs = CompanyDocument.where(validation_required: true, user_validated_at: nil)
-    {
-      count: docs.count,
-      items: docs.includes(:company).limit(10).map { |d|
-        {
-          id: d.id,
-          display: "#{d.company&.name || 'Unknown'} - #{d.file_name || d.title || 'Unnamed'}",
-          company_id: d.company_id
-        }
-      }
-    }
-  end
-
-  # ============================================================================
-  # Document Compliance Health Checks (Tab-Based)
-  # ============================================================================
-
-  # Australian Financial Year runs July 1 to June 30
-  # Current FY: if today is after July 1, FY is current year, else previous year
-  def current_financial_year
-    today = Date.current
-    today.month >= 7 ? today.year : today.year - 1
-  end
-
-  def current_quarter
-    # BAS quarters: Jul-Sep (Q1), Oct-Dec (Q2), Jan-Mar (Q3), Apr-Jun (Q4)
-    month = Date.current.month
-    case month
-    when 7..9 then 1
-    when 10..12 then 2
-    when 1..3 then 3
-    when 4..6 then 4
-    end
-  end
-
-  # ATO: Missing Quarterly BAS
-  def fetch_ato_missing_bas
-    fy = current_financial_year
-    # Get all active companies
-    companies = Company.where(active: [true, nil])
-
-    # Find companies that have BAS documents for recent quarters
-    companies_with_bas = CompanyDocument
-      .where(folder: 'ATO')
-      .where("LOWER(document_type) LIKE '%bas%' OR LOWER(title) LIKE '%bas%'")
-      .where("? = ANY(financial_years) OR year = ?", fy, fy)
-      .pluck(:company_id)
-      .uniq
-
-    # Companies missing BAS
-    missing = companies.where.not(id: companies_with_bas)
-
-    {
-      count: missing.count,
-      items: missing.limit(10).map { |c|
-        {
-          id: c.id,
-          display: "#{c.code || c.id} - #{c.name}",
-          company_id: c.id
-        }
-      }
-    }
-  end
-
-  # ATO: Missing Annual Tax Return
-  def fetch_ato_missing_tax_return
-    fy = current_financial_year - 1  # Check for last completed FY
-    companies = Company.where(active: [true, nil])
-
-    companies_with_tax = CompanyDocument
-      .where(folder: 'ATO')
-      .where("LOWER(document_type) LIKE '%tax%return%' OR LOWER(title) LIKE '%ctr%' OR LOWER(title) LIKE '%tax return%'")
-      .where("? = ANY(financial_years) OR year = ?", fy, fy)
-      .pluck(:company_id)
-      .uniq
-
-    missing = companies.where.not(id: companies_with_tax)
-
-    {
-      count: missing.count,
-      items: missing.limit(10).map { |c|
-        {
-          id: c.id,
-          display: "#{c.code || c.id} - #{c.name} (FY#{fy})",
-          company_id: c.id
-        }
-      }
-    }
-  end
-
-  # BANK: Missing Monthly Bank Statements
-  def fetch_bank_missing_statements
-    # Check last 3 months
-    recent_months = (0..2).map { |i| Date.current.beginning_of_month - i.months }
-    companies = Company.where(active: [true, nil])
-
-    # Find companies with bank statements for recent months
-    companies_with_statements = CompanyDocument
-      .where(folder: 'BANK')
-      .where("LOWER(document_type) LIKE '%statement%' OR LOWER(title) LIKE '%statement%'")
-      .where("document_date >= ?", 3.months.ago)
-      .pluck(:company_id)
-      .uniq
-
-    missing = companies.where.not(id: companies_with_statements)
-
-    {
-      count: missing.count,
-      items: missing.limit(10).map { |c|
-        {
-          id: c.id,
-          display: "#{c.code || c.id} - #{c.name}",
-          company_id: c.id
-        }
-      }
-    }
-  end
-
-  # ASIC: Missing Annual Statement
-  def fetch_asic_missing_annual
-    current_year = Date.current.year
-    companies = Company.where(active: [true, nil])
-
-    companies_with_asic = CompanyDocument
-      .where(folder: 'ASIC')
-      .where("LOWER(document_type) LIKE '%annual%' OR LOWER(title) LIKE '%annual%statement%'")
-      .where("EXTRACT(year FROM document_date) = ? OR year = ?", current_year, current_year)
-      .pluck(:company_id)
-      .uniq
-
-    missing = companies.where.not(id: companies_with_asic)
-
-    {
-      count: missing.count,
-      items: missing.limit(10).map { |c|
-        {
-          id: c.id,
-          display: "#{c.code || c.id} - #{c.name} (#{current_year})",
-          company_id: c.id
-        }
-      }
-    }
-  end
-
-  # FINANCIALS: Missing Annual Financial Statements
-  def fetch_financials_missing_annual
-    fy = current_financial_year - 1  # Check for last completed FY
-    companies = Company.where(active: [true, nil])
-
-    companies_with_financials = CompanyDocument
-      .where(folder: 'FINANCIALS')
-      .where("LOWER(document_type) LIKE '%financial%' OR LOWER(title) LIKE '%financial%'")
-      .where("? = ANY(financial_years) OR year = ?", fy, fy)
-      .pluck(:company_id)
-      .uniq
-
-    missing = companies.where.not(id: companies_with_financials)
-
-    {
-      count: missing.count,
-      items: missing.limit(10).map { |c|
-        {
-          id: c.id,
-          display: "#{c.code || c.id} - #{c.name} (FY#{fy})",
-          company_id: c.id
-        }
-      }
-    }
-  end
-
-  # General: Documents Missing Date
-  def fetch_documents_missing_date
-    docs = CompanyDocument.where(document_date: nil)
-    {
-      count: docs.count,
-      items: docs.includes(:company).limit(10).map { |d|
-        {
-          id: d.id,
-          display: "#{d.company&.name || 'Unknown'} - #{d.title || 'Unnamed'}",
-          company_id: d.company_id
-        }
-      }
-    }
-  end
-
-  # General: Documents Missing Financial Year
-  def fetch_documents_missing_fy
-    # Documents without financial_years array populated
-    docs = CompanyDocument.where("financial_years IS NULL OR financial_years = '{}'")
-    {
-      count: docs.count,
-      items: docs.includes(:company).limit(10).map { |d|
-        {
-          id: d.id,
-          display: "#{d.company&.name || 'Unknown'} - #{d.title || 'Unnamed'}",
-          company_id: d.company_id
-        }
-      }
-    }
-  end
-
-  # ============================================================================
-  # Consolidation Health Checks
-  # ============================================================================
-
-  # Intercompany Balance Mismatches
-  def fetch_intercompany_mismatches
-    as_of_date = Date.today
-    all_mismatches = []
-
-    CompanyGroup.active.includes(:companies).each do |group|
-      next if group.companies.count < 2
-
-      begin
-        service = ConsolidationReconciliationService.new(group, as_of_date: as_of_date)
-        relationships = service.intercompany_relationships
-
-        mismatched = relationships.reject { |r| r[:matched] }
-        mismatched.each do |m|
-          all_mismatches << {
-            id: "#{group.id}-#{m[:company_a][:id]}-#{m[:company_b][:id]}-#{m[:balance_type]}",
-            display: "#{m[:company_a][:name]} ↔ #{m[:company_b][:name]}: #{m[:balance_type]} discrepancy $#{m[:discrepancy].abs.round(2)}",
-            group_id: group.id,
-            group_name: group.name,
-            company_a_id: m[:company_a][:id],
-            company_b_id: m[:company_b][:id],
-            discrepancy: m[:discrepancy]
-          }
-        end
-      rescue StandardError => e
-        Rails.logger.warn "[HealthCheck] Failed to check group #{group.id}: #{e.message}"
-      end
-    end
-
-    {
-      count: all_mismatches.count,
-      items: all_mismatches.first(10),
-      total_discrepancy: all_mismatches.sum { |m| m[:discrepancy].abs }.round(2)
+      error: message
     }
   end
 end

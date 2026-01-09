@@ -1,15 +1,11 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import Link from "next/link";
-import { Card, CardContent } from "@/components/ui/card";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Loader } from "@/components/ui/loader";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import { useFoundationById } from "@/hooks/useFoundationById";
 import {
   Dialog,
   DialogContent,
@@ -26,56 +22,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  AlertTriangle,
-  Plus,
-  ArrowLeft,
-  Clock,
-  Search,
-} from "lucide-react";
-import { api } from "@/lib/api";
-
-// Foundation ID for WHS Incidents table
-const WHS_INCIDENTS_FOUNDATION_ID = 210;
+import { Plus } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 
 export default function WHSIncidentsPage() {
   const [newIncidentOpen, setNewIncidentOpen] = useState(false);
-
-  // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, refresh } = useFoundationById(WHS_INCIDENTS_FOUNDATION_ID);
-
-  // Handle inline row update
-  const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
-    try {
-      await api.patch(`/api/v1/foundations/${WHS_INCIDENTS_FOUNDATION_ID}/records/${rowId}`, {
-        record: { [field]: value }
-      });
-      refresh();
-    } catch (error) {
-      console.error("Failed to update incident:", error);
-      throw error;
-    }
-  }, [refresh]);
-
-  // Stats from records
-  const stats = {
-    total: records.length,
-    open: records.filter((i) => ["reported", "investigating"].includes(String(i.status))).length,
-    high: records.filter((i) => i.severity === "high").length,
-    thisMonth: records.filter((i) => {
-      const date = new Date(String(i.reported_at));
-      const now = new Date();
-      return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-    }).length,
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loader />
-      </div>
-    );
-  }
 
   // Left actions - Report Incident button
   const leftActions = (
@@ -152,85 +103,23 @@ export default function WHSIncidentsPage() {
     </Dialog>
   );
 
+  // Add back button to leftActions
+  const leftActionsWithBack = (
+    <div className="flex items-center gap-2">
+      <BackButton fallbackHref="/whs" />
+      {leftActions}
+    </div>
+  );
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/whs">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight font-serif">Incident Reports</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Track and manage workplace safety incidents
-              <span className="ml-2 text-xs font-mono">Table #210</span>
-            </p>
-          </div>
-        </div>
-        <Dialog open={newIncidentOpen} onOpenChange={setNewIncidentOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Report Incident
-            </Button>
-          </DialogTrigger>
-        </Dialog>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-              <span className="text-2xl font-bold">{stats.total}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Total Incidents</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-orange-600" />
-              <span className="text-2xl font-bold text-orange-600">{stats.open}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Open Cases</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-red-600" />
-              <span className="text-2xl font-bold text-red-600">{stats.high}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">High Severity</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <Search className="h-4 w-4 text-blue-600" />
-              <span className="text-2xl font-bold">{stats.thisMonth}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">This Month</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Table */}
+    <div className="flex flex-col h-full -mx-4">
       <TeeemTableView
-        entries={records}
-        columns={columns}
-        foundationId={String(WHS_INCIDENTS_FOUNDATION_ID)}
-        foundationIdNumeric={WHS_INCIDENTS_FOUNDATION_ID}
-        tableName={foundation?.name || "Incident Reports"}
+        foundationId="whs_incidents"
+        autoFetchRecords={true}
+        tableName="Incident Reports"
         enableExport={true}
-        onRefresh={refresh}
-        onRowUpdate={handleRowUpdate}
-        leftActions={leftActions}
+        leftActions={leftActionsWithBack}
+        hideFooter={true}
       />
     </div>
   );

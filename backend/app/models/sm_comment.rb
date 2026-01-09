@@ -9,13 +9,13 @@
 # - Soft delete
 #
 class SmComment < ApplicationRecord
-  belongs_to :task, class_name: 'SmTask', foreign_key: 'sm_task_id'
-  belongs_to :author, class_name: 'User'
-  belongs_to :parent, class_name: 'SmComment', optional: true
-  belongs_to :resource, class_name: 'SmResource', optional: true
+  belongs_to :task, class_name: "SmTask", foreign_key: "sm_task_id"
+  belongs_to :author, class_name: "User"
+  belongs_to :parent, class_name: "SmComment", optional: true
+  belongs_to :resource, class_name: "SmResource", optional: true
 
-  has_many :replies, class_name: 'SmComment', foreign_key: 'parent_id', dependent: :destroy
-  has_many :mentions, class_name: 'SmCommentMention', dependent: :destroy
+  has_many :replies, class_name: "SmComment", foreign_key: "parent_id", dependent: :destroy
+  has_many :mentions, class_name: "SmCommentMention", dependent: :destroy
 
   validates :body, presence: true, length: { maximum: 5000 }
 
@@ -27,9 +27,9 @@ class SmComment < ApplicationRecord
   scope :for_task, ->(task_id) { where(sm_task_id: task_id) }
 
   # Callbacks
-  after_create :extract_mentions
-  after_create :track_activity
-  after_create :notify_mentions
+  after_create :extract_mentions, if: -> { defined?(SmCommentMention) }
+  after_create :track_activity, if: -> { defined?(SmActivity) }
+  after_create :notify_mentions, if: -> { defined?(NotifyMentionJob) }
 
   # Instance methods
   def edited?
@@ -41,7 +41,7 @@ class SmComment < ApplicationRecord
   end
 
   def soft_delete!
-    update!(deleted_at: Time.current, body: '[Comment deleted]')
+    update!(deleted_at: Time.current, body: "[Comment deleted]")
   end
 
   def reply_count
@@ -64,7 +64,7 @@ class SmComment < ApplicationRecord
 
     usernames.each do |username|
       # Try to find user by username or email prefix
-      user = User.find_by('LOWER(email) LIKE ?', "#{username.downcase}%")
+      user = User.find_by("LOWER(email) LIKE ?", "#{username.downcase}%")
       next unless user
 
       mentions.create!(user: user, mentioned_at: created_at)
@@ -76,9 +76,9 @@ class SmComment < ApplicationRecord
     resource_refs.each do |ref|
       resource = if ref.match?(/^\d+$/)
                    SmResource.find_by(id: ref)
-                 else
-                   SmResource.find_by('LOWER(name) = ?', ref.downcase)
-                 end
+      else
+                   SmResource.find_by("LOWER(name) = ?", ref.downcase)
+      end
       next unless resource
 
       mentions.create!(resource: resource, mentioned_at: created_at)
@@ -86,8 +86,10 @@ class SmComment < ApplicationRecord
   end
 
   def track_activity
+    return unless defined?(SmActivity) && SmActivity.respond_to?(:track)
+
     SmActivity.track(
-      'comment_added',
+      "comment_added",
       construction: task.construction,
       user: author,
       task: task,

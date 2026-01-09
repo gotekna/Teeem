@@ -1,8 +1,8 @@
 class ShareTransfer < ApplicationRecord
   # Associations
-  belongs_to :company
-  belongs_to :from_shareholder, class_name: 'Contact', optional: true  # nil for new issues
-  belongs_to :to_shareholder, class_name: 'Contact'
+  belongs_to :corporate_company, foreign_key: "company_id"
+  belongs_to :from_shareholder, class_name: "Contact", optional: true  # nil for new issues
+  belongs_to :to_shareholder, class_name: "Contact"
 
   # Validations
   validates :number_of_shares, presence: true, numericality: { greater_than: 0 }
@@ -13,7 +13,7 @@ class ShareTransfer < ApplicationRecord
   scope :by_date, -> { order(transfer_date: :desc) }
   scope :recent, -> { by_date.limit(10) }
   scope :for_shareholder, ->(contact_id) {
-    where('from_shareholder_id = ? OR to_shareholder_id = ?', contact_id, contact_id)
+    where("from_shareholder_id = ? OR to_shareholder_id = ?", contact_id, contact_id)
   }
 
   # Check if this is a new share issue (no from_shareholder)
@@ -22,10 +22,10 @@ class ShareTransfer < ApplicationRecord
   end
 
   def from_shareholder_name
-    from_shareholder&.full_name || 'New Issue'
+    from_shareholder&.display_name || "New Issue"
   end
 
   def to_shareholder_name
-    to_shareholder&.full_name
+    to_shareholder&.display_name
   end
 end

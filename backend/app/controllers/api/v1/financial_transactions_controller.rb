@@ -1,8 +1,8 @@
 module Api
   module V1
     class FinancialTransactionsController < ApplicationController
-      before_action :set_transaction, only: [:show, :update, :destroy, :post]
-      before_action :set_company, only: [:index, :create]
+      before_action :set_transaction, only: [ :show, :update, :destroy, :post ]
+      before_action :set_company, only: [ :index, :create ]
 
       # GET /api/v1/financial_transactions
       def index
@@ -43,11 +43,11 @@ module Api
       def create
         service = FinancialTransactionService.new(user: current_user, company: @company)
 
-        transaction = if params[:transaction_type] == 'income'
+        transaction = if params[:transaction_type] == "income"
                        service.create_income(transaction_params)
-                     else
+        else
                        service.create_expense(transaction_params)
-                     end
+        end
 
         render json: {
           success: true,
@@ -116,7 +116,7 @@ module Api
 
       # GET /api/v1/financial_transactions/summary
       def summary
-        company = Company.find(params[:company_id]) if params[:company_id]
+        company = CorporateCompany.find(params[:company_id]) if params[:company_id]
         scope = FinancialTransaction.posted
         scope = scope.for_company(company.id) if company
 
@@ -147,7 +147,7 @@ module Api
 
       # GET /api/v1/financial_transactions/categories
       def categories
-        transaction_type = params[:transaction_type] || 'expense'
+        transaction_type = params[:transaction_type] || "expense"
 
         render json: {
           success: true,
@@ -168,10 +168,10 @@ module Api
 
       def set_company
         @company = if params[:company_id]
-                    Company.find(params[:company_id])
-                  else
-                    Company.first
-                  end
+                    CorporateCompany.find(params[:company_id])
+        else
+                    CorporateCompany.first
+        end
       rescue ActiveRecord::RecordNotFound
         render json: {
           success: false,
@@ -207,16 +207,22 @@ module Api
 
         # Filter by date range
         if params[:from_date].present?
-          scope = scope.where('transaction_date >= ?', Date.parse(params[:from_date]))
+          scope = scope.where("transaction_date >= ?", Date.parse(params[:from_date]))
         end
 
         if params[:to_date].present?
-          scope = scope.where('transaction_date <= ?', Date.parse(params[:to_date]))
+          scope = scope.where("transaction_date <= ?", Date.parse(params[:to_date]))
         end
 
-        # Search by description
+        # Search using SSoT SearchService
         if params[:search].present?
-          scope = scope.where('description ILIKE ?', "%#{params[:search]}%")
+          scope = SearchService.apply(
+            scope,
+            params[:search],
+            columns: %w[description],
+            mode: params[:search_mode] || 'contains',
+            model: FinancialTransaction
+          )
         end
 
         scope
@@ -246,12 +252,11 @@ module Api
           can_delete: transaction.can_delete?
         }
 
-        if include_receipt && transaction.receipt.attached?
+        if include_receipt && transaction.sharepoint_file_id.present?
           data[:receipt] = {
-            url: rails_blob_url(transaction.receipt),
-            filename: transaction.receipt.filename.to_s,
-            content_type: transaction.receipt.content_type,
-            byte_size: transaction.receipt.byte_size
+            has_receipt: true,
+            sharepoint_file_id: transaction.sharepoint_file_id,
+            filename: transaction.receipt.attached? ? transaction.receipt.filename.to_s : nil
           }
         end
 

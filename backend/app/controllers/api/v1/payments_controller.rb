@@ -1,8 +1,8 @@
 module Api
   module V1
     class PaymentsController < ApplicationController
-      before_action :set_payment, only: [:show, :update, :destroy, :sync_to_xero]
-      before_action :set_purchase_order, only: [:index, :create]
+      before_action :set_payment, only: [ :show, :update, :destroy, :sync_to_xero ]
+      before_action :set_purchase_order, only: [ :index, :create ]
 
       # GET /api/v1/purchase_orders/:purchase_order_id/payments
       def index
@@ -39,7 +39,7 @@ module Api
 
           render json: {
             success: true,
-            message: 'Payment recorded successfully',
+            message: "Payment recorded successfully",
             payment: payment_json(@payment),
             purchase_order: {
               payment_status: @purchase_order.reload.payment_status,
@@ -59,7 +59,7 @@ module Api
         if @payment.update(payment_params)
           render json: {
             success: true,
-            message: 'Payment updated successfully',
+            message: "Payment updated successfully",
             payment: payment_json(@payment)
           }
         else
@@ -76,7 +76,7 @@ module Api
 
         render json: {
           success: true,
-          message: 'Payment deleted successfully'
+          message: "Payment deleted successfully"
         }
       end
 
@@ -89,7 +89,7 @@ module Api
           if result[:success]
             render json: {
               success: true,
-              message: 'Payment synced to Xero successfully',
+              message: "Payment synced to Xero successfully",
               xero_payment_id: result[:xero_payment_id],
               payment: payment_json(@payment.reload)
             }

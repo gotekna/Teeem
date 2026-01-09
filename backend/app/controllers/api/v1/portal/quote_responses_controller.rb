@@ -11,14 +11,14 @@ module Api
 
           # Check if subcontractor is invited to this quote
           unless quote_request.contacts.include?(current_contact)
-            render json: { success: false, error: 'Not authorized for this quote request' }, status: :forbidden
+            render json: { success: false, error: "Not authorized for this quote request" }, status: :forbidden
             return
           end
 
           # Check if already responded
           existing_response = quote_request.quote_responses.find_by(contact: current_contact)
           if existing_response && !existing_response.pending?
-            render json: { success: false, error: 'Quote already submitted' }, status: :unprocessable_entity
+            render json: { success: false, error: "Quote already submitted" }, status: :unprocessable_entity
             return
           end
 
@@ -34,13 +34,13 @@ module Api
           if quote_response.submit!(quote_response_params)
             render json: {
               success: true,
-              message: 'Quote submitted successfully',
+              message: "Quote submitted successfully",
               data: quote_response_json(quote_response)
             }, status: :created
           else
             render json: {
               success: false,
-              error: 'Failed to submit quote',
+              error: "Failed to submit quote",
               errors: quote_response.errors.full_messages
             }, status: :unprocessable_entity
           end
@@ -52,20 +52,20 @@ module Api
           quote_response = current_contact.quote_responses.find(params[:id])
 
           unless quote_response.pending?
-            render json: { success: false, error: 'Can only update pending quotes' }, status: :unprocessable_entity
+            render json: { success: false, error: "Can only update pending quotes" }, status: :unprocessable_entity
             return
           end
 
           if quote_response.update(quote_response_params)
             render json: {
               success: true,
-              message: 'Quote updated successfully',
+              message: "Quote updated successfully",
               data: quote_response_json(quote_response)
             }
           else
             render json: {
               success: false,
-              error: 'Failed to update quote',
+              error: "Failed to update quote",
               errors: quote_response.errors.full_messages
             }, status: :unprocessable_entity
           end

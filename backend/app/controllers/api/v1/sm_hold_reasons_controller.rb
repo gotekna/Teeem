@@ -3,14 +3,14 @@
 module Api
   module V1
     class SmHoldReasonsController < ApplicationController
-      before_action :set_hold_reason, only: [:show, :update, :destroy]
+      before_action :set_hold_reason, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/sm_hold_reasons
       def index
         @hold_reasons = SmHoldReason.ordered
 
         # Filter by active status if specified
-        @hold_reasons = @hold_reasons.active if params[:active_only] == 'true'
+        @hold_reasons = @hold_reasons.active if params[:active_only] == "true"
 
         render json: {
           success: true,
@@ -37,7 +37,7 @@ module Api
         if @hold_reason.save
           render json: {
             success: true,
-            message: 'Hold reason created successfully',
+            message: "Hold reason created successfully",
             hold_reason: hold_reason_to_json(@hold_reason)
           }, status: :created
         else
@@ -71,13 +71,13 @@ module Api
           @hold_reason.update!(is_active: false)
           render json: {
             success: true,
-            message: 'Hold reason deactivated (has associated tasks)'
+            message: "Hold reason deactivated (has associated tasks)"
           }
         else
           @hold_reason.destroy
           render json: {
             success: true,
-            message: 'Hold reason deleted successfully'
+            message: "Hold reason deleted successfully"
           }
         end
       end
@@ -87,7 +87,7 @@ module Api
         unless params[:hold_reason_ids].is_a?(Array)
           return render json: {
             success: false,
-            error: 'hold_reason_ids must be an array'
+            error: "hold_reason_ids must be an array"
           }, status: :unprocessable_entity
         end
 
@@ -99,7 +99,7 @@ module Api
 
         render json: {
           success: true,
-          message: 'Hold reasons reordered successfully'
+          message: "Hold reasons reordered successfully"
         }
       end
 
@@ -121,7 +121,7 @@ module Api
       rescue ActiveRecord::RecordNotFound
         render json: {
           success: false,
-          error: 'Hold reason not found'
+          error: "Hold reason not found"
         }, status: :not_found
       end
 

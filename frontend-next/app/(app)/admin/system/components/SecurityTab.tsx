@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,32 +44,64 @@ import {
   MoreHorizontal,
   Plus,
   Search,
-  Loader2,
   Pencil,
   Trash2,
   Mail,
-  Check,
-  X,
+  Sun,
+  Moon,
+  Monitor,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
+import { UserDetailSheet } from "@/components/admin/UserDetailSheet";
+import { Spinner } from "@/components/ui/spinner";
 
 interface User {
   id: number;
   name: string;
   email: string;
   role: string;
-  status: string;
-  last_sign_in_at: string | null;
-  created_at: string;
+  status?: string;
+  last_login_at?: string;
+  last_seen_at?: string;
+  last_email_sync_at?: string;
+  presence_status?: 'online' | 'away' | 'offline';
+  integrations?: string[];
+  integrations_count?: number;
+  created_at?: string;
+  // For UserDetailSheet
+  mobile_phone?: string;
+  role_ids?: Array<{ id: number; display_value: string; name: string }>;
+  preferred_theme?: string;
+  [key: string]: unknown;
+}
+
+// Format relative time (e.g., "2 hours ago", "Yesterday", "Dec 3")
+function formatRelativeTime(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays}d ago`;
+
+  return date.toLocaleDateString('en-AU', { month: 'short', day: 'numeric' });
 }
 
 interface Role {
   id: number;
   name: string;
+  display_name?: string;
   description: string;
   users_count: number;
+  tasks_count?: number;
 }
 
 interface Group {
@@ -90,16 +122,19 @@ function UsersManagementTab() {
   const [inviteRole, setInviteRole] = React.useState("");
   const [roles, setRoles] = React.useState<Role[]>([]);
   const [inviting, setInviting] = React.useState(false);
+  const [selectedUser, setSelectedUser] = React.useState<User | null>(null);
+  const [showDetailSheet, setShowDetailSheet] = React.useState(false);
 
   React.useEffect(() => {
     loadUsers();
     loadRoles();
+     
   }, []);
 
   const loadUsers = async () => {
     try {
-      const data = await api.get<User[]>("/api/v1/users");
-      setUsers(data);
+      const data = await api.get<{ users: User[] }>("/api/v1/users");
+      setUsers(data?.users || []);
     } catch (error) {
       console.error("Failed to load users:", error);
       toast({ title: "Error", description: "Failed to load users", variant: "destructive" });
@@ -146,7 +181,7 @@ function UsersManagementTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -177,26 +212,95 @@ function UsersManagementTab() {
               <TableHead>Email</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Last Sign In</TableHead>
+              <TableHead>Theme</TableHead>
+              <TableHead>Integrations</TableHead>
+              <TableHead>Last Login</TableHead>
+              <TableHead>Last Email Sync</TableHead>
               <TableHead className="w-[50px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredUsers.map((user) => (
-              <TableRow key={user.id}>
-                <TableCell className="font-medium">{user.name}</TableCell>
+              <TableRow
+                key={user.id}
+                className="cursor-pointer"
+                onDoubleClick={() => {
+                  setSelectedUser(user);
+                  setShowDetailSheet(true);
+                }}
+              >
+                <TableCell className="font-medium">
+                  <div className="flex items-center gap-2">
+                    <div className={cn(
+                      "h-2 w-2 rounded-full",
+                      user.presence_status === 'online' && "bg-green-500",
+                      user.presence_status === 'away' && "bg-yellow-500",
+                      user.presence_status === 'offline' && "bg-gray-300"
+                    )} />
+                    {user.name}
+                  </div>
+                </TableCell>
                 <TableCell>{user.email}</TableCell>
                 <TableCell>
-                  <Badge variant="outline">{user.role || "User"}</Badge>
+                  <div className="flex flex-wrap gap-1">
+                    {user.role_ids && user.role_ids.length > 0 ? (
+                      user.role_ids.map((r) => (
+                        <Badge key={r.id} variant="outline">{r.display_value || r.name}</Badge>
+                      ))
+                    ) : (
+                      <Badge variant="outline">{user.role || "user"}</Badge>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={user.status === "active" ? "default" : "secondary"}>
-                    {user.status || "Active"}
+                  <Badge
+                    variant={user.status === "active" ? "default" : "secondary"}
+                    className={cn(
+                      user.presence_status === 'online' && "bg-green-500 hover:bg-green-600"
+                    )}
+                  >
+                    {user.presence_status === 'online' ? 'Online' :
+                     user.status === "active" ? "Active" : "Pending"}
                   </Badge>
                 </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-1 text-muted-foreground">
+                    {user.preferred_theme === 'dark' ? (
+                      <Moon className="h-4 w-4" />
+                    ) : user.preferred_theme === 'system' ? (
+                      <Monitor className="h-4 w-4" />
+                    ) : (
+                      <Sun className="h-4 w-4" />
+                    )}
+                    <span className="text-xs capitalize">{user.preferred_theme || 'light'}</span>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  {(user.integrations_count ?? 0) > 0 ? (
+                    <div className="flex gap-1">
+                      {user.integrations?.includes('microsoft') && (
+                        <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                          MS
+                        </Badge>
+                      )}
+                      {user.integrations?.includes('outlook') && (
+                        <Badge variant="outline" className="text-xs bg-indigo-50 text-indigo-700 border-indigo-200">
+                          Email
+                        </Badge>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground text-sm">None</span>
+                  )}
+                </TableCell>
                 <TableCell className="text-muted-foreground text-sm">
-                  {user.last_sign_in_at
-                    ? new Date(user.last_sign_in_at).toLocaleDateString()
+                  {user.last_login_at
+                    ? formatRelativeTime(user.last_login_at)
+                    : "Never"}
+                </TableCell>
+                <TableCell className="text-muted-foreground text-sm">
+                  {user.last_email_sync_at
+                    ? formatRelativeTime(user.last_email_sync_at)
                     : "Never"}
                 </TableCell>
                 <TableCell>
@@ -270,7 +374,7 @@ function UsersManagementTab() {
             <Button onClick={handleInvite} disabled={inviting || !inviteEmail}>
               {inviting ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Sending...
                 </>
               ) : (
@@ -280,6 +384,17 @@ function UsersManagementTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* User Detail Sheet - opens on double-click */}
+      <UserDetailSheet
+        user={selectedUser}
+        isOpen={showDetailSheet}
+        onClose={() => {
+          setShowDetailSheet(false);
+          setSelectedUser(null);
+        }}
+        onSave={loadUsers}
+      />
     </div>
   );
 }
@@ -290,9 +405,18 @@ function RolesManagementTab() {
   const [roles, setRoles] = React.useState<Role[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [showAddDialog, setShowAddDialog] = React.useState(false);
+  const [showEditDialog, setShowEditDialog] = React.useState(false);
+  const [editingRole, setEditingRole] = React.useState<Role | null>(null);
   const [newRoleName, setNewRoleName] = React.useState("");
   const [newRoleDescription, setNewRoleDescription] = React.useState("");
+  const [editDisplayName, setEditDisplayName] = React.useState("");
+  const [editDescription, setEditDescription] = React.useState("");
   const [saving, setSaving] = React.useState(false);
+  // View users in role
+  const [showUsersDialog, setShowUsersDialog] = React.useState(false);
+  const [selectedRoleForUsers, setSelectedRoleForUsers] = React.useState<Role | null>(null);
+  const [roleUsers, setRoleUsers] = React.useState<Array<{ id: number; name: string; email: string }>>([]);
+  const [loadingRoleUsers, setLoadingRoleUsers] = React.useState(false);
 
   React.useEffect(() => {
     loadRoles();
@@ -312,30 +436,107 @@ function RolesManagementTab() {
     }
   };
 
+  const handleViewRoleUsers = async (role: Role) => {
+    setSelectedRoleForUsers(role);
+    setShowUsersDialog(true);
+    setLoadingRoleUsers(true);
+    try {
+      const data = await api.get<{ users: Array<{ id: number; name: string; email: string }> }>(
+        `/api/v1/permissions/roles/${role.id}/users`
+      );
+      setRoleUsers(data?.users || []);
+    } catch (error) {
+      console.error("Failed to load role users:", error);
+      // Fallback: load all users and filter by role
+      try {
+        const allUsers = await api.get<{ users: User[] }>("/api/v1/users");
+        const filtered = (allUsers?.users || []).filter(u =>
+          Array.isArray(u.role_ids) && u.role_ids.some(r => r.id === role.id)
+        );
+        setRoleUsers(filtered.map(u => ({ id: u.id, name: u.name, email: u.email })));
+      } catch {
+        setRoleUsers([]);
+      }
+    } finally {
+      setLoadingRoleUsers(false);
+    }
+  };
+
   const handleAddRole = async () => {
     if (!newRoleName) return;
     setSaving(true);
     try {
-      await api.post("/api/v1/permissions/roles", {
+      const response = await api.post<{ success: boolean; error?: string }>("/api/v1/permissions/roles", {
         role: { name: newRoleName, description: newRoleDescription },
       });
-      toast({ title: "Success", description: "Role created successfully" });
-      setShowAddDialog(false);
-      setNewRoleName("");
-      setNewRoleDescription("");
-      loadRoles();
-    } catch (error) {
+      if (response?.success === false && response?.error) {
+        toast({ title: "Error", description: response.error, variant: "destructive" });
+      } else {
+        toast({ title: "Success", description: "Role created successfully" });
+        setShowAddDialog(false);
+        setNewRoleName("");
+        setNewRoleDescription("");
+        loadRoles();
+      }
+    } catch (error: any) {
       console.error("Failed to create role:", error);
-      toast({ title: "Error", description: "Failed to create role", variant: "destructive" });
+      const errorMessage = error?.response?.data?.error || error?.message || "Failed to create role";
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleEditRole = (role: Role) => {
+    setEditingRole(role);
+    setEditDisplayName(role.display_name || role.name);
+    setEditDescription(role.description || "");
+    setShowEditDialog(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingRole) return;
+    setSaving(true);
+    try {
+      await api.patch(`/api/v1/permissions/roles/${editingRole.id}`, {
+        role: { display_name: editDisplayName, description: editDescription },
+      });
+      toast({ title: "Success", description: "Role updated successfully" });
+      setShowEditDialog(false);
+      setEditingRole(null);
+      loadRoles();
+    } catch (error: any) {
+      console.error("Failed to update role:", error);
+      const errorMessage = error?.response?.data?.error || "Failed to update role";
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteRole = async (role: Role) => {
+    if (!confirm(`Are you sure you want to delete the role "${role.display_name || role.name}"?`)) {
+      return;
+    }
+    try {
+      const response = await api.delete<{ success: boolean; error?: string }>(`/api/v1/permissions/roles/${role.id}`);
+      if (response?.success === false && response?.error) {
+        toast({ title: "Error", description: response.error, variant: "destructive" });
+      } else {
+        toast({ title: "Success", description: "Role deleted successfully" });
+        loadRoles();
+      }
+    } catch (error: any) {
+      console.error("Failed to delete role:", error);
+      const errorMessage = error?.response?.data?.error || "Failed to delete role";
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
     }
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -351,10 +552,14 @@ function RolesManagementTab() {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {roles.map((role) => (
-          <Card key={role.id}>
+          <Card
+            key={role.id}
+            className="cursor-pointer hover:shadow-md transition-shadow"
+            onDoubleClick={() => handleViewRoleUsers(role)}
+          >
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-base">{role.name}</CardTitle>
+                <CardTitle className="text-base">{role.display_name || role.name}</CardTitle>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon">
@@ -362,11 +567,14 @@ function RolesManagementTab() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleEditRole(role)}>
                       <Pencil className="h-4 w-4 mr-2" />
                       Edit
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="text-destructive">
+                    <DropdownMenuItem
+                      className="text-destructive"
+                      onClick={() => handleDeleteRole(role)}
+                    >
                       <Trash2 className="h-4 w-4 mr-2" />
                       Delete
                     </DropdownMenuItem>
@@ -378,14 +586,22 @@ function RolesManagementTab() {
               <p className="text-sm text-muted-foreground mb-2">
                 {role.description || "No description"}
               </p>
-              <Badge variant="secondary">
-                {role.users_count || 0} users
-              </Badge>
+              <div className="flex gap-2 flex-wrap">
+                <Badge variant="secondary">
+                  {role.users_count || 0} users
+                </Badge>
+                {(role.tasks_count ?? 0) > 0 && (
+                  <Badge variant="outline">
+                    {role.tasks_count} tasks
+                  </Badge>
+                )}
+              </div>
             </CardContent>
           </Card>
         ))}
       </div>
 
+      {/* Add Role Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent>
           <DialogHeader>
@@ -421,12 +637,110 @@ function RolesManagementTab() {
             <Button onClick={handleAddRole} disabled={saving || !newRoleName}>
               {saving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Creating...
                 </>
               ) : (
                 "Create Role"
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Role Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Role</DialogTitle>
+            <DialogDescription>
+              Update the display name and description for this role.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Role ID</Label>
+              <Input value={editingRole?.name || ""} disabled className="bg-muted" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editDisplayName">Display Name</Label>
+              <Input
+                id="editDisplayName"
+                value={editDisplayName}
+                onChange={(e) => setEditDisplayName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editDescription">Description</Label>
+              <Input
+                id="editDescription"
+                placeholder="Brief description of this role"
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={saving}>
+              {saving ? (
+                <>
+                  <Spinner size={16} className="mr-2" />
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Users in Role Dialog */}
+      <Dialog open={showUsersDialog} onOpenChange={setShowUsersDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              {selectedRoleForUsers?.display_name || selectedRoleForUsers?.name} Users
+            </DialogTitle>
+            <DialogDescription>
+              Users assigned to this role
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[400px] overflow-y-auto">
+            {loadingRoleUsers ? (
+              <div className="flex items-center justify-center py-8">
+                <Spinner size={24} className="text-muted-foreground" />
+              </div>
+            ) : roleUsers.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No users assigned to this role
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {roleUsers.map((user) => (
+                  <div
+                    key={user.id}
+                    className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50"
+                  >
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-medium text-primary">
+                      {user.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm truncate">{user.name}</div>
+                      <div className="text-xs text-muted-foreground truncate">{user.email}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowUsersDialog(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -488,7 +802,7 @@ function GroupsManagementTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -578,7 +892,7 @@ function GroupsManagementTab() {
             <Button onClick={handleAddGroup} disabled={saving || !newGroupName}>
               {saving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Creating...
                 </>
               ) : (
@@ -593,16 +907,17 @@ function GroupsManagementTab() {
 }
 
 // Main Security Tab Component
-export function SecurityTab() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const securityTab = searchParams.get("securityTab") || "users";
+interface SecurityTabProps {
+  innertab?: string;
+}
 
-  const handleTabChange = (value: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("securityTab", value);
-    router.push(`/admin/system?${params.toString()}`);
-  };
+export function SecurityTab({ innertab }: SecurityTabProps) {
+  const router = useRouter();
+  const securityTab = innertab || "users";
+
+  const handleTabChange = React.useCallback((tab: string) => {
+    router.push(`/admin/system/company/security/${tab}`, { scroll: false });
+  }, [router]);
 
   return (
     <div className="space-y-6">

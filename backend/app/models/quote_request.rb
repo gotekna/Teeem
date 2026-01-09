@@ -1,19 +1,20 @@
 class QuoteRequest < ApplicationRecord
   # Associations
   belongs_to :job
-  belongs_to :created_by, class_name: 'User'
-  belongs_to :selected_quote_response, class_name: 'QuoteResponse', optional: true
+  alias_method :construction, :job  # Backwards compatibility
+  belongs_to :created_by, class_name: "User"
+  belongs_to :selected_quote_response, class_name: "QuoteResponse", optional: true
   has_many :quote_responses, dependent: :destroy
   has_many :quote_request_contacts, dependent: :destroy
   has_many :contacts, through: :quote_request_contacts
 
   # Enums
   enum :status, {
-    draft: 'draft',
-    sent: 'sent',
-    quotes_received: 'quotes_received',
-    accepted: 'accepted',
-    cancelled: 'cancelled'
+    draft: "draft",
+    sent: "sent",
+    quotes_received: "quotes_received",
+    accepted: "accepted",
+    cancelled: "cancelled"
   }
 
   # Validations
@@ -30,7 +31,7 @@ class QuoteRequest < ApplicationRecord
 
   # Scopes
   scope :active, -> { where(status: %w[sent quotes_received]) }
-  scope :pending_response, -> { where(status: 'sent') }
+  scope :pending_response, -> { where(status: "sent") }
   scope :recent, -> { order(created_at: :desc) }
   scope :by_trade, ->(trade) { where(trade_category: trade) }
 
@@ -41,7 +42,7 @@ class QuoteRequest < ApplicationRecord
         quote_request_contacts.create!(
           contact_id: contact_id,
           notified_at: Time.current,
-          notification_method: 'email'
+          notification_method: "email"
         )
       end
       sent!
@@ -52,7 +53,7 @@ class QuoteRequest < ApplicationRecord
     transaction do
       update!(
         selected_quote_response: quote_response,
-        status: 'accepted'
+        status: "accepted"
       )
       quote_response.accepted!
 
@@ -79,7 +80,7 @@ class QuoteRequest < ApplicationRecord
   def budget_max_greater_than_min
     return if budget_min.nil? || budget_max.nil?
     if budget_max < budget_min
-      errors.add(:budget_max, 'must be greater than minimum budget')
+      errors.add(:budget_max, "must be greater than minimum budget")
     end
   end
 

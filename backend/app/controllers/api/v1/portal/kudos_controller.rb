@@ -10,7 +10,7 @@ module Api
           account = current_subcontractor_account
 
           unless account
-            render json: { success: false, error: 'No subcontractor account found' }, status: :not_found
+            render json: { success: false, error: "No subcontractor account found" }, status: :not_found
             return
           end
 
@@ -25,9 +25,9 @@ module Api
             recent_events: account.kudos_events.order(created_at: :desc).limit(10).map { |event| kudos_event_json(event) },
             statistics: {
               total_jobs_completed: account.jobs_completed_count,
-              on_time_arrivals: account.kudos_events.where(event_type: 'arrival').where('points_awarded > 0').count,
-              on_time_completions: account.kudos_events.where(event_type: 'completion').where('points_awarded > 0').count,
-              fast_quote_responses: account.kudos_events.where(event_type: 'quote_response').where('points_awarded >= 75').count,
+              on_time_arrivals: account.kudos_events.where(event_type: "arrival").where("points_awarded > 0").count,
+              on_time_completions: account.kudos_events.where(event_type: "completion").where("points_awarded > 0").count,
+              fast_quote_responses: account.kudos_events.where(event_type: "quote_response").where("points_awarded >= 75").count,
               average_response_time_hours: calculate_average_response_time
             }
           }
@@ -40,13 +40,13 @@ module Api
         def leaderboard
           # Get all subcontractor accounts ordered by kudos score
           accounts = SubcontractorAccount.where(active: true)
-                                        .where('kudos_score > 0')
+                                        .where("kudos_score > 0")
                                         .order(kudos_score: :desc)
                                         .limit(100)
 
           # Find current user's rank
           current_rank = SubcontractorAccount.where(active: true)
-                                            .where('kudos_score > ?', current_subcontractor_account.kudos_score)
+                                            .where("kudos_score > ?", current_subcontractor_account.kudos_score)
                                             .count + 1
 
           data = {
@@ -55,7 +55,7 @@ module Api
             my_score: current_subcontractor_account.kudos_score,
             total_subcontractors: SubcontractorAccount.where(active: true).count,
             top_10_threshold: accounts[9]&.kudos_score || 0,
-            month: Date.current.strftime('%B %Y')
+            month: Date.current.strftime("%B %Y")
           }
 
           render json: { success: true, data: data }
@@ -94,13 +94,13 @@ module Api
         # Get kudos score trends over time
         def trends
           days = (params[:days] || 30).to_i
-          days = [[days, 1].max, 365].min # Clamp between 1 and 365
+          days = [ [ days, 1 ].max, 365 ].min # Clamp between 1 and 365
 
           start_date = days.days.ago.beginning_of_day
 
           # Get events grouped by day
           events_by_day = current_subcontractor_account.kudos_events
-                                                       .where('created_at >= ?', start_date)
+                                                       .where("created_at >= ?", start_date)
                                                        .group_by { |e| e.created_at.to_date }
 
           # Calculate cumulative score over time
@@ -143,7 +143,7 @@ module Api
 
           render json: {
             success: true,
-            message: 'Kudos score recalculated',
+            message: "Kudos score recalculated",
             data: {
               old_score: old_score,
               new_score: new_score,
@@ -191,80 +191,80 @@ module Api
         def calculate_tier(score)
           case score
           when 0...100
-            'bronze'
+            "bronze"
           when 100...300
-            'silver'
+            "silver"
           when 300...600
-            'gold'
+            "gold"
           when 600...900
-            'platinum'
+            "platinum"
           else
-            'diamond'
+            "diamond"
           end
         end
 
         def calculate_tier_progress(score)
           tier_ranges = {
-            'bronze' => [0, 100],
-            'silver' => [100, 300],
-            'gold' => [300, 600],
-            'platinum' => [600, 900],
-            'diamond' => [900, 1000]
+            "bronze" => [ 0, 100 ],
+            "silver" => [ 100, 300 ],
+            "gold" => [ 300, 600 ],
+            "platinum" => [ 600, 900 ],
+            "diamond" => [ 900, 1000 ]
           }
 
           current_tier = calculate_tier(score)
           range = tier_ranges[current_tier]
           tier_min, tier_max = range
 
-          return 100 if current_tier == 'diamond' && score >= 1000
+          return 100 if current_tier == "diamond" && score >= 1000
 
           ((score - tier_min).to_f / (tier_max - tier_min) * 100).round(1)
         end
 
         def next_tier(score)
           case calculate_tier(score)
-          when 'bronze' then 'silver'
-          when 'silver' then 'gold'
-          when 'gold' then 'platinum'
-          when 'platinum' then 'diamond'
-          when 'diamond' then nil
+          when "bronze" then "silver"
+          when "silver" then "gold"
+          when "gold" then "platinum"
+          when "platinum" then "diamond"
+          when "diamond" then nil
           end
         end
 
         def points_to_next_tier(score)
           case calculate_tier(score)
-          when 'bronze' then 100 - score
-          when 'silver' then 300 - score
-          when 'gold' then 600 - score
-          when 'platinum' then 900 - score
-          when 'diamond' then 0
+          when "bronze" then 100 - score
+          when "silver" then 300 - score
+          when "gold" then 600 - score
+          when "platinum" then 900 - score
+          when "diamond" then 0
           end
         end
 
         def calculate_performance_rating(event)
-          return 'neutral' if event.points_awarded == 0
+          return "neutral" if event.points_awarded == 0
 
           case event.event_type
-          when 'quote_response'
-            event.points_awarded >= 75 ? 'excellent' : 'good'
-          when 'arrival', 'completion'
+          when "quote_response"
+            event.points_awarded >= 75 ? "excellent" : "good"
+          when "arrival", "completion"
             if event.points_awarded >= 100
-              'excellent'
+              "excellent"
             elsif event.points_awarded >= 50
-              'good'
+              "good"
             elsif event.points_awarded > 0
-              'fair'
+              "fair"
             else
-              'poor'
+              "poor"
             end
           else
-            'neutral'
+            "neutral"
           end
         end
 
         def calculate_average_response_time
           quote_events = current_subcontractor_account.kudos_events
-                                                      .where(event_type: 'quote_response')
+                                                      .where(event_type: "quote_response")
                                                       .where.not(expected_time: nil, actual_time: nil)
 
           return 0 if quote_events.empty?

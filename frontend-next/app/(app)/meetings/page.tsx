@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { usePathname, useRouter } from "next/navigation";
+import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -16,10 +17,11 @@ import {
   Video,
   Plus,
   ChevronRight,
-  Loader2,
 } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
-import { format, isToday, isTomorrow, addDays, startOfWeek } from "date-fns";
+import { format, isToday, isTomorrow } from "date-fns";
 
 interface Meeting {
   id: number;
@@ -58,7 +60,26 @@ function getMeetingDateLabel(dateStr: string): string {
 }
 
 export default function MeetingsPage() {
+  useSetLayoutMode("full-height");
+  const pathname = usePathname();
   const router = useRouter();
+
+  // Path-based tab: /meetings/upcoming, /meetings/past
+  const activeTab = React.useMemo(() => {
+    const parts = pathname.replace("/meetings", "").split("/").filter(Boolean);
+    return parts[0] || null;
+  }, [pathname]);
+
+  // Redirect to default tab if none specified
+  React.useEffect(() => {
+    if (activeTab === null) {
+      router.replace("/meetings/upcoming", { scroll: false });
+    }
+  }, [activeTab, router]);
+
+  const setActiveTab = React.useCallback((tab: string) => {
+    router.push(`/meetings/${tab}`, { scroll: false });
+  }, [router]);
   const [meetings, setMeetings] = React.useState<Meeting[]>([]);
   const [loading, setLoading] = React.useState(true);
 
@@ -92,7 +113,7 @@ export default function MeetingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -101,11 +122,14 @@ export default function MeetingsPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight font-serif">Meetings</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Schedule and manage site meetings
-          </p>
+        <div className="flex items-center gap-4">
+          <BackButton fallbackHref="/dashboard" />
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight font-serif">Meetings</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Schedule and manage site meetings
+            </p>
+          </div>
         </div>
         <Button asChild>
           <Link href="/meetings/new">
@@ -115,7 +139,7 @@ export default function MeetingsPage() {
         </Button>
       </div>
 
-      <Tabs defaultValue="upcoming">
+      <Tabs value={activeTab || "upcoming"} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
           <TabsTrigger value="past">Past</TabsTrigger>

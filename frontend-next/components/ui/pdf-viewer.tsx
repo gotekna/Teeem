@@ -3,8 +3,21 @@
 import * as React from "react";
 import dynamic from "next/dynamic";
 import { cn } from "@/lib/utils";
-import { Loader2, FileText, ExternalLink, RefreshCw } from "lucide-react";
+import { FileText, ExternalLink, RefreshCw } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 import { Button } from "./button";
+
+export interface FieldHighlight {
+  x: number;      // percentage 0-1
+  y: number;      // percentage 0-1
+  width: number;  // percentage 0-1
+  height: number; // percentage 0-1
+  page: number;
+  label?: string;
+  color?: string;
+  focused?: boolean;  // true = emphasized, false = dimmed
+  id?: string;        // field identifier for tracking
+}
 
 export interface PDFViewerProps {
   url: string;
@@ -13,13 +26,14 @@ export interface PDFViewerProps {
   showThumbnails?: boolean;
   onError?: (error: Error) => void;
   fallbackUrl?: string;
+  highlights?: FieldHighlight[];
 }
 
 // Loading component shown while PDF viewer loads
 function PDFViewerLoading({ className }: { className?: string }) {
   return (
     <div className={cn("flex flex-col items-center justify-center h-full", className)}>
-      <Loader2 className="h-8 w-8 animate-spin mb-2" />
+      <Spinner size={32} className="mb-2" />
       <p className="text-sm text-muted-foreground">Loading PDF viewer...</p>
     </div>
   );
@@ -78,6 +92,7 @@ export function PDFViewer(props: PDFViewerProps) {
   const handleError = React.useCallback((e: Error) => {
     setError(e.message || "Failed to load PDF");
     props.onError?.(e);
+     
   }, [props.onError]);
 
   const handleRetry = React.useCallback(() => {

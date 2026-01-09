@@ -10,7 +10,7 @@ class FinancialReportingService
     as_of_date = parse_date(as_of_date)
 
     {
-      report_type: 'balance_sheet',
+      report_type: "balance_sheet",
       as_of_date: as_of_date,
       company_id: @company&.id,
       assets: calculate_assets(as_of_date),
@@ -32,7 +32,7 @@ class FinancialReportingService
     net_profit = revenue[:total] - expenses[:total]
 
     result = {
-      report_type: 'profit_loss',
+      report_type: "profit_loss",
       from_date: from_date,
       to_date: to_date,
       company_id: @company&.id,
@@ -65,13 +65,13 @@ class FinancialReportingService
 
     # Group by job
     job_data = scope.group(:construction_id).select(
-      'construction_id',
+      "construction_id",
       "SUM(CASE WHEN transaction_type = 'income' THEN amount ELSE 0 END) as total_income",
       "SUM(CASE WHEN transaction_type = 'expense' THEN amount ELSE 0 END) as total_expenses"
     )
 
     jobs = job_data.map do |data|
-      construction = Construction.find(data.construction_id)
+      construction = Job.find(data.construction_id)
       income = data.total_income.to_f
       expenses = data.total_expenses.to_f
       profit = income - expenses
@@ -94,7 +94,7 @@ class FinancialReportingService
     overall_margin = total_income > 0 ? (total_profit / total_income * 100).round(2) : 0
 
     {
-      report_type: 'job_profitability',
+      report_type: "job_profitability",
       from_date: from_date,
       to_date: to_date,
       company_id: @company&.id,
@@ -158,8 +158,8 @@ class FinancialReportingService
   def calculate_assets(as_of_date)
     date_range = (Date.new(1970, 1, 1)..as_of_date)
 
-    current_assets = calculate_account_group([1000, 1100, 1200], date_range)
-    fixed_assets = calculate_account_group([1400, 1500], date_range)
+    current_assets = calculate_account_group([ 1000, 1100, 1200 ], date_range)
+    fixed_assets = calculate_account_group([ 1400, 1500 ], date_range)
 
     {
       current_assets: current_assets,
@@ -171,7 +171,7 @@ class FinancialReportingService
   def calculate_liabilities(as_of_date)
     date_range = (Date.new(1970, 1, 1)..as_of_date)
 
-    current_liabilities = calculate_account_group([2000, 2100, 2200], date_range)
+    current_liabilities = calculate_account_group([ 2000, 2100, 2200 ], date_range)
 
     {
       current_liabilities: current_liabilities,
@@ -182,7 +182,7 @@ class FinancialReportingService
   def calculate_equity(as_of_date)
     date_range = (Date.new(1970, 1, 1)..as_of_date)
 
-    equity_accounts = calculate_account_group([3000, 3100, 3200], date_range)
+    equity_accounts = calculate_account_group([ 3000, 3100, 3200 ], date_range)
 
     {
       equity_accounts: equity_accounts,
@@ -194,9 +194,9 @@ class FinancialReportingService
     date_range = (from_date..to_date)
 
     revenue_accounts = {
-      'Job Revenue' => Keepr::Account.find_by(number: 4000),
-      'Material Sales' => Keepr::Account.find_by(number: 4100),
-      'Other Income' => Keepr::Account.find_by(number: 4200)
+      "Job Revenue" => Keepr::Account.find_by(number: 4000),
+      "Material Sales" => Keepr::Account.find_by(number: 4100),
+      "Other Income" => Keepr::Account.find_by(number: 4200)
     }
 
     details = {}
@@ -220,14 +220,14 @@ class FinancialReportingService
     date_range = (from_date..to_date)
 
     expense_accounts = {
-      'Materials' => Keepr::Account.find_by(number: 5000),
-      'Labour' => Keepr::Account.find_by(number: 5100),
-      'Subcontractors' => Keepr::Account.find_by(number: 5200),
-      'Tools & Equipment' => Keepr::Account.find_by(number: 5300),
-      'Fuel & Transport' => Keepr::Account.find_by(number: 5400),
-      'Insurance' => Keepr::Account.find_by(number: 5500),
-      'Professional Fees' => Keepr::Account.find_by(number: 5600),
-      'Other Expenses' => Keepr::Account.find_by(number: 5700)
+      "Materials" => Keepr::Account.find_by(number: 5000),
+      "Labour" => Keepr::Account.find_by(number: 5100),
+      "Subcontractors" => Keepr::Account.find_by(number: 5200),
+      "Tools & Equipment" => Keepr::Account.find_by(number: 5300),
+      "Fuel & Transport" => Keepr::Account.find_by(number: 5400),
+      "Insurance" => Keepr::Account.find_by(number: 5500),
+      "Professional Fees" => Keepr::Account.find_by(number: 5600),
+      "Other Expenses" => Keepr::Account.find_by(number: 5700)
     }
 
     details = {}
@@ -268,11 +268,11 @@ class FinancialReportingService
 
   def group_profit_loss(from_date, to_date, group_by)
     case group_by.to_s
-    when 'month'
+    when "month"
       group_by_month(from_date, to_date)
-    when 'quarter'
+    when "quarter"
       group_by_quarter(from_date, to_date)
-    when 'year'
+    when "year"
       group_by_year(from_date, to_date)
     else
       []
@@ -284,12 +284,12 @@ class FinancialReportingService
     current_date = from_date.beginning_of_month
 
     while current_date <= to_date
-      month_end = [current_date.end_of_month, to_date].min
+      month_end = [ current_date.end_of_month, to_date ].min
       revenue = calculate_revenue(current_date, month_end)
       expenses = calculate_expenses(current_date, month_end)
 
       results << {
-        period: current_date.strftime('%B %Y'),
+        period: current_date.strftime("%B %Y"),
         from_date: current_date,
         to_date: month_end,
         revenue: revenue[:total],
@@ -308,7 +308,7 @@ class FinancialReportingService
     current_date = from_date.beginning_of_quarter
 
     while current_date <= to_date
-      quarter_end = [current_date.end_of_quarter, to_date].min
+      quarter_end = [ current_date.end_of_quarter, to_date ].min
       revenue = calculate_revenue(current_date, quarter_end)
       expenses = calculate_expenses(current_date, quarter_end)
 
@@ -332,7 +332,7 @@ class FinancialReportingService
     current_date = from_date.beginning_of_year
 
     while current_date <= to_date
-      year_end = [current_date.end_of_year, to_date].min
+      year_end = [ current_date.end_of_year, to_date ].min
       revenue = calculate_revenue(current_date, year_end)
       expenses = calculate_expenses(current_date, year_end)
 

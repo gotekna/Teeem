@@ -88,7 +88,7 @@ class DirectorOnboardingEmailService
   end
 
   def build_onboarding_url(access_token)
-    frontend_host = ENV['FRONTEND_URL'] || (Rails.env.production? ? 'https://teeem.vercel.app' : 'https://teeemrob.vercel.app')
+    frontend_host = ENV["FRONTEND_URL"] || (Rails.env.production? ? "https://teeem.vercel.app" : "https://teeemrob.vercel.app")
     "#{frontend_host}/director-onboarding/#{access_token}"
   end
 

@@ -1,5 +1,5 @@
 class Api::V1::MeetingsController < ApplicationController
-  before_action :set_meeting, only: [:show, :update, :destroy, :start, :complete, :cancel]
+  before_action :set_meeting, only: [ :show, :update, :destroy, :start, :complete, :cancel ]
 
   # GET /api/v1/meetings
   def index
@@ -48,7 +48,7 @@ class Api::V1::MeetingsController < ApplicationController
     else
       render json: {
         success: false,
-        error: meeting.errors.full_messages.join(', ')
+        error: meeting.errors.full_messages.join(", ")
       }, status: :unprocessable_entity
     end
   end
@@ -69,7 +69,7 @@ class Api::V1::MeetingsController < ApplicationController
     else
       render json: {
         success: false,
-        error: @meeting.errors.full_messages.join(', ')
+        error: @meeting.errors.full_messages.join(", ")
       }, status: :unprocessable_entity
     end
   end
@@ -79,12 +79,12 @@ class Api::V1::MeetingsController < ApplicationController
     if @meeting.destroy
       render json: {
         success: true,
-        data: { message: 'Meeting deleted successfully' }
+        data: { message: "Meeting deleted successfully" }
       }
     else
       render json: {
         success: false,
-        error: 'Failed to delete meeting'
+        error: "Failed to delete meeting"
       }, status: :unprocessable_entity
     end
   end
@@ -99,7 +99,7 @@ class Api::V1::MeetingsController < ApplicationController
     else
       render json: {
         success: false,
-        error: 'Cannot start meeting'
+        error: "Cannot start meeting"
       }, status: :unprocessable_entity
     end
   end
@@ -114,7 +114,7 @@ class Api::V1::MeetingsController < ApplicationController
     else
       render json: {
         success: false,
-        error: 'Cannot complete meeting'
+        error: "Cannot complete meeting"
       }, status: :unprocessable_entity
     end
   end
@@ -129,7 +129,7 @@ class Api::V1::MeetingsController < ApplicationController
     else
       render json: {
         success: false,
-        error: 'Cannot cancel meeting'
+        error: "Cannot cancel meeting"
       }, status: :unprocessable_entity
     end
   end
@@ -149,18 +149,18 @@ class Api::V1::MeetingsController < ApplicationController
 
   def serialization_includes
     {
-      construction: { only: [:id, :name] },
-      created_by: { only: [:id, :name, :email] },
+      construction: {},
+      created_by: {},
       meeting_participants: {
         include: {
-          user: { only: [:id, :name, :email] },
-          contact: { only: [:id, :name, :email] }
+          user: {},
+          contact: {}
         }
       },
       meeting_agenda_items: {
         include: {
-          presenter: { only: [:id, :name] },
-          created_task: { only: [:id, :title, :status] }
+          presenter: {},
+          created_task: {}
         }
       }
     }

@@ -19,6 +19,6 @@ class CreateSmResourceAllocations < ActiveRecord::Migration[8.0]
     # Indexes
     add_index :sm_resource_allocations, :status
     add_index :sm_resource_allocations, :allocation_date
-    add_index :sm_resource_allocations, [:task_id, :resource_id, :allocation_date], unique: true, name: 'idx_sm_allocations_unique'
+    add_index :sm_resource_allocations, [ :task_id, :resource_id, :allocation_date ], unique: true, name: 'idx_sm_allocations_unique'
   end
 end

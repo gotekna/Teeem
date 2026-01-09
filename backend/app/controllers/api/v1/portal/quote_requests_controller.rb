@@ -19,9 +19,9 @@ module Api
           # Separate into categories for frontend
           data = {
             pending: quote_requests_with_responses(quote_requests.pending_response),
-            submitted: quote_requests_with_my_response(quote_requests, 'submitted'),
-            accepted: quote_requests_with_my_response(quote_requests, 'accepted'),
-            rejected: quote_requests_with_my_response(quote_requests, 'rejected')
+            submitted: quote_requests_with_my_response(quote_requests, "submitted"),
+            accepted: quote_requests_with_my_response(quote_requests, "accepted"),
+            rejected: quote_requests_with_my_response(quote_requests, "rejected")
           }
 
           render json: { success: true, data: data }
@@ -57,13 +57,13 @@ module Api
               contact: current_contact,
               responded_by_portal_user: current_portal_user,
               price: 0,
-              status: 'rejected'
+              status: "rejected"
             )
           end
 
           render json: {
             success: true,
-            message: 'Quote request rejected'
+            message: "Quote request rejected"
           }
         end
 

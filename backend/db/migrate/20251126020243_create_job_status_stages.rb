@@ -10,7 +10,7 @@ class CreateJobStatusStages < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :job_status_stages, [:job_type_id, :job_status_id, :job_stage_id],
+    add_index :job_status_stages, [ :job_type_id, :job_status_id, :job_stage_id ],
       unique: true, name: 'index_job_status_stages_on_type_status_stage'
     add_index :job_status_stages, :position
   end

@@ -2,7 +2,7 @@ module Api
   module V1
     class DividendsController < ApplicationController
       before_action :set_company
-      before_action :set_dividend, only: [:show, :update, :destroy, :payments, :calculate_payments]
+      before_action :set_dividend, only: [ :show, :update, :destroy, :payments, :calculate_payments ]
 
       # GET /api/v1/companies/:company_id/dividends
       def index
@@ -17,7 +17,7 @@ module Api
 
         # Filter by year
         if params[:year].present?
-          @dividends = @dividends.where('EXTRACT(YEAR FROM declaration_date) = ?', params[:year])
+          @dividends = @dividends.where("EXTRACT(YEAR FROM declaration_date) = ?", params[:year])
         end
 
         render json: {
@@ -72,7 +72,7 @@ module Api
         if @dividend.dividend_payments.any?
           return render json: {
             success: false,
-            errors: ['Cannot delete dividend with existing payments']
+            errors: [ "Cannot delete dividend with existing payments" ]
           }, status: :unprocessable_entity
         end
 
@@ -97,14 +97,14 @@ module Api
 
         # Get shareholdings at record date (for now, use current shareholdings)
         # TODO: Could track historical shareholdings for accurate calculation
-        shareholdings = @company.company_shareholdings.includes(:shareholder)
+        shareholdings = @company.corporate_company_shareholdings.includes(:shareholder)
 
         total_shares = shareholdings.sum(:number_of_shares)
 
         if total_shares.zero?
           return render json: {
             success: false,
-            errors: ['No shareholdings found for dividend calculation']
+            errors: [ "No shareholdings found for dividend calculation" ]
           }, status: :unprocessable_entity
         end
 
@@ -146,17 +146,17 @@ module Api
         if @dividend.dividend_payments.any?
           return render json: {
             success: false,
-            errors: ['Payments already exist for this dividend']
+            errors: [ "Payments already exist for this dividend" ]
           }, status: :unprocessable_entity
         end
 
-        shareholdings = @company.company_shareholdings.includes(:shareholder)
+        shareholdings = @company.corporate_company_shareholdings.includes(:shareholder)
         total_shares = shareholdings.sum(:number_of_shares)
 
         if total_shares.zero?
           return render json: {
             success: false,
-            errors: ['No shareholdings found']
+            errors: [ "No shareholdings found" ]
           }, status: :unprocessable_entity
         end
 
@@ -184,7 +184,7 @@ module Api
       rescue ActiveRecord::RecordInvalid => e
         render json: {
           success: false,
-          errors: [e.message]
+          errors: [ e.message ]
         }, status: :unprocessable_entity
       end
 
@@ -192,7 +192,7 @@ module Api
       def mark_paid
         @dividend = @company.dividends.find(params[:id])
         payment_date = params[:payment_date] || Date.current
-        payment_method = params[:payment_method] || 'bank_transfer'
+        payment_method = params[:payment_method] || "bank_transfer"
 
         ActiveRecord::Base.transaction do
           @dividend.dividend_payments.update_all(
@@ -200,7 +200,7 @@ module Api
             payment_method: payment_method
           )
           @dividend.update!(
-            status: 'paid',
+            status: "paid",
             payment_date: payment_date
           )
         end
@@ -214,7 +214,7 @@ module Api
       private
 
       def set_company
-        @company = Company.find(params[:company_id])
+        @company = CorporateCompany.find(params[:company_id])
       end
 
       def set_dividend
@@ -275,9 +275,9 @@ module Api
       def dividend_summary
         {
           total_declared: @company.dividends.sum(:total_amount),
-          total_paid: @company.dividends.where(status: 'paid').sum(:total_amount),
-          pending_payment: @company.dividends.where(status: 'declared').sum(:total_amount),
-          dividends_this_year: @company.dividends.where('EXTRACT(YEAR FROM declaration_date) = ?', Date.current.year).count
+          total_paid: @company.dividends.where(status: "paid").sum(:total_amount),
+          pending_payment: @company.dividends.where(status: "declared").sum(:total_amount),
+          dividends_this_year: @company.dividends.where("EXTRACT(YEAR FROM declaration_date) = ?", Date.current.year).count
         }
       end
     end

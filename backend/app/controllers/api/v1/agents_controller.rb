@@ -35,12 +35,12 @@ module Api
           }
         }
       end
-      
+
       # GET /api/v1/agents/shortcuts
       # Returns formatted shortcuts for AgentShortcutsTab
       def shortcuts
         agents = AgentDefinition.where(active: true).order(priority: :desc)
-        
+
         shortcuts = agents.map.with_index do |agent, index|
           {
             id: index + 1,
@@ -48,31 +48,31 @@ module Api
             shortcut: agent.example_invocations
           }
         end
-        
+
         render json: shortcuts
       end
-      
+
       private
-      
+
       def parse_shortcuts(invocations)
         return [] unless invocations
-        invocations.split('|').map(&:strip)
+        invocations.split("|").map(&:strip)
       end
-      
+
       def get_agent_icon(agent_id)
         icons = {
-          'backend-developer' => '🔧',
-          'frontend-developer' => '🎨',
-          'production-bug-hunter' => '🐛',
-          'gantt-bug-hunter' => '📊',
-          'deploy-manager' => '🚀',
-          'planning-collaborator' => '📋',
-          'trinity-sync-validator' => '✅',
-          'ui-compliance-auditor' => '🎨'
+          "backend-developer" => "🔧",
+          "frontend-developer" => "🎨",
+          "production-bug-hunter" => "🐛",
+          "gantt-bug-hunter" => "📊",
+          "deploy-manager" => "🚀",
+          "planning-collaborator" => "📋",
+          "trinity-sync-validator" => "✅",
+          "ui-compliance-auditor" => "🎨"
         }
-        icons[agent_id] || '🤖'
+        icons[agent_id] || "🤖"
       end
-      
+
       def calculate_success_rate(agent)
         return 0 if agent.total_runs.zero?
         ((agent.successful_runs.to_f / agent.total_runs) * 100).round(1)

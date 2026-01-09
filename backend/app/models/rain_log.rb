@@ -1,18 +1,18 @@
 class RainLog < ApplicationRecord
   # Associations
-  belongs_to :construction
-  belongs_to :created_by_user, class_name: 'User', optional: true
+  belongs_to :job
+  belongs_to :created_by_user, class_name: "User", optional: true
 
   # Enums
   enum :severity, {
-    light: 'light',
-    moderate: 'moderate',
-    heavy: 'heavy'
+    light: "light",
+    moderate: "moderate",
+    heavy: "heavy"
   }, prefix: true
 
   enum :source, {
-    automatic: 'automatic',
-    manual: 'manual'
+    automatic: "automatic",
+    manual: "manual"
   }, prefix: true
 
   # Validations
@@ -25,8 +25,8 @@ class RainLog < ApplicationRecord
 
   # Scopes
   scope :recent, -> { order(date: :desc) }
-  scope :automatic, -> { where(source: 'automatic') }
-  scope :manual, -> { where(source: 'manual') }
+  scope :automatic, -> { where(source: "automatic") }
+  scope :manual, -> { where(source: "manual") }
   scope :by_date_range, ->(start_date, end_date) { where(date: start_date..end_date) }
 
   # Class methods
@@ -34,11 +34,11 @@ class RainLog < ApplicationRecord
     return nil if rainfall_mm.nil? || rainfall_mm.zero?
 
     if rainfall_mm < 5
-      'light'
+      "light"
     elsif rainfall_mm < 15
-      'moderate'
+      "moderate"
     else
-      'heavy'
+      "heavy"
     end
   end
 

@@ -24,6 +24,6 @@ class CreateScheduleTemplateRows < ActiveRecord::Migration[8.0]
     end
 
     add_index :schedule_template_rows, :sequence_order
-    add_index :schedule_template_rows, [:schedule_template_id, :sequence_order]
+    add_index :schedule_template_rows, [ :schedule_template_id, :sequence_order ]
   end
 end

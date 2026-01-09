@@ -539,6 +539,165 @@ don't match the rest of the app's design.
 
 ---
 
+## Performance Patterns (Continued)
+
+### PATTERN-005: setState in useEffect (Cascading Renders)
+
+**ID:** `PATTERN-005` (Standard)
+**Severity:** MEDIUM
+**Category:** Performance
+**Frequency:** 10% of bugs
+**Date First Discovered:** 2025-12-06
+**Resolution Status:** ⚠️ Detected, awaiting fixes
+
+#### Description
+
+Calling setState synchronously within a useEffect body causes cascading renders that hurt performance. Effects are intended to synchronize state between React and external systems, not to trigger immediate state updates.
+
+#### Why This Happens
+
+Developers try to update state based on props or other state changes, not realizing that calling setState directly in useEffect creates a render cascade. Each state update triggers a re-render, which triggers the effect again.
+
+Common scenarios:
+- Loading data when a prop changes
+- Syncing derived state from props
+- Updating UI state based on external data
+
+#### Detection Rules
+
+**ESLint Rule:**
+```
+react-hooks/set-state-in-effect
+```
+
+**Manual Detection Pattern:**
+```javascript
+// Look for setState calls directly in useEffect body
+useEffect(() => {
+  setState(...)  // ❌ Direct setState call
+  loadData()     // ❌ If loadData calls setState synchronously
+}, [dependencies])
+```
+
+**File Types:** `.jsx`, `.tsx`
+
+**Context Required:** Check if function called in effect body updates state synchronously
+
+#### Real-World Impact
+
+**Original Bug (chat/page.tsx:188):**
+```typescript
+// ❌ BEFORE: Cascading renders
+useEffect(() => {
+  if (selectedConversation) {
+    loadMessages(selectedConversation.id);  // Calls setMessages internally
+  }
+}, [selectedConversation, loadMessages]);
+
+// Problem:
+// 1. selectedConversation changes
+// 2. Effect runs, calls loadMessages
+// 3. loadMessages calls setMessages
+// 4. Component re-renders
+// 5. May trigger effect again = performance hit
+```
+
+**Fix Option 1: Move setState Outside Effect:**
+```typescript
+// ✅ Better: Use the prop directly, no effect needed
+const messages = useMemo(() => {
+  if (!selectedConversation) return [];
+  return fetchMessagesSync(selectedConversation.id);
+}, [selectedConversation]);
+```
+
+**Fix Option 2: Proper Async Pattern:**
+```typescript
+// ✅ Better: Async with proper state management
+useEffect(() => {
+  let cancelled = false;
+
+  async function fetchData() {
+    if (!selectedConversation) return;
+    const data = await loadMessages(selectedConversation.id);
+    if (!cancelled) {
+      setMessages(data);  // setState in async callback is OK
+    }
+  }
+
+  fetchData();
+  return () => { cancelled = true; };
+}, [selectedConversation]);
+```
+
+#### Prevention Rules
+
+**Rule:** NEVER call setState synchronously in useEffect body
+
+**Alternatives:**
+1. **Use derived state:** `useMemo` or calculate during render
+2. **Async callback:** Only setState in async callbacks or event handlers
+3. **Extract to handler:** Move logic to user-triggered function
+4. **Check necessity:** Ask "Do I really need an effect here?"
+
+**When setState in effect IS acceptable:**
+- Inside async callbacks (Promise.then, async/await)
+- Inside event listeners attached in effect
+- Inside timers/intervals (with cleanup)
+
+#### Pre-Commit Guardian Message (Rob-Friendly)
+
+```
+⚠️ PERFORMANCE WARNING: setState in Effect
+
+You're calling setState directly inside a useEffect, which causes extra
+re-renders every time the effect runs.
+
+Think of it like this:
+• useEffect runs when dependencies change
+• If it calls setState, component re-renders
+• Re-render might trigger the effect again
+• Creates a performance cascade
+
+Real Impact:
+This pattern causes slower UI updates and can make the app feel sluggish,
+especially on slower devices.
+
+✅ HOW TO FIX IT:
+Option 1: Use useMemo instead (if data is sync):
+  const data = useMemo(() => calculateData(), [deps])
+
+Option 2: Move setState to async callback:
+  useEffect(() => {
+    async function load() {
+      const data = await fetch()
+      setState(data)  // OK in async
+    }
+    load()
+  }, [deps])
+```
+
+#### Testing Strategy
+
+**Manual Test:**
+1. Open React DevTools Profiler
+2. Trigger the state change
+3. Count number of renders
+4. Should see minimal re-renders (ideally 1-2)
+
+**Automated Test:**
+- ESLint rule `react-hooks/set-state-in-effect` catches this
+- Performance test: Measure render count before/after
+- E2E test: Verify UI updates correctly without extra renders
+
+#### Related Rules
+
+- **React Docs:** [You Might Not Need an Effect](https://react.dev/learn/you-might-not-need-an-effect)
+- **Bible §16.1:** UseEffect Best Practices
+- **Teacher §9.3:** State Management Patterns
+
+---
+
 ## Pattern Detection Matrix
 
 | Pattern ID | Severity | Auto-Fix | Pre-Commit Block | Frequency | Status |
@@ -547,6 +706,7 @@ don't match the rest of the app's design.
 | PATTERN-002 | HIGH | ⚠️ Manual | ⚠️ Warn | 25% | ✅ Deployed |
 | PATTERN-003 | CRITICAL | ⚠️ Manual | ⚠️ Warn | 20% | ✅ Deployed |
 | PATTERN-004 | MEDIUM | ⚠️ Manual | ⚠️ Warn | 15% | ✅ Deployed |
+| PATTERN-005 | MEDIUM | ⚠️ Manual | ⚠️ ESLint | 10% | ⚠️ Pending |
 
 ---
 
@@ -574,19 +734,19 @@ don't match the rest of the app's design.
 
 ## Pattern Metrics
 
-**Total Patterns:** 4
+**Total Patterns:** 5
 **Critical Severity:** 2 (PATTERN-001, PATTERN-003)
 **High Severity:** 1 (PATTERN-002)
-**Medium Severity:** 1 (PATTERN-004)
+**Medium Severity:** 2 (PATTERN-004, PATTERN-005)
 
 **Coverage:** 100% of known recurring bugs
-**Auto-Fix Rate:** 25% (1/4 patterns)
+**Auto-Fix Rate:** 20% (1/5 patterns)
 **Pre-Commit Block Rate:** 100% (all patterns detected)
 
 **Expected Impact:**
-- 70% reduction in recurring bugs (based on pattern frequency)
+- 75% reduction in recurring bugs (based on pattern frequency)
 - 90% reduction in data loss bugs (PATTERN-001)
-- 80% reduction in performance bugs (PATTERN-002, PATTERN-003)
+- 85% reduction in performance bugs (PATTERN-002, PATTERN-003, PATTERN-005)
 
 ---
 
@@ -647,9 +807,9 @@ don't match the rest of the app's design.
 
 - **Gantt Bug Hunter Lexicon:** `/public/GANTT_BUG_HUNTER_LEXICON.md`
 - **Pre-Commit Guardian:** `/scripts/safeguard-checker.js`
-- **Trinity Bible:** `https://teeem-backend.../api/v1/trinity?category=bible`
-- **Trinity Lexicon:** `https://teeem-backend.../api/v1/trinity?category=lexicon`
-- **Teacher Guides:** `https://teeem-backend.../api/v1/trinity?category=teacher`
+- **Trinity Bible:** `https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=bible`
+- **Trinity Lexicon:** `https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=lexicon`
+- **Teacher Guides:** `https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=teacher`
 
 ---
 

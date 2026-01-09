@@ -7,8 +7,8 @@ namespace :teeem do
     puts "Current database_table_name: #{table.database_table_name}"
 
     # Fix database_table_name if needed
-    if table.database_table_name != 'contacts'
-      table.update!(database_table_name: 'contacts')
+    if table.database_table_name != "contacts"
+      table.update!(database_table_name: "contacts")
       puts "Updated database_table_name to: contacts"
     end
 
@@ -23,72 +23,72 @@ namespace :teeem do
     # Format: [column_name, display_name, column_type, position, options]
     columns_config = [
       # Action buttons - first column for quick actions
-      ['actions', 'Actions', 'action_buttons', 0, {}],
+      [ "actions", "Actions", "action_buttons", 0, {} ],
 
       # Primary identifier
-      ['full_name', 'Full Name', 'single_line_text', 1, { is_title: true, searchable: true }],
-      ['first_name', 'First Name', 'single_line_text', 2, { searchable: true }],
-      ['last_name', 'Last Name', 'single_line_text', 3, { searchable: true }],
+      [ "full_name", "Full Name", "single_line_text", 1, { is_title: true, searchable: true } ],
+      [ "first_name", "First Name", "single_line_text", 2, { searchable: true } ],
+      [ "last_name", "Last Name", "single_line_text", 3, { searchable: true } ],
 
       # Contact info - demonstrates email, phone, mobile, url types
-      ['email', 'Email', 'email', 4, { searchable: true }],
-      ['office_phone', 'Office Phone', 'phone', 5, {}],
-      ['mobile_phone', 'Mobile', 'mobile', 6, {}],
-      ['website', 'Website', 'url', 7, {}],
+      [ "email", "Email", "email", 4, { searchable: true } ],
+      [ "office_phone", "Office Phone", "phone", 5, {} ],
+      [ "mobile_phone", "Mobile", "mobile", 6, {} ],
+      [ "website", "Website", "url", 7, {} ],
 
       # Address - multiple lines text
-      ['address', 'Address', 'multiple_lines_text', 8, {}],
+      [ "address", "Address", "multiple_lines_text", 8, {} ],
 
       # Booleans
-      ['is_active', 'Active', 'boolean', 9, {}],
-      ['sync_with_xero', 'Sync with Xero', 'boolean', 10, {}],
-      ['portal_enabled', 'Portal Enabled', 'boolean', 11, {}],
-      ['deleted', 'Deleted', 'boolean', 12, {}],
+      [ "is_active", "Active", "boolean", 9, {} ],
+      [ "sync_with_xero", "Sync with Xero", "boolean", 10, {} ],
+      [ "portal_enabled", "Portal Enabled", "boolean", 11, {} ],
+      [ "deleted", "Deleted", "boolean", 12, {} ],
 
       # Numbers and currency
-      ['default_discount', 'Default Discount', 'percentage', 13, {}],
-      ['accounts_receivable_outstanding', 'AR Outstanding', 'currency', 14, {}],
-      ['accounts_receivable_overdue', 'AR Overdue', 'currency', 15, {}],
-      ['accounts_payable_outstanding', 'AP Outstanding', 'currency', 16, {}],
-      ['accounts_payable_overdue', 'AP Overdue', 'currency', 17, {}],
-      ['rating', 'Rating', 'whole_number', 18, {}],
-      ['total_ratings_count', 'Total Ratings', 'whole_number', 19, {}],
-      ['teeem_rating', 'TEEEM Rating', 'number', 20, {}],
-      ['response_rate', 'Response Rate', 'percentage', 21, {}],
-      ['avg_response_time', 'Avg Response Time (hrs)', 'whole_number', 22, {}],
+      [ "default_discount", "Default Discount", "percentage", 13, {} ],
+      [ "accounts_receivable_outstanding", "AR Outstanding", "currency", 14, {} ],
+      [ "accounts_receivable_overdue", "AR Overdue", "currency", 15, {} ],
+      [ "accounts_payable_outstanding", "AP Outstanding", "currency", 16, {} ],
+      [ "accounts_payable_overdue", "AP Overdue", "currency", 17, {} ],
+      [ "rating", "Rating", "whole_number", 18, {} ],
+      [ "total_ratings_count", "Total Ratings", "whole_number", 19, {} ],
+      [ "teeem_rating", "TEEEM Rating", "number", 20, {} ],
+      [ "response_rate", "Response Rate", "percentage", 21, {} ],
+      [ "avg_response_time", "Avg Response Time (hrs)", "whole_number", 22, {} ],
 
       # Choice/dropdown
-      ['primary_contact_type', 'Contact Type', 'choice', 23, {}],
+      [ "primary_contact_type", "Contact Type", "choice", 23, {} ],
 
       # Note: Lookup columns (contact_region_id, parent_id) require lookup_table_id
       # They can be added later via the schema editor once target tables are identified
       # For now, show the display fields as text
-      ['contact_region', 'Region', 'single_line_text', 24, {}],
-      ['parent', 'Parent Contact', 'single_line_text', 25, {}],
+      [ "contact_region", "Region", "single_line_text", 24, {} ],
+      [ "parent", "Parent Contact", "single_line_text", 25, {} ],
 
       # Date fields
-      ['date_of_birth', 'Date of Birth', 'date', 26, {}],
+      [ "date_of_birth", "Date of Birth", "date", 26, {} ],
 
       # DateTime fields
-      ['created_at', 'Created', 'date_and_time', 27, {}],
-      ['updated_at', 'Updated', 'date_and_time', 28, {}],
-      ['last_synced_at', 'Last Synced', 'date_and_time', 29, {}],
+      [ "created_at", "Created", "date_and_time", 27, {} ],
+      [ "updated_at", "Updated", "date_and_time", 28, {} ],
+      [ "last_synced_at", "Last Synced", "date_and_time", 29, {} ],
       # Note: portal_welcome_sent_at column was removed as unused
 
       # Notes - multi-line text
-      ['notes', 'Notes', 'multiple_lines_text', 31, { searchable: true }],
+      [ "notes", "Notes", "multiple_lines_text", 31, { searchable: true } ],
 
       # Additional text fields
-      ['supplier_code', 'Supplier Code', 'single_line_text', 32, { is_unique: true }],
-      ['tax_number', 'Tax Number (ABN)', 'single_line_text', 33, {}],
-      ['xero_id', 'Xero ID', 'single_line_text', 34, {}],
-      ['xero_contact_number', 'Xero Contact #', 'single_line_text', 35, {}],
-      ['xero_contact_status', 'Xero Status', 'choice', 36, {}],
+      [ "supplier_code", "Supplier Code", "single_line_text", 32, { is_unique: true } ],
+      [ "tax_number", "Tax Number (ABN)", "abn", 33, {} ],
+      [ "xero_id", "Xero ID", "single_line_text", 34, {} ],
+      [ "xero_contact_number", "Xero Contact #", "single_line_text", 35, {} ],
+      [ "xero_contact_status", "Xero Status", "choice", 36, {} ],
 
       # Banking
-      ['bank_bsb', 'Bank BSB', 'single_line_text', 37, {}],
-      ['bank_account_number', 'Bank Account #', 'single_line_text', 38, {}],
-      ['bank_account_name', 'Bank Account Name', 'single_line_text', 39, {}],
+      [ "bank_bsb", "Bank BSB", "bsb", 37, {} ],
+      [ "bank_account_number", "Bank Account #", "bank_account", 38, {} ],
+      [ "bank_account_name", "Bank Account Name", "single_line_text", 39, {} ]
     ]
 
     created_count = 0

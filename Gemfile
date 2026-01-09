@@ -1,5 +1,10 @@
 source "https://rubygems.org"
 
+ruby "3.3.10"
+
+# Load environment variables from .env file
+gem "dotenv-rails", groups: [ :development, :test ]
+
 # Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
 gem "rails", "~> 8.0.4"
 # Use postgresql as the database for Active Record
@@ -15,13 +20,8 @@ gem "bcrypt", "~> 3.1.7"
 # JWT for token-based authentication
 gem "jwt", "~> 2.7"
 
-# OAuth authentication
-gem "omniauth", "~> 2.1"
-gem "omniauth-microsoft-office365", "~> 0.0.8"
-gem "omniauth-rails_csrf_protection", "~> 1.0"  # Security fix for Rails
-
 # Windows does not include zoneinfo files, so bundle the tzinfo-data gem
-gem "tzinfo-data", platforms: %i[ windows jruby ]
+gem "tzinfo-data", platforms: [ :windows, :jruby ]
 
 # Use the database-backed adapters for Rails.cache, Active Job, and Action Cable
 gem "solid_cache"
@@ -40,6 +40,9 @@ gem "thruster", require: false
 # Use Active Storage variants [https://guides.rubyonrails.org/active_storage_overview.html#transforming-images]
 # gem "image_processing", "~> 1.2"
 
+# ActiveStorage file upload validation (size, content type)
+gem "active_storage_validations", "~> 2.0"
+
 # Use Rack CORS for handling Cross-Origin Resource Sharing (CORS), making cross-origin Ajax possible
 gem "rack-cors"
 
@@ -48,32 +51,59 @@ gem "rack-attack", "~> 6.7"
 
 # File processing for spreadsheet import/export
 gem "roo", "~> 2.10.0"  # Excel/CSV parsing
+gem "creek", "~> 2.6"   # xlsx streaming parser (required by roo for xlsx support)
 gem "caxlsx", "~> 4.1.0"  # Excel generation
 gem "caxlsx_rails", "~> 0.6.3"  # Rails integration for Excel export
+gem "pdf-reader", "~> 2.12"  # PDF text extraction for email attachments
+gem "business_time", "~> 0.13"  # Business days calculation for bill approval workflows
+gem "hexapdf", "~> 0.42"  # PDF manipulation for splitting documents
+gem "sablon", "~> 0.4"  # DOCX mail merge for document templates
+gem "docx", "~> 0.8"  # DOCX reading for Universal Document Reader
+gem "grover", "~> 1.1"  # HTML → PDF via Puppeteer (Tekna document templates)
 
 # Image management and scraping
 gem "cloudinary", "~> 2.1"  # Cloud image storage and CDN
+
+# S3-compatible cloud storage (AWS S3, Backblaze B2, MinIO, Wasabi)
+gem "aws-sdk-s3", "~> 1.170"  # S3 client for document providers
 gem "httparty", "~> 0.22"  # HTTP requests for image scraping
 gem "http", "~> 5.1"  # HTTP client for OAuth token refresh
 gem "mini_magick", "~> 4.12"  # Image processing
+gem "rtesseract", "~> 3.1"  # OCR with Tesseract for precise field location extraction
+
+# Web scraping and automation
+gem "selenium-webdriver", "~> 4.10"  # Browser automation for ASIC Connect scraping
 
 # OAuth2 for Xero integration
 gem "oauth2", "~> 2.0"  # OAuth2 authentication for Xero API
 gem "fuzzy_match", "~> 2.1"  # Fuzzy string matching for contact sync
-gem "rexml"  # XML parsing for ABN lookup service
+gem "rexml"  # XML parsing (required for ABN lookup service, removed from Ruby 3.0+ stdlib)
 
 # SMS integration
 gem "twilio-ruby", "~> 7.3"  # Twilio SDK for SMS messaging
 
+# Payment processing
+gem "stripe", "~> 13.0"  # Stripe SDK for payment portal
+
 # AI integration for plan analysis
-gem "anthropic", "~> 0.1.0"  # Claude API for AI-powered plan review
+gem "anthropic", "~> 0.3.0"  # Claude API for AI-powered plan review
+
+# Error tracking and monitoring
+gem "sentry-ruby", "~> 5.22"
+gem "sentry-rails", "~> 5.22"
+
+# Structured logging
+gem "lograge", "~> 0.14"
+
+# Double-entry bookkeeping for financial tracking
+# gem "keepr", "~> 0.9.0"  # REMOVED: Keepr integration never implemented
 
 group :development, :test do
-  # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
-  gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"
+  # Spring speeds up development by keeping your application running in the background
+  gem "spring"
 
-  # Load environment variables from .env file
-  gem "dotenv-rails"
+  # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
+  gem "debug", platforms: [ :mri, :windows ], require: "debug/prelude"
 
   # Static analysis for security vulnerabilities [https://brakemanscanner.org/]
   gem "brakeman", require: false

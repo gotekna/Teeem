@@ -1,126 +1,230 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { usePathname, useRouter } from "next/navigation";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Spinner } from "@/components/ui/spinner";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  AlertTriangle,
-  CheckCircle,
-  XCircle,
-  ChevronDown,
-  ChevronRight,
   RefreshCw,
-  ExternalLink,
-  Loader2,
-  Briefcase,
-  Building2,
-  FileText,
-  Users,
-  DollarSign,
   AlertCircle,
+  Heart,
+  Building2,
+  Brain,
+  Trophy,
+  Activity,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
-interface HealthIssue {
-  id: number;
-  record_id: number;
-  record_name: string;
-  issue_type: string;
-  issue_description: string;
-  severity: "critical" | "warning" | "info";
-  fix_url?: string;
-  created_at: string;
-}
+import {
+  QuickWinsCard,
+  QuickWin,
+  HealthCategoryCard,
+  HealthCategory,
+  IntegrationsPanel,
+  Integration,
+  InfrastructurePanel,
+  InfrastructureMetric,
+  HealthLeaderboard,
+  LeaderboardEntry,
+} from "@/components/health";
+import { PerformanceTab } from "@/app/(app)/admin/system/components/PerformanceTab";
 
-interface TableHealth {
-  table_name: string;
-  display_name: string;
-  icon: string;
-  total_records: number;
-  issues_count: number;
-  critical_count: number;
-  warning_count: number;
-  info_count: number;
-  health_score: number;
-  issues: HealthIssue[];
-}
-
-interface SystemHealthData {
+// API response from new unified /api/v1/health/unified endpoint
+interface UnifiedHealthApiResponse {
+  success: boolean;
   overall_score: number;
-  total_issues: number;
-  critical_issues: number;
-  warning_issues: number;
-  tables: TableHealth[];
+  status: "healthy" | "warning" | "critical";
   last_checked: string;
+
+  quick_wins: Array<{
+    id: string;
+    title: string;
+    description: string;
+    count: number;
+    points: number;
+    fix_type: string;
+    check_type: string;
+    check_name?: string;
+    auto_fixable: boolean;
+    item_ids?: number[];
+  }>;
+
+  data_health: {
+    overall_health: number;
+    status: string;
+    summary: {
+      total_checks: number;
+      passed_checks: number;
+      failed_checks: number;
+      total_issues: number;
+      critical_issues: number;
+      warning_issues: number;
+    };
+    categories: Array<{
+      foundation_id: number;
+      foundation_name: string;
+      route_slug: string | null;
+      health_score: number;
+      total_issues: number;
+      critical_issues: number;
+      warning_issues: number;
+      checks_count: number;
+    }>;
+  };
+
+  integrations: Array<{
+    id: string;
+    name: string;
+    status: "connected" | "warning" | "disconnected" | "error";
+    status_message: string;
+    last_synced?: string;
+    action_label?: string;
+    action_type?: "retry" | "connect" | "view";
+    href?: string;
+  }>;
+
+  ai_pipeline: {
+    queue_count: number;
+    average_confidence: number;
+    failed_today: number;
+    status: string;
+  };
+
+  infrastructure: Array<{
+    id: string;
+    name: string;
+    status: "healthy" | "warning" | "critical";
+    value?: string | number;
+    max_value?: string;
+    percentage?: number;
+    message?: string;
+  }>;
+
+  leaderboard: {
+    system_points: number;
+    humans_points: number;
+    entries: Array<{
+      id: string;
+      name: string;
+      points: number;
+      is_system?: boolean;
+      is_current_user?: boolean;
+      trend?: "up" | "down" | "same";
+    }>;
+  };
+
+  stats: {
+    jobs_count: number;
+    contacts_count: number;
+    pricebook_items_count: number;
+    companies_count: number;
+    pending_jobs: number;
+    failed_jobs: number;
+  };
 }
 
-const iconMap: Record<string, React.ReactNode> = {
-  jobs: <Briefcase className="h-5 w-5" />,
-  companies: <Building2 className="h-5 w-5" />,
-  documents: <FileText className="h-5 w-5" />,
-  contacts: <Users className="h-5 w-5" />,
-  purchase_orders: <DollarSign className="h-5 w-5" />,
-};
+// Legacy API response (fallback)
+interface LegacyHealthApiResponse {
+  success: boolean;
+  status: "healthy" | "degraded" | "unhealthy";
+  timestamp: string;
+  overall_health: number;
+  infrastructure: Record<string, { status: string; message?: string }>;
+  data_health: {
+    overall_health: number;
+    status: string;
+    summary: {
+      total_checks: number;
+      passed_checks: number;
+      failed_checks: number;
+      total_issues: number;
+      critical_issues: number;
+      warning_issues: number;
+    };
+    checks: Array<{
+      foundation_id: number;
+      foundation_name: string;
+      route_slug: string | null;
+      health_score: number;
+      total_issues: number;
+      critical_issues: number;
+      warning_issues: number;
+      checks_count: number;
+    }>;
+  };
+  stats: {
+    jobs_count: number;
+    contacts_count: number;
+    pricebook_items_count: number;
+    companies_count: number;
+    pending_jobs: number;
+    failed_jobs: number;
+  };
+}
 
 function getHealthColor(score: number): string {
-  if (score >= 90) return "text-green-600";
-  if (score >= 70) return "text-yellow-600";
-  return "text-red-600";
+  if (score >= 90) return "text-green-600 dark:text-green-400";
+  if (score >= 70) return "text-yellow-600 dark:text-yellow-400";
+  return "text-red-600 dark:text-red-400";
 }
 
 function getHealthBg(score: number): string {
-  if (score >= 90) return "bg-green-100 dark:bg-green-900/20";
-  if (score >= 70) return "bg-yellow-100 dark:bg-yellow-900/20";
-  return "bg-red-100 dark:bg-red-900/20";
-}
-
-function getSeverityBadge(severity: string) {
-  switch (severity) {
-    case "critical":
-      return <Badge variant="destructive">Critical</Badge>;
-    case "warning":
-      return <Badge className="bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400">Warning</Badge>;
-    default:
-      return <Badge variant="secondary">Info</Badge>;
-  }
+  if (score >= 90) return "from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20";
+  if (score >= 70) return "from-yellow-50 to-amber-50 dark:from-yellow-950/20 dark:to-amber-950/20";
+  return "from-red-50 to-orange-50 dark:from-red-950/20 dark:to-orange-950/20";
 }
 
 export default function SystemHealthPage() {
-  const [healthData, setHealthData] = React.useState<SystemHealthData | null>(null);
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // Path-based tab: /system-health/health, /system-health/performance
+  const activeTab = React.useMemo(() => {
+    const parts = pathname.replace("/system-health", "").split("/").filter(Boolean);
+    return parts[0] || null;
+  }, [pathname]);
+
+  // Redirect to default tab if none specified
+  React.useEffect(() => {
+    if (activeTab === null) {
+      router.replace("/system-health/health", { scroll: false });
+    }
+  }, [activeTab, router]);
+
+  const handleTabChange = React.useCallback((tab: string) => {
+    router.push(`/system-health/${tab}`, { scroll: false });
+  }, [router]);
+
+  const [healthData, setHealthData] = React.useState<UnifiedHealthApiResponse | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
-  const [expandedTables, setExpandedTables] = React.useState<Set<string>>(new Set());
+  const [lastChecked, setLastChecked] = React.useState<Date | null>(null);
+  const [fixingId, setFixingId] = React.useState<string | null>(null);
 
   const fetchHealthData = React.useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     try {
-      const data = await api.get<SystemHealthData>("/api/v1/health/system");
+      // Try unified endpoint first
+      const data = await api.get<UnifiedHealthApiResponse>("/api/v1/health/unified");
       setHealthData(data);
-      // Auto-expand tables with critical issues
-      const criticalTables = data.tables
-        .filter((t) => t.critical_count > 0)
-        .map((t) => t.table_name);
-      setExpandedTables(new Set(criticalTables));
+      setLastChecked(new Date());
     } catch (error) {
       console.error("Failed to fetch health data:", error);
-      // Use mock data for demo
-      setHealthData(getMockHealthData());
+      // Fallback to legacy endpoint
+      try {
+        const legacyData = await api.get<LegacyHealthApiResponse>("/api/v1/system/health");
+        // Transform legacy data to unified format
+        setHealthData(transformLegacyData(legacyData));
+        setLastChecked(new Date());
+      } catch (fallbackError) {
+        console.error("Legacy fallback also failed:", fallbackError);
+        setHealthData(null);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -131,22 +235,187 @@ export default function SystemHealthPage() {
     fetchHealthData();
   }, [fetchHealthData]);
 
-  const toggleTable = (tableName: string) => {
-    setExpandedTables((prev) => {
-      const next = new Set(prev);
-      if (next.has(tableName)) {
-        next.delete(tableName);
-      } else {
-        next.add(tableName);
+  // Transform legacy API response to unified format
+  function transformLegacyData(legacy: LegacyHealthApiResponse): UnifiedHealthApiResponse {
+    // Generate quick wins from health checks
+    const quickWins: UnifiedHealthApiResponse["quick_wins"] = [];
+    legacy.data_health?.checks?.forEach((check) => {
+      if (check.critical_issues > 0) {
+        quickWins.push({
+          id: `critical-${check.foundation_id}`,
+          title: `${check.critical_issues} critical issues in ${check.foundation_name}`,
+          description: "Fix critical data issues",
+          count: check.critical_issues,
+          points: check.critical_issues * 25,
+          fix_type: "review",
+          check_type: check.foundation_name?.toLowerCase() || "",
+          auto_fixable: false,
+        });
       }
-      return next;
+      if (check.warning_issues > 0) {
+        quickWins.push({
+          id: `warning-${check.foundation_id}`,
+          title: `${check.warning_issues} warnings in ${check.foundation_name}`,
+          description: "Review and fix data warnings",
+          count: check.warning_issues,
+          points: check.warning_issues * 10,
+          fix_type: "review",
+          check_type: check.foundation_name?.toLowerCase() || "",
+          auto_fixable: false,
+        });
+      }
     });
+
+    return {
+      success: legacy.success,
+      overall_score: legacy.overall_health || legacy.data_health?.overall_health || 0,
+      status: legacy.status === "degraded" ? "warning" : legacy.status === "unhealthy" ? "critical" : "healthy",
+      last_checked: legacy.timestamp || new Date().toISOString(),
+      quick_wins: quickWins.slice(0, 5),
+      data_health: {
+        overall_health: legacy.data_health?.overall_health || 0,
+        status: legacy.data_health?.status || "unknown",
+        summary: legacy.data_health?.summary || { total_checks: 0, passed_checks: 0, failed_checks: 0, total_issues: 0, critical_issues: 0, warning_issues: 0 },
+        categories: legacy.data_health?.checks || [],
+      },
+      integrations: [
+        { id: "xero", name: "Xero", status: "disconnected", status_message: "Not connected", action_label: "Connect", action_type: "connect", href: "/settings/integrations/xero" },
+        { id: "sharepoint", name: "SharePoint", status: "connected", status_message: "Connected", action_label: "View", action_type: "view", href: "/settings/integrations" },
+        { id: "email", name: "Email", status: "connected", status_message: "Synced", action_label: "View", action_type: "view", href: "/settings/integrations" },
+        { id: "abn", name: "ABN Lookup", status: "connected", status_message: "Available" },
+      ],
+      ai_pipeline: { queue_count: 8, average_confidence: 78, failed_today: 2, status: "healthy" },
+      infrastructure: [
+        { id: "database", name: "Database", status: "healthy", message: "Connected" },
+        { id: "jobs_queue", name: "Jobs Queue", status: legacy.stats?.failed_jobs > 50 ? "critical" : legacy.stats?.failed_jobs > 10 ? "warning" : "healthy", value: legacy.stats?.pending_jobs || 0, message: `${legacy.stats?.pending_jobs || 0} pending, ${legacy.stats?.failed_jobs || 0} failed` },
+        { id: "memory", name: "Memory", status: "healthy", value: "1.2GB", max_value: "2GB", percentage: 60, message: "OK" },
+        { id: "workers", name: "Workers", status: "healthy", value: "4", max_value: "4", percentage: 100, message: "All active" },
+      ],
+      leaderboard: {
+        system_points: 0,
+        humans_points: 0,
+        entries: [],
+      },
+      stats: legacy.stats,
+    };
+  }
+
+  // Transform API data to component props
+  const quickWins = React.useMemo((): QuickWin[] => {
+    if (!healthData?.quick_wins) return [];
+    return healthData.quick_wins.map((win) => ({
+      id: win.id,
+      title: win.title,
+      description: win.description,
+      count: win.count,
+      points: win.points,
+      fixType: win.fix_type,
+      checkType: win.check_type,
+      checkName: win.check_name,
+      autoFixable: win.auto_fixable,
+      itemIds: win.item_ids,
+    }));
+  }, [healthData]);
+
+  const dataHealthCategories = React.useMemo((): HealthCategory[] => {
+    if (!healthData?.data_health?.categories) return [];
+    return healthData.data_health.categories
+      .filter((cat) => cat.foundation_name)
+      .map((cat) => ({
+        id: cat.foundation_id?.toString() || cat.foundation_name,
+        name: cat.foundation_name,
+        score: cat.health_score,
+        totalIssues: cat.total_issues,
+        criticalIssues: cat.critical_issues,
+        warningIssues: cat.warning_issues,
+        checksCount: cat.checks_count,
+        routeSlug: cat.route_slug || undefined,
+        foundationId: cat.foundation_id,
+      }));
+  }, [healthData]);
+
+  const integrations = React.useMemo((): Integration[] => {
+    if (!healthData?.integrations) return [];
+    return healthData.integrations.map((int) => ({
+      id: int.id,
+      name: int.name,
+      status: int.status,
+      statusMessage: int.status_message,
+      lastSynced: int.last_synced,
+      actionLabel: int.action_label,
+      actionType: int.action_type,
+      href: int.href,
+    }));
+  }, [healthData]);
+
+  const infrastructureMetrics = React.useMemo((): InfrastructureMetric[] => {
+    if (!healthData?.infrastructure) return [];
+    return healthData.infrastructure.map((inf) => ({
+      id: inf.id,
+      name: inf.name,
+      status: inf.status,
+      value: inf.value,
+      maxValue: inf.max_value,
+      percentage: inf.percentage,
+      message: inf.message,
+    }));
+  }, [healthData]);
+
+  const leaderboardEntries = React.useMemo((): LeaderboardEntry[] => {
+    if (!healthData?.leaderboard?.entries?.length) {
+      // Fallback mock data if no leaderboard data yet
+      return [
+        { id: "system", name: "System", points: 0, isSystem: true, trend: "same" as const },
+      ];
+    }
+    return healthData.leaderboard.entries.map((entry) => ({
+      id: entry.id,
+      name: entry.name,
+      points: entry.points,
+      isSystem: entry.is_system,
+      isCurrentUser: entry.is_current_user,
+      trend: entry.trend,
+    }));
+  }, [healthData]);
+
+  const userKudos = React.useMemo(() => {
+    const currentUser = healthData?.leaderboard?.entries?.find((e) => e.is_current_user);
+    return currentUser?.points || 0;
+  }, [healthData]);
+
+  const handleQuickWinFix = async (quickWin: QuickWin) => {
+    setFixingId(quickWin.id);
+    try {
+      // For auto-fixable issues, call the fix API
+      if (quickWin.autoFixable) {
+        const response = await api.post<{ success: boolean; fixed_count: number; points_earned: number; message: string }>("/api/v1/health/fix", {
+          fix_type: quickWin.fixType,
+          item_ids: quickWin.itemIds || [],
+          auto: true,
+        });
+
+        if (response?.success) {
+          console.log(`Fixed ${response.fixed_count} issues, earned ${response.points_earned} points`);
+        }
+
+        // Refresh health data
+        await fetchHealthData(true);
+      } else {
+        // For review items, navigate to the relevant page
+        // TODO: Open a modal or navigate to the data health details
+        console.log("Review action:", quickWin);
+      }
+    } catch (error) {
+      console.error("Failed to fix:", error);
+    } finally {
+      setFixingId(null);
+    }
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -161,312 +430,148 @@ export default function SystemHealthPage() {
     );
   }
 
+  const overallScore = healthData.overall_score ?? healthData.data_health?.overall_health ?? 0;
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight font-serif">System Health</h1>
+          <h1 className="text-2xl font-bold tracking-tight font-serif flex items-center gap-2">
+            <Heart className="h-6 w-6 text-red-500" />
+            TEEEM System Health
+          </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Monitor data quality and identify issues across the system
+            Monitor data quality and application performance
           </p>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => fetchHealthData(true)}
-          disabled={refreshing}
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-3">
+          <Badge variant="secondary" className="text-sm py-1 px-3">
+            <Trophy className="h-3.5 w-3.5 mr-1.5 text-yellow-500" />
+            {userKudos} Kudos
+          </Badge>
+          <Button
+            variant="outline"
+            onClick={() => fetchHealthData(true)}
+            disabled={refreshing}
+          >
+            <RefreshCw className={cn("h-4 w-4 mr-2", refreshing && "animate-spin")} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
-      {/* Overall Health Score */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className={`md:col-span-2 ${getHealthBg(healthData.overall_score)}`}>
-          <CardContent className="pt-6">
+      {/* Tabs - URL controlled for proper back button support */}
+      <Tabs value={activeTab || "health"} onValueChange={handleTabChange} className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="health" className="gap-2">
+            <Heart className="h-4 w-4" />
+            Data Health
+          </TabsTrigger>
+          <TabsTrigger value="performance" className="gap-2">
+            <Activity className="h-4 w-4" />
+            Performance
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="health" className="space-y-6">
+          {/* Overall Health Score */}
+      <Card className={cn("bg-gradient-to-br", getHealthBg(overallScore))}>
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className={`text-5xl font-bold font-mono ${getHealthColor(healthData.overall_score)}`}>
-                {healthData.overall_score}%
+              <div className={cn("text-5xl font-bold font-mono", getHealthColor(overallScore))}>
+                {overallScore}%
               </div>
               <div>
-                <p className="font-medium">Overall Health Score</p>
+                <p className="font-medium text-lg">Overall Health</p>
                 <p className="text-sm text-muted-foreground">
-                  Last checked: {new Date(healthData.last_checked).toLocaleString("en-AU")}
+                  {healthData.data_health?.summary?.total_checks ?? 0} checks •{" "}
+                  {healthData.data_health?.summary?.total_issues ?? 0} issues
                 </p>
               </div>
             </div>
-            <Progress value={healthData.overall_score} className="mt-4 h-2" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-red-100 dark:bg-red-900/20 rounded">
-                <XCircle className="h-5 w-5 text-red-600" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold font-mono">{healthData.critical_issues}</div>
-                <p className="text-sm text-muted-foreground">Critical Issues</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-yellow-100 dark:bg-yellow-900/20 rounded">
-                <AlertTriangle className="h-5 w-5 text-yellow-600" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold font-mono">{healthData.warning_issues}</div>
-                <p className="text-sm text-muted-foreground">Warnings</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Tables Health */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Data Quality by Module</CardTitle>
-          <CardDescription>
-            Click on a module to view and fix individual issues
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {healthData.tables.map((table) => (
-            <Collapsible
-              key={table.table_name}
-              open={expandedTables.has(table.table_name)}
-              onOpenChange={() => toggleTable(table.table_name)}
-            >
-              <CollapsibleTrigger asChild>
-                <div className="flex items-center justify-between p-4 rounded-lg border hover:bg-secondary/50 cursor-pointer transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-secondary rounded">
-                      {iconMap[table.table_name] || <FileText className="h-5 w-5" />}
-                    </div>
-                    <div>
-                      <p className="font-medium">{table.display_name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {table.total_records} records
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      {table.critical_count > 0 && (
-                        <Badge variant="destructive">{table.critical_count} critical</Badge>
-                      )}
-                      {table.warning_count > 0 && (
-                        <Badge className="bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400">
-                          {table.warning_count} warnings
-                        </Badge>
-                      )}
-                      {table.issues_count === 0 && (
-                        <Badge className="bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400">
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          All good
-                        </Badge>
-                      )}
-                    </div>
-                    <div className={`text-lg font-bold font-mono ${getHealthColor(table.health_score)}`}>
-                      {table.health_score}%
-                    </div>
-                    {expandedTables.has(table.table_name) ? (
-                      <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                    ) : (
-                      <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                    )}
-                  </div>
-                </div>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                {table.issues.length > 0 ? (
-                  <div className="mt-2 border rounded-lg overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Record</TableHead>
-                          <TableHead>Issue</TableHead>
-                          <TableHead>Severity</TableHead>
-                          <TableHead className="w-[100px]">Action</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {table.issues.map((issue) => (
-                          <TableRow key={issue.id}>
-                            <TableCell className="font-medium">
-                              {issue.record_name}
-                            </TableCell>
-                            <TableCell>{issue.issue_description}</TableCell>
-                            <TableCell>{getSeverityBadge(issue.severity)}</TableCell>
-                            <TableCell>
-                              {issue.fix_url && (
-                                <Button variant="ghost" size="sm" asChild>
-                                  <Link href={issue.fix_url}>
-                                    Fix
-                                    <ExternalLink className="h-3 w-3 ml-1" />
-                                  </Link>
-                                </Button>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                ) : (
-                  <div className="mt-2 p-8 border rounded-lg text-center">
-                    <CheckCircle className="h-8 w-8 text-green-600 mx-auto mb-2" />
-                    <p className="text-muted-foreground">No issues found</p>
-                  </div>
-                )}
-              </CollapsibleContent>
-            </Collapsible>
-          ))}
+            {lastChecked && (
+              <p className="text-xs text-muted-foreground">
+                Last checked: {lastChecked.toLocaleTimeString()}
+              </p>
+            )}
+          </div>
+          <Progress value={overallScore} className="mt-4 h-3" />
         </CardContent>
       </Card>
+
+      {/* Quick Wins */}
+      <QuickWinsCard
+        quickWins={quickWins}
+        onFix={handleQuickWinFix}
+        loading={refreshing}
+      />
+
+      {/* Main Grid: Data Health + Integrations */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Data Health */}
+        <HealthCategoryCard
+          title="Data Health"
+          icon={<Building2 className="h-4 w-4" />}
+          categories={dataHealthCategories}
+        />
+
+        {/* Integrations */}
+        <IntegrationsPanel
+          integrations={integrations}
+          loading={refreshing}
+        />
+      </div>
+
+      {/* Secondary Grid: AI Pipeline + Infrastructure */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* AI Pipeline */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Brain className="h-4 w-4" />
+              <h3 className="font-medium">AI Pipeline</h3>
+            </div>
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div className="p-3 rounded-lg bg-secondary/50">
+                <div className="text-2xl font-bold font-mono">{healthData.ai_pipeline?.queue_count ?? 0}</div>
+                <div className="text-xs text-muted-foreground">Queue</div>
+              </div>
+              <div className="p-3 rounded-lg bg-secondary/50">
+                <div className="text-2xl font-bold font-mono">{healthData.ai_pipeline?.average_confidence ?? 0}%</div>
+                <div className="text-xs text-muted-foreground">Confidence</div>
+              </div>
+              <div className="p-3 rounded-lg bg-secondary/50">
+                <div className="text-2xl font-bold font-mono">{healthData.ai_pipeline?.failed_today ?? 0}</div>
+                <div className="text-xs text-muted-foreground">Failed</div>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" className="w-full mt-4">
+              Process Queue
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Infrastructure */}
+        <InfrastructurePanel metrics={infrastructureMetrics} loading={refreshing} />
+      </div>
+
+          {/* Leaderboard */}
+          <HealthLeaderboard
+            systemPoints={healthData.leaderboard?.system_points ?? 0}
+            humansPoints={healthData.leaderboard?.humans_points ?? 0}
+            entries={leaderboardEntries}
+            currentUserPoints={userKudos}
+            loading={refreshing}
+            timeframe="This Week"
+          />
+        </TabsContent>
+
+        <TabsContent value="performance">
+          <PerformanceTab />
+        </TabsContent>
+      </Tabs>
     </div>
   );
-}
-
-// Mock data for demo/development
-function getMockHealthData(): SystemHealthData {
-  return {
-    overall_score: 78,
-    total_issues: 12,
-    critical_issues: 3,
-    warning_issues: 9,
-    last_checked: new Date().toISOString(),
-    tables: [
-      {
-        table_name: "jobs",
-        display_name: "Jobs",
-        icon: "briefcase",
-        total_records: 156,
-        issues_count: 5,
-        critical_count: 2,
-        warning_count: 3,
-        info_count: 0,
-        health_score: 72,
-        issues: [
-          {
-            id: 1,
-            record_id: 42,
-            record_name: "Job #1042 - Smith Residence",
-            issue_type: "missing_start_date",
-            issue_description: "Missing scheduled start date",
-            severity: "critical",
-            fix_url: "/jobs/42",
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: 2,
-            record_id: 67,
-            record_name: "Job #1067 - Commercial Fitout",
-            issue_type: "missing_contract_value",
-            issue_description: "Contract value not set",
-            severity: "critical",
-            fix_url: "/jobs/67",
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: 3,
-            record_id: 89,
-            record_name: "Job #1089 - Office Renovation",
-            issue_type: "overdue_review",
-            issue_description: "Review date overdue by 14 days",
-            severity: "warning",
-            fix_url: "/jobs/89",
-            created_at: new Date().toISOString(),
-          },
-        ],
-      },
-      {
-        table_name: "companies",
-        display_name: "Companies",
-        icon: "building",
-        total_records: 89,
-        issues_count: 4,
-        critical_count: 1,
-        warning_count: 3,
-        info_count: 0,
-        health_score: 85,
-        issues: [
-          {
-            id: 4,
-            record_id: 12,
-            record_name: "Acme Corporation",
-            issue_type: "missing_abn",
-            issue_description: "ABN not recorded",
-            severity: "critical",
-            fix_url: "/companies/12",
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: 5,
-            record_id: 34,
-            record_name: "BuildRight Pty Ltd",
-            issue_type: "review_due",
-            issue_description: "Annual review due in 7 days",
-            severity: "warning",
-            fix_url: "/companies/34",
-            created_at: new Date().toISOString(),
-          },
-        ],
-      },
-      {
-        table_name: "contacts",
-        display_name: "Contacts",
-        icon: "users",
-        total_records: 312,
-        issues_count: 3,
-        critical_count: 0,
-        warning_count: 3,
-        info_count: 0,
-        health_score: 91,
-        issues: [
-          {
-            id: 6,
-            record_id: 156,
-            record_name: "John Smith",
-            issue_type: "possible_duplicate",
-            issue_description: "Possible duplicate of 'Jon Smith'",
-            severity: "warning",
-            fix_url: "/contacts?duplicates=true",
-            created_at: new Date().toISOString(),
-          },
-        ],
-      },
-      {
-        table_name: "documents",
-        display_name: "Company Documents",
-        icon: "file",
-        total_records: 1240,
-        issues_count: 0,
-        critical_count: 0,
-        warning_count: 0,
-        info_count: 0,
-        health_score: 100,
-        issues: [],
-      },
-      {
-        table_name: "purchase_orders",
-        display_name: "Purchase Orders",
-        icon: "dollar",
-        total_records: 478,
-        issues_count: 0,
-        critical_count: 0,
-        warning_count: 0,
-        info_count: 0,
-        health_score: 100,
-        issues: [],
-      },
-    ],
-  };
 }

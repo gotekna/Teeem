@@ -1,0 +1,81 @@
+<h1>Welcome Letter</h1>
+
+<p style="color: var(--color-text-secondary);"><%= format_date(today, :long) %></p>
+
+<p><%= @dear %></p>
+
+<p>
+  On behalf of the team at <%= @company[:name] %>, we would like to extend a warm welcome and
+  express our excitement about the opportunity to work with you on your new property at
+  <strong><%= @job[:full_address] %></strong>. We are committed to delivering a high-quality
+  home that meets all your expectations.
+</p>
+
+<p>
+  Included are several documents and links that detail the terms and conditions of our
+  partnership for your review and sign:
+</p>
+
+<h2>Attached Documents & Links</h2>
+
+<ul style="list-style: none; padding: 0; margin: var(--space-4) 0;">
+  <li style="padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border);">
+    <strong>Welcome Letter</strong>
+  </li>
+  <li style="padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border);">
+    <strong>Consumer Building Guide</strong> -
+    <a href="https://www.qbcc.qld.gov.au/sites/default/files/2021-09/guide-qbcc-consumer-building-v3.pdf" target="_blank">QBCC Consumer Building Guide</a>
+  </li>
+  <li style="padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border);">
+    <strong>General Conditions</strong> -
+    <a href="https://www.qbcc.qld.gov.au/sites/default/files/documents/template-nhc-general-conditions.pdf" target="_blank">QBCC General Conditions</a>
+  </li>
+  <li style="padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border);">
+    <strong>QBCC Licensee Register</strong> -
+    <a href="https://my.qbcc.qld.gov.au/myQBCC/s/qbcc-licensee-register" target="_blank">Check Contractor's Licence History</a>
+    <span style="color: var(--color-text-secondary); font-size: 0.9em;"> (Search for licence #<%= @company[:qbcc_license] %>)</span>
+  </li>
+  <li style="padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border);">
+    <strong>QBCC Building Contract</strong>
+  </li>
+  <li style="padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border);">
+    <strong>Specification</strong>
+  </li>
+  <li style="padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border);">
+    <strong>Building Plans</strong>
+  </li>
+  <li style="padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border);">
+    <strong>Owner's Authority to Obtain Information</strong>
+  </li>
+  <li style="padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border);">
+    <strong>Specification of Works Acknowledgement</strong>
+  </li>
+  <li style="padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border);">
+    <strong>Termite Protection System</strong>
+  </li>
+  <li style="padding: var(--space-2) 0;">
+    <strong>Colour Selection</strong>
+  </li>
+</ul>
+
+<p>
+  We kindly ask that you carefully review each document and sign where required. By doing so,
+  you acknowledge that these documents have been thoroughly reviewed and fully understood.
+  If you have any questions or require further clarification, please feel free to reach out to us.
+</p>
+
+<p>
+  We are excited to begin this journey with you and are here to assist every step of the way.
+</p>
+
+<p style="margin-top: var(--space-8);">
+  Best regards,<br><br>
+  <strong><%= @company[:name] %> Team</strong>
+</p>
+
+<div style="margin-top: var(--space-8); padding-top: var(--space-4); border-top: 1px solid var(--color-border);">
+  <p style="margin: 0;">
+    <strong><%= @job[:full_address] %></strong><br>
+    Owner: <%= @client_names %>
+  </p>
+</div>

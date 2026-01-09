@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Bell, Check, CheckCheck, ExternalLink } from "lucide-react";
+import { Bell, Check, CheckCheck, ExternalLink, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -11,6 +11,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+import { api } from "@/lib/api";
 
 interface Notification {
   id: number;
@@ -33,23 +34,14 @@ export function NotificationBell() {
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const token = localStorage.getItem("auth_token");
-      if (!token) return;
+      // Skip if not authenticated (api client handles token automatically)
+      if (typeof window !== "undefined" && !localStorage.getItem("token")) return;
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/notifications`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+      const data = await api.get<{ notifications: Notification[]; unread_count: number }>(
+        "/api/v1/notifications"
       );
-
-      if (response.ok) {
-        const data = await response.json();
-        setNotifications(data.notifications || []);
-        setUnreadCount(data.unread_count || 0);
-      }
+      setNotifications(data.notifications || []);
+      setUnreadCount(data.unread_count || 0);
     } catch (error) {
       console.error("Failed to fetch notifications:", error);
     }
@@ -57,22 +49,12 @@ export function NotificationBell() {
 
   const fetchUnreadCount = useCallback(async () => {
     try {
-      const token = localStorage.getItem("auth_token");
-      if (!token) return;
+      if (typeof window !== "undefined" && !localStorage.getItem("token")) return;
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/notifications/unread_count`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+      const data = await api.get<{ unread_count: number }>(
+        "/api/v1/notifications/unread_count"
       );
-
-      if (response.ok) {
-        const data = await response.json();
-        setUnreadCount(data.unread_count || 0);
-      }
+      setUnreadCount(data.unread_count || 0);
     } catch (error) {
       console.error("Failed to fetch unread count:", error);
     }
@@ -80,25 +62,11 @@ export function NotificationBell() {
 
   const markAsRead = async (id: number) => {
     try {
-      const token = localStorage.getItem("auth_token");
-      if (!token) return;
-
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/notifications/${id}/mark_read`,
-        {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+      await api.patch(`/api/v1/notifications/${id}/mark_read`);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, read: true } : n))
       );
-
-      if (response.ok) {
-        setNotifications((prev) =>
-          prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-        );
-        setUnreadCount((prev) => Math.max(0, prev - 1));
-      }
+      setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch (error) {
       console.error("Failed to mark notification as read:", error);
     }
@@ -107,25 +75,24 @@ export function NotificationBell() {
   const markAllAsRead = async () => {
     try {
       setIsLoading(true);
-      const token = localStorage.getItem("auth_token");
-      if (!token) return;
-
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/notifications/mark_all_read`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (response.ok) {
-        setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-        setUnreadCount(0);
-      }
+      await api.post("/api/v1/notifications/mark_all_read");
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      setUnreadCount(0);
     } catch (error) {
       console.error("Failed to mark all as read:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const clearAll = async () => {
+    try {
+      setIsLoading(true);
+      await api.delete("/api/v1/notifications/clear_all");
+      setNotifications([]);
+      setUnreadCount(0);
+    } catch (error) {
+      console.error("Failed to clear notifications:", error);
     } finally {
       setIsLoading(false);
     }
@@ -195,10 +162,10 @@ export function NotificationBell() {
         <Button
           variant="ghost"
           size="icon"
-          className="relative h-9 w-9"
+          className="relative h-8 w-8"
           aria-label="Notifications"
         >
-          <Bell className="h-5 w-5" />
+          <Bell className="h-4 w-4" />
           {unreadCount > 0 && (
             <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-medium text-white">
               {unreadCount > 99 ? "99+" : unreadCount}
@@ -209,18 +176,32 @@ export function NotificationBell() {
       <PopoverContent className="w-80 p-0" align="end">
         <div className="flex items-center justify-between border-b px-4 py-3">
           <h4 className="font-semibold">Notifications</h4>
-          {unreadCount > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={markAllAsRead}
-              disabled={isLoading}
-              className="h-8 text-xs"
-            >
-              <CheckCheck className="mr-1 h-3 w-3" />
-              Mark all read
-            </Button>
-          )}
+          <div className="flex items-center gap-1">
+            {unreadCount > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={markAllAsRead}
+                disabled={isLoading}
+                className="h-7 text-xs px-2"
+              >
+                <CheckCheck className="mr-1 h-3 w-3" />
+                Read all
+              </Button>
+            )}
+            {notifications.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearAll}
+                disabled={isLoading}
+                className="h-7 text-xs px-2 text-muted-foreground hover:text-destructive"
+              >
+                <Trash2 className="mr-1 h-3 w-3" />
+                Clear
+              </Button>
+            )}
+          </div>
         </div>
         <ScrollArea className="h-[400px]">
           {notifications.length === 0 ? (

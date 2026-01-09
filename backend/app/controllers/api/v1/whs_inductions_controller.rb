@@ -1,5 +1,5 @@
 class Api::V1::WHSInductionsController < ApplicationController
-  before_action :set_whs_induction, only: [:show, :update, :destroy, :complete, :mark_expired]
+  before_action :set_whs_induction, only: [ :show, :update, :destroy, :complete, :mark_expired ]
 
   # GET /api/v1/whs_inductions
   def index
@@ -15,10 +15,10 @@ class Api::V1::WHSInductionsController < ApplicationController
     inductions = inductions.where(status: params[:status]) if params[:status].present?
 
     # Apply expired filter
-    inductions = inductions.expired if params[:expired] == 'true'
+    inductions = inductions.expired if params[:expired] == "true"
 
     # Apply expiring soon filter
-    if params[:expiring_soon] == 'true'
+    if params[:expiring_soon] == "true"
       days = params[:expiring_soon_days]&.to_i || 30
       inductions = inductions.expiring_soon(days)
     end
@@ -53,7 +53,7 @@ class Api::V1::WHSInductionsController < ApplicationController
     else
       render json: {
         success: false,
-        error: induction.errors.full_messages.join(', ')
+        error: induction.errors.full_messages.join(", ")
       }, status: :unprocessable_entity
     end
   end
@@ -68,7 +68,7 @@ class Api::V1::WHSInductionsController < ApplicationController
     else
       render json: {
         success: false,
-        error: @whs_induction.errors.full_messages.join(', ')
+        error: @whs_induction.errors.full_messages.join(", ")
       }, status: :unprocessable_entity
     end
   end
@@ -78,12 +78,12 @@ class Api::V1::WHSInductionsController < ApplicationController
     if @whs_induction.destroy
       render json: {
         success: true,
-        data: { message: 'Induction deleted successfully' }
+        data: { message: "Induction deleted successfully" }
       }
     else
       render json: {
         success: false,
-        error: 'Failed to delete induction'
+        error: "Failed to delete induction"
       }, status: :unprocessable_entity
     end
   end
@@ -94,8 +94,8 @@ class Api::V1::WHSInductionsController < ApplicationController
     signature_data = params[:signature_data]
 
     updates = {
-      status: 'valid',
-      completion_date: CompanySetting.today
+      status: "valid",
+      completion_date: CorporateCompanySetting.today
     }
 
     updates[:quiz_score] = quiz_score if quiz_score.present?
@@ -120,14 +120,14 @@ class Api::V1::WHSInductionsController < ApplicationController
     else
       render json: {
         success: false,
-        error: @whs_induction.errors.full_messages.join(', ')
+        error: @whs_induction.errors.full_messages.join(", ")
       }, status: :unprocessable_entity
     end
   end
 
   # POST /api/v1/whs_inductions/:id/mark_expired
   def mark_expired
-    if @whs_induction.update(status: 'expired')
+    if @whs_induction.update(status: "expired")
       render json: {
         success: true,
         data: @whs_induction.as_json(include: serialization_includes)
@@ -135,7 +135,7 @@ class Api::V1::WHSInductionsController < ApplicationController
     else
       render json: {
         success: false,
-        error: 'Failed to mark induction as expired'
+        error: "Failed to mark induction as expired"
       }, status: :unprocessable_entity
     end
   end
@@ -157,10 +157,10 @@ class Api::V1::WHSInductionsController < ApplicationController
 
   def serialization_includes
     {
-      whs_induction_template: { only: [:id, :name, :version, :has_quiz] },
-      user: { only: [:id, :name, :email] },
-      job: { only: [:id, :name, :construction_number] },
-      inducted_by_user: { only: [:id, :name, :email] }
+      whs_induction_template: {},
+      user: {},
+      job: {},
+      inducted_by_user: {}
     }
   end
 end

@@ -14,7 +14,6 @@ import {
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
-  arrayMove,
 } from "@dnd-kit/sortable";
 import { usePDFDocument } from "./use-pdf-document";
 import { PageThumbnail } from "./page-thumbnail";
@@ -22,9 +21,10 @@ import { EditorToolbar } from "./toolbar";
 import { AnnotationCanvas } from "./annotation-canvas";
 import type { AnnotationTool, PDFEditorProps } from "./types";
 import { cn } from "@/lib/utils";
-import { Loader2, FileText, AlertCircle, Upload } from "lucide-react";
+import { FileText, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Spinner } from "@/components/ui/spinner";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -183,7 +183,7 @@ export function PDFEditorImpl({
   if (isLoading) {
     return (
       <div className={cn("flex flex-col items-center justify-center h-full", className)}>
-        <Loader2 className="h-12 w-12 animate-spin mb-4" />
+        <Spinner size={48} className="mb-4" />
         <p className="text-muted-foreground">Loading PDF editor...</p>
       </div>
     );

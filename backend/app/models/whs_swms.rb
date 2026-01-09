@@ -1,14 +1,17 @@
 class WHSSWMS < ApplicationRecord
   # Associations (belongs_to first, then has_many)
   belongs_to :job, optional: true  # Nullable for company-wide SWMS
-  belongs_to :created_by, class_name: 'User'
-  belongs_to :approved_by, class_name: 'User', optional: true
-  belongs_to :superseded_by, class_name: 'WHSSWMS', optional: true
+  belongs_to :created_by, class_name: "User"
+  belongs_to :approved_by, class_name: "User", optional: true
+  belongs_to :superseded_by, class_name: "WHSSWMS", optional: true
+
+  # SSoT task system (SmTask via tasks table)
+  belongs_to :sm_task, optional: true
 
   has_many :whs_swms_hazards, dependent: :destroy
   has_many :whs_swms_controls, through: :whs_swms_hazards
   has_many :whs_swms_acknowledgments, dependent: :destroy
-  has_many :whs_swms_that_supersede_this, class_name: 'WHSSWMS', foreign_key: 'superseded_by_id'
+  has_many :whs_swms_that_supersede_this, class_name: "WHSSWMS", foreign_key: "superseded_by_id"
 
   # Constants (define BEFORE validations)
   STATUSES = %w[draft pending_approval approved rejected superseded].freeze
@@ -24,7 +27,7 @@ class WHSSWMS < ApplicationRecord
   validates :version, presence: true, numericality: { greater_than: 0 }
   validates :status, presence: true, inclusion: { in: STATUSES }
   validates :high_risk_type, inclusion: { in: HIGH_RISK_TYPES }, allow_nil: true
-  validates :company_wide, inclusion: { in: [true, false] }
+  validates :company_wide, inclusion: { in: [ true, false ] }
 
   # Custom validations
   validate :must_have_job_or_be_company_wide
@@ -35,38 +38,40 @@ class WHSSWMS < ApplicationRecord
   before_save :update_approval_timestamp
   before_save :update_superseded_timestamp
   after_create :create_approval_task_if_needed
+  after_create :create_sm_task_if_needed
+  after_save :sync_with_sm_task
 
   # Scopes
-  scope :draft, -> { where(status: 'draft') }
-  scope :pending_approval, -> { where(status: 'pending_approval') }
-  scope :approved, -> { where(status: 'approved') }
-  scope :rejected, -> { where(status: 'rejected') }
-  scope :superseded, -> { where(status: 'superseded') }
+  scope :draft, -> { where(status: "draft") }
+  scope :pending_approval, -> { where(status: "pending_approval") }
+  scope :approved, -> { where(status: "approved") }
+  scope :rejected, -> { where(status: "rejected") }
+  scope :superseded, -> { where(status: "superseded") }
   scope :company_wide, -> { where(company_wide: true) }
   scope :job_specific, -> { where(company_wide: false) }
   scope :for_construction, ->(job_id) { where(job_id: job_id) }  # Kept method name for backward compatibility
   scope :for_job, ->(job_id) { where(job_id: job_id) }
   scope :by_high_risk_type, ->(type) { where(high_risk_type: type) }
-  scope :active, -> { where.not(status: ['superseded', 'rejected']) }
+  scope :active, -> { where.not(status: [ "superseded", "rejected" ]) }
 
   # State machine methods
   def can_approve?
-    status == 'pending_approval'
+    status == "pending_approval"
   end
 
   def can_reject?
-    status == 'pending_approval'
+    status == "pending_approval"
   end
 
   def can_supersede?
-    status == 'approved'
+    status == "approved"
   end
 
   def approve!(approving_user)
     return false unless can_approve?
 
     update!(
-      status: 'approved',
+      status: "approved",
       approved_by: approving_user,
       approved_at: Time.current
     )
@@ -76,15 +81,15 @@ class WHSSWMS < ApplicationRecord
     return false unless can_reject?
 
     update!(
-      status: 'rejected',
+      status: "rejected",
       rejection_reason: reason
     )
   end
 
   def submit_for_approval!
-    return false if status != 'draft'
+    return false if status != "draft"
 
-    update!(status: 'pending_approval')
+    update!(status: "pending_approval")
   end
 
   def supersede!(new_swms)
@@ -92,7 +97,7 @@ class WHSSWMS < ApplicationRecord
 
     transaction do
       update!(
-        status: 'superseded',
+        status: "superseded",
         superseded_by: new_swms,
         superseded_at: Time.current
       )
@@ -132,15 +137,15 @@ class WHSSWMS < ApplicationRecord
 
   # Helper methods
   def pending_approval?
-    status == 'pending_approval'
+    status == "pending_approval"
   end
 
   def approved?
-    status == 'approved'
+    status == "approved"
   end
 
   def draft?
-    status == 'draft'
+    status == "draft"
   end
 
   def requires_approval?
@@ -168,22 +173,22 @@ class WHSSWMS < ApplicationRecord
   def generate_swms_number
     return if swms_number.present?
 
-    date_str = CompanySetting.today.strftime('%Y%m%d')
-    last_swms = WHSSWMS.where('swms_number LIKE ?', "SWMS-#{date_str}-%")
+    date_str = CorporateCompanySetting.today.strftime("%Y%m%d")
+    last_swms = WHSSWMS.where("swms_number LIKE ?", "SWMS-#{date_str}-%")
                         .order(:swms_number).last
 
-    sequence = last_swms ? last_swms.swms_number.split('-').last.to_i + 1 : 1
+    sequence = last_swms ? last_swms.swms_number.split("-").last.to_i + 1 : 1
     self.swms_number = "SWMS-#{date_str}-#{sequence.to_s.rjust(3, '0')}"
   end
 
   def update_approval_timestamp
-    if status_changed? && status == 'approved'
+    if status_changed? && status == "approved"
       self.approved_at = Time.current
     end
   end
 
   def update_superseded_timestamp
-    if status_changed? && status == 'superseded'
+    if status_changed? && status == "superseded"
       self.superseded_at = Time.current
     end
   end
@@ -191,49 +196,78 @@ class WHSSWMS < ApplicationRecord
   def create_approval_task_if_needed
     # If created by WPHS Appointee, auto-approve
     if created_by.wphs_appointee?
-      update_columns(status: 'approved', approved_by_id: created_by.id, approved_at: Time.current)
+      update_columns(status: "approved", approved_by_id: created_by.id, approved_at: Time.current)
       return
     end
 
-    # Otherwise, set to pending and create approval task
-    update_column(:status, 'pending_approval') if status == 'draft'
-
-    # Create approval task for WPHS Appointees
-    create_swms_approval_task
-  end
-
-  def create_swms_approval_task
-    return unless job.present?
-
-    # Find WPHS Appointees
-    wphs_appointee = User.where(wphs_appointee: true).first
-    return unless wphs_appointee.present?
-
-    job.project_tasks.create!(
-      name: "Approve SWMS: #{title}",
-      description: "Review and approve SWMS #{swms_number}",
-      task_type: 'whs_approval',
-      category: 'safety',
-      status: 'not_started',
-      assigned_to: wphs_appointee,
-      planned_end_date: CompanySetting.today + 2.days,
-      duration_days: 1,
-      tags: ['whs', 'swms', 'approval']
-    )
-  rescue => e
-    Rails.logger.error("Failed to create approval task for SWMS #{id}: #{e.message}")
-    # Don't fail SWMS creation if task creation fails
+    # Otherwise, set to pending (SmTask created via create_sm_task_if_needed callback)
+    update_column(:status, "pending_approval") if status == "draft"
   end
 
   def must_have_job_or_be_company_wide
     if job_id.blank? && !company_wide
-      errors.add(:base, 'SWMS must be either linked to a job or marked as company-wide')
+      errors.add(:base, "SWMS must be either linked to a job or marked as company-wide")
     end
   end
 
   def cannot_approve_own_swms
-    if status_changed? && status == 'approved' && approved_by_id == created_by_id
-      errors.add(:base, 'Cannot approve your own SWMS unless you are a WPHS Appointee')
+    if status_changed? && status == "approved" && approved_by_id == created_by_id
+      errors.add(:base, "Cannot approve your own SWMS unless you are a WPHS Appointee")
+    end
+  end
+
+  def create_sm_task_if_needed
+    return if sm_task.present?
+    return unless job.present?
+
+    # If created by WPHS Appointee, auto-approved - no task needed
+    return if created_by.wphs_appointee?
+
+    # Find WPHS Appointee for assignment
+    wphs_appointee = User.where(wphs_appointee: true).first
+    return unless wphs_appointee.present?
+
+    task = job.sm_tasks.create!(
+      name: "WHS: Approve SWMS #{swms_number}",
+      description: "Review and approve: #{title}",
+      trade: "WHS",
+      stage: "SWMS Approval",
+      status: status_for_sm_task,
+      assigned_user: wphs_appointee,
+      start_date: CorporateCompanySetting.today,
+      end_date: CorporateCompanySetting.today + 2.days,
+      duration_days: 1,
+      created_by: created_by
+    )
+    update_column(:sm_task_id, task.id)
+  rescue StandardError => e
+    Rails.logger.error("[WHS→SmTask] Failed to create SmTask for SWMS #{id}: #{e.message}")
+    # Don't fail SWMS creation if task creation fails
+  end
+
+  def sync_with_sm_task
+    return unless sm_task.present?
+    return unless saved_change_to_status?
+
+    sm_task.update(status: status_for_sm_task)
+  rescue StandardError => e
+    Rails.logger.error("[WHS→SmTask] Failed to sync SmTask for SWMS #{id}: #{e.message}")
+  end
+
+  def status_for_sm_task
+    case status
+    when "draft"
+      "not_started"
+    when "pending_approval"
+      "started"  # SmTask uses "started" not "in_progress"
+    when "approved"
+      "completed"
+    when "rejected"
+      "completed"  # Rejected = done, just not approved
+    when "superseded"
+      "completed"  # Superseded = done
+    else
+      "not_started"
     end
   end
 end

@@ -2,7 +2,7 @@ module Api
   module V1
     class PayNowWeeklyLimitsController < ApplicationController
       before_action :authorize_request
-      before_action :authorize_builder_or_admin, except: [:current]
+      before_action :authorize_builder_or_admin, except: [ :current ]
 
       # GET /api/v1/pay_now_weekly_limits/current
       def current
@@ -19,7 +19,7 @@ module Api
         unless params[:amount].present?
           render json: {
             success: false,
-            error: 'Limit amount is required'
+            error: "Limit amount is required"
           }, status: :unprocessable_entity
           return
         end
@@ -29,7 +29,7 @@ module Api
         if amount < 0
           render json: {
             success: false,
-            error: 'Limit amount must be greater than or equal to zero'
+            error: "Limit amount must be greater than or equal to zero"
           }, status: :unprocessable_entity
           return
         end
@@ -89,7 +89,7 @@ module Api
           contact = Contact.find(contact_id)
           {
             supplier_id: contact.id,
-            supplier_name: contact.full_name,
+            supplier_name: contact.display_name,
             total_amount: "$#{total_amount.round(2)}",
             request_count: week_requests.paid.where(contact_id: contact_id).count
           }
@@ -113,7 +113,7 @@ module Api
         unless current_user.builder? || current_user.admin?
           render json: {
             success: false,
-            error: 'Unauthorized. Only builders can manage weekly limits.'
+            error: "Unauthorized. Only builders can manage weekly limits."
           }, status: :forbidden
         end
       end
@@ -133,7 +133,7 @@ module Api
           active: limit.active,
           set_by: limit.set_by ? {
             id: limit.set_by.id,
-            name: limit.set_by.full_name,
+            name: limit.set_by.display_name,
             email: limit.set_by.email
           } : nil,
           previous_limit: limit.previous_limit,
@@ -171,7 +171,7 @@ module Api
           day_requests = breakdown[date] || []
           {
             date: date,
-            day_name: date.strftime('%A'),
+            day_name: date.strftime("%A"),
             request_count: day_requests.count,
             total_amount: "$#{day_requests.sum(&:discounted_amount).round(2)}"
           }

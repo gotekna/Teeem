@@ -8,7 +8,7 @@ class ComplianceReminderService
     sent_count = 0
 
     # Check for items needing reminders at different intervals
-    [90, 60, 30, 7].each do |days_before|
+    [ 90, 60, 30, 7 ].each do |days_before|
       items = find_items_needing_reminder(days_before)
 
       items.each do |item|
@@ -19,7 +19,7 @@ class ComplianceReminderService
     end
 
     # Also send overdue reminders
-    overdue_items = CompanyComplianceItem.overdue
+    overdue_items = CorporateCompanyComplianceItem.overdue
     overdue_items.each do |item|
       if send_overdue_reminder(item)
         sent_count += 1
@@ -38,9 +38,9 @@ class ComplianceReminderService
   def find_items_needing_reminder(days_before)
     target_date = @today + days_before.days
 
-    CompanyComplianceItem
-      .includes(:company)
-      .where(status: 'pending')
+    CorporateCompanyComplianceItem
+      .includes(:corporate_company)
+      .where(status: "pending")
       .where(due_date: target_date)
       .select { |item| item.needs_reminder?(days_before) }
   end
@@ -56,8 +56,8 @@ class ComplianceReminderService
     send_email(recipients, subject, body)
 
     # Log activity
-    item.company.company_activities.create!(
-      activity_type: 'compliance_reminder_sent',
+    item.company.corporate_company_activities.create!(
+      activity_type: "compliance_reminder_sent",
       description: "Reminder sent for: #{item.title} (#{days_before} days before due)",
       metadata: { compliance_item_id: item.id, days_before: days_before },
       performed_by: User.first, # System user
@@ -83,8 +83,8 @@ class ComplianceReminderService
     send_email(recipients, subject, body)
 
     # Log activity
-    item.company.company_activities.create!(
-      activity_type: 'compliance_overdue_reminder_sent',
+    item.company.corporate_company_activities.create!(
+      activity_type: "compliance_overdue_reminder_sent",
       description: "Overdue reminder sent for: #{item.title} (#{days_overdue} days overdue)",
       metadata: { compliance_item_id: item.id, days_overdue: days_overdue },
       performed_by: User.first,
@@ -103,7 +103,7 @@ class ComplianceReminderService
     return [] unless item.notification_recipients.present?
 
     # Parse comma-separated email addresses
-    item.notification_recipients.split(',').map(&:strip).select { |email| valid_email?(email) }
+    item.notification_recipients.split(",").map(&:strip).select { |email| valid_email?(email) }
   end
 
   def valid_email?(email)
@@ -149,7 +149,7 @@ class ComplianceReminderService
   end
 
   def send_email(recipients, subject, body)
-    # TODO: Integrate with existing email service (OutlookService or ActionMailer)
+    # TODO: Integrate with existing email service (ActionMailer or MicrosoftAppGraphClient)
     # For now, log the email
     Rails.logger.info("Email to #{recipients.join(', ')}: #{subject}")
 

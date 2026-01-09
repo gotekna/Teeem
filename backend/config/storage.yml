@@ -32,3 +32,11 @@ local:
 #   service: Mirror
 #   primary: local
 #   mirrors: [ amazon, google, microsoft ]
+
+# SharePoint storage via Microsoft Graph API
+# Uses the TEEEM SharePoint site for file storage
+# Files are stored in: TEEEM site / Documents / ActiveStorage / [key_prefix] / [key]
+sharepoint:
+  service: SharePoint
+  site_name: TEEEM
+  base_folder: ActiveStorage

@@ -4,7 +4,7 @@
 # Usage: rails runner lib/scripts/import_lexicon.rb
 
 class LexiconImporter
-  LEXICON_PATH = Rails.root.join('../TEEEM_DOCS/TEEEM_LEXICON.md')
+  LEXICON_PATH = Rails.root.join("../TEEEM_DOCS/TEEEM_LEXICON.md")
 
   def self.import
     new.import
@@ -98,37 +98,37 @@ class LexiconImporter
     status = extract_status(section)
     severity = extract_severity(section)
     component = extract_component(section)
-    first_reported = extract_date(section, 'First Reported')
-    last_occurred = extract_date(section, 'Last Occurred')
-    fixed_date = extract_date(section, 'Fixed') || extract_date(section, 'Last Reported') if status == 'fixed'
+    first_reported = extract_date(section, "First Reported")
+    last_occurred = extract_date(section, "Last Occurred")
+    fixed_date = extract_date(section, "Fixed") || extract_date(section, "Last Reported") if status == "fixed"
 
     # Extract content sections
-    scenario = extract_section(section, 'Scenario')
-    root_cause = extract_section(section, 'Root Cause')
-    solution = extract_section(section, 'Solution') || extract_section(section, 'Temporary Solution')
-    prevention = extract_section(section, 'Prevention')
+    scenario = extract_section(section, "Scenario")
+    root_cause = extract_section(section, "Root Cause")
+    solution = extract_section(section, "Solution") || extract_section(section, "Temporary Solution")
+    prevention = extract_section(section, "Prevention")
 
     # Build description from scenario or first paragraph
     description = scenario || lines[1..5].join("\n").strip
 
     # Extract details (Why It Happened, Lesson Learned, etc.)
     details = []
-    details << extract_section(section, 'Why It Happened')
-    details << extract_section(section, 'Lesson Learned')
-    details << extract_section(section, 'Current Stats')
+    details << extract_section(section, "Why It Happened")
+    details << extract_section(section, "Lesson Learned")
+    details << extract_section(section, "Current Stats")
     details = details.compact.join("\n\n---\n\n")
     details = nil if details.empty?
 
     # Extract recommendations
-    recommendations = extract_section(section, 'Future Enhancement') ||
-                     extract_section(section, 'Future Consideration')
+    recommendations = extract_section(section, "Future Enhancement") ||
+                     extract_section(section, "Future Consideration")
 
     {
       chapter_number: chapter_number,
       chapter_name: chapter_name,
       component: component,
       bug_title: title,
-      knowledge_type: 'bug',
+      knowledge_type: "bug",
       status: status,
       severity: severity,
       first_reported: first_reported,
@@ -147,28 +147,28 @@ class LexiconImporter
   def extract_status(text)
     case text
     when /\*\*Status:\*\*\s*✅\s*(?:FIXED|RESOLVED)/i
-      'fixed'
+      "fixed"
     when /\*\*Status:\*\*\s*⚠️\s*BY DESIGN/i
-      'by_design'
+      "by_design"
     when /\*\*Status:\*\*\s*🔄\s*MONITORING/i
-      'monitoring'
+      "monitoring"
     else
-      'open'
+      "open"
     end
   end
 
   def extract_severity(text)
     case text
     when /\*\*Severity:\*\*\s*Critical/i
-      'critical'
+      "critical"
     when /\*\*Severity:\*\*\s*High/i
-      'high'
+      "high"
     when /\*\*Severity:\*\*\s*Medium/i
-      'medium'
+      "medium"
     when /\*\*Severity:\*\*\s*Low/i
-      'low'
+      "low"
     else
-      'medium'
+      "medium"
     end
   end
 

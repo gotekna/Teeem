@@ -1,8 +1,8 @@
 class MicrosoftEmailService
-  GRAPH_API_BASE = 'https://graph.microsoft.com/v1.0'
+  GRAPH_API_BASE = "https://graph.microsoft.com/v1.0"
 
   def initialize(credential = nil)
-    @credential = credential || OrganizationOneDriveCredential.active_credential
+    @credential = credential || MicrosoftCredential.sharepoint_credential
     raise "No active Microsoft credential found" unless @credential
   end
 
@@ -20,7 +20,7 @@ class MicrosoftEmailService
     message_content = {
       subject: subject,
       body: {
-        contentType: 'HTML',
+        contentType: "HTML",
         content: body
       },
       toRecipients: recipients
@@ -56,12 +56,12 @@ class MicrosoftEmailService
     )
 
     # Microsoft Graph returns 202 (Accepted) for successful sendMail requests
-    if response.is_a?(Net::HTTPSuccess) || response.code == '202'
+    if response.is_a?(Net::HTTPSuccess) || response.code == "202"
       Rails.logger.info "Email sent successfully to #{to}"
       { success: true }
     else
       error_message = begin
-        JSON.parse(response.body).dig('error', 'message')
+        JSON.parse(response.body).dig("error", "message")
       rescue
         response.body
       end
@@ -89,8 +89,8 @@ class MicrosoftEmailService
       req
     end
 
-    request['Authorization'] = "Bearer #{valid_access_token}"
-    request['Content-Type'] = 'application/json'
+    request["Authorization"] = "Bearer #{valid_access_token}"
+    request["Content-Type"] = "application/json"
 
     http.request(request)
   end
@@ -111,10 +111,10 @@ class MicrosoftEmailService
     # This is cached from the /me endpoint during OAuth
     @authenticated_email ||= begin
       client = MicrosoftGraphClient.new(@credential)
-      me = client.get('/me')
-      me['mail'] || me['userPrincipalName']
+      me = client.get("/me")
+      me["mail"] || me["userPrincipalName"]
     rescue
-      'admin@teknahomes.com.au' # Fallback
+      "admin@teknahomes.com.au" # Fallback
     end
   end
 end

@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
-import { api } from "@/lib/api";
+// api imported for future use
 import {
   Briefcase,
   FileText,
@@ -19,6 +21,11 @@ import {
   CheckCircle,
   BarChart3,
   LayoutDashboard,
+  Heart,
+  Shield,
+  Zap,
+  Smile,
+  Target,
 } from "lucide-react";
 import FeaturesTrackingTable from "./components/FeaturesTrackingTable";
 
@@ -30,38 +37,35 @@ interface DashboardStats {
 }
 
 export default function DashboardPage() {
+  useSetLayoutMode("full-height");
   const { user } = useAuth();
-  const [stats, setStats] = useState<DashboardStats>({
-    activeJobs: 0,
-    pendingPOs: 0,
-    totalRevenue: 0,
-    totalContacts: 0,
-  });
-  const [loading, setLoading] = useState(true);
+  const pathname = usePathname();
+  const router = useRouter();
 
+  // Path-based tab: /dashboard/overview, /dashboard/competitor
+  // URL always shows current tab for clarity
+  const activeTab = useMemo(() => {
+    const parts = pathname.replace("/dashboard", "").split("/").filter(Boolean);
+    return parts[0] || null; // null means no tab in URL yet
+  }, [pathname]);
+
+  // Redirect to default tab if none specified
   useEffect(() => {
-    const loadDashboard = async () => {
-      try {
-        // TODO: Replace with actual API calls
-        // const response = await api.get('/api/v1/dashboard/stats');
-        // setStats(response);
+    if (activeTab === null) {
+      router.replace("/dashboard/overview", { scroll: false });
+    }
+  }, [activeTab, router]);
 
-        // Mock data for now
-        setStats({
-          activeJobs: 12,
-          pendingPOs: 8,
-          totalRevenue: 245000,
-          totalContacts: 156,
-        });
-      } catch (error) {
-        console.error("Failed to load dashboard:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const setActiveTab = useCallback((tab: string) => {
+    router.push(`/dashboard/${tab}`, { scroll: false });
+  }, [router]);
 
-    loadDashboard();
-  }, []);
+  const [stats] = useState<DashboardStats>({
+    activeJobs: 12,
+    pendingPOs: 8,
+    totalRevenue: 245000,
+    totalContacts: 156,
+  });
 
   const statCards = [
     {
@@ -104,12 +108,12 @@ export default function DashboardPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight font-serif">Dashboard</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Welcome back, {user?.name || "User"}. Here's what's happening today.
+          Welcome back, {user?.name || "User"}. Here&apos;s what&apos;s happening today.
         </p>
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="overview" className="space-y-4">
+      <Tabs value={activeTab || "overview"} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="overview" className="gap-2">
             <LayoutDashboard className="h-4 w-4" />
@@ -147,6 +151,79 @@ export default function DashboardPage() {
               );
             })}
           </div>
+
+          {/* TEEEM Values */}
+          <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
+            <CardHeader>
+              <CardTitle className="text-xl font-bold">Our Values: TEEEM</CardTitle>
+              <CardDescription>
+                These five principles are at the heart of who we are and how we operate
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                {/* Trust */}
+                <div className="space-y-2 p-4 rounded-lg bg-background/50 border border-border hover:border-primary/50 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    <h3 className="font-bold text-sm">Trust</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    We build trust through being <span className="font-semibold text-foreground">HOT</span>: Honest, Open, and Transparent. We say things straight, share what needs to be shared, and always act with integrity.
+                  </p>
+                </div>
+
+                {/* Empower */}
+                <div className="space-y-2 p-4 rounded-lg bg-background/50 border border-border hover:border-primary/50 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+                    <h3 className="font-bold text-sm">Empower</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    We give everyone the authority, tools, and backing to make decisions and take action. When people feel trusted and supported, they deliver their best.
+                  </p>
+                </div>
+
+                {/* Evolve */}
+                <div className="space-y-2 p-4 rounded-lg bg-background/50 border border-border hover:border-primary/50 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-green-600 dark:text-green-400" />
+                    <h3 className="font-bold text-sm">Evolve</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    We are committed to constant growth. We learn fast, embrace change, turn challenges into opportunities, and keep getting better every day.
+                  </p>
+                </div>
+
+                {/* Enjoy */}
+                <div className="space-y-2 p-4 rounded-lg bg-background/50 border border-border hover:border-primary/50 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <Smile className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                    <h3 className="font-bold text-sm">Enjoy</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    We believe great results come when we genuinely enjoy what we do. We celebrate wins, look after each other, and keep the workplace positive and human.
+                  </p>
+                </div>
+
+                {/* Measure */}
+                <div className="space-y-2 p-4 rounded-lg bg-background/50 border border-border hover:border-primary/50 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <Target className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                    <h3 className="font-bold text-sm">Measure</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    We set clear targets, track progress honestly, and use real data to improve. What we measure, we manage—and we always aim higher.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 pt-4 border-t border-border">
+                <p className="text-sm text-center font-medium text-muted-foreground">
+                  This is TEEEM. Simple, strong, and true to us.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Quick Actions */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

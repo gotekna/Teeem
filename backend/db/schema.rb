@@ -8429,13 +8429,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_09_104149) do
     t.text "email_keywords"
     t.boolean "is_delegated_question", default: false, null: false
     t.bigint "job_claim_stage_id"
-    t.boolean "is_claim_task", default: false, null: false
-    t.decimal "claim_percentage"
-    t.string "claim_invoice_pattern"
-    t.integer "claim_invoice_template_id"
-    t.integer "claim_trading_name_id"
-    t.boolean "is_variation", default: false
-    t.integer "claim_sequence_number"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
     t.index ["complete_workflow_id"], name: "index_sm_tasks_on_complete_workflow_id"

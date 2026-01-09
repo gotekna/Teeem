@@ -28,5 +28,4 @@ RSpec.describe "Api::V1::FeatureTrackers", type: :request do
       expect(response).to have_http_status(:success)
     end
   end
-
 end

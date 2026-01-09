@@ -5,7 +5,7 @@ namespace :teeem do
       puts "Seeding pricebook categories from existing data..."
 
       # Get all unique category values from pricebook_items
-      existing_categories = PricebookItem.where.not(category: [nil, '']).distinct.pluck(:category).sort
+      existing_categories = PricebookItem.where.not(category: [ nil, "" ]).distinct.pluck(:category).sort
 
       puts "Found #{existing_categories.count} unique categories in pricebook_items"
 
@@ -41,7 +41,7 @@ namespace :teeem do
       puts "Registering pricebook_categories in Tables system..."
 
       # Check if table already exists
-      existing = Table.find_by(database_table_name: 'pricebook_categories')
+      existing = Table.find_by(database_table_name: "pricebook_categories")
       if existing
         puts "Table already registered with ID #{existing.id}"
         return
@@ -49,32 +49,32 @@ namespace :teeem do
 
       # Create the table record
       table = Table.create!(
-        name: 'Price Book Categories',
-        slug: 'pricebook-categories',
-        singular_name: 'Category',
-        plural_name: 'Categories',
-        database_table_name: 'pricebook_categories',
-        icon: '📁',
-        title_column: 'name',
+        name: "Price Book Categories",
+        slug: "pricebook-categories",
+        singular_name: "Category",
+        plural_name: "Categories",
+        database_table_name: "pricebook_categories",
+        icon: "📁",
+        title_column: "name",
         searchable: true,
-        description: 'Categories for organizing price book items',
+        description: "Categories for organizing price book items",
         is_live: true,
-        table_type: 'system',
-        api_endpoint: '/api/v1/pricebook_categories'
+        table_type: "system",
+        api_endpoint: "/api/v1/pricebook_categories"
       )
 
       puts "Created table with ID: #{table.id}"
 
       # Create columns for this table
       columns = [
-        { name: 'Name', column_name: 'name', column_type: 'single_line_text', required: true, is_title: true, searchable: true, position: 0 },
-        { name: 'Display Name', column_name: 'display_name', column_type: 'single_line_text', required: false, searchable: true, position: 1 },
-        { name: 'Color', column_name: 'color', column_type: 'color_picker', required: false, position: 2 },
-        { name: 'Icon', column_name: 'icon', column_type: 'single_line_text', required: false, position: 3 },
-        { name: 'Position', column_name: 'position', column_type: 'whole_number', required: false, position: 4 },
-        { name: 'Active', column_name: 'is_active', column_type: 'boolean', required: false, position: 5 },
-        { name: 'Created', column_name: 'created_at', column_type: 'date_and_time', required: false, position: 6 },
-        { name: 'Updated', column_name: 'updated_at', column_type: 'date_and_time', required: false, position: 7 }
+        { name: "Name", column_name: "name", column_type: "single_line_text", required: true, is_title: true, searchable: true, position: 0 },
+        { name: "Display Name", column_name: "display_name", column_type: "single_line_text", required: false, searchable: true, position: 1 },
+        { name: "Color", column_name: "color", column_type: "color_picker", required: false, position: 2 },
+        { name: "Icon", column_name: "icon", column_type: "single_line_text", required: false, position: 3 },
+        { name: "Position", column_name: "position", column_type: "whole_number", required: false, position: 4 },
+        { name: "Active", column_name: "is_active", column_type: "boolean", required: false, position: 5 },
+        { name: "Created", column_name: "created_at", column_type: "date_and_time", required: false, position: 6 },
+        { name: "Updated", column_name: "updated_at", column_type: "date_and_time", required: false, position: 7 }
       ]
 
       columns.each do |col_attrs|
@@ -91,7 +91,7 @@ namespace :teeem do
       puts "Backfilling category_id in pricebook_items..."
 
       # First, ensure all categories exist
-      Rake::Task['teeem:pricebook:seed_categories'].invoke
+      Rake::Task["teeem:pricebook:seed_categories"].invoke
 
       # Build a lookup hash for faster processing
       category_lookup = PricebookCategory.pluck(:name, :id).to_h
@@ -131,21 +131,21 @@ namespace :teeem do
       puts "Updating category column type to lookup..."
 
       # Find the pricebook_items table
-      pricebook_table = Table.find_by(database_table_name: 'pricebook_items')
+      pricebook_table = Table.find_by(database_table_name: "pricebook_items")
       unless pricebook_table
         puts "ERROR: pricebook_items table not found in Tables system"
         return
       end
 
       # Find the categories table
-      categories_table = Table.find_by(database_table_name: 'pricebook_categories')
+      categories_table = Table.find_by(database_table_name: "pricebook_categories")
       unless categories_table
         puts "ERROR: pricebook_categories table not found. Run 'rake teeem:pricebook:register_table' first."
         return
       end
 
       # Find or create the category column
-      category_column = pricebook_table.columns.find_by(column_name: 'category')
+      category_column = pricebook_table.columns.find_by(column_name: "category")
       unless category_column
         puts "ERROR: category column not found in pricebook_items"
         return
@@ -153,9 +153,9 @@ namespace :teeem do
 
       # Update the column to be a lookup
       category_column.update!(
-        column_type: 'lookup',
+        column_type: "lookup",
         lookup_table_id: categories_table.id,
-        lookup_display_column: 'name'
+        lookup_display_column: "name"
       )
 
       puts "Category column updated to lookup type"
@@ -169,18 +169,18 @@ namespace :teeem do
       puts "SETTING UP PRICEBOOK CATEGORIES"
       puts "=" * 60
 
-      Rake::Task['teeem:pricebook:seed_categories'].invoke
+      Rake::Task["teeem:pricebook:seed_categories"].invoke
       puts "\n"
 
-      Rake::Task['teeem:pricebook:register_table'].invoke
+      Rake::Task["teeem:pricebook:register_table"].invoke
       puts "\n"
 
       # Only run backfill if category_id column exists
       if ActiveRecord::Base.connection.column_exists?(:pricebook_items, :category_id)
-        Rake::Task['teeem:pricebook:backfill_category_ids'].invoke
+        Rake::Task["teeem:pricebook:backfill_category_ids"].invoke
         puts "\n"
 
-        Rake::Task['teeem:pricebook:update_category_column'].invoke
+        Rake::Task["teeem:pricebook:update_category_column"].invoke
       else
         puts "NOTE: category_id column doesn't exist yet. Run migration first:"
         puts "  rails db:migrate"

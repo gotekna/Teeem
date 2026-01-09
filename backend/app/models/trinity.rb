@@ -1,8 +1,7 @@
 # frozen_string_literal: true
 
 class Trinity < ApplicationRecord
-  # Tell Rails to use 'trinity' as the table name (not 'trinities')
-  self.table_name = 'trinity'
+  # Table renamed from trinity to trinities (Rails convention)
 
   # Constants
   ENTRY_TYPES = %w[
@@ -35,11 +34,11 @@ class Trinity < ApplicationRecord
   # TEMP-XXXXX (temporary during renumbering)
   validates :section_number, format: { with: /\A([BTL]\d{2}\.\d{2,3}|\d+\.\d+[A-Z]?|TEMP-\d+)\z/, message: "must be in format BXX.YYY, LXX.YYY, TXX.YYY or legacy X.Y" }, allow_nil: true
   # Section number must be unique within chapter + category combination
-  validates :section_number, uniqueness: { scope: [:chapter_number, :category], message: "already exists in this chapter for this category" }, allow_nil: true
+  validates :section_number, uniqueness: { scope: [ :chapter_number, :category ], message: "already exists in this chapter for this category" }, allow_nil: true
 
   # Bug-specific validations (only when entry_type = 'bug')
-  validates :status, inclusion: { in: STATUSES }, if: -> { entry_type == 'bug' }
-  validates :severity, inclusion: { in: SEVERITIES }, if: -> { entry_type == 'bug' }
+  validates :status, inclusion: { in: STATUSES }, if: -> { entry_type == "bug" }
+  validates :severity, inclusion: { in: SEVERITIES }, if: -> { entry_type == "bug" }
 
   # Teacher-specific validations
   validates :difficulty, inclusion: { in: DIFFICULTIES }, allow_nil: true
@@ -59,30 +58,30 @@ class Trinity < ApplicationRecord
   scope :ordered, -> { order(:chapter_number, :section_number, :created_at) }
 
   # Category scopes
-  scope :bible_entries, -> { where(category: 'bible') }
-  scope :lexicon_entries, -> { where(category: 'lexicon') }
-  scope :teacher_entries, -> { where(category: 'teacher') }
+  scope :bible_entries, -> { where(category: "bible") }
+  scope :lexicon_entries, -> { where(category: "lexicon") }
+  scope :teacher_entries, -> { where(category: "teacher") }
 
   # Convenience scopes - Lexicon
-  scope :bugs, -> { where(entry_type: 'bug') }
-  scope :architecture, -> { where(entry_type: 'architecture') }
-  scope :tests, -> { where(entry_type: 'test') }
-  scope :performance, -> { where(entry_type: 'performance') }
-  scope :dev_notes, -> { where(entry_type: 'dev_note') }
-  scope :common_issues, -> { where(entry_type: 'common_issue') }
+  scope :bugs, -> { where(entry_type: "bug") }
+  scope :architecture, -> { where(entry_type: "architecture") }
+  scope :tests, -> { where(entry_type: "test") }
+  scope :performance, -> { where(entry_type: "performance") }
+  scope :dev_notes, -> { where(entry_type: "dev_note") }
+  scope :common_issues, -> { where(entry_type: "common_issue") }
 
   # Convenience scopes - Teacher
-  scope :components, -> { where(entry_type: 'component') }
-  scope :features, -> { where(entry_type: 'feature') }
-  scope :utils, -> { where(entry_type: 'util') }
-  scope :hooks, -> { where(entry_type: 'hook') }
-  scope :integrations, -> { where(entry_type: 'integration') }
-  scope :optimizations, -> { where(entry_type: 'optimization') }
+  scope :components, -> { where(entry_type: "component") }
+  scope :features, -> { where(entry_type: "feature") }
+  scope :utils, -> { where(entry_type: "util") }
+  scope :hooks, -> { where(entry_type: "hook") }
+  scope :integrations, -> { where(entry_type: "integration") }
+  scope :optimizations, -> { where(entry_type: "optimization") }
 
   # Combined scopes
-  scope :open_bugs, -> { bugs.where(status: 'open') }
-  scope :fixed_bugs, -> { bugs.where(status: 'fixed') }
-  scope :critical_bugs, -> { bugs.where(severity: 'critical') }
+  scope :open_bugs, -> { bugs.where(status: "open") }
+  scope :fixed_bugs, -> { bugs.where(status: "fixed") }
+  scope :critical_bugs, -> { bugs.where(severity: "critical") }
 
   # Search
   def self.search(query)
@@ -94,101 +93,101 @@ class Trinity < ApplicationRecord
 
   # Helper methods
   def bible_entry?
-    category == 'bible'
+    category == "bible"
   end
 
   def lexicon_entry?
-    category == 'lexicon'
+    category == "lexicon"
   end
 
   def teacher_entry?
-    category == 'teacher'
+    category == "teacher"
   end
 
   # Display methods
   def type_emoji
     case entry_type
     # Bible types
-    when 'MUST'
-      '✅'
-    when 'NEVER'
-      '❌'
-    when 'ALWAYS'
-      '🔄'
-    when 'PROTECTED'
-      '🔒'
-    when 'CONFIG'
-      '⚙️'
-    when 'rule'
-      '📖'
-    when 'REFERENCE'
-      '📚'
+    when "MUST"
+      "✅"
+    when "NEVER"
+      "❌"
+    when "ALWAYS"
+      "🔄"
+    when "PROTECTED"
+      "🔒"
+    when "CONFIG"
+      "⚙️"
+    when "rule"
+      "📖"
+    when "REFERENCE"
+      "📚"
     # Lexicon types
-    when 'bug'
-      '🐛'
-    when 'architecture'
-      '🏗️'
-    when 'test'
-      '📊'
-    when 'performance'
-      '📈'
-    when 'dev_note'
-      '🎓'
-    when 'common_issue'
-      '🔍'
+    when "bug"
+      "🐛"
+    when "architecture"
+      "🏗️"
+    when "test"
+      "📊"
+    when "performance"
+      "📈"
+    when "dev_note"
+      "🎓"
+    when "common_issue"
+      "🔍"
     # Teacher types
-    when 'component'
-      '🧩'
-    when 'feature'
-      '✨'
-    when 'util'
-      '🔧'
-    when 'hook'
-      '🪝'
-    when 'integration'
-      '🔌'
-    when 'optimization'
-      '⚡'
-    when 'dropdown_md'
-      '📋'
+    when "component"
+      "🧩"
+    when "feature"
+      "✨"
+    when "util"
+      "🔧"
+    when "hook"
+      "🪝"
+    when "integration"
+      "🔌"
+    when "optimization"
+      "⚡"
+    when "dropdown_md"
+      "📋"
     else
-      '📝'
+      "📝"
     end
   end
 
   def status_emoji
-    return nil unless entry_type == 'bug'
+    return nil unless entry_type == "bug"
 
     case status
-    when 'open'
-      '🔴'
-    when 'fixed'
-      '✅'
-    when 'by_design'
-      '⚠️'
-    when 'wont_fix'
-      '🚫'
-    when 'monitoring'
-      '🔄'
+    when "open"
+      "🔴"
+    when "fixed"
+      "✅"
+    when "by_design"
+      "⚠️"
+    when "wont_fix"
+      "🚫"
+    when "monitoring"
+      "🔄"
     else
-      '❓'
+      "❓"
     end
   end
 
   def severity_emoji
-    return nil unless entry_type == 'bug'
+    return nil unless entry_type == "bug"
 
     case severity
-    when 'critical'
-      '🔴'
-    when 'high'
-      '🟠'
-    when 'medium'
-      '🟡'
-    when 'low'
-      '🟢'
+    when "critical"
+      "🔴"
+    when "high"
+      "🟠"
+    when "medium"
+      "🟡"
+    when "low"
+      "🟢"
     else
-      '⚪'
+      "⚪"
     end
   end
 
@@ -196,24 +195,24 @@ class Trinity < ApplicationRecord
     return nil unless difficulty.present?
 
     case difficulty
-    when 'beginner'
-      '🟢'
-    when 'intermediate'
-      '🟡'
-    when 'advanced'
-      '🔴'
+    when "beginner"
+      "🟢"
+    when "intermediate"
+      "🟡"
+    when "advanced"
+      "🔴"
     else
-      '⚪'
+      "⚪"
     end
   end
 
   def status_display
-    return nil unless entry_type == 'bug' && status.present?
+    return nil unless entry_type == "bug" && status.present?
     "#{status_emoji} #{status.upcase}"
   end
 
   def severity_display
-    return nil unless entry_type == 'bug' && severity.present?
+    return nil unless entry_type == "bug" && severity.present?
     "#{severity_emoji} #{severity.capitalize}"
   end
 
@@ -230,7 +229,7 @@ class Trinity < ApplicationRecord
     return nil unless section_number.present?
 
     # Strip category prefix for display (B01.01 → 01.01)
-    display_number = section_number.sub(/^[BTL]/, '')
+    display_number = section_number.sub(/^[BTL]/, "")
 
     bible_entry? ? "RULE ##{display_number}" : "§#{display_number}"
   end
@@ -238,7 +237,7 @@ class Trinity < ApplicationRecord
   def full_title
     if section_number.present?
       # Strip category prefix for display (B01.01 → 01.01)
-      display_number = section_number.sub(/^[BTL]/, '')
+      display_number = section_number.sub(/^[BTL]/, "")
 
       if bible_entry?
         "RULE ##{display_number}: #{title}"
@@ -273,7 +272,7 @@ class Trinity < ApplicationRecord
       details,
       examples,
       recommendations
-    ].compact.join(' ')
+    ].compact.join(" ")
   end
 
   def update_dense_index
@@ -281,10 +280,10 @@ class Trinity < ApplicationRecord
     tokens = []
 
     # Section number (no dots): b0109
-    tokens << section_number.downcase.gsub('.', '') if section_number.present?
+    tokens << section_number.downcase.gsub(".", "") if section_number.present?
 
     # Title (no spaces): sectionnumberscategoryprefix
-    tokens << title.downcase.gsub(/[^a-z0-9]/, '') if title.present?
+    tokens << title.downcase.gsub(/[^a-z0-9]/, "") if title.present?
 
     # Type: must
     tokens << entry_type.downcase if entry_type.present?
@@ -303,13 +302,13 @@ class Trinity < ApplicationRecord
       scenario,
       solution,
       code_example
-    ].compact.join(' ')
+    ].compact.join(" ")
 
     # Remove formatting and extract meaningful words (3+ chars)
     key_terms = content_text
       .downcase
-      .gsub(/[*#\-_`]/, '') # Remove markdown
-      .gsub(/must|never|always|should|will|can|use|add|set|get/, '') # Remove common words
+      .gsub(/[*#\-_`]/, "") # Remove markdown
+      .gsub(/must|never|always|should|will|can|use|add|set|get/, "") # Remove common words
       .scan(/\b[a-z]{3,}\b/) # Extract words 3+ chars
       .uniq
       .first(20) # Limit to 20 most unique terms
@@ -317,6 +316,6 @@ class Trinity < ApplicationRecord
     tokens.concat(key_terms)
 
     # Join with spaces for simple text search
-    self.dense_index = tokens.join(' ')
+    self.dense_index = tokens.join(" ")
   end
 end

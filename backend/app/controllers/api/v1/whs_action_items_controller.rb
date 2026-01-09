@@ -1,5 +1,5 @@
 class Api::V1::WHSActionItemsController < ApplicationController
-  before_action :set_whs_action_item, only: [:show, :update, :destroy, :start, :complete, :cancel]
+  before_action :set_whs_action_item, only: [ :show, :update, :destroy, :start, :complete, :cancel ]
 
   # GET /api/v1/whs_action_items
   def index
@@ -23,18 +23,18 @@ class Api::V1::WHSActionItemsController < ApplicationController
     action_items = action_items.assigned_to(params[:assigned_to_user_id]) if params[:assigned_to_user_id].present?
 
     # Apply overdue filter
-    action_items = action_items.overdue if params[:overdue] == 'true'
+    action_items = action_items.overdue if params[:overdue] == "true"
 
     # Apply due_soon filter
-    if params[:due_soon] == 'true'
+    if params[:due_soon] == "true"
       days = params[:due_soon_days]&.to_i || 7
       action_items = action_items.due_soon(days)
     end
 
     # Apply pending filter (open or in_progress)
-    action_items = action_items.pending if params[:pending] == 'true'
+    action_items = action_items.pending if params[:pending] == "true"
 
-    action_items = action_items.includes(:actionable, :assigned_to_user, :created_by, :project_task)
+    action_items = action_items.includes(:actionable, :assigned_to_user, :created_by, :sm_task)
                                .order(due_date: :asc, priority: :desc)
 
     # Following B01.003: API response format
@@ -65,7 +65,7 @@ class Api::V1::WHSActionItemsController < ApplicationController
     else
       render json: {
         success: false,
-        error: action_item.errors.full_messages.join(', ')
+        error: action_item.errors.full_messages.join(", ")
       }, status: :unprocessable_entity
     end
   end
@@ -80,7 +80,7 @@ class Api::V1::WHSActionItemsController < ApplicationController
     else
       render json: {
         success: false,
-        error: @whs_action_item.errors.full_messages.join(', ')
+        error: @whs_action_item.errors.full_messages.join(", ")
       }, status: :unprocessable_entity
     end
   end
@@ -90,12 +90,12 @@ class Api::V1::WHSActionItemsController < ApplicationController
     if @whs_action_item.destroy
       render json: {
         success: true,
-        data: { message: 'Action item deleted successfully' }
+        data: { message: "Action item deleted successfully" }
       }
     else
       render json: {
         success: false,
-        error: 'Failed to delete action item'
+        error: "Failed to delete action item"
       }, status: :unprocessable_entity
     end
   end
@@ -110,7 +110,7 @@ class Api::V1::WHSActionItemsController < ApplicationController
     else
       render json: {
         success: false,
-        error: 'Cannot start action item'
+        error: "Cannot start action item"
       }, status: :unprocessable_entity
     end
   end
@@ -127,7 +127,7 @@ class Api::V1::WHSActionItemsController < ApplicationController
     else
       render json: {
         success: false,
-        error: 'Cannot complete action item'
+        error: "Cannot complete action item"
       }, status: :unprocessable_entity
     end
   end
@@ -142,7 +142,7 @@ class Api::V1::WHSActionItemsController < ApplicationController
     else
       render json: {
         success: false,
-        error: 'Cannot cancel action item'
+        error: "Cannot cancel action item"
       }, status: :unprocessable_entity
     end
   end
@@ -157,19 +157,18 @@ class Api::V1::WHSActionItemsController < ApplicationController
     params.require(:whs_action_item).permit(
       :title, :description, :actionable_type, :actionable_id,
       :action_type, :priority, :status, :assigned_to_user_id,
-      :due_date, :completion_notes, :project_task_id
+      :due_date, :completion_notes, :sm_task_id
     )
   end
 
   def serialization_includes
     {
       actionable: {
-        only: [:id, :type],
-        methods: [:source_description]
+        methods: [ :source_description ]
       },
-      assigned_to_user: { only: [:id, :name, :email] },
-      created_by: { only: [:id, :name, :email] },
-      project_task: { only: [:id, :name, :status, :planned_end_date] }
+      assigned_to_user: {},
+      created_by: {},
+      sm_task: {}
     }
   end
 end

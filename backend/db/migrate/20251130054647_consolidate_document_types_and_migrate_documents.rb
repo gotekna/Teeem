@@ -54,7 +54,7 @@ class ConsolidateDocumentTypesAndMigrateDocuments < ActiveRecord::Migration[8.0]
 
   def down
     # Re-activate the deactivated document types (documents stay with new types)
-    DocumentType.where(name: ['Loan Agreement', 'Security Deed', "Directors' Minutes",
-                              'Distribution - Draft', 'Distribution - Signed']).update_all(active: true)
+    DocumentType.where(name: [ 'Loan Agreement', 'Security Deed', "Directors' Minutes",
+                              'Distribution - Draft', 'Distribution - Signed' ]).update_all(active: true)
   end
 end

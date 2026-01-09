@@ -3,7 +3,7 @@
 namespace :teeem do
   desc "Import Bible rules from TEEEM_BIBLE.md into database"
   task import_bible: :environment do
-    bible_path = Rails.root.join('..', 'TEEEM_DOCS', 'TEEEM_BIBLE.md')
+    bible_path = Rails.root.join("..", "TEEEM_DOCS", "TEEEM_BIBLE.md")
 
     unless File.exist?(bible_path)
       puts "❌ Error: TEEEM_BIBLE.md not found at #{bible_path}"
@@ -48,13 +48,13 @@ namespace :teeem do
     # Find all rules with their content
     content.scan(/^## RULE #([\d.A-Z]+):\s*(.+?)$\n(.*?)(?=^## RULE #|^# Chapter \d+:|^---\n\n#|\z)/m) do |rule_number, title, body|
       # Determine chapter number from rule_number (e.g., "19.1" -> 19, "0" -> 0)
-      chapter_num = if rule_number.include?('.')
-                      rule_number.split('.').first.to_i
-                    elsif rule_number == 'X.Y' || rule_number.match?(/[A-Z]/)
+      chapter_num = if rule_number.include?(".")
+                      rule_number.split(".").first.to_i
+      elsif rule_number == "X.Y" || rule_number.match?(/[A-Z]/)
                       next  # Skip template rules
-                    else
+      else
                       rule_number.to_i
-                    end
+      end
 
       # Check if we have a mapping for this chapter
       unless chapter_names.key?(chapter_num)
@@ -74,15 +74,15 @@ namespace :teeem do
       # Extract rule type from body
       rule_type = nil
       if body.match?(/✅.*MUST/)
-        rule_type = 'MUST'
+        rule_type = "MUST"
       elsif body.match?(/❌.*NEVER/)
-        rule_type = 'NEVER'
+        rule_type = "NEVER"
       elsif body.match?(/🔄.*ALWAYS/)
-        rule_type = 'ALWAYS'
+        rule_type = "ALWAYS"
       elsif body.match?(/🔒.*PROTECTED/)
-        rule_type = 'PROTECTED'
+        rule_type = "PROTECTED"
       elsif body.match?(/⚙️.*CONFIG/)
-        rule_type = 'CONFIG'
+        rule_type = "CONFIG"
       end
 
       # Extract code examples (triple backtick blocks)
@@ -92,7 +92,7 @@ namespace :teeem do
       cross_refs = body.scan(/(?:See|Ref|Reference):\s*(.+?)$/m).flatten.join("\n")
 
       # Clean description (remove code blocks for main description)
-      description = body.gsub(/```[\w]*\n.*?```/m, '[Code example - see code_example field]').strip
+      description = body.gsub(/```[\w]*\n.*?```/m, "[Code example - see code_example field]").strip
 
       # Check if rule already exists
       existing_rule = Trinity.bible_entries.find_by(chapter_number: chapter_num, section_number: rule_number)
@@ -103,12 +103,12 @@ namespace :teeem do
       else
         begin
           Trinity.create!(
-            category: 'bible',
+            category: "bible",
             chapter_number: chapter_num,
             chapter_name: chapter_names[chapter_num],
             section_number: rule_number,
             title: title,
-            entry_type: rule_type || 'rule',
+            entry_type: rule_type || "rule",
             description: description,
             code_example: code_examples.presence,
             related_rules: cross_refs.presence
@@ -131,7 +131,7 @@ namespace :teeem do
 
   desc "Export Bible rules from database to TEEEM_BIBLE.md"
   task export_bible: :environment do
-    bible_path = Rails.root.join('..', 'TEEEM_DOCS', 'TEEEM_BIBLE.md')
+    bible_path = Rails.root.join("..", "TEEEM_DOCS", "TEEEM_BIBLE.md")
 
     puts "\n📖 Exporting Bible rules to TEEEM_BIBLE.md..."
     puts "=" * 60
@@ -225,7 +225,7 @@ namespace :teeem do
     print "⚠️  WARNING: This will delete ALL Bible rules from the database. Continue? (y/N): "
     confirmation = STDIN.gets.chomp
 
-    if confirmation.downcase == 'y'
+    if confirmation.downcase == "y"
       count = Trinity.bible_entries.count
       Trinity.bible_entries.destroy_all
       puts "✅ Deleted #{count} Bible rules"

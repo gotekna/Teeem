@@ -5,20 +5,20 @@ namespace :corporate do
 
     # Corporate models mapped to their Foundation slugs
     corporate_mappings = {
-      'Company' => 'company',
-      'Asset' => 'asset',
-      'CompanyDirector' => 'company-director',
-      'CompanyDocument' => 'company-document',
-      'CompanySetting' => 'company-setting',
-      'CompanyActivity' => 'company-activity',
-      'CompanyComplianceItem' => 'company-compliance-item',
-      'CompanyShareholding' => 'company-shareholding',
-      'CompanyLoan' => 'company-loan',
-      'CompanyMinute' => 'company-minute',
-      'CompanyXeroAccount' => 'company-xero-account',
-      'CompanyXeroConnection' => 'company-xero-connection',
-      'AssetInsurance' => 'asset-insurance',
-      'AssetServiceHistory' => 'asset-service-history'
+      "Company" => "company",
+      "Asset" => "asset",
+      "CompanyDirector" => "company-director",
+      "CompanyDocument" => "company-document",
+      "CompanySetting" => "company-setting",
+      "CompanyActivity" => "company-activity",
+      "CompanyComplianceItem" => "company-compliance-item",
+      "CompanyShareholding" => "company-shareholding",
+      "CompanyLoan" => "company-loan",
+      "CompanyMinute" => "company-minute",
+      "CompanyXeroAccount" => "company-xero-account",
+      "CompanyXeroConnection" => "company-xero-connection",
+      "AssetInsurance" => "asset-insurance",
+      "AssetServiceHistory" => "asset-service-history"
     }
 
     # System columns that don't need Foundation definitions
@@ -104,20 +104,20 @@ namespace :corporate do
     puts "Syncing Corporate schema...\n\n"
 
     corporate_mappings = {
-      'Company' => 'company',
-      'Asset' => 'asset',
-      'CompanyDirector' => 'company-director',
-      'CompanyDocument' => 'company-document',
-      'CompanySetting' => 'company-setting',
-      'CompanyActivity' => 'company-activity',
-      'CompanyComplianceItem' => 'company-compliance-item',
-      'CompanyShareholding' => 'company-shareholding',
-      'CompanyLoan' => 'company-loan',
-      'CompanyMinute' => 'company-minute',
-      'CompanyXeroAccount' => 'company-xero-account',
-      'CompanyXeroConnection' => 'company-xero-connection',
-      'AssetInsurance' => 'asset-insurance',
-      'AssetServiceHistory' => 'asset-service-history'
+      "Company" => "company",
+      "Asset" => "asset",
+      "CompanyDirector" => "company-director",
+      "CompanyDocument" => "company-document",
+      "CompanySetting" => "company-setting",
+      "CompanyActivity" => "company-activity",
+      "CompanyComplianceItem" => "company-compliance-item",
+      "CompanyShareholding" => "company-shareholding",
+      "CompanyLoan" => "company-loan",
+      "CompanyMinute" => "company-minute",
+      "CompanyXeroAccount" => "company-xero-account",
+      "CompanyXeroConnection" => "company-xero-connection",
+      "AssetInsurance" => "asset-insurance",
+      "AssetServiceHistory" => "asset-service-history"
     }
 
     system_columns = %w[id created_at updated_at encrypted_password reset_password_token]
@@ -152,7 +152,7 @@ namespace :corporate do
       missing_in_foundation.each do |col_name|
         db_col = model_class.columns_hash[col_name]
         col_type = infer_column_type_for_corporate(db_col)
-        display_name = col_name.titleize.gsub(/\bId\b/, 'ID')
+        display_name = col_name.titleize.gsub(/\bId\b/, "ID")
 
         puts "    Adding: #{col_name} (#{col_type})"
 
@@ -161,7 +161,7 @@ namespace :corporate do
           column_name: col_name,
           column_type: col_type,
           position: foundation.columns.maximum(:position).to_i + 1,
-          visible: !col_name.end_with?('_id'), # Hide foreign keys by default
+          visible: !col_name.end_with?("_id"), # Hide foreign keys by default
           editable: !%w[id created_at updated_at].include?(col_name)
         )
         stats[:added] += 1
@@ -195,131 +195,131 @@ namespace :corporate do
 
     # Corporate models and their Foundation configuration
     corporate_foundations = {
-      'Company' => {
-        slug: 'company',
-        name: 'Companies',
-        singular_name: 'Company',
-        plural_name: 'Companies',
-        icon: 'building-2',
-        feature: 'corporate',
-        description: 'Company records for corporate management'
+      "Company" => {
+        slug: "company",
+        name: "Companies",
+        singular_name: "Company",
+        plural_name: "Companies",
+        icon: "building-2",
+        feature: "corporate",
+        description: "Company records for corporate management"
       },
-      'Asset' => {
-        slug: 'asset',
-        name: 'Assets',
-        singular_name: 'Asset',
-        plural_name: 'Assets',
-        icon: 'package',
-        feature: 'corporate',
-        description: 'Company assets including vehicles, equipment, and property'
+      "Asset" => {
+        slug: "asset",
+        name: "Assets",
+        singular_name: "Asset",
+        plural_name: "Assets",
+        icon: "package",
+        feature: "corporate",
+        description: "Company assets including vehicles, equipment, and property"
       },
-      'CompanyDirector' => {
-        slug: 'company-director',
-        name: 'Company Directors',
-        singular_name: 'Company Director',
-        plural_name: 'Company Directors',
-        icon: 'user',
-        feature: 'corporate',
-        description: 'Directors and officers of companies'
+      "CompanyDirector" => {
+        slug: "company-director",
+        name: "Company Directors",
+        singular_name: "Company Director",
+        plural_name: "Company Directors",
+        icon: "user",
+        feature: "corporate",
+        description: "Directors and officers of companies"
       },
-      'CompanyDocument' => {
-        slug: 'company-document',
-        name: 'Company Documents',
-        singular_name: 'Company Document',
-        plural_name: 'Company Documents',
-        icon: 'file-text',
-        feature: 'corporate',
-        description: 'Corporate documents and records'
+      "CompanyDocument" => {
+        slug: "company-document",
+        name: "Company Documents",
+        singular_name: "Company Document",
+        plural_name: "Company Documents",
+        icon: "file-text",
+        feature: "corporate",
+        description: "Corporate documents and records"
       },
-      'CompanySetting' => {
-        slug: 'company-setting',
-        name: 'Company Settings',
-        singular_name: 'Company Setting',
-        plural_name: 'Company Settings',
-        icon: 'settings',
-        feature: 'corporate',
-        description: 'Company-specific settings and configuration'
+      "CompanySetting" => {
+        slug: "company-setting",
+        name: "Company Settings",
+        singular_name: "Company Setting",
+        plural_name: "Company Settings",
+        icon: "settings",
+        feature: "corporate",
+        description: "Company-specific settings and configuration"
       },
-      'CompanyActivity' => {
-        slug: 'company-activity',
-        name: 'Company Activities',
-        singular_name: 'Company Activity',
-        plural_name: 'Company Activities',
-        icon: 'activity',
-        feature: 'corporate',
-        description: 'Activity log for companies'
+      "CompanyActivity" => {
+        slug: "company-activity",
+        name: "Company Activities",
+        singular_name: "Company Activity",
+        plural_name: "Company Activities",
+        icon: "activity",
+        feature: "corporate",
+        description: "Activity log for companies"
       },
-      'CompanyComplianceItem' => {
-        slug: 'company-compliance-item',
-        name: 'Compliance Items',
-        singular_name: 'Compliance Item',
-        plural_name: 'Compliance Items',
-        icon: 'check-circle',
-        feature: 'corporate',
-        description: 'Compliance tracking for companies'
+      "CompanyComplianceItem" => {
+        slug: "company-compliance-item",
+        name: "Compliance Items",
+        singular_name: "Compliance Item",
+        plural_name: "Compliance Items",
+        icon: "check-circle",
+        feature: "corporate",
+        description: "Compliance tracking for companies"
       },
-      'CompanyShareholding' => {
-        slug: 'company-shareholding',
-        name: 'Shareholdings',
-        singular_name: 'Shareholding',
-        plural_name: 'Shareholdings',
-        icon: 'pie-chart',
-        feature: 'corporate',
-        description: 'Company share ownership records'
+      "CompanyShareholding" => {
+        slug: "company-shareholding",
+        name: "Shareholdings",
+        singular_name: "Shareholding",
+        plural_name: "Shareholdings",
+        icon: "pie-chart",
+        feature: "corporate",
+        description: "Company share ownership records"
       },
-      'CompanyLoan' => {
-        slug: 'company-loan',
-        name: 'Company Loans',
-        singular_name: 'Company Loan',
-        plural_name: 'Company Loans',
-        icon: 'dollar-sign',
-        feature: 'corporate',
-        description: 'Intercompany loans and borrowings'
+      "CompanyLoan" => {
+        slug: "company-loan",
+        name: "Company Loans",
+        singular_name: "Company Loan",
+        plural_name: "Company Loans",
+        icon: "dollar-sign",
+        feature: "corporate",
+        description: "Intercompany loans and borrowings"
       },
-      'CompanyMinute' => {
-        slug: 'company-minute',
-        name: 'Company Minutes',
-        singular_name: 'Company Minute',
-        plural_name: 'Company Minutes',
-        icon: 'file-text',
-        feature: 'corporate',
-        description: 'Meeting minutes and resolutions'
+      "CompanyMinute" => {
+        slug: "company-minute",
+        name: "Company Minutes",
+        singular_name: "Company Minute",
+        plural_name: "Company Minutes",
+        icon: "file-text",
+        feature: "corporate",
+        description: "Meeting minutes and resolutions"
       },
-      'CompanyXeroAccount' => {
-        slug: 'company-xero-account',
-        name: 'Xero Accounts',
-        singular_name: 'Xero Account',
-        plural_name: 'Xero Accounts',
-        icon: 'credit-card',
-        feature: 'corporate',
-        description: 'Xero account mappings for companies'
+      "CompanyXeroAccount" => {
+        slug: "company-xero-account",
+        name: "Xero Accounts",
+        singular_name: "Xero Account",
+        plural_name: "Xero Accounts",
+        icon: "credit-card",
+        feature: "corporate",
+        description: "Xero account mappings for companies"
       },
-      'CompanyXeroConnection' => {
-        slug: 'company-xero-connection',
-        name: 'Xero Connections',
-        singular_name: 'Xero Connection',
-        plural_name: 'Xero Connections',
-        icon: 'link',
-        feature: 'corporate',
-        description: 'Xero integration connections'
+      "CompanyXeroConnection" => {
+        slug: "company-xero-connection",
+        name: "Xero Connections",
+        singular_name: "Xero Connection",
+        plural_name: "Xero Connections",
+        icon: "link",
+        feature: "corporate",
+        description: "Xero integration connections"
       },
-      'AssetInsurance' => {
-        slug: 'asset-insurance',
-        name: 'Asset Insurance',
-        singular_name: 'Asset Insurance',
-        plural_name: 'Asset Insurance Records',
-        icon: 'shield',
-        feature: 'corporate',
-        description: 'Insurance records for assets'
+      "AssetInsurance" => {
+        slug: "asset-insurance",
+        name: "Asset Insurance",
+        singular_name: "Asset Insurance",
+        plural_name: "Asset Insurance Records",
+        icon: "shield",
+        feature: "corporate",
+        description: "Insurance records for assets"
       },
-      'AssetServiceHistory' => {
-        slug: 'asset-service-history',
-        name: 'Asset Service History',
-        singular_name: 'Service Record',
-        plural_name: 'Service Records',
-        icon: 'wrench',
-        feature: 'corporate',
-        description: 'Service and maintenance history for assets'
+      "AssetServiceHistory" => {
+        slug: "asset-service-history",
+        name: "Asset Service History",
+        singular_name: "Service Record",
+        plural_name: "Service Records",
+        icon: "wrench",
+        feature: "corporate",
+        description: "Service and maintenance history for assets"
       }
     }
 
@@ -353,7 +353,7 @@ namespace :corporate do
         icon: config[:icon],
         feature: config[:feature],
         description: config[:description],
-        table_type: 'system',
+        table_type: "system",
         model_class: model_name,
         database_table_name: model_class.table_name,
         is_live: true,
@@ -377,9 +377,9 @@ namespace :corporate do
   desc "Full corporate setup: create foundations, sync schema"
   task setup: :environment do
     puts "Running full Corporate setup...\n\n"
-    Rake::Task['corporate:create_foundations'].invoke
+    Rake::Task["corporate:create_foundations"].invoke
     puts "\n"
-    Rake::Task['corporate:sync_schema'].invoke
+    Rake::Task["corporate:sync_schema"].invoke
   end
 
   desc "Show corporate Foundation IDs for frontend config"
@@ -398,7 +398,7 @@ namespace :corporate do
 
     corporate_slugs.each do |slug|
       foundation = Foundation.find_by(slug: slug)
-      const_name = slug.upcase.gsub('-', '_')
+      const_name = slug.upcase.gsub("-", "_")
       if foundation
         puts "  #{const_name}: #{foundation.id},"
       else
@@ -412,67 +412,67 @@ end
 
 # Helper method for inferring column types
 def infer_column_type_for_corporate(db_col)
-  return 'single_line_text' unless db_col
+  return "single_line_text" unless db_col
 
   case db_col.type
   when :string
     col_name = db_col.name.downcase
-    if col_name.include?('email')
-      'email'
-    elsif col_name.include?('phone') || col_name.include?('mobile') || col_name.include?('fax')
-      'phone'
-    elsif col_name.include?('url') || col_name.include?('link') || col_name.include?('website')
-      'url'
-    elsif col_name.include?('abn')
-      'abn'
-    elsif col_name.include?('acn')
-      'acn'
-    elsif col_name.include?('tfn')
-      'tfn'
-    elsif col_name.include?('bsb')
-      'bsb'
-    elsif col_name.include?('status')
-      'status'
-    elsif col_name == 'slug'
-      'slug'
+    if col_name.include?("email")
+      "email"
+    elsif col_name.include?("phone") || col_name.include?("mobile") || col_name.include?("fax")
+      "phone"
+    elsif col_name.include?("url") || col_name.include?("link") || col_name.include?("website")
+      "url"
+    elsif col_name.include?("abn")
+      "abn"
+    elsif col_name.include?("acn")
+      "acn"
+    elsif col_name.include?("tfn")
+      "tfn"
+    elsif col_name.include?("bsb")
+      "bsb"
+    elsif col_name.include?("status")
+      "status"
+    elsif col_name == "slug"
+      "slug"
     else
-      'single_line_text'
+      "single_line_text"
     end
   when :text
     col_name = db_col.name.downcase
-    if col_name.include?('address')
-      'address'
+    if col_name.include?("address")
+      "address"
     else
-      'multiple_lines_text'
+      "multiple_lines_text"
     end
   when :integer, :bigint
     col_name = db_col.name
-    if col_name.end_with?('_id')
-      'lookup' # Foreign key relationship
-    elsif col_name.include?('year')
-      'whole_number'
+    if col_name.end_with?("_id")
+      "lookup" # Foreign key relationship
+    elsif col_name.include?("year")
+      "whole_number"
     else
-      'whole_number'
+      "whole_number"
     end
   when :decimal, :float
     col_name = db_col.name.downcase
-    if col_name.include?('percent') || col_name.include?('rate') || col_name.include?('ratio')
-      'percentage'
-    elsif col_name.include?('price') || col_name.include?('cost') || col_name.include?('value') ||
-          col_name.include?('amount') || col_name.include?('balance') || col_name.include?('total')
-      'currency'
+    if col_name.include?("percent") || col_name.include?("rate") || col_name.include?("ratio")
+      "percentage"
+    elsif col_name.include?("price") || col_name.include?("cost") || col_name.include?("value") ||
+          col_name.include?("amount") || col_name.include?("balance") || col_name.include?("total")
+      "currency"
     else
-      'decimal_number'
+      "decimal_number"
     end
   when :boolean
-    'boolean'
+    "boolean"
   when :date
-    'date'
+    "date"
   when :datetime, :timestamp
-    'date'
+    "date"
   when :json, :jsonb
-    'json'
+    "json"
   else
-    'single_line_text'
+    "single_line_text"
   end
 end

@@ -32,6 +32,6 @@ class CreateSmTimeEntries < ActiveRecord::Migration[8.0]
     # Indexes
     add_index :sm_time_entries, :entry_date
     add_index :sm_time_entries, :entry_type
-    add_index :sm_time_entries, [:task_id, :resource_id, :entry_date], name: 'idx_sm_time_entries_task_resource_date'
+    add_index :sm_time_entries, [ :task_id, :resource_id, :entry_date ], name: 'idx_sm_time_entries_task_resource_date'
   end
 end

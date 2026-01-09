@@ -3,8 +3,8 @@
 module Api
   module V1
     class SmResourceAllocationsController < ApplicationController
-      before_action :set_task, only: [:index, :create]
-      before_action :set_allocation, only: [:show, :update, :destroy]
+      before_action :set_task, only: [ :index, :create ]
+      before_action :set_allocation, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/sm_tasks/:sm_task_id/resource_allocations
       def index
@@ -45,7 +45,7 @@ module Api
         if @allocation.save
           render json: {
             success: true,
-            message: 'Resource allocated successfully',
+            message: "Resource allocated successfully",
             allocation: allocation_to_json(@allocation)
           }, status: :created
         else
@@ -77,18 +77,18 @@ module Api
 
         render json: {
           success: true,
-          message: 'Allocation removed successfully'
+          message: "Allocation removed successfully"
         }
       end
 
       # POST /api/v1/sm_resource_allocations/:id/confirm
       def confirm
         set_allocation
-        @allocation.update!(status: 'confirmed')
+        @allocation.update!(status: "confirmed")
 
         render json: {
           success: true,
-          message: 'Allocation confirmed',
+          message: "Allocation confirmed",
           allocation: allocation_to_json(@allocation)
         }
       end
@@ -96,11 +96,11 @@ module Api
       # POST /api/v1/sm_resource_allocations/:id/start
       def start
         set_allocation
-        @allocation.update!(status: 'in_progress')
+        @allocation.update!(status: "in_progress")
 
         render json: {
           success: true,
-          message: 'Allocation started',
+          message: "Allocation started",
           allocation: allocation_to_json(@allocation)
         }
       end
@@ -108,11 +108,11 @@ module Api
       # POST /api/v1/sm_resource_allocations/:id/complete
       def complete
         set_allocation
-        @allocation.update!(status: 'completed')
+        @allocation.update!(status: "completed")
 
         render json: {
           success: true,
-          message: 'Allocation completed',
+          message: "Allocation completed",
           allocation: allocation_to_json(@allocation)
         }
       end
@@ -139,7 +139,7 @@ module Api
           allocations: allocations.map { |a| allocation_to_json(a) }
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Resource not found' }, status: :not_found
+        render json: { success: false, error: "Resource not found" }, status: :not_found
       end
 
       # GET /api/v1/sm_resource_allocations/gantt_data
@@ -186,7 +186,7 @@ module Api
       rescue ActiveRecord::RecordNotFound
         render json: {
           success: false,
-          error: 'Task not found'
+          error: "Task not found"
         }, status: :not_found
       end
 
@@ -195,7 +195,7 @@ module Api
       rescue ActiveRecord::RecordNotFound
         render json: {
           success: false,
-          error: 'Allocation not found'
+          error: "Allocation not found"
         }, status: :not_found
       end
 

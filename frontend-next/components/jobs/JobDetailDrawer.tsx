@@ -29,12 +29,9 @@ import {
   ShoppingCart,
   Cloud,
   MessageSquare,
-  Settings,
   ClipboardList,
-  Loader2,
   Shield,
   ExternalLink,
-  X,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { slugifyJobTitle } from "@/lib/url-utils";
@@ -47,6 +44,7 @@ import { JobEstimatorTab } from "@/components/jobs/JobEstimatorTab";
 import { JobBudgetTab } from "@/components/jobs/JobBudgetTab";
 import { JobCommunicationsTab } from "@/components/jobs/JobCommunicationsTab";
 import { JobProfitTab } from "@/components/jobs/JobProfitTab";
+import { Spinner } from "@/components/ui/spinner";
 
 interface Contact {
   id: number;
@@ -59,7 +57,7 @@ interface Contact {
 
 interface Job {
   id: number;
-  title: string;
+  name: string;
   status: string;
   stage: string;
   job_status?: { id: number; name: string; color?: string };
@@ -147,7 +145,7 @@ export function JobDetailDrawer({ jobId, open, onOpenChange }: JobDetailDrawerPr
 
   const handleOpenFullPage = () => {
     if (job) {
-      const slug = slugifyJobTitle(job.title);
+      const slug = slugifyJobTitle(job.name);
       router.push(`/jobs/${slug}`);
     }
   };
@@ -157,7 +155,7 @@ export function JobDetailDrawer({ jobId, open, onOpenChange }: JobDetailDrawerPr
       <SheetContent side="right" className="w-full sm:max-w-2xl lg:max-w-4xl p-0 flex flex-col">
         {loading ? (
           <div className="flex items-center justify-center h-full">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner size={32} className="text-muted-foreground" />
           </div>
         ) : !job ? (
           <div className="flex items-center justify-center h-full">
@@ -169,11 +167,11 @@ export function JobDetailDrawer({ jobId, open, onOpenChange }: JobDetailDrawerPr
             <SheetHeader className="p-4 border-b shrink-0">
               <div className="flex items-start justify-between">
                 <div>
-                  <SheetTitle className="text-xl font-serif">{job.title}</SheetTitle>
+                  <SheetTitle className="text-xl font-serif">{job.name}</SheetTitle>
                   <div className="flex items-center gap-2 mt-1">
                     <Badge variant="outline">{job.stage || job.job_stage?.name}</Badge>
                     <span className="text-sm text-muted-foreground">
-                      {job.status || job.job_status?.name}
+                      {job.job_status?.name}
                     </span>
                   </div>
                 </div>
@@ -321,7 +319,7 @@ export function JobDetailDrawer({ jobId, open, onOpenChange }: JobDetailDrawerPr
                   </TabsContent>
 
                   <TabsContent value="purchase-orders" className="mt-0">
-                    <JobPurchaseOrdersTab jobId={job.id} jobTitle={job.title} />
+                    <JobPurchaseOrdersTab jobId={job.id} jobTitle={job.name} />
                   </TabsContent>
 
                   <TabsContent value="estimates" className="mt-0">
@@ -347,8 +345,8 @@ export function JobDetailDrawer({ jobId, open, onOpenChange }: JobDetailDrawerPr
                         <p className="text-sm text-muted-foreground mb-3">
                           View the full Schedule Master for task management
                         </p>
-                        <Button onClick={() => router.push(`/jobs/${job.id}/schedule`)}>
-                          Open Schedule Master
+                        <Button onClick={() => router.push(`/jobs/${job.id}/schedule/gantt-v2`)}>
+                          Open Schedule
                         </Button>
                       </CardContent>
                     </Card>
@@ -373,11 +371,11 @@ export function JobDetailDrawer({ jobId, open, onOpenChange }: JobDetailDrawerPr
                   </TabsContent>
 
                   <TabsContent value="documents" className="mt-0">
-                    <JobDocumentsTab jobId={job.id} jobTitle={job.title} />
+                    <JobDocumentsTab jobId={job.id} jobTitle={job.name} />
                   </TabsContent>
 
                   <TabsContent value="coms" className="mt-0">
-                    <JobCommunicationsTab jobId={job.id} jobTitle={job.title} />
+                    <JobCommunicationsTab jobId={job.id} jobTitle={job.name} />
                   </TabsContent>
                 </div>
               </ScrollArea>

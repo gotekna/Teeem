@@ -1,9 +1,9 @@
 namespace :corporate do
   desc "Import corporate structure from Corporate File.xlsx spreadsheet"
   task import: :environment do
-    require 'roo'
+    require "roo"
 
-    file_path = ENV['FILE_PATH'] || "/Users/robertharder/GitHub/teeem/Corporate File.xlsx"
+    file_path = ENV["FILE_PATH"] || "/Users/robertharder/GitHub/teeem/Corporate File.xlsx"
 
     unless File.exist?(file_path)
       puts "ERROR: File not found at #{file_path}"
@@ -29,24 +29,24 @@ namespace :corporate do
     # Map sheet names to company groups (each sheet is a company)
     company_sheets = {
       # Tekna Group
-      'Tekna' => 'Tekna',
-      'Tekna Drafting' => 'Tekna',
-      'Tekna Admin' => 'Tekna',
-      'Tekna Homes' => 'Tekna',
-      'Co Invest Capital' => 'Tekna',
-      'Co Invest Homes' => 'Tekna',
+      "Tekna" => "Tekna",
+      "Tekna Drafting" => "Tekna",
+      "Tekna Admin" => "Tekna",
+      "Tekna Homes" => "Tekna",
+      "Co Invest Capital" => "Tekna",
+      "Co Invest Homes" => "Tekna",
       # Team Harder Group
-      'Team Harder' => 'Team Harder',
-      'Gen2612' => 'Team Harder',
-      'Prov1322' => 'Team Harder',
-      'W2G' => 'Team Harder',
-      'Team Harder Family Trust' => 'Team Harder',
+      "Team Harder" => "Team Harder",
+      "Gen2612" => "Team Harder",
+      "Prov1322" => "Team Harder",
+      "W2G" => "Team Harder",
+      "Team Harder Family Trust" => "Team Harder",
       # Team Harder Super Fund
-      'THSI' => 'Team Harder Super Fund',
-      'Team Harder Super Fund' => 'Team Harder Super Fund',
+      "THSI" => "Team Harder Super Fund",
+      "Team Harder Super Fund" => "Team Harder Super Fund",
       # Promise Group
-      'The Promise QLD PTY LTD' => 'Promise',
-      'The Promise Family Trust' => 'Promise'
+      "The Promise QLD PTY LTD" => "Promise",
+      "The Promise Family Trust" => "Promise"
     }
 
     # Process each company sheet
@@ -99,9 +99,9 @@ namespace :corporate do
 
   desc "Preview corporate file structure without importing"
   task preview: :environment do
-    require 'roo'
+    require "roo"
 
-    file_path = ENV['FILE_PATH'] || "/Users/robertharder/GitHub/teeem/Corporate File.xlsx"
+    file_path = ENV["FILE_PATH"] || "/Users/robertharder/GitHub/teeem/Corporate File.xlsx"
     spreadsheet = Roo::Spreadsheet.open(file_path)
 
     puts "Sheets in spreadsheet:"
@@ -147,7 +147,7 @@ namespace :corporate do
       when /^acn/
         data[:acn] = extract_number(col_b.presence || col_c)
         # ABN might be on same row
-        if col_c.downcase.include?('abn') || col_d.to_s.length == 11
+        if col_c.downcase.include?("abn") || col_d.to_s.length == 11
           data[:abn] = extract_number(col_d.presence || col_e)
         end
       when /^abn/
@@ -157,7 +157,7 @@ namespace :corporate do
       when /^date\s*incorporated/
         data[:date_incorporated] = parse_date(col_b)
         # Shares on issue might be on same row (column E/F)
-        if col_e.to_s.downcase.include?('shares') || col_f.to_i > 0
+        if col_e.to_s.downcase.include?("shares") || col_f.to_i > 0
           data[:shares_on_issue] = col_f.to_i if col_f.to_i > 0
         end
       when /^purpose/
@@ -165,11 +165,11 @@ namespace :corporate do
       when /^trust\s*name|^trustee/
         data[:trust_name] = col_b if col_b.present?
       when /^is\s*it\s*a\s*trustee/
-        data[:is_trustee] = col_b.downcase == 'yes' || col_e.to_s.downcase == 'yes'
+        data[:is_trustee] = col_b.downcase == "yes" || col_e.to_s.downcase == "yes"
       when /^registered\s*office/
         data[:registered_office_address] = col_b
         # Principal place might be on same row
-        if col_e.to_s.downcase.include?('principal')
+        if col_e.to_s.downcase.include?("principal")
           data[:principal_place_of_business] = col_f
         end
       when /^principal\s*place/
@@ -184,20 +184,20 @@ namespace :corporate do
         data[:shares_on_issue] = col_b.to_i if col_b.to_i > 0
         data[:shares_on_issue] = col_f.to_i if col_f.to_i > 0 && data[:shares_on_issue].to_i == 0
       when /^does\s*this\s*company\s*have\s*loans/
-        data[:has_loans] = col_b.downcase == 'yes'
+        data[:has_loans] = col_b.downcase == "yes"
         # Loan docs might be on same row
-        if col_e.to_s.downcase.include?('loan') && col_e.to_s.downcase.include?('document')
-          data[:loan_documents_in_place] = col_f.to_s.downcase == 'yes'
+        if col_e.to_s.downcase.include?("loan") && col_e.to_s.downcase.include?("document")
+          data[:loan_documents_in_place] = col_f.to_s.downcase == "yes"
         end
       when /^is\s*there\s*loan\s*documents/
-        data[:loan_documents_in_place] = col_b.downcase == 'yes'
+        data[:loan_documents_in_place] = col_b.downcase == "yes"
       when /^current\s*shareholdings/
         # Parse shareholding rows that follow
         data[:shareholdings] = parse_shareholdings_section(sheet, row)
       when /^folder\s*storage/
         data[:sharepoint_folder_name] = col_b
         # Abbreviation might be on same row
-        if col_c.to_s.downcase.include?('abbreviation')
+        if col_c.to_s.downcase.include?("abbreviation")
           data[:code] = col_d.upcase if col_d.present?
         end
       when /^abbreviation/
@@ -209,20 +209,20 @@ namespace :corporate do
     # If no name found, use sheet name to construct it
     if data[:name].blank?
       data[:name] = case sheet_name
-                    when 'Tekna' then 'Tekna Pty Ltd'
-                    when 'Tekna Drafting' then 'Tekna Drafting Pty Ltd'
-                    when 'Tekna Admin' then 'Tekna Admin Pty Ltd'
-                    when 'Tekna Homes' then 'Tekna Homes Pty Ltd'
-                    when 'Co Invest Capital' then 'Co Invest Capital Pty Ltd'
-                    when 'Co Invest Homes' then 'Co Invest Homes Pty Ltd'
-                    when 'Team Harder' then 'Team Harder Pty Ltd'
-                    when 'Gen2612' then 'Gen2612 Pty Ltd'
-                    when 'Prov1322' then 'Prov1322 Global Pty Ltd'
-                    when 'W2G' then 'W2G Assets Pty Ltd'
-                    when 'THSI' then 'Team Harder Super Investments Pty Ltd'
-                    when 'The Promise QLD PTY LTD' then 'The Promise QLD Pty Ltd'
-                    else sheet_name
-                    end
+      when "Tekna" then "Tekna Pty Ltd"
+      when "Tekna Drafting" then "Tekna Drafting Pty Ltd"
+      when "Tekna Admin" then "Tekna Admin Pty Ltd"
+      when "Tekna Homes" then "Tekna Homes Pty Ltd"
+      when "Co Invest Capital" then "Co Invest Capital Pty Ltd"
+      when "Co Invest Homes" then "Co Invest Homes Pty Ltd"
+      when "Team Harder" then "Team Harder Pty Ltd"
+      when "Gen2612" then "Gen2612 Pty Ltd"
+      when "Prov1322" then "Prov1322 Global Pty Ltd"
+      when "W2G" then "W2G Assets Pty Ltd"
+      when "THSI" then "Team Harder Super Investments Pty Ltd"
+      when "The Promise QLD PTY LTD" then "The Promise QLD Pty Ltd"
+      else sheet_name
+      end
     end
 
     data
@@ -248,31 +248,31 @@ namespace :corporate do
       col_f = row_data[5].to_s.strip
 
       # Stop if we hit a new section
-      break if col_a.downcase.include?('bank')
-      break if col_a.downcase.include?('folder')
-      break if col_a.downcase.include?('company register')
+      break if col_a.downcase.include?("bank")
+      break if col_a.downcase.include?("folder")
+      break if col_a.downcase.include?("company register")
 
       # Skip header row
-      next if col_d.to_s.downcase.include?('shares')
-      next if col_e.to_s.downcase.include?('beneficially')
+      next if col_d.to_s.downcase.include?("shares")
+      next if col_e.to_s.downcase.include?("beneficially")
 
       # Shareholder name is usually in column B or C
       shareholder_name = col_b.presence || col_c
       next if shareholder_name.blank?
-      next if shareholder_name.downcase.include?('shareholding')
+      next if shareholder_name.downcase.include?("shareholding")
 
       # Find shares (column D or E) and beneficially held (column E or F)
       shares = nil
       beneficially_held = false
 
-      [col_c, col_d, col_e].each do |val|
+      [ col_c, col_d, col_e ].each do |val|
         if val.is_a?(Numeric) || (val.to_s =~ /^\d+$/)
           shares = val.to_i if shares.nil? && val.to_i > 0 && val.to_i < 1_000_000
         end
       end
 
-      [col_e, col_f].each do |val|
-        if val.to_s.downcase == 'yes'
+      [ col_e, col_f ].each do |val|
+        if val.to_s.downcase == "yes"
           beneficially_held = true
         end
       end
@@ -327,9 +327,9 @@ namespace :corporate do
         data[:purpose] = row_data[1].to_s.strip
       when /^trust\s*name|trustee/
         data[:trust_name] = row_data[1].to_s.strip
-        data[:is_trustee] = true if row_data[0].to_s.downcase.include?('trustee')
+        data[:is_trustee] = true if row_data[0].to_s.downcase.include?("trustee")
       when /^is\s*it\s*a\s*trustee/
-        data[:is_trustee] = row_data[1].to_s.strip.downcase == 'yes'
+        data[:is_trustee] = row_data[1].to_s.strip.downcase == "yes"
       when /^registered\s*office/
         data[:registered_office_address] = row_data[1].to_s.strip
       when /^principal\s*place/
@@ -343,9 +343,9 @@ namespace :corporate do
       when /^shares\s*on\s*issue/
         data[:shares_on_issue] = row_data[1].to_i
       when /^does\s*this\s*company\s*have\s*loans/
-        data[:has_loans] = row_data[1].to_s.strip.downcase == 'yes'
+        data[:has_loans] = row_data[1].to_s.strip.downcase == "yes"
       when /^is\s*there\s*loan\s*documents/
-        data[:loan_documents_in_place] = row_data[1].to_s.strip.downcase == 'yes'
+        data[:loan_documents_in_place] = row_data[1].to_s.strip.downcase == "yes"
       when /^current\s*shareholdings/
         # Parse shareholding rows that follow
         data[:shareholdings] = parse_shareholdings(sheet, row)
@@ -377,8 +377,8 @@ namespace :corporate do
       row_data = sheet.row(row)
 
       # Skip header rows
-      next if row_data[0].to_s.downcase.include?('shareholding')
-      next if row_data[0].to_s.downcase.include?('shares')
+      next if row_data[0].to_s.downcase.include?("shareholding")
+      next if row_data[0].to_s.downcase.include?("shares")
       next if row_data[0].to_s.strip.empty? && row_data[1].to_s.strip.empty?
 
       # Check if this row has shareholding data (shareholder name in column B or C)
@@ -386,7 +386,7 @@ namespace :corporate do
       shareholder_name = row_data[2].to_s.strip if shareholder_name.empty?
 
       next if shareholder_name.empty?
-      next if shareholder_name.downcase.include?('bank')  # Skip bank account rows
+      next if shareholder_name.downcase.include?("bank")  # Skip bank account rows
 
       # Find shares count (usually column D or E)
       shares = nil
@@ -396,8 +396,8 @@ namespace :corporate do
         if cell.is_a?(Numeric) && cell > 0 && cell < 1_000_000
           shares = cell.to_i
         end
-        if cell.to_s.downcase == 'yes' || cell.to_s.downcase == 'no'
-          beneficially_held = cell.to_s.downcase == 'yes'
+        if cell.to_s.downcase == "yes" || cell.to_s.downcase == "no"
+          beneficially_held = cell.to_s.downcase == "yes"
         end
       end
 
@@ -410,7 +410,7 @@ namespace :corporate do
       end
 
       # Stop if we hit another section
-      break if row_data[0].to_s.downcase.include?('bank')
+      break if row_data[0].to_s.downcase.include?("bank")
     end
 
     shareholdings
@@ -451,7 +451,7 @@ namespace :corporate do
         name: data[:name],
         acn: data[:acn],
         abn: data[:abn],
-        status: 'active',
+        status: "active",
         company_group: company_group,
         date_incorporated: data[:date_incorporated],
         purpose: data[:purpose],
@@ -490,7 +490,7 @@ namespace :corporate do
       shareholding = CompanyShareholding.find_or_initialize_by(
         company: company,
         shareholder: shareholder,
-        share_class: 'ordinary'
+        share_class: "ordinary"
       )
 
       shareholding.update!(
@@ -515,7 +515,7 @@ namespace :corporate do
         # Create placeholder company
         company = Company.create!(
           name: name,
-          status: 'active'
+          status: "active"
         )
         results[:companies_created] += 1
         puts "    Created placeholder company: #{name}"
@@ -524,9 +524,9 @@ namespace :corporate do
       company
     else
       # It's a person - find or create contact
-      name_parts = name.split(' ')
+      name_parts = name.split(" ")
       first_name = name_parts.first
-      last_name = name_parts[1..].join(' ')
+      last_name = name_parts[1..].join(" ")
 
       contact = Contact.find_by("LOWER(first_name) = ? AND LOWER(last_name) = ?", first_name.downcase, last_name.downcase)
 
@@ -534,7 +534,7 @@ namespace :corporate do
         contact = Contact.create!(
           first_name: first_name,
           last_name: last_name,
-          contact_type: 'individual'
+          contact_type: "individual"
         )
         results[:contacts_created] += 1
         puts "    Created contact: #{name}"
@@ -549,7 +549,7 @@ namespace :corporate do
       next if company.shares_on_issue.to_i.zero?
 
       # Find company shareholders with 100% ownership
-      company_shareholders = company.company_shareholdings.where(shareholder_type: 'Company')
+      company_shareholders = company.company_shareholdings.where(shareholder_type: "Company")
 
       company_shareholders.each do |sh|
         percentage = (sh.number_of_shares.to_f / company.shares_on_issue * 100).round(2)
@@ -572,7 +572,7 @@ namespace :corporate do
 
   def extract_number(value)
     return nil unless value.present?
-    value.to_s.gsub(/[^0-9]/, '')
+    value.to_s.gsub(/[^0-9]/, "")
   end
 
   def parse_date(value)

@@ -34,7 +34,7 @@ class CreateDocumentedBugs < ActiveRecord::Migration[8.0]
     add_index :documented_bugs, :chapter_number
     add_index :documented_bugs, :status
     add_index :documented_bugs, :severity
-    add_index :documented_bugs, [:chapter_number, :status]
+    add_index :documented_bugs, [ :chapter_number, :status ]
 
     # Enable pg_trgm extension for text search
     enable_extension 'pg_trgm' unless extension_enabled?('pg_trgm')

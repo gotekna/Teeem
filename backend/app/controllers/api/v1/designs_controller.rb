@@ -1,7 +1,7 @@
 module Api
   module V1
     class DesignsController < ApplicationController
-      before_action :set_design, only: [:show, :update, :destroy]
+      before_action :set_design, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/designs
       def index
@@ -10,9 +10,15 @@ module Api
         # Filter by active status
         @designs = @designs.active if params[:active] == "true"
 
-        # Search by name
+        # Search using SSoT SearchService
         if params[:search].present?
-          @designs = @designs.where("name ILIKE ?", "%#{params[:search]}%")
+          @designs = SearchService.apply(
+            @designs,
+            params[:search],
+            columns: %w[name],
+            mode: params[:search_mode] || 'contains',
+            model: Design
+          )
         end
 
         # Sorting
@@ -27,7 +33,7 @@ module Api
           success: true,
           designs: @designs.as_json(
             include: {
-              constructions: { only: [:id, :title] }
+              constructions: {}
             }
           )
         }
@@ -39,7 +45,7 @@ module Api
           success: true,
           design: @design.as_json(
             include: {
-              constructions: { only: [:id, :title, :status] }
+              constructions: {}
             }
           )
         }

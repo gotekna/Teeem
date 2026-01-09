@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import tailwindcssAnimate from "tailwindcss-animate";
 
 export default {
   darkMode: ["class"],
@@ -124,9 +125,17 @@ export default {
       },
 
       keyframes: {
+        // GPU-optimized spinner animation to prevent CLS
+        // Uses rotate3d instead of rotate for better compositing
+        "spinner-rotate": {
+          "0%": { transform: "rotate3d(0, 0, 1, 0deg)" },
+          "100%": { transform: "rotate3d(0, 0, 1, 360deg)" },
+        },
+        // GPU-optimized shimmer animation using transform instead of background-position
+        // transform is GPU-compositable and won't cause CLS (layout shifts)
         shimmer: {
-          "0%": { backgroundPosition: "200% 0" },
-          "100%": { backgroundPosition: "-200% 0" },
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(100%)" },
         },
         "accordion-down": {
           from: { height: "0" },
@@ -161,11 +170,13 @@ export default {
         shimmer: "shimmer 2.5s linear infinite",
         scroll:
           "scroll var(--animation-duration, 40s) var(--animation-direction, forwards) linear infinite",
+        // GPU-optimized spinner that won't cause CLS
+        "spinner": "spinner-rotate 1s linear infinite",
       },
       screens: {
         "3xl": "1800px",
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [tailwindcssAnimate],
 } satisfies Config;

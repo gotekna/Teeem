@@ -1,23 +1,20 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { usePathname, useRouter } from "next/navigation";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Spinner } from "@/components/ui/spinner";
 import {
-  GraduationCap,
   Play,
   CheckCircle2,
   Clock,
   BookOpen,
   Award,
-  ChevronRight,
-  Loader2,
   Video,
-  FileText,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -49,7 +46,25 @@ function formatDuration(minutes: number): string {
 }
 
 export default function TrainingPage() {
+  const pathname = usePathname();
   const router = useRouter();
+
+  // Path-based tab: /training/all, /training/required, /training/completed
+  const activeTab = React.useMemo(() => {
+    const parts = pathname.replace("/training", "").split("/").filter(Boolean);
+    return parts[0] || null;
+  }, [pathname]);
+
+  // Redirect to default tab if none specified
+  React.useEffect(() => {
+    if (activeTab === null) {
+      router.replace("/training/all", { scroll: false });
+    }
+  }, [activeTab, router]);
+
+  const setActiveTab = React.useCallback((tab: string) => {
+    router.push(`/training/${tab}`, { scroll: false });
+  }, [router]);
   const [modules, setModules] = React.useState<TrainingModule[]>([]);
   const [stats, setStats] = React.useState<TrainingStats | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -121,7 +136,7 @@ export default function TrainingPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -134,55 +149,6 @@ export default function TrainingPage() {
         <p className="text-sm text-muted-foreground mt-1">
           Courses and resources to help you get the most out of Teeem
         </p>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <BookOpen className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Total Modules</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{stats?.total_modules || 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
-              <span className="text-sm text-muted-foreground">Completed</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{stats?.completed_modules || 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <Play className="h-4 w-4 text-blue-500" />
-              <span className="text-sm text-muted-foreground">In Progress</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{stats?.in_progress || 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Hours Learned</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{stats?.total_hours || 0}h</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <Award className="h-4 w-4 text-yellow-500" />
-              <span className="text-sm text-muted-foreground">Certificates</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{stats?.certificates_earned || 0}</p>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Progress Overview */}
@@ -204,7 +170,7 @@ export default function TrainingPage() {
       </Card>
 
       {/* Modules */}
-      <Tabs defaultValue="all">
+      <Tabs value={activeTab || "all"} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="all">All Modules</TabsTrigger>
           <TabsTrigger value="required">Required</TabsTrigger>

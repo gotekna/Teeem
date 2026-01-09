@@ -14,7 +14,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
-import { Loader } from "@/components/ui/loader";
+import { Spinner } from "@/components/ui/spinner";
+import { getApiBaseUrl } from "@/lib/api";
 import Link from "next/link";
 
 export default function SignupPage() {
@@ -68,14 +69,13 @@ export default function SignupPage() {
   };
 
   const handleMicrosoftSignup = () => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
-    window.location.href = `${apiUrl}/auth/microsoft_office365`;
+    window.location.href = `${getApiBaseUrl()}/auth/microsoft_office365`;
   };
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader />
+        <Spinner />
       </div>
     );
   }

@@ -55,22 +55,30 @@ interface UseCorporateTableOptions {
 }
 
 // =============================================================================
-// Asset Columns (hardcoded since Assets have no Foundation)
+// Company Columns (hardcoded - CorporateCompany is a Rails model, not Foundation)
 // =============================================================================
 
-const ASSET_COLUMNS: ApiColumn[] = [
+const COMPANY_COLUMNS: ApiColumn[] = [
   { id: 1, column_name: 'id', name: 'ID', column_type: 'auto_number' },
-  { id: 2, column_name: 'name', name: 'Asset Name', column_type: 'single_line_text' },
-  { id: 3, column_name: 'asset_type', name: 'Type', column_type: 'choice', available_choices: ['vehicle', 'equipment', 'property', 'other'] },
-  { id: 4, column_name: 'status', name: 'Status', column_type: 'choice', available_choices: ['active', 'disposed', 'sold', 'written_off'] },
-  { id: 5, column_name: 'company_id', name: 'Company', column_type: 'lookup', lookup_foundation_id: 353 },
-  { id: 6, column_name: 'purchase_price', name: 'Purchase Price', column_type: 'currency' },
-  { id: 7, column_name: 'purchase_date', name: 'Purchase Date', column_type: 'date' },
-  { id: 8, column_name: 'current_book_value', name: 'Book Value', column_type: 'currency' },
-  { id: 9, column_name: 'make', name: 'Make', column_type: 'single_line_text' },
-  { id: 10, column_name: 'model', name: 'Model', column_type: 'single_line_text' },
-  { id: 11, column_name: 'description', name: 'Description', column_type: 'multiple_lines_text' },
+  { id: 2, column_name: 'code', name: 'Code', column_type: 'single_line_text' },
+  { id: 3, column_name: 'name', name: 'Company Name', column_type: 'single_line_text' },
+  { id: 4, column_name: 'entity_type', name: 'Entity Type', column_type: 'single_line_text' },
+  { id: 5, column_name: 'status', name: 'Status', column_type: 'choice', available_choices: ['active', 'inactive', 'dormant', 'deregistered'] },
+  { id: 6, column_name: 'acn', name: 'ACN', column_type: 'single_line_text' },
+  { id: 7, column_name: 'abn', name: 'ABN', column_type: 'single_line_text' },
+  { id: 8, column_name: 'tfn', name: 'TFN', column_type: 'single_line_text' },
+  { id: 9, column_name: 'date_incorporated', name: 'Date Incorporated', column_type: 'date' },
+  { id: 10, column_name: 'company_group', name: 'Company Group', column_type: 'single_line_text' },
+  { id: 11, column_name: 'registered_office_address', name: 'Registered Office', column_type: 'single_line_text' },
+  { id: 12, column_name: 'principal_place_of_business', name: 'Principal Place', column_type: 'single_line_text' },
+  { id: 13, column_name: 'review_date', name: 'Review Date', column_type: 'date' },
+  { id: 14, column_name: 'gst_registration_status', name: 'GST Status', column_type: 'single_line_text' },
+  { id: 15, column_name: 'bas_frequency', name: 'BAS Frequency', column_type: 'single_line_text' },
+  { id: 16, column_name: 'health_status', name: 'Health Status', column_type: 'single_line_text' },
+  { id: 17, column_name: 'health_score', name: 'Health Score', column_type: 'number' },
+  { id: 18, column_name: 'active', name: 'Active', column_type: 'checkbox' },
 ];
+
 
 // =============================================================================
 // Hook
@@ -88,11 +96,22 @@ const ASSET_COLUMNS: ApiColumn[] = [
  * @param entityType - The type of corporate entity ('companies', 'assets', 'directors')
  * @param options - Additional options
  */
+// Stable empty object to prevent re-renders
+const EMPTY_QUERY_PARAMS: Record<string, string | number | boolean> = {};
+
 export function useCorporateTable(
   entityType: CorporateEntityType,
   options: UseCorporateTableOptions = {}
 ): UseCorporateTableReturn {
-  const { skipAutoLoad = false, queryParams = {} } = options;
+  const { skipAutoLoad = false, queryParams } = options;
+
+  // Use stable reference for empty query params to prevent infinite re-renders
+  const stableQueryParams = useMemo(
+    () => queryParams || EMPTY_QUERY_PARAMS,
+    // Only recreate if queryParams object contents change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [JSON.stringify(queryParams)]
+  );
 
   // State
   const [apiColumns, setApiColumns] = useState<ApiColumn[]>([]);
@@ -103,7 +122,10 @@ export function useCorporateTable(
   // Get configuration for this entity type
   const foundationId = getFoundationId(entityType);
   const apiEndpoint = CORPORATE_API_ENDPOINTS[entityType];
-  const widthOverrides = COLUMN_WIDTH_OVERRIDES[entityType] || {};
+  const widthOverrides = useMemo(
+    () => COLUMN_WIDTH_OVERRIDES[entityType] || {},
+    [entityType]
+  );
 
   // ==========================================================================
   // Load Columns
@@ -111,9 +133,10 @@ export function useCorporateTable(
 
   const loadColumns = useCallback(async () => {
     try {
-      if (entityType === 'assets') {
-        // Assets don't have a Foundation - use hardcoded columns
-        setApiColumns(ASSET_COLUMNS);
+      // Companies and Assets use Rails models directly, not Foundations
+      // Use hardcoded columns for these entity types
+      if (entityType === 'companies') {
+        setApiColumns(COMPANY_COLUMNS);
         return;
       }
 
@@ -143,7 +166,7 @@ export function useCorporateTable(
       setError(null);
 
       const response = await api.get<Record<string, TableRow[]>>(apiEndpoint, {
-        params: queryParams,
+        params: stableQueryParams,
       });
 
       // API returns { companies: [...] } or { assets: [...] } etc.
@@ -157,7 +180,7 @@ export function useCorporateTable(
     } finally {
       setIsLoading(false);
     }
-  }, [apiEndpoint, entityType, queryParams]);
+  }, [apiEndpoint, entityType, stableQueryParams]);
 
   // ==========================================================================
   // CRUD Operations
@@ -254,11 +277,11 @@ export function useCorporateTable(
 function getFoundationId(entityType: CorporateEntityType): number | null {
   switch (entityType) {
     case 'companies':
-      return CORPORATE_TABLE_IDS.COMPANIES;
+      return null; // Companies use CorporateCompany Rails model, not Foundation
     case 'assets':
-      return null; // Assets don't have a Foundation
+      return 530; // Assets Foundation - database-driven columns synced from assets table
     case 'directors':
-      return CORPORATE_TABLE_IDS.COMPANY_DIRECTOR;
+      return null; // Directors use Contact Rails model with is_director=true
     default:
       return null;
   }

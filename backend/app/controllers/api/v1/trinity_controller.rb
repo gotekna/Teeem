@@ -3,8 +3,8 @@
 module Api
   module V1
     class TrinityController < ApplicationController
-      skip_before_action :authorize_request, only: [:index, :show, :stats, :constants]
-      before_action :set_trinity_entry, only: [:show, :update, :destroy]
+      skip_before_action :authorize_request, only: [ :index, :show, :stats, :constants ]
+      before_action :set_trinity_entry, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/trinity
       # Query params:
@@ -20,11 +20,11 @@ module Api
         @entries = Trinity.all
 
         # Filter by category
-        if params[:category] == 'bible'
+        if params[:category] == "bible"
           @entries = @entries.bible_entries
-        elsif params[:category] == 'lexicon'
+        elsif params[:category] == "lexicon"
           @entries = @entries.lexicon_entries
-        elsif params[:category] == 'teacher'
+        elsif params[:category] == "teacher"
           @entries = @entries.teacher_entries
         end
 
@@ -64,7 +64,7 @@ module Api
           render json: {
             success: true,
             data: entry_json(@entry, detailed: true),
-            message: 'Documentation entry created successfully'
+            message: "Documentation entry created successfully"
           }, status: :created
         else
           render json: {
@@ -82,7 +82,7 @@ module Api
           render json: {
             success: true,
             data: entry_json(@entry, detailed: true),
-            message: 'Documentation entry updated successfully'
+            message: "Documentation entry updated successfully"
           }
         else
           render json: {
@@ -97,7 +97,7 @@ module Api
         @entry.destroy
         render json: {
           success: true,
-          message: 'Documentation entry deleted successfully'
+          message: "Documentation entry deleted successfully"
         }
       end
 
@@ -183,7 +183,7 @@ module Api
         @entries = @entries.limit(50)
 
         # Minimal response by default (just id, section, title)
-        detailed = params[:full] == 'true'
+        detailed = params[:full] == "true"
 
         render json: {
           success: true,
@@ -216,14 +216,14 @@ module Api
         if result
           render json: {
             success: true,
-            message: 'Lexicon exported to TEEEM_LEXICON.md successfully',
-            file_path: Rails.root.join('..', 'TEEEM_DOCS', 'TEEEM_LEXICON.md').to_s,
+            message: "Lexicon exported to TEEEM_LEXICON.md successfully",
+            file_path: Rails.root.join("..", "TEEEM_DOCS", "TEEEM_LEXICON.md").to_s,
             total_entries: Trinity.lexicon_entries.count
           }
         else
           render json: {
             success: false,
-            error: 'Export failed'
+            error: "Export failed"
           }, status: :internal_server_error
         end
       end
@@ -236,14 +236,14 @@ module Api
         if result
           render json: {
             success: true,
-            message: 'Teacher exported to TEEEM_TEACHER.md successfully',
-            file_path: Rails.root.join('..', 'TEEEM_DOCS', 'TEEEM_TEACHER.md').to_s,
+            message: "Teacher exported to TEEEM_TEACHER.md successfully",
+            file_path: Rails.root.join("..", "TEEEM_DOCS", "TEEEM_TEACHER.md").to_s,
             total_entries: Trinity.teacher_entries.count
           }
         else
           render json: {
             success: false,
-            error: 'Export failed'
+            error: "Export failed"
           }, status: :internal_server_error
         end
       end
@@ -255,7 +255,7 @@ module Api
       rescue ActiveRecord::RecordNotFound
         render json: {
           success: false,
-          error: 'Trinity entry not found'
+          error: "Trinity entry not found"
         }, status: :not_found
       end
 
@@ -265,7 +265,7 @@ module Api
           @current_user.name || @current_user.email
         else
           # Fallback for unauthenticated requests (should not happen for create/update)
-          'System'
+          "System"
         end
       end
 

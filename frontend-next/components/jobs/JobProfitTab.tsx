@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Table,
   TableBody,
@@ -23,8 +24,8 @@ import {
   Percent,
   AlertTriangle,
   CheckCircle,
-  Loader2,
   ExternalLink,
+  Search,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -73,12 +74,19 @@ interface CreditNote {
   total: number;
 }
 
+interface ClaimPattern {
+  task_name: string;
+  pattern: string;
+  percentage: number | null;
+}
+
 interface FinancialData {
   invoices: Invoice[];
   credit_notes: CreditNote[];
   quotes: unknown[];
   bills: Bill[];
   supplier_credit_notes: CreditNote[];
+  claim_invoice_patterns?: ClaimPattern[];
 }
 
 interface JobProfitTabProps {
@@ -144,7 +152,7 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
         error?: string;
       }>(`/api/v1/external_invoices/by_job/${jobId}`);
 
-      if (response.success) {
+      if (response?.success) {
         setData(response.data);
         setLastSyncedAt(response.meta?.last_synced_at || null);
       } else {
@@ -165,7 +173,7 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -457,12 +465,48 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
 
         {/* Invoices Tab */}
         <TabsContent value="invoices">
+          {/* Claim Invoice Patterns Info */}
+          {data?.claim_invoice_patterns && data.claim_invoice_patterns.length > 0 && (
+            <Card className="mb-4 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+              <CardContent className="py-3 px-4">
+                <div className="flex items-start gap-3">
+                  <Search className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-1">
+                      Invoice Match Patterns
+                    </p>
+                    <p className="text-xs text-blue-600/80 dark:text-blue-400/80 mb-2">
+                      Xero invoices with these patterns in the reference will auto-match to claim stages:
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {data.claim_invoice_patterns.map((cp, idx) => (
+                        <Badge
+                          key={idx}
+                          variant="secondary"
+                          className="bg-white dark:bg-blue-900 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700"
+                        >
+                          <span className="font-semibold">{cp.pattern}</span>
+                          {cp.percentage && (
+                            <span className="ml-1 text-blue-500 dark:text-blue-400">
+                              ({cp.percentage}%)
+                            </span>
+                          )}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Invoice #</TableHead>
+                    <TableHead>Reference</TableHead>
                     <TableHead>Contact</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Due Date</TableHead>
@@ -476,7 +520,7 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
                 <TableBody>
                   {activeInvoices.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                         No invoices found for this job
                       </TableCell>
                     </TableRow>
@@ -484,6 +528,7 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
                     activeInvoices.map((invoice) => (
                       <TableRow key={invoice.id}>
                         <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
+                        <TableCell className="text-muted-foreground">{invoice.reference || "-"}</TableCell>
                         <TableCell>{invoice.contact_name || "-"}</TableCell>
                         <TableCell>{formatDate(invoice.invoice_date)}</TableCell>
                         <TableCell>{formatDate(invoice.due_date)}</TableCell>

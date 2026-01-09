@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require 'anthropic'
-require 'base64'
+require "anthropic"
+require "base64"
 
 # SmWorkingDrawingsService - AI-powered construction document categorization
 #
@@ -57,7 +57,7 @@ class SmWorkingDrawingsService
 
   # Process a PDF file and categorize all pages
   # Returns { success: bool, pages: [], errors: [] }
-  def process_pdf(pdf_content, filename: 'document.pdf')
+  def process_pdf(pdf_content, filename: "document.pdf")
     validate_file_size!(pdf_content)
 
     ActiveRecord::Base.transaction do
@@ -85,7 +85,7 @@ class SmWorkingDrawingsService
 
   # Process from a URL (e.g., OneDrive, S3)
   def process_from_url(url)
-    require 'open-uri'
+    require "open-uri"
     pdf_content = URI.open(url, &:read)
     filename = File.basename(URI.parse(url).path)
     process_pdf(pdf_content, filename: filename)
@@ -122,7 +122,7 @@ class SmWorkingDrawingsService
   end
 
   def analyze_with_claude(pdf_content, filename)
-    api_key = ENV['ANTHROPIC_API_KEY']
+    api_key = ENV["ANTHROPIC_API_KEY"]
     raise APIError, "ANTHROPIC_API_KEY not configured" unless api_key
 
     client = Anthropic::Client.new(access_token: api_key)
@@ -232,7 +232,7 @@ class SmWorkingDrawingsService
     # Validate and normalize categories
     result[:pages].each do |page|
       page[:category] = normalize_category(page[:category])
-      page[:confidence] = [[page[:confidence].to_f, 0.0].max, 1.0].min
+      page[:confidence] = [ [ page[:confidence].to_f, 0.0 ].max, 1.0 ].min
     end
 
     result
@@ -242,8 +242,8 @@ class SmWorkingDrawingsService
   end
 
   def normalize_category(category)
-    normalized = category.to_s.downcase.strip.gsub(/\s+/, '_')
-    CATEGORIES.include?(normalized) ? normalized : 'other'
+    normalized = category.to_s.downcase.strip.gsub(/\s+/, "_")
+    CATEGORIES.include?(normalized) ? normalized : "other"
   end
 
   def create_page_record(page_data)

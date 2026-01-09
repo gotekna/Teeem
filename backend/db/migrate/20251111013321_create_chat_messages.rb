@@ -9,7 +9,7 @@ class CreateChatMessages < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :chat_messages, [:channel, :created_at]
-    add_index :chat_messages, [:project_id, :created_at]
+    add_index :chat_messages, [ :channel, :created_at ]
+    add_index :chat_messages, [ :project_id, :created_at ]
   end
 end

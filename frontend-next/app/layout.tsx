@@ -5,8 +5,11 @@ import { cn } from "@/lib/utils";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { QueryProvider } from "@/components/providers/query-provider";
+import { JotaiProvider } from "@/components/providers/jotai-provider";
 import { Toaster } from "@/components/ui/toaster";
-import { DebugToolbar } from "@/components/debug/DebugToolbar";
+import { Toaster as SonnerToaster } from "sonner";
+import { DynamicTitle } from "@/components/dynamic-title";
 
 const hedvigSerif = Hedvig_Letters_Serif({
   weight: "400",
@@ -36,17 +39,23 @@ export default function RootLayout({
       >
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
+          defaultTheme="light"
           enableSystem
           disableTransitionOnChange
         >
-          <AuthProvider>
-            {children}
-            <Toaster />
-            <DebugToolbar />
-          </AuthProvider>
+          <JotaiProvider>
+            <QueryProvider>
+              <AuthProvider>
+                <DynamicTitle />
+                {children}
+                <Toaster />
+                <SonnerToaster />
+              </AuthProvider>
+            </QueryProvider>
+          </JotaiProvider>
         </ThemeProvider>
       </body>
     </html>
   );
 }
+// Trigger rebuild Sun Dec 28 11:06:24 AEST 2025

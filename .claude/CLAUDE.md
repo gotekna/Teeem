@@ -1,567 +1,406 @@
 # Claude Code Instructions for TEEEM Project
 
-## 🔴 CRITICAL: Git Commit and Push Rules
+## 🔴 CRITICAL: Git Commit, Push, and Deploy Rules
 
-**NEVER commit or push unless the user explicitly says to.**
+**NEVER commit, push, or deploy unless the user explicitly asks.**
 
-- ❌ NEVER run `git commit` until the user confirms the fix works and says "commit" or "push"
-- ❌ NEVER run `git push` until the user explicitly requests it
-- ✅ Make code changes and let the user test locally first
-- ✅ Wait for user confirmation before committing
-- ✅ Only commit/push when user says: "commit", "push", "ship it", "looks good, push it", etc.
+- ❌ NEVER run `git commit`, `git push`, or deploy unless user explicitly asks
+- ✅ Make code changes and let the user test first
+- ✅ Only commit/push/deploy when user says: "commit", "push", "deploy", "ship it", "/l"
 
-## 🔴 CRITICAL: Git Branch Protection
+### Push Override Password
 
-**NEVER push directly to the `Live` branch.** This is our production branch (equivalent to main/master).
+When pre-push hook blocks, ask: "Enter password to authorize push:"
+If user responds `1234`, use `--no-verify` to bypass.
 
-- ALWAYS work on feature branches (like `rob`, `jake`, etc.)
-- NEVER run `git push origin Live` or `git push --force` to Live
-- If asked to push, push to the current feature branch only
-- NEVER ask the user to create PRs or merge to Live - they will handle this themselves
-- NEVER mention "ready for PR" or "create a PR" - just push to the feature branch and move on
-
-## 🔴 CRITICAL: Heroku App Restriction
-
-**NEVER use the `teeem-backend` Heroku app.** This is a deprecated/unused app.
-
-- ❌ NEVER run `heroku` commands with `--app teeem-backend`
-- ❌ NEVER use the `heroku` git remote (points to teeem-backend)
-- ✅ Use `--app teeem-rob-dev` for staging
-- ✅ Use `--app teeemlive` for production
-
-## 🔴 CRITICAL: Production Deployment Restriction
-
-**ONLY deploy to production (`teeemlive`) using the `/l` command.**
-
-- ❌ NEVER manually run `git push heroku-teeemlive` or `git subtree push` to production
-- ❌ NEVER deploy to production outside of the `/l` command workflow
-- ✅ Use `/l` command to deploy Live branch to production
-- ✅ The `/l` command ensures proper workflow: checkout Live → pull latest → git subtree deploy
-
-### After Pushing to Rob Branch - Deploy to Heroku
-
-When you push to the `rob` branch, deploy directly to Heroku using git subtree:
-
-**IMPORTANT: git subtree commands MUST run from repo root `/Users/robertharder/GitHub/teeem`**
-
-```bash
-# 1. Push to GitHub first
-git push origin rob
-
-# 2. Deploy backend to Heroku via subtree (MUST run from repo root)
-cd /Users/robertharder/GitHub/teeem && git subtree split --prefix backend -b temp-backend-deploy
-git push heroku-rob-dev temp-backend-deploy:main --force
-git branch -D temp-backend-deploy
-
-# 3. Sync local version to match staging
-cd backend && bin/rails runner "Version.current.update(current_version: $(curl -s https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/version | grep -o '\"version\":\"v[0-9]*\"' | grep -o '[0-9]*'))"
+**After deploying, ALWAYS show:**
+```
+========================================
+DEPLOYED: HH:MM DD/MM (Brisbane)
+Commit: [hash] - [message]
+----------------------------------------
+Backend:  v[XXX] - [REQUIRED/not required]
+Frontend: v[XXX] - [REQUIRED/not required]
+Heroku:   [vXXX] - [deployed/skipped]
+========================================
 ```
 
-**Note:** Version only increments if backend code changed. Frontend-only deploys won't change the version.
+## 🔴 CRITICAL: Take Your Time - No Rushing
 
-### Heroku Git Remote Setup
+**Quality over speed. Always.**
 
-The `heroku-rob-dev` remote must be configured:
-```bash
-git remote add heroku-rob-dev https://git.heroku.com/teeem-rob-dev.git
-```
+- ❌ DON'T rush, skip planning, make assumptions, or take shortcuts
+- ✅ DO understand fully, explore thoroughly, ask questions, implement RIGHT solution
 
-Verify with: `git remote -v | grep heroku`
+## 🔴 CRITICAL: Bug Fixing - Find Root Cause (FRC)
 
-### Heroku Environments
+**Before fixing ANY bug, STOP and ask: "WHY does this bug exist?"**
 
-| Environment | Heroku App | Branch | Frontend |
-|-------------|-----------|--------|----------|
-| **Production** | `teeemlive` | Live | https://teeemlive.vercel.app |
-| **Staging/Dev** | `teeem-rob-dev` | rob | https://teeemrob.vercel.app |
+### The FRC Process
 
-**Staging URLs:**
-- Backend: https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/
-- Frontend: https://teeemrob.vercel.app/
+1. **STOP** - Don't touch the code yet
+2. **INVESTIGATE** - Use git blame, read the original code, understand intent
+3. **ASK WHY** - Apply the "5 Whys" technique
+4. **FIND THE GAP** - What's missing? Test? Validation? Type safety? Design?
+5. **FIX THE ROOT** - Fix the cause, not just the symptom
+6. **PREVENT** - Add guardrails so this class of bug can't happen again
 
----
-
-## 🔴 CRITICAL: Efficient Documentation Access
-
-**ALWAYS use the Dense Index pattern to find relevant documentation before reading full files.**
-
----
-
-## 📚 Trinity Documentation System
-
-The Trinity system uses a **database-first architecture** with three categories:
-- **Bible (RULES):** What you MUST/NEVER/ALWAYS do
-- **Teacher (HOW-TO):** Step-by-step implementation patterns and code examples
-- **Lexicon (KNOWLEDGE):** Bug history, architecture decisions, test catalog
-
-**Base API:** `https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/api/v1/trinity`
-
----
-
-## ⚡ Dense Index Workflow (MANDATORY)
-
-**CRITICAL:** Files are too large to read directly. ALWAYS use this 2-step workflow:
-
-### Step 1: Search Dense Index via API
-
-Use the Trinity API to search the `dense_index` field for relevant entries:
-
-```bash
-# Search across all documentation
-GET /api/v1/trinity/search?q=your_search_term
-
-# Filter by category
-GET /api/v1/trinity?category=bible&search=your_term
-GET /api/v1/trinity?category=teacher&search=your_term
-GET /api/v1/trinity?category=lexicon&search=your_term
-```
-
-**Dense Index Format:**
-Each entry has a `dense_index` field containing ultra-compressed keywords for fast searching:
-- Chapter number (e.g., "191" = Chapter 19, Section 1)
-- Entry title (lowercase, no spaces)
-- Entry type (component/rule/bug/etc)
-- Category (bible/teacher/lexicon)
-- Key concepts and related terms
-- File paths (if applicable)
-
-**Example:**
-```
-"191 teeemtableviewtheonetablestandard component teacher teeemtableview the only table component for teeem frontend src components documentation"
-```
-
-### Step 2: Read ONLY Relevant Chapter Files
-
-Once you identify the relevant chapter from Step 1, read the specific chapter file:
-
-**Teacher Chapters:**
-- `TEEEM_DOCS/TEACHER/CHAPTER_XX_TOPIC_NAME.md` (XX = chapter number with leading zero)
-- Average size: ~8KB per chapter (vs 770KB monolithic file)
-- Example: `TEEEM_DOCS/TEACHER/CHAPTER_19_UI_UX.md`
-
-**Bible & Lexicon:**
-- `TEEEM_DOCS/TEEEM_BIBLE.md` (~56KB total, organized by chapters)
-- `TEEEM_DOCS/TEEEM_LEXICON.md` (~107KB total, organized by chapters)
-
-**User Manual:**
-- `TEEEM_DOCS/TEEEM_USER_MANUAL.md` (end-user facing documentation)
-
----
-
-## 🎯 Documentation Categories Explained
-
-### 📖 Bible (RULES)
-**What it contains:** Authoritative rules that MUST be followed
-- MUST/NEVER/ALWAYS statements
-- Coding standards and conventions
-- Security requirements
-- Database schema rules
-- API design patterns
-
-**When to consult:**
-- Before implementing ANY feature
-- When making architectural decisions
-- When code review identifies non-compliance
-- When in doubt about "the right way"
-
-**Access:**
-1. Search dense index: `/api/v1/trinity?category=bible&search=table`
-2. Read relevant Bible section from `TEEEM_DOCS/TEEEM_BIBLE.md`
-
-### 🔧 Teacher (HOW-TO)
-**What it contains:** Step-by-step implementation patterns
-- Complete code examples
-- Component templates
-- Feature implementation guides
-- Integration tutorials
-- Common patterns and utilities
-
-**When to consult:**
-- When implementing a new feature
-- When learning how to use a component
-- When looking for code examples
-- When following Bible rules (Teacher shows HOW)
-
-**Access:**
-1. Search dense index: `/api/v1/trinity?category=teacher&search=teeemtableview`
-2. Identify chapter number from results
-3. Read specific chapter: `TEEEM_DOCS/TEACHER/CHAPTER_XX_TOPIC.md`
-
-### 📕 Lexicon (KNOWLEDGE)
-**What it contains:** Historical knowledge and decisions
-- Bug history (what went wrong, how it was fixed)
-- Architecture decisions (why we chose X over Y)
-- Test catalog (what tests exist)
-- Performance notes
-- Common issues and solutions
-
-**When to consult:**
-- When encountering a bug
-- When making architecture decisions
-- When wondering "why is it built this way?"
-- Before refactoring (check if there's history)
-
-**Access:**
-1. Search dense index: `/api/v1/trinity?category=lexicon&search=performance`
-2. Read relevant Lexicon section from `TEEEM_DOCS/TEEEM_LEXICON.md`
-
----
-
-## 🚫 What NOT to Do
-
-**NEVER:**
-- ❌ Read entire TEEEM_TEACHER.md (770KB - will fail or waste tokens)
-- ❌ Skip the dense index search step
-- ❌ Assume you know the right chapter without searching
-- ❌ Ignore Bible rules because they're "too strict"
-- ❌ Implement features without consulting Teacher examples
-- ❌ Repeat past bugs without checking Lexicon history
-
-**ALWAYS:**
-- ✅ Search dense index FIRST via API
-- ✅ Read ONLY the relevant chapter files
-- ✅ Check Bible for rules before implementing
-- ✅ Check Teacher for implementation patterns
-- ✅ Check Lexicon for historical context
-- ✅ Follow the 2-step workflow: Search → Read Specific Chapter
-
----
-
-## 📊 Token Efficiency
-
-**Old Approach (WRONG):**
-- Read entire TEEEM_TEACHER.md: ~553,000 tokens ❌ (file too large, fails)
-- Read all three docs: ~716,000 tokens ❌ (exceeds limits)
-
-**New Approach (CORRECT):**
-- Search dense index via API: ~100 tokens ✅
-- Read relevant Teacher chapter: ~15,000 tokens ✅
-- Total: ~15,100 tokens (98% reduction) ✅
-
----
-
-## 🔍 Example Workflow
-
-**Scenario:** Need to implement a new data table
-
-**Step 1 - Search Dense Index:**
-```bash
-GET /api/v1/trinity/search?q=table
-```
-
-**Result:**
-```json
-{
-  "success": true,
-  "results": [
-    {
-      "id": 200,
-      "chapter_number": 19,
-      "section_number": "19.1",
-      "title": "TEEEMTableView - The One Table Standard",
-      "category": "teacher",
-      "dense_index": "191 teeemtableviewtheonetablestandard component teacher..."
-    }
-  ]
-}
-```
-
-**Step 2 - Read Specific Chapter:**
-Read `TEEEM_DOCS/TEACHER/CHAPTER_19_UI_UX.md` (Chapter 19 identified from search)
-
-**Step 3 - Check Bible Rules:**
-Search `/api/v1/trinity?category=bible&search=table` for any related rules
-
-**Step 4 - Implement:**
-Follow Teacher patterns while adhering to Bible rules
-
----
-
-## 🎓 Best Practices
-
-1. **Search is Cheap, Reading is Expensive**
-   - API search: ~100 tokens
-   - Reading wrong file: ~50,000+ tokens wasted
-   - Always search first
-
-2. **Chapter Numbers are Your Friend**
-   - Chapter 0-2: Core System (auth, database, API)
-   - Chapter 3-7: Data Management (tables, imports, exports)
-   - Chapter 8-12: Business Logic (jobs, suppliers, quotes)
-   - Chapter 13-17: Integrations (Xero, OneDrive, AI)
-   - Chapter 18-21: UI/UX & Documentation
-
-3. **When in Doubt, Ask the API**
-   - Unsure which chapter? Search the dense index
-   - Need quick lookup? Use `/api/v1/trinity/search`
-   - Want related entries? Check `related_rules` field
-
-4. **Update Documentation as You Go**
-   - Found a bug? Add to Lexicon via UI
-   - Created a pattern? Add to Teacher via UI
-   - Discovered a rule? Add to Bible via UI
-   - Run export tasks to update markdown files
-
----
-
-## 📁 File Structure Reference
+### The 5 Whys Example
 
 ```
-TEEEM_DOCS/
-├── TEEEM_BIBLE.md              # All Bible rules (~56KB)
-├── TEEEM_LEXICON.md            # All Lexicon entries (~107KB)
-├── TEEEM_TEACHER.md            # Full Teacher index (DO NOT READ - too large)
-├── TEEEM_USER_MANUAL.md        # End-user documentation
-└── TEACHER/                     # Split Teacher chapters (READ THESE)
-    ├── CHAPTER_19_UI_UX.md                    # ~8KB
-    ├── CHAPTER_19_CUSTOM_TABLES_FORMULAS.md   # ~9KB
-    └── (more chapters as they're populated)
+Bug: validateResult.rolled_over throws "possibly null"
+
+Why 1: validateResult could be null
+Why 2: api.post() returns T | null
+Why 3: The API might fail or return empty
+Why 4: No null check before accessing properties
+Why 5: TypeScript caught it, but we should handle API failures gracefully
+
+Root Cause: Missing error handling pattern for API responses
+Fix: Add null check AND consider if all api.post() calls need this pattern
 ```
 
----
+### Investigation Checklist
 
-## 🔄 Keeping Documentation in Sync
+| Question | Action |
+|----------|--------|
+| When was this code written? | `git blame <file>` |
+| What was the original intent? | Read surrounding code, comments, PR |
+| Is this a one-off or pattern? | Search for similar code |
+| What guardrail is missing? | Type? Test? Validation? |
+| Where else might this exist? | `grep` for similar patterns |
 
-**Database is Source of Truth:**
-- All edits happen in the TEEEM UI (Documentation page)
-- Markdown files are auto-generated exports for git history
+### Red Flags → Go Deeper
 
-**To Export Latest Changes:**
-```bash
-# Export all Teacher chapters to split files
-cd backend && bin/rails teeem:export_teacher_split
+- "Just add a null check" → Why is it null? Should it be?
+- "Just add a try/catch" → What error? Why does it throw?
+- "Just add a condition" → Why wasn't it there? Design gap?
+- "Just rename/move" → Why was it wrong? Naming convention missing?
 
-# Or use the Ruby script (works without local DB)
-ruby scripts/generate_teacher_chapters.rb
+### After Fixing
 
-# Export Bible
-cd backend && bin/rails teeem:export_bible
+- ✅ Bug is fixed
+- ✅ Root cause is understood and documented (in commit message)
+- ✅ Similar bugs elsewhere are identified and fixed
+- ✅ Guardrail added to prevent recurrence (test, type, validation)
 
-# Export Lexicon
-cd backend && bin/rails teeem:export_lexicon
+**Mantra:** "A bug is a gift - it reveals a weakness in the system. Don't waste it on a bandaid."
+
+### Code Comments Policy
+
+**Don't proactively add comments.** But when you see existing comments that are:
+- Outdated or incorrect
+- Missing context for non-obvious code
+- Warning about race conditions, edge cases, or "DO NOT SIMPLIFY" patterns
+
+**Update them.** Future Claude sessions read comments to understand intent.
+
+For race condition fixes or non-obvious code, use this pattern:
+```typescript
+// ⚠️ DO NOT SIMPLIFY - [Brief reason] ([date])
+// ════════════════════════════════════════════
+// Why: [Explain the non-obvious reason]
+// ❌ WRONG: [What looks right but breaks]
+// ✅ CORRECT: [What we do and why]
+// ════════════════════════════════════════════
 ```
 
-**Commit Message Format:**
+## 🔴 CRITICAL: Quality Triggers
+
+| Keyword | What Claude Missed | Action |
+|---------|-------------------|--------|
+| `ssot` | Duplicate logic exists | Find both, flag to user, ask which is SSoT |
+| `ultra` | Lazy thinking | Present 3 approaches, question assumptions, simplify |
+| `gold` | Wrong component/bad UI | Check THE ONE table, TeeemTableView, Tailwind, dark mode |
+| `frc` | Bandaid bug fix | Stop, investigate root cause, fix the gap not the symptom |
+
+**Before ANY code change:**
+1. **SSoT Check** - Is this defined elsewhere? Search first.
+2. **Ultra Think** (non-trivial) - 3 approaches? Assumptions? Remove instead of add?
+3. **Gold Standard** (UI) - THE ONE component? Tailwind config? Dark mode?
+
+## 🔴 CRITICAL: SSoT Violations
+
+**If you find multiple ways to do the same thing, STOP and alert the user.**
+
+When discovering duplicates:
+1. ⚠️ **STOP** - Critical architectural issue
+2. 📍 **Document ALL locations** - File paths, line numbers
+3. 🧠 **Present 3 solutions** with effort/impact
+4. 🎯 **NO BANDAIDS** - Fix root cause, eliminate ALL duplicates
+5. ✅ **Consolidate** - Implement THE ONE, delete duplicates, add guards
+
+**Examples:** Cache vs live data, same config in multiple files, duplicate constants, same logic in two services.
+
+## 🔴 SSoT - Foundation API
+
+**Foundation API is THE SSoT for all record queries.**
+
 ```
-docs: Update [Bible|Teacher|Lexicon] from database export
-```
-
----
-
-## 🎯 Gold Standard Table MD is Single Source of Truth
-
-**TEEEM_DOCS/GOLD_STANDARD_TABLE.md is THE SINGLE SOURCE OF TRUTH for all table and column behavior.**
-
-See Bible Rule #19.002.
-
-**The Hierarchy:**
-```
-TEEEM_DOCS/GOLD_STANDARD_TABLE.md (SSoT - THE SPEC)
-    │
-    │ Defines: All 31 column types, validation rules, SQL types, TeeemTableView features
-    │
-    ├──► Backend code must match this
-    ├──► Frontend code must match this
-    ├──► API must return this
-    └──► Gold Standard Table (ID: 1) demonstrates this
-```
-
-**Troubleshooting Workflow:**
-1. Problem with a table? → Read GOLD_STANDARD_TABLE.md
-2. Something wrong? → Fix the MD first (it's the spec)
-3. Update code to match the MD
-
-**Code Locations (must match the MD):**
-- `backend/app/models/column.rb` → COLUMN_SQL_TYPE_MAP
-- `backend/app/controllers/api/v1/column_types_controller.rb`
-- `frontend-next/components/table/TeeemTableView.tsx`
-- `frontend-next/lib/column-types.ts`
-
-**NEVER:**
-- ❌ Have code that contradicts GOLD_STANDARD_TABLE.md
-- ❌ Add column types without updating the MD first
-- ❌ Fix table bugs without checking the MD first
-
-**ALWAYS:**
-- ✅ Read GOLD_STANDARD_TABLE.md first when debugging tables
-- ✅ Update the MD before updating code
-- ✅ Test changes in Gold Standard Table (ID: 1) first
-
----
-
-## Summary: The Golden Rule
-
-**🔴 BEFORE reading ANY documentation file:**
-1. Search the dense index via API
-2. Identify the relevant chapter number
-3. Read ONLY that specific chapter file
-4. Save 98% of your tokens
-
----
-
-## 🐛 Token-Efficient Debugging Workflow
-
-**CRITICAL:** Raw log files are extremely verbose and waste tokens. ALWAYS use this hierarchy:
-
-### Debugging Priority (Most → Least Token-Efficient)
-
-#### **1. Sentry API (BEST - ~200-500 tokens per error)**
-```bash
-# Query recent issues
-GET https://sentry.io/api/0/projects/{org}/{project}/issues/
-
-# Get specific issue details with full context
-GET https://sentry.io/api/0/issues/{issue_id}/
+/api/v1/foundations/{slug}/records
+├── Lookup expansion (automatic)
+├── Eager loading (automatic)
+└── DisplayValueResolver (SSoT for display)
 ```
 
-**Why Sentry First:**
-- Structured JSON data
-- Full error context (user, environment, breadcrumbs)
-- Stack trace already parsed
-- Error grouping and frequency
-- Session replay available (frontend)
+- ❌ NEVER: Custom `*_json` methods, manual lookup expansion, frontend API calls outside Foundation
+- ✅ ALWAYS: `autoFetchRecords={true}` in TeeemTableView, `useFoundationBySlug` hook
 
-**When to use:**
-- Investigating production errors
-- Understanding error patterns
-- Getting user context
-- Checking error frequency
+**All pages compliant** (Jobs, Contacts, Purchase Orders, Estimates, Schedule Master, etc.)
 
-#### **2. Frontend Console Capture (~100-300 tokens)**
-**Location:** `/Users/jakebaird/teeem/frontend/src/utils/consoleCapture.js`
+## 🔴 SSoT - Constants
 
-**Features:**
-- Already capturing last 1,000 log entries in memory
-- Timestamp + type + message format
-- Clipboard export functionality
-- Active in dev/staging only
+| Constant | SSoT Location |
+|----------|---------------|
+| `ASSIGNABLE_ROLES` | `User::ASSIGNABLE_ROLES` |
+| `COLUMN_TYPES` | `Column::COLUMN_SQL_TYPE_MAP` |
+| System columns | `lib/constants/system-columns.ts` |
+| Document types | `lib/constants/document-types.ts` |
+| UI components | `lib/component-registry.ts` |
 
-**How to use:**
-```javascript
-// In browser DevTools console:
-window.exportLogs() // Copies logs to clipboard
+**Rule:** Search `lib/constants/` before creating ANY constant.
 
-// Filter to errors only:
-window.consoleHistory.filter(entry => entry.type === 'error')
+## 🔴 SSoT - State (Jotai Atoms)
+
+**BEFORE adding useState, check `lib/table-atoms.ts`**
+
+| Need | SSoT Atom | NOT This |
+|------|-----------|----------|
+| Modal visibility | `activeTableModalAtom` | `useState(false)` for modals |
+| Filter UI toggle | `filterUIModeAtom` | Separate filter booleans |
+| Column config | `updateColumnConfigAtom` | Individual column setters |
+
+**Rule:** All table state lives in atoms. Read `lib/table-atoms.ts` header before adding state.
+
+## 🔴 SSoT - Validation
+
+**SSoT:** `lib/formatters/validation-formatters.ts` (reads from backend type definitions)
+
+| Need | SSoT | NOT This |
+|------|------|----------|
+| Validate cell value | `validateCell()` from `CellValidation.tsx` | Inline regex patterns |
+| Validation patterns | Backend `ColumnTypeDefinition` | Hardcoded frontend patterns |
+
+**Rule:** Validation blocks save. Invalid data cannot be saved - user must fix or cancel.
+
+## 🔴 SSoT - Cache Invalidation
+
+**SSoT:** `lib/records-cache.ts`
+
+**After ANY mutation (save, bulk update, delete, merge), call:**
+```typescript
+clearCachedRecords(foundationId);  // BEFORE triggerAutoRefresh()
 ```
 
-**When to use:**
-- Frontend debugging in dev/staging
-- User-reported bugs with console export
-- React component errors
-- API call failures
+**Rule:** Clear cache BEFORE refresh to ensure fresh data. Stale cache = stale UI.
 
-#### **3. Intelligent Log Sampling (~100-300 tokens)**
-**NEVER read entire log files.** Use these patterns:
+## 🔴 SSoT - Display Value Resolution
 
-**Backend Error Investigation:**
-```bash
-# Tail last 50 lines around error
-tail -n 50 backend/log/development.log
+**SSoT:** `DisplayValueResolver` service (backend/app/services/display_value_resolver.rb)
 
-# Grep for specific error pattern
-grep -A 10 -B 5 "ERROR_PATTERN" backend/log/development.log | tail -n 50
+| Need | SSoT | NOT This |
+|------|------|----------|
+| Lookup display value | `DisplayValueResolver.resolve_lookup(record, column)` | `record.send(column.lookup_display_column)` |
+| Batch lookup values | `DisplayValueResolver.resolve_lookup_batch(records, column)` | Manual iteration with direct access |
+| Column convenience | `column.display_value_for(record)` | Direct `lookup_display_column` access |
 
-# Find errors only (exclude SQL noise)
-grep "ERROR" backend/log/development.log | grep -v "SELECT\|INSERT\|UPDATE" | tail -n 20
+**Fallback Chain (SSoT):**
 ```
-
-**When to use:**
-- Local development errors
-- Errors not yet in Sentry
-- Database migration issues
-- Debugging specific request flow
-
-### ❌ What NOT to Do
-
-**NEVER:**
-- Read entire log files (1.6MB = ~40,000 tokens wasted)
-- Include SQL queries in log context
-- Read middleware stack traces
-- Parse Rails framework internals
-- Read duplicate logs (root + backend have same content)
-
-**ALWAYS:**
-- Check Sentry first
-- Use grep with line limits
-- Filter out framework noise
-- Focus on application code stack traces only
-
-### 🔍 Error Investigation Workflow
-
-**Step 1: Identify Error Source**
-- Frontend error? → Check console capture or Sentry frontend project
-- Backend error? → Check Sentry backend project first
-- Local development? → Use intelligent log sampling
-
-**Step 2: Gather Minimal Context**
-- Error message (what went wrong)
-- Stack trace (first 3-5 lines from app code only)
-- Request context (endpoint, user_id, params)
-- Reproduction steps
-
-**Step 3: Search Lexicon**
-```bash
-# Check if this error has history
-GET /api/v1/trinity?category=lexicon&search=error_keywords
+lookup_display_column → display_name → name → title → subject → "#{class} ##{id}"
 ```
-
-**Step 4: Fix & Document**
-- Implement fix
-- Add to Lexicon if new bug pattern
-- Update related Bible rules if needed
-
-### 📊 Token Savings Examples
-
-**Scenario: Investigating 500 error on /api/v1/constructions**
-
-**❌ Old Way (WRONG):**
-- Read entire development.log (40,000 tokens)
-- Parse SQL queries (5,000 tokens)
-- Read middleware traces (2,000 tokens)
-- **Total: ~47,000 tokens wasted**
-
-**✅ New Way (CORRECT):**
-- Query Sentry API for recent 500 errors (200 tokens)
-- Get structured error with context (300 tokens)
-- Search Lexicon for similar bugs (100 tokens)
-- **Total: ~600 tokens (99% savings)**
-
-### 🎓 Best Practices for Developers
-
-**When Reporting Bugs:**
-1. Export console logs (frontend) or copy Sentry URL
-2. Provide reproduction steps
-3. Include error message (not full stack trace)
-4. Note user impact and frequency
-
-**When Debugging:**
-1. Reproduce error locally if possible
-2. Check Sentry for production occurrence
-3. Use browser DevTools (frontend) or `grep` (backend)
-4. Focus on first error in chain (not cascading errors)
-
-**When Logging:**
-1. Use structured formats (see ErrorLogger utility)
-2. Include minimal context (user_id, endpoint, action)
-3. Filter sensitive data (passwords, tokens, API keys)
-4. Categorize errors (validation, not_found, server_error, external_api)
-
-### 🛠️ Available Debugging Tools
 
 **Frontend:**
-- Console capture system (built-in)
-- React Error Boundaries
-- Sentry session replay
-- Browser DevTools
+- Groups API returns `display_values_map` for ALL grouping columns
+- Frontend uses server values (SSoT) with local fallback for edge cases
+- Key format: `"column_name:id"` (e.g., `"job_status_id:1"`) to avoid ID collisions
 
-**Backend:**
-- Sentry error tracking
-- Rails logs (use intelligently)
-- ApplicationController error handlers
-- Database query logs (development only)
+**Rule:** NEVER access `lookup_display_column` directly. Always use DisplayValueResolver.
 
-**Both:**
-- Sentry breadcrumbs (user actions leading to error)
-- Environment context (dev/staging/production)
-- Request IDs for tracing across systems
+## 🔴 CRITICAL: Ultrathink Design Philosophy
+
+**Take a deep breath. We're not here to write code. We're here to make a dent in the universe.**
+
+You're a craftsman, an artist, an engineer who thinks like a designer. Every line should feel inevitable.
+
+1. **Think Different** - Question assumptions. Present 3 approaches before coding.
+2. **Obsess Over Details** - Read the codebase like studying a masterpiece.
+3. **Plan Like Da Vinci** - Sketch architecture before writing. Make me feel the beauty.
+4. **Craft, Don't Code** - Function names should sing. Abstractions should feel natural.
+5. **Iterate Relentlessly** - First version is never good enough. Refine until *insanely great*.
+6. **Simplify Ruthlessly** - Elegance is when there's nothing left to take away.
+
+**The Reality Distortion Field:** When something seems impossible, ultrathink harder.
+
+## 🔴 Standard UI Components (SSoT)
+
+**SSoT:** `frontend-next/lib/component-registry.ts`
+**Visual:** `/admin/system?tab=components`
+
+| Need | THE ONE | Import |
+|------|---------|--------|
+| Button | `Button` | `@/components/ui/button` |
+| Card | `Card` | `@/components/ui/card` |
+| Modal | `Dialog` | `@/components/ui/dialog` |
+| Tabs | `Tabs` | `@/components/ui/tabs` |
+| Back Nav | `BackButton` | `@/components/ui/back-button` |
+| Spinner | `Spinner` | `@/components/ui/spinner` |
+| Searchable Select | `ComboboxDropdown` | `@/components/ui/combobox-dropdown` |
+| Data Table | `TeeemTableView` | `@/components/table/TeeemTableView` |
+| Side Panel | `Sheet` | `@/components/ui/sheet` |
+| Gantt | `GanttChart` | `@/components/ui/gantt` |
+
+**Deprecated:** `combobox.tsx`, `loader.tsx`, `drawer.tsx`, `data-table.tsx`, `router.back()`
+
+## 🔴 Table Page Pattern
+
+```tsx
+return (
+  <div className="flex flex-col h-full -mx-4">
+    <TeeemTableView
+      foundationId="slug"
+      autoFetchRecords={true}
+      onRefresh={refresh}
+      leftActions={<Button>Action</Button>}
+    />
+  </div>
+);
+```
+
+- ❌ NEVER pass `columns` prop - auto-fetched from Foundation API
+- ❌ NEVER pass `entries` prop for Foundation-backed tables - use `autoFetchRecords={true}`
+- ❌ NO custom `<h1>` headers - TeeemTableView renders header
+- ✅ ALWAYS use `autoFetchRecords={true}` - enables SSR hydration, infinite scroll, caching
+- ✅ Action buttons in `leftActions`
+- ✅ Edge-to-edge: `-mx-4`, full height: `h-full flex flex-col`
+- ✅ For embedded/filtered tables: `autoFetchRecords={true} initialFilters={[...]}`
+
+**"Gold Standard Table" = TeeemTableView** - Changes go to `TeeemTableView.tsx`, not `GoldStandardTab.tsx`
+
+**`entries` prop is DEPRECATED** for Foundation-backed tables. Only use `entries` for:
+- Non-Foundation data (e.g., Xero API responses)
+- Demo/test data in components lab
+
+## 🔴 Design System
+
+| Resource | Location |
+|----------|----------|
+| Tailwind Config | `frontend-next/tailwind.config.ts` |
+| Column Types | `TEEEM_DOCS/GOLD_STANDARD_TABLE.md` |
+
+**Non-Negotiables:** Dark mode (`dark:` classes), responsive design, accessibility, config colors (not hex).
+
+## 🔴 Git & Deployment
+
+**Rob works directly on `Live` branch.**
+
+| Environment | Heroku App | URL |
+|-------------|-----------|-----|
+| Production | `teeemlive` | teeemlive-ce8e2660a615.herokuapp.com |
+| Rob Dev | `teeem-rob-dev` | - |
+| Sam Dev | `teeem-sam-dev` | - |
+
+**Deploy:** Use `/l` command (SSoT)
+
+**Local:** Frontend port 3000, Backend port 3001
+
+## 🔴 Production Frontend (Vercel)
+
+| Environment | URL | Notes |
+|-------------|-----|-------|
+| Production | `https://teeemlive.vercel.app` | SSoT production URL (3 e's in teeem) |
+| Backend API | `https://teeemlive-ce8e2660a615.herokuapp.com` | Heroku |
+
+**Chrome DevTools MCP Access:**
+- Vercel team member `robert-8688` has been granted access
+- This allows Claude to use Chrome DevTools MCP for browser testing on production
+- If access expires, re-approve in Vercel Team Settings → Members
+
+**Login Credentials (for automated testing):**
+- Email: `robert@tekna.com.au`
+- Password: `Wisdom50-50`
+
+## 🔴 Microsoft 365 (SSoT: MicrosoftCredential)
+
+```ruby
+# SSoT lookups
+MicrosoftCredential.active_for_org(organization)
+MicrosoftAppGraphClient.for_org(organization)
+```
+
+- ❌ NEVER: `MicrosoftCredential.active.first` (no org context)
+- ✅ ALWAYS: Org-scoped lookups
+
+**UI Term:** "SharePoint" (never "OneDrive" to users)
+
+## 🔴 Xero (SSoT: Webhooks)
+
+**Webhooks are THE SSoT for Xero sync.** Never add scheduled sync jobs.
+
+| What | SSoT |
+|------|------|
+| Contact/Invoice sync | Webhooks (live) |
+| Bank transactions | `xero_bank_transaction_sync` (no webhook available) |
+
+## 🔴 SharePoint Paths (SSoT: CorporateCompanySetting)
+
+```ruby
+CorporateCompanySetting.sharepoint_full_path(:jobs)  # SSoT
+# NOT: "/Shared Documents/TEEEM Jobs"  # Hardcoded
+```
+
+## 🔴 API Response Format
+
+```json
+{ "success": true, "data": { ... } }
+{ "success": false, "error": "Error message" }
+```
+
+## 🔴 API Key Convention
+
+**Backend returns camelCase, frontend expects camelCase.**
+
+| Layer | Convention | Example |
+|-------|-----------|---------|
+| Ruby hash keys | Symbols (`:fromId`) | `{ fromId: row.id.to_s }` |
+| JSON response | camelCase | `"fromId": "123"` |
+| TypeScript types | camelCase | `fromId: string` |
+
+**Before writing TypeScript types for API responses:**
+1. Check the backend controller/service for actual key names
+2. Use Zod schemas for runtime validation of critical APIs
+3. Never assume snake_case - verify the source
+
+**SSoT for API validation:** `lib/api/schemas/` (Zod schemas)
+
+## 🔴 Timezone
+
+**Company:** Australia/Brisbane
+
+```ruby
+CompanySetting.in_company_timezone { Date.today }  # SSoT
+# NOT: Date.today  # Wrong timezone
+```
+
+## 🔴 Foundation IDs
+
+**Use slugs, not numeric IDs.** IDs differ between environments.
+
+```tsx
+<TeeemTableView foundationId="sm_trades" />  // ✅ Slug
+<TeeemTableView foundationIdNumeric={531} /> // ❌ Environment-specific
+```
+
+## 🔴 No Column Limiting
+
+**ALL endpoints return ALL columns.** Performance via eager loading and pagination, not column limiting.
+
+- ❌ FORBIDDEN: `.select(:id, :name)`, `as_json(only: [...])`, `.pluck()` for API
+- ✅ ALLOWED: `.includes()`, `paginate()`, indexes
+
+## 🐛 Debugging
+
+**See:** `TEEEM_DOCS/DEBUGGING.md`
+
+Priority: Sentry API → Frontend console capture → Targeted grep
+
+**Never** read entire log files. Use `grep` with line limits.

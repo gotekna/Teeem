@@ -2,7 +2,7 @@ module Api
   module V1
     class ContactRelationshipsController < ApplicationController
       before_action :set_contact
-      before_action :set_relationship, only: [:show, :update, :destroy]
+      before_action :set_relationship, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/contacts/:contact_id/relationships
       def index
@@ -13,10 +13,15 @@ module Api
         render json: {
           success: true,
           relationships: {
-            outgoing: outgoing.map { |rel| serialize_relationship(rel, 'outgoing') },
-            incoming: incoming.map { |rel| serialize_relationship(rel, 'incoming') }
+            outgoing: outgoing.map { |rel| serialize_relationship(rel, "outgoing") },
+            incoming: incoming.map { |rel| serialize_relationship(rel, "incoming") }
           },
-          relationship_types: ContactRelationship::RELATIONSHIP_TYPES
+          relationship_types: ContactRelationship::RELATIONSHIP_TYPES,
+          relationship_types_metadata: ContactRelationship.relationship_types_with_metadata,
+          valid_types_for_entity: ContactRelationship.valid_types_for(
+            source_entity_type: @contact.entity_type,
+            target_entity_type: nil # Will be filtered on frontend based on target selection
+          )
         }
       end
 
@@ -90,7 +95,7 @@ module Api
         unless @relationship
           render json: {
             success: false,
-            errors: ["Relationship not found"]
+            errors: [ "Relationship not found" ]
           }, status: :not_found
         end
       end
@@ -106,13 +111,14 @@ module Api
           :notes,
           :role_in_relationship,
           :context,
-          metadata: {}
+          metadata: {},
+          role_ids: []  # Multi-role support - array of ContactType IDs
         )
       end
 
       def serialize_relationship(relationship, direction = nil)
         # Determine the "other" contact based on perspective
-        other_contact = if direction == 'incoming'
+        other_contact = if direction == "incoming"
           relationship.source_contact
         else
           relationship.related_contact
@@ -131,6 +137,9 @@ module Api
           is_active: relationship.is_active,
           notes: relationship.notes,
           role_in_relationship: relationship.role_in_relationship,
+          role_ids: relationship.role_ids || [],
+          role_names: relationship.role_names,
+          roles: relationship.roles_with_details,
           context: relationship.context,
           created_at: relationship.created_at,
           updated_at: relationship.updated_at,
@@ -140,14 +149,14 @@ module Api
             entity_type: other_contact&.entity_type,
             email: other_contact&.email,
             phone: other_contact&.primary_phone,
-            contact_types: other_contact&.contact_types
+            roles: other_contact&.roles
           },
           related_contact: {
             id: relationship.related_contact&.id,
-            full_name: relationship.related_contact&.display_name,
+            display_name: relationship.related_contact&.display_name,
             email: relationship.related_contact&.email,
             phone: relationship.related_contact&.primary_phone,
-            contact_types: relationship.related_contact&.contact_types
+            roles: relationship.related_contact&.roles
           }
         }
       end

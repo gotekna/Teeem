@@ -46,7 +46,7 @@ class CreateWHSInspections < ActiveRecord::Migration[8.0]
     end
 
     add_index :whs_inspections, :inspection_number, unique: true
-    add_index :whs_inspections, [:construction_id, :status]
+    add_index :whs_inspections, [ :construction_id, :status ]
     add_index :whs_inspections, :status
     add_index :whs_inspections, :inspection_type
     add_index :whs_inspections, :scheduled_date

@@ -33,7 +33,8 @@ module Api
       private
 
       def set_job
-        @job = Job.includes(:job_type, :job_status, job_contacts: :contact).find(params[:job_id])
+        # SSoT: Use Job.with_contacts scope for standard includes
+        @job = Job.with_contacts.find(params[:job_id])
       end
     end
   end

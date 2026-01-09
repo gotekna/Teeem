@@ -1,12 +1,12 @@
 module Api
   module V1
     class ConsolidationController < ApplicationController
-      before_action :set_company_group, only: [:show, :reconcile, :relationships, :reports]
+      before_action :set_company_group, only: [ :show, :reconcile, :relationships, :reports ]
 
       # GET /api/v1/consolidation
       # Returns list of company groups with consolidation summary
       def index
-        groups = CompanyGroup.active.includes(:companies)
+        groups = CorporateGroup.active.includes(:companies)
 
         render json: {
           success: true,
@@ -15,7 +15,7 @@ module Api
             {
               id: group.id,
               name: group.name,
-              companies_count: group.companies.count,
+              companies_count: group.corporate_companies.count,
               latest_reconciliation: latest_report ? {
                 id: latest_report.id,
                 as_of_date: latest_report.as_of_date,
@@ -44,7 +44,7 @@ module Api
           group: {
             id: @company_group.id,
             name: @company_group.name,
-            companies: @company_group.companies.map { |c| { id: c.id, name: c.name } }
+            companies: @company_group.corporate_companies.map { |c| { id: c.id, name: c.name } }
           },
           summary: {
             as_of_date: as_of_date,
@@ -111,8 +111,8 @@ module Api
 
         all_mismatches = []
 
-        CompanyGroup.active.includes(:companies).each do |group|
-          next if group.companies.count < 2
+        CorporateGroup.active.includes(:companies).each do |group|
+          next if group.corporate_companies.count < 2
 
           service = ConsolidationReconciliationService.new(group, as_of_date: as_of_date)
           relationships = service.intercompany_relationships
@@ -138,15 +138,15 @@ module Api
       # GET /api/v1/consolidation/company/:company_id
       # Returns intercompany summary for a specific company
       def company_summary
-        company = Company.find_by_slug_or_id(params[:company_id])
+        company = CorporateCompany.find_by_slug_or_id(params[:company_id])
         unless company
-          return render json: { success: false, error: 'Company not found' }, status: :not_found
+          return render json: { success: false, error: "Company not found" }, status: :not_found
         end
 
         unless company.company_group
           return render json: {
             success: false,
-            error: 'Company is not part of a group'
+            error: "Company is not part of a group"
           }, status: :bad_request
         end
 
@@ -162,9 +162,9 @@ module Api
       private
 
       def set_company_group
-        @company_group = CompanyGroup.find(params[:company_group_id] || params[:id])
+        @company_group = CorporateGroup.find(params[:company_group_id] || params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Company group not found' }, status: :not_found
+        render json: { success: false, error: "Company group not found" }, status: :not_found
       end
 
       def format_report(report)

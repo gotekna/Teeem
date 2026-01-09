@@ -1,8 +1,8 @@
 # Service to extract addresses from job titles and geocode them using Mapbox
 # Also standardizes job titles to a consistent format
 class JobAddressService
-  MAPBOX_BASE_URL = 'https://api.mapbox.com/geocoding/v5/mapbox.places'
-  BRISBANE_PROXIMITY = '153.0251,-27.4698' # Brisbane CBD coordinates for biasing results
+  MAPBOX_BASE_URL = "https://api.mapbox.com/geocoding/v5/mapbox.places"
+  BRISBANE_PROXIMITY = "153.0251,-27.4698" # Brisbane CBD coordinates for biasing results
 
   attr_reader :stats
 
@@ -15,7 +15,7 @@ class JobAddressService
       geocode_failed: 0,
       errors: []
     }
-    @mapbox_token = ENV['MAPBOX_ACCESS_TOKEN']
+    @mapbox_token = ENV["MAPBOX_ACCESS_TOKEN"]
   end
 
   # Process all jobs
@@ -41,7 +41,7 @@ class JobAddressService
 
     unless parsed[:address].present?
       @stats[:skipped_no_address] += 1
-      return { status: :skipped, reason: 'No address found in title', job: job }
+      return { status: :skipped, reason: "No address found in title", job: job }
     end
 
     # Geocode the address
@@ -211,9 +211,9 @@ class JobAddressService
 
     params = {
       access_token: @mapbox_token,
-      country: 'au',
+      country: "au",
       limit: 1,
-      types: 'address,place',
+      types: "address,place",
       proximity: BRISBANE_PROXIMITY
     }
 
@@ -227,7 +227,7 @@ class JobAddressService
     data = response.parsed_response
     data = JSON.parse(data) if data.is_a?(String)
 
-    feature = data.dig('features', 0)
+    feature = data.dig("features", 0)
 
     return nil unless feature
 
@@ -235,14 +235,14 @@ class JobAddressService
     address_components = parse_mapbox_context(feature)
 
     {
-      formatted_address: feature['place_name'],
-      latitude: feature.dig('center', 1),
-      longitude: feature.dig('center', 0),
+      formatted_address: feature["place_name"],
+      latitude: feature.dig("center", 1),
+      longitude: feature.dig("center", 0),
       street: address_components[:street],
       suburb: address_components[:suburb],
       state: address_components[:state],
       postcode: address_components[:postcode],
-      house_number: feature['address']
+      house_number: feature["address"]
     }
   rescue StandardError => e
     Rails.logger.error "Mapbox geocoding error: #{e.message}"
@@ -257,7 +257,7 @@ class JobAddressService
     # Build prefix part
     if parsed[:prefix].present? && parsed[:job_number].present?
       # Normalize prefix (remove spaces, use hyphen)
-      prefix = parsed[:prefix].gsub(/\s+/, ' ').strip
+      prefix = parsed[:prefix].gsub(/\s+/, " ").strip
       parts << "#{prefix}-#{parsed[:job_number]}"
     elsif parsed[:job_number].present?
       parts << parsed[:job_number]
@@ -287,9 +287,9 @@ class JobAddressService
     if address_parts.any?
       if parts.any?
         parts << " | "
-        parts << address_parts.join(' ')
+        parts << address_parts.join(" ")
       else
-        parts << address_parts.join(' ')
+        parts << address_parts.join(" ")
       end
     end
 
@@ -308,20 +308,20 @@ class JobAddressService
     }
 
     # Street name is in the main text
-    result[:street] = feature['text'] if feature['text'].present?
+    result[:street] = feature["text"] if feature["text"].present?
 
     # Parse context for other components
-    Array(feature['context']).each do |ctx|
-      type = ctx['id'].to_s.split('.').first
+    Array(feature["context"]).each do |ctx|
+      type = ctx["id"].to_s.split(".").first
 
       case type
-      when 'postcode'
-        result[:postcode] = ctx['text']
-      when 'place', 'locality'
-        result[:suburb] ||= ctx['text']
-      when 'region'
+      when "postcode"
+        result[:postcode] = ctx["text"]
+      when "place", "locality"
+        result[:suburb] ||= ctx["text"]
+      when "region"
         # Convert full state name to abbreviation
-        result[:state] = abbreviate_state(ctx['text'])
+        result[:state] = abbreviate_state(ctx["text"])
       end
     end
 
@@ -330,14 +330,14 @@ class JobAddressService
 
   def abbreviate_state(state_name)
     abbreviations = {
-      'Queensland' => 'QLD',
-      'New South Wales' => 'NSW',
-      'Victoria' => 'VIC',
-      'South Australia' => 'SA',
-      'Western Australia' => 'WA',
-      'Tasmania' => 'TAS',
-      'Northern Territory' => 'NT',
-      'Australian Capital Territory' => 'ACT'
+      "Queensland" => "QLD",
+      "New South Wales" => "NSW",
+      "Victoria" => "VIC",
+      "South Australia" => "SA",
+      "Western Australia" => "WA",
+      "Tasmania" => "TAS",
+      "Northern Territory" => "NT",
+      "Australian Capital Territory" => "ACT"
     }
     abbreviations[state_name] || state_name
   end

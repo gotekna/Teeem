@@ -12,7 +12,7 @@ module Api
 
         send_data csv_data,
                   filename: "transactions_#{Date.current.strftime('%Y%m%d')}.csv",
-                  type: 'text/csv'
+                  type: "text/csv"
       end
 
       # GET /api/v1/financial_exports/balance_sheet
@@ -24,7 +24,7 @@ module Api
 
         send_data csv_data,
                   filename: "balance_sheet_#{as_of_date.strftime('%Y%m%d')}.csv",
-                  type: 'text/csv'
+                  type: "text/csv"
       rescue Date::Error => e
         render json: {
           success: false,
@@ -42,7 +42,7 @@ module Api
 
         send_data csv_data,
                   filename: "profit_loss_#{from_date.strftime('%Y%m%d')}_#{to_date.strftime('%Y%m%d')}.csv",
-                  type: 'text/csv'
+                  type: "text/csv"
       rescue Date::Error => e
         render json: {
           success: false,
@@ -54,7 +54,7 @@ module Api
       def job_profitability
         service = FinancialExportService.new(company: @company)
 
-        construction_ids = params[:job_ids]&.split(',')&.map(&:to_i)
+        construction_ids = params[:job_ids]&.split(",")&.map(&:to_i)
         from_date = params[:from_date] ? Date.parse(params[:from_date]) : nil
         to_date = params[:to_date] ? Date.parse(params[:to_date]) : Date.current
 
@@ -66,7 +66,7 @@ module Api
 
         send_data csv_data,
                   filename: "job_profitability_#{Date.current.strftime('%Y%m%d')}.csv",
-                  type: 'text/csv'
+                  type: "text/csv"
       rescue Date::Error => e
         render json: {
           success: false,
@@ -82,7 +82,7 @@ module Api
 
         send_data csv_data,
                   filename: "chart_of_accounts_#{Date.current.strftime('%Y%m%d')}.csv",
-                  type: 'text/csv'
+                  type: "text/csv"
       end
 
       # GET /api/v1/financial_exports/accountant_package
@@ -96,7 +96,7 @@ module Api
 
         send_data csv_data,
                   filename: "accountant_package_#{from_date.strftime('%Y%m%d')}_#{to_date.strftime('%Y%m%d')}.csv",
-                  type: 'text/csv'
+                  type: "text/csv"
       rescue Date::Error => e
         render json: {
           success: false,
@@ -108,10 +108,10 @@ module Api
 
       def set_company
         @company = if params[:company_id]
-                    Company.find(params[:company_id])
-                  else
+                    CorporateCompany.find(params[:company_id])
+        else
                     current_user.company
-                  end
+        end
       rescue ActiveRecord::RecordNotFound
         render json: {
           success: false,

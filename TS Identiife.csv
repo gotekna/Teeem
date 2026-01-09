@@ -1,0 +1,408 @@
+title,category,stage,TS
+Site Signage,Pre Construction,,700
+Req Strip Drain,Construction,,743
+Req Kitchen Benchtop Material,Construction,,745
+Req Travel,Construction,,750
+Req Concrete,Construction,,755
+Req Kitchen Profit - Do Not Pay,Pre Construction,,756
+Req Miscellaneous Items,Pre Construction,,757
+Pay Reimbursment Cost,Finance,,758
+Req Plaster,Construction,,764
+Purchase Plaster Board,Construction,,765
+Carpentry as Required,Construction,,766
+Do Traffic Managment Plan,Pre Construction,,767
+Do Headworks Water,Pre Construction,,768
+Do Infrastracture charges (Headworks),Pre Construction,,769
+Req Traffic Mangement,Pre Construction,,770
+Req Driveway Cross Over,Pre Construction,,771
+Req Performance Solution,Pre Construction,,772
+Req Upgrade water Connection,Pre Construction,,773
+Req NBN Design,Pre Construction,,774
+Req Extra Work Place Health and Safety,Pre Construction,,776
+Req Generator,Construction,,784
+Pay 1st Progress Payment Overhead Fee,Finance,,785
+Pay PC Defects Admin Overhead,Finance,,787
+Remove Front Entry,Pre Construction,,788
+Do Form Work,Construction,,789
+Feaso Retail Profit,Admin,,796
+Feaso Contingency,Admin,,797
+Req Client Rebate,Finance,,799
+Req Road Base,Pre Construction,,800
+Req Concrete Footpath Civil,Pre Construction,,801
+Pay Overhead Enclosed,Finance,05 Enclosed,781
+Req SDA Auto Desk Stand For Kitchen,Construction,05 Enclosed,741
+ENCLOSED,Construction,05 Enclosed,625
+FIXING,Construction,06 Fixing,626
+Req Kitchen Material ,Construction,06 Fixing,746
+Pay Overhead Fixing,Finance,06 Fixing,782
+Pay Overhead Frame,Finance,04 Frame,780
+Extra Frame Timber,Construction,04 Frame,738
+Extra Frame Hardware,Construction,04 Frame,739
+Extra Soffit and Cladding,Construction,04 Frame,740
+Req Parti Wall,Construction,04 Frame,744
+FRAME,Construction,04 Frame,627
+SLAB,Construction,03 Slab,643
+Pay Overhead Slab,Finance,03 Slab,779
+Req Water Meter,Construction,03 Slab,736
+Req Formwork,Construction,03 Slab,793
+Req Pool,Construction,07 Practical Completion,777
+Pay Overhead Practical Completion,Finance,07 Practical Completion,783
+Pay 2nd Progress Payment Overhead Fee,Finance,07 Practical Completion,786
+SDA Approval,Pre Construction,07 Practical Completion,759
+SITE CLEAN,Construction,07 Practical Completion,709
+LANDSCAPING,Construction,07 Practical Completion,710
+Req SDA Manual Adjustable Desks Kitchen,Construction,07 Practical Completion,720
+PRACTICAL COMPLETION,Construction,07 Practical Completion,623
+Variation Paid,Construction,"Variation",702
+Variation Un-Paid,Construction,"Variation",703
+HANDOVER,Construction,09 Handover,624
+SITE COST - POWER - GAS - TEMP FENCING,Construction,02 Deposit,712
+Pay Overhead Deposit,Finance,02 Deposit,778
+Req Expansion Joints,Construction,09 Handover,719
+Req Tree Removal Application,Pre Construction,01 Pre Construction,616
+Req Water Connection,Pre Construction,01 Pre Construction,617
+Req Stormwater,Pre Construction,01 Pre Construction,795
+Req Timber,Construction,01 Pre Construction,792
+Relaxation,Pre Construction,01 Pre Construction,701
+Req Town Planner,Construction,01 Pre Construction,753
+Req Wastewater,Pre Construction,01 Pre Construction,742
+Req Toll ,Finance,08 Site Costs,715
+Req Spoon Drain,Construction,08 Site Costs,790
+Req Drainage,Construction,08 Site Costs,791
+SITE COSTS,Construction,08 Site Costs,621
+Req Painter External Ground Floor,Construction,07 Practical Completion,660
+Req Painter Touch Ups,Construction,07 Practical Completion,401
+Req Painter to Seal Deck,Construction,06 Fixing,718
+Req Painter External House,Construction,06 Fixing,397
+SPO - Painter First Floor External ( When Scaffold is Up),Construction,06 Fixing,399
+Req Painter Internal  House,Construction,06 Fixing,400
+Req Carpenter Fixout,Construction,06 Fixing,245
+Req Carpenter to Install Ply to Wet Areas,Construction,06 Fixing,737
+Req Carpenter Deck Labour,Construction,04 Frame,243
+Req Carpenter First Floor,Construction,04 Frame,244
+Req Carpenter Ground Floor,Construction,04 Frame,247
+Req Carpenter Install Win and Doors,Construction,05 Enclosed,723
+Req Carpenter Cladding,Construction,05 Enclosed,242
+Req Carpenter Install Win and Bath and Doors,Construction,05 Enclosed,249
+Req Carpenter Soffits First Floor,Construction,05 Enclosed,250
+Req Carpenter Soffits and Cladding,Construction,05 Enclosed,251
+Req Carpenter Straighten Frame,Construction,05 Enclosed,252
+Req Straighten External Frame First Floor Cladding,Construction,05 Enclosed,598
+Req Straighten External Frame Ground Floor Cladding,Construction,05 Enclosed,599
+Req Carpenter For Final Fitoff,Construction,07 Practical Completion,246
+Do Formwork for Courtyard Seat,Construction,03 Slab,725
+Do Fill with Concrete Courtyard Seat,Construction,03 Slab,726
+Do Waterproof Slab Edge and Courtyard,Construction,03 Slab,727
+Do Strip Formwork for Courtyard Seat,Construction,03 Slab,733
+Req Carpenter Sub Level First Floor,Construction,04 Frame,682
+Req Blocklayer Concrete Blocks,Construction,03 Slab,629
+Req Brick House Clean,Construction,05 Enclosed,234
+Req Bricklayer First Floor,Construction,05 Enclosed,235
+Req Bricklayer Ground Floor,Construction,05 Enclosed,596
+Req Windows,Construction,05 Enclosed,538
+FIT SDA Window Actuators,Construction,04 Frame,728
+Req Window Actuators,Construction,04 Frame,691
+Req Courtyard Seat and Sprinkler and Safe OOA,Construction,07 Practical Completion,734
+Req SDA Window Actuators Supply,Construction,07 Practical Completion,717
+FIT SDA Auto Door Openers,Construction,07 Practical Completion,729
+FIT Drains to Front of Doors,Construction,07 Practical Completion,730
+Do Courtyard Seat and Sprinkler,Construction,07 Practical Completion,731
+Req Window Handover Service,Construction,07 Practical Completion,537
+Req Wafflepod Slab Complete,Construction,03 Slab,704
+Req Concretor for Footings,Construction,03 Slab,272
+Req Concretor For Complete Slab Labour and Materials,Construction,03 Slab,273
+Req Concretor To Pour Piers,Construction,03 Slab,279
+Req Concretor to Pour Slab Wafflepod,Construction,03 Slab,280
+Req Concretor to Setup Wafflepod,Construction,03 Slab,281
+Req Waterproofing Concrete Block Slab Base Buildup,Construction,03 Slab,639
+Req Backfill Concretor Block Base Buildup,Construction,03 Slab,628
+Req Concrete Footings Blocks Slab Base Buildup,Construction,03 Slab,645
+Req Concretor for Footing Blocks Slab Base Buildup,Construction,03 Slab,634
+Req Drainage Concrete Block Slab Base Buildup,Construction,03 Slab,635
+Req Concrete Footing Blocks Slab Base Buildup,Construction,03 Slab,636
+Req Inspection Concrete Blocks Slab Base Buildup,Construction,03 Slab,637
+Req Concretor for Concrete Blocks Slab Base Buildup,Construction,03 Slab,631
+Req Concrete Pump for Core Fill,Construction,03 Slab,632
+Req Screw Piers,Construction,03 Slab,440
+Do Plumbing Drainage Inspection,Construction,03 Slab,188
+Do Council Final Inspection,Construction,07 Practical Completion,178
+Do Plumbing Final Inspection,Construction,07 Practical Completion,189
+Do Frame Inspection,Construction,04 Frame,185
+Do Plumbing Rough-In Inspection,Construction,05 Enclosed,190
+Req Demolition Permit,Pre Construction,01 Pre Construction,752
+PRE BA - New Building Application,Pre Construction,01 Pre Construction,699
+Req BA - New Building Application,Pre Construction,01 Pre Construction,602
+Req Build Over Sewer Application,Pre Construction,01 Pre Construction,603
+Do Driveway Application,Pre Construction,01 Pre Construction,604
+Req Plumbing Approval,Pre Construction,01 Pre Construction,605
+Req Bricks House,Construction,05 Enclosed,237
+Req Bricks On Site For Base Before Drain,Construction,03 Slab,681
+Req Concrete Blocks,Construction,03 Slab,630
+Req Concrete Core Fill,Construction,03 Slab,633
+Req Concrete For Piers,Construction,03 Slab,265
+Req Concrete for Wafflepod,Construction,03 Slab,267
+Req Concrete Pump For Piers,Construction,03 Slab,270
+Req Carpet,Construction,07 Practical Completion,255
+Req Timber Floor (Supply and Lay),Construction,06 Fixing,510
+Req Patio Pre Made,Construction,06 Fixing,404
+Measure Shower Screens Book Fitting,Construction,06 Fixing,208
+Req Vinyl Sliders,Construction,07 Practical Completion,519
+Req Shower Screens,Construction,07 Practical Completion,447
+"Req Shower Screens, Mirrors and Sliding Doors",Construction,07 Practical Completion,658
+Req Electrician - Fit Off,Construction,07 Practical Completion,314
+Req SDA SAT System Fit Off,Construction,07 Practical Completion,695
+SDA Door Openers Labour,Construction,07 Practical Completion,716
+Req Electrician Underground,Construction,03 Slab,316
+Req SDA Solar and Battery,Construction,04 Frame,690
+Req Home Automation,Construction,06 Fixing,798
+Req SDA SAT System Rough In,Construction,04 Frame,694
+SPO - Electrician - Cutouts,Construction,06 Fixing,313
+Req Electrician - Prewire,Construction,05 Enclosed,315
+Red Electrical Engineering,Construction,10 Admin,722
+Req Permanent Power Pole,Construction,08 Site Costs,406
+Req Temp Power Pole,Construction,08 Site Costs,496
+Req Toilet To Site,Construction,08 Site Costs,512
+Do Handover Of House ,Construction,09 Handover,595
+"Do Final Payment has been made, Organize Handover house",Construction,09 Handover,198
+Do Builders Sign,Construction,08 Site Costs,211
+Client Finance Approved Letter,Admin,02 Deposit,8
+Client Sign New Contract,Admin,02 Deposit,9
+Client Sign Preliminary Agreement,Admin,02 Deposit,10
+Client Sign Specifications,Admin,02 Deposit,11
+Client Signed Contract Plans,Admin,02 Deposit,12
+Client Signed Deposit Claim,Admin,02 Deposit,13
+Client - Do Colour Selection,Admin,02 Deposit,29
+Req Power To Site,Construction,08 Site Costs,420
+Req Landscape Prep Final Site Clean,Construction,08 Site Costs,373
+Req Level Site After Slab Poured Soil Removal,Construction,08 Site Costs,378
+Req Site Clean After Plasterboard & Brickwork,Construction,08 Site Costs,452
+Req Site Clean After Roof,Construction,08 Site Costs,454
+Req Site Clean Final,Construction,08 Site Costs,455
+Req Skip Bin - Final,Construction,08 Site Costs,594
+ Req Site Clean After Plasterboard & Brickwork (second HS),Construction,07 Practical Completion,659
+Req Construction Plans,Pre Construction,01 Pre Construction,672
+Pay 3D Drafting Qtys and Certification,Pre Construction,01 Pre Construction,619
+Req Concept Plans,Pre Construction,01 Pre Construction,649
+Req Contract Plans,Pre Construction,01 Pre Construction,650
+Req Certification Plans,Pre Construction,01 Pre Construction,651
+Req Constuction Plans,Pre Construction,01 Pre Construction,652
+Req Drafting and Estimating Fee,Pre Construction,Sales,794
+Req PLSL (QLeave),Pre Construction,01 Pre Construction,611
+Req Bath,Construction,07 Practical Completion,218
+Req Concrete Pump for Wafflepod,Construction,03 Slab,271
+Req Concrete Pump Footings,Construction,03 Slab,268
+Req Crane For Structural Floor First Floor,Construction,04 Frame,285
+Req Crane Frame First Floor,Construction,04 Frame,286
+Req Crane Roof Trusses,Construction,04 Frame,287
+Req Electrical Items,Construction,07 Practical Completion,310
+Req Engineer Inspection Piers,Construction,03 Slab,318
+Req Wafflepod Inspection,Construction,03 Slab,463
+Req Eng Slab Design,Pre Construction,01 Pre Construction,607
+Req Soil Test & Wind Rating,Pre Construction,01 Pre Construction,608
+Req External Door Handle Locks,Construction,05 Enclosed,324
+Req External Doors,Construction,05 Enclosed,325
+Req Measure Garage Doors,Construction,05 Enclosed,385
+Req Garage Doors,Construction,06 Fixing,345
+Req Builders Clean,Construction,07 Practical Completion,239
+Req Builders Reclean,Construction,07 Practical Completion,240
+Req Windows Cleaned Off Scaffold,Construction,07 Practical Completion,539
+Req Pressure Wash and External Areas,Construction,07 Practical Completion,648
+Req Handover Clean,Construction,09 Handover,351
+Req Balcony Guard,Construction,08 Site Costs,216
+Req Void Platform,Construction,08 Site Costs,520
+Req Sliding Door Fall Protection,Construction,08 Site Costs,464
+Req Steel Scaffold,Construction,08 Site Costs,486
+Req Lower Roof Walkway,Construction,08 Site Costs,381
+Req Rafter Fallguard - On Roof,Construction,08 Site Costs,429
+Req Rafter Fallguard Highset Homes,Construction,08 Site Costs,430
+Req Rafter Fallguard Lowset Homes,Construction,08 Site Costs,431
+Req Perimeter Fallguard,Construction,04 Frame,405
+Req Hang-on Platform,Construction,05 Enclosed,354
+Req Laundry Tub If Stand Alone,Construction,06 Fixing,376
+Req Tiles,Construction,06 Fixing,508
+Req Water Proofer,Construction,06 Fixing,528
+Req Waterproof for Slab Edge and Formwork,Construction,03 Slab,530
+Req Waterproofer For Veranda Wall Floor Junction,Construction,04 Frame,531
+Req Temporary Fencing,Construction,08 Site Costs,197
+Req Fence,Construction,08 Site Costs,330
+Req Landscaping,Construction,08 Site Costs,374
+Req Retaining Wall,Construction,08 Site Costs,435
+Req Steel Roof Trusses,Construction,04 Frame,485
+Req Roof Trusses,Construction,04 Frame,439
+Req Surveyor to Setout Wafflepod,Construction,03 Slab,494
+Req Surveyor To Repin After Drains,Construction,03 Slab,193
+SPO - Surveyor To Repin After Piers,Construction,03 Slab,194
+Req Surveyed Plan Of Block,Pre Construction,01 Pre Construction,609
+Req NBN OPTIC  Lead-in,Construction,03 Slab,391
+Req NBN OPTIC Commissioning,Construction,07 Practical Completion,389
+Req NBN OPTIC  Fit Off,Construction,07 Practical Completion,390
+Req NBN OPTIC Pre Wire ,Construction,05 Enclosed,392
+Req Drainer for Drains Wafflepod,Construction,03 Slab,298
+Req Seepage Trench For Retaining Wall,Construction,08 Site Costs,444
+Req Septic,Construction,03 Slab,751
+Req Plumber - Fit Off,Construction,07 Practical Completion,414
+Req Plumber Rough In,Construction,05 Enclosed,416
+Req Smart-Film Perimeter,Construction,05 Enclosed,466
+Req Termi-Mesh Perimeter,Construction,05 Enclosed,498
+Req Smart-Film Post,Construction,05 Enclosed,748
+Do Put Termite Sticker In MeterBox,Construction,07 Practical Completion,210
+Req Smart-Film Penetrations,Construction,03 Slab,465
+Req Termi-Mesh Penetrations,Construction,03 Slab,593
+Req Steel Posts,Construction,04 Frame,484
+Req Structural Steel,Construction,04 Frame,490
+Req Welding Of Steels Beams,Construction,04 Frame,533
+Req Silt Barrier and Gravel Entry,Construction,08 Site Costs,451
+Req Render,Construction,05 Enclosed,432
+Req Render To Front Of House Only,Construction,05 Enclosed,433
+Req Hebel External Cladding Install,Construction,05 Enclosed,356
+Req Hebel External Cladding Supply,Construction,05 Enclosed,357
+Req Hebel External Cladding Supply and Install,Construction,05 Enclosed,358
+Req Hebel Render,Construction,05 Enclosed,359
+SPO - Plaster Fit Cornice,Construction,06 Fixing,177
+Req Plaster Board,Construction,06 Fixing,411
+Req Plaster Board Delivery Highset,Construction,06 Fixing,412
+Req Plaster Board Highset,Construction,06 Fixing,413
+SPO - RTS Plasterboard Make Good Stair Void,Construction,06 Fixing,600
+Req Pre Paint (Including Sanding),Construction,06 Fixing,421
+Req Plaster Board Delivery Highset,Construction,07 Practical Completion,662
+Req Soffit and Cladding Hardware,Construction,05 Enclosed,467
+Req Soffit Hardware First Floor,Construction,05 Enclosed,468
+Req Light Fittings,Construction,07 Practical Completion,379
+Req Machinery For Piers,Construction,03 Slab,383
+Req Bobcat For Sand Up Wafflepod,Construction,03 Slab,227
+Req Bobcat To Back Fill Build Up,Construction,03 Slab,228
+SPO -  Insulation Spread Ceiling Insulation,Construction,07 Practical Completion,476
+Req Ceiling Insulation,Construction,07 Practical Completion,258
+Req Wall Sisilation First Floor,Construction,05 Enclosed,524
+Req Wall Sisilation Ground Floor,Construction,05 Enclosed,525
+Req Supply and Install Wall Sisilation,Construction,05 Enclosed,491
+Req Ceiling Insulation Before Plasterboard,Construction,06 Fixing,259
+Req Wall Insulation,Construction,06 Fixing,523
+Req Internal Stairs,Construction,06 Fixing,368
+Measure Internal Stairs,Construction,04 Frame,207
+Req External Stairs,Construction,05 Enclosed,327
+Req Handrail installed to stairs,Construction,07 Practical Completion,353
+Req Steel Frame First Floor,Construction,04 Frame,482
+Req Steel Frame Ground Floor,Construction,04 Frame,483
+Req Timber External Deck,Construction,04 Frame,509
+Req Prenail Frame And Trusses,Construction,04 Frame,422
+Req Prenail Frame First Floor,Construction,04 Frame,423
+Req Prenail Frame Ground Floor,Construction,04 Frame,424
+Req Frame Hardware,Construction,04 Frame,338
+Req Frame Material First Floor,Construction,04 Frame,339
+Req Frame Material Ground Floor,Construction,04 Frame,340
+Req SDA Door Opener,Construction,06 Fixing,693
+Req External Lock Intallation,Construction,05 Enclosed,654
+Req External Cladding,Construction,05 Enclosed,323
+Req Internal Door Handles,Construction,06 Fixing,366
+Req Internal Fixout,Construction,06 Fixing,367
+Req Brick Lintels,Construction,05 Enclosed,233
+Req Air Conditioning Rough In,Construction,05 Enclosed,213
+SPO - AC Ducted  - Cutouts,Construction,06 Fixing,289
+Req Air Conditioning Fit Off,Construction,07 Practical Completion,212
+Req Full Turn Key Package,Construction,07 Practical Completion,342
+Req Security Screen Doors & Windows,Construction,07 Practical Completion,443
+Req Fly Screen,Construction,07 Practical Completion,337
+Req Window Coverings,Construction,07 Practical Completion,536
+Req SDA Blinds,Construction,07 Practical Completion,692
+Req Antenna,Construction,05 Enclosed,215
+Req Steel For Concrete Block,Construction,03 Slab,638
+Req External Balustrading (Supply and Install),Construction,06 Fixing,322
+Req Internal Ballustrating (Fully Installed),Construction,06 Fixing,365
+Req Kitchen,Construction,06 Fixing,369
+Req Kitchen Bench Top Install,Construction,06 Fixing,370
+Req Kitchen Benchtop Measure,Construction,06 Fixing,371
+Req Kitchen - Completion of Factory Setout,Construction,06 Fixing,762
+Req Kitchen - Deposit,Construction,06 Fixing,760
+Do Make and Install Kitchen,Construction,06 Fixing,732
+Req Kitchen - Completion of Shop Drawings,Construction,,761
+Req Kitchen - Final,Construction,,763
+Req Kitchen Items Other,Construction,07 Practical Completion,747
+Req Kitchen Items Hafele,Construction,07 Practical Completion,724
+Req Kitchen Deliver,Construction,"Variation",775
+Req SDA Appliances,Construction,07 Practical Completion,698
+Req Dishwasher,Construction,07 Practical Completion,735
+Req Plumber Fitoff Gear,Construction,07 Practical Completion,415
+Req Hot Water System,Construction,07 Practical Completion,363
+Req Mixer Bodies For Plumber Rough In,Construction,05 Enclosed,388
+Req Undermount Sink,Construction,06 Fixing,516
+Pay Builders Insurance,Finance,01 Pre Construction,675
+Req Home Warranty Insurance,Pre Construction,01 Pre Construction,610
+Req Gas Lead in from Street Natural Gas,Construction,08 Site Costs,348
+Req Gas Rough In,Construction,05 Enclosed,349
+Req Gas Fitoff,Construction,07 Practical Completion,347
+Req Privacy Screens (Supply and Install),Construction,07 Practical Completion,427
+Req Demolition,Construction,08 Site Costs,754
+Send For Quotes,Pre Construction,01 Pre Construction,613
+Req Water Tank,Construction,07 Practical Completion,529
+Req Frame Material Structural Floor First Floor,Construction,04 Frame,341
+Req Structural Floor Sheeting First Floor,Construction,04 Frame,488
+Req Structural Floor Sheeting Ground Floor,Construction,04 Frame,489
+Req Machine Hire,Construction,08 Site Costs,714
+Req Site Cut,Construction,08 Site Costs,597
+Req Soil Removal,Construction,08 Site Costs,470
+Req Tree Removal,Construction,08 Site Costs,514
+Req External AJ Joints,Construction,05 Enclosed,320
+Req External AJ Joints Off Scaffold,Construction,05 Enclosed,321
+Req Silicon Behind Toilet and Complete,Construction,07 Practical Completion,449
+Req Caulking Of External Expansion Joints,Construction,07 Practical Completion,256
+Req Energy Efficient Rating,Pre Construction,01 Pre Construction,606
+Do Disclosure Plan,Admin,Land,646
+Do Property Information Search,Pre Construction,01 Pre Construction,589
+Do Floor Framing Layout,Pre Construction,01 Pre Construction,590
+Do Covenant Approval,Pre Construction,01 Pre Construction,591
+SPO - Land Settlement,Admin,01 Pre Construction,592
+Erosion,Construction,10 Admin,705
+Req Contingency,Finance,10 Admin,706
+Pay Overhead Fee,Finance,10 Admin,564
+Profit,Finance,10 Admin,683
+Admin,Admin,10 Admin,679
+Pay Internal Sales Fee,Finance,10 Admin,666
+Pay Coaching Fee,Finance,10 Admin,667
+Pay Franchise Marketing Fee ,Finance,10 Admin,668
+Pay Franchise Fee,Finance,10 Admin,669
+Pay Supervisor Fee,Finance,10 Admin,671
+ADMIN COSTS,Finance,10 Admin,674
+Pay External Sales Fee,Finance,10 Admin,676
+Client  - BA - Authority Form Signed By Owners,Admin,01 Pre Construction,2
+SDA Design Assessment,Pre Construction,01 Pre Construction,713
+Req Hydraulic Design,Pre Construction,01 Pre Construction,707
+PRE CONSTRUCTION,Pre Construction,01 Pre Construction,708
+Req OHSE WHSE House,Construction,08 Site Costs,534
+Pay ADH Fee Practical Completion,Finance,07 Practical Completion,689
+Pay ADH Fee Deposit,Finance,02 Deposit,684
+Req Formwork Release Agent,Construction,03 Slab,721
+Do Generate Meterbox Documentation,Construction,03 Slab,186
+Pay ADH Fee Slab,Finance,03 Slab,685
+Pay ADH Fee Frame,Finance,04 Frame,686
+Pay ADH Fee Enclosed,Finance,05 Enclosed,687
+Pay ADH Fee Fixing,Finance,06 Fixing,688
+Req Driveway Deco Material,Construction,08 Site Costs,655
+DRIVEWAY,Construction,08 Site Costs,711
+Req Covercrete Alfresco Patio,Construction,08 Site Costs,283
+Req Epoxy Alfresco Porch Garage,Construction,08 Site Costs,319
+Req Driveway Concrete,Construction,08 Site Costs,299
+Req Driveway Concrete Pump,Construction,08 Site Costs,300
+Req Driveway Concretor,Construction,08 Site Costs,301
+Req Driveway Covercreted,Construction,08 Site Costs,302
+Req Driveway Kerb Cut Out,Construction,08 Site Costs,306
+Req Driveway Prep Site Clean,Construction,08 Site Costs,307
+Req Driveway Steel Reo,Construction,08 Site Costs,308
+Req Optic Prewire,Construction,07 Practical Completion,663
+Req Optic Lead in,Construction,07 Practical Completion,664
+Req Optic Fitoff,Construction,07 Practical Completion,665
+Req Vinyl Flooring,Construction,07 Practical Completion,680
+Req Wet and Dry Fire Design,Pre Construction,01 Pre Construction,749
+Req Bushfire Report,Pre Construction,01 Pre Construction,618
+Req Tiler to Install Tiles Behind Toilet,Construction,07 Practical Completion,505
+Req Tiler ,Construction,06 Fixing,507
+Req Gapping To Skirting and Expansion Joints,Construction,07 Practical Completion,343
+Do Finishing Touches,Construction,07 Practical Completion,183
+Req QuickSpec,Sales,Sales,678
+Req Pods and Steel For Wafflepod,Construction,03 Slab,417
+Req Bedding Sand To Site Wafflepod,Construction,03 Slab,221
+Req Tile Roof,Construction,05 Enclosed,380
+Req Fascia And Gutter,Construction,05 Enclosed,328
+Req Fascia and Gutter and Colorbond Roof,Construction,05 Enclosed,329
+Req Down Pipes First Floor,Construction,05 Enclosed,295
+Req Down Pipes Ground Floor,Construction,05 Enclosed,296

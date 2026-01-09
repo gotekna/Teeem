@@ -1,5 +1,6 @@
 class DocumentActivity < ApplicationRecord
-  belongs_to :company_document
+  # Note: class_name needed because table was renamed from company_documents to corporate_company_documents
+  belongs_to :company_document, class_name: "CorporateCompanyDocument"
   belongs_to :user, optional: true
 
   # Action types
@@ -29,8 +30,8 @@ class DocumentActivity < ApplicationRecord
       "Renamed from '#{old_values['title']}' to '#{new_values['title']}'"
     when "moved"
       parts = []
-      parts << "company #{old_values['company_id']} → #{new_values['company_id']}" if old_values['company_id'] != new_values['company_id']
-      parts << "folder #{old_values['folder']} → #{new_values['folder']}" if old_values['folder'] != new_values['folder']
+      parts << "company #{old_values['company_id']} → #{new_values['company_id']}" if old_values["company_id"] != new_values["company_id"]
+      parts << "folder #{old_values['folder']} → #{new_values['folder']}" if old_values["folder"] != new_values["folder"]
       "Moved: #{parts.join(', ')}"
     when "validated"
       "Document naming validated"

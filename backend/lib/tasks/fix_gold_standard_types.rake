@@ -5,7 +5,7 @@ namespace :gold_standard do
     puts ""
 
     # Find the Gold Standard Reference table (ID 166)
-    table = Table.find_by(name: 'Gold Standard Reference') || Table.find_by(id: 166)
+    table = Table.find_by(name: "Gold Standard Reference") || Table.find_by(id: 166)
 
     unless table
       puts "❌ Gold Standard Reference table not found!"
@@ -18,29 +18,29 @@ namespace :gold_standard do
 
     # Map of column names to their correct types
     column_type_fixes = {
-      'item_code' => 'single_line_text',
-      'email' => 'email',
-      'phone' => 'phone',
-      'mobile' => 'mobile',
-      'document_link' => 'url',
-      'notes' => 'multiple_lines_text',
-      'start_date' => 'date',
-      'created_at' => 'date_and_time',
-      'location_coords' => 'gps_coordinates',
-      'color_code' => 'color_picker',
-      'file_attachment' => 'file_upload',
-      'is_active' => 'boolean',
-      'status' => 'choice',
-      'discount' => 'percentage',
-      'price' => 'currency',
-      'quantity' => 'number',
-      'whole_number' => 'whole_number',
-      'category_type' => 'lookup',
-      'multiple_category_ids' => 'multiple_lookups',
-      'user_id' => 'user',
-      'total_cost' => 'computed',
-      'updated_at' => 'date_and_time',
-      'last_modified_at' => 'date_and_time'
+      "item_code" => "single_line_text",
+      "email" => "email",
+      "phone" => "phone",
+      "mobile" => "mobile",
+      "document_link" => "url",
+      "notes" => "multiple_lines_text",
+      "start_date" => "date",
+      "created_at" => "date_and_time",
+      "location_coords" => "gps_coordinates",
+      "color_code" => "color_picker",
+      "file_attachment" => "file_upload",
+      "is_active" => "boolean",
+      "status" => "choice",
+      "discount" => "percentage",
+      "price" => "currency",
+      "quantity" => "number",
+      "whole_number" => "whole_number",
+      "category_type" => "lookup",
+      "multiple_category_ids" => "multiple_lookups",
+      "user_id" => "user",
+      "total_cost" => "computed",
+      "updated_at" => "date_and_time",
+      "last_modified_at" => "date_and_time"
     }
 
     fixed_count = 0

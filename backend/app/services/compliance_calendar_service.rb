@@ -12,11 +12,11 @@ class ComplianceCalendarService
 
   def calendar_items
     # Use left outer join to include companies without company_groups
-    items = CompanyComplianceItem
+    items = CorporateCompanyComplianceItem
       .joins(:company)
       .left_joins(company: :company_group)
-      .where('company_compliance_items.due_date BETWEEN ? AND ?', @start_date, @end_date)
-      .includes(:company)
+      .where("company_compliance_items.due_date BETWEEN ? AND ?", @start_date, @end_date)
+      .includes(:corporate_company)
 
     items = items.where(company_id: @company_id) if @company_id.present?
     items = items.where(companies: { company_group_id: @company_group_id }) if @company_group_id.present?
@@ -42,9 +42,9 @@ class ComplianceCalendarService
 
     {
       total: items.count,
-      overdue: items.where('company_compliance_items.due_date < ?', Date.today).where(completed: false).count,
-      due_this_week: items.where('company_compliance_items.due_date BETWEEN ? AND ?', Date.today, Date.today.end_of_week).where(completed: false).count,
-      due_this_month: items.where('company_compliance_items.due_date BETWEEN ? AND ?', Date.today, Date.today.end_of_month).where(completed: false).count,
+      overdue: items.where("company_compliance_items.due_date < ?", Date.today).where(completed: false).count,
+      due_this_week: items.where("company_compliance_items.due_date BETWEEN ? AND ?", Date.today, Date.today.end_of_week).where(completed: false).count,
+      due_this_month: items.where("company_compliance_items.due_date BETWEEN ? AND ?", Date.today, Date.today.end_of_month).where(completed: false).count,
       pending: items.where(completed: false).count,
       completed: items.where(completed: true).count
     }
@@ -52,21 +52,21 @@ class ComplianceCalendarService
 
   # Get overdue items
   def overdue_items
-    CompanyComplianceItem
+    CorporateCompanyComplianceItem
       .joins(:company)
       .left_joins(company: :company_group)
-      .where('company_compliance_items.due_date < ? AND company_compliance_items.completed = ?', Date.today, false)
-      .includes(:company)
+      .where("company_compliance_items.due_date < ? AND company_compliance_items.completed = ?", Date.today, false)
+      .includes(:corporate_company)
       .order(:due_date)
   end
 
   # Get upcoming items (next 30 days)
   def upcoming_items(days = 30)
-    CompanyComplianceItem
+    CorporateCompanyComplianceItem
       .joins(:company)
       .left_joins(company: :company_group)
-      .where('company_compliance_items.due_date BETWEEN ? AND ? AND company_compliance_items.completed = ?', Date.today, days.days.from_now, false)
-      .includes(:company)
+      .where("company_compliance_items.due_date BETWEEN ? AND ? AND company_compliance_items.completed = ?", Date.today, days.days.from_now, false)
+      .includes(:corporate_company)
       .order(:due_date)
   end
 
@@ -92,7 +92,7 @@ class ComplianceCalendarService
     generated = 0
     errors = []
 
-    Company.active.includes(:company_group).find_each do |company|
+    CorporateCompany.active.includes(:corporate_group).find_each do |company|
       begin
         # ASIC Annual Review - due on anniversary of incorporation
         if company.date_incorporated.present?
@@ -102,15 +102,15 @@ class ComplianceCalendarService
           review_year = Date.today.month > review_month || (Date.today.month == review_month && Date.today.day > review_day) ? Date.today.year + 1 : Date.today.year
           review_date = Date.new(review_year, review_month, review_day) rescue Date.new(review_year, review_month, 28)
 
-          unless company.company_compliance_items.exists?(item_type: 'asic_annual_review', due_date: review_date)
-            company.company_compliance_items.create!(
-              item_type: 'asic_annual_review',
+          unless company.corporate_company_compliance_items.exists?(item_type: "asic_annual_review", due_date: review_date)
+            company.corporate_company_compliance_items.create!(
+              item_type: "asic_annual_review",
               title: "ASIC Annual Review #{review_year}",
               description: "Annual company statement due. Review director details, registered office, and share structure.",
               due_date: review_date + 2.months, # Due 2 months after review date
               completed: false,
               asic_related: true,
-              recurrence: 'annual'
+              recurrence: "annual"
             )
             generated += 1
           end
@@ -118,56 +118,56 @@ class ComplianceCalendarService
 
         # ATO Tax Return - due 15 May (or Feb for lodge with agent)
         tax_return_due = Date.new(fy + 1, 5, 15) # May after FY end
-        unless company.company_compliance_items.exists?(item_type: 'tax_return', due_date: tax_return_due)
-          company.company_compliance_items.create!(
-            item_type: 'tax_return',
+        unless company.corporate_company_compliance_items.exists?(item_type: "tax_return", due_date: tax_return_due)
+          company.corporate_company_compliance_items.create!(
+            item_type: "tax_return",
             title: "Company Tax Return FY#{fy.to_s[-2..]}",
             description: "Annual company tax return due to ATO.",
             due_date: tax_return_due,
             completed: false,
             ato_related: true,
-            recurrence: 'annual'
+            recurrence: "annual"
           )
           generated += 1
         end
 
         # Solvency Declaration - due within 2 months of FY end
         solvency_due = fy_end + 2.months
-        unless company.company_compliance_items.exists?(item_type: 'solvency_declaration', due_date: solvency_due)
-          company.company_compliance_items.create!(
-            item_type: 'solvency_declaration',
+        unless company.corporate_company_compliance_items.exists?(item_type: "solvency_declaration", due_date: solvency_due)
+          company.corporate_company_compliance_items.create!(
+            item_type: "solvency_declaration",
             title: "Solvency Declaration FY#{fy.to_s[-2..]}",
             description: "Directors' solvency declaration required within 2 months of financial year end.",
             due_date: solvency_due,
             completed: false,
             asic_related: true,
-            recurrence: 'annual'
+            recurrence: "annual"
           )
           generated += 1
         end
 
         # GST BAS - if registered for GST
-        if company.gst_registration_status == 'registered'
+        if company.gst_registration_status == "registered"
           # Quarterly BAS dates for FY (July to June)
           bas_quarters = [
-            { quarter: 'Q1', period_end: Date.new(fy, 9, 30), due: Date.new(fy, 10, 28) },
-            { quarter: 'Q2', period_end: Date.new(fy, 12, 31), due: Date.new(fy + 1, 2, 28) },
-            { quarter: 'Q3', period_end: Date.new(fy + 1, 3, 31), due: Date.new(fy + 1, 4, 28) },
-            { quarter: 'Q4', period_end: fy_end, due: Date.new(fy + 1, 7, 28) }
+            { quarter: "Q1", period_end: Date.new(fy, 9, 30), due: Date.new(fy, 10, 28) },
+            { quarter: "Q2", period_end: Date.new(fy, 12, 31), due: Date.new(fy + 1, 2, 28) },
+            { quarter: "Q3", period_end: Date.new(fy + 1, 3, 31), due: Date.new(fy + 1, 4, 28) },
+            { quarter: "Q4", period_end: fy_end, due: Date.new(fy + 1, 7, 28) }
           ]
 
           bas_quarters.each do |bas|
             next if bas[:due] < Date.today # Skip past quarters
-            next if company.company_compliance_items.exists?(item_type: 'bas', due_date: bas[:due])
+            next if company.corporate_company_compliance_items.exists?(item_type: "bas", due_date: bas[:due])
 
-            company.company_compliance_items.create!(
-              item_type: 'bas',
+            company.corporate_company_compliance_items.create!(
+              item_type: "bas",
               title: "BAS #{bas[:quarter]} FY#{fy.to_s[-2..]}",
               description: "Business Activity Statement for period ending #{bas[:period_end].strftime('%d %b %Y')}",
               due_date: bas[:due],
               completed: false,
               ato_related: true,
-              recurrence: 'quarterly'
+              recurrence: "quarterly"
             )
             generated += 1
           end
@@ -187,17 +187,17 @@ class ComplianceCalendarService
 
   # Send reminders for upcoming compliance items
   # Call this daily via a scheduled job
-  def self.send_reminders(days_before: [30, 14, 7, 1])
+  def self.send_reminders(days_before: [ 30, 14, 7, 1 ])
     sent_count = 0
 
     days_before.each do |days|
       target_date = Date.today + days.days
 
-      items = CompanyComplianceItem
+      items = CorporateCompanyComplianceItem
         .where(due_date: target_date, completed: false)
         .where(last_reminder_sent_at: nil)
-        .or(CompanyComplianceItem.where(due_date: target_date, completed: false).where('last_reminder_sent_at < ?', 7.days.ago))
-        .includes(:company)
+        .or(CorporateCompanyComplianceItem.where(due_date: target_date, completed: false).where("last_reminder_sent_at < ?", 7.days.ago))
+        .includes(:corporate_company)
 
       items.find_each do |item|
         # Queue email notification

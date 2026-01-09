@@ -27,8 +27,8 @@ class CreateMaintenanceRequests < ActiveRecord::Migration[8.0]
     end
 
     add_index :maintenance_requests, :request_number, unique: true
-    add_index :maintenance_requests, [:supplier_contact_id, :status]
-    add_index :maintenance_requests, [:construction_id, :status]
+    add_index :maintenance_requests, [ :supplier_contact_id, :status ]
+    add_index :maintenance_requests, [ :construction_id, :status ]
     add_index :maintenance_requests, :status
   end
 end

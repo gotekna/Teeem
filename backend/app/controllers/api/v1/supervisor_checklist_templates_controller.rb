@@ -1,7 +1,7 @@
 module Api
   module V1
     class SupervisorChecklistTemplatesController < ApplicationController
-      before_action :set_template, only: [:show, :update, :destroy]
+      before_action :set_template, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/supervisor_checklist_templates
       def index

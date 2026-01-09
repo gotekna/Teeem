@@ -1,5 +1,21 @@
+# DEPRECATED: This model is being replaced by MicrosoftCredential (SSoT migration)
+# Use MicrosoftCredential.for_user(user) instead
+# Migration: MigrateMicrosoftCredentialsJob
+# Removal planned: After MicrosoftCredential is fully adopted
 class UserMicrosoftToken < ApplicationRecord
   belongs_to :user
+
+  # Log deprecation warning (once per class load)
+  def self.inherited(subclass)
+    warn_deprecation
+    super
+  end
+
+  def self.warn_deprecation
+    return if @deprecation_warned
+    @deprecation_warned = true
+    Rails.logger.warn "[DEPRECATED] UserMicrosoftToken is deprecated. Use MicrosoftCredential instead."
+  end
 
   # Status values
   STATUSES = %w[pending connected error disconnected].freeze
@@ -18,23 +34,103 @@ class UserMicrosoftToken < ApplicationRecord
   validates :user_id, uniqueness: true
   validates :status, inclusion: { in: STATUSES }
 
-  scope :connected, -> { where(status: 'connected') }
-  scope :needs_refresh, -> { where('token_expires_at < ?', 5.minutes.from_now) }
-  scope :with_errors, -> { where(status: 'error') }
-
-  # Check if token needs refresh
-  def needs_refresh?
-    token_expires_at.nil? || token_expires_at < 5.minutes.from_now
+  # SSoT: Reference MicrosoftTokenManager for constants
+  # This model is DEPRECATED - use MicrosoftCredential instead
+  def self.refresh_buffer
+    MicrosoftTokenManager::REFRESH_BUFFER
   end
+
+  # Keep constant for backward compatibility but delegate to SSoT
+  REFRESH_BUFFER = 20.minutes # Matches MicrosoftTokenManager::REFRESH_BUFFER
+
+  scope :connected, -> { where(status: "connected") }
+  scope :needs_refresh, -> { where("token_expires_at < ?", REFRESH_BUFFER.from_now) }
+  scope :with_errors, -> { where(status: "error") }
+  scope :alive, -> { where(refresh_token_dead: false) }
+  scope :dead, -> { where(refresh_token_dead: true) }
+
+  # SSoT: Reference MicrosoftTokenManager for dead token error codes
+  def self.dead_token_error?(error_message)
+    MicrosoftTokenManager.dead_token_error?(error_message)
+  end
+
+  # Keep constant for backward compatibility but delegate to SSoT
+  DEAD_TOKEN_ERROR_CODES = MicrosoftTokenManager::DEAD_TOKEN_ERROR_CODES
+
+  # Check if token needs refresh (20 min buffer for proactive refresh)
+  def needs_refresh?
+    token_expires_at.nil? || token_expires_at < REFRESH_BUFFER.from_now
+  end
+
+  # Alias for compatibility with MicrosoftGraphClient which expects token_expired?
+  alias_method :token_expired?, :needs_refresh?
 
   # Check if token is valid and connected
   def connected?
-    status == 'connected' && access_token.present? && !needs_refresh?
+    status == "connected" && access_token.present? && !needs_refresh?
   end
 
   # Mark as error with message
   def mark_error!(message)
-    update!(status: 'error', sync_error: message)
+    update!(status: "error", sync_error: message)
+  end
+
+  # Mark refresh token as dead (requires full re-auth via OAuth)
+  def mark_refresh_token_dead!(error_message = nil)
+    update!(
+      refresh_token_dead: true,
+      status: "error",
+      sync_error: error_message || "Refresh token expired - please reconnect",
+      last_refresh_attempt_at: Time.current
+    )
+  end
+
+  # Record a failed refresh attempt
+  def record_refresh_failure!(error_message)
+    new_count = (consecutive_failures || 0) + 1
+
+    # Check if this is a permanent failure (dead token)
+    if dead_token_error?(error_message)
+      mark_refresh_token_dead!(error_message)
+    else
+      update!(
+        consecutive_failures: new_count,
+        sync_error: error_message,
+        last_refresh_attempt_at: Time.current
+      )
+    end
+  end
+
+  # Record a successful refresh
+  def record_refresh_success!
+    update!(
+      consecutive_failures: 0,
+      refresh_token_dead: false,
+      last_refresh_attempt_at: Time.current
+    )
+  end
+
+  # Check if an error message indicates the refresh token is permanently dead
+  # SSoT: Delegates to MicrosoftTokenManager
+  def dead_token_error?(error_message)
+    self.class.dead_token_error?(error_message)
+  end
+
+  # Get the reason for reconnection (for frontend display)
+  def reconnect_reason
+    return nil unless refresh_token_dead? || status == "error"
+
+    if sync_error&.include?("AADSTS65001")
+      "consent_revoked"
+    elsif sync_error&.include?("AADSTS70008")
+      "token_expired"
+    elsif sync_error&.include?("AADSTS70000")
+      "grant_revoked"
+    elsif refresh_token_dead?
+      "refresh_token_dead"
+    else
+      "unknown_error"
+    end
   end
 
   # Mark as connected after successful OAuth
@@ -45,8 +141,10 @@ class UserMicrosoftToken < ApplicationRecord
       token_expires_at: Time.current + tokens[:expires_in].to_i.seconds,
       scopes: tokens[:scope],
       email: tokens[:email],
-      status: 'connected',
-      sync_error: nil
+      status: "connected",
+      sync_error: nil,
+      refresh_token_dead: false,
+      consecutive_failures: 0
     )
   end
 
@@ -56,7 +154,7 @@ class UserMicrosoftToken < ApplicationRecord
       access_token: nil,
       refresh_token: nil,
       token_expires_at: nil,
-      status: 'disconnected',
+      status: "disconnected",
       sync_error: nil
     )
   end
@@ -66,23 +164,23 @@ class UserMicrosoftToken < ApplicationRecord
     return false unless refresh_token.present?
 
     response = HTTParty.post(
-      'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+      "https://login.microsoftonline.com/common/oauth2/v2.0/token",
       body: {
-        client_id: ENV['OUTLOOK_CLIENT_ID'],
-        client_secret: ENV['OUTLOOK_CLIENT_SECRET'],
+        client_id: ENV["OUTLOOK_CLIENT_ID"],
+        client_secret: ENV["OUTLOOK_CLIENT_SECRET"],
         refresh_token: refresh_token,
-        grant_type: 'refresh_token',
-        scope: REQUIRED_SCOPES.join(' ')
+        grant_type: "refresh_token",
+        scope: REQUIRED_SCOPES.join(" ")
       }
     )
 
     if response.success?
       data = response.parsed_response
       mark_connected!(
-        access_token: data['access_token'],
-        refresh_token: data['refresh_token'] || refresh_token,
-        expires_in: data['expires_in'],
-        scope: data['scope']
+        access_token: data["access_token"],
+        refresh_token: data["refresh_token"] || refresh_token,
+        expires_in: data["expires_in"],
+        scope: data["scope"]
       )
       true
     else
@@ -102,7 +200,7 @@ class UserMicrosoftToken < ApplicationRecord
     access_token
   end
 
-  # Compatibility with OrganizationOneDriveCredential interface
+  # Compatibility with OrganizationSharePointCredential interface
   # These are used by MicrosoftGraphClient when user tokens are used as a fallback
 
   def root_folder_id

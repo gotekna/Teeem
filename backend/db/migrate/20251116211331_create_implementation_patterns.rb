@@ -36,7 +36,7 @@ class CreateImplementationPatterns < ActiveRecord::Migration[8.0]
     # Indexes for performance
     add_index :implementation_patterns, :chapter_number
     add_index :implementation_patterns, :section_number
-    add_index :implementation_patterns, [:chapter_number, :section_number], unique: true,
+    add_index :implementation_patterns, [ :chapter_number, :section_number ], unique: true,
               name: 'index_implementation_patterns_on_chapter_and_section'
     add_index :implementation_patterns, :complexity
     add_index :implementation_patterns, :languages, using: :gin

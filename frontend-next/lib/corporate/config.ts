@@ -10,22 +10,24 @@
 // =============================================================================
 
 /**
- * Foundation table IDs for corporate entities.
- * These map to the `foundations` table in the database.
+ * Foundation IDs for corporate entities.
  *
- * NOTE: Assets does not have a Foundation yet - it uses the Asset Rails model directly.
- * TODO: Create Foundation for Assets when needed for schema editor support.
+ * SSoT for columns is the Foundation API (Gold Standard Tables).
+ * Data comes from Rails models (CorporateCompany, Asset, Contact).
  */
 export const CORPORATE_TABLE_IDS = {
-  COMPANIES: 353,
+  // Active Foundation IDs
+  ASSETS: 526,              // Assets Foundation - Gold Standard Table
+  COMPANY_DOCUMENT: 357,    // Company Documents Foundation
+
+  // Legacy IDs (do not use - these Foundations were never created)
+  COMPANIES: 353,           // Use CorporateCompany Rails model, no Foundation
   COMPANY_ACTIVITY: 354,
   COMPANY_COMPLIANCE_ITEM: 355,
   COMPANY_DIRECTOR: 356,
-  COMPANY_DOCUMENT: 357,
   COMPANY_SETTING: 358,
   COMPANY_XERO_ACCOUNT: 359,
   COMPANY_XERO_CONNECTION: 360,
-  // ASSETS: null, // No Foundation yet - uses Asset model directly
 } as const;
 
 /**
@@ -59,18 +61,22 @@ export const COLUMN_WIDTH_OVERRIDES = {
     entity_type: 120,
   },
   assets: {
-    id: 60,
-    name: 200,
-    asset_type: 120,
+    asset_number: 120,
+    display_name: 250,
+    asset_type: 100,
     status: 100,
-    purchase_price: 120,
+    company_name: 180,
+    purchase_price: 130,
+    purchase_date: 110,
     current_book_value: 130,
+    location: 150,
+    assigned_to_name: 150,
     make: 100,
     model: 100,
   },
   directors: {
     id: 60,
-    full_name: 200,
+    display_name: 200,
     email: 180,
     mobile_phone: 130,
     director_position: 120,

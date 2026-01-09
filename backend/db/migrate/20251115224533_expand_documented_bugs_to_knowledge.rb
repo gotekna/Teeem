@@ -11,7 +11,7 @@ class ExpandDocumentedBugsToKnowledge < ActiveRecord::Migration[8.0]
 
     # Add indexes for new columns
     add_index :documented_bugs, :knowledge_type
-    add_index :documented_bugs, [:chapter_number, :knowledge_type]
+    add_index :documented_bugs, [ :chapter_number, :knowledge_type ]
 
     # Make bug-specific columns nullable (they're only used for knowledge_type = 'bug')
     change_column_null :documented_bugs, :status, true

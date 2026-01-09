@@ -1,8 +1,8 @@
 module Api
   module V1
     class ChartOfAccountsController < ApplicationController
-      before_action :set_account, only: [:show, :update, :destroy]
-      before_action :require_admin, except: [:index, :show]
+      before_action :set_account, only: [ :show, :update, :destroy ]
+      before_action :require_admin, except: [ :index, :show ]
 
       # GET /api/v1/chart_of_accounts
       def index
@@ -11,12 +11,14 @@ module Api
         # Apply filters
         @accounts = @accounts.where(kind: params[:kind]) if params[:kind].present?
 
-        # Search by name or number
+        # Search using SSoT SearchService
         if params[:search].present?
-          @accounts = @accounts.where(
-            'name ILIKE ? OR CAST(number AS TEXT) LIKE ?',
-            "%#{params[:search]}%",
-            "%#{params[:search]}%"
+          @accounts = SearchService.apply(
+            @accounts,
+            params[:search],
+            columns: %w[name number],
+            mode: params[:search_mode] || 'contains',
+            model: ChartOfAccount
           )
         end
 
@@ -96,7 +98,7 @@ module Api
       def kinds
         render json: {
           success: true,
-          kinds: ['asset', 'liability', 'revenue', 'expense', 'forward', 'debtor', 'creditor']
+          kinds: [ "asset", "liability", "revenue", "expense", "forward", "debtor", "creditor" ]
         }
       end
 

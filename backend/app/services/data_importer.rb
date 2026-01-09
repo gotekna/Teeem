@@ -54,7 +54,7 @@ class DataImporter
 
           # Call progress callback if provided
           if progress_callback
-            current_progress = [(batch_index + 1) * batch_size, total_rows].min
+            current_progress = [ (batch_index + 1) * batch_size, total_rows ].min
             progress_callback.call(current_progress, total_rows)
           end
         rescue => e
@@ -107,17 +107,17 @@ class DataImporter
     return nil if value.nil? || value.to_s.strip.blank?
 
     case column.column_type
-    when 'boolean'
+    when "boolean"
       convert_to_boolean(value)
-    when 'whole_number'
+    when "whole_number"
       value.to_i
-    when 'number', 'currency', 'percentage'
+    when "number", "currency", "percentage"
       convert_to_decimal(value)
-    when 'date'
+    when "date"
       convert_to_date(value)
-    when 'date_and_time'
+    when "date_and_time"
       convert_to_datetime(value)
-    when 'email', 'single_line_text', 'multiple_lines_text'
+    when "email", "single_line_text", "multiple_lines_text"
       value.to_s.strip
     else
       value.to_s.strip
@@ -127,13 +127,13 @@ class DataImporter
   end
 
   def convert_to_boolean(value)
-    true_values = ['true', 'yes', '1', 't', 'y']
+    true_values = [ "true", "yes", "1", "t", "y" ]
     true_values.include?(value.to_s.downcase.strip)
   end
 
   def convert_to_decimal(value)
     # Remove currency symbols and percentage signs
-    cleaned = value.to_s.gsub(/[$,%]/, '').strip
+    cleaned = value.to_s.gsub(/[$,%]/, "").strip
     BigDecimal(cleaned)
   end
 

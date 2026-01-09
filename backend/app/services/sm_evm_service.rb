@@ -89,7 +89,7 @@ class SmEvmService
     return [] if tasks.empty?
 
     start_date = tasks.minimum(:start_date)
-    end_date = [tasks.maximum(:end_date), as_of_date].max
+    end_date = [ tasks.maximum(:end_date), as_of_date ].max
 
     data = []
     (start_date..end_date).each do |date|
@@ -132,9 +132,9 @@ class SmEvmService
     tasks.sum do |task|
       cost = task.estimated_cost || 0
       case task.status
-      when 'completed'
+      when "completed"
         cost
-      when 'started'
+      when "started"
         # Use percent complete if available, otherwise estimate 50%
         percent = task.percent_complete || 50
         cost * (percent / 100.0)
@@ -212,7 +212,7 @@ class SmEvmService
   # Calculate AC at a specific date
   def calculate_actual_cost_at(tasks, date)
     tasks.sum do |task|
-      task.time_entries.where('work_date <= ?', date).sum do |entry|
+      task.time_entries.where("work_date <= ?", date).sum do |entry|
         hours = entry.hours || 0
         rate = entry.resource&.hourly_rate || 0
         hours * rate
@@ -240,50 +240,50 @@ class SmEvmService
 
   def index_status(index)
     if index >= 1.0
-      'on_track'
+      "on_track"
     elsif index >= 0.9
-      'slight_variance'
+      "slight_variance"
     elsif index >= 0.8
-      'moderate_variance'
+      "moderate_variance"
     else
-      'significant_variance'
+      "significant_variance"
     end
   end
 
   def schedule_status(spi)
     if spi >= 1.0
-      'ahead_of_schedule'
+      "ahead_of_schedule"
     elsif spi >= 0.95
-      'on_schedule'
+      "on_schedule"
     elsif spi >= 0.85
-      'slightly_behind'
+      "slightly_behind"
     else
-      'behind_schedule'
+      "behind_schedule"
     end
   end
 
   def cost_status(cpi)
     if cpi >= 1.0
-      'under_budget'
+      "under_budget"
     elsif cpi >= 0.95
-      'on_budget'
+      "on_budget"
     elsif cpi >= 0.85
-      'slightly_over'
+      "slightly_over"
     else
-      'over_budget'
+      "over_budget"
     end
   end
 
   def overall_health(spi, cpi)
     avg = (spi + cpi) / 2.0
     if avg >= 1.0
-      'excellent'
+      "excellent"
     elsif avg >= 0.9
-      'good'
+      "good"
     elsif avg >= 0.8
-      'fair'
+      "fair"
     else
-      'poor'
+      "poor"
     end
   end
 

@@ -1,5 +1,5 @@
 class Api::V1::WHSInspectionTemplatesController < ApplicationController
-  before_action :set_whs_inspection_template, only: [:show, :update, :destroy]
+  before_action :set_whs_inspection_template, only: [ :show, :update, :destroy ]
 
   # GET /api/v1/whs_inspection_templates
   def index
@@ -9,7 +9,7 @@ class Api::V1::WHSInspectionTemplatesController < ApplicationController
     templates = templates.by_type(params[:inspection_type]) if params[:inspection_type].present?
 
     # Apply active filter
-    templates = templates.active if params[:active] == 'true'
+    templates = templates.active if params[:active] == "true"
 
     templates = templates.includes(:created_by).order(name: :asc)
 
@@ -41,7 +41,7 @@ class Api::V1::WHSInspectionTemplatesController < ApplicationController
     else
       render json: {
         success: false,
-        error: template.errors.full_messages.join(', ')
+        error: template.errors.full_messages.join(", ")
       }, status: :unprocessable_entity
     end
   end
@@ -56,7 +56,7 @@ class Api::V1::WHSInspectionTemplatesController < ApplicationController
     else
       render json: {
         success: false,
-        error: @whs_inspection_template.errors.full_messages.join(', ')
+        error: @whs_inspection_template.errors.full_messages.join(", ")
       }, status: :unprocessable_entity
     end
   end
@@ -66,12 +66,12 @@ class Api::V1::WHSInspectionTemplatesController < ApplicationController
     if @whs_inspection_template.destroy
       render json: {
         success: true,
-        data: { message: 'Inspection template deleted successfully' }
+        data: { message: "Inspection template deleted successfully" }
       }
     else
       render json: {
         success: false,
-        error: 'Failed to delete inspection template'
+        error: "Failed to delete inspection template"
       }, status: :unprocessable_entity
     end
   end
@@ -94,7 +94,7 @@ class Api::V1::WHSInspectionTemplatesController < ApplicationController
 
   def serialization_includes
     {
-      created_by: { only: [:id, :name, :email] }
+      created_by: {}
     }
   end
 end

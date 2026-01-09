@@ -1,50 +1,30 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useRouter, usePathname } from "next/navigation";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader } from "@/components/ui/loader";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import { useFoundationById } from "@/hooks/useFoundationById";
 import {
   Upload,
   FolderOpen,
   Cloud,
-  CheckCircle,
-  Clock,
+  Building2,
+  Briefcase,
+  Users,
 } from "lucide-react";
-import { api } from "@/lib/api";
-import { AIVerificationModal } from "@/components/documents/ai-verification-modal";
-import { DocumentPreviewModal } from "@/components/documents/document-preview-modal";
+import { BackButton } from "@/components/ui/back-button";
 
-// Foundation ID for Documents table
-const DOCUMENTS_FOUNDATION_ID = 434;
+// Foundation slugs for the three document types
+const DOCUMENT_TYPES = {
+  company: "company_documents",
+  job: "job_documents",
+  people: "people_documents"
+} as const;
 
-interface Document {
-  id: number;
-  name: string;
-  display_title?: string;
-  type: string;
-  size: number;
-  url?: string;
-  job_title?: string;
-  job_id?: number;
-  uploaded_at: string;
-  uploaded_by: string;
-  folder_path?: string;
-  document_type?: {
-    id: number;
-    name: string;
-    abbreviation: string;
-  };
-  fiscal_year?: string;
-  company_name?: string;
-  verified: boolean;
-  verified_at?: string;
-  verified_by?: string;
-}
+type DocumentType = keyof typeof DOCUMENT_TYPES;
 
 interface Folder {
   id: string;
@@ -55,186 +35,104 @@ interface Folder {
 
 export default function DocumentsPage() {
   const router = useRouter();
-  const [folders, setFolders] = useState<Folder[]>([
+  const pathname = usePathname();
+
+  // Parse tab from path: /documents/job → "job", /documents → "company"
+  const activeTab = useMemo(() => {
+    const parts = pathname.replace("/documents", "").split("/").filter(Boolean);
+    const tab = parts[0];
+    if (tab && Object.keys(DOCUMENT_TYPES).includes(tab)) {
+      return tab as DocumentType;
+    }
+    return "company";
+  }, [pathname]) as DocumentType;
+
+  const [folders] = useState<Folder[]>([
     { id: "1", name: "Contracts", path: "/contracts", documents_count: 12 },
     { id: "2", name: "Financial", path: "/financial", documents_count: 8 },
     { id: "3", name: "Compliance", path: "/compliance", documents_count: 5 },
+    { id: "4", name: "Plans", path: "/plans", documents_count: 0 },
   ]);
-  const [oneDriveConnected, setOneDriveConnected] = useState(false);
+  const [sharePointConnected] = useState(false);
 
-  // Modal states
-  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
-  const [previewModalOpen, setPreviewModalOpen] = useState(false);
-  const [verificationModalOpen, setVerificationModalOpen] = useState(false);
+  // Handle tab change - path-based navigation
+  const handleTabChange = useCallback((value: string) => {
+    const url = value === "company" ? "/documents" : `/documents/${value}`;
+    router.push(url);
+  }, [router]);
 
-  // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, refresh } = useFoundationById(DOCUMENTS_FOUNDATION_ID);
-
-  // Handle inline row update
-  const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
-    try {
-      await api.patch(`/api/v1/foundations/${DOCUMENTS_FOUNDATION_ID}/records/${rowId}`, {
-        record: { [field]: value }
-      });
-      refresh();
-    } catch (error) {
-      console.error("Failed to update document:", error);
-      throw error;
-    }
-  }, [refresh]);
-
-  const handleVerificationComplete = async (data: {
-    display_title: string;
-    document_type_id: number;
-    fiscal_year?: string;
-    verified: boolean;
-  }) => {
-    if (!selectedDocument) return;
-
-    try {
-      await api.patch(`/api/v1/documents/${selectedDocument.id}`, {
-        display_title: data.display_title,
-        document_type_id: data.document_type_id,
-        fiscal_year: data.fiscal_year,
-        verified: data.verified,
-      });
-      refresh();
-    } catch (error) {
-      console.error("Failed to update document:", error);
-    }
-  };
-
-  const handlePreview = (doc: Document) => {
-    setSelectedDocument(doc);
-    setPreviewModalOpen(true);
-  };
-
-  const handleVerify = (doc: Document) => {
-    setSelectedDocument(doc);
-    setVerificationModalOpen(true);
-  };
-
-  // Stats from records
-  const stats = useMemo(() => ({
-    total: records.length,
-    verified: records.filter((d) => d.verified).length,
-    pending: records.filter((d) => !d.verified).length,
-  }), [records]);
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loader />
-      </div>
-    );
-  }
-
-  // Left actions - Upload button
-  const leftActions = (
-    <Button>
-      <Upload className="h-4 w-4 mr-2" />
-      Upload
-    </Button>
+  // Left actions with SharePoint + Upload buttons
+  const documentsLeftActions = (
+    <div className="flex items-center gap-2">
+      <BackButton fallbackHref="/dashboard" />
+      {!sharePointConnected && (
+        <Button
+          variant="outline"
+          onClick={() => router.push("/settings/integrations/microsoft")}
+        >
+          <Cloud className="h-4 w-4 mr-2" />
+          Connect SharePoint
+        </Button>
+      )}
+      <Button>
+        <Upload className="h-4 w-4 mr-2" />
+        Upload
+      </Button>
+    </div>
   );
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight font-serif">Documents</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage project documents and files
-            <span className="ml-2 text-xs font-mono">Table #434</span>
-          </p>
+    <div className="flex flex-col h-full -mx-4">
+      {/* Document Type Tabs */}
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex flex-col h-full">
+        <div className="px-4 shrink-0">
+          <TabsList className="grid w-full grid-cols-3 max-w-md">
+            <TabsTrigger value="company" className="gap-2">
+              <Building2 className="h-4 w-4" />
+              Company
+            </TabsTrigger>
+            <TabsTrigger value="job" className="gap-2">
+              <Briefcase className="h-4 w-4" />
+              Job
+            </TabsTrigger>
+            <TabsTrigger value="people" className="gap-2">
+              <Users className="h-4 w-4" />
+              People
+            </TabsTrigger>
+          </TabsList>
         </div>
-        <div className="flex items-center gap-2">
-          {!oneDriveConnected && (
-            <Button
-              variant="outline"
-              onClick={() => router.push("/settings/integrations/microsoft")}
-            >
-              <Cloud className="h-4 w-4 mr-2" />
-              Connect OneDrive
-            </Button>
+
+        <TabsContent value={activeTab} className="flex-1 min-h-0 mt-6 px-4">
+          {/* SharePoint Status */}
+          {sharePointConnected && (
+            <Card className="bg-blue-50 border-blue-200">
+              <CardContent className="pt-4 pb-4">
+                <div className="flex items-center gap-3">
+                  <Cloud className="h-5 w-5 text-blue-600" />
+                  <div className="flex-1">
+                    <p className="font-medium text-blue-900">SharePoint Connected</p>
+                    <p className="text-sm text-blue-700">
+                      Documents are synced with your Microsoft SharePoint
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.push("/settings/integrations/microsoft")}
+                  >
+                    Manage
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           )}
-          <Button>
-            <Upload className="h-4 w-4 mr-2" />
-            Upload
-          </Button>
-        </div>
-      </div>
-
-      {/* OneDrive Status */}
-      {oneDriveConnected && (
-        <Card className="bg-blue-50 border-blue-200">
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-3">
-              <Cloud className="h-5 w-5 text-blue-600" />
-              <div className="flex-1">
-                <p className="font-medium text-blue-900">OneDrive Connected</p>
-                <p className="text-sm text-blue-700">
-                  Documents are synced with your Microsoft OneDrive
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => router.push("/settings/integrations/microsoft")}
-              >
-                Manage
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <FolderOpen className="h-4 w-4 text-blue-600" />
-              <span className="text-2xl font-bold">{stats.total}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Total Documents</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <span className="text-2xl font-bold text-green-600">{stats.verified}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Verified</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-orange-600" />
-              <span className="text-2xl font-bold text-orange-600">{stats.pending}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Pending Review</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <FolderOpen className="h-4 w-4 text-purple-600" />
-              <span className="text-2xl font-bold">{folders.length}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Folders</p>
-          </CardContent>
-        </Card>
-      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Folders Sidebar */}
         <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle className="text-base">Folders</CardTitle>
-          </CardHeader>
+          <div className="p-6 pb-3">
+            <h3 className="text-base font-semibold">Folders</h3>
+          </div>
           <CardContent className="space-y-1">
             {folders.length > 0 ? (
               folders.map((folder) => (
@@ -259,44 +157,20 @@ export default function DocumentsPage() {
         </Card>
 
         {/* Documents Table */}
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-3 h-full">
           <TeeemTableView
-            entries={records}
-            columns={columns}
-            foundationId={String(DOCUMENTS_FOUNDATION_ID)}
-            foundationIdNumeric={DOCUMENTS_FOUNDATION_ID}
-            tableName={foundation?.name || "Documents"}
+            key={activeTab} // Force remount when tab changes
+            foundationId={DOCUMENT_TYPES[activeTab]}
+            autoFetchRecords={true}
+            tableName={`${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Documents`}
             enableExport={true}
-            onRefresh={refresh}
-            onRowUpdate={handleRowUpdate}
-            leftActions={leftActions}
+            leftActions={documentsLeftActions}
+            hideFooter={true}
           />
         </div>
       </div>
-
-      {/* Modals */}
-      <AIVerificationModal
-        open={verificationModalOpen}
-        onOpenChange={setVerificationModalOpen}
-        document={selectedDocument}
-        onVerificationComplete={handleVerificationComplete}
-      />
-
-      <DocumentPreviewModal
-        open={previewModalOpen}
-        onOpenChange={setPreviewModalOpen}
-        document={selectedDocument}
-        onVerify={() => {
-          setPreviewModalOpen(false);
-          setVerificationModalOpen(true);
-        }}
-        onDownload={() => {
-          // TODO: Implement download
-        }}
-        onOpenExternal={() => {
-          // TODO: Open in OneDrive
-        }}
-      />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

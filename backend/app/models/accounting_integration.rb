@@ -6,32 +6,32 @@ class AccountingIntegration < ApplicationRecord
 
   # Enums (Rails 8 syntax)
   enum :system_type, {
-    xero: 'xero',
-    myob: 'myob',
-    quickbooks: 'quickbooks',
-    reckon: 'reckon'
+    xero: "xero",
+    myob: "myob",
+    quickbooks: "quickbooks",
+    reckon: "reckon"
   }
 
   enum :sync_status, {
-    active: 'active',
-    error: 'error',
-    expired: 'expired',
-    disconnected: 'disconnected'
+    active: "active",
+    error: "error",
+    expired: "expired",
+    disconnected: "disconnected"
   }, prefix: true
 
   # Validations
   validates :contact_id, presence: true
   validates :system_type, presence: true
-  validates :contact_id, uniqueness: { scope: :system_type, message: 'already has an integration for this accounting system' }
+  validates :contact_id, uniqueness: { scope: :system_type, message: "already has an integration for this accounting system" }
 
   # Callbacks
   before_save :encrypt_tokens
   after_find :decrypt_tokens
 
   # Scopes
-  scope :active, -> { where(sync_status: 'active') }
-  scope :needs_refresh, -> { where('token_expires_at < ?', 1.day.from_now) }
-  scope :expired, -> { where('token_expires_at < ?', Time.current) }
+  scope :active, -> { where(sync_status: "active") }
+  scope :needs_refresh, -> { where("token_expires_at < ?", 1.day.from_now) }
+  scope :expired, -> { where("token_expires_at < ?", Time.current) }
 
   # Instance Methods
   def connected?
@@ -57,11 +57,11 @@ class AccountingIntegration < ApplicationRecord
         oauth_token: result[:access_token],
         refresh_token: result[:refresh_token],
         token_expires_at: result[:expires_at],
-        sync_status: 'active',
+        sync_status: "active",
         last_sync_at: Time.current
       )
     else
-      update!(sync_status: 'error')
+      update!(sync_status: "error")
       raise "Token refresh failed: #{result[:error]}"
     end
   end
@@ -106,11 +106,11 @@ class AccountingIntegration < ApplicationRecord
 
   # Financial Transaction Methods
   def auto_sync_enabled?
-    sync_settings.dig('auto_sync') == true
+    sync_settings.dig("auto_sync") == true
   end
 
   def sync_frequency
-    sync_settings.dig('frequency') || 'manual'
+    sync_settings.dig("frequency") || "manual"
   end
 
   def has_account_mapping?(keepr_account_id)
@@ -123,7 +123,7 @@ class AccountingIntegration < ApplicationRecord
   end
 
   def sync_chart_of_accounts!
-    return unless connected?
+    nil unless connected?
 
     # To be implemented by integration service
     # Will fetch chart of accounts from external system

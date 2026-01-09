@@ -1,19 +1,19 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Loader } from "@/components/ui/loader";
+import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import { useFoundationById } from "@/hooks/useFoundationById";
+import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
+import { TablePage } from "@/components/ui/page-wrappers";
 import {
   Plus,
-  Users,
   CheckCircle,
-  Clock,
   Star,
   ExternalLink,
   Award,
@@ -21,161 +21,80 @@ import {
   Calendar,
   FileText,
 } from "lucide-react";
-import { api } from "@/lib/api";
 
 // Foundation ID for Portal Users table
-const PORTAL_USERS_FOUNDATION_ID = 400;
 
 export default function PortalPage() {
-  const [activeTab, setActiveTab] = useState("users");
+  const pathname = usePathname();
+  const router = useRouter();
 
-  // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, error, refresh } = useFoundationById(PORTAL_USERS_FOUNDATION_ID);
+  // Parse tab from path: /portal/users → "users", /portal → "users"
+  const activeTab = useMemo(() => {
+    const parts = pathname.replace("/portal", "").split("/").filter(Boolean);
+    return parts[0] || "users";
+  }, [pathname]);
 
-  // Handle inline row update
-  const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
-    try {
-      await api.patch(`/api/v1/foundations/${PORTAL_USERS_FOUNDATION_ID}/records/${rowId}`, {
-        record: { [field]: value }
-      });
-      refresh();
-    } catch (error) {
-      console.error("Failed to update portal user:", error);
-      throw error;
-    }
-  }, [refresh]);
+  const handleTabChange = useCallback((tabId: string) => {
+    // Path-based navigation: /portal/users, /portal/analytics
+    const url = tabId === "users" ? "/portal" : `/portal/${tabId}`;
+    router.push(url, { scroll: false });
+  }, [router]);
 
-  // Stats from records
-  const stats = {
-    total_users: records.length,
-    active_users: records.filter((u) => u.status === "active").length,
-    pending_invites: records.filter((u) => u.status === "pending").length,
-    quotes_this_month: records.reduce((sum, u) => sum + (Number(u.quotes_submitted) || 0), 0),
-    avg_kudos_score: Math.round(
-      records.reduce((sum, u) => sum + (Number(u.kudos_score) || 0), 0) / records.length || 0
-    ),
-  };
+  // Fetch records for leaderboard calculations only
+  // TeeemTableView uses autoFetchRecords for the table
+  const { records, isLoading: leaderboardLoading } = useFoundationBySlug("portal_users");
 
-  const topPerformers = [...records]
-    .sort((a, b) => (Number(b.kudos_score) || 0) - (Number(a.kudos_score) || 0))
-    .slice(0, 5);
+  const topPerformers = useMemo(() =>
+    [...records]
+      .sort((a, b) => (Number(b.kudos_score) || 0) - (Number(a.kudos_score) || 0))
+      .slice(0, 5),
+    [records]
+  );
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader />
-      </div>
-    );
-  }
-
-  // Left actions - Invite Supplier button
+  // Left actions with Preview Portal button
   const leftActions = (
-    <Button>
-      <Plus className="h-4 w-4 mr-2" />
-      Invite Supplier
-    </Button>
+    <div className="flex items-center gap-2">
+      <Button variant="outline" asChild>
+        <Link href="/portal/preview" target="_blank">
+          <ExternalLink className="h-4 w-4 mr-2" />
+          Preview Portal
+        </Link>
+      </Button>
+      <Button>
+        <Plus className="h-4 w-4 mr-2" />
+        Invite Supplier
+      </Button>
+    </div>
   );
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight font-serif">Subcontractor Portal</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage supplier access and track performance
-            <span className="ml-2 text-xs font-mono">Table #400</span>
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" asChild>
-            <Link href="/portal/preview" target="_blank">
-              <ExternalLink className="h-4 w-4 mr-2" />
-              Preview Portal
-            </Link>
-          </Button>
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            Invite Supplier
-          </Button>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-blue-600" />
-              <span className="text-xs text-muted-foreground">Total Users</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">{stats.total_users}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <span className="text-xs text-muted-foreground">Active</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2 text-green-600">
-              {stats.active_users}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-yellow-600" />
-              <span className="text-xs text-muted-foreground">Pending</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2 text-yellow-600">
-              {stats.pending_invites}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-purple-600" />
-              <span className="text-xs text-muted-foreground">Quotes (Month)</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">{stats.quotes_this_month}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Star className="h-4 w-4 text-yellow-500" />
-              <span className="text-xs text-muted-foreground">Avg Kudos</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">{stats.avg_kudos_score}</div>
-          </CardContent>
-        </Card>
-      </div>
-
+    <TablePage>
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="users">Portal Users</TabsTrigger>
-          <TabsTrigger value="leaderboard">Kudos Leaderboard</TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex flex-col h-full">
+        <div className="px-4 shrink-0">
+          <TabsList>
+            <TabsTrigger value="users">Portal Users</TabsTrigger>
+            <TabsTrigger value="leaderboard">Kudos Leaderboard</TabsTrigger>
+          </TabsList>
+        </div>
 
-        <TabsContent value="users" className="mt-4 space-y-4">
+        <TabsContent value="users" className="flex-1 min-h-0 mt-4">
           <TeeemTableView
-            entries={records}
-            columns={columns}
-            foundationId={String(PORTAL_USERS_FOUNDATION_ID)}
-            foundationIdNumeric={PORTAL_USERS_FOUNDATION_ID}
-            tableName={foundation?.name || "Portal Users"}
+            foundationId="portal_users"
+            autoFetchRecords={true}
+            tableName="Portal Users"
             enableExport={true}
-            onRefresh={refresh}
-            onRowUpdate={handleRowUpdate}
             leftActions={leftActions}
+            hideFooter={true}
           />
         </TabsContent>
 
         <TabsContent value="leaderboard" className="mt-4">
+          {leaderboardLoading ? (
+            <div className="flex items-center justify-center min-h-[400px]">
+              <Spinner />
+            </div>
+          ) : (
           <div className="grid md:grid-cols-2 gap-6">
             {/* Top Performers */}
             <Card>
@@ -269,8 +188,9 @@ export default function PortalPage() {
               </CardContent>
             </Card>
           </div>
+          )}
         </TabsContent>
       </Tabs>
-    </div>
+    </TablePage>
   );
 }

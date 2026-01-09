@@ -11,7 +11,6 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Mail,
@@ -21,16 +20,17 @@ import {
   MapPin,
   User,
   Users,
-  DollarSign,
   ShieldCheck,
   ExternalLink,
-  Loader2,
   FileText,
   Hash,
+  MessageSquare,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { slugifyContactName } from "@/lib/url-utils";
 import { cn } from "@/lib/utils";
+import { EntityChat } from "@/components/chat/EntityChat";
+import { Spinner } from "@/components/ui/spinner";
 
 interface ContactPerson {
   id: number;
@@ -46,17 +46,29 @@ interface ContactGroup {
   name: string;
 }
 
+interface ContactAddress {
+  id: number;
+  address_type: 'STREET' | 'POBOX' | 'DELIVERY';
+  line1: string;
+  line2: string | null;
+  city: string;
+  region: string;
+  postal_code: string;
+  country: string;
+  is_primary: boolean;
+}
+
 interface Contact {
   id: number;
-  full_name: string;
+  display_name: string;
   first_name: string | null;
   last_name: string | null;
   email: string | null;
   mobile_phone: string | null;
   office_phone: string | null;
   website: string | null;
-  tax_number: string | null;
-  address: string | null;
+  abn: string | null;
+  address: string | null; // Legacy - deprecated, use contact_addresses
   notes: string | null;
   is_active: boolean;
   "is_supplier?": boolean;
@@ -68,6 +80,7 @@ interface Contact {
   updated_at: string;
   contact_persons: ContactPerson[];
   contact_groups: ContactGroup[];
+  contact_addresses?: ContactAddress[]; // SSoT for addresses
   jobs_count: number;
   purchase_orders_count: number;
   quotes_count: number;
@@ -126,7 +139,7 @@ export function ContactDetailDrawer({ contactId, open, onOpenChange }: ContactDe
 
   const handleOpenFullPage = () => {
     if (contact) {
-      const slug = slugifyContactName(contact.first_name || undefined, contact.last_name || undefined, contact.full_name);
+      const slug = slugifyContactName(contact.first_name || undefined, contact.last_name || undefined, contact.display_name);
       router.push(`/contacts/${slug}`);
     }
   };
@@ -136,7 +149,7 @@ export function ContactDetailDrawer({ contactId, open, onOpenChange }: ContactDe
       <SheetContent side="right" className="w-full sm:max-w-xl p-0 flex flex-col">
         {loading ? (
           <div className="flex items-center justify-center h-full">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Spinner size={32} className="text-muted-foreground" />
           </div>
         ) : !contact ? (
           <div className="flex items-center justify-center h-full">
@@ -148,7 +161,7 @@ export function ContactDetailDrawer({ contactId, open, onOpenChange }: ContactDe
             <SheetHeader className="p-4 border-b shrink-0">
               <div className="flex items-start justify-between">
                 <div>
-                  <SheetTitle className="text-xl font-serif">{contact.full_name}</SheetTitle>
+                  <SheetTitle className="text-xl font-serif">{contact.display_name}</SheetTitle>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     {contact["is_supplier?"] && (
                       <Badge className="bg-purple-100 text-purple-700">Supplier</Badge>
@@ -263,22 +276,29 @@ export function ContactDetailDrawer({ contactId, open, onOpenChange }: ContactDe
                       </div>
                     )}
 
-                    {contact.address && (
-                      <div className="flex items-start gap-3">
-                        <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
-                        <div>
-                          <p className="text-xs text-muted-foreground">Address</p>
-                          <p className="text-sm">{contact.address}</p>
+                    {/* SSoT: Display primary street address from contact_addresses */}
+                    {(() => {
+                      const primaryAddr = contact.contact_addresses?.find(a => a.address_type === 'STREET');
+                      const displayAddress = primaryAddr
+                        ? [primaryAddr.line1, primaryAddr.line2, primaryAddr.city, primaryAddr.region, primaryAddr.postal_code].filter(Boolean).join(", ")
+                        : contact.address; // Fallback to legacy
+                      return displayAddress && (
+                        <div className="flex items-start gap-3">
+                          <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
+                          <div>
+                            <p className="text-xs text-muted-foreground">Address</p>
+                            <p className="text-sm">{displayAddress}</p>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
 
-                    {contact.tax_number && (
+                    {contact.abn && (
                       <div className="flex items-center gap-3">
                         <Hash className="h-4 w-4 text-muted-foreground" />
                         <div>
                           <p className="text-xs text-muted-foreground">ABN</p>
-                          <p className="text-sm font-mono">{formatABN(contact.tax_number)}</p>
+                          <p className="text-sm font-mono">{formatABN(contact.abn)}</p>
                         </div>
                       </div>
                     )}
@@ -357,6 +377,25 @@ export function ContactDetailDrawer({ contactId, open, onOpenChange }: ContactDe
                     </CardContent>
                   </Card>
                 )}
+
+                {/* Internal Chat */}
+                <Card>
+                  <CardHeader className="py-3">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4" />
+                      Internal Chat
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <EntityChat
+                      entityType="contact"
+                      entityId={contact.id}
+                      entityName={contact.display_name}
+                      showOnlineUsers={false}
+                      maxHeight="300px"
+                    />
+                  </CardContent>
+                </Card>
               </div>
             </ScrollArea>
           </>

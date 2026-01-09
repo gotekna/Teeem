@@ -37,6 +37,6 @@ class CreateWHSInductions < ActiveRecord::Migration[8.0]
     add_index :whs_inductions, :certificate_number, unique: true
     add_index :whs_inductions, :status
     add_index :whs_inductions, :expiry_date
-    add_index :whs_inductions, [:worker_name, :induction_type]
+    add_index :whs_inductions, [ :worker_name, :induction_type ]
   end
 end

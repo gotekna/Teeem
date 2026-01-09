@@ -1,238 +1,46 @@
-"use client";
+import { fetchFoundationForSSR, type ViewData } from "@/lib/server/foundation-api";
+import PricebookPageClient from "./pricebook-page-client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { Loader } from "@/components/ui/loader";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import TeeemTableView from "@/components/table/TeeemTableView";
-import { useFoundationById } from "@/hooks/useFoundationById";
-import {
-  Plus,
-  Download,
-  Upload,
-  DollarSign,
-  Package,
-  AlertTriangle,
-  Image as ImageIcon,
-  CheckCircle,
-} from "lucide-react";
-import { api } from "@/lib/api";
-import { slugifyPricebookCode } from "@/lib/url-utils";
-import { PricebookDetailDrawer } from "@/components/pricebook/PricebookDetailDrawer";
-import type { TableRow } from "@/components/table/types";
+interface PricebookPageProps {
+  searchParams: Promise<{ view?: string }>;
+}
 
-// Foundation ID for Pricebook table
-const PRICEBOOK_FOUNDATION_ID = 205;
+/**
+ * Pricebook Page - SSR Optimized for Fast LCP
+ *
+ * This Server Component fetches data before sending HTML to the client.
+ * The table renders immediately with 20 rows, achieving ~500ms LCP.
+ * Additional records load in the background after hydration.
+ *
+ * SSR View Loading:
+ * When ?view=slug is in the URL, the view config is fetched on the server
+ * and passed to the client. This eliminates the flash when switching from
+ * flat table to grouped view on hydration.
+ */
+export default async function PricebookPage({ searchParams }: PricebookPageProps) {
+  // Await searchParams (Next.js 15 requirement)
+  const params = await searchParams;
+  const viewSlug = params.view;
 
-export default function PriceBookPage() {
-  const router = useRouter();
-
-  // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, error, refresh } = useFoundationById(PRICEBOOK_FOUNDATION_ID);
-
-  const [activeTab, setActiveTab] = useState("all");
-  const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-
-  // Handle row double-click - open drawer
-  const handleRowDoubleClick = useCallback((row: TableRow) => {
-    setSelectedItemId(row.id as number);
-    setDrawerOpen(true);
-  }, []);
-
-  // Handle row click - navigate to detail page
-  const handleRowClick = useCallback((row: TableRow) => {
-    const item = row as { id: number; item_code?: string };
-    if (item.item_code) {
-      router.push(`/pricebook/${slugifyPricebookCode(item.item_code)}`);
-    }
-  }, [router]);
-
-  // Handle inline row update
-  const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
-    try {
-      await api.patch(`/api/v1/foundations/${PRICEBOOK_FOUNDATION_ID}/records/${rowId}`, {
-        record: { [field]: value }
-      });
-      refresh();
-    } catch (error) {
-      console.error("Failed to update pricebook item:", error);
-      throw error;
-    }
-  }, [refresh]);
-
-  // Calculate stats from records
-  const stats = {
-    total: records.length,
-    active: records.filter((i) => i.is_active).length,
-    needsReview: records.filter((i) => i.needs_pricing_review).length,
-    withImages: records.filter((i) => i.image_url).length,
-    categoriesCount: new Set(records.map((i) => i.category).filter(Boolean)).size,
-  };
-
-  // Filter records based on active tab
-  const getFilteredRecords = () => {
-    switch (activeTab) {
-      case "needs-review":
-        return records.filter((i) => i.needs_pricing_review);
-      case "inactive":
-        return records.filter((i) => !i.is_active);
-      default:
-        return records;
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader />
-      </div>
-    );
-  }
-
-  // Left actions - Add Item button
-  const leftActions = (
-    <div className="flex items-center gap-2">
-      <Button variant="outline">
-        <Download className="h-4 w-4 mr-2" />
-        Export
-      </Button>
-      <Button variant="outline">
-        <Upload className="h-4 w-4 mr-2" />
-        Import
-      </Button>
-      <Button>
-        <Plus className="h-4 w-4 mr-2" />
-        Add Item
-      </Button>
-    </div>
-  );
+  // Fetch first 20 records on server for fast LCP
+  // Also fetch view config if ?view= param is present to eliminate CLS
+  // Also fetch group counts if view has grouping to eliminate CLS
+  // Also fetch all views for immediate toolbar button rendering
+  // Also fetch totalCount to show "20 of X records" immediately (prevents CLS from count change)
+  const { columns, records, hasMore, view, views, groupCounts, totalCount } = await fetchFoundationForSSR("pricebook-items", {
+    limit: 20,
+    viewSlug,
+  });
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight font-serif">Price Book</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {stats.total.toLocaleString()} items across {stats.categoriesCount} categories
-            <span className="ml-2 text-xs font-mono">Table #205</span>
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline">
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
-          <Button variant="outline">
-            <Upload className="h-4 w-4 mr-2" />
-            Import
-          </Button>
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Item
-          </Button>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Package className="h-4 w-4 text-blue-600" />
-              <span className="text-xs text-muted-foreground">Total Items</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">{stats.total.toLocaleString()}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <span className="text-xs text-muted-foreground">Active</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2 text-green-600">
-              {stats.active.toLocaleString()}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-purple-600" />
-              <span className="text-xs text-muted-foreground">Categories</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">{stats.categoriesCount}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <ImageIcon className="h-4 w-4 text-indigo-600" />
-              <span className="text-xs text-muted-foreground">With Images</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">{stats.withImages.toLocaleString()}</div>
-          </CardContent>
-        </Card>
-        <Card className={stats.needsReview > 0 ? "border-yellow-300 bg-yellow-50 dark:bg-yellow-900/10" : ""}>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-yellow-600" />
-              <span className="text-xs text-muted-foreground">Needs Review</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2 text-yellow-600">
-              {stats.needsReview.toLocaleString()}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="all">All Items</TabsTrigger>
-          <TabsTrigger value="needs-review">
-            Needs Review
-            {stats.needsReview > 0 && (
-              <Badge variant="secondary" className="ml-2">
-                {stats.needsReview}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="inactive">Inactive</TabsTrigger>
-        </TabsList>
-
-        {/* Tab Content - Use TeeemTableView */}
-        {["all", "needs-review", "inactive"].map((tabValue) => (
-          <TabsContent key={tabValue} value={tabValue} className="mt-4">
-            <TeeemTableView
-              entries={getFilteredRecords()}
-              columns={columns}
-              foundationId={String(PRICEBOOK_FOUNDATION_ID)}
-              foundationIdNumeric={PRICEBOOK_FOUNDATION_ID}
-              tableName={foundation?.name || "Pricebook"}
-              enableExport={true}
-              enableImport={true}
-              onRefresh={refresh}
-              onRowClick={handleRowClick}
-              onRowDoubleClick={handleRowDoubleClick}
-              onRowUpdate={handleRowUpdate}
-            />
-          </TabsContent>
-        ))}
-      </Tabs>
-
-      {/* Pricebook Detail Drawer */}
-      <PricebookDetailDrawer
-        itemId={selectedItemId}
-        open={drawerOpen}
-        onOpenChange={setDrawerOpen}
-      />
-    </div>
+    <PricebookPageClient
+      initialColumns={columns}
+      initialRecords={records}
+      initialHasMore={hasMore}
+      initialView={view}
+      initialViews={views}
+      initialGroupCounts={groupCounts}
+      initialTotalCount={totalCount}
+    />
   );
 }

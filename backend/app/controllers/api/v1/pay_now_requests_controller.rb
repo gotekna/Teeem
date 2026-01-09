@@ -2,8 +2,8 @@ module Api
   module V1
     class PayNowRequestsController < ApplicationController
       before_action :authorize_request
-      before_action :set_request, only: [:show, :approve, :reject]
-      before_action :authorize_supervisor_or_admin, only: [:approve, :reject]
+      before_action :set_request, only: [ :show, :approve, :reject ]
+      before_action :authorize_supervisor_or_admin, only: [ :approve, :reject ]
 
       # GET /api/v1/pay_now_requests
       def index
@@ -14,7 +14,7 @@ module Api
 
         # Filter by role - supervisors see pending, builders see all
         if current_user.supervisor? && !current_user.admin?
-          requests = requests.where(status: 'pending')
+          requests = requests.where(status: "pending")
         end
 
         # Filter by date range
@@ -26,8 +26,11 @@ module Api
         requests = requests.where(contact_id: params[:contact_id]) if params[:contact_id].present?
 
         # Sort
-        sort_order = params[:sort_order] == 'asc' ? :asc : :desc
+        sort_order = params[:sort_order] == "asc" ? :asc : :desc
         requests = requests.order(created_at: sort_order)
+
+        # Performance: Get total count BEFORE pagination (respects filters)
+        total_count = requests.count
 
         # Paginate
         page = params[:page]&.to_i || 1
@@ -41,7 +44,7 @@ module Api
             pagination: {
               current_page: page,
               per_page: per_page,
-              total: PayNowRequest.count
+              total: total_count  # Uses filtered count, not global count
             }
           }
         }
@@ -73,7 +76,7 @@ module Api
 
           render json: {
             success: true,
-            message: 'Payment request approved and payment processed successfully',
+            message: "Payment request approved and payment processed successfully",
             data: admin_request_detail_json(@request.reload)
           }
         rescue StandardError => e
@@ -97,7 +100,7 @@ module Api
         unless params[:reason].present?
           render json: {
             success: false,
-            error: 'Rejection reason is required'
+            error: "Rejection reason is required"
           }, status: :unprocessable_entity
           return
         end
@@ -110,7 +113,7 @@ module Api
 
           render json: {
             success: true,
-            message: 'Payment request rejected',
+            message: "Payment request rejected",
             data: admin_request_detail_json(@request.reload)
           }
         rescue StandardError => e
@@ -123,7 +126,7 @@ module Api
 
       # GET /api/v1/pay_now_requests/dashboard_stats
       def dashboard_stats
-        today = CompanySetting.today
+        today = CorporateCompanySetting.today
         week_start = today.beginning_of_week(:monday)
         month_start = today.beginning_of_month
 
@@ -131,7 +134,7 @@ module Api
         this_week_requests = PayNowRequest.for_week(week_start)
 
         # Monthly stats
-        this_month_requests = PayNowRequest.where('created_at >= ?', month_start)
+        this_month_requests = PayNowRequest.where("created_at >= ?", month_start)
 
         # Weekly limit info
         weekly_limit = PayNowWeeklyLimit.current
@@ -196,7 +199,7 @@ module Api
       rescue ActiveRecord::RecordNotFound
         render json: {
           success: false,
-          error: 'Payment request not found'
+          error: "Payment request not found"
         }, status: :not_found
       end
 
@@ -204,7 +207,7 @@ module Api
         unless current_user.supervisor? || current_user.builder? || current_user.admin?
           render json: {
             success: false,
-            error: 'Unauthorized. Only supervisors and builders can approve/reject payment requests.'
+            error: "Unauthorized. Only supervisors and builders can approve/reject payment requests."
           }, status: :forbidden
         end
       end
@@ -219,7 +222,7 @@ module Api
           },
           supplier: {
             id: request.contact.id,
-            name: request.contact.full_name,
+            name: request.contact.display_name,
             email: request.contact.email
           },
           original_amount: request.formatted_original_amount,
@@ -251,7 +254,7 @@ module Api
           },
           supplier: {
             id: request.contact.id,
-            name: request.contact.full_name,
+            name: request.contact.display_name,
             email: request.contact.email,
             phone: request.contact.mobile_phone,
             teeem_rating: request.contact.teeem_rating
@@ -276,7 +279,7 @@ module Api
           review_details: {
             reviewed_by: request.reviewed_by_supervisor ? {
               id: request.reviewed_by_supervisor.id,
-              name: request.reviewed_by_supervisor.full_name,
+              name: request.reviewed_by_supervisor.display_name,
               email: request.reviewed_by_supervisor.email
             } : nil,
             reviewed_at: request.supervisor_reviewed_at,
@@ -294,13 +297,10 @@ module Api
           } : nil,
           paid_at: request.paid_at,
           attachments: {
-            invoice_file_url: request.invoice_file.attached? ? url_for(request.invoice_file) : nil,
-            proof_photos: request.proof_photos.map { |photo|
-              {
-                url: url_for(photo),
-                filename: photo.filename.to_s
-              }
-            }
+            has_invoice: request.sharepoint_file_id.present?,
+            sharepoint_file_id: request.sharepoint_file_id,
+            proof_photos_sharepoint_ids: request.proof_photos_sharepoint_ids || [],
+            proof_photos_count: request.proof_photos_sharepoint_ids&.count || 0
           },
           weekly_limit: request.pay_now_weekly_limit ? {
             id: request.pay_now_weekly_limit.id,

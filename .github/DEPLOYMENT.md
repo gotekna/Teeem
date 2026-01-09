@@ -40,7 +40,7 @@ https://github.com/abodable-dev/teeem/actions
 
 View Heroku logs:
 ```bash
-heroku logs --tail -a teeem-backend
+heroku logs --tail -a teeemlive
 ```
 
 ### How It Works

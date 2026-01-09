@@ -14,8 +14,8 @@
 class SmActivity < ApplicationRecord
   belongs_to :job
   belongs_to :user, optional: true
-  belongs_to :resource, class_name: 'SmResource', optional: true
-  belongs_to :task, class_name: 'SmTask', foreign_key: 'sm_task_id', optional: true
+  belongs_to :resource, class_name: "SmResource", optional: true
+  belongs_to :task, class_name: "SmTask", foreign_key: "sm_task_id", optional: true
 
   # Polymorphic reference to the changed object
   belongs_to :trackable, polymorphic: true, optional: true
@@ -59,58 +59,58 @@ class SmActivity < ApplicationRecord
   # Instance methods
   def icon
     case activity_type
-    when /photo/ then 'camera'
-    when /voice/ then 'microphone'
-    when /checkin/ then 'map-pin'
-    when /comment/ then 'chat'
-    when /task_created/ then 'plus'
-    when /task_deleted/ then 'trash'
-    when /task_status/ then 'check-circle'
-    when /assigned/, /resource/ then 'user'
-    when /schedule/, /dependency/ then 'calendar'
-    when /milestone/ then 'flag'
-    else 'activity'
+    when /photo/ then "camera"
+    when /voice/ then "microphone"
+    when /checkin/ then "map-pin"
+    when /comment/ then "chat"
+    when /task_created/ then "plus"
+    when /task_deleted/ then "trash"
+    when /task_status/ then "check-circle"
+    when /assigned/, /resource/ then "user"
+    when /schedule/, /dependency/ then "calendar"
+    when /milestone/ then "flag"
+    else "activity"
     end
   end
 
   def color
     case activity_type
-    when /created/, /added/, /arrival/ then 'green'
-    when /deleted/, /removed/, /departure/ then 'red'
-    when /updated/, /changed/, /edited/ then 'blue'
-    when /milestone/ then 'purple'
-    else 'gray'
+    when /created/, /added/, /arrival/ then "green"
+    when /deleted/, /removed/, /departure/ then "red"
+    when /updated/, /changed/, /edited/ then "blue"
+    when /milestone/ then "purple"
+    else "gray"
     end
   end
 
   def formatted_message
     case activity_type
-    when 'task_created'
+    when "task_created"
       "created task \"#{metadata['task_name']}\""
-    when 'task_updated'
-      changes = metadata['changes']&.keys&.join(', ') || 'details'
+    when "task_updated"
+      changes = metadata["changes"]&.keys&.join(", ") || "details"
       "updated #{changes} on \"#{metadata['task_name']}\""
-    when 'task_status_changed'
+    when "task_status_changed"
       "changed status to #{metadata['new_status']} on \"#{metadata['task_name']}\""
-    when 'task_deleted'
+    when "task_deleted"
       "deleted task \"#{metadata['task_name']}\""
-    when 'task_assigned'
+    when "task_assigned"
       "assigned #{metadata['assignee_name']} to \"#{metadata['task_name']}\""
-    when 'resource_assigned'
+    when "resource_assigned"
       "assigned resource #{metadata['resource_name']} to \"#{metadata['task_name']}\""
-    when 'resource_removed'
+    when "resource_removed"
       "removed resource #{metadata['resource_name']} from \"#{metadata['task_name']}\""
-    when 'photo_uploaded'
+    when "photo_uploaded"
       "uploaded a #{metadata['photo_type'] || 'progress'} photo to \"#{metadata['task_name']}\""
-    when 'voice_note_added'
+    when "voice_note_added"
       "added a voice note to \"#{metadata['task_name']}\""
-    when 'checkin_arrival'
+    when "checkin_arrival"
       "checked in at #{metadata['construction_name']}"
-    when 'checkin_departure'
+    when "checkin_departure"
       "checked out from #{metadata['construction_name']}"
-    when 'comment_added'
+    when "comment_added"
       "commented on \"#{metadata['task_name']}\""
-    when 'milestone_reached'
+    when "milestone_reached"
       "completed milestone \"#{metadata['task_name']}\""
     else
       activity_type.humanize.downcase
@@ -119,11 +119,11 @@ class SmActivity < ApplicationRecord
 
   def actor_name
     if user.present?
-      user.full_name || user.email
+      user.display_name || user.email
     elsif resource.present?
       resource.name
     else
-      'System'
+      "System"
     end
   end
 
@@ -147,11 +147,11 @@ class SmActivity < ApplicationRecord
     def track_task_change(task, user:, changes:)
       return if changes.blank?
 
-      activity_type = if changes.key?('status')
-                        'task_status_changed'
-                      else
-                        'task_updated'
-                      end
+      activity_type = if changes.key?("status")
+                        "task_status_changed"
+      else
+                        "task_updated"
+      end
 
       track(
         activity_type,
@@ -162,8 +162,8 @@ class SmActivity < ApplicationRecord
         metadata: {
           task_name: task.name,
           changes: changes,
-          old_status: changes['status']&.first,
-          new_status: changes['status']&.last
+          old_status: changes["status"]&.first,
+          new_status: changes["status"]&.last
         }
       )
     end

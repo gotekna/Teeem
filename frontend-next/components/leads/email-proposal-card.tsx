@@ -49,7 +49,7 @@ export function EmailProposalCard({ proposal, onApproved, onRejected, onPricedUp
 
       if (response?.success) {
         setShowApprovalDialog(false);
-        if (response.job?.id) {
+        if (response?.job?.id) {
           onApproved?.(response.job.id);
         }
         onPricedUp?.();

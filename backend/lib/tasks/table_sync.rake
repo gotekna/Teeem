@@ -7,7 +7,7 @@ namespace :table_sync do
     fixes_applied = []
 
     # Get all system tables
-    system_tables = Table.where(table_type: 'system')
+    system_tables = Table.where(table_type: "system")
 
     system_tables.each do |table|
       next unless table.model_class.present?
@@ -58,15 +58,15 @@ namespace :table_sync do
       # Skip anonymous classes, abstract classes, and certain system classes
       model.name.nil? ||
       model.abstract_class? ||
-      model.name.start_with?('ActiveStorage::') ||
-      model.name.start_with?('SolidQueue::') ||
-      model.name == 'ApplicationRecord' ||
-      model.name == 'Version' || # PaperTrail audit log
-      model.name.include?('Table') # Skip dynamic Table classes
+      model.name.start_with?("ActiveStorage::") ||
+      model.name.start_with?("SolidQueue::") ||
+      model.name == "ApplicationRecord" ||
+      model.name == "Version" || # PaperTrail audit log
+      model.name.include?("Table") # Skip dynamic Table classes
     end
 
     rails_models.each do |model|
-      table_entry = Table.find_by(model_class: model.name, table_type: 'system')
+      table_entry = Table.find_by(model_class: model.name, table_type: "system")
 
       unless table_entry
         puts "⚠️  Rails model '#{model.name}' has no system Table entry"
@@ -90,7 +90,7 @@ namespace :table_sync do
     fixes_applied = 0
 
     # Get all system tables
-    system_tables = Table.where(table_type: 'system')
+    system_tables = Table.where(table_type: "system")
 
     system_tables.each do |table|
       next unless table.model_class.present?
@@ -146,7 +146,7 @@ namespace :table_sync do
   task list: :environment do
     puts "📊 System Tables Metadata:\n\n"
 
-    system_tables = Table.where(table_type: 'system').order(:name)
+    system_tables = Table.where(table_type: "system").order(:name)
 
     system_tables.each do |table|
       puts "Table: #{table.name} (ID: #{table.id})"

@@ -1,18 +1,18 @@
 class Api::V1::WHSInductionTemplatesController < ApplicationController
-  before_action :set_whs_induction_template, only: [:show, :update, :destroy]
+  before_action :set_whs_induction_template, only: [ :show, :update, :destroy ]
 
   # GET /api/v1/whs_induction_templates
   def index
     templates = WhsInductionTemplate.all
 
     # Apply active filter
-    templates = templates.active if params[:active] == 'true'
+    templates = templates.active if params[:active] == "true"
 
     # Apply construction_specific filter
-    templates = templates.construction_specific if params[:construction_specific] == 'true'
+    templates = templates.construction_specific if params[:construction_specific] == "true"
 
     # Apply company_wide filter
-    templates = templates.company_wide if params[:company_wide] == 'true'
+    templates = templates.company_wide if params[:company_wide] == "true"
 
     templates = templates.includes(:created_by).order(name: :asc)
 
@@ -44,7 +44,7 @@ class Api::V1::WHSInductionTemplatesController < ApplicationController
     else
       render json: {
         success: false,
-        error: template.errors.full_messages.join(', ')
+        error: template.errors.full_messages.join(", ")
       }, status: :unprocessable_entity
     end
   end
@@ -59,7 +59,7 @@ class Api::V1::WHSInductionTemplatesController < ApplicationController
     else
       render json: {
         success: false,
-        error: @whs_induction_template.errors.full_messages.join(', ')
+        error: @whs_induction_template.errors.full_messages.join(", ")
       }, status: :unprocessable_entity
     end
   end
@@ -69,12 +69,12 @@ class Api::V1::WHSInductionTemplatesController < ApplicationController
     if @whs_induction_template.destroy
       render json: {
         success: true,
-        data: { message: 'Induction template deleted successfully' }
+        data: { message: "Induction template deleted successfully" }
       }
     else
       render json: {
         success: false,
-        error: 'Failed to delete induction template'
+        error: "Failed to delete induction template"
       }, status: :unprocessable_entity
     end
   end
@@ -100,7 +100,7 @@ class Api::V1::WHSInductionTemplatesController < ApplicationController
 
   def serialization_includes
     {
-      created_by: { only: [:id, :name, :email] }
+      created_by: {}
     }
   end
 end

@@ -1,0 +1,61 @@
+<h1>Specification of Works Acknowledgement</h1>
+
+<p style="color: var(--color-text-secondary);"><%= format_date(today, :long) %></p>
+
+<p>
+  This Specification of Works document forms part of the contract made between the Owner and Builder.
+</p>
+
+<p>
+  The Owner acknowledges receiving the Specification of Works Document, and that this document
+  has been read and understood.
+</p>
+
+<h2>Authorised Works</h2>
+
+<p>I authorise and request the following works to be carried out:</p>
+
+<ul>
+  <li>Organise a builder's site evaluation</li>
+  <li>Order soil test</li>
+  <li>Order footing design</li>
+  <li>Order masonry articulation layout</li>
+  <li>Prepare Builder file and council documentation</li>
+  <li>Order Energy Efficiency</li>
+  <li>Order wind classification</li>
+  <li>Order structural certificate (if required)</li>
+  <li>Prepare full working drawings</li>
+  <li>Obtain council approval</li>
+  <li>Arrange colour selection</li>
+</ul>
+
+<h2>Property Details</h2>
+
+<p style="font-size: var(--font-size-lg); font-weight: bold; padding: var(--space-4); background: #f5f5f5; border: 1px solid var(--color-border);">
+  <%= @job[:full_address] %>
+</p>
+
+<h2>Additional Authorisations</h2>
+
+<p>In relation to my property to be built in accordance with this specification, I authorize the builder/builder's representative to:</p>
+
+<ul>
+  <li>Lodge plans and collect same on my behalf</li>
+  <li>Obtain Covenant Approval if Required</li>
+</ul>
+
+<div style="margin: var(--space-8) 0; padding: var(--space-4); background: #f0f9ff; border: 1px solid #bae6fd;">
+  <p style="margin: 0;">
+    <strong>I acknowledge that this Specification of Works has been thoroughly reviewed and
+    fully understood prior to signing.</strong>
+  </p>
+</div>
+
+<%= render "signature_block" %>
+
+<div style="margin-top: var(--space-8); padding-top: var(--space-4); border-top: 1px solid var(--color-border);">
+  <p style="margin: 0; font-size: var(--font-size-sm); color: var(--color-text-muted);">
+    <strong><%= @job[:full_address] %></strong><br>
+    <%= @company[:name] %> | QBCC Licence <%= @company[:qbcc_license] %>
+  </p>
+</div>

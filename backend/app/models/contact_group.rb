@@ -5,6 +5,6 @@ class ContactGroup < ApplicationRecord
   validates :xero_contact_group_id, presence: true, uniqueness: true
   validates :name, presence: true
 
-  scope :active, -> { where(status: 'ACTIVE') }
-  scope :deleted, -> { where(status: 'DELETED') }
+  scope :active, -> { where(status: "ACTIVE") }
+  scope :deleted, -> { where(status: "DELETED") }
 end

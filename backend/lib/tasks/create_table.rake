@@ -1,6 +1,6 @@
 namespace :teeem do
   desc "Create a new table with automatic column setup from database schema"
-  task :create_table, [:name, :slug, :db_table] => :environment do |t, args|
+  task :create_table, [ :name, :slug, :db_table ] => :environment do |t, args|
     unless args[:name] && args[:slug] && args[:db_table]
       puts "Usage: bin/rails 'teeem:create_table[Table Name,table-slug,database_table_name]'"
       puts ""
@@ -58,27 +58,27 @@ namespace :teeem do
       case db_col.type
       when :string
         case db_col.name
-        when /email/i then 'email'
-        when /phone|mobile/i then 'phone'
-        when /url|website|link/i then 'url'
-        when /color|colour/i then 'color_picker'
-        else 'single_line_text'
+        when /email/i then "email"
+        when /phone|mobile/i then "phone"
+        when /url|website|link/i then "url"
+        when /color|colour/i then "color_picker"
+        else "single_line_text"
         end
-      when :text then 'multiple_lines_text'
+      when :text then "multiple_lines_text"
       when :integer, :bigint
-        return 'lookup' if db_col.name.end_with?('_id')
-        'whole_number'
+        return "lookup" if db_col.name.end_with?("_id")
+        "whole_number"
       when :decimal, :float
         case db_col.name
-        when /price|cost|amount|total|value/i then 'currency'
-        when /percent|rate/i then 'percentage'
-        else 'number'
+        when /price|cost|amount|total|value/i then "currency"
+        when /percent|rate/i then "percentage"
+        else "number"
         end
-      when :boolean then 'boolean'
-      when :date then 'date'
-      when :datetime, :timestamp then 'date_and_time'
-      when :json, :jsonb then 'multiple_lines_text'
-      else 'single_line_text'
+      when :boolean then "boolean"
+      when :date then "date"
+      when :datetime, :timestamp then "date_and_time"
+      when :json, :jsonb then "multiple_lines_text"
+      else "single_line_text"
       end
     end
 
@@ -88,9 +88,9 @@ namespace :teeem do
     # Add Actions column first
     Column.create!(
       table_id: table.id,
-      name: 'Actions',
-      column_name: 'actions',
-      column_type: 'action_buttons',
+      name: "Actions",
+      column_name: "actions",
+      column_type: "action_buttons",
       position: position
     )
     puts "  Created: Actions (actions) - action_buttons"
@@ -100,7 +100,7 @@ namespace :teeem do
     created_count = 0
     db_columns.each do |db_col|
       next if skip_columns.include?(db_col.name)
-      next if db_col.name.end_with?('$type')
+      next if db_col.name.end_with?("$type")
 
       column_type = infer_column_type(db_col)
       display_name = db_col.name.humanize.titleize
@@ -108,22 +108,22 @@ namespace :teeem do
       # Special handling for _id columns (lookups)
       lookup_table_id = nil
       lookup_display_column = nil
-      if db_col.name.end_with?('_id') && column_type == 'lookup'
-        related_table_name = db_col.name.sub(/_id$/, '').pluralize
+      if db_col.name.end_with?("_id") && column_type == "lookup"
+        related_table_name = db_col.name.sub(/_id$/, "").pluralize
         related_table = Table.find_by(database_table_name: related_table_name)
         if related_table
           lookup_cols = Column.where(table_id: related_table.id).pluck(:column_name)
           lookup_display_column = (%w[name title full_name] & lookup_cols).first
-          lookup_display_column ||= lookup_cols.find { |c| !c.end_with?('_id') && c != 'actions' && c != 'id' }
+          lookup_display_column ||= lookup_cols.find { |c| !c.end_with?("_id") && c != "actions" && c != "id" }
 
           if lookup_display_column
             lookup_table_id = related_table.id
-            display_name = db_col.name.sub(/_id$/, '').humanize.titleize
+            display_name = db_col.name.sub(/_id$/, "").humanize.titleize
           else
-            column_type = 'whole_number'
+            column_type = "whole_number"
           end
         else
-          column_type = 'whole_number'
+          column_type = "whole_number"
         end
       end
 
@@ -149,7 +149,7 @@ namespace :teeem do
         table_id: table.id,
         name: sys_col.humanize.titleize,
         column_name: sys_col,
-        column_type: 'date_and_time',
+        column_type: "date_and_time",
         position: position
       )
       puts "  Created: #{sys_col.humanize.titleize} (#{sys_col}) - date_and_time"

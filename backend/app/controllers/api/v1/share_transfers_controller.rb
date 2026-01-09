@@ -2,7 +2,7 @@ module Api
   module V1
     class ShareTransfersController < ApplicationController
       before_action :set_company
-      before_action :set_share_transfer, only: [:show, :update, :destroy]
+      before_action :set_share_transfer, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/companies/:company_id/share_transfers
       def index
@@ -13,7 +13,7 @@ module Api
         # Filter by shareholder
         if params[:shareholder_id].present?
           @transfers = @transfers.where(
-            'from_shareholder_id = ? OR to_shareholder_id = ?',
+            "from_shareholder_id = ? OR to_shareholder_id = ?",
             params[:shareholder_id],
             params[:shareholder_id]
           )
@@ -21,10 +21,10 @@ module Api
 
         # Filter by date range
         if params[:from_date].present?
-          @transfers = @transfers.where('transfer_date >= ?', params[:from_date])
+          @transfers = @transfers.where("transfer_date >= ?", params[:from_date])
         end
         if params[:to_date].present?
-          @transfers = @transfers.where('transfer_date <= ?', params[:to_date])
+          @transfers = @transfers.where("transfer_date <= ?", params[:to_date])
         end
 
         render json: {
@@ -82,7 +82,7 @@ module Api
       private
 
       def set_company
-        @company = Company.find(params[:company_id])
+        @company = CorporateCompany.find(params[:company_id])
       end
 
       def set_share_transfer
@@ -123,13 +123,13 @@ module Api
         if include_details
           data[:from_shareholder] = transfer.from_shareholder ? {
             id: transfer.from_shareholder.id,
-            full_name: transfer.from_shareholder.full_name,
+            display_name: transfer.from_shareholder.display_name,
             entity_type: transfer.from_shareholder.entity_type
           } : nil
 
           data[:to_shareholder] = {
             id: transfer.to_shareholder.id,
-            full_name: transfer.to_shareholder.full_name,
+            display_name: transfer.to_shareholder.display_name,
             entity_type: transfer.to_shareholder.entity_type
           }
         end

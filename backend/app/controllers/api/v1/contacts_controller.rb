@@ -1,74 +1,218 @@
+# frozen_string_literal: true
+
 module Api
   module V1
     class ContactsController < ApplicationController
-      before_action :set_contact, only: [:show, :update, :destroy, :activities, :link_xero_contact, :sync_from_xero, :sync_to_xero, :create_portal_user, :update_portal_user, :delete_portal_user, :internal_messages]
+      before_action :set_contact, only: [:show, :update, :destroy, :activities, :internal_messages]
 
-      # GET /api/v1/contacts/read_only_fields
-      # Returns the list of Xero-synced fields that are read-only in TEEEM
       def read_only_fields
         render json: {
           success: true,
           read_only_fields: Contact::XERO_READ_ONLY_FIELDS,
-          message: 'These fields are synced from Xero and cannot be edited in TEEEM'
+          message: "These fields are synced from Xero and cannot be edited in TEEEM"
         }
       end
 
       # GET /api/v1/contacts
-      def index
-        # Exclude soft-deleted contacts by default
-        @contacts = Contact.where(deleted: [false, nil])
 
-        # Filter to only show actual company directors (from company_directors table)
-        if params[:is_director] == 'true'
-          director_contact_ids = CompanyDirector.where(is_current: true).pluck(:contact_id).uniq
-          @contacts = @contacts.where(id: director_contact_ids)
+      def index
+        # Show all active contacts by default (unless include_inactive=true)
+        @contacts = if params[:include_inactive] == "true"
+          Contact.all
+        else
+          Contact.where(is_active: true)
+        end
+
+        # Filter to only show actual company directors
+        # Performance: Uses cached column instead of joining corporate_company_directors
+        if params[:is_director] == "true"
+          @contacts = @contacts.where(is_director_cached: true)
         end
 
         # Filter to only show family members
-        if params[:is_family_member] == 'true'
+        if params[:is_family_member] == "true"
           @contacts = @contacts.where(is_family_member: true)
         end
 
         # Filter to only show potential directors
-        if params[:is_potential_director] == 'true'
+        if params[:is_potential_director] == "true"
           @contacts = @contacts.where(is_potential_director: true)
         end
 
-        # Search by name or email
+        # Search by name or email (includes company name for team contacts and employer name for employees)
+        # SSoT: Supports search_mode parameter (contains, exact, starts_with)
         if params[:search].present?
-          search_term = "%#{params[:search]}%"
-          @contacts = @contacts.where(
-            "full_name ILIKE ? OR email ILIKE ? OR first_name ILIKE ? OR last_name ILIKE ?",
-            search_term, search_term, search_term, search_term
-          )
-        end
+          search_mode = params[:search_mode] || 'contains'
+          search_term = case search_mode
+                        when 'exact' then params[:search]
+                        when 'starts_with' then "#{params[:search]}%"
+                        else "%#{params[:search]}%" # contains (default)
+                        end
 
-        # Filter by contact type
-        if params[:type].present?
-          case params[:type]
-          when 'customers'
-            @contacts = @contacts.customers
-          when 'suppliers'
-            @contacts = @contacts.suppliers
-          when 'both'
-            # Filter for contacts that have both 'customer' and 'supplier' in contact_types array
-            @contacts = @contacts.where("contact_types @> ARRAY['customer', 'supplier']::text[]")
+          # Build WHERE clause based on mode
+          # SSoT: Include contact_emails table in search
+          ilike_op = search_mode == 'exact' ? '=' : 'ILIKE'
+          search_sql = if search_mode == 'exact'
+            "LOWER(contacts.display_name) = LOWER(:q) OR
+             LOWER(contact_emails.email) = LOWER(:q) OR
+             LOWER(contacts.first_name) = LOWER(:q) OR
+             LOWER(contacts.last_name) = LOWER(:q) OR
+             (contacts.is_team_contact = true AND LOWER(primary_companies_contacts.display_name) = LOWER(:q))"
+          else
+            "contacts.display_name ILIKE :q OR
+             contact_emails.email ILIKE :q OR
+             contacts.first_name ILIKE :q OR
+             contacts.last_name ILIKE :q OR
+             (contacts.is_team_contact = true AND primary_companies_contacts.display_name ILIKE :q)"
+          end
+
+          # Find contacts that match the search term directly
+          # Note: left_outer_joins(:primary_company) creates alias "primary_companies_contacts"
+          # SSoT: Also join contact_emails for email search
+          direct_matches = @contacts.left_outer_joins(:primary_company, :contact_emails)
+                                    .where(search_sql, q: search_term)
+                                    .distinct
+
+          # Find companies that match the search term
+          company_search_sql = search_mode == 'exact' ? "LOWER(display_name) = LOWER(?)" : "display_name ILIKE ?"
+          matching_company_ids = Contact.where(company_search_sql, search_term)
+                                       .where(entity_type: %w[company trust sole_trader])
+                                       .pluck(:id)
+
+          if matching_company_ids.any?
+            # Find employees of those companies (via primary_company_id OR via relationships)
+            employee_relationship_ids = ContactRelationship
+              .active
+              .where(relationship_type: "employee_of")
+              .where(related_contact_id: matching_company_ids)
+              .pluck(:source_contact_id)
+
+            employee_primary_company_ids = Contact.where(primary_company_id: matching_company_ids).pluck(:id)
+
+            employee_ids = (employee_relationship_ids + employee_primary_company_ids).uniq
+
+            # Combine direct matches with employees of matching companies
+            @contacts = @contacts.where(id: direct_matches.pluck(:id) + matching_company_ids + employee_ids)
+          else
+            @contacts = direct_matches
           end
         end
 
-        # Filter by Xero sync status
+        # Filter by role (updated from deprecated contact_types to roles)
+        if params[:role].present?
+          @contacts = @contacts.with_role(params[:role])
+        end
+
+        # Filter by contact type (supplier/customer)
+        # Performance: Uses cached boolean columns (is_supplier_cached, is_customer_cached)
+        # instead of expensive JOINs that caused cartesian products
+        if params[:type].present? && params[:role].blank?
+          case params[:type]
+          when "suppliers"
+            # Suppliers: contacts with is_supplier_cached=true
+            # Cached column is updated when contacts get POs, pricebooks, price histories, or bills
+            #
+            # Company-aware supplier search: When searching, also find supplier COMPANIES
+            # where an EMPLOYEE matches the search term (e.g., search "troy" finds "Pre Hung Doors"
+            # if Troy Wilson works there and Pre Hung Doors is a supplier)
+            # The matched employee names are returned in `matched_employees` for UI display
+            if params[:search].present?
+              search_term = "%#{params[:search]}%"
+
+              # Find people (employees) matching the search term
+              matching_employees = Contact.where(entity_type: "person")
+                                          .where("display_name ILIKE ? OR first_name ILIKE ? OR last_name ILIKE ?",
+                                                 search_term, search_term, search_term)
+                                          .select(:id, :display_name, :primary_company_id)
+
+              # Build mapping: employer_id -> [employee names]
+              @matched_employees_by_company = {}
+              matching_employees.each do |emp|
+                next unless emp.primary_company_id
+                @matched_employees_by_company[emp.primary_company_id] ||= []
+                @matched_employees_by_company[emp.primary_company_id] << emp.display_name
+              end
+
+              # Also check ContactRelationship employee_of
+              if matching_employees.any?
+                employee_relationships = ContactRelationship
+                  .active
+                  .where(relationship_type: "employee_of")
+                  .where(source_contact_id: matching_employees.map(&:id))
+                  .pluck(:source_contact_id, :related_contact_id)
+
+                employee_names_by_id = matching_employees.index_by(&:id)
+                employee_relationships.each do |emp_id, company_id|
+                  emp = employee_names_by_id[emp_id]
+                  next unless emp
+                  @matched_employees_by_company[company_id] ||= []
+                  @matched_employees_by_company[company_id] << emp.display_name unless @matched_employees_by_company[company_id].include?(emp.display_name)
+                end
+              end
+
+              employer_company_ids = @matched_employees_by_company.keys
+
+              # Include ALL employer companies of matching employees (regardless of is_supplier_cached)
+              # This allows finding potential suppliers by employee name before they're officially marked
+              valid_employer_ids = employer_company_ids.any? ?
+                Contact.where(id: employer_company_ids, is_active: true).pluck(:id) : []
+
+              # Build final result: direct supplier matches + employer companies of matching employees
+              # Exclude employees (people with primary_company_id) - show their company instead
+              direct_supplier_ids = @contacts.where(is_supplier_cached: true)
+                                             .where("contacts.entity_type IN ('company', 'trust') OR contacts.primary_company_id IS NULL")
+                                             .pluck(:id)
+
+              all_supplier_ids = (direct_supplier_ids + valid_employer_ids).uniq
+              @contacts = Contact.where(id: all_supplier_ids).where(is_active: true)
+            else
+              # No search term - show all suppliers (excluding employees who have employer companies)
+              @contacts = @contacts.where(is_supplier_cached: true)
+                                   .where("contacts.entity_type IN ('company', 'trust') OR contacts.primary_company_id IS NULL")
+            end
+          when "customers"
+            # Customers: contacts with is_customer_cached=true
+            # Cached column is updated when contacts get jobs
+            @contacts = @contacts.where(is_customer_cached: true)
+          when "both"
+            # All contacts (no filter)
+          end
+        end
+
+        # Filter suppliers by pricebook items they supply (have price histories for)
+        # Use: ?type=suppliers&for_pricebook_items=1,2,3
+        if params[:for_pricebook_items].present? && params[:type] == "suppliers"
+          pricebook_item_ids = params[:for_pricebook_items].to_s.split(",").map(&:to_i).reject(&:zero?)
+          if pricebook_item_ids.any?
+            supplier_ids_for_items = PriceHistory
+              .where(pricebook_item_id: pricebook_item_ids)
+              .where.not(supplier_id: nil)
+              .distinct
+              .pluck(:supplier_id)
+            @contacts = @contacts.where(id: supplier_ids_for_items)
+          end
+        end
+
+        # Filter by Xero sync status (SSoT: contact_external_links)
         if params[:xero_sync].present?
           case params[:xero_sync]
-          when 'synced'
-            @contacts = @contacts.where.not(xero_id: nil)
-          when 'not_synced'
-            @contacts = @contacts.where(xero_id: nil)
+          when "synced"
+            @contacts = @contacts.joins(:external_links).where(contact_external_links: { source: "xero" }).distinct
+          when "not_synced"
+            @contacts = @contacts.where.not(id: ContactExternalLink.xero.select(:contact_id))
           end
+        end
+
+        # Filter contacts linked to a specific Xero tenant (SSoT: ContactExternalLink.tenant_id)
+        if params[:xero_tenant_id].present?
+          @contacts = @contacts.joins(:external_links)
+                               .where(contact_external_links: { source: "xero", tenant_id: params[:xero_tenant_id] })
+                               .distinct
         end
 
         # Filter to only show possible duplicate contacts
-        if params[:duplicates_only] == 'true'
-          # Find contacts that share a normalized full_name with at least one other contact
+        if params[:duplicates_only] == "true"
+          # Find contacts that share a normalized display_name with at least one other contact
           duplicate_ids = find_duplicate_contact_ids
           @contacts = @contacts.where(id: duplicate_ids)
         end
@@ -77,49 +221,209 @@ module Api
         @contacts = @contacts.with_email if params[:with_email] == "true"
         @contacts = @contacts.with_phone if params[:with_phone] == "true"
 
-        @contacts = @contacts.order(:full_name)
+        # Filter by entity type (person, company, trust) - supports comma-separated values
+        if params[:entity_type].present?
+          entity_types = params[:entity_type].to_s.split(",").map(&:strip)
+          @contacts = @contacts.where(entity_type: entity_types)
+        end
+
+        # Filter to exclude contacts already in corporate (have company_group_id)
+        if params[:not_corporate] == "true"
+          @contacts = @contacts.where(company_group_id: nil)
+        end
+
+        # Fix PostgreSQL DISTINCT + ORDER BY conflict:
+        # When DISTINCT is used earlier in the query chain (from joins, .distinct calls, or .or()),
+        # PostgreSQL requires ORDER BY columns to be in SELECT list.
+        # Solution: Resolve DISTINCT via subquery, then order the final results.
+        if @contacts.distinct_value || @contacts.to_sql.include?("DISTINCT")
+          contact_ids = @contacts.pluck(:id)
+          @contacts = Contact.where(id: contact_ids).order(:display_name)
+        else
+          @contacts = @contacts.order(:display_name)
+        end
 
         # Optionally include companies and jobs data
-        include_companies = params[:include_companies] == 'true'
-        include_jobs = params[:include_jobs] == 'true'
+        include_companies = params[:include_companies] == "true"
+        include_jobs = params[:include_jobs] == "true"
 
         # Include director details if filtering for directors
-        director_fields = params[:is_director] == 'true' ? [:director_id, :date_of_birth, :place_of_birth, :birth_state, :birth_country, :residential_address, :drivers_licence, :passport_number, :photo_url] : []
+        director_fields = params[:is_director] == "true" ? [ :place_of_birth, :birth_state, :birth_country, :residential_address ] : []
 
+        # Performance: Eager load associations to avoid N+1 queries
+        # portal_user and corporate_group are always included in as_json response
+        @contacts = @contacts.includes(:portal_user, :corporate_group)
+
+        # Conditional eager loading for company relationships
+        if include_companies
+          @contacts = @contacts.includes(:primary_company, outgoing_relationships: :related_contact)
+        end
+
+        # Performance: Pre-compute expensive boolean flags via SQL (avoids N+1)
+        # These replace the expensive method calls that were causing ~1,130 queries per request
+        contact_ids = @contacts.map(&:id)
+        precomputed_flags = precompute_contact_flags(contact_ids)
+
+        # PERFORMANCE: Pre-compute company_group_memberships_count (avoids N+1)
+        # P95 was 5.07s due to N+1 COUNT queries; should be <500ms with batch query
+        membership_counts = ContactCorporateGroupMembership
+          .where(contact_id: contact_ids)
+          .group(:contact_id)
+          .count
+
+        # Note: Removed is_customer?, is_supplier?, is_director?, company_group_memberships_count from methods
+        # These are pre-computed above to avoid N+1 queries
         contacts_json = @contacts.as_json(
-          only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :contact_types, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :xero_id, :xero_synced, :sync_with_xero, :last_synced_at, :total_purchase_orders_count, :total_purchase_orders_value, :teeem_rating, :entity_type, :primary_role, :employment_status, :is_family_member, :is_potential_director, :company_group_id] + director_fields,
           include: {
-            portal_user: { only: [:id, :email, :portal_type, :active] },
-            company_group: { only: [:id, :name] }
+            portal_user: {},
+            corporate_group: {}
           },
-          methods: [:is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :display_name, :is_director?]
+          methods: [ :is_sales?, :is_land_agent?, :display_name, :xero_linked_count, :xero_customer?, :xero_supplier? ]
         )
+
+        # Performance: Build hash map for O(1) lookups instead of O(n²) array search
+        contacts_by_id = @contacts.index_by(&:id)
+
+        # Performance: Pre-fetch employer names for person contacts (company-aware search display)
+        # This allows frontend to show "Troy Smith - Harvey Norman" format
+        employer_names = Contact.where(id: @contacts.where.not(primary_company_id: nil).pluck(:primary_company_id))
+                                .pluck(:id, :display_name)
+                                .to_h
+
+        # Merge pre-computed flags and counts into JSON
+        contacts_json.each do |contact_json|
+          flags = precomputed_flags[contact_json["id"]] || {}
+          contact_json["is_customer?"] = flags[:is_customer] || false
+          contact_json["is_supplier?"] = flags[:is_supplier] || false
+          contact_json["is_director?"] = flags[:is_director] || false
+          contact_json["company_group_memberships_count"] = membership_counts[contact_json["id"]] || 0
+
+          # Add employer_name for person contacts (company-aware search)
+          # SSoT: primary_company_id links person to their employer
+          primary_company_id = contacts_by_id[contact_json["id"]]&.primary_company_id
+          if primary_company_id
+            contact_json["employer_name"] = employer_names[primary_company_id]
+          end
+
+          # Add matched_employees for company contacts (supplier search by employee name)
+          # Shows which employees matched the search term (e.g., "Troy Wilson" when searching "troy")
+          if @matched_employees_by_company && @matched_employees_by_company[contact_json["id"]]
+            contact_json["matched_employees"] = @matched_employees_by_company[contact_json["id"]]
+          end
+        end
 
         # Add company and job counts for all contacts
         if include_companies || include_jobs
+          contact_ids = @contacts.map(&:id)
+
+          # Performance: Pre-fetch job counts with GROUP BY (avoids N+1)
+          job_counts_by_contact = if include_jobs
+            JobContact.where(contact_id: contact_ids)
+                      .group(:contact_id)
+                      .count
+          else
+            {}
+          end
+
           contacts_json.each do |contact_json|
-            contact = @contacts.find { |c| c.id == contact_json['id'] }
+            contact = contacts_by_id[contact_json["id"]]
             next unless contact
 
             if include_companies
               # Add primary company info
               if contact.primary_company
-                contact_json['primary_company'] = {
+                contact_json["primary_company"] = {
                   id: contact.primary_company.id,
                   name: contact.primary_company.display_name
                 }
               end
 
-              # Count additional companies
-              contact_json['additional_companies_count'] = contact.outgoing_relationships
+              # Get all company relationships with roles
+              company_relationships = contact.outgoing_relationships
                 .active
-                .where(relationship_type: ['director_of', 'shareholder_of', 'trustee_of', 'employee_of', 'partner_in'])
-                .count
+                .where(relationship_type: [ "director_of", "shareholder_of", "trustee_of", "employee_of", "partner_in", "authorized_signatory_of", "beneficial_owner_of" ])
+                .includes(:related_contact)
+
+              contact_json["additional_companies_count"] = company_relationships.count
+
+              # Include company_roles for display (e.g., "Director @ Harvey Norman")
+              contact_json["company_roles"] = company_relationships.filter_map do |rel|
+                next unless rel.related_contact
+                {
+                  company_id: rel.related_contact_id,
+                  company_name: rel.related_contact.display_name,
+                  role: rel.relationship_type.gsub("_of", "").gsub("_", " ").titleize
+                }
+              end
             end
 
             if include_jobs
-              # Count jobs
-              contact_json['jobs_count'] = contact.job_contacts.count
+              # Use pre-fetched count (avoids N+1)
+              contact_json["jobs_count"] = job_counts_by_contact[contact.id] || 0
+            end
+          end
+        end
+
+        # Add employee names and payment terms for supplier contacts
+        # Also include for entity_type queries that include companies (for PO supplier selection)
+        entity_types = params[:entity_type].to_s.split(",").map(&:strip)
+        is_company_query = entity_types.intersect?(%w[company trust sole_trader])
+        if params[:type] == "suppliers" || (params[:entity_type].present? && is_company_query)
+          supplier_ids = @contacts.map(&:id)
+
+          # Performance: Pre-fetch employee counts and names with GROUP BY (avoids N+1)
+          if params[:include_employees] != "false"
+            # Get employee counts by company
+            employee_counts = Contact.where(primary_company_id: supplier_ids)
+                                     .where(is_active: true)
+                                     .group(:primary_company_id)
+                                     .count
+
+            # Get top 10 employee names per company (using window function for efficiency)
+            # First get all active employees with their company, then group in Ruby
+            all_employees = Contact.where(primary_company_id: supplier_ids)
+                                   .where(is_active: true)
+                                   .order(:display_name)
+                                   .pluck(:primary_company_id, :display_name)
+            employee_names_by_company = all_employees.group_by(&:first)
+                                                     .transform_values { |v| v.first(10).map(&:last).compact }
+          else
+            employee_counts = {}
+            employee_names_by_company = {}
+          end
+
+          contacts_json.each do |contact_json|
+            contact = contacts_by_id[contact_json["id"]]
+            next unless contact
+
+            # Payment terms (for auto-calculating PO due date)
+            contact_json["bill_due_day"] = contact.bill_due_day
+            contact_json["bill_due_type"] = contact.bill_due_type
+            contact_json["payment_terms"] = contact.payment_terms
+
+            # Use pre-fetched employee data (avoids N+1)
+            if params[:include_employees] != "false"
+              contact_json["employee_names"] = employee_names_by_company[contact.id] || []
+              contact_json["employee_count"] = employee_counts[contact.id] || 0
+            end
+          end
+        end
+
+        # Add which pricebook items each supplier has price histories for
+        # This helps the frontend show which items aren't covered by a supplier
+        if params[:for_pricebook_items].present? && params[:type] == "suppliers"
+          pricebook_item_ids = params[:for_pricebook_items].to_s.split(",").map(&:to_i).reject(&:zero?)
+          if pricebook_item_ids.any?
+            # Get supplier -> item mappings
+            supplier_items = PriceHistory
+              .where(pricebook_item_id: pricebook_item_ids)
+              .where.not(supplier_id: nil)
+              .group(:supplier_id)
+              .pluck(:supplier_id, Arel.sql("array_agg(DISTINCT pricebook_item_id)"))
+              .to_h
+
+            contacts_json.each do |contact_json|
+              contact_json["supplied_pricebook_item_ids"] = supplier_items[contact_json["id"]] || []
             end
           end
         end
@@ -131,48 +435,31 @@ module Api
       end
 
       # GET /api/v1/contacts/:id
+
       def show
         # If this contact is a supplier, include their supplier-specific data
         contact_json = @contact.as_json(
-          only: [
-            :id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :fax_phone, :website,
-            :tax_number, :xero_id, :xero_synced, :sync_with_xero, :last_synced_at, :xero_sync_error,
-            :sys_type_id, :deleted, :parent_id, :parent,
-            :drive_id, :folder_id, :contact_region_id, :contact_region, :branch, :created_at, :updated_at,
-            :contact_types, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas,
-            :entity_type, :primary_role, :employment_status,
-            # Family/Director flags
-            :is_family_member, :is_potential_director, :company_group_id,
-            # Xero fields
-            :bank_bsb, :bank_account_number, :bank_account_name,
-            :default_purchase_account, :default_sales_account,
-            :bill_due_day, :bill_due_type, :sales_due_day, :sales_due_type,
-            :xero_contact_number, :xero_contact_status, :xero_account_number, :company_number, :default_discount,
-            :accounts_receivable_outstanding, :accounts_receivable_overdue,
-            :accounts_payable_outstanding, :accounts_payable_overdue,
-            # Director details fields
-            :director_id, :date_of_birth, :place_of_birth, :birth_state, :birth_country,
-            :residential_address, :drivers_licence, :passport_number, :photo_url
-          ],
           include: {
-            contact_persons: { only: [:id, :first_name, :last_name, :email, :include_in_emails, :is_primary, :xero_contact_person_id] },
-            contact_addresses: { only: [:id, :address_type, :line1, :line2, :line3, :line4, :city, :region, :postal_code, :country, :attention_to, :is_primary] },
-            contact_groups: { only: [:id, :name, :status, :xero_contact_group_id] },
-            portal_user: { only: [:id, :email, :portal_type, :active, :last_login_at, :created_at] },
-            company_group: { only: [:id, :name] }
+            contact_emails: {},
+            contact_phones: {},
+            contact_persons: {},
+            contact_addresses: {},
+            contact_groups: {},
+            portal_user: {},
+            corporate_group: {}
           },
-          methods: [:is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :is_director?, :director_companies]
+          methods: [ :is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :is_director?, :director_companies, :display_name ]
         )
 
         # If contact is a supplier, add pricebook items and purchase orders
         if @contact.is_supplier?
           # Get items where this contact is the supplier OR default_supplier OR has provided a quote (in price_histories)
           # Optimized to use a single query with LEFT JOIN instead of 3 separate queries
-          # Note: PricebookItem uses table_name = 'pricebook', not 'pricebook_items'
+          # Note: PricebookItem uses table_name = 'pricebooks'
           all_items = PricebookItem
             .left_joins(:price_histories)
             .where(
-              "pricebook.supplier_id = ? OR pricebook.default_supplier_id = ? OR price_histories.supplier_id = ?",
+              "pricebooks.supplier_id = ? OR pricebooks.default_supplier_id = ? OR price_histories.supplier_id = ?",
               @contact.id, @contact.id, @contact.id
             )
             .includes(:price_histories)
@@ -187,15 +474,13 @@ module Api
             # Filter preloaded price histories for this contact (no N+1)
             price_histories = item.price_histories
               .select { |ph| ph.supplier_id == @contact.id }
-              .sort_by { |ph| [(ph.date_effective || Time.at(0)).to_time, (ph.created_at || Time.at(0)).to_time] }
+              .sort_by { |ph| [ (ph.date_effective || Time.at(0)).to_time, (ph.created_at || Time.at(0)).to_time ] }
               .reverse
               .map do |ph|
-                ph.as_json(only: [:id, :old_price, :new_price, :date_effective, :lga, :change_reason, :user_name, :created_at])
+                ph.as_json
               end
 
-            item.as_json(
-              only: [:id, :item_code, :item_name, :category, :current_price, :unit, :price_last_updated_at]
-            ).merge(
+            item.as_json.merge(
               is_default_supplier: item.default_supplier_id == @contact.id,
               price_histories: price_histories
             )
@@ -204,22 +489,79 @@ module Api
 
         # Add primary company and employment details
         if @contact.primary_company.present?
+          company = @contact.primary_company
+          company_record = CorporateCompany.find_by(contact_id: company.id)
+
           contact_json[:primary_company] = {
-            id: @contact.primary_company.id,
-            name: @contact.primary_company.display_name,
-            contact_types: @contact.primary_company.contact_types,
-            role: @contact.primary_role,
-            employment_status: @contact.employment_status,
-            start_date: @contact.employment_start_date
+            id: company.id,
+            name: company.display_name,
+            email: company.email,
+            website: company.website,
+            address: company.address,
+            roles: company.roles,
+            # Include ABN/ACN if company record exists
+            abn: company_record&.abn,
+            acn: company_record&.acn,
+            # Include company contact details
+            contact_emails: company.contact_emails.ordered.map { |e|
+              { id: e.id, email: e.email, is_primary: e.is_primary, label: e.label, position: e.position }
+            },
+            contact_phones: company.contact_phones.ordered.map { |p|
+              { id: p.id, phone_number: p.phone_number, phone_type: p.phone_type, is_primary: p.is_primary, label: p.label, position: p.position }
+            }
           }
+        end
+
+        # Add employees for company contacts (using BOTH old and new systems)
+        if @contact.entity_type == "company" || @contact.entity_type == "trust"
+          # Get employees from NEW ContactRelationship system (with display_order)
+          employee_relationships = @contact.incoming_relationships
+            .active
+            .where(relationship_type: "employee_of")
+            .order(:display_order, :created_at)  # Sort by display_order first, then created_at
+            .includes(:source_contact)
+
+          employees_from_relationships = employee_relationships
+            .map { |rel| rel.source_contact }
+            .compact
+
+          # Create a map of employee_id => display_order for later use
+          employee_display_order = employee_relationships.each_with_object({}) do |rel, hash|
+            hash[rel.source_contact_id] = rel.display_order if rel.source_contact
+          end
+
+          # Get employees from OLD primary_company_id system (for backwards compatibility)
+          employees_from_primary = Contact
+            .where(primary_company_id: @contact.id)
+            .where(entity_type: "person")
+            .where.not(id: employees_from_relationships.map(&:id))  # Exclude duplicates
+
+          # Combine both sources (relationships already sorted, primary at end)
+          all_employees = employees_from_relationships + employees_from_primary
+
+          contact_json[:employees] = all_employees.map.with_index do |employee, index|
+            {
+              id: employee.id,
+              display_name: employee.display_name,
+              first_name: employee.first_name,
+              last_name: employee.last_name,
+              email: employee.email,
+              mobile_phone: employee.mobile_phone,
+              display_order: employee_display_order[employee.id] || index,  # Use stored order or position
+              is_primary: index == 0  # First employee is primary
+            }
+          end
         end
 
         # Add additional companies via relationships
         contact_json[:additional_companies] = @contact.outgoing_relationships
           .active
-          .where(relationship_type: ['director_of', 'shareholder_of', 'trustee_of', 'employee_of', 'partner_in', 'authorized_signatory_of', 'beneficial_owner_of'])
+          .where(relationship_type: [ "director_of", "shareholder_of", "trustee_of", "employee_of", "partner_in", "authorized_signatory_of", "beneficial_owner_of" ])
           .includes(:related_contact)
-          .map do |rel|
+          .filter_map do |rel|
+            # Skip orphaned relationships where related_contact no longer exists
+            next unless rel.related_contact
+
             {
               id: rel.related_contact.id,
               name: rel.related_contact.display_name,
@@ -236,11 +578,11 @@ module Api
 
         # Add jobs/constructions
         contact_json[:jobs] = @contact.job_contacts
-          .includes(job: [:job_status, :job_stage])
+          .includes(job: [ :job_status, :job_stage ])
           .map do |jc|
             {
               job_id: jc.job_id,
-              job_title: jc.job.title,
+              job_title: jc.job.name,
               location: jc.job.location,
               role: jc.role,
               primary: jc.primary,
@@ -249,6 +591,101 @@ module Api
             }
           end
 
+        # SSoT: If this contact is linked to a Company, include company data
+        linked_company = CorporateCompany.find_by(contact_id: @contact.id)
+        if linked_company
+          linked_company_data = {
+            id: linked_company.id,
+            name: linked_company.name,
+            acn: linked_company.acn,
+            abn: linked_company.abn,
+            status: linked_company.status,
+            entity_type: linked_company.entity_type,
+            is_trustee: linked_company.is_trustee,
+            trust_name: linked_company.trust_name,
+            date_incorporated: linked_company.date_incorporated,
+            registered_office_address: linked_company.registered_office_address,
+            principal_place_of_business: linked_company.principal_place_of_business,
+            company_group_id: linked_company.company_group_id,
+            company_group_name: linked_company.corporate_group&.name
+          }
+
+          # SSoT: Only include corporate data (directors, shareholdings) if user has permission
+          if can_view_corporate?
+            linked_company_data[:directors] = linked_company.corporate_company_directors.includes(:contact).map do |d|
+              {
+                id: d.id,
+                contact_id: d.contact_id,
+                contact_name: d.contact&.display_name,
+                position: d.position,
+                formatted_position: d.formatted_position,
+                appointment_date: d.appointment_date,
+                resignation_date: d.resignation_date,
+                is_current: d.is_current
+              }
+            end
+            linked_company_data[:shareholdings] = linked_company.corporate_company_shareholdings.includes(:shareholder).map do |s|
+              {
+                id: s.id,
+                shareholder_type: s.shareholder_type,
+                shareholder_id: s.shareholder_id,
+                shareholder_name: s.shareholder&.respond_to?(:name) ? s.shareholder.name : s.shareholder&.display_name,
+                share_class: s.share_class,
+                number_of_shares: s.number_of_shares,
+                beneficially_held: s.beneficially_held,
+                date_acquired: s.acquisition_date
+              }
+            end
+            linked_company_data[:directors_count] = linked_company.corporate_company_directors.current.count
+            linked_company_data[:shareholdings_count] = linked_company.corporate_company_shareholdings.count
+            linked_company_data[:documents_count] = linked_company.corporate_company_documents.count
+            # SSoT: Include bank accounts from the bank_accounts table
+            linked_company_data[:bank_accounts] = linked_company.bank_accounts.active.map do |ba|
+              {
+                id: ba.id,
+                institution_name: ba.institution_name,
+                bsb: ba.bsb,
+                account_number: ba.account_number,
+                account_name: ba.account_name,
+                bank_code: ba.bank_code,
+                xero_account_id: ba.xero_account_id,
+                status: ba.status,
+                display_name: ba.display_name,
+                formatted_bsb: ba.formatted_bsb,
+                linked_to_xero: ba.linked_to_xero?
+              }
+            end
+            linked_company_data[:bank_accounts_count] = linked_company.bank_accounts.active.count
+          else
+            # For users without corporate permission, hide corporate data
+            linked_company_data[:directors] = []
+            linked_company_data[:shareholdings] = []
+            linked_company_data[:directors_count] = 0
+            linked_company_data[:shareholdings_count] = 0
+            linked_company_data[:documents_count] = 0
+            linked_company_data[:bank_accounts] = []
+            linked_company_data[:bank_accounts_count] = 0
+          end
+
+          contact_json[:linked_company] = linked_company_data
+        end
+
+        # SSoT: Add Xero link summary (derived from contact_external_links)
+        contact_json[:xero_link_summary] = @contact.xero_link_summary
+        contact_json[:xero_linked_count] = @contact.xero_linked_count
+        contact_json[:xero_tenant_names] = @contact.xero_tenant_names
+        contact_json[:xero_customer] = @contact.xero_customer?
+        contact_json[:xero_supplier] = @contact.xero_supplier?
+
+        # SSoT: Filter confidential fields based on user permissions
+        contact_json = filter_confidential_fields(contact_json)
+
+        # Add permission indicators for frontend
+        contact_json[:can_view_confidential] = current_user&.can_view_confidential? || false
+        contact_json[:can_view_corporate] = can_view_corporate? || false
+        contact_json[:can_edit_corporate] = can_edit_corporate? || false
+        contact_json[:can_view_cases] = can_view_cases? || false
+
         render json: {
           success: true,
           contact: contact_json
@@ -256,17 +693,30 @@ module Api
       end
 
       # POST /api/v1/contacts
+
       def create
+        Rails.logger.info "[ContactCreate] Received params: #{contact_params.inspect}"
+
         @contact = Contact.new(contact_params)
 
+        Rails.logger.info "[ContactCreate] Contact built, valid? #{@contact.valid?}"
+        Rails.logger.info "[ContactCreate] Validation errors: #{@contact.errors.full_messages}" unless @contact.valid?
+
         if @contact.save
+          Rails.logger.info "[ContactCreate] Contact saved successfully: #{@contact.id}"
           render json: { success: true, contact: @contact }, status: :created
         else
+          Rails.logger.error "[ContactCreate] Save failed: #{@contact.errors.full_messages.join(', ')}"
           render json: { success: false, errors: @contact.errors.full_messages }, status: :unprocessable_entity
         end
+      rescue StandardError => e
+        Rails.logger.error "[ContactCreate] Exception: #{e.class.name} - #{e.message}"
+        Rails.logger.error e.backtrace.first(10).join("\n")
+        render json: { success: false, error: "#{e.class.name}: #{e.message}" }, status: :internal_server_error
       end
 
       # PATCH /api/v1/contacts/:id
+
       def update
         # Handle contact groups separately
         if params[:contact][:contact_group_ids] || params[:contact][:new_contact_group_names]
@@ -274,11 +724,19 @@ module Api
         end
 
         if @contact.update(contact_params.except(:contact_group_ids, :new_contact_group_names))
+          # Reload to ensure associations are fresh after nested attribute updates
+          @contact.reload
           render json: {
             success: true,
             contact: @contact.as_json(
-              only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :contact_types, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas],
-              methods: [:is_customer?, :is_supplier?, :is_sales?, :is_land_agent?]
+              include: {
+                contact_emails: {},
+                contact_phones: {},
+                contact_addresses: {},
+                contact_persons: {},
+                contact_groups: {}
+              },
+              methods: [ :is_employee?, :is_sales?, :is_land_agent?, :display_name ]
             )
           }
         else
@@ -287,47 +745,146 @@ module Api
       end
 
       # DELETE /api/v1/contacts/:id
+
       def destroy
         # Comprehensive safety checks before deletion
 
-        # Check for linked suppliers
-        if @contact.suppliers.any?
-          suppliers_with_pos = @contact.suppliers.joins(:purchase_orders).distinct
-
-          if suppliers_with_pos.any?
-            # Check if any POs have been paid or invoiced
-            paid_pos = PurchaseOrder.where(supplier_id: suppliers_with_pos.pluck(:id))
-                                   .where("status IN (?) OR amount_paid > 0 OR amount_invoiced > 0",
-                                          ['paid', 'invoiced', 'received'])
-
-            if paid_pos.any?
+        # Check for Company Group links (SSoT protection)
+        if @contact.link_to_cg
+          if @contact.linked_company_id.present?
+            # This contact is linked to a Company record
+            company = CorporateCompany.find_by(id: @contact.linked_company_id)
+            return render json: {
+              success: false,
+              error: "Cannot delete contact linked to Company '#{company&.name || 'Unknown'}'. Unlink from Company Group first.",
+              reason: "linked_to_company",
+              linked_company_id: @contact.linked_company_id
+            }, status: :unprocessable_entity
+          else
+            # This is a person with Company Group memberships
+            membership_count = ContactCorporateGroupMembership.where(contact_id: @contact.id).count
+            if membership_count > 0
               return render json: {
                 success: false,
-                error: "Cannot delete contact with purchase orders that have been paid or invoiced. This contact has #{paid_pos.count} critical purchase order(s).",
-                reason: "paid_purchase_orders",
-                count: paid_pos.count
-              }, status: :unprocessable_entity
-            end
-
-            # Check for any purchase orders at all
-            total_pos = PurchaseOrder.where(supplier_id: suppliers_with_pos.pluck(:id)).count
-            if total_pos > 0
-              return render json: {
-                success: false,
-                error: "Cannot delete contact with #{total_pos} purchase order(s). Please reassign or delete purchase orders first.",
-                reason: "has_purchase_orders",
-                count: total_pos
+                error: "Cannot delete contact with #{membership_count} Company Group membership(s). Remove memberships first.",
+                reason: "has_company_group_memberships",
+                count: membership_count
               }, status: :unprocessable_entity
             end
           end
+        end
 
-          # If suppliers exist but no POs, just warn
+        # Check if this contact has a Company record pointing to it
+        linked_company = CorporateCompany.find_by(contact_id: @contact.id)
+        if linked_company.present?
           return render json: {
             success: false,
-            error: "Cannot delete contact with #{@contact.suppliers.count} linked supplier(s). Please unlink suppliers first.",
-            reason: "has_suppliers",
-            count: @contact.suppliers.count
+            error: "Cannot delete contact - Company '#{linked_company.name}' is linked to this contact. Unlink from Corporate first.",
+            reason: "company_linked_to_contact",
+            linked_company_id: linked_company.id
           }, status: :unprocessable_entity
+        end
+
+        # Check for active Xero sync links (SSoT protection)
+        xero_links = @contact.external_links.where(source: "xero")
+        if xero_links.any?
+          return render json: {
+            success: false,
+            error: "Cannot delete contact with #{xero_links.count} active Xero link#{'s' if xero_links.count != 1}. Unlink from Xero first.",
+            reason: "has_xero_links",
+            count: xero_links.count,
+            tenant_names: xero_links.map(&:tenant_name).compact.uniq
+          }, status: :unprocessable_entity
+        end
+
+        # Check for data that requires archiving instead of deletion
+        archive_reasons = []
+
+        # Check for external invoices/bills (Xero, MYOB, QuickBooks)
+        if @contact.external_invoices.any?
+          invoice_count = @contact.external_invoices.active.count
+          invoice_types = @contact.external_invoices.active.pluck(:invoice_type).uniq
+
+          if invoice_count > 0
+            type_labels = invoice_types.map { |t| t == "sales_invoice" ? "invoice" : t }.join(", ")
+            archive_reasons << "#{invoice_count} #{type_labels}#{'s' if invoice_count != 1}"
+          end
+        end
+
+        # Check for contact activities (emails, calls, notes)
+        if @contact.contact_activities.any?
+          activities_count = @contact.contact_activities.count
+          archive_reasons << "#{activities_count} activity record#{'s' if activities_count != 1}"
+        end
+
+        # Check for SMS messages
+        if @contact.sms_messages.any?
+          sms_count = @contact.sms_messages.count
+          archive_reasons << "#{sms_count} SMS message#{'s' if sms_count != 1}"
+        end
+
+        # Check for jobs
+        if @contact.jobs.any?
+          jobs_count = @contact.jobs.count
+          archive_reasons << "#{jobs_count} linked job#{'s' if jobs_count != 1}"
+        end
+
+        # Check for quote responses
+        if @contact.quote_responses.any?
+          quotes_count = @contact.quote_responses.count
+          archive_reasons << "#{quotes_count} quote response#{'s' if quotes_count != 1}"
+        end
+
+        # Check for subcontractor invoices
+        if @contact.subcontractor_invoices.any?
+          sub_invoices_count = @contact.subcontractor_invoices.count
+          archive_reasons << "#{sub_invoices_count} subcontractor invoice#{'s' if sub_invoices_count != 1}"
+        end
+
+        # If there are reasons to archive, do soft delete instead
+        if archive_reasons.any?
+          @contact.update!(is_active: false)
+
+          return render json: {
+            success: true,
+            archived: true,
+            message: "Contact archived (not deleted) to preserve #{archive_reasons.join(', ')}.",
+            archive_reasons: archive_reasons
+          }
+        end
+
+        # Check for purchase orders (where this contact is the supplier)
+        if @contact.purchase_orders.any?
+          # Check if any POs have been paid or invoiced
+          paid_pos = @contact.purchase_orders
+                            .where("status IN (?) OR amount_paid > 0 OR amount_invoiced > 0",
+                                   [ "paid", "invoiced", "received" ])
+
+          if paid_pos.any?
+            # Auto-archive instead of blocking
+            @contact.update!(is_active: false)
+
+            return render json: {
+              success: true,
+              archived: true,
+              message: "Contact archived (not deleted) to preserve #{paid_pos.count} paid/invoiced purchase order(s).",
+              archive_reasons: [ "#{paid_pos.count} paid/invoiced purchase order#{'s' if paid_pos.count != 1}" ]
+            }
+          end
+
+          # Check for any purchase orders at all
+          total_pos = @contact.purchase_orders.count
+          if total_pos > 0
+            # Auto-archive instead of blocking
+            @contact.update!(is_active: false)
+
+            return render json: {
+              success: true,
+              archived: true,
+              message: "Contact archived (not deleted) to preserve #{total_pos} purchase order(s).",
+              archive_reasons: [ "#{total_pos} purchase order#{'s' if total_pos != 1}" ]
+            }
+          end
         end
 
         # If all checks pass, delete the contact
@@ -343,10 +900,13 @@ module Api
         }, status: :internal_server_error
       end
 
-      # PATCH /api/v1/contacts/bulk_update
+      # PATCH /api/v1/contacts/:id/update_from_bill
+      # Updates contact fields from extracted invoice data
+      # Expects: { fields: { field_key: value, ... }, bill_id: 123 }
+
       def bulk_update
         contact_ids = params[:contact_ids]
-        contact_types = params[:contact_types]
+        roles = params[:roles]
 
         # Validate contact_ids is present and is an array
         if contact_ids.blank? || !contact_ids.is_a?(Array)
@@ -356,25 +916,25 @@ module Api
           }, status: :unprocessable_entity
         end
 
-        # Validate contact_types is valid
-        if contact_types.blank? || !contact_types.is_a?(Array)
+        # Validate roles is valid
+        if roles.blank? || !roles.is_a?(Array)
           return render json: {
             success: false,
-            error: "contact_types must be a non-empty array"
+            error: "roles must be a non-empty array"
           }, status: :unprocessable_entity
         end
 
-        invalid_types = contact_types - Contact::CONTACT_TYPES
-        if invalid_types.any?
+        invalid_roles = roles - Contact::ROLES
+        if invalid_roles.any?
           return render json: {
             success: false,
-            error: "Invalid contact types: #{invalid_types.join(', ')}"
+            error: "Invalid roles: #{invalid_roles.join(', ')}"
           }, status: :unprocessable_entity
         end
 
         # Update all contacts in a single query using update_all for performance
         # This bypasses validations and callbacks but is much faster for bulk operations
-        updated_count = Contact.where(id: contact_ids).update_all(contact_types: contact_types)
+        updated_count = Contact.where(id: contact_ids).update_all(roles: roles)
 
         if updated_count > 0
           render json: {
@@ -395,9 +955,194 @@ module Api
         }, status: :internal_server_error
       end
 
+      # POST /api/v1/contacts/fix_name_casing
+      # Auto-fix name casing issues by converting to Title Case
+      # Params:
+      #   contact_ids: Array of contact IDs to fix
+      #   fix_type: 'all_caps' or 'all_lowercase' (determines which names to fix)
+
+      def fix_name_casing
+        contact_ids = params[:contact_ids]
+        fix_type = params[:fix_type] || "all"
+
+        if contact_ids.blank? || !contact_ids.is_a?(Array)
+          return render json: {
+            success: false,
+            error: "contact_ids must be a non-empty array"
+          }, status: :unprocessable_entity
+        end
+
+        fixed_count = 0
+        errors = []
+
+        Contact.where(id: contact_ids).find_each do |contact|
+          begin
+            changes = {}
+
+            # Fix first_name if needed
+            if contact.first_name.present?
+              if fix_type == "all_caps" && contact.first_name == contact.first_name.upcase && contact.first_name != contact.first_name.downcase
+                changes[:first_name] = titleize_name(contact.first_name)
+              elsif fix_type == "all_lowercase" && contact.first_name == contact.first_name.downcase && contact.first_name =~ /[a-z]/
+                changes[:first_name] = titleize_name(contact.first_name)
+              elsif fix_type == "all"
+                # Fix both cases
+                if (contact.first_name == contact.first_name.upcase && contact.first_name != contact.first_name.downcase) ||
+                   (contact.first_name == contact.first_name.downcase && contact.first_name =~ /[a-z]/)
+                  changes[:first_name] = titleize_name(contact.first_name)
+                end
+              end
+            end
+
+            # Fix last_name if needed
+            if contact.last_name.present?
+              if fix_type == "all_caps" && contact.last_name == contact.last_name.upcase && contact.last_name != contact.last_name.downcase
+                changes[:last_name] = titleize_name(contact.last_name)
+              elsif fix_type == "all_lowercase" && contact.last_name == contact.last_name.downcase && contact.last_name =~ /[a-z]/
+                changes[:last_name] = titleize_name(contact.last_name)
+              elsif fix_type == "all"
+                # Fix both cases
+                if (contact.last_name == contact.last_name.upcase && contact.last_name != contact.last_name.downcase) ||
+                   (contact.last_name == contact.last_name.downcase && contact.last_name =~ /[a-z]/)
+                  changes[:last_name] = titleize_name(contact.last_name)
+                end
+              end
+            end
+
+            # Fix middle_name if needed
+            if contact.middle_name.present?
+              if fix_type == "all_caps" && contact.middle_name == contact.middle_name.upcase && contact.middle_name != contact.middle_name.downcase
+                changes[:middle_name] = titleize_name(contact.middle_name)
+              elsif fix_type == "all_lowercase" && contact.middle_name == contact.middle_name.downcase && contact.middle_name =~ /[a-z]/
+                changes[:middle_name] = titleize_name(contact.middle_name)
+              elsif fix_type == "all"
+                # Fix both cases
+                if (contact.middle_name == contact.middle_name.upcase && contact.middle_name != contact.middle_name.downcase) ||
+                   (contact.middle_name == contact.middle_name.downcase && contact.middle_name =~ /[a-z]/)
+                  changes[:middle_name] = titleize_name(contact.middle_name)
+                end
+              end
+            end
+
+            if changes.any?
+              contact.update!(changes)
+              fixed_count += 1
+            end
+          rescue => e
+            errors << { id: contact.id, error: e.message }
+          end
+        end
+
+        render json: {
+          success: true,
+          fixed_count: fixed_count,
+          errors: errors,
+          message: "Fixed name casing for #{fixed_count} contact#{fixed_count == 1 ? '' : 's'}"
+        }
+      rescue => e
+        render json: {
+          success: false,
+          error: "Failed to fix name casing: #{e.message}"
+        }, status: :internal_server_error
+      end
+
+      # POST /api/v1/contacts/fix_email_assignment
+      # Fix mixed entity type duplicate emails:
+      # - Keep email on the person contact
+      # - Clear email from company/trust contacts
+      # - Create employment relationships linking person to companies
+
+      def fix_email_assignment
+        person_id = params[:person_id]
+        company_ids = params[:company_ids]
+
+        if person_id.blank? || company_ids.blank? || !company_ids.is_a?(Array)
+          return render json: {
+            success: false,
+            error: "person_id and company_ids (array) are required"
+          }, status: :unprocessable_entity
+        end
+
+        person = Contact.find(person_id)
+        companies = Contact.where(id: company_ids)
+
+        # Validate person is actually a person
+        unless person.entity_type == "person"
+          return render json: {
+            success: false,
+            error: "Contact #{person_id} is not a person (entity_type: #{person.entity_type})"
+          }, status: :unprocessable_entity
+        end
+
+        # Validate companies are actually companies/trusts
+        invalid_companies = companies.reject { |c| %w[company trust sole_trader].include?(c.entity_type) }
+        if invalid_companies.any?
+          return render json: {
+            success: false,
+            error: "Some contacts are not companies/trusts: #{invalid_companies.map(&:id).join(', ')}"
+          }, status: :unprocessable_entity
+        end
+
+        results = {
+          email_cleared: [],
+          employments_created: [],
+          errors: []
+        }
+
+        ActiveRecord::Base.transaction do
+          companies.each do |company|
+            begin
+              # Clear email from company
+              old_email = company.email
+              company.update!(email: nil)
+              results[:email_cleared] << { id: company.id, name: company.display_name, old_email: old_email }
+
+              # Create employee_of relationship if it doesn't exist
+              unless ContactRelationship.exists?(source_contact_id: person.id, related_contact_id: company.id, relationship_type: "employee_of")
+                ContactRelationship.create!(
+                  source_contact_id: person.id,
+                  related_contact_id: company.id,
+                  relationship_type: "employee_of",
+                  is_active: true
+                )
+                results[:employments_created] << { person_id: person.id, company_id: company.id, company_name: company.display_name }
+              end
+            rescue => e
+              results[:errors] << { company_id: company.id, error: e.message }
+              raise ActiveRecord::Rollback
+            end
+          end
+        end
+
+        if results[:errors].any?
+          render json: {
+            success: false,
+            error: "Failed to fix email assignment",
+            details: results[:errors]
+          }, status: :unprocessable_entity
+        else
+          render json: {
+            success: true,
+            message: "Fixed email assignment: cleared email from #{results[:email_cleared].size} companies, created #{results[:employments_created].size} employment relationships",
+            results: results
+          }
+        end
+      rescue ActiveRecord::RecordNotFound => e
+        render json: {
+          success: false,
+          error: "Contact not found: #{e.message}"
+        }, status: :not_found
+      rescue => e
+        render json: {
+          success: false,
+          error: "Failed to fix email assignment: #{e.message}"
+        }, status: :internal_server_error
+      end
+
       # POST /api/v1/contacts/match_supplier
       # DEPRECATED: This endpoint was for migrating suppliers table to contacts.
       # The suppliers table has been removed - all suppliers are now contacts with type='supplier'.
+
       def match_supplier
         render json: {
           success: false,
@@ -406,518 +1151,7 @@ module Api
       end
 
       # GET /api/v1/contacts/:id/categories
-      def categories
-        contact = Contact.find(params[:id])
 
-        unless contact.is_supplier?
-          return render json: {
-            success: false,
-            error: "Contact must be a supplier"
-          }, status: :unprocessable_entity
-        end
-
-        # Get distinct categories from pricebook items where this contact is the default supplier
-        # or has provided price histories
-        categories_from_default = PricebookItem.where(default_supplier_id: contact.id)
-                                              .where.not(category: nil)
-                                              .distinct
-                                              .pluck(:category)
-
-        categories_from_histories = PricebookItem.joins(:price_histories)
-                                                .where(price_histories: { supplier_id: contact.id })
-                                                .where.not(category: nil)
-                                                .distinct
-                                                .pluck(:category)
-
-        all_categories = (categories_from_default + categories_from_histories).uniq.sort
-
-        # Get item counts per category
-        categories_with_counts = all_categories.map do |category|
-          default_count = PricebookItem.where(default_supplier_id: contact.id, category: category).count
-          history_count = PricebookItem.joins(:price_histories)
-                                      .where(price_histories: { supplier_id: contact.id })
-                                      .where(category: category)
-                                      .distinct
-                                      .count
-
-          {
-            category: category,
-            default_supplier_count: default_count,
-            price_history_count: history_count,
-            total_count: [default_count, history_count].max
-          }
-        end
-
-        render json: {
-          success: true,
-          categories: categories_with_counts
-        }
-      rescue ActiveRecord::RecordNotFound => e
-        render json: {
-          success: false,
-          error: "Contact not found: #{e.message}"
-        }, status: :not_found
-      rescue => e
-        render json: {
-          success: false,
-          error: "Failed to fetch categories: #{e.message}"
-        }, status: :internal_server_error
-      end
-
-      # POST /api/v1/contacts/:id/copy_price_history
-      def copy_price_history
-        source_id = params[:source_id]
-        categories = params[:categories] # Optional array of categories to filter by
-        set_as_default = params[:set_as_default] != false # Default to true unless explicitly false
-        effective_date = params[:effective_date].present? ? Date.parse(params[:effective_date]) : CompanySetting.today
-
-        # Which price to copy: 'active' (default), 'latest', or 'oldest'
-        # - active: Most recent date_effective (current active price)
-        # - latest: Most recently created price history
-        # - oldest: Oldest price history (original price)
-        copy_mode = params[:copy_mode].presence || 'active'
-
-        Rails.logger.info "===== COPY PRICE HISTORY DEBUG ====="
-        Rails.logger.info "params[:effective_date] = #{params[:effective_date].inspect}"
-        Rails.logger.info "effective_date after parsing = #{effective_date.inspect}"
-        Rails.logger.info "copy_mode = #{copy_mode.inspect}"
-        Rails.logger.info "======================================="
-
-        if source_id.blank?
-          return render json: {
-            success: false,
-            error: "source_id is required"
-          }, status: :bad_request
-        end
-
-        target_contact = Contact.find(params[:id])
-        source_contact = Contact.find(source_id)
-
-        unless target_contact.is_supplier? || source_contact.is_supplier?
-          return render json: {
-            success: false,
-            error: "Both contacts must be suppliers"
-          }, status: :unprocessable_entity
-        end
-
-        copied_count = 0
-        updated_count = 0
-
-        ActiveRecord::Base.transaction do
-          # Get all pricebook items that have price histories from the source supplier
-          # Order depends on copy_mode parameter
-          order_clause = case copy_mode
-          when 'latest'
-            'pricebook_item_id, created_at DESC'
-          when 'oldest'
-            'pricebook_item_id, created_at ASC'
-          else # 'active' (default)
-            'pricebook_item_id, date_effective DESC NULLS LAST, created_at DESC'
-          end
-
-          source_price_histories = PriceHistory.where(supplier_id: source_id)
-            .joins(:pricebook_item)
-            .select('DISTINCT ON (pricebook_item_id) price_histories.*')
-            .order(order_clause)
-
-          # Filter by categories if provided
-          # Note: PricebookItem uses table_name = 'pricebook', not 'pricebook_items'
-          if categories.present? && categories.is_a?(Array) && categories.any?
-            source_price_histories = source_price_histories.where(pricebook: { category: categories })
-          end
-
-          source_price_histories.each do |selected_price_history|
-            item = selected_price_history.pricebook_item
-
-            # Only set target as the new default supplier if requested
-            if set_as_default
-              item.update!(default_supplier_id: target_contact.id)
-              updated_count += 1
-            end
-
-            # Check if target already has a price history with the same price and effective date
-            # This prevents exact duplicates but allows new price histories with different dates
-            existing_history = PriceHistory.where(
-              pricebook_item_id: item.id,
-              supplier_id: target_contact.id,
-              new_price: selected_price_history.new_price,
-              date_effective: effective_date
-            ).exists?
-
-            # Only create if this exact price/date combination doesn't exist
-            unless existing_history
-              PriceHistory.create!(
-                pricebook_item_id: item.id,
-                old_price: selected_price_history.old_price,
-                new_price: selected_price_history.new_price,
-                supplier_id: target_contact.id,
-                lga: selected_price_history.lga,
-                date_effective: effective_date,
-                change_reason: "Copied from #{source_contact.full_name}"
-              )
-              copied_count += 1
-            end
-          end
-        end
-
-        category_msg = if categories.present? && categories.any?
-          " for #{categories.join(', ')} categories"
-        else
-          ""
-        end
-
-        message = if set_as_default
-          "Copied #{copied_count} price histories and set as default supplier for #{updated_count} items#{category_msg}"
-        else
-          "Copied #{copied_count} price histories#{category_msg}"
-        end
-
-        render json: {
-          success: true,
-          message: message,
-          copied_count: copied_count,
-          updated_count: updated_count,
-          source_contact: source_contact.full_name,
-          target_contact: target_contact.full_name,
-          categories: categories || [],
-          set_as_default: set_as_default
-        }
-      rescue ActiveRecord::RecordNotFound => e
-        render json: {
-          success: false,
-          error: "Contact not found: #{e.message}"
-        }, status: :not_found
-      rescue => e
-        render json: {
-          success: false,
-          error: "Failed to copy price history: #{e.message}"
-        }, status: :internal_server_error
-      end
-
-      # DELETE /api/v1/contacts/:id/remove_from_categories
-      def remove_from_categories
-        categories = params[:categories] # Array of categories to remove supplier from
-
-        if categories.blank? || !categories.is_a?(Array) || categories.empty?
-          return render json: {
-            success: false,
-            error: "categories (array) is required"
-          }, status: :bad_request
-        end
-
-        contact = Contact.find(params[:id])
-
-        unless contact.is_supplier?
-          return render json: {
-            success: false,
-            error: "Contact must be a supplier"
-          }, status: :unprocessable_entity
-        end
-
-        removed_from_default_count = 0
-        deleted_price_histories_count = 0
-
-        ActiveRecord::Base.transaction do
-          # Find all pricebook items where this contact is the default supplier
-          # and the category is in the provided list
-          default_supplier_items = PricebookItem.where(
-            default_supplier_id: contact.id,
-            category: categories
-          )
-
-          default_supplier_items.each do |item|
-            # Set default_supplier_id to nil (unset the supplier)
-            item.update!(default_supplier_id: nil)
-            removed_from_default_count += 1
-          end
-
-          # Delete all price histories for this supplier in the selected categories
-          # This removes the supplier's pricing from items even if they weren't the default
-          # Note: PricebookItem uses table_name = 'pricebook', not 'pricebook_items'
-          price_histories_to_delete = PriceHistory.joins(:pricebook_item)
-            .where(supplier_id: contact.id)
-            .where(pricebook: { category: categories })
-
-          deleted_price_histories_count = price_histories_to_delete.count
-          price_histories_to_delete.delete_all
-        end
-
-        message_parts = []
-        message_parts << "Removed as default supplier from #{removed_from_default_count} items" if removed_from_default_count > 0
-        message_parts << "Deleted #{deleted_price_histories_count} price histories" if deleted_price_histories_count > 0
-
-        message = if message_parts.any?
-          "#{message_parts.join(' and ')} in #{categories.join(', ')}"
-        else
-          "No items or price histories found for this supplier in #{categories.join(', ')}"
-        end
-
-        render json: {
-          success: true,
-          message: message,
-          removed_from_default_count: removed_from_default_count,
-          deleted_price_histories_count: deleted_price_histories_count,
-          categories: categories
-        }
-      rescue ActiveRecord::RecordNotFound => e
-        render json: {
-          success: false,
-          error: "Contact not found: #{e.message}"
-        }, status: :not_found
-      rescue => e
-        render json: {
-          success: false,
-          error: "Failed to remove from categories: #{e.message}"
-        }, status: :internal_server_error
-      end
-
-      # POST /api/v1/contacts/merge
-      def merge
-        target_id = params[:target_id]
-        source_ids = params[:source_ids]
-
-        if target_id.blank? || source_ids.blank? || !source_ids.is_a?(Array)
-          return render json: {
-            success: false,
-            error: "target_id and source_ids (array) are required"
-          }, status: :bad_request
-        end
-
-        target_contact = Contact.find(target_id)
-        source_contacts = Contact.where(id: source_ids)
-
-        if source_contacts.empty?
-          return render json: {
-            success: false,
-            error: "No source contacts found"
-          }, status: :not_found
-        end
-
-        ActiveRecord::Base.transaction do
-          source_contacts.each do |source|
-            # Merge contact types
-            merged_types = (target_contact.contact_types + source.contact_types).uniq
-            target_contact.update(contact_types: merged_types)
-
-            # Fill in missing contact information from source if target is missing it
-            target_contact.update(email: source.email) if target_contact.email.blank? && source.email.present?
-            target_contact.update(mobile_phone: source.mobile_phone) if target_contact.mobile_phone.blank? && source.mobile_phone.present?
-            target_contact.update(office_phone: source.office_phone) if target_contact.office_phone.blank? && source.office_phone.present?
-            target_contact.update(website: source.website) if target_contact.website.blank? && source.website.present?
-            target_contact.update(address: source.address) if target_contact.address.blank? && source.address.present?
-
-            # Merge supplier-specific fields (if both are suppliers)
-            if source.is_supplier? && target_contact.is_supplier?
-              # Keep the better rating
-              if source.rating.to_i > target_contact.rating.to_i
-                target_contact.update(rating: source.rating)
-              end
-              # Combine notes if both have them
-              if source.notes.present? && target_contact.notes.present?
-                target_contact.update(notes: "#{target_contact.notes}\n\n--- Merged from contact ##{source.id} ---\n#{source.notes}")
-              elsif source.notes.present?
-                target_contact.update(notes: source.notes)
-              end
-            end
-
-            # Update foreign keys from source to target
-            # These associations now point directly to contacts (supplier_id = contact_id after migration)
-            PricebookItem.where(supplier_id: source.id).update_all(supplier_id: target_id)
-            PurchaseOrder.where(supplier_id: source.id).update_all(supplier_id: target_id)
-            PriceHistory.where(supplier_id: source.id).update_all(supplier_id: target_id)
-
-            # Delete the source contact
-            source.destroy
-          end
-        end
-
-        render json: {
-          success: true,
-          message: "Successfully merged #{source_contacts.count} contact(s) into #{target_contact.full_name}",
-          contact: target_contact.as_json(
-            only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :contact_types]
-          )
-        }
-      rescue ActiveRecord::RecordNotFound => e
-        render json: {
-          success: false,
-          error: "Contact not found: #{e.message}"
-        }, status: :not_found
-      rescue => e
-        render json: {
-          success: false,
-          error: "Failed to merge contacts: #{e.message}"
-        }, status: :internal_server_error
-      end
-
-      # POST /api/v1/contacts/:id/bulk_update_prices
-      def bulk_update_prices
-        updates = params[:updates] # Array of {item_id, new_price, change_reason, date_effective}
-
-        if updates.blank? || !updates.is_a?(Array) || updates.empty?
-          return render json: {
-            success: false,
-            error: "updates (array) is required and must not be empty"
-          }, status: :bad_request
-        end
-
-        contact = Contact.find(params[:id])
-
-        unless contact.is_supplier?
-          return render json: {
-            success: false,
-            error: "Contact must be a supplier"
-          }, status: :unprocessable_entity
-        end
-
-        updated_count = 0
-        errors = []
-
-        ActiveRecord::Base.transaction do
-          updates.each do |update|
-            item_id = update[:item_id]
-            new_price = update[:new_price].to_f
-            change_reason = update[:change_reason].presence || 'bulk_update'
-            date_effective = update[:date_effective].present? ? Date.parse(update[:date_effective].to_s) : CompanySetting.today
-
-            # Validate item exists
-            item = PricebookItem.find_by(id: item_id)
-            unless item
-              errors << "Item ID #{item_id} not found"
-              next
-            end
-
-            # Skip if new_price is invalid
-            if new_price <= 0
-              errors << "Invalid price for item #{item.item_code}"
-              next
-            end
-
-            # Get current user from session (if available)
-            current_user = nil # TODO: Implement user authentication
-            user_name = current_user&.name || 'System'
-
-            # Create price history entry
-            begin
-              PriceHistory.create!(
-                pricebook_item_id: item.id,
-                old_price: item.current_price,
-                new_price: new_price,
-                supplier_id: contact.id,
-                date_effective: date_effective,
-                change_reason: change_reason,
-                changed_by_user_id: current_user&.id,
-                user_name: user_name
-              )
-
-              # Update item's current price if this is the default supplier
-              if item.default_supplier_id == contact.id
-                item.update!(
-                  current_price: new_price,
-                  price_last_updated_at: Time.current
-                )
-              end
-
-              updated_count += 1
-            rescue ActiveRecord::RecordInvalid => e
-              errors << "Failed to update #{item.item_code}: #{e.message}"
-            end
-          end
-        end
-
-        if errors.any?
-          render json: {
-            success: false,
-            error: "Some prices failed to update",
-            errors: errors,
-            updated_count: updated_count
-          }, status: :unprocessable_entity
-        else
-          render json: {
-            success: true,
-            message: "Successfully updated #{updated_count} price#{updated_count == 1 ? '' : 's'}",
-            updated_count: updated_count
-          }
-        end
-      rescue ActiveRecord::RecordNotFound => e
-        render json: {
-          success: false,
-          error: "Contact not found: #{e.message}"
-        }, status: :not_found
-      rescue => e
-        render json: {
-          success: false,
-          error: "Failed to bulk update prices: #{e.message}"
-        }, status: :internal_server_error
-      end
-
-      # DELETE /api/v1/contacts/:id/delete_price_column
-      def delete_price_column
-        # Handle both nested and top-level params (Rails sometimes nests query params)
-        date_effective = params[:date_effective] || params.dig(:params, :date_effective)
-
-        if date_effective.blank?
-          return render json: {
-            success: false,
-            error: "date_effective is required"
-          }, status: :bad_request
-        end
-
-        contact = Contact.find(params[:id])
-
-        unless contact.is_supplier?
-          return render json: {
-            success: false,
-            error: "Contact must be a supplier"
-          }, status: :unprocessable_entity
-        end
-
-        deleted_count = 0
-
-        ActiveRecord::Base.transaction do
-          # Find all price histories for this supplier with the specific effective date
-          price_histories = PriceHistory.where(
-            supplier_id: contact.id,
-            date_effective: Date.parse(date_effective.to_s)
-          )
-
-          deleted_count = price_histories.count
-          price_histories.destroy_all
-        end
-
-        render json: {
-          success: true,
-          message: "Successfully deleted #{deleted_count} price #{deleted_count == 1 ? 'history' : 'histories'} for date #{date_effective}",
-          deleted_count: deleted_count
-        }
-      rescue ActiveRecord::RecordNotFound => e
-        render json: {
-          success: false,
-          error: "Contact not found: #{e.message}"
-        }, status: :not_found
-      rescue => e
-        render json: {
-          success: false,
-          error: "Failed to delete price column: #{e.message}"
-        }, status: :internal_server_error
-      end
-
-      # GET /api/v1/contacts/validate_abn?abn=12345678901
-      def validate_abn
-        abn = params[:abn]
-
-        if abn.blank?
-          return render json: {
-            valid: false,
-            error: "ABN is required"
-          }
-        end
-
-        result = AbnLookupService.validate(abn)
-        render json: result
-      end
-
-      # GET /api/v1/contacts/:id/activities
       def activities
         # Get contact activities
         contact_activities = @contact.contact_activities.recent.limit(50).map do |activity|
@@ -936,7 +1170,7 @@ module Api
         sms_messages = @contact.sms_messages.recent.limit(50).map do |sms|
           {
             id: "sms_#{sms.id}",
-            activity_type: sms.direction == 'outbound' ? 'sms_sent' : 'sms_received',
+            activity_type: sms.direction == "outbound" ? "sms_sent" : "sms_received",
             description: "SMS #{sms.direction == 'outbound' ? 'sent to' : 'received from'} #{sms.direction == 'outbound' ? sms.to_phone : sms.from_phone}: #{sms.body.truncate(100)}",
             metadata: {
               sms_id: sms.id,
@@ -959,357 +1193,12 @@ module Api
         }
       end
 
-      # POST /api/v1/contacts/:id/link_xero_contact
-      # Manually link a TEEEM contact to a Xero contact
-      def link_xero_contact
-        xero_id = params[:xero_id]
-
-        if xero_id.blank?
-          return render json: {
-            success: false,
-            error: "xero_id is required"
-          }, status: :bad_request
-        end
-
-        begin
-          # Fetch the Xero contact to verify it exists and get its details
-          client = XeroApiClient.new
-          result = client.get("Contacts/#{xero_id}")
-
-          unless result[:success]
-            return render json: {
-              success: false,
-              error: "Failed to fetch Xero contact"
-            }, status: :unprocessable_entity
-          end
-
-          xero_contact = result[:data]['Contacts']&.first
-
-          unless xero_contact
-            return render json: {
-              success: false,
-              error: "Xero contact not found"
-            }, status: :not_found
-          end
-
-          # Update the contact with the Xero ID and sync timestamp
-          @contact.update!(
-            xero_id: xero_contact['ContactID'],
-            last_synced_at: Time.current,
-            xero_sync_error: nil,
-            sync_with_xero: true
-          )
-
-          # Log the manual link activity
-          ContactActivity.create!(
-            contact: @contact,
-            activity_type: 'linked_to_xero',
-            description: "Manually linked to Xero contact: #{xero_contact['Name']}",
-            metadata: {
-              xero_contact_id: xero_contact['ContactID'],
-              xero_contact_name: xero_contact['Name'],
-              linked_via: 'manual'
-            },
-            performed_by: @contact,
-            occurred_at: Time.current
-          )
-
-          render json: {
-            success: true,
-            message: "Successfully linked contact to Xero: #{xero_contact['Name']}",
-            contact: @contact.as_json(
-              only: [:id, :full_name, :xero_id, :last_synced_at, :sync_with_xero]
-            ),
-            xero_contact: {
-              xero_id: xero_contact['ContactID'],
-              name: xero_contact['Name'],
-              email: xero_contact['EmailAddress'],
-              tax_number: xero_contact['TaxNumber']
-            }
-          }
-        rescue ActiveRecord::RecordInvalid => e
-          render json: {
-            success: false,
-            error: "Failed to link contact: #{e.message}"
-          }, status: :unprocessable_entity
-        rescue => e
-          Rails.logger.error("Link Xero contact error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Failed to link contact: #{e.message}"
-          }, status: :internal_server_error
-        end
-      end
-
-      # POST /api/v1/contacts/:id/sync_from_xero
-      # Sync a contact from Xero (pull data from Xero into TEEEM)
-      def sync_from_xero
-        tenant_id = params[:tenant_id]
-
-        # Find the xero link to sync from
-        link = if tenant_id.present?
-          @contact.xero_links.find_by(tenant_id: tenant_id)
-        else
-          @contact.xero_links.first
-        end
-
-        # Fall back to legacy xero_id if no link found
-        if link.nil? && @contact.xero_id.present?
-          # Create a temporary sync using the legacy xero_id
-          return sync_from_xero_legacy
-        end
-
-        unless link
-          return render json: {
-            success: false,
-            error: 'Contact is not linked to any Xero organization'
-          }, status: :unprocessable_entity
-        end
-
-        begin
-          sync_service = XeroContactSyncService.new(tenant_id: link.tenant_id)
-          result = sync_service.sync_from_xero(link)
-
-          if result[:success]
-            render json: {
-              success: true,
-              message: 'Contact synced from Xero successfully',
-              contact: result[:contact].as_json(
-                only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone,
-                       :xero_id, :last_synced_at, :sync_with_xero, :xero_sync_error,
-                       :tax_number, :bank_bsb, :bank_account_number, :bank_account_name,
-                       :accounts_payable_outstanding, :accounts_receivable_outstanding]
-              )
-            }
-          else
-            render json: {
-              success: false,
-              error: result[:error] || 'Sync failed'
-            }, status: :unprocessable_entity
-          end
-        rescue XeroApiClient::AuthenticationError => e
-          render json: {
-            success: false,
-            error: 'Not authenticated with Xero. Please reconnect.'
-          }, status: :unauthorized
-        rescue => e
-          Rails.logger.error("Sync from Xero error: #{e.message}\n#{e.backtrace.first(5).join("\n")}")
-          render json: {
-            success: false,
-            error: "Sync failed: #{e.message}"
-          }, status: :internal_server_error
-        end
-      end
-
-      # Legacy sync using xero_id field (for contacts not yet migrated to xero_links)
-      def sync_from_xero_legacy
-        client = XeroApiClient.new
-        result = client.get("Contacts/#{@contact.xero_id}")
-
-        unless result[:success]
-          return render json: {
-            success: false,
-            error: 'Failed to fetch contact from Xero'
-          }, status: :unprocessable_entity
-        end
-
-        xero_contact = result[:data]['Contacts']&.first
-
-        unless xero_contact
-          return render json: {
-            success: false,
-            error: 'Contact not found in Xero'
-          }, status: :not_found
-        end
-
-        # Update basic contact info from Xero
-        updates = {}
-        updates[:email] = xero_contact['EmailAddress'] if xero_contact['EmailAddress'].present?
-        updates[:tax_number] = xero_contact['TaxNumber'] if xero_contact['TaxNumber'].present?
-        updates[:last_synced_at] = Time.current
-        updates[:xero_sync_error] = nil
-
-        # Update phone numbers from Xero
-        phones = xero_contact['Phones'] || []
-        mobile = phones.find { |p| p['PhoneType'] == 'MOBILE' }
-        office = phones.find { |p| p['PhoneType'] == 'DEFAULT' }
-        updates[:mobile_phone] = mobile['PhoneNumber'] if mobile&.dig('PhoneNumber').present?
-        updates[:office_phone] = office['PhoneNumber'] if office&.dig('PhoneNumber').present?
-
-        # Update financial balances
-        if xero_contact['Balances']
-          ap = xero_contact.dig('Balances', 'AccountsPayable')
-          ar = xero_contact.dig('Balances', 'AccountsReceivable')
-          updates[:accounts_payable_outstanding] = ap['Outstanding'] if ap
-          updates[:accounts_payable_overdue] = ap['Overdue'] if ap
-          updates[:accounts_receivable_outstanding] = ar['Outstanding'] if ar
-          updates[:accounts_receivable_overdue] = ar['Overdue'] if ar
-        end
-
-        @contact.update!(updates)
-
-        # Sync addresses from Xero (two-way sync - TEEEM is source of truth)
-        sync_addresses_from_xero(xero_contact['Addresses'])
-
-        render json: {
-          success: true,
-          message: 'Contact synced from Xero successfully (legacy)',
-          contact: @contact.reload.as_json(
-            only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone,
-                   :xero_id, :last_synced_at, :sync_with_xero, :xero_sync_error,
-                   :tax_number, :accounts_payable_outstanding, :accounts_receivable_outstanding],
-            include: { contact_addresses: { only: [:id, :address_type, :line1, :line2, :line3, :line4, :city, :region, :postal_code, :country] } }
-          )
-        }
-      rescue => e
-        Rails.logger.error("Legacy sync from Xero error: #{e.message}")
-        render json: {
-          success: false,
-          error: "Sync failed: #{e.message}"
-        }, status: :internal_server_error
-      end
-
-      # POST /api/v1/contacts/:id/sync_to_xero
-      # Push contact changes from TEEEM to Xero
-      def sync_to_xero
-        tenant_id = params[:tenant_id]
-
-        # Find the xero link to sync to
-        link = if tenant_id.present?
-          @contact.xero_links.find_by(tenant_id: tenant_id)
-        else
-          @contact.xero_links.first
-        end
-
-        unless link&.external_contact_id.present?
-          return render json: {
-            success: false,
-            error: 'Contact is not linked to any Xero organization'
-          }, status: :unprocessable_entity
-        end
-
-        begin
-          sync_service = XeroContactSyncService.new(tenant_id: link.tenant_id)
-          result = sync_service.sync_to_xero(@contact, link)
-
-          if result[:success]
-            render json: {
-              success: true,
-              message: 'Contact pushed to Xero successfully',
-              contact: @contact.reload.as_json(
-                only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone,
-                       :xero_id, :last_synced_at, :sync_with_xero, :xero_sync_error,
-                       :tax_number, :bank_bsb, :bank_account_number, :bank_account_name]
-              )
-            }
-          else
-            render json: {
-              success: false,
-              error: result[:error] || 'Failed to push contact to Xero'
-            }, status: :unprocessable_entity
-          end
-        rescue XeroApiClient::AuthenticationError => e
-          render json: {
-            success: false,
-            error: 'Not authenticated with Xero. Please reconnect.'
-          }, status: :unauthorized
-        rescue => e
-          Rails.logger.error("Sync to Xero error: #{e.message}\n#{e.backtrace.first(5).join("\n")}")
-          render json: {
-            success: false,
-            error: "Sync failed: #{e.message}"
-          }, status: :internal_server_error
-        end
-      end
-
-      # POST /api/v1/contacts/:id/portal_user
-      def create_portal_user
-        portal_type = params[:portal_type] || 'supplier'
-        email = params[:email]
-        password = params[:password]
-
-        if email.blank? || password.blank?
-          return render json: {
-            success: false,
-            error: "Email and password are required"
-          }, status: :unprocessable_entity
-        end
-
-        begin
-          @contact.enable_portal!(portal_type, email: email, password: password)
-
-          # Note: Password should be displayed to user immediately in the UI
-          # and then securely transmitted separately (e.g., via email)
-          # We no longer return it in the API response for security
-          render json: {
-            success: true,
-            portal_user: @contact.portal_user.as_json(only: [:id, :email, :portal_type, :active, :created_at]),
-            message: 'Portal access enabled successfully. Password has been set.'
-          }
-        rescue => e
-          render json: {
-            success: false,
-            error: e.message
-          }, status: :unprocessable_entity
-        end
-      end
-
-      # PATCH /api/v1/contacts/:id/portal_user
-      def update_portal_user
-        portal_user = @contact.portal_user
-
-        unless portal_user
-          return render json: {
-            success: false,
-            error: "No portal user exists for this contact"
-          }, status: :not_found
-        end
-
-        update_params = {}
-        update_params[:email] = params[:email] if params[:email].present?
-        update_params[:password] = params[:password] if params[:password].present?
-        update_params[:portal_type] = params[:portal_type] if params[:portal_type].present?
-        update_params[:active] = params[:active] unless params[:active].nil?
-
-        if portal_user.update(update_params)
-          response_data = {
-            success: true,
-            portal_user: portal_user.as_json(only: [:id, :email, :portal_type, :active, :created_at])
-          }
-          # Add message if password was changed
-          if params[:password].present?
-            response_data[:message] = 'Portal user updated successfully. Password has been changed.'
-          end
-          render json: response_data
-        else
-          render json: {
-            success: false,
-            errors: portal_user.errors.full_messages
-          }, status: :unprocessable_entity
-        end
-      end
-
-      # DELETE /api/v1/contacts/:id/portal_user
-      def delete_portal_user
-        portal_user = @contact.portal_user
-
-        unless portal_user
-          return render json: {
-            success: false,
-            error: "No portal user exists for this contact"
-          }, status: :not_found
-        end
-
-        portal_user.destroy
-        @contact.update(portal_enabled: false)
-
-        render json: {
-          success: true,
-          message: "Portal user deleted successfully"
-        }
-      end
+      # Portal User Management methods extracted to:
+      # concerns/contacts/portal_user_management.rb
+      # Methods: create_portal_user, update_portal_user, delete_portal_user
 
       # GET /api/v1/contacts/:id/internal_messages
+
       def internal_messages
         # TODO: Implement internal messages functionality
         # For now, return an empty array to prevent frontend errors
@@ -1324,203 +1213,169 @@ module Api
         }, status: :internal_server_error
       end
 
-      # GET /api/v1/contacts/possible_duplicates
-      # Find contacts that might be duplicates based on name matching
-      def possible_duplicates
-        duplicates = []
+      # GET /api/v1/contacts/:id/company_group_memberships
+      # Returns all corporate group memberships for this contact
 
-        # Find contacts with similar full_name (case insensitive, ignoring extra whitespace)
-        # Group by normalized name
-        contacts_by_name = Contact.where(deleted: [false, nil])
-          .select(:id, :full_name, :first_name, :last_name, :email, :entity_type, :contact_types, :xero_id)
-          .group_by { |c| normalize_name(c.full_name) }
-
-        contacts_by_name.each do |normalized_name, contacts|
-          next if normalized_name.blank?
-          next if contacts.size < 2
-
-          # This is a potential duplicate group
-          duplicates << {
-            match_type: 'full_name',
-            match_value: normalized_name,
-            contacts: contacts.map { |c| contact_duplicate_json(c) }
+      def entity_types
+        # Entity type metadata for UI display
+        entity_type_metadata = {
+          "person" => {
+            value: "person",
+            label: "Person",
+            description: "Individual contact",
+            icon: "user",
+            has_first_last_name: true,
+            can_have_employer: true,
+            can_have_employees: false,
+            show_in_create_form: true
+          },
+          "company" => {
+            value: "company",
+            label: "Company",
+            description: "Business entity (Pty Ltd, Ltd, Inc)",
+            icon: "building",
+            has_first_last_name: false,
+            can_have_employer: false,
+            can_have_employees: true,
+            show_in_create_form: true
+          },
+          "sole_trader" => {
+            value: "sole_trader",
+            label: "Sole Trader",
+            description: "Individual trading as a business",
+            icon: "user",
+            has_first_last_name: true,
+            can_have_employer: false,
+            can_have_employees: true,
+            show_in_create_form: true
+          },
+          "trust" => {
+            value: "trust",
+            label: "Trust",
+            description: "Trust entity (Family Trust, Unit Trust)",
+            icon: "building",
+            has_first_last_name: false,
+            can_have_employer: false,
+            can_have_employees: true,
+            show_in_create_form: true
+          },
+          "price_only" => {
+            value: "price_only",
+            label: "Price Only",
+            description: "Contact used only for pricebook pricing (no other info)",
+            icon: "dollar",
+            has_first_last_name: false,
+            can_have_employer: false,
+            can_have_employees: false,
+            show_in_create_form: false  # Legacy/internal type - don't show in create form
           }
-        end
-
-        # Also check for first_name + last_name combinations that match
-        contacts_by_first_last = Contact.where(deleted: [false, nil])
-          .where.not(first_name: [nil, ''])
-          .where.not(last_name: [nil, ''])
-          .select(:id, :full_name, :first_name, :last_name, :email, :entity_type, :contact_types, :xero_id)
-          .group_by { |c| "#{normalize_name(c.first_name)}|#{normalize_name(c.last_name)}" }
-
-        contacts_by_first_last.each do |name_key, contacts|
-          next if name_key.blank? || name_key == '|'
-          next if contacts.size < 2
-
-          # Check if we already have this group from full_name matching
-          first_ids = contacts.map(&:id).sort
-          already_found = duplicates.any? do |d|
-            d[:contacts].map { |c| c[:id] }.sort == first_ids
-          end
-          next if already_found
-
-          duplicates << {
-            match_type: 'first_last_name',
-            match_value: name_key.gsub('|', ' '),
-            contacts: contacts.map { |c| contact_duplicate_json(c) }
-          }
-        end
-
-        # Check for same email (different contacts with same email)
-        contacts_by_email = Contact.where(deleted: [false, nil])
-          .where.not(email: [nil, ''])
-          .select(:id, :full_name, :first_name, :last_name, :email, :entity_type, :contact_types, :xero_id)
-          .group_by { |c| c.email&.downcase&.strip }
-
-        contacts_by_email.each do |email, contacts|
-          next if email.blank?
-          next if contacts.size < 2
-
-          # Check if we already have this group
-          email_ids = contacts.map(&:id).sort
-          already_found = duplicates.any? do |d|
-            d[:contacts].map { |c| c[:id] }.sort == email_ids
-          end
-          next if already_found
-
-          duplicates << {
-            match_type: 'email',
-            match_value: email,
-            contacts: contacts.map { |c| contact_duplicate_json(c) }
-          }
-        end
-
-        # Sort by number of potential duplicates (most first)
-        duplicates.sort_by! { |d| -d[:contacts].size }
+        }
 
         render json: {
           success: true,
-          total_duplicate_groups: duplicates.size,
-          total_contacts_involved: duplicates.sum { |d| d[:contacts].size },
-          duplicates: duplicates
+          entity_types: Contact::ENTITY_TYPES,
+          metadata: Contact::ENTITY_TYPES.map { |type| entity_type_metadata[type] }
         }
-      rescue => e
-        Rails.logger.error("Possible duplicates error: #{e.message}")
-        render json: {
-          success: false,
-          error: "Failed to find possible duplicates: #{e.message}"
-        }, status: :internal_server_error
       end
+
+      # GET /api/v1/contacts/employment_statuses
+      # SSoT: Returns valid employment statuses from Contact::EMPLOYMENT_STATUSES
+
+      def employment_statuses
+        render json: {
+          success: true,
+          employment_statuses: Contact::EMPLOYMENT_STATUSES,
+          metadata: Contact::EMPLOYMENT_STATUSES.map { |status|
+            {
+              value: status,
+              label: status.titleize
+            }
+          }
+        }
+      end
+
+      # GET /api/v1/contacts/roles
+      # SSoT: Returns valid roles from Contact::ROLES
+
+      def roles
+        render json: {
+          success: true,
+          roles: Contact::ROLES,
+          metadata: Contact::ROLES.map { |role|
+            {
+              value: role,
+              label: role.titleize.gsub("_", " ")
+            }
+          }
+        }
+      end
+
+      # GET /api/v1/contacts/invalid_entity_types
+      # Health check: Find contacts with invalid entity_type values
 
       private
 
-      def normalize_name(name)
-        return nil if name.blank?
-        name.to_s.downcase.gsub(/\s+/, ' ').strip
+      def titleize_name(name)
+        return name if name.blank?
+
+        # Split by spaces and titleize each word
+        name.split(/\s+/).map do |word|
+          # Handle names with apostrophes like O'Brien
+          if word.include?("'")
+            word.split("'").map(&:capitalize).join("'")
+          else
+            word.capitalize
+          end
+        end.join(" ")
       end
 
-      # Find all contact IDs that are possible duplicates (share normalized name with another contact)
-      def find_duplicate_contact_ids
-        contacts_by_name = Contact.where(deleted: [false, nil])
-          .select(:id, :full_name)
-          .group_by { |c| normalize_name(c.full_name) }
-
-        duplicate_ids = []
-        contacts_by_name.each do |normalized_name, contacts|
-          next if normalized_name.blank?
-          next if contacts.size < 2
-          duplicate_ids.concat(contacts.map(&:id))
-        end
-        duplicate_ids
-      end
-
-      def contact_duplicate_json(contact)
-        {
-          id: contact.id,
-          full_name: contact.full_name,
-          first_name: contact.first_name,
-          last_name: contact.last_name,
-          email: contact.email,
-          entity_type: contact.entity_type,
-          contact_types: contact.contact_types,
-          has_xero: contact.xero_id.present?
-        }
-      end
 
       def set_contact
         id_or_slug = params[:id]
 
+        # Eager load associations for show action to avoid N+1 queries
+        # This reduces the show action from ~500ms to ~50ms
+        eager_load_associations = if action_name == "show"
+          [:contact_emails, :contact_phones, :contact_persons, :contact_addresses,
+           :contact_groups, :portal_user, :corporate_group]
+        else
+          []
+        end
+
+        # Build base query - only add includes if there are associations to load
+        base_query = eager_load_associations.any? ? Contact.includes(*eager_load_associations) : Contact
+
         if id_or_slug.to_s.match?(/\A\d+\z/)
           # Numeric ID - direct lookup
-          @contact = Contact.find(id_or_slug)
+          @contact = base_query.find(id_or_slug)
         else
           # Slug - search by name (convert slug back to search term)
           # Remove the _God_Loves_You_ suffix if present
-          slug = id_or_slug.to_s.gsub(/_God_Loves_You_$/i, '')
-          search_term = slug.gsub('-', ' ')
-          @contact = Contact.where('LOWER(full_name) LIKE ?', "%#{search_term.downcase}%").first
+          slug = id_or_slug.to_s.gsub(/_God_Loves_You_$/i, "")
+          search_term = slug.gsub("-", " ")
+
+          # Try exact substring match first
+          @contact = base_query
+                           .where("LOWER(display_name) LIKE ?", "%#{search_term.downcase}%").first
+
+          # If not found, try matching all words (handles middle names)
+          # e.g., "rachel harder" should match "Rachel Anne Harder"
+          unless @contact
+            words = search_term.downcase.split(/\s+/).reject(&:blank?)
+            if words.any?
+              conditions = words.map { |w| "LOWER(display_name) LIKE '%#{Contact.sanitize_sql_like(w)}%'" }.join(" AND ")
+              @contact = base_query.where(conditions).first
+            end
+          end
+
           raise ActiveRecord::RecordNotFound, "Contact not found with slug: #{id_or_slug}" unless @contact
         end
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: "Contact not found" }, status: :not_found
       end
 
-      # Sync addresses from Xero to TEEEM (two-way sync)
-      # TEEEM is source of truth - only create/update if TEEEM doesn't have the address type
-      def sync_addresses_from_xero(xero_addresses)
-        Rails.logger.info("sync_addresses_from_xero called with: #{xero_addresses.inspect}")
-        return unless xero_addresses.is_a?(Array)
+      # sync_addresses_from_xero extracted to: concerns/contacts/xero_sync.rb
 
-        xero_addresses.each do |xero_addr|
-          address_type = xero_addr['AddressType']
-          Rails.logger.info("Processing address type: #{address_type}, data: #{xero_addr.inspect}")
-          next unless address_type.present? && ContactAddress::ADDRESS_TYPES.include?(address_type)
-
-          # Check if TEEEM already has this address type
-          existing = @contact.contact_addresses.find_by(address_type: address_type)
-
-          if existing
-            Rails.logger.info("Existing address found: line1=#{existing.line1}, city=#{existing.city}")
-            # TEEEM has this address - only update if TEEEM address is empty
-            if existing.line1.blank? && existing.city.blank?
-              existing.update!(
-                line1: xero_addr['AddressLine1'],
-                line2: xero_addr['AddressLine2'],
-                line3: xero_addr['AddressLine3'],
-                line4: xero_addr['AddressLine4'],
-                city: xero_addr['City'],
-                region: xero_addr['Region'],
-                postal_code: xero_addr['PostalCode'],
-                country: xero_addr['Country']
-              )
-              Rails.logger.info("Updated empty #{address_type} address for contact #{@contact.id} from Xero")
-            else
-              Rails.logger.info("Skipping update - TEEEM has data for #{address_type}")
-            end
-          else
-            Rails.logger.info("No existing address for #{address_type}, checking Xero data: AddressLine1=#{xero_addr['AddressLine1']}, City=#{xero_addr['City']}")
-            # TEEEM doesn't have this address type - create it from Xero
-            # Only create if Xero has actual address data
-            if xero_addr['AddressLine1'].present? || xero_addr['City'].present?
-              new_addr = @contact.contact_addresses.create!(
-                address_type: address_type,
-                line1: xero_addr['AddressLine1'],
-                line2: xero_addr['AddressLine2'],
-                line3: xero_addr['AddressLine3'],
-                line4: xero_addr['AddressLine4'],
-                city: xero_addr['City'],
-                region: xero_addr['Region'],
-                postal_code: xero_addr['PostalCode'],
-                country: xero_addr['Country']
-              )
-              Rails.logger.info("Created #{address_type} address for contact #{@contact.id} from Xero: #{new_addr.inspect}")
-            else
-              Rails.logger.info("Skipping create - Xero has no data for #{address_type}")
-            end
-          end
-        end
-      end
 
       def handle_contact_groups
         # Clear existing group memberships
@@ -1537,28 +1392,52 @@ module Api
         # Create new groups and add contact to them
         if params[:contact][:new_contact_group_names].present?
           params[:contact][:new_contact_group_names].each do |group_name|
-            group = ContactGroup.find_or_create_by!(name: group_name, status: 'ACTIVE')
+            group = ContactGroup.find_or_create_by!(name: group_name, status: "ACTIVE")
             @contact.contact_group_memberships.create!(contact_group: group) unless @contact.contact_groups.include?(group)
           end
         end
       end
 
+      # SSoT: Confidential fields that require permission to view
+      CONFIDENTIAL_FIELDS = %w[
+        tfn tax_number date_of_birth place_of_birth birth_state birth_country
+        residential_address drivers_licence passport_number
+        bank_bsb bank_account_number bank_account_name
+      ].freeze
+
+      # Filter confidential fields from contact JSON based on user permissions
+
+      def filter_confidential_fields(contact_json)
+        return contact_json if current_user&.can_view_confidential?
+
+        CONFIDENTIAL_FIELDS.each do |field|
+          if contact_json.key?(field) && contact_json[field].present?
+            contact_json[field] = "[RESTRICTED]"
+          end
+        end
+
+        contact_json
+      end
+
+
       def contact_params
         # Exclude Xero read-only fields from manual updates
         # These fields are synced from Xero and should not be edited directly in TEEEM
-        params.require(:contact).permit(
-          :full_name,
+        permitted = params.require(:contact).permit(
+          :display_name,
           :first_name,
+          :middle_name,
           :last_name,
           :email,
           :mobile_phone,
           :office_phone,
+          :direct_line,
           :fax_phone,
           :website,
           :tax_number,
-          :xero_id,
+          :abn,
+          :acn,
           :sys_type_id,
-          :deleted,
           :parent_id,
           :parent,
           :drive_id,
@@ -1575,23 +1454,83 @@ module Api
           :address,
           :notes,
           :entity_type,
+          :company_name_or_trust, # SSoT for company/trust names
           # Family/Director fields
           :is_family_member,
           :is_potential_director,
           :company_group_id,
+          :is_team_contact,
+          # Supplier team configuration (for auto-calculating task duration)
+          :team_size,
+          :daily_rate_per_person,
+          # NOTE: primary_company_id is now READ-ONLY (auto-synced from ContactRelationship)
           # NOTE: Xero accounting fields (bank details, payment terms, balances) are READ-ONLY
           # They are synced from Xero and cannot be edited in TEEEM
           # See Contact::XERO_READ_ONLY_FIELDS for the full list
-          contact_types: [],
+          roles: [],
           lgas: [],
           contact_group_ids: [],
           new_contact_group_names: [],
+          # Nested attributes for multiple emails
+          contact_emails_attributes: [ :id, :email, :is_primary, :label, :position, :_destroy ],
+          # Nested attributes for multiple phones
+          contact_phones_attributes: [ :id, :phone_number, :phone_type, :is_primary, :label, :position, :_destroy ],
           # Nested attributes for contact persons
-          contact_persons_attributes: [:id, :first_name, :last_name, :email, :mobile, :role, :include_in_emails, :is_primary, :_destroy],
+          contact_persons_attributes: [ :id, :first_name, :last_name, :email, :mobile, :role, :include_in_emails, :is_primary, :_destroy ],
           # Nested attributes for contact addresses
-          contact_addresses_attributes: [:id, :address_type, :line1, :line2, :line3, :line4, :city, :region, :postal_code, :country, :attention_to, :is_primary, :_destroy]
+          contact_addresses_attributes: [ :id, :address_type, :line1, :line2, :line3, :line4, :city, :region, :postal_code, :country, :attention_to, :is_primary, :_destroy ]
         )
+
+        # Convert roles from integer IDs to names if needed
+        # Frontend may send [1, 2] (IDs) instead of ['Employee', 'Director'] (names)
+        if permitted[:roles].present?
+          permitted[:roles] = convert_role_ids_to_names(permitted[:roles])
+        end
+
+        permitted
       end
+
+      # Convert role IDs to names
+      # Example: [1, 2] -> ['Employee', 'Director'] (if ContactType records exist with those IDs)
+      # Also accepts: ['Employee', 'Director'] -> ['Employee', 'Director'] (no change)
+
+      def convert_role_ids_to_names(role_ids)
+        return [] if role_ids.blank?
+
+        role_ids.map do |role|
+          if role.is_a?(Integer) || (role.is_a?(String) && role.match?(/^\d+$/))
+            # It's an ID, look up the name
+            ContactType.find_by(id: role.to_i)&.name
+          else
+            # It's already a name
+            role
+          end
+        end.compact
+      end
+
+      # Performance: Pre-compute is_customer?, is_supplier?, is_director? via SQL
+      # Performance: Reads cached boolean columns directly (single query)
+      # Previously ran 6 separate queries, now reads from is_*_cached columns
+      # Returns: { contact_id => { is_customer: bool, is_supplier: bool, is_director: bool } }
+      def precompute_contact_flags(contact_ids)
+        return {} if contact_ids.blank?
+
+        flags = {}
+
+        # Single query to get all cached flags
+        Contact.where(id: contact_ids)
+          .pluck(:id, :is_customer_cached, :is_supplier_cached, :is_director_cached)
+          .each do |id, is_customer, is_supplier, is_director|
+            flags[id] = {
+              is_customer: is_customer,
+              is_supplier: is_supplier,
+              is_director: is_director
+            }
+          end
+
+        flags
+      end
+
     end
   end
 end

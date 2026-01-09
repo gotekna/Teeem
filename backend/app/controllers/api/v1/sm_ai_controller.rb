@@ -3,7 +3,7 @@
 module Api
   module V1
     class SmAiController < ApplicationController
-      before_action :set_job, except: [:estimate_duration]
+      before_action :set_job, except: [ :estimate_duration ]
 
       # GET /api/v1/constructions/:job_id/sm_ai/suggestions
       def suggestions

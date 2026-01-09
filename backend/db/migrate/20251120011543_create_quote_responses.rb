@@ -16,8 +16,8 @@ class CreateQuoteResponses < ActiveRecord::Migration[8.0]
     end
 
     add_index :quote_responses, :status
-    add_index :quote_responses, [:quote_request_id, :status]
-    add_index :quote_responses, [:contact_id, :status]
+    add_index :quote_responses, [ :quote_request_id, :status ]
+    add_index :quote_responses, [ :contact_id, :status ]
     add_index :quote_responses, :submitted_at
     add_index :quote_responses, :created_at
   end

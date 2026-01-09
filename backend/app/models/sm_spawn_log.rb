@@ -5,12 +5,12 @@
 # See GANTT_ARCHITECTURE_PLAN.md Section 2.4
 #
 class SmSpawnLog < ApplicationRecord
-  SPAWN_TYPES = %w[photo scan office inspection_retry].freeze
+  SPAWN_TYPES = %w[photo scan office inspection_retry document_get].freeze
   SPAWN_TRIGGERS = %w[parent_complete inspection_fail].freeze
 
-  belongs_to :parent_task, class_name: 'SmTask'
-  belongs_to :spawned_task, class_name: 'SmTask'
-  belongs_to :spawned_by, class_name: 'User', optional: true
+  belongs_to :parent_task, class_name: "SmTask"
+  belongs_to :spawned_task, class_name: "SmTask"
+  belongs_to :spawned_by, class_name: "User", optional: true
 
   validates :spawn_type, presence: true, inclusion: { in: SPAWN_TYPES }
   validates :spawn_trigger, presence: true, inclusion: { in: SPAWN_TRIGGERS }

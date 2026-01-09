@@ -2,149 +2,41 @@
 
 import { useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader } from "@/components/ui/loader";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import { useFoundationById } from "@/hooks/useFoundationById";
-import {
-  Plus,
-  FileQuestion,
-  Clock,
-  CheckCircle,
-  DollarSign,
-} from "lucide-react";
-import { api } from "@/lib/api";
+import { Plus } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import type { TableRow } from "@/components/table/types";
-
-// Foundation ID for Quote Requests table
-const QUOTE_REQUESTS_FOUNDATION_ID = 409;
 
 export default function QuoteRequestsPage() {
   const router = useRouter();
-
-  // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, error, refresh } = useFoundationById(QUOTE_REQUESTS_FOUNDATION_ID);
 
   // Handle row click - navigate to quote request detail
   const handleRowClick = useCallback((row: TableRow) => {
     router.push(`/quote-requests/${row.id}`);
   }, [router]);
 
-  // Handle inline row update
-  const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
-    try {
-      await api.patch(`/api/v1/foundations/${QUOTE_REQUESTS_FOUNDATION_ID}/records/${rowId}`, {
-        record: { [field]: value }
-      });
-      refresh();
-    } catch (error) {
-      console.error("Failed to update quote request:", error);
-      throw error;
-    }
-  }, [refresh]);
-
-  // Stats from records
-  const stats = {
-    total: records.length,
-    pending: records.filter((r) => r.status === "sent" || r.status === "responded").length,
-    accepted: records.filter((r) => r.status === "accepted").length,
-    totalSavings: records
-      .filter((r) => r.status === "accepted" && r.budget_estimate && r.accepted_amount)
-      .reduce((sum, r) => sum + ((Number(r.budget_estimate) || 0) - (Number(r.accepted_amount) || 0)), 0),
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader />
-      </div>
-    );
-  }
-
-  // Left actions - New Quote Request button
+  // Left actions - Back button + New Quote Request button
   const leftActions = (
-    <Button>
-      <Plus className="h-4 w-4 mr-2" />
-      New Quote Request
-    </Button>
+    <div className="flex items-center gap-2">
+      <BackButton fallbackHref="/dashboard" />
+      <Button>
+        <Plus className="h-4 w-4 mr-2" />
+        New Quote Request
+      </Button>
+    </div>
   );
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight font-serif">Quote Requests</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Request and compare quotes from suppliers
-            <span className="ml-2 text-xs font-mono">Table #409</span>
-          </p>
-        </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          New Quote Request
-        </Button>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <FileQuestion className="h-4 w-4 text-blue-600" />
-              <span className="text-xs text-muted-foreground">Total Requests</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">{stats.total}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-yellow-600" />
-              <span className="text-xs text-muted-foreground">Pending</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2 text-yellow-600">
-              {stats.pending}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <span className="text-xs text-muted-foreground">Accepted</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2 text-green-600">
-              {stats.accepted}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-green-600" />
-              <span className="text-xs text-muted-foreground">Total Savings</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2 text-green-600">
-              ${stats.totalSavings.toLocaleString()}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Table */}
+    <div className="flex flex-col h-full -mx-4">
       <TeeemTableView
-        entries={records}
-        columns={columns}
-        foundationId={String(QUOTE_REQUESTS_FOUNDATION_ID)}
-        foundationIdNumeric={QUOTE_REQUESTS_FOUNDATION_ID}
-        tableName={foundation?.name || "Quote Requests"}
+        foundationId="quote_requests"
+        autoFetchRecords={true}
+        tableName="Quote Requests"
         enableExport={true}
-        onRefresh={refresh}
         onRowClick={handleRowClick}
-        onRowUpdate={handleRowUpdate}
         leftActions={leftActions}
+        hideFooter={true}
       />
     </div>
   );

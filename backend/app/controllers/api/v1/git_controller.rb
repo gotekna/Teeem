@@ -1,3 +1,5 @@
+require "shellwords"
+
 module Api
   module V1
     class GitController < ApplicationController
@@ -8,14 +10,14 @@ module Api
           unless git_available?
             return render json: {
               git_available: false,
-              current_branch: 'unknown',
+              current_branch: "unknown",
               branches: [],
               commit_stats: {
                 total_branches: 0,
                 local_branches: 0,
                 remote_branches: 0
               },
-              message: 'Git is not available in this environment'
+              message: "Git is not available in this environment"
             }
           end
 
@@ -24,36 +26,38 @@ module Api
 
           # Get all local branches
           local_branches = `git branch`.split("\n").map do |line|
-            line.strip.gsub(/^\* /, '')
+            line.strip.gsub(/^\* /, "")
           end
 
           # Get remote branches
           remote_branches = `git branch -r`.split("\n").map do |line|
-            line.strip.gsub(/^origin\//, '').gsub(/^heroku\//, '')
-          end.uniq.reject { |b| b.include?('HEAD') }
+            line.strip.gsub(/^origin\//, "").gsub(/^heroku\//, "")
+          end.uniq.reject { |b| b.include?("HEAD") }
 
           # Focus on main and rob branches, plus any other local branches
-          main_branches = ['main', 'rob', 'jake'].select { |b| local_branches.include?(b) || remote_branches.include?(b) }
+          main_branches = [ "main", "rob", "jake" ].select { |b| local_branches.include?(b) || remote_branches.include?(b) }
 
           branches_data = main_branches.map do |branch_name|
             is_current = (branch_name == current_branch)
+            # Sanitize branch name to prevent command injection
+            safe_branch = Shellwords.shellescape(branch_name)
 
             # Get last commit info
-            commit_hash = `git log #{branch_name} --oneline -1 2>/dev/null`.strip.split(' ').first rescue 'N/A'
-            commit_message = `git log #{branch_name} --oneline -1 --pretty=format:"%s" 2>/dev/null`.strip rescue 'No commits'
-            commit_author = `git log #{branch_name} --oneline -1 --pretty=format:"%an" 2>/dev/null`.strip rescue 'Unknown'
-            commit_date = `git log #{branch_name} --oneline -1 --pretty=format:"%ar" 2>/dev/null`.strip rescue 'Unknown'
+            commit_hash = `git log #{safe_branch} --oneline -1 2>/dev/null`.strip.split(" ").first rescue "N/A"
+            commit_message = `git log #{safe_branch} --oneline -1 --pretty=format:"%s" 2>/dev/null`.strip rescue "No commits"
+            commit_author = `git log #{safe_branch} --oneline -1 --pretty=format:"%an" 2>/dev/null`.strip rescue "Unknown"
+            commit_date = `git log #{safe_branch} --oneline -1 --pretty=format:"%ar" 2>/dev/null`.strip rescue "Unknown"
 
             # Check if branch exists on remotes
             has_origin = `git branch -r 2>/dev/null`.include?("origin/#{branch_name}")
             has_heroku = `git branch -r 2>/dev/null`.include?("heroku/#{branch_name}")
-            deployed_to_heroku = (branch_name == 'rob' && has_heroku) # rob is deployed to heroku/main
+            deployed_to_heroku = (branch_name == "rob" && has_heroku) # rob is deployed to heroku/main
 
             # Get commits ahead/behind main (only for non-main branches)
             commits_comparison = nil
-            if branch_name != 'main'
-              ahead = `git rev-list --count main..#{branch_name} 2>/dev/null`.strip.to_i rescue 0
-              behind = `git rev-list --count #{branch_name}..main 2>/dev/null`.strip.to_i rescue 0
+            if branch_name != "main"
+              ahead = `git rev-list --count main..#{safe_branch} 2>/dev/null`.strip.to_i rescue 0
+              behind = `git rev-list --count #{safe_branch}..main 2>/dev/null`.strip.to_i rescue 0
               commits_comparison = {
                 ahead: ahead,
                 behind: behind
@@ -82,11 +86,11 @@ module Api
           branches_data.sort_by! do |b|
             if b[:is_current]
               0
-            elsif b[:name] == 'main'
+            elsif b[:name] == "main"
               1
-            elsif b[:name] == 'rob'
+            elsif b[:name] == "rob"
               2
-            elsif b[:name] == 'jake'
+            elsif b[:name] == "jake"
               3
             else
               4
@@ -114,8 +118,8 @@ module Api
         return @git_available unless @git_available.nil?
         @git_available = begin
           # Use File.exist? to check if git is in PATH
-          ENV['PATH'].split(':').any? do |dir|
-            File.executable?(File.join(dir, 'git'))
+          ENV["PATH"].split(":").any? do |dir|
+            File.executable?(File.join(dir, "git"))
           end
         rescue => e
           false

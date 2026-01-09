@@ -2,26 +2,26 @@ module Api
   module V1
     module Portal
       class AuthenticationController < ApplicationController
-        skip_before_action :authorize_request, only: [:login, :signup, :forgot_password, :reset_password]
+        skip_before_action :authorize_request, only: [ :login, :signup, :forgot_password, :reset_password ]
 
         # POST /api/v1/portal/auth/login
         def login
           portal_user = PortalUser.find_by(email: params[:email])
 
           unless portal_user
-            render json: { success: false, error: 'Invalid email or password' }, status: :unauthorized
+            render json: { success: false, error: "Invalid email or password" }, status: :unauthorized
             return
           end
 
           # Check if account is locked
           if portal_user.locked?
-            render json: { success: false, error: 'Account is locked. Please try again later.' }, status: :forbidden
+            render json: { success: false, error: "Account is locked. Please try again later." }, status: :forbidden
             return
           end
 
           # Check if account is active
           unless portal_user.active?
-            render json: { success: false, error: 'Account is not active. Please contact your builder.' }, status: :forbidden
+            render json: { success: false, error: "Account is not active. Please contact your builder." }, status: :forbidden
             return
           end
 
@@ -38,7 +38,7 @@ module Api
 
             render json: {
               success: true,
-              message: 'Login successful',
+              message: "Login successful",
               token: token,
               user: {
                 id: portal_user.id,
@@ -56,11 +56,11 @@ module Api
             # Record failed login attempt
             portal_user.record_failed_login!
 
-            render json: { success: false, error: 'Invalid email or password' }, status: :unauthorized
+            render json: { success: false, error: "Invalid email or password" }, status: :unauthorized
           end
         rescue => e
           Rails.logger.error("Portal login error: #{e.message}")
-          render json: { success: false, error: 'An error occurred during login' }, status: :internal_server_error
+          render json: { success: false, error: "An error occurred during login" }, status: :internal_server_error
         end
 
         # POST /api/v1/portal/auth/signup
@@ -68,7 +68,7 @@ module Api
           # For now, signup is disabled - users must be invited by builders
           render json: {
             success: false,
-            error: 'Signup is not available. Please contact your builder for portal access.'
+            error: "Signup is not available. Please contact your builder for portal access."
           }, status: :forbidden
         end
 
@@ -77,7 +77,7 @@ module Api
           email = params[:email]
 
           unless email.present?
-            render json: { success: false, error: 'Email is required' }, status: :bad_request
+            render json: { success: false, error: "Email is required" }, status: :bad_request
             return
           end
 
@@ -86,18 +86,18 @@ module Api
           if result[:success]
             render json: {
               success: true,
-              message: 'Password reset instructions sent to your email'
+              message: "Password reset instructions sent to your email"
             }, status: :ok
           else
             # Don't reveal if email exists or not for security
             render json: {
               success: true,
-              message: 'If an account exists with that email, password reset instructions have been sent'
+              message: "If an account exists with that email, password reset instructions have been sent"
             }, status: :ok
           end
         rescue => e
           Rails.logger.error("Password reset error: #{e.message}")
-          render json: { success: false, error: 'An error occurred' }, status: :internal_server_error
+          render json: { success: false, error: "An error occurred" }, status: :internal_server_error
         end
 
         # POST /api/v1/portal/auth/reset_password
@@ -106,7 +106,7 @@ module Api
           new_password = params[:password]
 
           unless token.present? && new_password.present?
-            render json: { success: false, error: 'Token and password are required' }, status: :bad_request
+            render json: { success: false, error: "Token and password are required" }, status: :bad_request
             return
           end
 
@@ -126,21 +126,21 @@ module Api
           end
         rescue => e
           Rails.logger.error("Password reset error: #{e.message}")
-          render json: { success: false, error: 'An error occurred' }, status: :internal_server_error
+          render json: { success: false, error: "An error occurred" }, status: :internal_server_error
         end
 
         # GET /api/v1/portal/auth/me
         def me
           # This uses the authorize_portal_user from BaseController
-          header = request.headers['Authorization']
-          header = header.split(' ').last if header
+          header = request.headers["Authorization"]
+          header = header.split(" ").last if header
 
           begin
             decoded = JsonWebToken.decode(header)
             portal_user = PortalUser.find(decoded[:portal_user_id]) if decoded
 
             unless portal_user&.active?
-              render json: { success: false, error: 'Unauthorized' }, status: :unauthorized
+              render json: { success: false, error: "Unauthorized" }, status: :unauthorized
               return
             end
 
@@ -162,10 +162,10 @@ module Api
               }
             }, status: :ok
           rescue ActiveRecord::RecordNotFound, JWT::DecodeError => e
-            render json: { success: false, error: 'Invalid or expired token' }, status: :unauthorized
+            render json: { success: false, error: "Invalid or expired token" }, status: :unauthorized
           rescue => e
             Rails.logger.error("Auth me error: #{e.message}")
-            render json: { success: false, error: 'An error occurred' }, status: :internal_server_error
+            render json: { success: false, error: "An error occurred" }, status: :internal_server_error
           end
         end
       end

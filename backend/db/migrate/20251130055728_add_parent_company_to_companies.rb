@@ -7,6 +7,6 @@ class AddParentCompanyToCompanies < ActiveRecord::Migration[8.0]
     add_column :companies, :hierarchy_level, :integer, default: 0
 
     # Add index for efficient hierarchy queries
-    add_index :companies, [:company_group_id, :parent_company_id], name: 'index_companies_on_group_and_parent'
+    add_index :companies, [ :company_group_id, :parent_company_id ], name: 'index_companies_on_group_and_parent'
   end
 end

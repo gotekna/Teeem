@@ -8,15 +8,15 @@ namespace :teeem do
       system_tables = [
         {
           id: 199,  # Fixed ID - matches production
-          name: 'Financial Transactions',
-          slug: 'financial-transactions',
-          icon: '💰',
-          file_location: 'pages/FinancialPage.jsx',
-          model_class: 'FinancialTransaction',
-          description: 'Financial transactions ledger with double-entry accounting',
+          name: "Financial Transactions",
+          slug: "financial-transactions",
+          icon: "💰",
+          file_location: "pages/FinancialPage.jsx",
+          model_class: "FinancialTransaction",
+          description: "Financial transactions ledger with double-entry accounting",
           has_saved_views: true,
-          api_endpoint: '/api/v1/financial_transactions',
-          database_table_name: 'financial_transactions'
+          api_endpoint: "/api/v1/financial_transactions",
+          database_table_name: "financial_transactions"
         },
         # Note: Gold Standard Reference uses ID 1 (pre-existing user table converted to system)
         # It's NOT in this seed list because it already exists with the correct ID
@@ -24,267 +24,255 @@ namespace :teeem do
         # Production slug: 'gold-standard-reference'
         {
           id: 201,  # Fixed ID - matches production
-          name: 'Trinity Bible',
-          slug: 'trinity-bible',
-          icon: '📖',
-          file_location: 'pages/TrinityPage.jsx',
-          model_class: 'TrinityEntry',
-          description: 'Rules and standards documentation (category: bible)',
+          name: "Trinity Bible",
+          slug: "trinity-bible",
+          icon: "📖",
+          file_location: "pages/TrinityPage.jsx",
+          model_class: "TrinityEntry",
+          description: "Rules and standards documentation (category: bible)",
           has_saved_views: true,
-          api_endpoint: '/api/v1/trinity?category=bible',
-          database_table_name: 'trinity'
+          api_endpoint: "/api/v1/trinity?category=bible",
+          database_table_name: "trinity"
         },
         {
           id: 202,  # Fixed ID - matches production
-          name: 'Trinity Teacher',
-          slug: 'trinity-teacher',
-          icon: '🎓',
-          file_location: 'pages/TrinityPage.jsx',
-          model_class: 'TrinityEntry',
-          description: 'How-to guides and implementation patterns (category: teacher)',
+          name: "Trinity Teacher",
+          slug: "trinity-teacher",
+          icon: "🎓",
+          file_location: "pages/TrinityPage.jsx",
+          model_class: "TrinityEntry",
+          description: "How-to guides and implementation patterns (category: teacher)",
           has_saved_views: true,
-          api_endpoint: '/api/v1/trinity?category=teacher',
-          database_table_name: 'trinity'
+          api_endpoint: "/api/v1/trinity?category=teacher",
+          database_table_name: "trinity"
         },
         {
           id: 203,  # Fixed ID - matches production
-          name: 'Trinity Lexicon',
-          slug: 'trinity-lexicon',
-          icon: '📚',
-          file_location: 'pages/TrinityPage.jsx',
-          model_class: 'TrinityEntry',
-          description: 'Bug history and architecture decisions (category: lexicon)',
+          name: "Trinity Lexicon",
+          slug: "trinity-lexicon",
+          icon: "📚",
+          file_location: "pages/TrinityPage.jsx",
+          model_class: "TrinityEntry",
+          description: "Bug history and architecture decisions (category: lexicon)",
           has_saved_views: true,
-          api_endpoint: '/api/v1/trinity?category=lexicon',
-          database_table_name: 'trinity'
+          api_endpoint: "/api/v1/trinity?category=lexicon",
+          database_table_name: "trinity"
         },
         {
           id: 204,  # Fixed ID - matches production
-          name: 'Active Jobs',
-          slug: 'active-jobs',
-          icon: '🏗️',
-          file_location: 'pages/ActiveJobsPage.jsx',
-          model_class: 'Construction',
-          description: 'Construction jobs management',
+          name: "Active Jobs",
+          slug: "active-jobs",
+          icon: "🏗️",
+          file_location: "pages/ActiveJobsPage.jsx",
+          model_class: "Job",
+          description: "Jobs management",
           has_saved_views: true,
-          api_endpoint: '/api/v1/constructions',
-          database_table_name: 'constructions'
+          api_endpoint: "/api/v1/jobs",
+          database_table_name: "jobs"
         },
         {
           id: 205,  # Fixed ID - matches production
-          name: 'Price Books',
-          slug: 'price-books',  # Matches production (with hyphen)
-          icon: '💵',
-          file_location: 'pages/PriceBooksTrinityView.jsx',
-          model_class: 'PricebookItem',
-          description: 'Product pricing and supplier information',
+          name: "Price Books",
+          slug: "price-books",  # Matches production (with hyphen)
+          icon: "💵",
+          file_location: "pages/PriceBooksTrinityView.jsx",
+          model_class: "PricebookItem",
+          description: "Product pricing and supplier information",
           has_saved_views: true,
-          api_endpoint: '/api/v1/pricebook',
-          database_table_name: 'pricebook_items'
+          api_endpoint: "/api/v1/pricebook",
+          database_table_name: "pricebook_items"
         },
         {
           id: 206,  # Fixed ID - matches production
-          name: 'WHS SWMS',
-          slug: 'whs-swms',
-          icon: '⚠️',
-          file_location: 'pages/WhsSwmsPage.jsx',
-          model_class: 'WhsSwms',
-          description: 'Safe Work Method Statements',
+          name: "WHS SWMS",
+          slug: "whs-swms",
+          icon: "⚠️",
+          file_location: "pages/WhsSwmsPage.jsx",
+          model_class: "WhsSwms",
+          description: "Safe Work Method Statements",
           has_saved_views: true,
-          api_endpoint: '/api/v1/whs_swms',
-          database_table_name: 'whs_swms'
+          api_endpoint: "/api/v1/whs_swms",
+          database_table_name: "whs_swms"
         },
         {
           id: 207,  # Fixed ID - matches production
-          name: 'WHS Action Items',
-          slug: 'whs-action-items',
-          icon: '📋',
-          file_location: 'pages/WhsActionItemsPage.jsx',
-          model_class: 'WhsActionItem',
-          description: 'Workplace health and safety action tracking',
+          name: "WHS Action Items",
+          slug: "whs-action-items",
+          icon: "📋",
+          file_location: "pages/WhsActionItemsPage.jsx",
+          model_class: "WhsActionItem",
+          description: "Workplace health and safety action tracking",
           has_saved_views: true,
-          api_endpoint: '/api/v1/whs_action_items',
-          database_table_name: 'whs_action_items'
+          api_endpoint: "/api/v1/whs_action_items",
+          database_table_name: "whs_action_items"
         },
         {
           id: 208,  # Fixed ID - matches production
-          name: 'WHS Inductions',
-          slug: 'whs-inductions',
-          icon: '🎓',
-          file_location: 'pages/WhsInductionsPage.jsx',
-          model_class: 'WhsInduction',
-          description: 'Worker induction records',
+          name: "WHS Inductions",
+          slug: "whs-inductions",
+          icon: "🎓",
+          file_location: "pages/WhsInductionsPage.jsx",
+          model_class: "WhsInduction",
+          description: "Worker induction records",
           has_saved_views: true,
-          api_endpoint: '/api/v1/whs_inductions',
-          database_table_name: 'whs_inductions'
+          api_endpoint: "/api/v1/whs_inductions",
+          database_table_name: "whs_inductions"
         },
         {
           id: 209,  # Fixed ID - matches production
-          name: 'WHS Inspections',
-          slug: 'whs-inspections',
-          icon: '🔍',
-          file_location: 'pages/WhsInspectionsPage.jsx',
-          model_class: 'WhsInspection',
-          description: 'Site inspection records',
+          name: "WHS Inspections",
+          slug: "whs-inspections",
+          icon: "🔍",
+          file_location: "pages/WhsInspectionsPage.jsx",
+          model_class: "WhsInspection",
+          description: "Site inspection records",
           has_saved_views: true,
-          api_endpoint: '/api/v1/whs_inspections',
-          database_table_name: 'whs_inspections'
+          api_endpoint: "/api/v1/whs_inspections",
+          database_table_name: "whs_inspections"
         },
         {
           id: 210,  # Fixed ID - matches production
-          name: 'WHS Incidents',
-          slug: 'whs-incidents',
-          icon: '🚨',
-          file_location: 'pages/WhsIncidentsPage.jsx',
-          model_class: 'WhsIncident',
-          description: 'Workplace incident reports',
+          name: "WHS Incidents",
+          slug: "whs-incidents",
+          icon: "🚨",
+          file_location: "pages/WhsIncidentsPage.jsx",
+          model_class: "WhsIncident",
+          description: "Workplace incident reports",
           has_saved_views: true,
-          api_endpoint: '/api/v1/whs_incidents',
-          database_table_name: 'whs_incidents'
-        },
-        {
-          id: 211,  # Fixed ID - matches production
-          name: 'Contact Roles',
-          slug: 'contact-roles',
-          icon: '👥',
-          file_location: 'components/settings/ContactRolesManagement.jsx',
-          model_class: 'ContactRole',
-          description: 'Contact role definitions',
-          has_saved_views: false,
-          api_endpoint: '/api/v1/contact_roles',
-          database_table_name: 'contact_roles'
+          api_endpoint: "/api/v1/whs_incidents",
+          database_table_name: "whs_incidents"
         },
         {
           id: 212,  # Fixed ID - matches production
-          name: 'User Management',
-          slug: 'user-management',
-          icon: '👤',
-          file_location: 'components/settings/UserManagementTab.jsx',
-          model_class: 'User',
-          description: 'System user accounts',
+          name: "User Management",
+          slug: "user-management",
+          icon: "👤",
+          file_location: "components/settings/UserManagementTab.jsx",
+          model_class: "User",
+          description: "System user accounts",
           has_saved_views: false,
-          api_endpoint: '/api/v1/users',
-          database_table_name: 'users'
+          api_endpoint: "/api/v1/users",
+          database_table_name: "users"
         },
         {
           id: 213,  # Fixed ID - matches production
-          name: 'Inspiring Quotes (Test)',
-          slug: 'inspiring-quotes-test',
-          icon: '✨',
-          file_location: 'pages/TableStandardTest.jsx',
-          model_class: 'InspiringQuote',
-          description: 'Test table for TEEEMTableView standard',
+          name: "Inspiring Quotes (Test)",
+          slug: "inspiring-quotes-test",
+          icon: "✨",
+          file_location: "pages/TableStandardTest.jsx",
+          model_class: "InspiringQuote",
+          description: "Test table for TEEEMTableView standard",
           has_saved_views: true,
-          api_endpoint: '/api/v1/inspiring_quotes',
-          database_table_name: 'inspiring_quotes'
+          api_endpoint: "/api/v1/inspiring_quotes",
+          database_table_name: "inspiring_quotes"
         },
         {
           id: 214,  # Fixed ID - matches production
-          name: 'Contacts',
-          slug: 'contacts',
-          icon: '📇',
-          file_location: 'pages/ContactsPage.jsx',
-          model_class: 'Contact',
-          description: 'Business contacts and relationships',
+          name: "Contacts",
+          slug: "contacts",
+          icon: "📇",
+          file_location: "pages/ContactsPage.jsx",
+          model_class: "Contact",
+          description: "Business contacts and relationships",
           has_saved_views: true,
-          api_endpoint: '/api/v1/contacts',
-          database_table_name: 'contacts'
+          api_endpoint: "/api/v1/contacts",
+          database_table_name: "contacts"
         },
         {
           id: 215,  # Fixed ID - matches production
-          name: 'Suppliers',
-          slug: 'suppliers',
-          icon: '🏭',
-          file_location: 'pages/SuppliersPage.jsx',
-          model_class: 'Contact',
-          description: 'Supplier contacts (filtered contacts)',
+          name: "Suppliers",
+          slug: "suppliers",
+          icon: "🏭",
+          file_location: "pages/SuppliersPage.jsx",
+          model_class: "Contact",
+          description: "Supplier contacts (filtered contacts)",
           has_saved_views: true,
-          api_endpoint: '/api/v1/contacts?contact_type=supplier',
-          database_table_name: 'contacts'
+          api_endpoint: "/api/v1/contacts?contact_type=supplier",
+          database_table_name: "contacts"
         },
         {
           id: 216,  # Fixed ID - matches production
-          name: 'Estimates',
-          slug: 'estimates',
-          icon: '📊',
-          file_location: 'pages/EstimatesPage.jsx',
-          model_class: 'Estimate',
-          description: 'Project cost estimates',
+          name: "Estimates",
+          slug: "estimates",
+          icon: "📊",
+          file_location: "pages/EstimatesPage.jsx",
+          model_class: "Estimate",
+          description: "Project cost estimates",
           has_saved_views: true,
-          api_endpoint: '/api/v1/estimates',
-          database_table_name: 'estimates'
+          api_endpoint: "/api/v1/estimates",
+          database_table_name: "estimates"
         },
         {
           id: 217,  # Fixed ID - matches production
-          name: 'Purchase Orders',
-          slug: 'purchase-orders',
-          icon: '📦',
-          file_location: 'pages/PurchaseOrdersPage.jsx',
-          model_class: 'PurchaseOrder',
-          description: 'Material and service purchase orders',
+          name: "Purchase Orders",
+          slug: "purchase-orders",
+          icon: "📦",
+          file_location: "pages/PurchaseOrdersPage.jsx",
+          model_class: "PurchaseOrder",
+          description: "Material and service purchase orders",
           has_saved_views: true,
-          api_endpoint: '/api/v1/purchase_orders',
-          database_table_name: 'purchase_orders'
+          api_endpoint: "/api/v1/purchase_orders",
+          database_table_name: "purchase_orders"
         },
         {
           id: 218,  # Fixed ID - matches production
-          name: 'SM Tasks',
-          slug: 'sm-tasks',
-          icon: '📋',
-          file_location: 'pages/SmGanttPage.jsx',
-          model_class: 'SmTask',
-          description: 'Site Management tasks for Gantt charts',
+          name: "SM Tasks",
+          slug: "sm-tasks",
+          icon: "📋",
+          file_location: "pages/SmGanttPage.jsx",
+          model_class: "SmTask",
+          description: "Site Management tasks for Gantt charts",
           has_saved_views: true,
-          api_endpoint: '/api/v1/sm_tasks',
-          database_table_name: 'sm_tasks'
+          api_endpoint: "/api/v1/sm_tasks",
+          database_table_name: "sm_tasks"
         },
         {
           id: 219,  # Fixed ID - matches production
-          name: 'SM Resources',
-          slug: 'sm-resources',
-          icon: '👷',
-          file_location: 'pages/SmResourcesPage.jsx',
-          model_class: 'SmResource',
-          description: 'Site Management resources (workers, equipment)',
+          name: "SM Resources",
+          slug: "sm-resources",
+          icon: "👷",
+          file_location: "pages/SmResourcesPage.jsx",
+          model_class: "SmResource",
+          description: "Site Management resources (workers, equipment)",
           has_saved_views: true,
-          api_endpoint: '/api/v1/sm_resources',
-          database_table_name: 'sm_resources'
+          api_endpoint: "/api/v1/sm_resources",
+          database_table_name: "sm_resources"
         },
         {
           id: 220,  # Fixed ID - matches production
-          name: 'SM Time Entries',
-          slug: 'sm-time-entries',
-          icon: '⏱️',
-          file_location: 'components/sm-gantt/SmTimesheet.jsx',
-          model_class: 'SmTimeEntry',
-          description: 'Site Management time tracking entries',
+          name: "SM Time Entries",
+          slug: "sm-time-entries",
+          icon: "⏱️",
+          file_location: "components/sm-gantt/SmTimesheet.jsx",
+          model_class: "SmTimeEntry",
+          description: "Site Management time tracking entries",
           has_saved_views: true,
-          api_endpoint: '/api/v1/sm_time_entries',
-          database_table_name: 'sm_time_entries'
+          api_endpoint: "/api/v1/sm_time_entries",
+          database_table_name: "sm_time_entries"
         },
         {
           id: 221,  # Fixed ID - matches production
-          name: 'Price Histories',
-          slug: 'price-histories',
-          icon: '📈',
-          file_location: 'components/pricebook/PriceHistoryPanel.jsx',
-          model_class: 'PriceHistory',
-          description: 'Historical price records for pricebook items',
+          name: "Price Histories",
+          slug: "price-histories",
+          icon: "📈",
+          file_location: "components/pricebook/PriceHistoryPanel.jsx",
+          model_class: "PriceHistory",
+          description: "Historical price records for pricebook items",
           has_saved_views: false,
-          api_endpoint: '/api/v1/price_histories',
-          database_table_name: 'price_histories'
+          api_endpoint: "/api/v1/price_histories",
+          database_table_name: "price_histories"
         },
         {
           id: 223,  # Fixed ID - new Gold Standard table
-          name: 'Table Views',
-          slug: 'table-views',
-          icon: '👁️',
-          file_location: 'pages/TableViewsPage.jsx',
-          model_class: 'TableView',
-          description: 'Saved table views with filters, columns, and sort settings',
+          name: "Table Views",
+          slug: "table-views",
+          icon: "👁️",
+          file_location: "pages/TableViewsPage.jsx",
+          model_class: "TableView",
+          description: "Saved table views with filters, columns, and sort settings",
           has_saved_views: false,  # Views table doesn't need its own saved views
-          api_endpoint: '/api/v1/table_views',
-          database_table_name: 'table_views'
+          api_endpoint: "/api/v1/table_views",
+          database_table_name: "table_views"
         }
       ]
 
@@ -320,14 +308,14 @@ namespace :teeem do
 
         if table
           # Update existing table with system fields
-          updates_needed = table.table_type != 'system' ||
+          updates_needed = table.table_type != "system" ||
                           table.model_class != table_data[:model_class] ||
                           table.api_endpoint != table_data[:api_endpoint] ||
                           table.database_table_name != table_data[:database_table_name]
 
           if updates_needed
             table.update!(
-              table_type: 'system',
+              table_type: "system",
               model_class: table_data[:model_class],
               api_endpoint: table_data[:api_endpoint],
               file_location: table_data[:file_location],
@@ -354,7 +342,7 @@ namespace :teeem do
             database_table_name: db_name,
             icon: table_data[:icon],
             description: table_data[:description],
-            table_type: 'system',
+            table_type: "system",
             model_class: table_data[:model_class],
             api_endpoint: table_data[:api_endpoint],
             file_location: table_data[:file_location],
@@ -371,7 +359,7 @@ namespace :teeem do
 
       # Reset the sequence to be higher than our fixed IDs
       max_id = Table.maximum(:id) || 221
-      new_sequence_value = [max_id + 1, 222].max
+      new_sequence_value = [ max_id + 1, 222 ].max
       ActiveRecord::Base.connection.execute("SELECT setval('tables_id_seq', #{new_sequence_value}, false)")
       puts "\n  Sequence reset to: #{new_sequence_value}"
 
@@ -404,7 +392,7 @@ namespace :teeem do
       end
 
       puts "\n#{'=' * 80}"
-      puts "Total: #{tables.count} tables (#{tables.where(table_type: 'system').count} system, #{tables.where(table_type: ['user', nil]).count} user)"
+      puts "Total: #{tables.count} tables (#{tables.where(table_type: 'system').count} system, #{tables.where(table_type: [ 'user', nil ]).count} user)"
       puts "#{'=' * 80}\n"
     end
   end

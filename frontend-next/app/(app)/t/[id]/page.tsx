@@ -1,176 +1,79 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { TeeemTableView } from "@/components/table";
-import type { TableColumn, TableRow, SavedView } from "@/components/table/types";
 import { api } from "@/lib/api";
-import { slugifyJobTitle, slugifyContactName, slugifyPricebookCode } from "@/lib/url-utils";
-import { Loader } from "@/components/ui/loader";
-import { Plus, ArrowLeft } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
+import { BackButton } from "@/components/ui/back-button";
 
-// Table ID to route mapping for legacy compatibility
-const TABLE_ROUTES: Record<number, { name: string; apiEndpoint: string; itemRoute: string }> = {
-  1: { name: "Gold Standard", apiEndpoint: "/api/v1/gold_standard_table", itemRoute: "/admin/system?tab=gold-standard" },
-  204: { name: "Jobs", apiEndpoint: "/api/v1/jobs", itemRoute: "/jobs" },
-  205: { name: "Pricebook", apiEndpoint: "/api/v1/pricebook", itemRoute: "/pricebook" },
-  214: { name: "Contacts", apiEndpoint: "/api/v1/contacts", itemRoute: "/contacts" },
-};
+/**
+ * LEGACY route handler for /t/[id] URLs
+ *
+ * SSoT: This page does NOT use hardcoded Foundation IDs.
+ * It fetches the foundation by ID from the API and redirects to the slug-based route.
+ * If the foundation doesn't exist, it shows an error.
+ */
 
-// System-generated column types that users cannot edit
-const SYSTEM_GENERATED_TYPES = [
-  'computed', 'formula', 'auto_number', 'created_time', 'modified_time',
-  'created_by', 'modified_by', 'rollup', 'count'
-];
-
-// Check if a column is system-generated
-const isSystemColumn = (columnName: string, columnType: string): boolean => {
-  return ['id', 'created_at', 'updated_at'].includes(columnName) ||
-         SYSTEM_GENERATED_TYPES.includes(columnType);
-};
-
-interface FoundationData {
-  id: number;
-  name: string;
-  description?: string;
-  columns: Array<{
+interface FoundationResponse {
+  success?: boolean;
+  foundation?: {
     id: number;
-    column_name: string;
+    slug: string;
     name: string;
-    column_type: string;
-    position?: number;
-  }>;
+    database_table_name?: string;
+  };
+  id?: number;
+  slug?: string;
+  name?: string;
+  database_table_name?: string;
 }
 
-export default function TablePage() {
+export default function LegacyTablePage() {
   const router = useRouter();
   const params = useParams();
   const tableId = Number(params.id);
 
-  const [foundation, setFoundation] = useState<FoundationData | null>(null);
-  const [entries, setEntries] = useState<TableRow[]>([]);
-  const [columns, setColumns] = useState<TableColumn[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [serverSearchLoading, setServerSearchLoading] = useState(false);
-
-  const tableInfo = TABLE_ROUTES[tableId];
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadTableData();
-  }, [tableId]);
-
-  const loadTableData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Fetch foundation (table) metadata including columns
-      const foundationData = await api.get<{
-        success?: boolean;
-        foundation?: FoundationData;
-        id?: number;
-        name?: string;
-        columns?: FoundationData["columns"];
-      }>(`/api/v1/foundations/${tableId}`);
-
-      const foundationInfo = foundationData.foundation || foundationData;
-      if (!foundationInfo || !foundationInfo.name) {
-        throw new Error(`Table ${tableId} not found`);
+    async function resolveAndRedirect() {
+      if (!tableId || isNaN(tableId)) {
+        setError("Invalid table ID");
+        setLoading(false);
+        return;
       }
 
-      setFoundation(foundationInfo as FoundationData);
+      try {
+        // Fetch foundation from API to get its slug
+        const response = await api.get<FoundationResponse>(`/api/v1/foundations/${tableId}`);
+        const foundation = response.foundation || response;
 
-      // Build columns from foundation
-      const sortedCols = [...(foundationInfo.columns || [])].sort(
-        (a, b) => (a.position || 0) - (b.position || 0)
-      );
+        if (!foundation || !foundation.slug) {
+          setError(`Table ${tableId} not found. This table ID may not exist in this environment.`);
+          setLoading(false);
+          return;
+        }
 
-      const tableColumns: TableColumn[] = [
-        { key: "select", label: "", resizable: false, sortable: false, filterable: false, width: 40 },
-        ...sortedCols.map((col) => {
-          const isSysCol = isSystemColumn(col.column_name, col.column_type);
-          return {
-            key: col.column_name,
-            label: col.name || col.column_name,
-            column_type: col.column_type,
-            resizable: true,
-            sortable: true,
-            filterable: true,
-            width: col.column_name === 'id' ? 60 : 150,
-            editable: !isSysCol,
-            system: isSysCol,
-          };
-        }),
-        { key: "actions", label: "Actions", resizable: false, sortable: false, filterable: false, width: 100 },
-      ];
-      setColumns(tableColumns);
-
-      // Fetch table data
-      if (tableInfo?.apiEndpoint) {
-        const response = await api.get<{ items?: TableRow[]; jobs?: TableRow[]; contacts?: TableRow[]; [key: string]: unknown }>(tableInfo.apiEndpoint);
-        // Handle different response formats
-        const items = response.items || response.jobs || response.contacts || [];
-        setEntries(Array.isArray(items) ? items : []);
-      } else {
-        // Generic foundation entries endpoint
-        const entriesData = await api.get<{ entries?: TableRow[]; items?: TableRow[] }>(`/api/v1/foundations/${tableId}/entries`);
-        setEntries(entriesData.entries || entriesData.items || []);
-      }
-    } catch (err) {
-      console.error("Failed to load table:", err);
-      setError(err instanceof Error ? err.message : "Failed to load table");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleView = (row: TableRow) => {
-    if (tableInfo?.itemRoute) {
-      // Use appropriate slug function based on table type
-      if (tableId === 204 && row.title) {
-        router.push(`${tableInfo.itemRoute}/${slugifyJobTitle(String(row.title))}`);
-      } else if (tableId === 214) {
-        const slug = slugifyContactName(row.first_name as string, row.last_name as string, row.company_name as string);
-        router.push(`${tableInfo.itemRoute}/${slug}`);
-      } else if (tableId === 205 && row.item_code) {
-        router.push(`${tableInfo.itemRoute}/${slugifyPricebookCode(String(row.item_code))}`);
-      } else {
-        router.push(`${tableInfo.itemRoute}/${row.id}`);
+        // Redirect to the slug-based route
+        // Use database_table_name if available, otherwise slug
+        const routeSlug = foundation.database_table_name || foundation.slug;
+        router.replace(`/${routeSlug}`);
+      } catch (err) {
+        console.error("Failed to resolve table ID:", err);
+        setError(`Table ${tableId} not found. Foundation IDs differ between environments - use slug-based URLs instead.`);
+        setLoading(false);
       }
     }
-  };
 
-  const handleEdit = (row: TableRow) => {
-    if (tableInfo?.itemRoute) {
-      router.push(`${tableInfo.itemRoute}/${row.id}?edit=true`);
-    }
-  };
-
-  const handleDelete = async (row: TableRow) => {
-    if (!confirm("Are you sure you want to delete this item?")) return;
-
-    try {
-      if (tableInfo?.apiEndpoint) {
-        await api.delete(`${tableInfo.apiEndpoint}/${row.id}`);
-      } else {
-        await api.delete(`/api/v1/foundations/${tableId}/entries/${row.id}`);
-      }
-      setEntries((prev) => prev.filter((e) => e.id !== row.id));
-    } catch (err) {
-      console.error("Failed to delete:", err);
-      alert("Failed to delete item");
-    }
-  };
+    resolveAndRedirect();
+  }, [tableId, router]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader />
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <Spinner />
+        <p className="text-muted-foreground">Redirecting to table...</p>
       </div>
     );
   }
@@ -178,54 +81,15 @@ export default function TablePage() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-        <p className="text-destructive">{error}</p>
-        <Button variant="outline" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Go Back
-        </Button>
+        <p className="text-destructive font-medium">Legacy URL Error</p>
+        <p className="text-muted-foreground text-center max-w-md">{error}</p>
+        <p className="text-sm text-muted-foreground">
+          Tip: Use slug-based URLs like /jobs, /contacts, /pricebook instead of /t/204
+        </p>
+        <BackButton fallbackHref="/" label="Go Home" variant="outline" />
       </div>
     );
   }
 
-  return (
-    <div className="flex flex-col h-full gap-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight font-serif">
-            {foundation?.name || `Table ${tableId}`}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {foundation?.description || `${entries.length} records`}
-            <span className="ml-2 text-xs font-mono">Table #{tableId}</span>
-          </p>
-        </div>
-        {tableInfo?.itemRoute && (
-          <Button asChild>
-            <Link href={`${tableInfo.itemRoute}/new`}>
-              <Plus className="h-4 w-4 mr-2" />
-              New
-            </Link>
-          </Button>
-        )}
-      </div>
-
-      {/* Table */}
-      <div className="flex-1 min-h-0">
-        <TeeemTableView
-          entries={entries}
-          columns={columns}
-          foundationId={`table-${tableId}`}
-          foundationIdNumeric={tableId}
-          tableName={foundation?.name || `Table ${tableId}`}
-          onView={handleView}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          onRowDoubleClick={handleView}
-          onRefresh={loadTableData}
-          enableExport={true}
-        />
-      </div>
-    </div>
-  );
+  return null;
 }

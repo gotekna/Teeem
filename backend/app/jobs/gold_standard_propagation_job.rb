@@ -21,7 +21,7 @@ class GoldStandardPropagationJob < ApplicationJob
     affected_columns = Column
       .joins(:foundation)
       .where(column_type_definition_id: type_def.id)
-      .where.not(foundations: { table_type: 'system' })
+      .where.not(foundations: { table_type: "system" })
 
     column_count = affected_columns.count
     Rails.logger.info "[GoldStandardPropagation] Found #{column_count} columns to update"

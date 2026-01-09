@@ -2,17 +2,17 @@ class QuoteResponse < ApplicationRecord
   # Associations
   belongs_to :quote_request
   belongs_to :contact
-  belongs_to :responded_by_portal_user, class_name: 'PortalUser', optional: true
+  belongs_to :responded_by_portal_user, class_name: "PortalUser", optional: true
   has_many :kudos_events, dependent: :destroy
   has_one :purchase_order, dependent: :nullify
 
   # Enums (prefixed to avoid conflict with ActiveRecord#invalid?)
   enum :status, {
-    pending: 'pending',
-    submitted: 'submitted',
-    accepted: 'accepted',
-    rejected: 'rejected',
-    invalid: 'invalid'
+    pending: "pending",
+    submitted: "submitted",
+    accepted: "accepted",
+    rejected: "rejected",
+    invalid: "invalid"
   }, prefix: :status
 
   # Validations
@@ -28,10 +28,10 @@ class QuoteResponse < ApplicationRecord
 
   # Scopes
   scope :for_contact, ->(contact_id) { where(contact_id: contact_id) }
-  scope :pending_response, -> { where(status: 'pending') }
-  scope :submitted, -> { where(status: 'submitted') }
-  scope :accepted, -> { where(status: 'accepted') }
-  scope :rejected, -> { where(status: 'rejected') }
+  scope :pending_response, -> { where(status: "pending") }
+  scope :submitted, -> { where(status: "submitted") }
+  scope :accepted, -> { where(status: "accepted") }
+  scope :rejected, -> { where(status: "rejected") }
   scope :recent, -> { order(created_at: :desc) }
 
   # Instance Methods
@@ -41,7 +41,7 @@ class QuoteResponse < ApplicationRecord
         price: params[:price],
         timeframe: params[:timeframe],
         notes: params[:notes],
-        status: 'submitted',
+        status: "submitted",
         submitted_at: Time.current
       )
     end
@@ -49,21 +49,21 @@ class QuoteResponse < ApplicationRecord
 
   def accept!
     update!(
-      status: 'accepted',
+      status: "accepted",
       decision_at: Time.current
     )
   end
 
   def reject!
     update!(
-      status: 'rejected',
+      status: "rejected",
       decision_at: Time.current
     )
   end
 
   def mark_invalid!
     update!(
-      status: 'invalid',
+      status: "invalid",
       decision_at: Time.current
     )
   end
@@ -82,17 +82,18 @@ class QuoteResponse < ApplicationRecord
   def record_kudos_event
     return unless contact.subcontractor_account.present?
 
-    case status
-    when 'submitted'
-      KudosEvent.create!(
-        subcontractor_account: contact.subcontractor_account,
-        quote_response: self,
-        event_type: 'quote_submitted',
-        expected_time: quote_request.created_at + 24.hours,
-        actual_time: submitted_at,
-        points_awarded: calculate_quote_response_points
-      )
-    end
+    # DISABLED: Kudos system temporarily disabled
+    # case status
+    # when "submitted"
+    #   KudosEvent.create!(
+    #     subcontractor_account: contact.subcontractor_account,
+    #     quote_response: self,
+    #     event_type: "quote_submitted",
+    #     expected_time: quote_request.created_at + 24.hours,
+    #     actual_time: submitted_at,
+    #     points_awarded: calculate_quote_response_points
+    #   )
+    # end
   end
 
   def calculate_quote_response_points

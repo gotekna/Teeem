@@ -1,61 +1,15 @@
 "use client";
 
-import { useCallback } from "react";
-import Link from "next/link";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader } from "@/components/ui/loader";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import { useFoundationById } from "@/hooks/useFoundationById";
-import {
-  Plus,
-  ArrowLeft,
-  CheckCircle,
-  Clock,
-  AlertTriangle,
-  Mail,
-} from "lucide-react";
-import { api } from "@/lib/api";
-
-// Foundation ID for WHS Inductions table
-const WHS_INDUCTIONS_FOUNDATION_ID = 208;
+import { Plus, Mail } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 
 export default function WHSInductionsPage() {
-  // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, refresh } = useFoundationById(WHS_INDUCTIONS_FOUNDATION_ID);
-
-  // Handle inline row update
-  const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
-    try {
-      await api.patch(`/api/v1/foundations/${WHS_INDUCTIONS_FOUNDATION_ID}/records/${rowId}`, {
-        record: { [field]: value }
-      });
-      refresh();
-    } catch (error) {
-      console.error("Failed to update induction:", error);
-      throw error;
-    }
-  }, [refresh]);
-
-  // Stats from records
-  const stats = {
-    total: records.length,
-    completed: records.filter((i) => i.status === "completed").length,
-    pending: records.filter((i) => i.status === "pending").length,
-    expired: records.filter((i) => i.status === "expired").length,
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loader />
-      </div>
-    );
-  }
-
-  // Left actions - New Induction button
+  // Left actions - Back button + action buttons
   const leftActions = (
     <div className="flex items-center gap-2">
+      <BackButton fallbackHref="/whs" />
       <Button variant="outline">
         <Mail className="h-4 w-4 mr-2" />
         Send Reminders
@@ -68,83 +22,14 @@ export default function WHSInductionsPage() {
   );
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/whs">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight font-serif">Site Inductions</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Manage worker inductions and site access
-              <span className="ml-2 text-xs font-mono">Table #208</span>
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline">
-            <Mail className="h-4 w-4 mr-2" />
-            Send Reminders
-          </Button>
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            New Induction
-          </Button>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="text-2xl font-bold">{stats.total}</div>
-            <p className="text-sm text-muted-foreground">Total Workers</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <span className="text-2xl font-bold text-green-600">{stats.completed}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Inducted</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-orange-600" />
-              <span className="text-2xl font-bold text-orange-600">{stats.pending}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Pending</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-red-600" />
-              <span className="text-2xl font-bold text-red-600">{stats.expired}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Expired</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Table */}
+    <div className="flex flex-col h-full -mx-4">
       <TeeemTableView
-        entries={records}
-        columns={columns}
-        foundationId={String(WHS_INDUCTIONS_FOUNDATION_ID)}
-        foundationIdNumeric={WHS_INDUCTIONS_FOUNDATION_ID}
-        tableName={foundation?.name || "Site Inductions"}
+        foundationId="whs_inductions"
+        autoFetchRecords={true}
+        tableName="Site Inductions"
         enableExport={true}
-        onRefresh={refresh}
-        onRowUpdate={handleRowUpdate}
         leftActions={leftActions}
+        hideFooter={true}
       />
     </div>
   );

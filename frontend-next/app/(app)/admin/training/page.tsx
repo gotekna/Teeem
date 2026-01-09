@@ -2,13 +2,13 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { useUrlState } from "@/hooks/useUrlState";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Table,
   TableBody,
@@ -24,14 +24,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  GraduationCap,
-  Play,
-  CheckCircle2,
-  Clock,
   BookOpen,
-  Award,
   ChevronLeft,
-  Loader2,
   Video,
   Plus,
   Search,
@@ -40,6 +34,8 @@ import {
   Trash,
   Users,
   BarChart3,
+  CheckCircle2,
+  GraduationCap,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -77,10 +73,23 @@ function formatDuration(minutes: number): string {
 
 export default function AdminTrainingPage() {
   const router = useRouter();
+
+  // SSoT: URL state for search (enables shareable URLs)
+  const [urlState, setUrlState] = useUrlState({
+    search: null as string | null,
+  });
+
   const [modules, setModules] = React.useState<TrainingModule[]>([]);
   const [stats, setStats] = React.useState<TrainingStats | null>(null);
   const [loading, setLoading] = React.useState(true);
-  const [searchQuery, setSearchQuery] = React.useState("");
+
+  // Derive searchQuery from URL
+  const searchQuery = urlState.search || "";
+
+  // Update URL when search changes
+  const setSearchQuery = React.useCallback((query: string) => {
+    setUrlState({ search: query || null });
+  }, [setUrlState]);
 
   React.useEffect(() => {
     const fetchTraining = async () => {
@@ -176,7 +185,7 @@ export default function AdminTrainingPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }

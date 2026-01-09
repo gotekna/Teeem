@@ -40,7 +40,7 @@ supplier_categories.each do |supplier_id, categories|
 
   supplier.update!(
     trade_categories: all_categories,
-    is_default_for_trades: [primary_category].compact
+    is_default_for_trades: [ primary_category ].compact
   )
 
   puts "   Updated: #{supplier.name}"

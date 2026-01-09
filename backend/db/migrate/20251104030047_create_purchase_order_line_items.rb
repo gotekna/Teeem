@@ -14,6 +14,6 @@ class CreatePurchaseOrderLineItems < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :purchase_order_line_items, [:purchase_order_id, :line_number], name: 'index_po_line_items_on_po_and_line_num'
+    add_index :purchase_order_line_items, [ :purchase_order_id, :line_number ], name: 'index_po_line_items_on_po_and_line_num'
   end
 end

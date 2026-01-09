@@ -5,7 +5,7 @@ namespace :teeem do
 
     # Format mobile numbers
     mobile_count = 0
-    GoldStandardTable.where.not(mobile: [nil, '']).find_each do |item|
+    GoldStandardTable.where.not(mobile: [ nil, "" ]).find_each do |item|
       original = item.mobile
       formatted = format_mobile(original)
 
@@ -18,7 +18,7 @@ namespace :teeem do
 
     # Format phone numbers
     phone_count = 0
-    GoldStandardTable.where.not(phone: [nil, '']).find_each do |item|
+    GoldStandardTable.where.not(phone: [ nil, "" ]).find_each do |item|
       original = item.phone
       formatted = format_phone(original)
 
@@ -40,10 +40,10 @@ namespace :teeem do
     return value if value.blank?
 
     # Remove all non-digit characters
-    digits = value.gsub(/\D/, '')
+    digits = value.gsub(/\D/, "")
 
     # Format Australian mobile: 0400 000 000
-    if digits.length == 10 && digits.start_with?('04')
+    if digits.length == 10 && digits.start_with?("04")
       return "#{digits[0..3]} #{digits[4..6]} #{digits[7..9]}"
     end
 
@@ -55,7 +55,7 @@ namespace :teeem do
     return value if value.blank?
 
     # Remove all non-digit characters
-    digits = value.gsub(/\D/, '')
+    digits = value.gsub(/\D/, "")
 
     # Format Australian landline: (02) 0000 0000
     if digits.length == 10 && digits.match?(/^0[2-9]/)
@@ -93,28 +93,28 @@ namespace :teeem do
     # Darwin/NT: 08 - numbers starting with 8, 9
 
     case first_digit
-    when '3'
+    when "3"
       # Most likely Brisbane (07)
-      '07'
-    when '6'
+      "07"
+    when "6"
       # Could be Perth (08), Hobart (03), or Canberra (02)
       # Default to 08 (Perth) as it's most common
-      '08'
-    when '8'
+      "08"
+    when "8"
       # Could be Sydney (02), Melbourne (03), Adelaide (08), or Darwin (08)
       # Check second digit for better accuracy
       second_digit = eight_digits[1]
-      if second_digit == '8' || second_digit == '9'
+      if second_digit == "8" || second_digit == "9"
         # 88xx or 89xx more likely Adelaide/Darwin (08)
-        '08'
+        "08"
       else
         # Default to Melbourne (03) as it's most common
-        '03'
+        "03"
       end
-    when '9'
+    when "9"
       # Could be Sydney (02) or Melbourne (03)
       # Default to Melbourne (03) as it's most common
-      '03'
+      "03"
     else
       # Can't determine - return nil
       nil

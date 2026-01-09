@@ -30,11 +30,11 @@ class EmailParserService
   def match_construction
     # Strategy 1: Look for job number or reference in subject
     job_reference = extract_job_reference_from_subject
-    return Construction.find_by(id: job_reference) if job_reference
+    return Job.find_by(id: job_reference) if job_reference
 
     # Strategy 2: Look for job number in body
     job_reference = extract_job_reference_from_body
-    return Construction.find_by(id: job_reference) if job_reference
+    return Job.find_by(id: job_reference) if job_reference
 
     # Strategy 3: Match by sender email to contact/supplier
     construction_from_sender = match_by_sender_email
@@ -51,7 +51,7 @@ class EmailParserService
 
   def extract_from_email
     if @email_data.is_a?(Hash)
-      @email_data[:from] || @email_data['from']
+      @email_data[:from] || @email_data["from"]
     elsif @email_data.respond_to?(:from)
       @email_data.from.first
     else
@@ -61,7 +61,7 @@ class EmailParserService
 
   def extract_to_emails
     emails = if @email_data.is_a?(Hash)
-      @email_data[:to] || @email_data['to']
+      @email_data[:to] || @email_data["to"]
     elsif @email_data.respond_to?(:to)
       @email_data.to
     else
@@ -72,7 +72,7 @@ class EmailParserService
 
   def extract_cc_emails
     emails = if @email_data.is_a?(Hash)
-      @email_data[:cc] || @email_data['cc']
+      @email_data[:cc] || @email_data["cc"]
     elsif @email_data.respond_to?(:cc)
       @email_data.cc
     else
@@ -83,7 +83,7 @@ class EmailParserService
 
   def extract_bcc_emails
     emails = if @email_data.is_a?(Hash)
-      @email_data[:bcc] || @email_data['bcc']
+      @email_data[:bcc] || @email_data["bcc"]
     elsif @email_data.respond_to?(:bcc)
       @email_data.bcc
     else
@@ -94,7 +94,7 @@ class EmailParserService
 
   def extract_subject
     if @email_data.is_a?(Hash)
-      @email_data[:subject] || @email_data['subject']
+      @email_data[:subject] || @email_data["subject"]
     elsif @email_data.respond_to?(:subject)
       @email_data.subject
     else
@@ -104,7 +104,7 @@ class EmailParserService
 
   def extract_body_text
     if @email_data.is_a?(Hash)
-      @email_data[:text_body] || @email_data['text_body'] || @email_data[:body_text] || @email_data['body_text']
+      @email_data[:text_body] || @email_data["text_body"] || @email_data[:body_text] || @email_data["body_text"]
     elsif @email_data.respond_to?(:text_part)
       @email_data.text_part&.decoded
     elsif @email_data.respond_to?(:body)
@@ -116,7 +116,7 @@ class EmailParserService
 
   def extract_body_html
     if @email_data.is_a?(Hash)
-      @email_data[:html_body] || @email_data['html_body'] || @email_data[:body_html] || @email_data['body_html']
+      @email_data[:html_body] || @email_data["html_body"] || @email_data[:body_html] || @email_data["body_html"]
     elsif @email_data.respond_to?(:html_part)
       @email_data.html_part&.decoded
     else
@@ -126,7 +126,7 @@ class EmailParserService
 
   def extract_message_id
     if @email_data.is_a?(Hash)
-      @email_data[:message_id] || @email_data['message_id']
+      @email_data[:message_id] || @email_data["message_id"]
     elsif @email_data.respond_to?(:message_id)
       @email_data.message_id
     else
@@ -136,7 +136,7 @@ class EmailParserService
 
   def extract_in_reply_to
     if @email_data.is_a?(Hash)
-      @email_data[:in_reply_to] || @email_data['in_reply_to']
+      @email_data[:in_reply_to] || @email_data["in_reply_to"]
     elsif @email_data.respond_to?(:in_reply_to)
       @email_data.in_reply_to
     else
@@ -146,7 +146,7 @@ class EmailParserService
 
   def extract_references
     refs = if @email_data.is_a?(Hash)
-      @email_data[:references] || @email_data['references']
+      @email_data[:references] || @email_data["references"]
     elsif @email_data.respond_to?(:references)
       @email_data.references
     else
@@ -157,7 +157,7 @@ class EmailParserService
 
   def extract_received_at
     if @email_data.is_a?(Hash)
-      date = @email_data[:date] || @email_data['date'] || @email_data[:received_at] || @email_data['received_at']
+      date = @email_data[:date] || @email_data["date"] || @email_data[:received_at] || @email_data["received_at"]
       date.is_a?(String) ? Time.parse(date) : date
     elsif @email_data.respond_to?(:date)
       @email_data.date
@@ -174,7 +174,7 @@ class EmailParserService
 
   def count_attachments
     if @email_data.is_a?(Hash)
-      attachments = @email_data[:attachments] || @email_data['attachments'] || []
+      attachments = @email_data[:attachments] || @email_data["attachments"] || []
       Array(attachments).size
     elsif @email_data.respond_to?(:attachments)
       @email_data.attachments.size
@@ -226,11 +226,11 @@ class EmailParserService
 
   # Match construction by address mentioned in email
   def match_by_address
-    body = [extract_subject, extract_body_text, extract_body_html].compact.join(' ')
+    body = [ extract_subject, extract_body_text, extract_body_html ].compact.join(" ")
     return nil if body.blank?
 
-    # Find constructions and check if their title/address appears in email
-    Construction.active.find_each do |construction|
+    # Find jobs and check if their title/address appears in email
+    Job.active.find_each do |construction|
       next if construction.title.blank?
 
       # Simple substring match (could be improved with fuzzy matching)

@@ -14,7 +14,7 @@ class CreateAccountMappings < ActiveRecord::Migration[8.0]
     end
 
     # Ensure unique mapping per integration
-    add_index :account_mappings, [:accounting_integration_id, :keepr_account_id],
+    add_index :account_mappings, [ :accounting_integration_id, :keepr_account_id ],
               unique: true, name: 'index_account_mappings_uniqueness'
     add_index :account_mappings, :external_account_id
     add_index :account_mappings, :is_active

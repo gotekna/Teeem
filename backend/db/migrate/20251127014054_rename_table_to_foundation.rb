@@ -18,23 +18,23 @@ class RenameTableToFoundation < ActiveRecord::Migration[8.0]
     #    but we need to handle the composite index names)
 
     # Remove old indexes with explicit names
-    remove_index :columns, name: "index_columns_on_table_id_and_column_name" if index_exists?(:columns, [:foundation_id, :column_name], name: "index_columns_on_table_id_and_column_name")
+    remove_index :columns, name: "index_columns_on_table_id_and_column_name" if index_exists?(:columns, [ :foundation_id, :column_name ], name: "index_columns_on_table_id_and_column_name")
     remove_index :columns, name: "index_columns_on_table_id" if index_exists?(:columns, :foundation_id, name: "index_columns_on_table_id")
     remove_index :columns, name: "index_columns_on_lookup_table_id" if index_exists?(:columns, :lookup_foundation_id, name: "index_columns_on_lookup_table_id")
 
     # Add new indexes with correct names
-    add_index :columns, [:foundation_id, :column_name], unique: true, name: "index_columns_on_foundation_id_and_column_name" unless index_exists?(:columns, [:foundation_id, :column_name])
+    add_index :columns, [ :foundation_id, :column_name ], unique: true, name: "index_columns_on_foundation_id_and_column_name" unless index_exists?(:columns, [ :foundation_id, :column_name ])
     add_index :columns, :foundation_id, name: "index_columns_on_foundation_id" unless index_exists?(:columns, :foundation_id)
     add_index :columns, :lookup_foundation_id, name: "index_columns_on_lookup_foundation_id" unless index_exists?(:columns, :lookup_foundation_id)
 
     # Foundation views indexes
     remove_index :foundation_views, name: "index_table_views_on_table_id" if index_exists?(:foundation_views, :foundation_id, name: "index_table_views_on_table_id")
-    remove_index :foundation_views, name: "index_table_views_on_table_id_and_user_id" if index_exists?(:foundation_views, [:foundation_id, :user_id], name: "index_table_views_on_table_id_and_user_id")
-    remove_index :foundation_views, name: "index_table_views_on_table_user_order" if index_exists?(:foundation_views, [:foundation_id, :user_id, :display_order], name: "index_table_views_on_table_user_order")
+    remove_index :foundation_views, name: "index_table_views_on_table_id_and_user_id" if index_exists?(:foundation_views, [ :foundation_id, :user_id ], name: "index_table_views_on_table_id_and_user_id")
+    remove_index :foundation_views, name: "index_table_views_on_table_user_order" if index_exists?(:foundation_views, [ :foundation_id, :user_id, :display_order ], name: "index_table_views_on_table_user_order")
 
     add_index :foundation_views, :foundation_id, name: "index_foundation_views_on_foundation_id" unless index_exists?(:foundation_views, :foundation_id)
-    add_index :foundation_views, [:foundation_id, :user_id], name: "index_foundation_views_on_foundation_id_and_user_id" unless index_exists?(:foundation_views, [:foundation_id, :user_id])
-    add_index :foundation_views, [:foundation_id, :user_id, :display_order], name: "index_foundation_views_on_foundation_user_order" unless index_exists?(:foundation_views, [:foundation_id, :user_id, :display_order])
+    add_index :foundation_views, [ :foundation_id, :user_id ], name: "index_foundation_views_on_foundation_id_and_user_id" unless index_exists?(:foundation_views, [ :foundation_id, :user_id ])
+    add_index :foundation_views, [ :foundation_id, :user_id, :display_order ], name: "index_foundation_views_on_foundation_user_order" unless index_exists?(:foundation_views, [ :foundation_id, :user_id, :display_order ])
 
     # Import sessions index
     remove_index :import_sessions, name: "index_import_sessions_on_table_id" if index_exists?(:import_sessions, :foundation_id, name: "index_import_sessions_on_table_id")

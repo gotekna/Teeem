@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, Trophy } from "lucide-react";
+// Badge imported but kept for potential future use
+import { Trophy } from "lucide-react";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import { TableRow, TableColumn } from "@/components/table/types";
+import { TableRow } from "@/components/table/types";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 interface FeatureChapter {
@@ -32,6 +33,7 @@ interface FeatureTracker extends TableRow {
   smarterbuild_has: boolean;
   jacks_has: boolean;
   clickup_has: boolean;
+  evolve_has: boolean;
 }
 
 interface CompetitorStat {
@@ -49,173 +51,8 @@ interface Stats {
   competitors: CompetitorStat[];
 }
 
-// Extended column type with lookup support
-interface ExtendedColumn extends TableColumn {
-  lookup_table?: string;
-  lookup_display_field?: string;
-}
-
-// Column types must match Foundation ID 375 (feature_trackers)
-const COLUMNS: ExtendedColumn[] = [
-  {
-    key: "feature_chapter",
-    label: "Chapter",
-    column_type: "lookup",
-    resizable: true,
-    sortable: true,
-    filterable: true,
-    filterType: "dropdown",
-    width: 280,
-    lookup_table: "feature_chapters",
-    lookup_display_field: "display_name",
-  },
-  {
-    key: "feature_name",
-    label: "Feature",
-    column_type: "single_line_text",
-    resizable: true,
-    sortable: true,
-    filterable: true,
-    filterType: "text",
-    width: 280,
-  },
-  {
-    key: "detail_point_1",
-    label: "Detail 1",
-    column_type: "multiple_lines_text",
-    resizable: true,
-    sortable: false,
-    filterable: false,
-    width: 180,
-  },
-  {
-    key: "detail_point_2",
-    label: "Detail 2",
-    column_type: "multiple_lines_text",
-    resizable: true,
-    sortable: false,
-    filterable: false,
-    width: 180,
-  },
-  {
-    key: "detail_point_3",
-    label: "Detail 3",
-    column_type: "multiple_lines_text",
-    resizable: true,
-    sortable: false,
-    filterable: false,
-    width: 180,
-  },
-  {
-    key: "dev_progress",
-    label: "Progress",
-    column_type: "percentage",
-    resizable: true,
-    sortable: true,
-    filterable: false,
-    width: 100,
-  },
-  {
-    key: "teeem_has",
-    label: "TEEEM",
-    column_type: "boolean",
-    resizable: true,
-    sortable: true,
-    filterable: true,
-    filterType: "dropdown",
-    width: 80,
-  },
-  {
-    key: "simpro_has",
-    label: "Simpro",
-    column_type: "boolean",
-    resizable: true,
-    sortable: true,
-    filterable: true,
-    filterType: "dropdown",
-    width: 80,
-  },
-  {
-    key: "buildertrend_has",
-    label: "BuilderTrend",
-    column_type: "boolean",
-    resizable: true,
-    sortable: true,
-    filterable: true,
-    filterType: "dropdown",
-    width: 100,
-  },
-  {
-    key: "buildexact_has",
-    label: "BuildExact",
-    column_type: "boolean",
-    resizable: true,
-    sortable: true,
-    filterable: true,
-    filterType: "dropdown",
-    width: 90,
-  },
-  {
-    key: "databuild_has",
-    label: "DataBuild",
-    column_type: "boolean",
-    resizable: true,
-    sortable: true,
-    filterable: true,
-    filterType: "dropdown",
-    width: 90,
-  },
-  {
-    key: "clickhome_has",
-    label: "ClickHome",
-    column_type: "boolean",
-    resizable: true,
-    sortable: true,
-    filterable: true,
-    filterType: "dropdown",
-    width: 90,
-  },
-  {
-    key: "wunderbuilt_has",
-    label: "Wunderbuilt",
-    column_type: "boolean",
-    resizable: true,
-    sortable: true,
-    filterable: true,
-    filterType: "dropdown",
-    width: 100,
-  },
-  {
-    key: "smarterbuild_has",
-    label: "SmarterBuild",
-    column_type: "boolean",
-    resizable: true,
-    sortable: true,
-    filterable: true,
-    filterType: "dropdown",
-    width: 100,
-  },
-  {
-    key: "jacks_has",
-    label: "Jacks",
-    column_type: "boolean",
-    resizable: true,
-    sortable: true,
-    filterable: true,
-    filterType: "dropdown",
-    width: 70,
-  },
-  {
-    key: "clickup_has",
-    label: "ClickUp",
-    column_type: "boolean",
-    resizable: true,
-    sortable: true,
-    filterable: true,
-    filterType: "dropdown",
-    width: 80,
-  },
-];
+// SSoT: Columns are now fetched from Foundation API (ID: 375)
+// Removed hardcoded COLUMNS and ExtendedColumn interface - 2024-12-27
 
 // Color mapping for competitor bars
 const COMPETITOR_COLORS: Record<string, string> = {
@@ -279,7 +116,7 @@ export default function FeaturesTrackingTable() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -415,10 +252,9 @@ export default function FeaturesTrackingTable() {
       {/* TeeemTableView */}
       <TeeemTableView
         tableName="Feature Tracking"
-        foundationId="feature_tracking"
-        foundationIdNumeric={375}
+        foundationId="feature_trackers"
         entries={features}
-        columns={COLUMNS}
+        // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
         viewOnly={true}
         enableExport={true}
         initialGroupByColumn="feature_chapter"

@@ -3,7 +3,7 @@
 # Service to import bills from Xero as Purchase Orders for a job
 # Matches bills by Xero Tracking Category (Job)
 class XeroBillImportService
-  TRACKING_CATEGORY_NAME = 'Job'
+  TRACKING_CATEGORY_NAME = "Job"
 
   class Error < StandardError; end
   class NotConnectedError < Error; end
@@ -27,7 +27,7 @@ class XeroBillImportService
     bills.each do |bill|
       import_bill(bill)
     rescue StandardError => e
-      @errors << { invoice_number: bill['InvoiceNumber'], error: e.message }
+      @errors << { invoice_number: bill["InvoiceNumber"], error: e.message }
     end
 
     {
@@ -41,18 +41,23 @@ class XeroBillImportService
   end
 
   # Fetch all tracking categories and their options from Xero
+  # Returns empty array if Xero is not configured (graceful degradation for local dev)
   def self.fetch_tracking_options
     client = XeroApiClient.new
-    result = client.get('TrackingCategories')
+    result = client.get("TrackingCategories")
 
     return [] unless result[:success]
 
-    categories = result[:data]['TrackingCategories'] || []
-    job_category = categories.find { |c| c['Name'] == TRACKING_CATEGORY_NAME }
+    categories = result[:data]["TrackingCategories"] || []
+    job_category = categories.find { |c| c["Name"] == TRACKING_CATEGORY_NAME }
 
     return [] unless job_category
 
-    job_category['Options']&.select { |o| o['Status'] == 'ACTIVE' } || []
+    job_category["Options"]&.select { |o| o["Status"] == "ACTIVE" } || []
+  rescue XeroApiClient::AuthenticationError => e
+    # Graceful degradation: return empty if Xero not configured (common in local dev)
+    Rails.logger.info("[Xero] Not configured: #{e.message}")
+    []
   end
 
   # Match a job to a Xero tracking option by name/address
@@ -66,7 +71,7 @@ class XeroBillImportService
     best_score = 0
 
     tracking_options.each do |option|
-      option_name = option['Name'].downcase
+      option_name = option["Name"].downcase
 
       # Calculate match score based on common words
       score = calculate_match_score(job_text, option_name)
@@ -84,7 +89,7 @@ class XeroBillImportService
 
   def validate_setup!
     unless XeroCredential.first&.access_token.present?
-      raise NotConnectedError, 'Xero is not connected'
+      raise NotConnectedError, "Xero is not connected"
     end
 
     unless @job.xero_tracking_option_id.present?
@@ -94,11 +99,11 @@ class XeroBillImportService
 
   def fetch_bills_for_job
     # Fetch all ACCPAY (bills) invoices from Xero
-    result = @client.get('Invoices', { where: 'Type=="ACCPAY"' })
+    result = @client.get("Invoices", { where: 'Type=="ACCPAY"' })
 
     return [] unless result[:success]
 
-    all_bills = result[:data]['Invoices'] || []
+    all_bills = result[:data]["Invoices"] || []
 
     # Filter to bills that have line items with our job's tracking option
     all_bills.select do |bill|
@@ -107,29 +112,29 @@ class XeroBillImportService
   end
 
   def bill_has_job_tracking?(bill)
-    line_items = bill['LineItems'] || []
+    line_items = bill["LineItems"] || []
 
     line_items.any? do |line|
-      tracking = line['Tracking'] || []
+      tracking = line["Tracking"] || []
       tracking.any? do |t|
-        t['TrackingCategoryID'] == tracking_category_id &&
-          t['TrackingOptionID'] == @job.xero_tracking_option_id
+        t["TrackingCategoryID"] == tracking_category_id &&
+          t["TrackingOptionID"] == @job.xero_tracking_option_id
       end
     end
   end
 
   def tracking_category_id
     @tracking_category_id ||= begin
-      result = @client.get('TrackingCategories')
-      categories = result[:data]['TrackingCategories'] || []
-      job_category = categories.find { |c| c['Name'] == TRACKING_CATEGORY_NAME }
-      job_category&.dig('TrackingCategoryID')
+      result = @client.get("TrackingCategories")
+      categories = result[:data]["TrackingCategories"] || []
+      job_category = categories.find { |c| c["Name"] == TRACKING_CATEGORY_NAME }
+      job_category&.dig("TrackingCategoryID")
     end
   end
 
   def import_bill(bill)
     # Check if PO already exists for this Xero invoice
-    existing_po = @job.purchase_orders.find_by(xero_invoice_id: bill['InvoiceID'])
+    existing_po = @job.purchase_orders.find_by(xero_invoice_id: bill["InvoiceID"])
 
     if existing_po
       @skipped_count += 1
@@ -137,8 +142,8 @@ class XeroBillImportService
     end
 
     # Get contact info
-    contact = bill['Contact'] || {}
-    contact_name = contact['Name'] || 'Unknown Supplier'
+    contact = bill["Contact"] || {}
+    contact_name = contact["Name"] || "Unknown Supplier"
 
     # Calculate total from line items that match our job
     job_total = calculate_job_total(bill)
@@ -151,45 +156,45 @@ class XeroBillImportService
       supplier_name: contact_name,
       description: description,
       total: job_total,
-      status: bill['Status'] == 'PAID' ? 'paid' : 'approved',
-      xero_invoice_id: bill['InvoiceID'],
-      xero_invoice_number: bill['InvoiceNumber'],
-      date: parse_xero_date(bill['Date']),
-      due_date: parse_xero_date(bill['DueDate'])
+      status: bill["Status"] == "PAID" ? "paid" : "approved",
+      xero_invoice_id: bill["InvoiceID"],
+      xero_invoice_number: bill["InvoiceNumber"],
+      date: parse_xero_date(bill["Date"]),
+      due_date: parse_xero_date(bill["DueDate"])
     )
 
     @imported_count += 1
   end
 
   def calculate_job_total(bill)
-    line_items = bill['LineItems'] || []
+    line_items = bill["LineItems"] || []
 
     # Sum only line items that are tracked to this job
     matching_lines = line_items.select do |line|
-      tracking = line['Tracking'] || []
+      tracking = line["Tracking"] || []
       tracking.any? do |t|
-        t['TrackingOptionID'] == @job.xero_tracking_option_id
+        t["TrackingOptionID"] == @job.xero_tracking_option_id
       end
     end
 
-    matching_lines.sum { |line| (line['LineAmount'] || 0).to_f }
+    matching_lines.sum { |line| (line["LineAmount"] || 0).to_f }
   end
 
   def build_description(bill)
-    line_items = bill['LineItems'] || []
+    line_items = bill["LineItems"] || []
 
     # Get descriptions from matching line items
     matching_lines = line_items.select do |line|
-      tracking = line['Tracking'] || []
+      tracking = line["Tracking"] || []
       tracking.any? do |t|
-        t['TrackingOptionID'] == @job.xero_tracking_option_id
+        t["TrackingOptionID"] == @job.xero_tracking_option_id
       end
     end
 
-    descriptions = matching_lines.map { |l| l['Description'] }.compact.uniq
+    descriptions = matching_lines.map { |l| l["Description"] }.compact.uniq
 
     if descriptions.any?
-      descriptions.join('; ').truncate(500)
+      descriptions.join("; ").truncate(500)
     else
       "Imported from Xero: #{bill['InvoiceNumber']}"
     end

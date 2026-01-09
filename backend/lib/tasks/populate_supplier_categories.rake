@@ -1,9 +1,9 @@
 namespace :suppliers do
   desc "Populate supplier categories from EasyBuild CSV data"
   task populate_categories: :environment do
-    require 'csv'
+    require "csv"
 
-    csv_path = Rails.root.join('..', 'easybuildapp development Price Books(in).csv')
+    csv_path = Rails.root.join("..", "easybuildapp development Price Books(in).csv")
 
     unless File.exist?(csv_path)
       puts "ERROR: CSV file not found at #{csv_path}"
@@ -21,8 +21,8 @@ namespace :suppliers do
     # Parse CSV
     puts "\n1. Analyzing CSV data..."
     CSV.foreach(csv_path, headers: true) do |row|
-      supplier = row['default_supplier']&.strip
-      category = row['category']&.strip
+      supplier = row["default_supplier"]&.strip
+      category = row["category"]&.strip
 
       next if supplier.nil? || supplier.empty? || category.nil? || category.empty?
 
@@ -112,7 +112,7 @@ namespace :suppliers do
       puts "  Primary: #{supplier.is_default_for_trades}"
       puts "  All categories:"
       categories.each do |cat|
-        marker = cat['is_primary'] ? ' (PRIMARY)' : ''
+        marker = cat["is_primary"] ? " (PRIMARY)" : ""
         puts "    - #{cat['name']}: #{cat['item_count']} items (#{cat['percentage']}%)#{marker}"
       end
     end
@@ -157,7 +157,7 @@ namespace :suppliers do
 
       puts "\n#{supplier.name} (#{categories.size} categories):"
       categories.each do |cat|
-        marker = cat['is_primary'] ? ' ⭐ PRIMARY' : ''
+        marker = cat["is_primary"] ? " ⭐ PRIMARY" : ""
         puts "  - #{cat['name']}: #{cat['item_count']} items (#{cat['percentage']}%)#{marker}"
       end
     end
@@ -178,7 +178,7 @@ namespace :suppliers do
       }
     end
 
-    output_path = Rails.root.join('..', 'supplier_category_database_export.json')
+    output_path = Rails.root.join("..", "supplier_category_database_export.json")
     File.write(output_path, JSON.pretty_generate(output))
 
     puts "Exported #{output.size} suppliers to #{output_path}"

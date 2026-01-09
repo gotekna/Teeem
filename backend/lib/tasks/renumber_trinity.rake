@@ -4,7 +4,7 @@ namespace :trinity do
     puts "🔄 Renumbering ALL Trinity entries to 3-digit format..."
     puts ""
 
-    ['bible', 'lexicon', 'teacher'].each do |category|
+    [ "bible", "lexicon", "teacher" ].each do |category|
       puts "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       puts "Processing #{category.upcase} entries..."
       puts "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -32,10 +32,10 @@ namespace :trinity do
 
       # Phase 2: Final 3-digit numbers
       prefix = case category
-               when 'bible' then 'B'
-               when 'lexicon' then 'L'
-               when 'teacher' then 'T'
-               end
+      when "bible" then "B"
+      when "lexicon" then "L"
+      when "teacher" then "T"
+      end
 
       puts "  Phase 2: Assigning final 3-digit numbers..."
       entries.reload.group_by(&:chapter_number).each do |chapter_num, chapter_entries|
@@ -59,7 +59,7 @@ namespace :trinity do
 
     # Show summary
     puts "Summary:"
-    ['bible', 'lexicon', 'teacher'].each do |category|
+    [ "bible", "lexicon", "teacher" ].each do |category|
       count = Trinity.where(category: category).count
       first = Trinity.where(category: category).order(:section_number).first
       last = Trinity.where(category: category).order(:section_number).last
@@ -97,7 +97,7 @@ namespace :trinity do
     print "Do you want to renumber all #{bible_entries.count} entries sequentially? (yes/no): "
     response = STDIN.gets.chomp.downcase
 
-    unless response == 'yes'
+    unless response == "yes"
       puts "❌ Cancelled"
       exit 0
     end
@@ -184,11 +184,11 @@ namespace :trinity do
 
       # Get the highest existing section number for this category
       prefix = case category
-               when 'bible' then 'B'
-               when 'lexicon' then 'L'
-               when 'teacher' then 'T'
-               else 'X'
-               end
+      when "bible" then "B"
+      when "lexicon" then "L"
+      when "teacher" then "T"
+      else "X"
+      end
 
       # Find max section in this category
       max_section = Trinity.where(category: category)

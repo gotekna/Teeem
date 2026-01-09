@@ -1,4 +1,4 @@
-require 'anthropic'
+require "anthropic"
 
 class DocumentVerificationService
   MAX_FILE_SIZE = 20.megabytes
@@ -12,12 +12,12 @@ class DocumentVerificationService
 
   def initialize(document)
     @document = document
-    @company = document.company
+    @company = document.corporate_company
   end
 
   def verify!
     # Mark as processing
-    @document.update!(ai_verification_status: 'processing')
+    @document.update!(ai_verification_status: "processing")
 
     # 1. Validate we have a file to download
     validate_file_available!
@@ -25,23 +25,24 @@ class DocumentVerificationService
     # 2. Download PDF from SharePoint
     content = download_document
 
-    # 3. Extract text from PDF
+    # 3. Extract text from PDF and track OCR results
     text = extract_text(content)
+    ocr_result = calculate_ocr_confidence(text, content)
 
     # 4. Send to Claude for analysis (pass PDF content for vision fallback if text extraction failed)
     analysis = analyze_with_claude(text, text.nil? ? content : nil)
 
     # Check if this is a date-range document (statements, summaries)
     # These use date ranges instead of financial years
-    suggested_type_lower = (analysis[:suggested_type] || '').downcase
-    is_date_range_doc = suggested_type_lower.include?('statement') ||
-                        suggested_type_lower.include?('summary') ||
-                        (analysis[:suggested_name] || '').include?(' to ')
+    suggested_type_lower = (analysis[:suggested_type] || "").downcase
+    is_date_range_doc = suggested_type_lower.include?("statement") ||
+                        suggested_type_lower.include?("summary") ||
+                        (analysis[:suggested_name] || "").include?(" to ")
 
     # Don't store suggested_fy for date-range documents
     suggested_fy = is_date_range_doc ? nil : analysis[:suggested_fy]
 
-    # 5. Update document with results
+    # 5. Update document with results (including OCR metrics)
     @document.update!(
       ai_verified_at: Time.current,
       ai_verification_status: analysis[:status],
@@ -56,7 +57,10 @@ class DocumentVerificationService
       ai_source_page: analysis[:source_page],
       ai_source_quote: analysis[:source_quote],
       ai_contains_multiple_documents: analysis[:contains_multiple_documents],
-      ai_split_recommendation: analysis[:split_recommendation]
+      ai_split_recommendation: analysis[:split_recommendation],
+      # OCR metrics
+      ocr_confidence: ocr_result[:confidence],
+      ocr_method: ocr_result[:method]
     )
 
     # 6. Auto-apply at 74%+ confidence (skip if multi-document PDF)
@@ -76,7 +80,7 @@ class DocumentVerificationService
   rescue VerificationError => e
     @document.update!(
       ai_verified_at: Time.current,
-      ai_verification_status: 'error',
+      ai_verification_status: "error",
       ai_analysis_notes: e.message
     )
     { success: false, error: e.message }
@@ -86,7 +90,7 @@ class DocumentVerificationService
     Rails.logger.error(e.backtrace.first(10).join("\n"))
     @document.update!(
       ai_verified_at: Time.current,
-      ai_verification_status: 'error',
+      ai_verification_status: "error",
       ai_analysis_notes: "Unexpected error: #{e.message}"
     )
     { success: false, error: e.message }
@@ -102,12 +106,12 @@ class DocumentVerificationService
     return false unless analysis[:suggested_name].present?
 
     # Rename file in SharePoint if name changed
-    if analysis[:suggested_name] != @document.title && @document.onedrive_file_id.present?
+    if analysis[:suggested_name] != @document.file_name && @document.sharepoint_file_id.present?
       begin
-        credential = OrganizationOneDriveCredential.active_credential
+        credential = MicrosoftCredential.sharepoint_credential
         if credential
           client = MicrosoftGraphClient.new(credential)
-          client.rename_file(@document.onedrive_file_id, analysis[:suggested_name])
+          client.rename_file(@document.sharepoint_file_id, analysis[:suggested_name])
           Rails.logger.info("Auto-renamed SharePoint file to: #{analysis[:suggested_name]}")
         end
       rescue StandardError => e
@@ -118,18 +122,18 @@ class DocumentVerificationService
 
     # Check if this is a date-range document (statements, summaries)
     # These use date ranges instead of financial years
-    suggested_type_lower = (analysis[:suggested_type] || '').downcase
-    is_date_range_doc = suggested_type_lower.include?('statement') ||
-                        suggested_type_lower.include?('summary') ||
-                        (analysis[:suggested_name] || '').include?(' to ')
+    suggested_type_lower = (analysis[:suggested_type] || "").downcase
+    is_date_range_doc = suggested_type_lower.include?("statement") ||
+                        suggested_type_lower.include?("summary") ||
+                        (analysis[:suggested_name] || "").include?(" to ")
 
     # Update document record with AI suggestions
     update_attrs = {
-      title: analysis[:suggested_name],
+      file_name: analysis[:suggested_name],
       folder: analysis[:suggested_folder] || @document.folder,
       document_type: analysis[:suggested_type] || @document.document_type,
       ref_date: analysis[:extracted_date].presence || @document.ref_date,
-      ai_verification_status: 'verified',
+      ai_verification_status: "verified",
       user_validated_at: Time.current
     }
 
@@ -152,17 +156,17 @@ class DocumentVerificationService
   end
 
   def validate_file_available!
-    unless @document.onedrive_file_id.present?
+    unless @document.sharepoint_file_id.present?
       raise FileNotFoundError, "No OneDrive file ID available for this document"
     end
   end
 
   def download_document
-    credential = OrganizationOneDriveCredential.active_credential
+    credential = MicrosoftCredential.sharepoint_credential
     raise OneDriveError, "No active OneDrive credential" unless credential
 
     client = MicrosoftGraphClient.new(credential)
-    content = client.download_file(@document.onedrive_file_id)
+    content = client.download_file(@document.sharepoint_file_id)
 
     raise FileNotFoundError, "Failed to download file content" if content.blank?
     raise FileTooLargeError, "File too large (#{content.bytesize} bytes)" if content.bytesize > MAX_FILE_SIZE
@@ -173,10 +177,10 @@ class DocumentVerificationService
   end
 
   def extract_text(content)
-    file_extension = File.extname(@document.title || @document.file_name || '').downcase
+    file_extension = File.extname(@document.file_name || "").downcase
 
     case file_extension
-    when '.pdf'
+    when ".pdf"
       extract_pdf_text(content)
     else
       # For non-PDF files, we can't extract text - just use the filename
@@ -185,63 +189,100 @@ class DocumentVerificationService
     end
   end
 
+  # SSoT: Uses PdfTextExtractionService for all PDF text extraction
   def extract_pdf_text(content)
-    Tempfile.create(['doc', '.pdf']) do |file|
-      file.binmode
-      file.write(content)
-      file.rewind
+    result = PdfTextExtractionService.extract(
+      content,
+      max_chars_per_page: 1500,
+      include_page_numbers: true
+    )
 
-      begin
-        reader = PDF::Reader.new(file.path)
-        # Extract text page-by-page with page numbers
-        pages_text = []
-        reader.pages.each_with_index do |page, index|
-          page_text = page.text.to_s.strip
-          if page_text.present?
-            pages_text << {
-              page: index + 1,
-              text: page_text[0..1500] # Limit each page to 1500 chars
-            }
-          end
-        end
+    return nil unless result[:success]
 
-        # Return structured page data
-        return { pages: pages_text, total_pages: reader.page_count } if pages_text.any?
-        nil
-      rescue PDF::Reader::MalformedPDFError => e
-        Rails.logger.warn("Malformed PDF: #{e.message}")
-        nil
-      rescue StandardError => e
-        Rails.logger.warn("PDF extraction error: #{e.message}")
-        nil
-      end
-    end
+    # Return in format expected by build_prompt
+    { pages: result[:pages], total_pages: result[:page_count] }
   end
 
+  # Calculate OCR confidence based on text extraction quality
+  # Returns { confidence: 0-100, method: 'text_extraction' | 'vision' | 'none' }
+  def calculate_ocr_confidence(text, content)
+    if text.nil?
+      # No text extracted - will use vision fallback
+      return { confidence: nil, method: "vision" }
+    end
+
+    # Calculate confidence based on extracted text quality
+    pages = text[:pages] || []
+    total_pages = text[:total_pages] || 0
+
+    if pages.empty? || total_pages == 0
+      return { confidence: 0, method: "text_extraction" }
+    end
+
+    # Calculate average characters per page
+    total_chars = pages.sum { |p| p[:text].to_s.length }
+    avg_chars_per_page = total_chars.to_f / total_pages
+
+    # Score based on text density:
+    # - 500+ chars/page = 100% (well-formatted text PDF)
+    # - 200-500 chars/page = 70-99% (decent extraction)
+    # - 50-200 chars/page = 40-69% (sparse text, possible scan)
+    # - <50 chars/page = 10-39% (mostly images/scanned)
+    confidence = case avg_chars_per_page
+    when 500.. then 100
+    when 200...500 then 70 + ((avg_chars_per_page - 200) / 300.0 * 29).round
+    when 50...200 then 40 + ((avg_chars_per_page - 50) / 150.0 * 29).round
+    else
+      [ 10 + (avg_chars_per_page / 50.0 * 29).round, 39 ].min
+    end
+
+    { confidence: confidence, method: "text_extraction" }
+  end
+
+  MAX_RETRIES = 3
+  INITIAL_RETRY_DELAY = 2 # seconds
+
   def analyze_with_claude(text, pdf_content = nil)
-    api_key = ENV['ANTHROPIC_API_KEY']
+    api_key = ENV["ANTHROPIC_API_KEY"]
     raise VerificationError, "ANTHROPIC_API_KEY not configured" unless api_key
 
     client = Anthropic::Client.new(access_token: api_key)
     prompt = build_prompt(text)
 
-    # If no text was extracted but we have PDF content, use vision
-    if text.nil? && pdf_content.present?
-      response = analyze_with_vision(client, prompt, pdf_content)
-    else
-      response = client.messages(
-        parameters: {
-          model: MODEL,
-          max_tokens: 1024,
-          messages: [{ role: "user", content: prompt }]
-        }
-      )
-    end
+    retries = 0
+    begin
+      # If no text was extracted but we have PDF content, use vision
+      if text.nil? && pdf_content.present?
+        response = analyze_with_vision(client, prompt, pdf_content)
+      else
+        response = client.messages(
+          parameters: {
+            model: MODEL,
+            max_tokens: 1024,
+            messages: [ { role: "user", content: prompt } ]
+          }
+        )
+      end
 
-    parse_response(response)
-  rescue Anthropic::Error => e
-    Rails.logger.error("Anthropic API error: #{e.message}")
-    raise VerificationError, "Claude API error: #{e.message}"
+      parse_response(response)
+    rescue Anthropic::Error => e
+      # Check for rate limit (429) errors
+      if e.message.include?("429") || e.message.downcase.include?("rate limit")
+        retries += 1
+        if retries <= MAX_RETRIES
+          delay = INITIAL_RETRY_DELAY * (2 ** (retries - 1)) # Exponential backoff: 2, 4, 8 seconds
+          Rails.logger.warn("Rate limited by Anthropic API (attempt #{retries}/#{MAX_RETRIES}). Retrying in #{delay}s...")
+          sleep(delay)
+          retry
+        else
+          Rails.logger.error("Anthropic API rate limit exceeded after #{MAX_RETRIES} retries")
+          raise VerificationError, "Claude API rate limited - please try again later"
+        end
+      else
+        Rails.logger.error("Anthropic API error: #{e.message}")
+        raise VerificationError, "Claude API error: #{e.message}"
+      end
+    end
   end
 
   def analyze_with_vision(client, prompt, pdf_content)
@@ -254,7 +295,7 @@ class DocumentVerificationService
         parameters: {
           model: MODEL,
           max_tokens: 1024,
-          messages: [{ role: "user", content: prompt }]
+          messages: [ { role: "user", content: prompt } ]
         }
       )
     end
@@ -284,7 +325,7 @@ class DocumentVerificationService
       parameters: {
         model: MODEL,
         max_tokens: 1024,
-        messages: [{ role: "user", content: content }]
+        messages: [ { role: "user", content: content } ]
       }
     )
   end
@@ -292,7 +333,7 @@ class DocumentVerificationService
   def convert_pdf_to_images(pdf_content)
     images = []
 
-    Tempfile.create(['doc', '.pdf']) do |pdf_file|
+    Tempfile.create([ "doc", ".pdf" ]) do |pdf_file|
       pdf_file.binmode
       pdf_file.write(pdf_content)
       pdf_file.rewind
@@ -302,8 +343,8 @@ class DocumentVerificationService
         page_count = get_pdf_page_count(pdf_file.path)
 
         # Convert each page (limit to first 5)
-        [page_count, 5].min.times do |page_num|
-          Tempfile.create(['page', '.png']) do |img_file|
+        [ page_count, 5 ].min.times do |page_num|
+          Tempfile.create([ "page", ".png" ]) do |img_file|
             MiniMagick::Tool::Convert.new do |convert|
               convert.density(150)
               convert << "#{pdf_file.path}[#{page_num}]"
@@ -338,7 +379,7 @@ class DocumentVerificationService
   def build_prompt(text_data)
     # Build context about the document
     context_parts = []
-    context_parts << "Current filename: #{@document.title}"
+    context_parts << "Current filename: #{@document.file_name}"
     if @company
       context_parts << "Company: #{@company.name} (code: #{@company.code})"
       # Include previous names if any - helps match documents from before company name changes
@@ -534,9 +575,9 @@ class DocumentVerificationService
         lines << "### #{folder || 'GENERAL'}"
         types.each do |dt|
           abbrev = dt.abbreviation.present? ? " (#{dt.abbreviation})" : ""
-          format = dt.naming_format.present? ? " - Format: #{dt.naming_format}" : ""
+          format = dt.file_name.present? ? " - Format: #{dt.file_name}" : ""
           # Include all aliases (database + defaults) so AI knows alternative names
-          all_aliases = dt.all_terms - [dt.name]
+          all_aliases = dt.all_terms - [ dt.name ]
           aliases_info = all_aliases.any? ? " [Also known as: #{all_aliases.first(5).join(', ')}]" : ""
           lines << "- #{dt.name}#{abbrev}#{format}#{aliases_info}"
         end
@@ -605,8 +646,16 @@ class DocumentVerificationService
 
     # Only populate FY if the suggested name explicitly contains "FY"
     suggested_name = json["suggested_name"] || ""
-    raw_suggested_fy = if suggested_name.match?(/FY\d{2}/i)
-      json["suggested_fy"] || []
+    raw_suggested_fy = if suggested_name.match?(/FY(\d{2})/i)
+      # Extract FY from filename if Claude didn't provide it or provided nil
+      claude_fy = json["suggested_fy"]
+      if claude_fy.present? && claude_fy.is_a?(Array) && claude_fy.any?
+        claude_fy
+      else
+        # Extract from filename: "FY24" -> [2024]
+        fy_match = suggested_name.match(/FY(\d{2})/i)
+        fy_match ? [ 2000 + fy_match[1].to_i ] : []
+      end
     else
       [] # No FY in filename = no FY in column
     end
@@ -648,7 +697,7 @@ class DocumentVerificationService
 
     # Parse the extracted date (format: DD-MM-YYYY)
     begin
-      date = Date.strptime(extracted_date, '%d-%m-%Y')
+      date = Date.strptime(extracted_date, "%d-%m-%Y")
     rescue ArgumentError
       # Try other common formats
       begin

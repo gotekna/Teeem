@@ -13,9 +13,9 @@ class WHSSWMSAcknowledgment < ApplicationRecord
 
   # Scopes
   scope :recent, -> { order(acknowledged_at: :desc) }
-  scope :by_worker, ->(name) { where('worker_name ILIKE ?', "%#{name}%") }
+  scope :by_worker, ->(name) { where("worker_name ILIKE ?", "%#{name}%") }
   scope :for_user, ->(user) { where(user: user) }
-  scope :today, -> { where('acknowledged_at >= ?', CompanySetting.today.beginning_of_day) }
+  scope :today, -> { where("acknowledged_at >= ?", CorporateCompanySetting.today.beginning_of_day) }
 
   # Helper methods
   def worker_display_name
@@ -35,6 +35,6 @@ class WHSSWMSAcknowledgment < ApplicationRecord
   def capture_ip_address
     # IP address should be set by controller
     # This is just a fallback
-    self.ip_address ||= 'unknown'
+    self.ip_address ||= "unknown"
   end
 end

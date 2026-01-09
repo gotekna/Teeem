@@ -3,22 +3,21 @@ namespace :teeem do
   task setup_real_table_columns: :environment do
     # Map virtual tables to their actual database tables
     table_mappings = {
-      199 => 'financial_transactions',  # Financial Transactions
-      205 => 'pricebook_items',         # Price Books (pricebook_items)
-      206 => 'whs_swms',                # WHS SWMS
-      207 => 'whs_action_items',        # WHS Action Items
-      208 => 'whs_inductions',          # WHS Inductions
-      209 => 'whs_inspections',         # WHS Inspections
-      210 => 'whs_incidents',           # WHS Incidents
-      211 => 'contact_roles',           # Contact Roles
-      213 => 'inspiring_quotes',        # Inspiring Quotes (Test)
-      215 => 'suppliers',               # Suppliers
-      216 => 'estimates',               # Estimates
-      217 => 'purchase_orders',         # Purchase Orders
-      218 => 'sm_tasks',                # SM Tasks
-      219 => 'sm_resources',            # SM Resources
-      220 => 'sm_time_entries',         # SM Time Entries
-      221 => 'price_histories',         # Price Histories
+      199 => "financial_transactions",  # Financial Transactions
+      205 => "pricebook_items",         # Price Books (pricebook_items)
+      206 => "whs_swms",                # WHS SWMS
+      207 => "whs_action_items",        # WHS Action Items
+      208 => "whs_inductions",          # WHS Inductions
+      209 => "whs_inspections",         # WHS Inspections
+      210 => "whs_incidents",           # WHS Incidents
+      213 => "inspiring_quotes",        # Inspiring Quotes (Test)
+      215 => "suppliers",               # Suppliers
+      216 => "estimates",               # Estimates
+      217 => "purchase_orders",         # Purchase Orders
+      218 => "sm_tasks",                # SM Tasks
+      219 => "sm_resources",            # SM Resources
+      220 => "sm_time_entries",         # SM Time Entries
+      221 => "price_histories"         # Price Histories
     }
 
     table_mappings.each do |table_id, db_table|
@@ -60,7 +59,7 @@ namespace :teeem do
   end
 
   desc "Regenerate column definitions for a specific table from its database schema (no prompts)"
-  task :regenerate_columns, [:table_id] => :environment do |t, args|
+  task :regenerate_columns, [ :table_id ] => :environment do |t, args|
     table_id = args[:table_id]&.to_i
 
     unless table_id
@@ -116,9 +115,9 @@ namespace :teeem do
     # Add action_buttons column at position 0 (Gold Standard pattern)
     Column.create!(
       table_id: table_id,
-      name: 'Actions',
-      column_name: 'actions',
-      column_type: 'action_buttons',
+      name: "Actions",
+      column_name: "actions",
+      column_type: "action_buttons",
       position: position,
       searchable: false
     )
@@ -129,7 +128,7 @@ namespace :teeem do
     db_columns.each do |db_col|
       # Skip system columns
       next if skip_columns.include?(db_col.name)
-      next if db_col.name.end_with?('$type')
+      next if db_col.name.end_with?("$type")
 
       column_type = infer_column_type(db_col)
       display_name = db_col.name.humanize.titleize
@@ -137,25 +136,25 @@ namespace :teeem do
       # Special handling for _id columns (lookups)
       lookup_table_id = nil
       lookup_display_column = nil
-      if db_col.name.end_with?('_id') && column_type == 'lookup'
-        related_table_name = db_col.name.sub(/_id$/, '').pluralize
+      if db_col.name.end_with?("_id") && column_type == "lookup"
+        related_table_name = db_col.name.sub(/_id$/, "").pluralize
         related_table = Table.find_by(database_table_name: related_table_name)
         if related_table
           # Find a valid display column from the lookup table's columns
           lookup_cols = Column.where(table_id: related_table.id).pluck(:column_name)
           # Prefer 'name', 'title', 'full_name', or first text column
           lookup_display_column = (%w[name title full_name] & lookup_cols).first
-          lookup_display_column ||= lookup_cols.find { |c| !c.end_with?('_id') && c != 'actions' && c != 'id' }
+          lookup_display_column ||= lookup_cols.find { |c| !c.end_with?("_id") && c != "actions" && c != "id" }
 
           if lookup_display_column
             lookup_table_id = related_table.id
-            display_name = db_col.name.sub(/_id$/, '').humanize.titleize
+            display_name = db_col.name.sub(/_id$/, "").humanize.titleize
           else
             # No valid display column found, use whole_number
-            column_type = 'whole_number'
+            column_type = "whole_number"
           end
         else
-          column_type = 'whole_number'  # Fallback if lookup table not found
+          column_type = "whole_number"  # Fallback if lookup table not found
         end
       end
 
@@ -179,9 +178,9 @@ namespace :teeem do
     %w[created_at updated_at].each do |sys_col|
       Column.create!(
         table_id: table_id,
-        name: sys_col == 'created_at' ? 'Created' : 'Updated',
+        name: sys_col == "created_at" ? "Created" : "Updated",
         column_name: sys_col,
-        column_type: 'date_and_time',
+        column_type: "date_and_time",
         position: position,
         searchable: false
       )
@@ -202,38 +201,38 @@ namespace :teeem do
     case db_col.type
     when :string
       case db_col.name
-      when /email/i then 'email'
-      when /phone|mobile|fax/i then 'phone'
-      when /url|website|link/i then 'url'
-      when /color|colour/i then 'color_picker'
-      else 'single_line_text'
+      when /email/i then "email"
+      when /phone|mobile|fax/i then "phone"
+      when /url|website|link/i then "url"
+      when /color|colour/i then "color_picker"
+      else "single_line_text"
       end
     when :text
-      'multiple_lines_text'
+      "multiple_lines_text"
     when :integer, :bigint
-      if db_col.name.end_with?('_id')
-        'lookup'
+      if db_col.name.end_with?("_id")
+        "lookup"
       else
-        'whole_number'
+        "whole_number"
       end
     when :decimal, :float
       if db_col.name =~ /price|cost|amount|total|balance|value/i
-        'currency'
+        "currency"
       elsif db_col.name =~ /percent|rate/i
-        'percentage'
+        "percentage"
       else
-        'number'
+        "number"
       end
     when :boolean
-      'boolean'
+      "boolean"
     when :date
-      'date'
+      "date"
     when :datetime, :timestamp
-      'date_and_time'
+      "date_and_time"
     when :json, :jsonb
-      'multiple_lines_text'
+      "multiple_lines_text"
     else
-      'single_line_text'
+      "single_line_text"
     end
   end
 end

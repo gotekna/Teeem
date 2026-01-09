@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState, useMemo, useCallback } from "react";
+import { useParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader } from "@/components/ui/loader";
+import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
 import { LeadForm } from "@/components/leads/lead-form";
 import { GenerateContractModal } from "@/components/contracts/generate-contract-modal";
@@ -18,8 +19,8 @@ import {
   LEAD_SOURCE_LABELS,
 } from "@/types/leads";
 import { api } from "@/lib/api";
+import { BackButton } from "@/components/ui/back-button";
 import {
-  ArrowLeft,
   Edit,
   FileText,
   Mail,
@@ -37,7 +38,25 @@ import {
 export default function LeadDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const pathname = usePathname();
   const leadId = params.id as string;
+
+  // Path-based tab: /leads/123/overview, /leads/123/documents
+  const activeTab = useMemo(() => {
+    const parts = pathname.replace(`/leads/${leadId}`, "").split("/").filter(Boolean);
+    return parts[0] || null;
+  }, [pathname, leadId]);
+
+  // Redirect to default tab if none specified
+  useEffect(() => {
+    if (activeTab === null) {
+      router.replace(`/leads/${leadId}/overview`, { scroll: false });
+    }
+  }, [activeTab, router, leadId]);
+
+  const setActiveTab = useCallback((tab: string) => {
+    router.push(`/leads/${leadId}/${tab}`, { scroll: false });
+  }, [router, leadId]);
 
   const [lead, setLead] = useState<Lead | null>(null);
   const [loading, setLoading] = useState(true);
@@ -62,6 +81,7 @@ export default function LeadDetailPage() {
       setLoading(false);
     };
     load();
+     
   }, [leadId]);
 
   const handleUpdateLead = async (data: Partial<Lead>) => {
@@ -118,10 +138,51 @@ export default function LeadDetailPage() {
     });
   };
 
+  // SSoT: Show skeleton layout during loading to prevent flash/CLS
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader />
+      <div className="space-y-6">
+        {/* Header skeleton */}
+        <div className="flex items-start justify-between">
+          <div className="flex items-start gap-4">
+            <BackButton fallbackHref="/leads" />
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-8 w-48" />
+                <Skeleton className="h-6 w-20" />
+              </div>
+              <Skeleton className="h-4 w-24" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-9 w-20" />
+            <Skeleton className="h-9 w-28" />
+          </div>
+        </div>
+        {/* Tabs skeleton */}
+        <div className="flex gap-2">
+          <Skeleton className="h-9 w-24" />
+          <Skeleton className="h-9 w-20" />
+          <Skeleton className="h-9 w-28" />
+        </div>
+        {/* Content skeleton */}
+        <div className="grid grid-cols-3 gap-6">
+          <Card className="col-span-2">
+            <CardHeader><Skeleton className="h-5 w-24" /></CardHeader>
+            <CardContent className="space-y-3">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><Skeleton className="h-5 w-20" /></CardHeader>
+            <CardContent className="space-y-3">
+              <Skeleton className="h-6 w-24" />
+              <Skeleton className="h-4 w-32" />
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
@@ -130,9 +191,7 @@ export default function LeadDetailPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px]">
         <p className="text-muted-foreground">Lead not found</p>
-        <Button variant="outline" className="mt-4" asChild>
-          <Link href="/leads">Back to Leads</Link>
-        </Button>
+        <BackButton fallbackHref="/leads" label="Back to Leads" variant="outline" className="mt-4" />
       </div>
     );
   }
@@ -142,11 +201,7 @@ export default function LeadDetailPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/leads">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
+          <BackButton fallbackHref="/leads" />
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold tracking-tight font-serif">
@@ -234,7 +289,7 @@ export default function LeadDetailPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="overview">
+      <Tabs value={activeTab || "overview"} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="contracts">Contracts</TabsTrigger>

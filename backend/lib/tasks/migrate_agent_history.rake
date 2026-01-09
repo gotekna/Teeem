@@ -4,7 +4,7 @@ namespace :teeem do
   namespace :agents do
     desc "Migrate run history from JSON file to database (one-time migration)"
     task migrate_history: :environment do
-      require 'json'
+      require "json"
 
       json_path = Rails.root.join("../.claude/agents/run-history.json")
 
@@ -23,7 +23,7 @@ namespace :teeem do
       migrated = 0
       skipped = 0
 
-      json_data['agents'].each do |agent_id, history|
+      json_data["agents"].each do |agent_id, history|
         agent = AgentDefinition.find_by(agent_id: agent_id)
 
         if agent.nil?
@@ -33,17 +33,17 @@ namespace :teeem do
         end
 
         # Only migrate if the agent has runs in JSON but database doesn't
-        if history['total_runs'].to_i > 0 && agent.total_runs == 0
-          last_run_time = history['last_run'] ? Time.parse(history['last_run']) : nil
+        if history["total_runs"].to_i > 0 && agent.total_runs == 0
+          last_run_time = history["last_run"] ? Time.parse(history["last_run"]) : nil
 
           agent.update!(
-            total_runs: history['total_runs'].to_i,
-            successful_runs: history['successful_runs'].to_i,
-            failed_runs: history['failed_runs'].to_i,
+            total_runs: history["total_runs"].to_i,
+            successful_runs: history["successful_runs"].to_i,
+            failed_runs: history["failed_runs"].to_i,
             last_run_at: last_run_time,
-            last_status: history['last_status'],
-            last_message: history['last_message'],
-            last_run_details: history['runs']&.last
+            last_status: history["last_status"],
+            last_message: history["last_message"],
+            last_run_details: history["runs"]&.last
           )
 
           puts "✅ Migrated #{agent_id}: #{history['total_runs']} runs, last: #{last_run_time&.strftime('%Y-%m-%d %H:%M')}"

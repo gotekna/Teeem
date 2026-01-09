@@ -2,8 +2,8 @@ class WHSInspection < ApplicationRecord
   # Associations
   belongs_to :job, optional: true
   belongs_to :whs_inspection_template, optional: true
-  belongs_to :inspector_user, class_name: 'User', optional: true
-  belongs_to :created_by, class_name: 'User'
+  belongs_to :inspector_user, class_name: "User", optional: true
+  belongs_to :created_by, class_name: "User"
   belongs_to :meeting, optional: true
 
   has_many :whs_inspection_items, dependent: :destroy
@@ -25,30 +25,30 @@ class WHSInspection < ApplicationRecord
   after_create :create_items_from_template
 
   # Scopes
-  scope :scheduled, -> { where(status: 'scheduled') }
-  scope :in_progress, -> { where(status: 'in_progress') }
-  scope :completed, -> { where(status: 'completed') }
-  scope :requires_action, -> { where(status: 'requires_action') }
+  scope :scheduled, -> { where(status: "scheduled") }
+  scope :in_progress, -> { where(status: "in_progress") }
+  scope :completed, -> { where(status: "completed") }
+  scope :requires_action, -> { where(status: "requires_action") }
   scope :for_construction, ->(job_id) { where(job_id: job_id) }  # Kept for backward compatibility
   scope :by_type, ->(type) { where(inspection_type: type) }
-  scope :overdue, -> { where('scheduled_date < ? AND status NOT IN (?)', CompanySetting.today, ['completed', 'cancelled']) }
-  scope :upcoming, -> { where('scheduled_date >= ?', CompanySetting.today).order(:scheduled_date) }
+  scope :overdue, -> { where("scheduled_date < ? AND status NOT IN (?)", CorporateCompanySetting.today, [ "completed", "cancelled" ]) }
+  scope :upcoming, -> { where("scheduled_date >= ?", CorporateCompanySetting.today).order(:scheduled_date) }
   scope :with_critical_issues, -> { where(critical_issues_found: true) }
 
   # State machine methods
   def can_start?
-    status == 'scheduled'
+    status == "scheduled"
   end
 
   def can_complete?
-    status == 'in_progress'
+    status == "in_progress"
   end
 
   def start!
     return false unless can_start?
 
     update!(
-      status: 'in_progress',
+      status: "in_progress",
       started_at: Time.current,
       inspector_user: inspector_user || created_by
     )
@@ -59,7 +59,7 @@ class WHSInspection < ApplicationRecord
 
     calculate_and_update_results
 
-    final_status = critical_issues_found? || !overall_pass? ? 'requires_action' : 'completed'
+    final_status = critical_issues_found? || !overall_pass? ? "requires_action" : "completed"
 
     update!(
       status: final_status,
@@ -69,11 +69,11 @@ class WHSInspection < ApplicationRecord
 
   # Helper methods
   def overdue?
-    scheduled_date < CompanySetting.today && !completed? && status != 'cancelled'
+    scheduled_date < CorporateCompanySetting.today && !completed? && status != "cancelled"
   end
 
   def completed?
-    status == 'completed'
+    status == "completed"
   end
 
   def passing?
@@ -81,7 +81,7 @@ class WHSInspection < ApplicationRecord
   end
 
   def failed_items
-    whs_inspection_items.where(result: 'fail')
+    whs_inspection_items.where(result: "fail")
   end
 
   def action_items_count
@@ -89,7 +89,7 @@ class WHSInspection < ApplicationRecord
   end
 
   def open_action_items_count
-    whs_action_items.where.not(status: ['completed', 'cancelled']).count
+    whs_action_items.where.not(status: [ "completed", "cancelled" ]).count
   end
 
   private
@@ -97,11 +97,11 @@ class WHSInspection < ApplicationRecord
   def generate_inspection_number
     return if inspection_number.present?
 
-    date_str = CompanySetting.today.strftime('%Y%m%d')
-    last_inspection = WhsInspection.where('inspection_number LIKE ?', "INSP-#{date_str}-%")
+    date_str = CorporateCompanySetting.today.strftime("%Y%m%d")
+    last_inspection = WhsInspection.where("inspection_number LIKE ?", "INSP-#{date_str}-%")
                                     .order(:inspection_number).last
 
-    sequence = last_inspection ? last_inspection.inspection_number.split('-').last.to_i + 1 : 1
+    sequence = last_inspection ? last_inspection.inspection_number.split("-").last.to_i + 1 : 1
     self.inspection_number = "INSP-#{date_str}-#{sequence.to_s.rjust(3, '0')}"
   end
 
@@ -113,13 +113,13 @@ class WHSInspection < ApplicationRecord
 
     template_items.each_with_index do |item, index|
       whs_inspection_items.create!(
-        item_description: item['description'],
-        category: item['category'],
-        photo_required: item['photo_required'] || false,
-        notes_required: item['notes_required'] || false,
-        weight: item['weight'] || 1,
+        item_description: item["description"],
+        category: item["category"],
+        photo_required: item["photo_required"] || false,
+        notes_required: item["notes_required"] || false,
+        weight: item["weight"] || 1,
         position: index,
-        result: 'not_checked'
+        result: "not_checked"
       )
     end
   end
@@ -129,9 +129,9 @@ class WHSInspection < ApplicationRecord
 
     items = whs_inspection_items
     self.total_items = items.count
-    self.pass_count = items.where(result: 'pass').count
-    self.fail_count = items.where(result: 'fail').count
-    self.na_count = items.where(result: 'na').count
+    self.pass_count = items.where(result: "pass").count
+    self.fail_count = items.where(result: "fail").count
+    self.na_count = items.where(result: "na").count
 
     # Calculate score (excluding NA items)
     scoreable_items = total_items - na_count

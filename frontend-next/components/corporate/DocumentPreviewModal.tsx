@@ -19,16 +19,13 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Combobox, type Option } from "@/components/ui/combobox";
-import { api } from "@/lib/api";
+import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
+import { api, getApiBaseUrl } from "@/lib/api";
 import {
   FileText,
   ExternalLink,
-  CheckCircle2,
-  CheckCircle,
   Check,
   Sparkles,
-  Loader2,
   AlertTriangle,
   Pencil,
   X,
@@ -37,24 +34,12 @@ import {
 import { cn } from "@/lib/utils";
 import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { PDFEditor } from "@/components/ui/pdf-editor";
+import { ExcelViewer, ExcelViewerLoading, ExcelViewerError, type ExcelData } from "@/components/ui/excel-viewer";
+import { WordViewer, WordViewerLoading, WordViewerError, type WordData } from "@/components/ui/word-viewer";
+import { Spinner } from "@/components/ui/spinner";
+import { DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
 
-// Folder options for document organization
-const FOLDER_OPTIONS = [
-  "ADVICE",
-  "ASIC",
-  "ASSETS",
-  "ATO",
-  "BANK",
-  "COMPANY",
-  "DIVIDENDS",
-  "FINANCIALS",
-  "GENERAL",
-  "INSURANCE",
-  "LOANS",
-  "MINUTES",
-  "REGISTRY",
-  "TRUST",
-];
+// SSoT: DOCUMENT_FOLDER_OPTIONS imported from @/lib/constants/document-types
 
 // Document type options mapped to folders/tabs
 const DOCUMENT_TYPE_BY_FOLDER: Record<string, { value: string; label: string; abbrev: string }[]> = {
@@ -228,9 +213,8 @@ interface Asset {
 
 interface CompanyDocument {
   id: number | string;
-  title?: string;
-  display_title?: string;
   file_name?: string;
+  display_name?: string;
   file_url?: string;
   file_size?: number;
   folder?: string;
@@ -243,7 +227,7 @@ interface CompanyDocument {
   company?: Company;
   asset_id?: number;
   asset?: Asset;
-  onedrive_file_id?: string;
+  sharepoint_file_id?: string;
   user_validated_at?: string;
   user_validated_by_id?: number;
   ai_verification_status?: "pending" | "processing" | "verified" | "mismatch" | "error" | string;
@@ -288,7 +272,7 @@ export default function DocumentPreviewModal({
 
   // Editing states
   const [isEditing, setIsEditing] = React.useState(false);
-  const [editedTitle, setEditedTitle] = React.useState(initialDocument?.title || "");
+  const [editedTitle, setEditedTitle] = React.useState(initialDocument?.file_name || "");
   const [editedCompanyId, setEditedCompanyId] = React.useState<string>(
     String(initialDocument?.company_id || initialDocument?.company?.id || "")
   );
@@ -318,6 +302,14 @@ export default function DocumentPreviewModal({
   const [previewLoading, setPreviewLoading] = React.useState(false);
   const [previewError, setPreviewError] = React.useState<string | null>(null);
 
+  // Universal Document Reader state - for Excel/Word preview
+  const [documentData, setDocumentData] = React.useState<{
+    type: string;
+    content: ExcelData | WordData | null;
+    error?: string;
+  } | null>(null);
+  const [documentDataLoading, setDocumentDataLoading] = React.useState(false);
+
   // PDF Editor mode
   const [isEditingPdf, setIsEditingPdf] = React.useState(false);
 
@@ -326,7 +318,7 @@ export default function DocumentPreviewModal({
     const fetchDocumentTypes = async () => {
       try {
         const response = await api.get<{ success: boolean; data: DocumentTypeOption[] }>("/api/v1/document_types");
-        if (response.success && response.data) {
+        if (response?.success && response.data) {
           setDocumentTypes(response.data);
         }
       } catch (error) {
@@ -346,6 +338,7 @@ export default function DocumentPreviewModal({
       const dd = String(today.getDate()).padStart(2, "0");
       setEditedRefDate(`${yyyy}-${mm}-${dd}`);
     }
+     
   }, [isAmended]);
 
   // Check for existing amended documents when amended checkbox is ticked
@@ -363,10 +356,9 @@ export default function DocumentPreviewModal({
           `/api/v1/company_documents?company_id=${editedCompanyId}&document_type=${editedDocumentType}`
         );
 
-        if (response.success && response.documents) {
+        if (response?.success && response.documents) {
           // Filter for amended documents (case-insensitive)
           const amendedDocs = response.documents.filter(doc =>
-            doc.title?.toLowerCase().includes("amended") ||
             doc.file_name?.toLowerCase().includes("amended")
           );
 
@@ -386,7 +378,7 @@ export default function DocumentPreviewModal({
             // Find highest existing amended number
             let maxNumber = 0;
             for (const doc of sortedDocs) {
-              const match = (doc.title || doc.file_name || "").match(/Amended\s*(\d+)/i);
+              const match = (doc.file_name || "").match(/Amended\s*(\d+)/i);
               if (match) {
                 maxNumber = Math.max(maxNumber, parseInt(match[1], 10));
               } else {
@@ -410,7 +402,7 @@ export default function DocumentPreviewModal({
   React.useEffect(() => {
     const fetchPreviewUrl = async () => {
       // Only fetch preview for OneDrive files
-      if (!document?.onedrive_file_id || !open) {
+      if (!document?.sharepoint_file_id || !open) {
         setPreviewUrl(null);
         return;
       }
@@ -426,7 +418,7 @@ export default function DocumentPreviewModal({
           fallback_url?: string;
         }>(`/api/v1/company_documents/${document.id}/preview`);
 
-        if (response.success && response.preview_url) {
+        if (response?.success && response.preview_url) {
           setPreviewUrl(response.preview_url);
         } else {
           setPreviewError(response.error || "Preview not available");
@@ -447,11 +439,76 @@ export default function DocumentPreviewModal({
     };
 
     fetchPreviewUrl();
-  }, [document?.id, document?.onedrive_file_id, open]);
+  }, [document?.id, document?.sharepoint_file_id, open]);
+
+  // Fetch document data for Excel/Word files using Universal Document Reader
+  React.useEffect(() => {
+    const fetchDocumentData = async () => {
+      // Only fetch for Excel/Word files
+      const fType = getFileType(document?.file_name);
+      if (!document?.id || !open || (fType !== "excel" && fType !== "word")) {
+        setDocumentData(null);
+        return;
+      }
+
+      setDocumentDataLoading(true);
+      setDocumentData(null);
+
+      try {
+        const response = await api.get<{
+          success: boolean;
+          data?: {
+            type: string;
+            filename: string;
+            content: ExcelData | WordData;
+          };
+          error?: string;
+        }>(`/api/v1/documents/${document.id}/preview`);
+
+        if (response?.success && response.data) {
+          setDocumentData({
+            type: response.data.type,
+            content: response.data.content,
+          });
+        } else {
+          setDocumentData({
+            type: fType,
+            content: null,
+            error: response?.error || "Could not load document",
+          });
+        }
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error("Failed to fetch document data:", error);
+        setDocumentData({
+          type: fType,
+          content: null,
+          error: errorMessage,
+        });
+      } finally {
+        setDocumentDataLoading(false);
+      }
+    };
+
+    fetchDocumentData();
+  }, [document?.id, document?.file_name, open]);
 
   // Get the full document type record from database (includes naming_format)
   const getDocumentTypeRecord = React.useCallback((docTypeName: string) => {
-    return documentTypes.find(dt => dt.name === docTypeName);
+    // Try exact match first
+    let record = documentTypes.find(dt => dt.name === docTypeName);
+    if (record) return record;
+
+    // Try matching without the abbreviation suffix like "(ASICR)" that AI might add
+    const nameWithoutAbbrev = docTypeName.replace(/\s*\([^)]+\)\s*$/, '').trim();
+    if (nameWithoutAbbrev !== docTypeName) {
+      record = documentTypes.find(dt => dt.name === nameWithoutAbbrev);
+      if (record) return record;
+    }
+
+    // Try case-insensitive match
+    const docTypeNameLower = docTypeName.toLowerCase();
+    return documentTypes.find(dt => dt.name.toLowerCase() === docTypeNameLower);
   }, [documentTypes]);
 
   // Get document types for a specific folder - uses database if available, fallback to hardcoded
@@ -742,13 +799,13 @@ export default function DocumentPreviewModal({
   React.useEffect(() => {
     setDocument(initialDocument);
     setValidated(initialDocument?.user_validated_at != null);
-    setEditedTitle(initialDocument?.title || "");
+    setEditedTitle(initialDocument?.file_name || "");
     setEditedCompanyId(String(initialDocument?.company_id || initialDocument?.company?.id || ""));
     setEditedFolder(initialDocument?.folder || "");
 
     // Auto-detect document type from filename if not already set or if current type is unknown
     const currentDocType = initialDocument?.document_type || "";
-    const filename = initialDocument?.file_name || initialDocument?.title || "";
+    const filename = initialDocument?.file_name || "";
     const folder = initialDocument?.folder || "";
 
     // Check if current doc type exists in available options
@@ -792,7 +849,7 @@ export default function DocumentPreviewModal({
     return "unknown";
   };
 
-  const fileType = getFileType(document?.file_name || document?.title);
+  const fileType = getFileType(document?.file_name);
 
   // Poll for AI verification results
   React.useEffect(() => {
@@ -802,10 +859,10 @@ export default function DocumentPreviewModal({
           const response = await api.get<{ document: CompanyDocument }>(
             `/api/v1/company_documents/${document.id}`
           );
-          if (response.document) {
+          if (response?.document) {
             setDocument(response.document);
             // Stop polling when status changes from processing
-            if (response.document.ai_verification_status !== "processing") {
+            if (response?.document.ai_verification_status !== "processing") {
               if (pollingRef.current) clearInterval(pollingRef.current);
               setAiVerifying(false);
 
@@ -854,6 +911,7 @@ export default function DocumentPreviewModal({
         clearInterval(pollingRef.current);
       }
     };
+     
   }, [document?.id, document?.ai_verification_status, editedCompanyId, editedDescription, editedRefDate, editedDocumentType, editedFolder, editedFinancialYears]);
 
   // Focus title input when editing starts
@@ -899,7 +957,8 @@ export default function DocumentPreviewModal({
     const amendedSuffix = getAmendedSuffix();
 
     // If we have a naming format from the database, use it as template
-    if (namingFormat && companyCode && baseAbbrev) {
+    // Only require companyCode - abbreviation is optional since some formats don't use it
+    if (namingFormat && companyCode) {
       let newName = namingFormat;
 
       // Replace placeholders in the exact order they appear in the format
@@ -991,7 +1050,7 @@ export default function DocumentPreviewModal({
       const newName = `${companyCode} ${fallbackAbbrev} ${fyPart}${descPart}${amendedSuffix}`.trim();
       setEditedTitle(newName);
     }
-  }, [editedCompanyId, editedDocumentType, editedFinancialYears, editedDescription, editedRefDate, editedFiledDate, editedFolder, companies, getDocumentTypesForFolder, getDocumentTypeRecord, isAmended, getAmendedSuffix, signedStatus]);
+  }, [editedCompanyId, editedDocumentType, editedFinancialYears, editedDescription, editedRefDate, editedFolder, companies, getDocumentTypesForFolder, getDocumentTypeRecord, isAmended, getAmendedSuffix, signedStatus]);
 
   // Handle user validation
   const handleValidate = async () => {
@@ -1027,20 +1086,6 @@ export default function DocumentPreviewModal({
       alert(errorMessage);
       setAiVerifying(false);
     }
-  };
-
-  // Start editing mode
-  const startEditing = () => {
-    setEditedTitle(document.title || "");
-    setEditedCompanyId(String(document.company_id || document.company?.id || ""));
-    setEditedFolder(document.folder || "");
-    setEditedFinancialYears(parseFinancialYears(document.financial_years));
-    setIsEditing(true);
-  };
-
-  // Cancel editing
-  const cancelEditing = () => {
-    setIsEditing(false);
   };
 
   // Sanitize filename for OneDrive - remove characters not allowed by Microsoft
@@ -1099,7 +1144,7 @@ export default function DocumentPreviewModal({
           }
         }
 
-        if (response.document) {
+        if (response?.document) {
           setDocument(response.document);
         }
         setIsEditing(false);
@@ -1134,7 +1179,7 @@ export default function DocumentPreviewModal({
           await api.post(`/api/v1/company_documents/${document.id}/feedback`, {
             feedback: {
               action: "accepted",
-              final_name: response.document.title,
+              final_name: response.document.file_name,
               final_folder: response.document.folder,
             },
           });
@@ -1153,24 +1198,6 @@ export default function DocumentPreviewModal({
     } finally {
       setApplyingSuggestion(false);
     }
-  };
-
-  // Handle rejecting AI suggestion (keep current name)
-  const handleRejectSuggestion = async () => {
-    // Record feedback that user rejected suggestion
-    try {
-      await api.post(`/api/v1/company_documents/${document.id}/feedback`, {
-        feedback: {
-          action: "rejected",
-          final_name: document.title,
-          final_folder: document.folder,
-          reason: "User preferred original name",
-        },
-      });
-    } catch {
-      // Feedback is optional
-    }
-    await handleValidate();
   };
 
   // Handle financial year checkbox toggle
@@ -1195,11 +1222,10 @@ export default function DocumentPreviewModal({
   };
 
   // Check if document has OneDrive file for AI verification
-  const canAiVerify = document?.onedrive_file_id && !validated;
+  const canAiVerify = document?.sharepoint_file_id && !validated;
 
   // AI verification status
   const aiStatus = document?.ai_verification_status;
-  const hasAiSuggestion = document?.ai_suggested_name && aiStatus === "mismatch";
   const isProcessing = aiStatus === "processing" || aiVerifying;
 
   // Get current company name
@@ -1220,7 +1246,7 @@ export default function DocumentPreviewModal({
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
             <DialogTitle className="truncate text-sm font-medium mb-0 flex-1">
-              {document.display_title || document.title}
+              {document.display_name || document.file_name}
               {isEditingPdf && <span className="ml-2 text-xs text-orange-500">(Editing)</span>}
             </DialogTitle>
             {/* Edit PDF button - only for PDFs */}
@@ -1313,23 +1339,22 @@ export default function DocumentPreviewModal({
                 <div className="grid grid-cols-2 gap-1">
                   <div>
                     <Label className="text-[10px] text-muted-foreground">Company</Label>
-                    <Combobox
-                      options={companies.map(c => ({
+                    <ComboboxDropdown
+                      items={companies.map(c => ({
                         id: String(c.id),
-                        name: `${c.code ? `[${c.code}] ` : ''}${c.name}`,
-                        data: c
+                        label: `${c.code ? `[${c.code}] ` : ''}${c.name}`,
                       }))}
-                      value={editedCompanyId ? {
+                      selectedItem={editedCompanyId ? {
                         id: editedCompanyId,
-                        name: (() => {
+                        label: (() => {
                           const c = companies.find(c => String(c.id) === editedCompanyId);
                           return c ? `${c.code ? `[${c.code}] ` : ''}${c.name}` : '';
                         })()
                       } : undefined}
-                      onSelect={(option) => option && setEditedCompanyId(option.id)}
+                      onSelect={(item) => setEditedCompanyId(item.id)}
                       placeholder="Search..."
-                      className="mt-0.5 h-7 text-xs border rounded-md px-2"
-                      showIcon={false}
+                      searchInTrigger
+                      className="mt-0.5 h-7 text-xs"
                     />
                   </div>
                   <div>
@@ -1339,7 +1364,7 @@ export default function DocumentPreviewModal({
                         <SelectValue placeholder="Select..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {FOLDER_OPTIONS.map((folder) => (
+                        {DOCUMENT_FOLDER_OPTIONS.map((folder) => (
                           <SelectItem key={folder} value={folder}>{folder}</SelectItem>
                         ))}
                       </SelectContent>
@@ -1602,7 +1627,7 @@ export default function DocumentPreviewModal({
                       className="h-7 text-xs bg-green-600 hover:bg-green-700"
                     >
                       {validating ? (
-                        <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Validating</>
+                        <><Spinner size={12} className="mr-1" />Validating</>
                       ) : (
                         <><Check className="h-3 w-3 mr-1" />Validate Document</>
                       )}
@@ -1611,7 +1636,7 @@ export default function DocumentPreviewModal({
                 </div>
 
                 {/* Save button and action notes */}
-                {((editedTitle && editedTitle !== document.title) ||
+                {((editedTitle && editedTitle !== document.file_name) ||
                   (editedFolder && editedFolder !== document.folder) ||
                   (editedDocumentType && editedDocumentType !== document.document_type) ||
                   (editedCompanyId && editedCompanyId !== String(document.company_id || document.company?.id || "")) ||
@@ -1619,14 +1644,14 @@ export default function DocumentPreviewModal({
                   <div className="pt-2 border-t space-y-1.5">
                     <div className="flex items-center gap-1">
                       <Button onClick={handleSave} disabled={saving || !editedTitle.trim()} size="sm" className="h-7 text-xs bg-green-600 hover:bg-green-700">
-                        {saving ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Saving</> : <><Check className="h-3 w-3 mr-1" />Apply</>}
+                        {saving ? <><Spinner size={12} className="mr-1" />Saving</> : <><Check className="h-3 w-3 mr-1" />Apply</>}
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
                         className="h-7 text-xs"
                         onClick={() => {
-                          setEditedTitle(document.title || "");
+                          setEditedTitle(document.file_name || "");
                           setEditedFolder(document.folder || "");
                           setEditedDocumentType(document.document_type || "");
                           setEditedCompanyId(String(document.company_id || document.company?.id || ""));
@@ -1675,7 +1700,7 @@ export default function DocumentPreviewModal({
 
                 {isProcessing ? (
                   <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                    <Loader2 className="h-6 w-6 animate-spin mb-2 text-purple-500" />
+                    <Spinner size={24} className="mb-2 text-purple-500" />
                     <p className="text-xs">AI analyzing...</p>
                   </div>
                 ) : (
@@ -1961,7 +1986,7 @@ export default function DocumentPreviewModal({
                           className="h-7 text-xs bg-purple-600 hover:bg-purple-700"
                         >
                           {applyingSuggestion ? (
-                            <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Applying</>
+                            <><Spinner size={12} className="mr-1" />Applying</>
                           ) : (
                             <><Sparkles className="h-3 w-3 mr-1" />Apply AI</>
                           )}
@@ -1974,7 +1999,7 @@ export default function DocumentPreviewModal({
                           className="h-7 text-xs text-purple-600 border-purple-300 hover:bg-purple-100"
                         >
                           {aiVerifying ? (
-                            <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Analyzing</>
+                            <><Spinner size={12} className="mr-1" />Analyzing</>
                           ) : (
                             <><RefreshCw className="h-3 w-3 mr-1" />Re-run</>
                           )}
@@ -1990,7 +2015,7 @@ export default function DocumentPreviewModal({
                           className="w-full h-7 text-xs text-purple-600 border-purple-300 hover:bg-purple-100"
                         >
                           {aiVerifying ? (
-                            <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Analyzing...</>
+                            <><Spinner size={12} className="mr-1" />Analyzing...</>
                           ) : (
                             <><Sparkles className="h-3 w-3 mr-1" />Run AI Analysis</>
                           )}
@@ -2071,8 +2096,8 @@ export default function DocumentPreviewModal({
               {isEditingPdf && fileType === "pdf" && document.id ? (
                 // PDF Editor Mode - use /content endpoint to bypass CORS
                 <PDFEditor
-                  url={`${process.env.NEXT_PUBLIC_API_URL || ''}/api/v1/company_documents/${document.id}/content`}
-                  fileName={document.file_name || document.title || "document.pdf"}
+                  url={`${getApiBaseUrl()}/api/v1/company_documents/${document.id}/content`}
+                  fileName={document.file_name || "document.pdf"}
                   onSave={async (pdfBytes, fileName) => {
                     try {
                       // Convert bytes to base64 for JSON transport
@@ -2095,7 +2120,7 @@ export default function DocumentPreviewModal({
 
                       if (response?.success) {
                         // Update local document state with new data
-                        if (response.document) {
+                        if (response?.document) {
                           setDocument(response.document);
                         }
                         // Refresh parent list
@@ -2117,14 +2142,14 @@ export default function DocumentPreviewModal({
                 />
               ) : previewLoading ? (
                 <div className="flex flex-col items-center justify-center flex-1 text-muted-foreground">
-                  <Loader2 className="h-12 w-12 animate-spin mb-4" />
+                  <Spinner size={48} className="mb-4" />
                   <p className="text-sm">Loading preview...</p>
                 </div>
               ) : fileType === "pdf" && document.id ? (
                 // For PDFs, always use the /content endpoint to bypass CORS
                 // SharePoint embed URLs don't work with PDF.js due to CORS restrictions
                 <PDFViewer
-                  url={`${process.env.NEXT_PUBLIC_API_URL || ''}/api/v1/company_documents/${document.id}/content`}
+                  url={`${getApiBaseUrl()}/api/v1/company_documents/${document.id}/content`}
                   className="flex-1"
                   showThumbnails={false}
                   fallbackUrl={document.file_url}
@@ -2133,10 +2158,40 @@ export default function DocumentPreviewModal({
                 <div className="flex items-center justify-center flex-1 p-4 overflow-auto">
                   <img
                     src={document.file_url}
-                    alt={document.title}
+                    alt={document.file_name}
                     className="max-w-full max-h-full object-contain"
                   />
                 </div>
+              ) : fileType === "excel" ? (
+                // Excel file - use ExcelViewer with Universal Document Reader
+                documentDataLoading ? (
+                  <ExcelViewerLoading className="flex-1" />
+                ) : documentData?.error ? (
+                  <ExcelViewerError error={documentData.error} className="flex-1" />
+                ) : documentData?.content ? (
+                  <ExcelViewer
+                    data={documentData.content as ExcelData}
+                    filename={document.file_name}
+                    className="flex-1"
+                  />
+                ) : (
+                  <ExcelViewerLoading className="flex-1" />
+                )
+              ) : fileType === "word" ? (
+                // Word file - use WordViewer with Universal Document Reader
+                documentDataLoading ? (
+                  <WordViewerLoading className="flex-1" />
+                ) : documentData?.error ? (
+                  <WordViewerError error={documentData.error} className="flex-1" />
+                ) : documentData?.content ? (
+                  <WordViewer
+                    data={documentData.content as WordData}
+                    filename={document.file_name}
+                    className="flex-1"
+                  />
+                ) : (
+                  <WordViewerLoading className="flex-1" />
+                )
               ) : previewUrl ? (
                 // For non-PDF OneDrive files (Word, Excel, etc), use iframe
                 <iframe
@@ -2152,8 +2207,8 @@ export default function DocumentPreviewModal({
                     {previewError || "Preview not available"}
                   </p>
                   <p className="text-sm mb-4 text-center">
-                    {document.onedrive_file_id
-                      ? "Could not load OneDrive preview."
+                    {document.sharepoint_file_id
+                      ? "Could not load SharePoint preview."
                       : "This file type cannot be previewed inline."}
                   </p>
                   {document.file_url && (

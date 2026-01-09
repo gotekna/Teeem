@@ -24,7 +24,7 @@ class MeetingType < ApplicationRecord
   scope :custom, -> { where(is_system_default: false) }
 
   # Associations
-  has_many :meetings, foreign_key: 'meeting_type_id', primary_key: 'id', dependent: :restrict_with_error
+  has_many :meetings, foreign_key: "meeting_type_id", primary_key: "id", dependent: :restrict_with_error
 
   # Callbacks
   before_destroy :prevent_system_default_deletion
@@ -75,13 +75,13 @@ class MeetingType < ApplicationRecord
 
   def maximum_greater_than_minimum
     if minimum_participants.present? && maximum_participants.present? && maximum_participants < minimum_participants
-      errors.add(:maximum_participants, 'must be greater than or equal to minimum participants')
+      errors.add(:maximum_participants, "must be greater than or equal to minimum participants")
     end
   end
 
   def prevent_system_default_deletion
     if is_system_default
-      errors.add(:base, 'Cannot delete system default meeting type')
+      errors.add(:base, "Cannot delete system default meeting type")
       throw(:abort)
     end
   end

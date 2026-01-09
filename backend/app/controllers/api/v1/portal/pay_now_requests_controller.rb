@@ -3,7 +3,7 @@ module Api
     module Portal
       class PayNowRequestsController < BaseController
         before_action :require_subcontractor
-        before_action :set_request, only: [:show, :destroy, :upload_documents]
+        before_action :set_request, only: [ :show, :destroy, :upload_documents ]
 
         # GET /api/v1/portal/pay_now_requests
         def index
@@ -59,7 +59,7 @@ module Api
           unless po
             render json: {
               success: false,
-              error: 'Purchase order not found or does not belong to your account'
+              error: "Purchase order not found or does not belong to your account"
             }, status: :not_found
             return
           end
@@ -68,7 +68,7 @@ module Api
           unless po.completed_at.present?
             render json: {
               success: false,
-              error: 'Cannot request payment for incomplete jobs. Please mark the job as complete first.'
+              error: "Cannot request payment for incomplete jobs. Please mark the job as complete first."
             }, status: :unprocessable_entity
             return
           end
@@ -77,16 +77,16 @@ module Api
           if po.pay_now_requests.where(status: %w[pending approved]).exists?
             render json: {
               success: false,
-              error: 'A payment request is already pending for this purchase order'
+              error: "A payment request is already pending for this purchase order"
             }, status: :unprocessable_entity
             return
           end
 
           # Check if PO is already paid
-          if po.payment_status == 'complete'
+          if po.payment_status == "complete"
             render json: {
               success: false,
-              error: 'This purchase order has already been paid in full'
+              error: "This purchase order has already been paid in full"
             }, status: :unprocessable_entity
             return
           end
@@ -101,7 +101,7 @@ module Api
             original_amount: params[:amount]&.to_f || remaining_amount,
             discount_percentage: params[:discount_percentage]&.to_f || 5.0,
             supplier_notes: params[:notes],
-            requested_payment_date: params[:requested_payment_date] || CompanySetting.today
+            requested_payment_date: params[:requested_payment_date] || CorporateCompanySetting.today
           }
 
           request = po.pay_now_requests.build(request_params)
@@ -120,13 +120,13 @@ module Api
 
             render json: {
               success: true,
-              message: 'Payment request submitted successfully. You will be notified when it is reviewed.',
+              message: "Payment request submitted successfully. You will be notified when it is reviewed.",
               data: request_detail_json(request)
             }, status: :created
           else
             render json: {
               success: false,
-              error: 'Failed to create payment request',
+              error: "Failed to create payment request",
               errors: request.errors.full_messages
             }, status: :unprocessable_entity
           end
@@ -145,12 +145,12 @@ module Api
           if @request.cancel!
             render json: {
               success: true,
-              message: 'Payment request cancelled successfully'
+              message: "Payment request cancelled successfully"
             }
           else
             render json: {
               success: false,
-              error: 'Failed to cancel payment request',
+              error: "Failed to cancel payment request",
               errors: @request.errors.full_messages
             }, status: :unprocessable_entity
           end
@@ -170,10 +170,11 @@ module Api
 
           render json: {
             success: true,
-            message: 'Documents uploaded successfully',
+            message: "Documents uploaded successfully - files uploading to SharePoint",
             data: {
-              invoice_file_url: @request.invoice_file.attached? ? url_for(@request.invoice_file) : nil,
-              proof_photos_count: @request.proof_photos.count
+              has_invoice: @request.invoice_file.attached?,
+              proof_photos_count: @request.proof_photos.count,
+              upload_pending: @request.sharepoint_file_id.blank?
             }
           }
         end
@@ -183,12 +184,12 @@ module Api
           # Get completed POs without pending payment requests
           eligible_pos = current_contact.purchase_orders
                                         .where.not(completed_at: nil)
-                                        .where.not(payment_status: 'complete')
+                                        .where.not(payment_status: "complete")
                                         .where.not(
                                           id: PayNowRequest.where(
                                             contact: current_contact,
                                             status: %w[pending approved]
-                                          ).select(:purchase_order_id)
+                                          ).distinct.pluck(:purchase_order_id)
                                         )
                                         .includes(:construction, :payments)
                                         .order(completed_at: :desc)
@@ -206,7 +207,7 @@ module Api
         rescue ActiveRecord::RecordNotFound
           render json: {
             success: false,
-            error: 'Payment request not found'
+            error: "Payment request not found"
           }, status: :not_found
         end
 
@@ -214,7 +215,7 @@ module Api
           unless current_portal_user&.subcontractor?
             render json: {
               success: false,
-              error: 'Subcontractor access required'
+              error: "Subcontractor access required"
             }, status: :forbidden
           end
         end
@@ -258,7 +259,7 @@ module Api
             supplier_notes: request.supplier_notes,
             requested_payment_date: request.requested_payment_date,
             requested_at: request.created_at,
-            reviewed_by: request.reviewed_by_supervisor&.full_name,
+            reviewed_by: request.reviewed_by_supervisor&.display_name,
             reviewed_at: request.supervisor_reviewed_at,
             supervisor_notes: request.supervisor_notes,
             rejection_reason: request.rejection_reason,
@@ -270,8 +271,9 @@ module Api
               reference_number: request.payment.reference_number
             } : nil,
             paid_at: request.paid_at,
-            invoice_file_url: request.invoice_file.attached? ? url_for(request.invoice_file) : nil,
-            proof_photos: request.proof_photos.map { |photo| url_for(photo) }
+            has_invoice: request.sharepoint_file_id.present?,
+            sharepoint_file_id: request.sharepoint_file_id,
+            proof_photos_sharepoint_ids: request.proof_photos_sharepoint_ids || []
           }
         end
 

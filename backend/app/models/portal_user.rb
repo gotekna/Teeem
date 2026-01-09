@@ -28,18 +28,18 @@ class PortalUser < ApplicationRecord
   # Scopes
   scope :active, -> { where(active: true) }
   scope :inactive, -> { where(active: false) }
-  scope :locked, -> { where('locked_until > ?', Time.current) }
-  scope :suppliers, -> { where(portal_type: 'supplier') }
-  scope :customers, -> { where(portal_type: 'customer') }
+  scope :locked, -> { where("locked_until > ?", Time.current) }
+  scope :suppliers, -> { where(portal_type: "supplier") }
+  scope :customers, -> { where(portal_type: "customer") }
   scope :recent_login, -> { order(last_login_at: :desc) }
 
   # Instance methods
   def supplier?
-    portal_type == 'supplier'
+    portal_type == "supplier"
   end
 
   def customer?
-    portal_type == 'customer'
+    portal_type == "customer"
   end
 
   def locked?
@@ -115,7 +115,7 @@ class PortalUser < ApplicationRecord
     SubcontractorAccount.create!(
       portal_user: self,
       invited_by_contact: invited_by,
-      account_tier: 'free'
+      account_tier: "free"
     )
   end
 

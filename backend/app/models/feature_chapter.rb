@@ -12,7 +12,7 @@ class FeatureChapter < ApplicationRecord
 
   def as_json(options = {})
     super(options).merge(
-      'display_name' => display_name
+      "display_name" => display_name
     )
   end
 end

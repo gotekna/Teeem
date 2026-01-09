@@ -40,7 +40,7 @@ namespace :teeem do
             parts = content.split("---\n", 3)
             if parts.length >= 3
               # Parse YAML frontmatter
-              require 'yaml'
+              require "yaml"
               frontmatter = YAML.safe_load(parts[1]) || {}
               body = parts[2]
             end
@@ -69,7 +69,7 @@ namespace :teeem do
           # Get the git author names directly from git history
           # No database lookup - just store the git user.name
           file_relative_path = ".claude/agents/#{File.basename(file_path)}"
-          project_root = Rails.root.join('..')
+          project_root = Rails.root.join("..")
 
           # Check for explicit author in frontmatter (overrides git history)
           explicit_author = frontmatter["author"]
@@ -91,7 +91,7 @@ namespace :teeem do
 
           # Fallback to current git user name
           fallback_name = `git config user.name`.strip rescue nil
-          fallback_name = 'Unknown' if fallback_name.blank?
+          fallback_name = "Unknown" if fallback_name.blank?
 
           created_by_name ||= fallback_name
           updated_by_name ||= fallback_name
@@ -157,7 +157,7 @@ namespace :teeem do
       return match[1].strip if match
 
       # Fallback to humanized agent_id
-      agent_id.split('-').map(&:capitalize).join(' ')
+      agent_id.split("-").map(&:capitalize).join(" ")
     end
 
     def extract_description_from_content(content)

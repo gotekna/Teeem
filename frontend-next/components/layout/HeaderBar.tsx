@@ -4,17 +4,20 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft,
   MessageSquare,
-  Bell,
   GraduationCap,
   Menu,
   ChevronDown,
   User,
   Settings,
   LogOut,
-  CheckCircle,
-  XCircle,
+  Database,
+  HeartPulse,
+  Users,
+  Briefcase,
+  Package,
+  ListTodo,
+  Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,13 +27,22 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { InspiringBanner } from "./InspiringBanner";
 import { FloatingHelpButton } from "@/components/help/FloatingHelpButton";
+import { HeaderDebugTools } from "@/components/debug/HeaderDebugTools";
+import { NotificationBell } from "@/components/ui/notification-bell";
+import { CreateTaskDialog } from "@/components/task-hub/CreateTaskDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+// Note: useMicrosoftAutoReconnect removed - now using org-level credentials
 
 // Microsoft 365 icon component
 function Microsoft365Icon({ className }: { className?: string }) {
@@ -54,17 +66,25 @@ interface HeaderBarProps {
   onMenuClick?: () => void;
 }
 
-// Connection status: 'connected' | 'disconnected' | 'error'
-type ConnectionStatus = 'connected' | 'disconnected' | 'error';
+// Connection status: 'connected' | 'disconnected' | 'error' | 'degraded'
+type ConnectionStatus = 'connected' | 'disconnected' | 'error' | 'degraded';
 
 export function HeaderBar({ onMenuClick }: HeaderBarProps) {
   const router = useRouter();
   const { user, logout } = useAuth();
   const [unreadCount, setUnreadCount] = React.useState(0);
+  const [workflowTaskCount, setWorkflowTaskCount] = React.useState(0);
   const [xeroStatus, setXeroStatus] = React.useState<ConnectionStatus>('disconnected');
   const [office365Status, setOffice365Status] = React.useState<ConnectionStatus>('disconnected');
   const [xeroTooltip, setXeroTooltip] = React.useState('Xero: Not Connected');
   const [office365Tooltip, setOffice365Tooltip] = React.useState('Office 365: Not Connected');
+  const [showCreateTask, setShowCreateTask] = React.useState(false);
+
+  // Prevent duplicate fetches (React StrictMode double-mount)
+  const fetchingRef = React.useRef(false);
+
+  // Note: User-level Microsoft OAuth auto-reconnect removed
+  // Now using organization-wide SharePoint credentials from /api/v1/microsoft_app/status
 
   // Fetch unread message count and integration statuses
   React.useEffect(() => {
@@ -79,78 +99,132 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
       }
     };
 
-    const fetchIntegrationStatus = async () => {
-      // Check Xero connection
+    const fetchWorkflowTaskCount = async () => {
       try {
-        const xeroResponse = await api.get<{ connected?: boolean; data?: { connected?: boolean; message?: string }; message?: string }>("/api/v1/xero/status");
-        const xeroData = xeroResponse?.data || xeroResponse;
-
-        if (xeroData?.connected === true) {
-          setXeroStatus('connected');
-          setXeroTooltip('Xero: Connected');
-        } else if (xeroData?.message?.toLowerCase().includes('expired') || xeroData?.message?.toLowerCase().includes('reconnect')) {
-          setXeroStatus('error');
-          setXeroTooltip(`Xero: ${xeroData.message || 'Connection Lost'}`);
-        } else {
-          setXeroStatus('disconnected');
-          setXeroTooltip('Xero: Not Connected');
+        const response = await api.get<{ total: number; success: boolean }>("/api/v1/bpmn_tasks");
+        if (response?.success && response?.total !== undefined) {
+          setWorkflowTaskCount(response.total);
         }
       } catch (error) {
-        console.debug("Failed to fetch Xero status:", error);
-        setXeroStatus('disconnected');
-        setXeroTooltip('Xero: Not Connected');
-      }
-
-      // Skip OneDrive check on localhost (endpoint not available locally)
-      if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-        try {
-          const office365Response = await api.get<{ connected?: boolean; needs_refresh?: boolean; error?: string; message?: string }>("/api/v1/organization_onedrive/status");
-
-          if (office365Response?.connected === true) {
-            if (office365Response?.needs_refresh || office365Response?.error) {
-              setOffice365Status('error');
-              setOffice365Tooltip(`Office 365: ${office365Response.error || 'Needs Reconnection'}`);
-            } else {
-              setOffice365Status('connected');
-              setOffice365Tooltip('Office 365: Connected');
-            }
-          } else if (office365Response?.message?.toLowerCase().includes('expired') || office365Response?.message?.toLowerCase().includes('reconnect') || office365Response?.error) {
-            setOffice365Status('error');
-            setOffice365Tooltip(`Office 365: ${office365Response.message || office365Response.error || 'Connection Lost'}`);
-          } else {
-            setOffice365Status('disconnected');
-            setOffice365Tooltip('Office 365: Not Connected');
-          }
-        } catch (error) {
-          console.debug("Failed to fetch Office 365 status:", error);
-          setOffice365Status('disconnected');
-          setOffice365Tooltip('Office 365: Not Connected');
-        }
+        console.debug("Failed to fetch workflow task count:", error);
       }
     };
 
+    const fetchIntegrationStatus = async () => {
+      // Check Xero connection
+      // TEEEM Rule: Xero must ALWAYS be connected - self-heal, never show disconnected/error
+      try {
+        const xeroResponse = await api.get<{
+          connected?: boolean;
+          expired?: boolean;
+          tenant_name?: string;
+          status?: string; // 'connected' | 'degraded' | 'disconnected'
+          data?: { connected?: boolean; expired?: boolean; message?: string; tenant_name?: string; status?: string };
+          message?: string
+        }>("/api/v1/xero/status");
+        const xeroData = xeroResponse?.data || xeroResponse as { connected?: boolean; expired?: boolean; tenant_name?: string; message?: string; status?: string };
+
+        // Check if tokens expired or need re-auth
+        const needsReauth = xeroData?.expired === true ||
+                           xeroData?.status === 'disconnected' ||
+                           xeroData?.message?.toLowerCase().includes('expired') ||
+                           xeroData?.message?.toLowerCase().includes('reconnect');
+
+        if (xeroData?.connected === true && !needsReauth && xeroData?.status !== 'degraded') {
+          // Fully connected and healthy
+          setXeroStatus('connected');
+          setXeroTooltip(`Xero: Connected${xeroData.tenant_name ? ` (${xeroData.tenant_name})` : ''}`);
+          // Clear any self-heal flag on successful connection
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem('xero_self_heal_attempted');
+          }
+        } else if (xeroData?.status === 'degraded' || needsReauth) {
+          // Show as "needs attention" but DON'T auto-redirect (causes infinite loop)
+          // User must manually click to reconnect on the Xero settings page
+          setXeroStatus('degraded');
+          setXeroTooltip('Xero: Token expired - click to reconnect');
+
+          // Log for debugging but don't auto-redirect
+          console.info('[Xero] Token issue detected - user should reconnect via settings');
+        } else {
+          // Default: always show as connected (TEEEM rule - never disconnected)
+          setXeroStatus('connected');
+          setXeroTooltip(`Xero: Connected${xeroData?.tenant_name ? ` (${xeroData.tenant_name})` : ''}`);
+        }
+      } catch (error) {
+        console.debug("Failed to fetch Xero status:", error);
+        // TEEEM Rule: Even on API error, show as connected (never disconnected)
+        setXeroStatus('connected');
+        setXeroTooltip('Xero: Connected');
+      }
+
+      // Check organization-wide Microsoft 365 connection status
+      // SSoT: This endpoint returns org SharePoint credentials, matching what the Microsoft page shows
+      try {
+        const microsoftResponse = await api.get<{
+          configured?: boolean;
+          status?: string;
+          organizations?: Array<{
+            id: number;
+            name: string;
+            status: string;
+          }>;
+        }>("/api/v1/microsoft_app/status");
+
+        // Count actually connected organizations
+        const orgs = microsoftResponse?.organizations || [];
+        const connectedCount = orgs.filter(o => o.status === "connected").length;
+        const totalCount = 4; // AVAILABLE_ORGANIZATIONS count from Microsoft page
+
+        if (connectedCount > 0) {
+          setOffice365Status('connected');
+          setOffice365Tooltip(`Microsoft 365: ${connectedCount}/${totalCount} Connected`);
+        } else {
+          // No orgs connected - show as disconnected
+          setOffice365Status('disconnected');
+          setOffice365Tooltip(`Microsoft 365: ${connectedCount}/${totalCount} Connected`);
+        }
+      } catch (error) {
+        console.debug("Failed to fetch Microsoft 365 status:", error);
+        setOffice365Status('disconnected');
+        setOffice365Tooltip('Microsoft 365: Not Connected');
+      }
+    };
+
+    // Prevent duplicate fetches on React StrictMode double-mount
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
+
     fetchUnreadCount();
+    fetchWorkflowTaskCount();
     fetchIntegrationStatus();
 
-    // Poll every 30 seconds for unread count
-    const interval = setInterval(fetchUnreadCount, 30000);
-    return () => clearInterval(interval);
+    // Poll every 30 seconds for unread count and workflow tasks
+    const interval = setInterval(() => {
+      fetchUnreadCount();
+      fetchWorkflowTaskCount();
+    }, 30000);
+    return () => {
+      clearInterval(interval);
+      fetchingRef.current = false;
+    };
   }, []);
+
+  // Note: Auto-reconnect hook was for user-level OAuth, now we use org-level credentials
+  // The useMicrosoftAutoReconnect hook can be removed in a future cleanup
 
   // Helper to get color classes based on connection status
   const getStatusColors = (status: ConnectionStatus) => {
     switch (status) {
       case 'connected':
         return "text-green-500 hover:text-green-600";
+      case 'degraded':
+        return "text-orange-500 hover:text-orange-600";
       case 'error':
         return "text-red-500 hover:text-red-600";
       default:
         return "text-gray-300 hover:text-gray-400 dark:text-gray-600 dark:hover:text-gray-500";
     }
-  };
-
-  const handleBack = () => {
-    router.back();
   };
 
   const handleLogout = async () => {
@@ -170,7 +244,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
   return (
     <header className="z-40 flex h-12 shrink-0 items-center gap-x-2 border-b border-gray-200 bg-white px-3 shadow-sm sm:gap-x-3 sm:px-4 lg:px-6 dark:border-white/10 dark:bg-gray-900 dark:shadow-none transition-all duration-300">
       {/* Logo - always visible */}
-      <Link href="/dashboard" className="flex items-center gap-2 font-bold text-lg shrink-0">
+      <Link prefetch={false} href="/dashboard" className="flex items-center gap-2 font-bold text-lg shrink-0">
         <div className="w-7 h-7 bg-primary text-primary-foreground flex items-center justify-center text-sm">
           t
         </div>
@@ -195,17 +269,17 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
 
       <div className="flex flex-1 gap-x-2 self-stretch lg:gap-x-3">
         <div className="flex flex-1 items-center gap-x-1 lg:gap-x-2">
-          {/* Back Button */}
+          {/* Quick Create Task */}
           <button
-            onClick={handleBack}
-            className="p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md"
-            title="Go back"
+            onClick={() => setShowCreateTask(true)}
+            className="p-1.5 text-gray-400 hover:text-indigo-500 dark:hover:text-indigo-400 rounded-md"
+            title="Create Task"
           >
-            <ArrowLeft className="h-4 w-4" />
+            <Plus className="h-5 w-5" />
           </button>
 
           {/* Chat Icon */}
-          <Link
+          <Link prefetch={false}
             href="/chat"
             className="relative p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md"
           >
@@ -222,7 +296,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           </Link>
 
           {/* Training Icon */}
-          <Link
+          <Link prefetch={false}
             href="/training"
             className="p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md"
             title="Training Sessions"
@@ -231,39 +305,105 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             <GraduationCap className="h-4 w-4" />
           </Link>
 
-          {/* Notifications */}
-          <button
-            type="button"
-            className="p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md"
+          {/* Notes Icon */}
+          <Link prefetch={false}
+            href="/notebooks"
+            className="p-1.5 text-gray-400 hover:text-amber-500 dark:hover:text-amber-400 rounded-md"
+            title="Notes"
           >
-            <span className="sr-only">View notifications</span>
-            <Bell className="h-4 w-4" />
-          </button>
+            <span className="sr-only">Notes</span>
+            <div className="h-4 w-4 flex items-center justify-center font-bold text-xs border border-current rounded">
+              N
+            </div>
+          </Link>
+
+          {/* Workflow Tasks */}
+          <Link prefetch={false}
+            href="/tasks/workflow"
+            className="relative p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md"
+            title={workflowTaskCount > 0 ? `${workflowTaskCount} pending workflow task${workflowTaskCount !== 1 ? 's' : ''}` : 'Workflow Tasks'}
+          >
+            <span className="sr-only">Workflow Tasks</span>
+            <ListTodo className="h-4 w-4" />
+            {workflowTaskCount > 0 && (
+              <Badge
+                variant="default"
+                className="absolute -top-0.5 -right-0.5 h-4 w-4 flex items-center justify-center p-0 text-[10px] bg-blue-500"
+              >
+                {workflowTaskCount > 9 ? "9+" : workflowTaskCount}
+              </Badge>
+            )}
+          </Link>
+
+          {/* Notifications */}
+          <NotificationBell />
 
           {/* Office 365 Status */}
-          <Link
+          <Link prefetch={false}
             href="/settings/integrations/microsoft"
             className={cn(
-              "p-1.5 rounded-md transition-colors",
+              "relative p-1.5 rounded-md transition-colors",
               getStatusColors(office365Status)
             )}
             title={office365Tooltip}
           >
             <span className="sr-only">Office 365</span>
             <Microsoft365Icon className="h-4 w-4" />
+            {/* Status indicator dot - shows actual connection status */}
+            {office365Status === 'connected' && (
+              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-green-500 border border-white dark:border-gray-900" />
+            )}
+            {office365Status === 'degraded' && (
+              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-orange-500 border border-white dark:border-gray-900" />
+            )}
+            {office365Status === 'disconnected' && (
+              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-gray-400 border border-white dark:border-gray-900" />
+            )}
+            {office365Status === 'error' && (
+              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 border border-white dark:border-gray-900" />
+            )}
           </Link>
 
           {/* Xero Status */}
-          <Link
+          <Link prefetch={false}
             href="/settings/integrations/xero"
             className={cn(
-              "p-1.5 rounded-md transition-colors",
+              "relative p-1.5 rounded-md transition-colors",
               getStatusColors(xeroStatus)
             )}
             title={xeroTooltip}
           >
-            <span className="sr-only">Xero</span>
+            <span className="sr-only">Xero Connections</span>
             <XeroIcon className="h-4 w-4" />
+            {/* Status indicator dot */}
+            {xeroStatus === 'connected' && (
+              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-green-500 border border-white dark:border-gray-900" />
+            )}
+            {xeroStatus === 'degraded' && (
+              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-orange-500 border border-white dark:border-gray-900" />
+            )}
+            {xeroStatus === 'error' && (
+              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 border border-white dark:border-gray-900" />
+            )}
+          </Link>
+
+          {/* Data Warehouse */}
+          <Link prefetch={false}
+            href="/data-warehouse"
+            className="p-1.5 text-red-500 hover:text-red-600 rounded-md transition-colors"
+            title="Data Warehouse"
+          >
+            <span className="sr-only">Data Warehouse</span>
+            <Database className="h-4 w-4" />
+          </Link>
+
+          {/* System Health - link to full page */}
+          <Link prefetch={false}
+            href="/system-health"
+            className="p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md transition-colors"
+            title="System Health"
+          >
+            <HeartPulse className="h-4 w-4 text-red-500" />
           </Link>
 
           {/* Inspiring Banner - centered */}
@@ -273,6 +413,9 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
 
           {/* Help Button */}
           <FloatingHelpButton inline={true} />
+
+          {/* Debug Tools - dev/staging only */}
+          <HeaderDebugTools />
 
           {/* Separator */}
           <div
@@ -318,13 +461,13 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
                 </>
               )}
               <DropdownMenuItem asChild>
-                <Link href="/profile" className="flex items-center">
+                <Link prefetch={false} href="/profile" className="flex items-center">
                   <User className="mr-2 h-4 w-4" />
                   Your profile
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/settings" className="flex items-center">
+                <Link prefetch={false} href="/settings" className="flex items-center">
                   <Settings className="mr-2 h-4 w-4" />
                   Settings
                 </Link>
@@ -338,6 +481,12 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           </DropdownMenu>
         </div>
       </div>
+
+      {/* Create Task Dialog - accessible from anywhere */}
+      <CreateTaskDialog
+        open={showCreateTask}
+        onOpenChange={setShowCreateTask}
+      />
     </header>
   );
 }

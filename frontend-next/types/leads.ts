@@ -161,7 +161,8 @@ export interface PipelineJob {
 
 // Pipeline stage names (match backend JobStage names for Enquiry status)
 export type PipelineStage =
-  | "proposal"
+  | "needs_pricing"
+  | "needs_drafting"
   | "priced_up"
   | "contacted"
   | "qualified"
@@ -174,10 +175,15 @@ export const PIPELINE_STAGE_CONFIG: Record<
   PipelineStage,
   { label: string; color: string; bgColor: string }
 > = {
-  proposal: {
-    label: "Proposal",
+  needs_pricing: {
+    label: "Needs Pricing",
     color: "text-yellow-700 dark:text-yellow-300",
     bgColor: "bg-yellow-100 dark:bg-yellow-900/30",
+  },
+  needs_drafting: {
+    label: "Needs Drafting",
+    color: "text-pink-700 dark:text-pink-300",
+    bgColor: "bg-pink-100 dark:bg-pink-900/30",
   },
   priced_up: {
     label: "Priced Up",

@@ -18,8 +18,9 @@ Rails.application.configure do
   # Enable serving of images, stylesheets, and JavaScripts from an asset server.
   # config.asset_host = "http://assets.example.com"
 
-  # Store uploaded files on the local file system (see config/storage.yml for options).
-  config.active_storage.service = :local
+  # Store uploaded files in SharePoint via Microsoft Graph API
+  # This prevents file loss on Heroku dyno restarts (ephemeral filesystem)
+  config.active_storage.service = :sharepoint
 
   # Assume all access to the app is happening through a SSL-terminating reverse proxy.
   config.assume_ssl = true
@@ -54,8 +55,11 @@ Rails.application.configure do
   # Set this to true and configure the email server for immediate delivery to raise delivery errors.
   # config.action_mailer.raise_delivery_errors = false
 
-  # Set host to be used by links generated in mailer templates.
-  config.action_mailer.default_url_options = { host: "example.com" }
+  # Set host to be used by links generated in mailer templates and Active Storage URLs.
+  config.action_mailer.default_url_options = { host: ENV.fetch("HOST", "teeemlive-ce8e2660a615.herokuapp.com"), protocol: "https" }
+
+  # Active Storage URL host
+  Rails.application.routes.default_url_options = { host: ENV.fetch("HOST", "teeemlive-ce8e2660a615.herokuapp.com"), protocol: "https" }
 
   # Specify outgoing SMTP server. Remember to add smtp/* credentials via rails credentials:edit.
   # config.action_mailer.smtp_settings = {
@@ -75,6 +79,14 @@ Rails.application.configure do
 
   # Only use :id for inspections in production.
   config.active_record.attributes_for_inspect = [ :id ]
+
+  # ActionCable WebSocket allowed origins
+  # Allow connections from Vercel frontend and Heroku backend
+  config.action_cable.allowed_request_origins = [
+    "https://teeemlive.vercel.app",
+    "https://teeemlive-ce8e2660a615.herokuapp.com",
+    %r{https://teeem.*\.vercel\.app},  # Preview deployments
+  ]
 
   # Enable DNS rebinding protection and other `Host` header attacks.
   # config.hosts = [

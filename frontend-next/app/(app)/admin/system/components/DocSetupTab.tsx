@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,15 +16,14 @@ import {
 } from "@/components/ui/dialog";
 import {
   Plus,
-  Loader2,
   GripVertical,
   Pencil,
   Trash2,
   FolderOpen,
-  FileText,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 interface DocumentationCategory {
@@ -75,8 +74,8 @@ export function DocSetupTab() {
 
   const loadCategories = async () => {
     try {
-      const data = await api.get<DocumentationCategory[]>("/api/v1/documentation_categories");
-      setCategories(data);
+      const response = await api.get<{ documentation_categories: DocumentationCategory[] }>("/api/v1/documentation_categories");
+      setCategories(response.documentation_categories || []);
     } catch (error) {
       console.error("Failed to load categories:", error);
       // Mock data
@@ -239,7 +238,7 @@ export function DocSetupTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -275,7 +274,7 @@ export function DocSetupTab() {
             </div>
           ) : (
             <div className="divide-y">
-              {categories
+              {(Array.isArray(categories) ? categories : [])
                 .sort((a, b) => a.sequence - b.sequence)
                 .map((category, index) => (
                   <div
@@ -326,7 +325,7 @@ export function DocSetupTab() {
                         onClick={() => handleDelete(category.id)}
                       >
                         {deleting === category.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <Spinner size={16} />
                         ) : (
                           <Trash2 className="h-4 w-4" />
                         )}
@@ -404,7 +403,7 @@ export function DocSetupTab() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="folder_path">OneDrive Folder Path (Optional)</Label>
+              <Label htmlFor="folder_path">SharePoint Folder Path (Optional)</Label>
               <Input
                 id="folder_path"
                 placeholder="e.g., /Documents/Contracts"
@@ -412,7 +411,7 @@ export function DocSetupTab() {
                 onChange={(e) => setFormData({ ...formData, folder_path: e.target.value })}
               />
               <p className="text-xs text-muted-foreground">
-                Map this category to a specific OneDrive folder for automatic file sync.
+                Map this category to a specific SharePoint folder for automatic file sync.
               </p>
             </div>
           </div>
@@ -423,7 +422,7 @@ export function DocSetupTab() {
             <Button onClick={handleSave} disabled={saving}>
               {saving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner size={16} className="mr-2" />
                   Saving...
                 </>
               ) : editingCategory ? (

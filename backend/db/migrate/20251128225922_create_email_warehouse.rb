@@ -57,8 +57,8 @@ class CreateEmailWarehouse < ActiveRecord::Migration[8.0]
     add_index :email_warehouse, :searchable, using: :gin
 
     # Composite index for job emails query
-    add_index :email_warehouse, [:job_id, :received_at]
-    add_index :email_warehouse, [:job_id, :is_latest_in_thread]
+    add_index :email_warehouse, [ :job_id, :received_at ]
+    add_index :email_warehouse, [ :job_id, :is_latest_in_thread ]
 
     # GIN index on array columns for searching recipients
     add_index :email_warehouse, :to_emails, using: :gin

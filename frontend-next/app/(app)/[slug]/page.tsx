@@ -1,11 +1,11 @@
 "use client";
 
-import { useParams, useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useState, Suspense, useCallback } from "react";
+import { useParams, usePathname, useRouter } from "next/navigation";
+import { useEffect, useState, Suspense, useCallback, useMemo } from "react";
 import { TeeemTableView, SchemaTab, ConnectionsTab, CreateRecordDialog } from "@/components/table";
 import { api } from "@/lib/api";
 import type { TableRow } from "@/components/table/types";
-import { TABLE_IDS, urls, stripUrlSuffix } from "@/lib/url-utils";
+import { TABLE_IDS, stripUrlSuffix, slugifyPricebookCode } from "@/lib/url-utils";
 import { getTableUIConfig } from "@/lib/table-ui-config";
 import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -42,16 +42,26 @@ function ErrorDisplay({ error, slug }: { error: Error; slug: string }) {
 
 function TablePageContent() {
   const params = useParams();
-  const searchParams = useSearchParams();
+  const pathname = usePathname();
   const router = useRouter();
 
   const rawSlug = params.slug as string;
-  const tab = searchParams.get("tab");
 
-  // Strip the _GOD_LOVES_YOU_ suffix to get the clean slug
+  // Strip any legacy suffix if present (for backwards compatibility)
   const cleanSlug = stripUrlSuffix(rawSlug);
 
-  const [activeTab, setActiveTab] = useState(tab || "data");
+  // URL is SSoT for tab state (path-based navigation)
+  // Parse: /contacts/schema → tab = "schema"
+  const tab = useMemo(() => {
+    const parts = pathname.replace(`/${cleanSlug}`, "").split("/").filter(Boolean);
+    // Only return tab if it's a known tab name (not a record ID)
+    const potentialTab = parts[0];
+    if (potentialTab && ["data", "schema", "connections"].includes(potentialTab)) {
+      return potentialTab;
+    }
+    return null;
+  }, [pathname, cleanSlug]);
+
   const [showAddModal, setShowAddModal] = useState(false);
 
   // Load foundation data by slug
@@ -59,6 +69,12 @@ function TablePageContent() {
 
   // Get table ID from foundation (needed for UI config)
   const tableId = foundation?.id || 0;
+
+  // Get UI configuration for this table
+  const uiConfig = getTableUIConfig(tableId);
+
+  // Derive active tab from URL or config (no state needed)
+  const activeTab = tab || uiConfig.defaultTab || (uiConfig.tabs && uiConfig.tabs.length > 0 ? uiConfig.tabs[0].id : "data");
 
   // Handle row double-click - navigate to full page for supported tables
   const handleRowDoubleClick = (row: TableRow) => {
@@ -69,43 +85,33 @@ function TablePageContent() {
     } else if (tableId === TABLE_IDS.CONTACTS) {
       router.push(`/contacts/${row.id}`);
     } else if (tableId === TABLE_IDS.PRICEBOOK) {
-      router.push(`/pricebook/${row.id}`);
-    } else if (tableId === TABLE_IDS.COMPANIES) {
-      router.push(`/companies/${row.id}`);
+      // Use item_code instead of id for pricebook items
+      const itemCode = row.item_code as string;
+      if (itemCode) {
+        router.push(`/pricebook/${slugifyPricebookCode(itemCode)}`);
+      } else {
+        console.warn("[TablePage] Pricebook item missing item_code:", row);
+      }
     } else {
+      // Companies use /corporate routes, not Foundation-based [slug] pages
       console.log("[TablePage] No detail page for table:", tableId);
     }
   };
 
-  // Get UI configuration for this table
-  const uiConfig = getTableUIConfig(tableId);
-
-  // Validate URL has _GOD_LOVES_YOU_ suffix
+  // Redirect legacy URLs with suffix to clean URLs
   useEffect(() => {
-    if (rawSlug && !rawSlug.includes("_GOD_LOVES_YOU_")) {
-      router.replace(`/${cleanSlug}_GOD_LOVES_YOU_${tab ? `?tab=${tab}` : ''}`);
+    if (rawSlug && rawSlug.includes("_GOD_LOVES_YOU_")) {
+      router.replace(`/${cleanSlug}${tab ? `/${tab}` : ''}`);
     }
   }, [rawSlug, cleanSlug, tab, router]);
 
   // Get table name from foundation or fallback
   const tableName = foundation?.name || cleanSlug;
 
-  // Handle tab changes - update URL
-  const handleTabChange = (newTab: string) => {
-    setActiveTab(newTab);
-    router.replace(`/${cleanSlug}_GOD_LOVES_YOU_?tab=${newTab}`, { scroll: false });
-  };
-
-  // Set initial tab from URL or config
-  useEffect(() => {
-    if (tab) {
-      setActiveTab(tab);
-    } else if (uiConfig.defaultTab) {
-      setActiveTab(uiConfig.defaultTab);
-    } else if (uiConfig.tabs && uiConfig.tabs.length > 0) {
-      setActiveTab(uiConfig.tabs[0].id);
-    }
-  }, [tab, uiConfig.defaultTab, uiConfig.tabs]);
+  // Handle tab changes - update URL (activeTab is now derived from URL)
+  const handleTabChange = useCallback((newTab: string) => {
+    router.push(`/${cleanSlug}/${newTab}`, { scroll: false });
+  }, [router, cleanSlug]);
 
   // Handle inline row update - must be before early returns (hooks rule)
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
@@ -146,12 +152,10 @@ function TablePageContent() {
       case TABLE_IDS.CONTACTS:
         router.push(`/contacts/${row.id}`);
         break;
-      case TABLE_IDS.COMPANIES:
-        router.push(`/companies/${row.id}`);
-        break;
+      // Companies use /corporate routes, not Foundation-based [slug] pages
       default:
         // For other tables, use the slug-based URL with item ID
-        router.push(`/${cleanSlug}/${row.id}_GOD_LOVES_YOU_`);
+        router.push(`/${cleanSlug}/${row.id}`);
     }
   };
 
@@ -182,9 +186,9 @@ function TablePageContent() {
 
   // Common table props
   // Note: Filters button is auto-enabled by TeeemTableView when foundationIdNumeric is set
+  // Note: columns NOT passed - TeeemTableView auto-fetches from Foundation API (SSoT)
   const tableProps = {
     entries: records,
-    columns: columns,
     foundationId: String(tableId),
     foundationIdNumeric: tableId,
     tableName: tableName,
@@ -207,15 +211,10 @@ function TablePageContent() {
   };
 
   return (
-    <div className="flex flex-col h-full p-6 space-y-4">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight font-serif">{tableName}</h1>
-      </div>
-
+    <div className="flex flex-col h-full -mx-4">
       {/* Tabs (if configured) */}
       {uiConfig.tabs && uiConfig.tabs.length > 0 ? (
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col px-4">
           <TabsList>
             {uiConfig.tabs.map((t) => (
               <TabsTrigger key={t.id} value={t.id}>
@@ -253,9 +252,7 @@ function TablePageContent() {
           ))}
         </Tabs>
       ) : (
-        <div className="flex-1 min-h-0">
-          <TeeemTableView {...tableProps} />
-        </div>
+        <TeeemTableView {...tableProps} />
       )}
 
       {/* Create Record Dialog */}

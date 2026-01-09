@@ -1,12 +1,34 @@
 class Asset < ApplicationRecord
   # Associations
-  belongs_to :company
+  belongs_to :corporate_company, foreign_key: "company_id"
+  belongs_to :assigned_user, class_name: "User", optional: true
+
+  # Existing associations
   has_one :asset_insurance, dependent: :destroy
   has_many :asset_service_histories, dependent: :destroy
-  has_many :company_documents, dependent: :nullify
+  has_many :corporate_company_documents, dependent: :nullify
+
+  # New associations for Asset Register
+  has_one :depreciation_profile, class_name: "AssetDepreciationProfile", dependent: :destroy
+  has_many :depreciation_schedules, class_name: "AssetDepreciationSchedule", dependent: :destroy
+  has_one :disposal, class_name: "AssetDisposal", dependent: :destroy
+  has_many :odometer_readings, class_name: "AssetOdometerReading", dependent: :destroy
+  has_many :expenses, class_name: "AssetExpense", dependent: :destroy
 
   # Active Storage for photos
   has_many_attached :photos
+
+  # File upload validation (security: prevents storage DoS and malware upload)
+  validates :photos, content_type: %w[image/jpeg image/png image/heic image/webp image/gif],
+                     size: { less_than: 10.megabytes, message: "must be less than 10MB" }
+
+  # Asset type codes for asset number generation
+  ASSET_TYPE_CODES = {
+    "vehicle" => "VEH",
+    "equipment" => "EQP",
+    "property" => "PRO",
+    "other" => "OTH"
+  }.freeze
 
   # Validations
   validates :name, presence: true
@@ -15,17 +37,24 @@ class Asset < ApplicationRecord
   validates :purchase_price, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :current_book_value, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :abbreviation, format: { with: /\A[A-Z0-9\-]+\z/, message: "must be uppercase letters, numbers, or hyphens", allow_blank: true }
+  validates :asset_number, uniqueness: true, allow_nil: true
 
   # Scopes
-  scope :active, -> { where(status: 'active') }
-  scope :disposed, -> { where(status: 'disposed') }
-  scope :vehicles, -> { where(asset_type: 'vehicle') }
-  scope :equipment, -> { where(asset_type: 'equipment') }
-  scope :property, -> { where(asset_type: 'property') }
+  scope :active, -> { where(status: "active") }
+  scope :disposed, -> { where(status: "disposed") }
+  scope :vehicles, -> { where(asset_type: "vehicle") }
+  scope :equipment, -> { where(asset_type: "equipment") }
+  scope :property, -> { where(asset_type: "property") }
   scope :by_type, ->(type) { where(asset_type: type) }
+  scope :assigned_to, ->(user) { where(assigned_user_id: user.id) }
+  scope :unassigned, -> { where(assigned_user_id: nil) }
+  scope :with_depreciation, -> { joins(:depreciation_profile) }
+  scope :depreciable, -> { active.joins(:depreciation_profile) }
 
   # Callbacks
+  before_validation :generate_asset_number, on: :create
   after_create :create_activity
+  after_create :create_default_depreciation_profile
   after_update :create_update_activity
 
   # Instance methods
@@ -38,23 +67,24 @@ class Asset < ApplicationRecord
   end
 
   def active?
-    status == 'active'
+    status == "active"
   end
 
   def has_insurance?
-    asset_insurance.present? && asset_insurance.status == 'active'
+    asset_insurance.present? && asset_insurance.status == "active"
   end
 
   def insurance_expiring_soon?(days = 30)
     return false unless has_insurance?
+    today = CorporateCompanySetting.today
     asset_insurance.renewal_date.present? &&
       asset_insurance.renewal_date <= days.days.from_now &&
-      asset_insurance.renewal_date >= Date.today
+      asset_insurance.renewal_date >= today
   end
 
   def insurance_expired?
     return false unless asset_insurance.present?
-    asset_insurance.renewal_date.present? && asset_insurance.renewal_date < Date.today
+    asset_insurance.renewal_date.present? && asset_insurance.renewal_date < CorporateCompanySetting.today
   end
 
   def last_service
@@ -71,7 +101,7 @@ class Asset < ApplicationRecord
   end
 
   def service_overdue?
-    next_service_due.present? && next_service_due < Date.today
+    next_service_due.present? && next_service_due < CorporateCompanySetting.today
   end
 
   def total_maintenance_cost
@@ -80,7 +110,7 @@ class Asset < ApplicationRecord
 
   def age_in_years
     return nil unless purchase_date.present?
-    ((Date.today - purchase_date).to_f / 365.25).round(1)
+    ((CorporateCompanySetting.today - purchase_date).to_f / 365.25).round(1)
   end
 
   def depreciation_amount
@@ -93,49 +123,246 @@ class Asset < ApplicationRecord
   end
 
   def documents_count
-    company_documents.count
+    corporate_company_documents.count
+  end
+
+  # Asset number in format: ABC-VEH-001
+  def generate_asset_number
+    return if asset_number.present?
+
+    company_code = corporate_company&.code.presence || "XXX"
+    type_code = ASSET_TYPE_CODES[asset_type] || "OTH"
+
+    # Get next sequence number for this company + type combination
+    last_asset = Asset.where(company_id: company_id, asset_type: asset_type)
+                      .where.not(asset_number: nil)
+                      .order(asset_number: :desc)
+                      .first
+
+    if last_asset&.asset_number
+      # Extract sequence from last asset number
+      sequence = last_asset.asset_number.split("-").last.to_i + 1
+    else
+      sequence = 1
+    end
+
+    self.asset_number = "#{company_code}-#{type_code}-#{sequence.to_s.rjust(3, '0')}"
+  end
+
+  # Depreciation convenience methods
+  def current_book_wdv
+    depreciation_profile&.current_book_wdv || purchase_price || 0
+  end
+
+  def current_tax_wdv
+    depreciation_profile&.current_tax_wdv || purchase_price || 0
+  end
+
+  def total_book_depreciation
+    depreciation_schedules.sum(:book_depreciation)
+  end
+
+  def total_tax_depreciation
+    depreciation_schedules.sum(:tax_depreciation)
+  end
+
+  def disposed?
+    status == "disposed" && disposal.present?
+  end
+
+  # Total cost of ownership (maintenance + expenses)
+  def total_cost_of_ownership
+    total_maintenance_cost + expenses.sum(:amount)
+  end
+
+  # Total expenses by type
+  def expenses_by_type
+    expenses.group(:expense_type).sum(:amount)
+  end
+
+  # Last odometer reading
+  def last_odometer_reading
+    odometer_readings.order(reading_date: :desc).first
+  end
+
+  # Current odometer (from asset or last reading)
+  def current_odometer
+    odometer_reading || last_odometer_reading&.odometer_km
+  end
+
+  # Current hours (for equipment)
+  def current_hours
+    hours_reading || last_odometer_reading&.hours
+  end
+
+  # Is this a vehicle?
+  def vehicle?
+    asset_type == "vehicle"
+  end
+
+  # Is this a property?
+  def property?
+    asset_type == "property"
+  end
+
+  # Is this equipment?
+  def equipment?
+    asset_type == "equipment"
+  end
+
+  # Assigned user name
+  def assigned_to_name
+    assigned_user&.full_name
+  end
+
+  # Company name (from association)
+  def company_name
+    corporate_company&.name
+  end
+
+  # Company code (from association)
+  def company_code
+    corporate_company&.code
+  end
+
+  # Photo URLs for frontend display
+  # Handles iPhone photos (typically 4032x3024, 3-4MB) by generating smaller thumbnails
+  def photo_urls
+    return [] unless photos.attached?
+
+    photos.map do |photo|
+      base_url = Rails.application.routes.url_helpers.rails_blob_url(photo, host: default_url_host)
+
+      # Generate thumbnail URL (400x400 for grid display)
+      thumb_url = begin
+        Rails.application.routes.url_helpers.rails_representation_url(
+          photo.variant(resize_to_limit: [400, 400]),
+          host: default_url_host
+        )
+      rescue StandardError => e
+        Rails.logger.warn "Thumbnail generation skipped for #{photo.filename}: #{e.message}"
+        base_url # Fall back to original if variant fails
+      end
+
+      {
+        id: photo.id,
+        filename: photo.filename.to_s,
+        url: base_url,
+        thumbnail_url: thumb_url,
+        content_type: photo.content_type,
+        byte_size: photo.byte_size,
+        created_at: photo.created_at
+      }
+    rescue StandardError => e
+      Rails.logger.error "Failed to generate photo URL: #{e.message}"
+      nil
+    end.compact
+  end
+
+  # First photo thumbnail for quick display on Details tab
+  # Uses 300x300 for fast loading while still looking crisp
+  def thumbnail_url
+    return nil unless photos.attached? && photos.first.present?
+
+    photo = photos.first
+    Rails.application.routes.url_helpers.rails_representation_url(
+      photo.variant(resize_to_limit: [300, 300]),
+      host: default_url_host
+    )
+  rescue StandardError => e
+    Rails.logger.warn "Thumbnail URL failed: #{e.message}"
+    # Fall back to original URL if variant generation fails
+    begin
+      Rails.application.routes.url_helpers.rails_blob_url(photo, host: default_url_host)
+    rescue StandardError
+      nil
+    end
+  end
+
+  # Photo count for display
+  def photos_count
+    photos.attached? ? photos.count : 0
   end
 
   private
 
+  def default_url_host
+    ENV["APP_HOST"] || (Rails.env.production? ? "https://teeemlive-ce8e2660a615.herokuapp.com" : "http://localhost:3001")
+  end
+
+  # Create default depreciation profile when asset is created
+  def create_default_depreciation_profile
+    return unless purchase_price.present? && depreciation_profile.nil?
+
+    # Determine default method based on asset type
+    default_tax_method = if property?
+                           "division_43"
+    elsif purchase_price.to_f < 1000
+                           "low_value_pool"
+    else
+                           "diminishing_value"
+    end
+
+    create_depreciation_profile!(
+      depreciable_cost: purchase_price,
+      depreciation_start_date: purchase_date || Date.current,
+      book_method: "straight_line",
+      tax_method: default_tax_method,
+      effective_life_years: default_effective_life,
+      is_division_43: property?
+    )
+  rescue StandardError => e
+    Rails.logger.error "Failed to create default depreciation profile: #{e.message}"
+  end
+
+  # Default effective life based on asset type
+  def default_effective_life
+    case asset_type
+    when "vehicle" then 8.0
+    when "equipment" then 10.0
+    when "property" then 40.0
+    else 10.0
+    end
+  end
+
   def create_activity
     # Skip activity creation for bulk imports
-    return if Rails.env.development? && caller.any? { |line| line.include?('import') }
+    return if Rails.env.development? && caller.any? { |line| line.include?("import") }
 
     user = (defined?(Current) && Current.respond_to?(:user) ? Current.user : nil) || User.first
-    company.company_activities.create!(
-      activity_type: 'asset_added',
+    corporate_company.corporate_company_activities.create!(
+      activity_type: "asset_added",
       description: "Asset added: #{display_name}",
       change_details: { asset_id: id, asset_type: asset_type, purchase_price: purchase_price },
       user: user
     )
-  rescue => e
+  rescue StandardError => e
     Rails.logger.error "Failed to create asset activity: #{e.message}"
   end
 
   def create_update_activity
     return unless saved_changes.any?
     # Skip activity creation for bulk imports
-    return if Rails.env.development? && caller.any? { |line| line.include?('import') }
+    return if Rails.env.development? && caller.any? { |line| line.include?("import") }
 
     user = (defined?(Current) && Current.respond_to?(:user) ? Current.user : nil) || User.first
 
-    if saved_change_to_status? && status == 'disposed'
-      company.company_activities.create!(
-        activity_type: 'asset_disposed',
+    if saved_change_to_status? && status == "disposed"
+      corporate_company.corporate_company_activities.create!(
+        activity_type: "asset_disposed",
         description: "Asset disposed: #{display_name}",
         change_details: { asset_id: id },
         user: user
       )
     else
-      company.company_activities.create!(
-        activity_type: 'asset_updated',
+      corporate_company.corporate_company_activities.create!(
+        activity_type: "asset_updated",
         description: "Asset updated: #{display_name}",
-        change_details: { asset_id: id, changes: saved_changes.except('updated_at') },
+        change_details: { asset_id: id, changes: saved_changes.except("updated_at") },
         user: user
       )
     end
-  rescue => e
+  rescue StandardError => e
     Rails.logger.error "Failed to create asset update activity: #{e.message}"
   end
 end

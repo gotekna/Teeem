@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Table,
   TableBody,
@@ -26,7 +27,6 @@ import {
   AlertTriangle,
   CheckCircle,
   MapPin,
-  Loader2,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -86,6 +86,7 @@ export function RainLogTab({ jobId }: RainLogTabProps) {
   useEffect(() => {
     loadRainLogs();
     loadWeatherStatus();
+     
   }, [jobId]);
 
   const loadRainLogs = async () => {
@@ -124,7 +125,7 @@ export function RainLogTab({ jobId }: RainLogTabProps) {
       );
       if (response) {
         setWeatherResult(response);
-        if (response.rain_log_created) {
+        if (response?.rain_log_created) {
           await loadRainLogs();
         }
       }
@@ -220,7 +221,7 @@ export function RainLogTab({ jobId }: RainLogTabProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }

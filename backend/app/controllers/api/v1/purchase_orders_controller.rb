@@ -1,7 +1,7 @@
 module Api
   module V1
     class PurchaseOrdersController < ApplicationController
-      before_action :set_purchase_order, only: [:show, :update, :destroy, :approve, :send_to_supplier, :mark_received, :attach_documents, :available_documents]
+      before_action :set_purchase_order, only: [ :show, :update, :destroy, :approve, :send_to_supplier, :mark_received, :attach_documents, :available_documents, :generate_pdf, :schedule_sync_preview, :schedule_sync ]
 
       # GET /api/v1/purchase_orders
       # Params: construction_id, supplier_id, status, search, sort_by, sort_direction, page, per_page
@@ -9,8 +9,7 @@ module Api
         @purchase_orders = PurchaseOrder.includes(
           :supplier,
           :job,
-          :project_tasks,
-          :schedule_tasks,
+          :sm_task,  # SSoT: SmTask is THE ONE task system (belongs_to association)
           line_items: :pricebook_item
         ).all
 
@@ -19,12 +18,15 @@ module Api
         @purchase_orders = @purchase_orders.by_status(params[:status])
         @purchase_orders = @purchase_orders.where(supplier_id: params[:supplier_id]) if params[:supplier_id].present?
 
-        # Search
+        # Search using SSoT SearchService
+        # Note: Task name search via sm_task.name handled by Foundation API
         if params[:search].present?
-          search_term = "%#{params[:search]}%"
-          @purchase_orders = @purchase_orders.where(
-            'purchase_order_number ILIKE ? OR description ILIKE ? OR ted_task ILIKE ?',
-            search_term, search_term, search_term
+          @purchase_orders = SearchService.apply(
+            @purchase_orders,
+            params[:search],
+            columns: %w[purchase_order_number description],
+            mode: params[:search_mode] || 'contains',
+            model: PurchaseOrder
           )
         end
 
@@ -36,16 +38,16 @@ module Api
         end
 
         # Sorting
-        sort_by = params[:sort_by] || 'created_at'
-        sort_direction = params[:sort_direction] || 'desc'
+        sort_by = params[:sort_by] || "created_at"
+        sort_direction = params[:sort_direction] || "desc"
         allowed_sort_columns = %w[purchase_order_number total required_date status created_at]
-        sort_column = allowed_sort_columns.include?(sort_by) ? sort_by : 'created_at'
+        sort_column = allowed_sort_columns.include?(sort_by) ? sort_by : "created_at"
 
         @purchase_orders = @purchase_orders.order("#{sort_column} #{sort_direction}")
 
         # Pagination
         page = params[:page]&.to_i || 1
-        per_page = [params[:per_page]&.to_i || 50, 100].min  # Default 50, max 100
+        per_page = [ params[:per_page]&.to_i || 50, 100 ].min  # Default 50, max 100
         total_count = @purchase_orders.count
         total_pages = (total_count.to_f / per_page).ceil
 
@@ -54,17 +56,16 @@ module Api
         render json: {
           purchase_orders: @purchase_orders.as_json(
             include: {
-              supplier: { only: [:id, :full_name], methods: [:display_name] },
+              supplier: { methods: [ :display_name ] },
               job: {
-                only: [:id, :title],
-                methods: [:site_supervisor_info]
+                methods: [ :site_supervisor_info ]
               },
               line_items: {
-                include: { pricebook_item: { only: [:id, :item_code, :item_name, :current_price] } },
-                methods: [:price_drift, :price_outdated?, :price_status, :price_status_label]
+                include: { pricebook_item: {} },
+                methods: [ :price_drift, :price_outdated?, :price_status, :price_status_label ]
               }
             },
-            methods: [:timing_warnings, :delivery_aligned_with_tasks?]
+            methods: [ :timing_warnings, :delivery_aligned_with_tasks? ]
           ),
           pagination: {
             current_page: page,
@@ -77,33 +78,46 @@ module Api
 
       # GET /api/v1/purchase_orders/:id
       def show
-        company_setting = CompanySetting.instance
+        company_setting = CorporateCompanySetting.instance
+
+        # Build sm_tasks array for frontend (backwards compatibility)
+        sm_tasks_json = @purchase_order.sm_tasks.map do |task|
+          task.as_json(methods: [ :materials_status ])
+        end
+
+        po_json = @purchase_order.as_json(
+          include: {
+            supplier: { methods: [ :display_name ] },
+            job: {
+              methods: [ :site_supervisor_info ]
+            },
+            line_items: {
+              include: { pricebook_item: { methods: [ :active_price ] } },
+              methods: [ :price_drift, :price_outdated?, :price_status, :price_status_label ]
+            },
+            document_tasks: {
+              methods: [ :document_url ]
+            }
+          },
+          methods: [ :timing_warnings, :delivery_aligned_with_tasks? ]
+        )
+
+        # Add supplied_pricebook_item_ids to supplier for frontend line item warnings
+        if @purchase_order.supplier_id.present?
+          pricebook_item_ids = @purchase_order.line_items.pluck(:pricebook_item_id).compact
+          if pricebook_item_ids.any?
+            supplied_ids = PriceHistory
+              .where(supplier_id: @purchase_order.supplier_id, pricebook_item_id: pricebook_item_ids)
+              .distinct
+              .pluck(:pricebook_item_id)
+            po_json["supplier"]["supplied_pricebook_item_ids"] = supplied_ids
+          end
+        end
 
         render json: {
-          **@purchase_order.as_json(
-            include: {
-              supplier: { only: [:id, :full_name, :email, :phone, :address], methods: [:display_name] },
-              job: {
-                only: [:id, :title],
-                methods: [:site_supervisor_info]
-              },
-              schedule_tasks: { only: [:id, :title, :supplier_category] },
-              line_items: {
-                include: { pricebook_item: { only: [:id, :item_code, :item_name, :current_price, :unit_of_measure] } },
-                methods: [:price_drift, :price_outdated?, :price_status, :price_status_label]
-              },
-              project_tasks: {
-                only: [:id, :name, :planned_start_date, :planned_end_date, :status],
-                methods: [:materials_status]
-              },
-              document_tasks: {
-                only: [:id, :name, :description, :category, :has_document, :is_validated],
-                methods: [:document_url]
-              }
-            },
-            methods: [:timing_warnings, :delivery_aligned_with_tasks?]
-          ),
-          company_setting: company_setting.as_json(only: [:company_name, :abn, :gst_number, :email, :phone, :address, :logo_url])
+          **po_json,
+          sm_tasks: sm_tasks_json,  # SSoT: Backwards-compatible array format for frontend
+          company_setting: company_setting.as_json
         }
       end
 
@@ -111,21 +125,49 @@ module Api
       def create
         schedule_task_id = params[:purchase_order][:schedule_task_id]
         task_template_id = params[:purchase_order][:task_template_id]
-        @purchase_order = PurchaseOrder.new(purchase_order_params.except(:schedule_task_id, :task_template_id))
+        task_name = params[:purchase_order][:task_name]
+
+        @purchase_order = PurchaseOrder.new(purchase_order_params.except(:schedule_task_id, :task_template_id, :task_name))
 
         ActiveRecord::Base.transaction do
-          # If task_template_id provided, use it to populate description
-          if task_template_id.present?
-            task_template = TaskTemplate.find(task_template_id)
-            @purchase_order.description ||= task_template.name
-            @purchase_order.ted_task ||= task_template.category
-          end
-
           if @purchase_order.save
-            # Link schedule task to this PO if provided
+            # SSoT: Link PO to task via sm_task_id (Option B - single column)
             if schedule_task_id.present?
-              schedule_task = ScheduleTask.find(schedule_task_id)
-              schedule_task.update!(purchase_order_id: @purchase_order.id)
+              # Link to existing task
+              sm_task = SmTask.find(schedule_task_id)
+              @purchase_order.update!(sm_task_id: sm_task.id)
+
+              # Spawn Order/Call tasks if configured on the task
+              spawn_result = SmPoSpawnService.new(sm_task, user: current_user).spawn!
+              if spawn_result[:spawned_tasks].any?
+                Rails.logger.info("[PurchaseOrdersController] Spawned #{spawn_result[:spawned_tasks].count} tasks for PO ##{@purchase_order.id}")
+              end
+            elsif task_template_id.present? || task_name.present?
+              # Create new task from template or custom name
+              # Calculate sensible defaults for required fields
+              today = Date.current
+              max_sequence = SmTask.where(job_id: @purchase_order.job_id).maximum(:sequence_order) || 0
+              template = task_template_id.present? ? SmScheduleMaster.find(task_template_id) : nil
+
+              sm_task = SmTask.create!(
+                job_id: @purchase_order.job_id,
+                sm_schedule_master_id: task_template_id.presence,
+                name: task_name.presence || template&.name || "PO Task",
+                supplier_id: @purchase_order.supplier_id,
+                status: "not_started",
+                # Required fields with sensible defaults
+                sequence_order: max_sequence + 1,
+                start_date: today,
+                duration_days: template&.duration_days || 1,
+                # Use provided assignment, or default to current user
+                assigned_user_id: params[:purchase_order][:assigned_user_id].presence || current_user.id,
+                assigned_role: params[:purchase_order][:assigned_role].presence,
+                # Audit
+                created_by: current_user,
+                updated_by: current_user
+              )
+              @purchase_order.update!(sm_task_id: sm_task.id)
+              Rails.logger.info("[PurchaseOrdersController] Created task '#{sm_task.name}' for PO ##{@purchase_order.id}")
             end
 
             render json: @purchase_order.as_json(include: :line_items), status: :created
@@ -134,15 +176,15 @@ module Api
           end
         end
       rescue ActiveRecord::RecordNotFound => e
-        render json: { errors: ["#{e.model || 'Record'} not found"] }, status: :unprocessable_entity
+        render json: { errors: [ "#{e.model || 'Record'} not found" ] }, status: :unprocessable_entity
       rescue => e
-        render json: { errors: [e.message] }, status: :unprocessable_entity
+        render json: { errors: [ e.message ] }, status: :unprocessable_entity
       end
 
       # PATCH/PUT /api/v1/purchase_orders/:id
       def update
         unless @purchase_order.can_edit?
-          render json: { error: 'Cannot edit purchase order in current status' }, status: :unprocessable_entity
+          render json: { error: "Cannot edit purchase order in current status" }, status: :unprocessable_entity
           return
         end
 
@@ -151,17 +193,14 @@ module Api
         ActiveRecord::Base.transaction do
           # Update the PO
           if @purchase_order.update(purchase_order_params.except(:schedule_task_id))
-            # Handle schedule task assignment changes
+            # SSoT: Handle task link changes via sm_task_id (Option B - single column)
             if schedule_task_id.present?
-              # Unlink any existing schedule tasks from this PO
-              ScheduleTask.where(purchase_order_id: @purchase_order.id).update_all(purchase_order_id: nil)
-
-              # Link the new schedule task to this PO
-              schedule_task = ScheduleTask.find(schedule_task_id)
-              schedule_task.update!(purchase_order_id: @purchase_order.id)
+              # Link the new task to this PO
+              sm_task = SmTask.find(schedule_task_id)
+              @purchase_order.update!(sm_task_id: sm_task.id)
             elsif params[:purchase_order].key?(:schedule_task_id) && schedule_task_id.nil?
-              # Explicitly setting to nil - unlink all schedule tasks
-              ScheduleTask.where(purchase_order_id: @purchase_order.id).update_all(purchase_order_id: nil)
+              # Explicitly setting to nil - unlink task
+              @purchase_order.update!(sm_task_id: nil)
             end
 
             render json: @purchase_order.as_json(include: :line_items)
@@ -170,15 +209,15 @@ module Api
           end
         end
       rescue ActiveRecord::RecordNotFound
-        render json: { errors: ['Schedule task not found'] }, status: :unprocessable_entity
+        render json: { errors: [ "Schedule task not found" ] }, status: :unprocessable_entity
       rescue => e
-        render json: { errors: [e.message] }, status: :unprocessable_entity
+        render json: { errors: [ e.message ] }, status: :unprocessable_entity
       end
 
       # DELETE /api/v1/purchase_orders/:id
       def destroy
         unless @purchase_order.can_cancel?
-          render json: { error: 'Cannot delete purchase order in current status' }, status: :unprocessable_entity
+          render json: { error: "Cannot delete purchase order in current status" }, status: :unprocessable_entity
           return
         end
 
@@ -189,7 +228,7 @@ module Api
       # POST /api/v1/purchase_orders/:id/approve
       def approve
         unless @purchase_order.can_approve?
-          render json: { error: 'Purchase order cannot be approved in current status' }, status: :unprocessable_entity
+          render json: { error: "Purchase order cannot be approved in current status" }, status: :unprocessable_entity
           return
         end
 
@@ -255,7 +294,7 @@ module Api
           supplier_id: lookup_result[:supplier].id,
           description: params[:task_description],
           delivery_address: lookup_result[:metadata][:delivery_address],
-          status: params[:status] || 'draft',
+          status: params[:status] || "draft",
           required_date: params[:required_date],
           budget: lookup_result[:total_with_gst],
           line_items_attributes: [
@@ -303,7 +342,7 @@ module Api
               supplier_id: lookup_result[:supplier].id,
               description: po_request[:task_description],
               delivery_address: lookup_result[:metadata][:delivery_address],
-              status: po_request[:status] || 'draft',
+              status: po_request[:status] || "draft",
               required_date: po_request[:required_date],
               budget: lookup_result[:total_with_gst],
               line_items_attributes: [
@@ -350,9 +389,13 @@ module Api
 
       # GET /api/v1/purchase_orders/:id/available_documents
       # Get all documents from the associated job that can be attached to this PO
+      # Performance: Pre-cache attached IDs to avoid N+1
       def available_documents
         documents = DocumentTask.where(construction_id: @purchase_order.job_id)
                                  .order(:category, :name)
+
+        # Performance: Cache attached IDs as a Set for O(1) lookup
+        attached_ids = @purchase_order.document_task_ids.to_set
 
         render json: {
           documents: documents.map do |doc|
@@ -365,7 +408,7 @@ module Api
               is_validated: doc.is_validated,
               document_url: doc.document_url,
               uploaded_at: doc.uploaded_at,
-              is_attached: @purchase_order.document_task_ids.include?(doc.id)
+              is_attached: attached_ids.include?(doc.id)
             }
           end
         }
@@ -384,7 +427,7 @@ module Api
 
           if invalid_docs.any?
             return render json: {
-              error: 'Some documents do not belong to this job'
+              error: "Some documents do not belong to this job"
             }, status: :unprocessable_entity
           end
         end
@@ -393,7 +436,7 @@ module Api
         @purchase_order.document_task_ids = document_task_ids
 
         render json: {
-          message: 'Documents updated successfully',
+          message: "Documents updated successfully",
           attached_count: document_task_ids.length,
           document_tasks: @purchase_order.document_tasks.map do |doc|
             {
@@ -411,10 +454,58 @@ module Api
         render json: { error: e.message }, status: :unprocessable_entity
       end
 
+      # GET /api/v1/purchase_orders/:id/generate_pdf
+      # Generate PDF for this purchase order with colour selections from job (SSoT)
+      def generate_pdf
+        generator = TeknaDocumentGenerator.new(:purchase_order)
+        result = generator.generate(purchase_order: @purchase_order)
+
+        if params[:format] == "html" || params[:preview]
+          render html: result[:html].html_safe
+        else
+          send_data result[:pdf_content],
+            filename: result[:filename],
+            type: "application/pdf",
+            disposition: params[:download] ? "attachment" : "inline"
+        end
+      rescue TeknaDocumentGenerator::GenerationError => e
+        render json: { error: e.message }, status: :unprocessable_entity
+      rescue => e
+        render json: { error: "Failed to generate PDF: #{e.message}" }, status: :internal_server_error
+      end
+
+      # GET /api/v1/purchase_orders/:id/schedule_sync_preview
+      # Preview sync with Schedule Master - shows comparison, blockers, and what would change
+      # SSoT: Schedule Master (SmTask) is the source of truth for dates
+      def schedule_sync_preview
+        service = PoScheduleSyncService.new(@purchase_order)
+        render json: { success: true, data: service.preview }
+      rescue => e
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/purchase_orders/:id/schedule_sync
+      # Execute sync from Schedule Master - updates PO dates from linked task(s)
+      # Direction: Task → PO (safe - no cascade storms)
+      def schedule_sync
+        service = PoScheduleSyncService.new(@purchase_order)
+        result = service.execute!
+        render json: { success: true, data: result }
+      rescue PoScheduleSyncService::SyncBlockedError => e
+        render json: { success: false, error: e.message, blocked: true }, status: :unprocessable_entity
+      rescue PoScheduleSyncService::NoLinkedTasksError => e
+        render json: { success: false, error: e.message, no_tasks: true }, status: :unprocessable_entity
+      rescue PoScheduleSyncService::NoSyncableTaskError => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      rescue => e
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
       private
 
       def set_purchase_order
-        @purchase_order = PurchaseOrder.includes(:line_items, :supplier, :job).find(params[:id])
+        @purchase_order = PurchaseOrder.includes(:line_items, :supplier, :job).find_by_slug(params[:id])
+        raise ActiveRecord::RecordNotFound unless @purchase_order
       end
 
       def purchase_order_params
@@ -422,6 +513,9 @@ module Api
           :job_id,
           :supplier_id,
           :status,
+          :schedule_task_id,
+          :task_template_id,
+          :task_name,
           :description,
           :delivery_address,
           :special_instructions,
@@ -429,8 +523,8 @@ module Api
           :required_date,
           :required_on_site_date,
           :ordered_date,
+          :due_date,
           :expected_delivery_date,
-          :ted_task,
           :estimation_check,
           :part_payment,
           :amount_invoiced,
@@ -447,6 +541,7 @@ module Api
             :description,
             :quantity,
             :unit_price,
+            :gst_code,
             :notes,
             :line_number,
             :_destroy

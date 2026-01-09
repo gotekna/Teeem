@@ -1,12 +1,12 @@
 module Api
   module V1
     class InspiringQuotesController < ApplicationController
-      before_action :set_inspiring_quote, only: [:show, :update, :destroy]
+      before_action :set_inspiring_quote, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/inspiring_quotes
       def index
         quotes = InspiringQuote.ordered
-        quotes = quotes.active if params[:active_only] == 'true'
+        quotes = quotes.active if params[:active_only] == "true"
 
         render json: {
           success: true,
@@ -26,7 +26,7 @@ module Api
         else
           render json: {
             success: false,
-            message: 'No active quotes available'
+            message: "No active quotes available"
           }, status: :not_found
         end
       end
@@ -43,7 +43,7 @@ module Api
         else
           render json: {
             success: false,
-            message: 'No active quotes available'
+            message: "No active quotes available"
           }, status: :not_found
         end
       end
@@ -64,7 +64,7 @@ module Api
           render json: {
             success: true,
             data: serialize_quote(quote),
-            message: 'Quote created successfully'
+            message: "Quote created successfully"
           }, status: :created
         else
           render json: {
@@ -80,7 +80,7 @@ module Api
           render json: {
             success: true,
             data: serialize_quote(@inspiring_quote),
-            message: 'Quote updated successfully'
+            message: "Quote updated successfully"
           }
         else
           render json: {
@@ -95,7 +95,7 @@ module Api
         @inspiring_quote.destroy
         render json: {
           success: true,
-          message: 'Quote deleted successfully'
+          message: "Quote deleted successfully"
         }
       end
 
@@ -106,7 +106,7 @@ module Api
       rescue ActiveRecord::RecordNotFound
         render json: {
           success: false,
-          message: 'Quote not found'
+          message: "Quote not found"
         }, status: :not_found
       end
 

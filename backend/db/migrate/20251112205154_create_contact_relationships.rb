@@ -10,7 +10,7 @@ class CreateContactRelationships < ActiveRecord::Migration[8.0]
     end
 
     # Add unique constraint for relationship pairs
-    add_index :contact_relationships, [:source_contact_id, :related_contact_id],
+    add_index :contact_relationships, [ :source_contact_id, :related_contact_id ],
               unique: true, name: 'index_contact_relationships_on_source_and_related'
   end
 end

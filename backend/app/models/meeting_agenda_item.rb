@@ -1,8 +1,10 @@
 class MeetingAgendaItem < ApplicationRecord
   # Associations
   belongs_to :meeting
-  belongs_to :presenter, class_name: 'User', optional: true
-  belongs_to :created_task, class_name: 'ProjectTask', optional: true
+  belongs_to :presenter, class_name: "User", optional: true
+
+  # SSoT task system (SmTask via tasks table)
+  belongs_to :sm_task, optional: true
 
   # Validations
   validates :title, presence: true
@@ -23,21 +25,28 @@ class MeetingAgendaItem < ApplicationRecord
   end
 
   def create_action_item!(task_attributes)
-    return if created_task.present?
+    return sm_task if sm_task.present?
 
-    # Create a project task (action item) from this agenda item
-    # Following B11.001: Task status lifecycle
-    task = meeting.construction.project_tasks.build(task_attributes.merge(
-      status: 'not_started',
-      description: "Action item from meeting: #{meeting.title}\n\nAgenda item: #{title}\n\n#{description}"
-    ))
+    job = meeting.job
+    return nil unless job.present?
 
-    if task.save
-      update(created_task: task)
-      task
-    else
-      nil
-    end
+    task = job.sm_tasks.create!(
+      name: "Meeting: #{task_attributes[:name] || title}",
+      description: "Action item from meeting: #{meeting.title}\n\nAgenda item: #{title}\n\n#{description}",
+      trade: "Admin",
+      stage: "Meeting Action",
+      status: "not_started",
+      assigned_user: task_attributes[:assigned_to],
+      start_date: CorporateCompanySetting.today,
+      end_date: task_attributes[:planned_end_date] || CorporateCompanySetting.today + 7.days,
+      duration_days: task_attributes[:duration_days] || 7,
+      created_by: meeting.organizer&.user
+    )
+    update_column(:sm_task_id, task.id)
+    task
+  rescue StandardError => e
+    Rails.logger.error("[Meeting→SmTask] Failed to create SmTask for agenda item #{id}: #{e.message}")
+    nil
   end
 
   private

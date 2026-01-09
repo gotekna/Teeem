@@ -6,7 +6,7 @@
 
 ---
 
-## The 31 Column Types
+## The 34 Column Types
 
 Every table in TEEEM can use these column types. Each type has specific validation rules, SQL storage, and display behavior.
 
@@ -30,61 +30,64 @@ Every table in TEEEM can use these column types. Each type has specific validati
 | 9 | `currency` | NUMERIC(10,2) | Positive, 2 decimals, displays with $ | $1,234.56 |
 | 10 | `percentage` | NUMERIC(5,2) | 0-100, displays with % symbol | 15.5% |
 
-### Date & Time Types (2)
+### Date & Time Types (3)
 
 | # | Type | SQL | Validation Rules | Example |
 |---|------|-----|------------------|---------|
 | 11 | `date` | DATE | Stored: YYYY-MM-DD, Display: DD/MM/YYYY | 19/11/2024 |
 | 12 | `date_and_time` | TIMESTAMP | Full timestamp with time | 19/11/2024 14:30 |
+| 13 | `time` | TIME | Time of day without date, format: HH:MM | 14:30 |
 
 ### Special Types (4)
 
 | # | Type | SQL | Validation Rules | Example |
 |---|------|-----|------------------|---------|
-| 13 | `gps_coordinates` | VARCHAR(100) | Latitude, Longitude format | -33.8688, 151.2093 |
-| 14 | `color_picker` | VARCHAR(7) | Hex color format #RRGGBB | #FF5733 |
-| 15 | `file_upload` | TEXT | File path or URL to uploaded file | /uploads/doc.pdf |
-| 16 | `action_buttons` | VARCHAR(255) | JSON config for row actions | {"buttons": [...]} |
+| 14 | `gps_coordinates` | VARCHAR(100) | Latitude, Longitude format | -33.8688, 151.2093 |
+| 15 | `color_picker` | VARCHAR(7) | Hex color format #RRGGBB | #FF5733 |
+| 16 | `file_upload` | TEXT | File path or URL to uploaded file | /uploads/doc.pdf |
+| 17 | `action_buttons` | VARCHAR(255) | JSON config for row actions | {"buttons": [...]} |
 
 ### Selection Types (2)
 
 | # | Type | SQL | Validation Rules | Example |
 |---|------|-----|------------------|---------|
-| 17 | `boolean` | BOOLEAN | True or False only | true, false |
-| 18 | `choice` | VARCHAR(50) | Must be one of predefined options | Active, Pending, Complete |
+| 18 | `boolean` | BOOLEAN | True or False only | true, false |
+| 19 | `choice` | VARCHAR(50) | Must be one of predefined options | Active, Pending, Complete |
 
 ### Relationship Types (3)
 
 | # | Type | SQL | Validation Rules | Example |
 |---|------|-----|------------------|---------|
-| 19 | `lookup` | VARCHAR(255) | Must reference valid value from linked table | Product #123 |
-| 20 | `multiple_lookups` | TEXT | Array of IDs stored as JSON | [1, 5, 12] |
-| 21 | `user` | INTEGER | Must reference valid user ID | User #7 |
+| 20 | `lookup` | VARCHAR(255) | Must reference valid value from linked table | Product #123 |
+| 21 | `multiple_lookups` | TEXT | Array of IDs stored as JSON | [1, 5, 12] |
+| 22 | `user` | INTEGER | Must reference valid user ID | User #7 |
 
 ### Computed Types (1)
 
 | # | Type | SQL | Validation Rules | Example |
 |---|------|-----|------------------|---------|
-| 22 | `computed` | VIRTUAL | Read-only, calculated from formula | $1,255.00 (price × qty) |
+| 23 | `computed` | VIRTUAL | Read-only, calculated from formula | $1,255.00 (price × qty) |
 
-### Advanced Types (3)
+### Advanced Types (5)
 
 | # | Type | SQL | Validation Rules | Example |
 |---|------|-----|------------------|---------|
-| 23 | `structured_data` | JSONB | Valid JSON object, supports nesting | {"key": "value"} |
-| 24 | `array_of_items` | TEXT[] | Array of text values | ["tag1", "tag2"] |
-| 25 | `searchable_text` | TSVECTOR | Read-only, auto-generated for search | 'search':1 'term':2 |
+| 24 | `structured_data` | JSONB | Valid JSON object, supports nesting | {"key": "value"} |
+| 25 | `array_of_items` | TEXT[] | Array of text values | ["tag1", "tag2"] |
+| 26 | `array_of_integers` | INTEGER[] | Array of integer values | [1, 2, 3] |
+| 27 | `searchable_text` | TSVECTOR | Read-only, auto-generated for search | 'search':1 'term':2 |
+| 28 | `uuid` | UUID | Universally unique identifier (128-bit) | 550e8400-e29b-41d4-a716-446655440000 |
 
 ### Australian Types (6)
 
 | # | Type | SQL | Validation Rules | Example |
 |---|------|-----|------------------|---------|
-| 26 | `abn` | VARCHAR(14) | 11 digits, format: XX XXX XXX XXX | 51 824 753 556 |
-| 27 | `acn` | VARCHAR(11) | 9 digits, format: XXX XXX XXX | 004 085 616 |
-| 28 | `bsb` | VARCHAR(7) | 6 digits, format: XXX-XXX | 063-000 |
-| 29 | `bank_account` | VARCHAR(9) | Up to 9 digits | 12345678 |
-| 30 | `postcode` | VARCHAR(4) | Exactly 4 digits | 3000 |
-| 31 | `tfn` | VARCHAR(11) | 9 digits, format: XXX XXX XXX | 123 456 789 |
+| 29 | `abn` | VARCHAR(14) | 11 digits, format: XX XXX XXX XXX | 51 824 753 556 |
+| 30 | `acn` | VARCHAR(11) | 9 digits, format: XXX XXX XXX | 004 085 616 |
+| 31 | `bsb` | VARCHAR(7) | 6 digits, format: XXX-XXX | 063-000 |
+| 32 | `bank_account` | VARCHAR(9) | Up to 9 digits | 12345678 |
+| 33 | `postcode` | VARCHAR(4) | Exactly 4 digits | 3000 |
+| 34 | `tfn` | VARCHAR(11) | 9 digits, format: XXX XXX XXX | 123 456 789 |
 
 ---
 
@@ -118,13 +121,26 @@ When a table has `foundationIdNumeric` set, it automatically gets:
 
 ### Standard Toolbar Layout
 
+**Row 1 - Main Toolbar:**
 ```
-[+ Add]  [Search...]  [View Buttons]  [Custom Actions]  [Filters]  [⋮ Menu]
-   ↑          ↑            ↑               ↑               ↑          ↑
-leftActions  always    saved views    customActions    auto when   dropdown
-                                                      foundation
-                                                        ID set
+[+ Add]  [Search...]  [View: Inline/Panel]  [Custom Actions]  [Filters]  [⋮ Menu]
+   ↑          ↑              ↑                     ↑               ↑          ↑
+leftActions  always    grouped only         customActions    auto when   dropdown
+                                                              foundation
+                                                                ID set
 ```
+
+**Row 2 - Saved Views (when present):**
+```
+[⌄ Expand/Collapse]  [Type]  [XERO sorting]  [Person]  ...other saved views...
+         ↑              ↑          ↑             ↑
+    grouped only   saved view  saved view   saved view
+```
+
+**Notes:**
+- **Expand/Collapse button**: Single rotating chevron (⌄), only visible when table is grouped, appears left of saved view buttons
+- **View toggle**: "Inline/Panel" buttons, only visible when table is grouped, appears in main toolbar after search
+- **Saved views**: Second row only appears when saved views exist
 
 ### Minimal Implementation
 
@@ -147,12 +163,14 @@ leftActions  always    saved views    customActions    auto when   dropdown
 **DO NOT duplicate this in page components.** The Filters button and GlobalViewsManager are built into TeeemTableView:
 
 1. **Filters Button**: Rendered automatically in toolbar when `foundationIdNumeric` is set
-   - Location: `TeeemTableView.tsx` line ~4247
+   - Location: `TeeemTableView.tsx` → Toolbar section with GlobalViewsManager integration
    - Opens `showGlobalViewsManager` state
+   - Note: TeeemTableView refactored into modular structure (see core/ subdirectories)
 
 2. **GlobalViewsManager**: Rendered at end of component when `foundationIdNumeric` is set
-   - Location: `TeeemTableView.tsx` line ~5448
+   - Location: `TeeemTableView.tsx` → End of component JSX (GlobalViewsManager component)
    - Receives columns transformed from COLUMNS array
+   - Note: View management logic moved to core/hooks/ during modular refactoring
    - Calls `onRefresh` when views change
    - Calls `loadViewState` when a view is applied
 
@@ -167,15 +185,304 @@ leftActions  always    saved views    customActions    auto when   dropdown
 
 ---
 
+## View-Only / Read-Only Tables
+
+Some tables display data where users cannot add, edit, or delete records. Use these patterns:
+
+### Option 1: Fully View-Only (No Actions)
+
+```tsx
+<TeeemTableView
+  entries={data}
+  columns={columns}
+  viewOnly={true}  // ← Disables ALL editing actions
+  tableName="Audit Log"
+/>
+```
+
+### Option 2: Selective - No Add Button, But Can Edit/Delete
+
+```tsx
+<TeeemTableView
+  entries={data}
+  columns={columns}
+  // onAddRow omitted = no [+ Add] button in toolbar
+  onEdit={handleEdit}
+  onDelete={handleDelete}
+/>
+```
+
+### Option 3: Can Add But Not Edit (Log Entries)
+
+```tsx
+<TeeemTableView
+  entries={data}
+  columns={columns}
+  onAddRow={handleAdd}  // ← Shows [+ Add] button
+  // onEdit omitted = no edit action in row menu
+/>
+```
+
+### Use Cases for View-Only Tables
+
+| Use Case | Pattern |
+|----------|---------|
+| Audit logs | `viewOnly={true}` |
+| History/activity feeds | `viewOnly={true}` |
+| Aggregated/computed data | `viewOnly={true}` |
+| Child records on parent page | Omit `onAddRow` |
+| Feature tracking/progress | `viewOnly={true}` |
+| System-generated records | `viewOnly={true}` |
+
+---
+
+## TeeemTableView Migration Checklist
+
+**CRITICAL:** Before converting ANY existing table to TeeemTableView, verify ALL features are preserved:
+
+### Pre-Migration Audit
+
+| Check | How to Verify | TeeemTableView Feature |
+|-------|---------------|------------------------|
+| **Grouped sections?** | Does table have collapsible groups (e.g., "Active" / "Flagged")? | `initialGroupByColumn="column_name"` |
+| **Custom cell colors/badges?** | Are there color-coded cells, badges, or icons? | `customCellRenderer` prop |
+| **Row click actions?** | Does clicking a row navigate somewhere or trigger action? | `onRowClick`, `onRowDoubleClick` |
+| **Row action buttons?** | View/Edit/Delete buttons in each row? | `onView`, `onEdit`, `onDelete` |
+| **Stats cards above?** | Summary cards or stats above the table? | Keep them - TeeemTableView doesn't replace these |
+| **Filter dropdowns?** | Custom filter UI (dropdowns, date pickers)? | `leftActions` prop |
+| **Bulk actions?** | Select multiple rows and perform action? | `onBulkDelete`, `onBulkEdit`, `customBulkActions` |
+| **Computed fields?** | Are there calculated/derived columns? | Add to `entries` transform before passing |
+
+### Grouping Pattern
+
+For tables with collapsible sections:
+
+```tsx
+// 1. Add computed group field to entries
+const tableEntries = useMemo(() => {
+  return data.map(item => ({
+    ...item,
+    contact_group: item.isFlagged ? "Flagged" : "Active",
+  }));
+}, [data]);
+
+// 2. Add hidden column for grouping
+const columns = [
+  { key: "contact_group", label: "Group", defaultHidden: true },
+  // ... other columns
+];
+
+// 3. Set initial grouping
+<TeeemTableView
+  entries={tableEntries}
+  columns={columns}
+  initialGroupByColumn="contact_group"
+/>
+```
+
+### Custom Cell Rendering Pattern
+
+For badges, icons, color-coded values:
+
+```tsx
+const customCellRenderer = useCallback((entry: TableRow, columnKey: string) => {
+  // Return custom JSX for specific columns
+  if (columnKey === "status") {
+    return <Badge variant={entry.status === "active" ? "success" : "warning"}>{entry.status}</Badge>;
+  }
+  if (columnKey === "is_linked") {
+    return entry.is_linked ? <Check className="h-4 w-4 text-green-600" /> : <X className="h-4 w-4 text-muted" />;
+  }
+  return null; // Return null to use default rendering
+}, []);
+
+<TeeemTableView customCellRenderer={customCellRenderer} />
+```
+
+### Migration Verification
+
+After migration, verify:
+- [ ] All original features work (grouping, colors, actions)
+- [ ] Row click behavior matches original
+- [ ] Stats/summary cards still display
+- [ ] Filter UI is accessible via `leftActions`
+- [ ] No features were silently dropped
+
+---
+
+## TeeemTableView Advanced Props Reference
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `initialGroupByColumn` | `string` | Column key to group by on initial load |
+| `customCellRenderer` | `(row, columnKey) => ReactNode \| null` | Custom cell rendering for badges, icons, colors |
+| `leftActions` | `ReactNode` | Custom filter UI in toolbar (dropdowns, etc.) |
+| `customBulkActions` | `(selectedIds, clearSelection) => ReactNode` | Custom bulk action buttons |
+| `onRowClick` | `(row) => void` | Click handler for row |
+| `onRowDoubleClick` | `(row) => void` | Double-click handler for row |
+| `onView` | `(row) => void` | View action in row menu |
+| `onEdit` | `(row) => void` | Edit action in row menu |
+| `onDelete` | `(row) => void` | Delete action in row menu |
+| `onBulkDelete` | `(ids) => void` | Bulk delete selected rows |
+| `onBulkEdit` | `(ids) => void` | Bulk edit selected rows |
+| `viewOnly` | `boolean` | Disable all editing actions |
+| `disableSavedViews` | `boolean` | Hide saved views functionality |
+| `showHeader` | `boolean` | Show/hide built-in header (default: true) |
+
+---
+
+## Sticky Columns (Horizontal Scroll)
+
+When scrolling horizontally, certain columns stay frozen at the left edge:
+
+| Column | Position | Sticky Left | Z-Index |
+|--------|----------|-------------|---------|
+| Select checkbox | 0 | `left: 0` | 10 (cells), 30 (header) |
+| First data column | 1 | `left: selectWidth` | 10 (cells), 30 (header) |
+| Actions | Last | `right: 0` (when Pin Actions enabled) | 10 |
+
+**Pin Actions Toggle:**
+- **ON**: Actions column visible and sticky to right edge
+- **OFF**: Actions column hidden entirely from table
+
+**Implementation:**
+- `getStickyColumnStyles()` in TeeemTableView.tsx determines which columns are sticky
+- Background color required for sticky cells to cover content behind
+- Box shadow on first data column provides visual separation
+
+**Group Headers (Cascading View):**
+- Group header row split into 2 cells: sticky cell (colSpan=2) + filler cell
+- Sticky cell covers select + first data column width
+- Height matches data rows (`py-1` padding)
+
+---
+
+## Grouped Tables
+
+### Grouping Behavior
+
+When a table is grouped (via GlobalViewsManager or `initialGroupByColumn` prop):
+
+**Visual Changes:**
+- Second toolbar row appears with Expand/Collapse chevron (if saved views exist)
+- View toggle appears in main toolbar (Inline/Panel modes)
+- Table header shows NO selection checkbox column
+- Group rows display with collapse/expand chevrons on the left
+- Group header rows match data row height for visual consistency
+
+**Selection in Grouped Tables:**
+- Selection bar appears ABOVE the table (not in header)
+- Selection bar includes:
+  - Dropdown with "Select All", "Select Expanded", "Clear Selection"
+  - "X rows visible" count
+  - Bulk action buttons (Bulk Update, Inline Edit, Merge)
+  - "X selected" count
+  - Clear button
+- Selection bar only visible when rows are selected
+
+**Expand/Collapse:**
+- **Single chevron button** (⌄) rotates:
+  - Points DOWN when all groups expanded
+  - Points UP when any groups collapsed
+- Located left of saved view buttons in second toolbar row
+- Only visible when table is grouped
+- Uses `requestAnimationFrame` for smooth performance
+
+**Performance Optimizations:**
+- Row selections batched via `requestAnimationFrame`
+- Reduces re-renders during multi-select
+- `SelectCheckbox` component memoized
+- Initial row limit: 100 rows
+
+---
+
+## Table Styling Standards
+
+### Page Container Pattern (Edge-to-Edge Tables)
+
+**SSoT: TeeemTableView handles the header internally.** Pages should NOT implement their own headers.
+
+```tsx
+// ✅ CORRECT - TeeemTableView handles everything (SSoT)
+<div className="flex flex-col h-full -mx-4">
+  <TeeemTableView
+    entries={records}
+    totalCount={totalCount}
+    tableName="Jobs"
+    foundationIdNumeric={tableId}
+    // ... other props
+  />
+</div>
+
+// ❌ WRONG - Custom header duplicates TeeemTableView functionality
+<div className="flex flex-col h-full">
+  <h1>Jobs</h1>                    {/* DON'T DO THIS */}
+  <p>15 of 150 jobs</p>            {/* DON'T DO THIS */}
+  <TeeemTableView ... />
+</div>
+```
+
+**TeeemTableView built-in header shows:**
+- `tableName` as h1 title
+- Record count: "X of Y records" (using `totalCount` and filtered count)
+
+**Key classes:**
+- `-mx-4` on outer container breaks out of parent `px-4` padding for edge-to-edge
+- `h-full` on outer container ensures full height
+- `showHeader={false}` prop to hide if custom header needed (rare)
+
+### Cell Spacing
+```
+TableHead: px-1 (4px horizontal padding)
+TableCell: px-1 py-0.5 (4px horizontal, 2px vertical)
+```
+
+**Rationale:** Compact spacing maximizes data density while maintaining readability.
+
+### Typography
+- Cell text: `text-[11px]` (11px font size)
+- Monospace values: Font mono for codes, IDs, technical values
+- Date format: DD/MM/YYYY (Australian standard)
+- **Group headers**: `text-[13px] font-bold truncate whitespace-nowrap` (no wrapping)
+
+### Colors
+- **System columns** (id, created_at, updated_at): `hsl(47, 100%, 96%)` (light yellow tint)
+- **Selection highlight**: Default theme accent
+- **Group rows**: Muted background with bold text
+
+---
+
 ## Code Locations (Must Match This Spec)
 
 | What | File | Must Match |
 |------|------|------------|
-| SQL Types | `backend/app/models/column.rb` → `COLUMN_SQL_TYPE_MAP` | Section: The 31 Column Types |
-| Validation | `backend/app/controllers/api/v1/column_types_controller.rb` | Section: The 31 Column Types |
+| **Column Types & Validation** |
+| SQL Types | `backend/app/models/column.rb` → `COLUMN_SQL_TYPE_MAP` | Section: The 34 Column Types |
+| Validation | `backend/app/controllers/api/v1/column_types_controller.rb` | Section: The 34 Column Types |
 | Categories | `column_types_controller.rb` → `categorize_column_type()` | Section headers above |
 | Frontend Cache | `frontend-next/lib/column-types.ts` | Generated from API |
 | System Columns | `TeeemTableView.tsx` → `SYSTEM_GENERATED_TYPES` | Section: System-Generated |
+| **UI & Styling** |
+| Cell Spacing | `frontend-next/components/ui/table.tsx` → TableHead, TableCell | Section: Table Styling Standards |
+| Toolbar Layout | `frontend-next/components/table/TeeemTableView.tsx` (lines 3260-3520) | Section: Standard Toolbar Layout |
+| Grouped Tables | `frontend-next/components/table/TeeemTableView.tsx` → renderInlineGroupRows | Section: Grouped Tables |
+| Selection Bar | `frontend-next/components/table/TeeemTableView.tsx` (lines 2979-3088) | Section: Selection in Grouped Tables |
+| Expand/Collapse | `frontend-next/components/table/TeeemTableView.tsx` (lines 3466-3487) | Section: Expand/Collapse |
+| Sticky Columns | `frontend-next/components/table/TeeemTableView.tsx` → getStickyColumnStyles | Section: Sticky Columns |
+| View Save | `frontend-next/components/table/TeeemTableView.tsx` → saveNewView | Section: View Persistence |
+
+**Architecture Note (2025-12-06):**
+
+TeeemTableView was refactored from a monolithic file (~6,000 lines) into a modular structure. Components are now organized in `/core` subdirectories:
+- **Main component:** `frontend-next/components/table/TeeemTableView.tsx` (3,520 lines)
+- **Cell rendering:** `core/column-renderer/` - Cell display, validation, formatting (CellValidation.tsx: 549 lines)
+- **State management:** `core/state/` - useState hooks extracted
+- **Custom hooks:** `core/hooks/` - useTableSchema, useExport, table handlers
+- **Filtering logic:** `core/filtering/` - FilterEvaluator
+- **Table sections:** `core/table-sections/` - Header, Footer, Body components
+- **Cell components:** `core/cell-components/` - Individual cell type components
+
+See commits 917c571f (Phase 1 & 2) and 0f07ddab (Phase 3) for refactoring details.
 
 ---
 
@@ -199,7 +506,7 @@ leftActions  always    saved views    customActions    auto when   dropdown
 ## Gold Standard Table (Foundation ID: 1)
 
 The Gold Standard Table is a **demonstration** of this spec. It should have:
-- One column of each type (31 columns)
+- One column of each type (34 columns)
 - Sample data showing valid values
 - All TeeemTableView features working
 
@@ -207,8 +514,28 @@ The Gold Standard Table is a **demonstration** of this spec. It should have:
 
 ---
 
+## View Persistence (What Gets Saved)
+
+When saving a view, these settings are persisted:
+
+| Category | Settings |
+|----------|----------|
+| **Columns** | `visible`, `order`, `widths`, `autoFitColumns`, `smartFit`, `showTotals`, `stickyActions` |
+| **Filters** | `cascadeFilters`, `filterGroups`, `interGroupLogic` |
+| **Sorting** | `sort_order` (array of column + direction) |
+| **Grouping** | `group_by_columns` (cascading column keys) |
+
+**Implementation:**
+- `saveNewView()` in TeeemTableView.tsx - manual save button
+- `saveViewAtom` in view-state-atoms.ts - auto-save (must match saveNewView)
+
+---
+
 ## Version History
 
 | Date | Change |
 |------|--------|
-| 2024-12-03 | Created as SSoT, documented all 31 column types |
+| 2025-12-30 | Added Migration Checklist and Advanced Props Reference for preventing feature loss during table conversions |
+| 2025-12-16 | SSoT: TeeemTableView now handles header/count internally (showHeader prop). Pages no longer implement custom headers. |
+| 2025-12-16 | Added Sticky Columns, View Persistence, Page Container Pattern, group header no-wrap |
+| 2024-12-03 | Created as SSoT, documented all 34 column types |

@@ -3,7 +3,8 @@
 import * as React from "react";
 import dynamic from "next/dynamic";
 import { cn } from "@/lib/utils";
-import { Loader2 } from "lucide-react";
+
+import { Spinner } from "@/components/ui/spinner";
 
 import type { PDFEditorProps } from "./types";
 export type { PDFEditorProps, AnnotationTool, PDFPage } from "./types";
@@ -12,7 +13,7 @@ export type { PDFEditorProps, AnnotationTool, PDFPage } from "./types";
 function PDFEditorLoading({ className }: { className?: string }) {
   return (
     <div className={cn("flex flex-col items-center justify-center h-full", className)}>
-      <Loader2 className="h-8 w-8 animate-spin mb-2" />
+      <Spinner size={32} className="mb-2" />
       <p className="text-sm text-muted-foreground">Loading PDF editor...</p>
     </div>
   );

@@ -15,6 +15,6 @@ class CreateTableViews < ActiveRecord::Migration[8.0]
 
     add_index :table_views, :table_id
     add_index :table_views, :user_id
-    add_index :table_views, [:table_id, :user_id]
+    add_index :table_views, [ :table_id, :user_id ]
   end
 end

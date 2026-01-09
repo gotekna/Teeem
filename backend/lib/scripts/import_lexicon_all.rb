@@ -4,7 +4,7 @@
 # Usage: rails runner lib/scripts/import_lexicon_all.rb
 
 class LexiconImporterAll
-  LEXICON_PATH = Rails.root.join('../TEEEM_DOCS/TEEEM_LEXICON.md')
+  LEXICON_PATH = Rails.root.join("../TEEEM_DOCS/TEEEM_LEXICON.md")
 
   def self.import
     new.import
@@ -117,7 +117,7 @@ class LexiconImporterAll
 
       # Extract description (first few paragraphs)
       lines = subsection.split("\n")[1..-1] || []
-      description = lines.take_while { |l| !l.match?(/^\*\*/) && l.strip != '' }.join("\n").strip
+      description = lines.take_while { |l| !l.match?(/^\*\*/) && l.strip != "" }.join("\n").strip
       description = lines[0..10].join("\n") if description.empty?
 
       # Extract details (everything after description)
@@ -128,7 +128,7 @@ class LexiconImporterAll
         chapter_name: chapter_name,
         component: nil,
         bug_title: title,
-        knowledge_type: 'architecture',
+        knowledge_type: "architecture",
         status: nil,
         severity: nil,
         first_reported: nil,
@@ -166,7 +166,7 @@ class LexiconImporterAll
         chapter_name: chapter_name,
         component: nil,
         bug_title: title,
-        knowledge_type: 'test',
+        knowledge_type: "test",
         status: nil,
         severity: nil,
         first_reported: nil,
@@ -195,33 +195,33 @@ class LexiconImporterAll
     status = extract_status(section)
     severity = extract_severity(section)
     component = extract_component(section)
-    first_reported = extract_date(section, 'First Reported')
-    last_occurred = extract_date(section, 'Last Occurred')
-    fixed_date = extract_date(section, 'Fixed') || extract_date(section, 'Last Reported') if status == 'fixed'
+    first_reported = extract_date(section, "First Reported")
+    last_occurred = extract_date(section, "Last Occurred")
+    fixed_date = extract_date(section, "Fixed") || extract_date(section, "Last Reported") if status == "fixed"
 
-    scenario = extract_section(section, 'Scenario')
-    root_cause = extract_section(section, 'Root Cause')
-    solution = extract_section(section, 'Solution') || extract_section(section, 'Temporary Solution')
-    prevention = extract_section(section, 'Prevention')
+    scenario = extract_section(section, "Scenario")
+    root_cause = extract_section(section, "Root Cause")
+    solution = extract_section(section, "Solution") || extract_section(section, "Temporary Solution")
+    prevention = extract_section(section, "Prevention")
 
     description = scenario || lines[1..5].join("\n").strip
 
     details = []
-    details << extract_section(section, 'Why It Happened')
-    details << extract_section(section, 'Lesson Learned')
-    details << extract_section(section, 'Current Stats')
+    details << extract_section(section, "Why It Happened")
+    details << extract_section(section, "Lesson Learned")
+    details << extract_section(section, "Current Stats")
     details = details.compact.join("\n\n---\n\n")
     details = nil if details.empty?
 
-    recommendations = extract_section(section, 'Future Enhancement') ||
-                     extract_section(section, 'Future Consideration')
+    recommendations = extract_section(section, "Future Enhancement") ||
+                     extract_section(section, "Future Consideration")
 
     {
       chapter_number: chapter_number,
       chapter_name: chapter_name,
       component: component,
       bug_title: title,
-      knowledge_type: 'bug',
+      knowledge_type: "bug",
       status: status,
       severity: severity,
       first_reported: first_reported,
@@ -240,28 +240,28 @@ class LexiconImporterAll
   def extract_status(text)
     case text
     when /\*\*Status:\*\*\s*✅\s*(?:FIXED|RESOLVED)/i
-      'fixed'
+      "fixed"
     when /\*\*Status:\*\*\s*⚠️\s*BY DESIGN/i
-      'by_design'
+      "by_design"
     when /\*\*Status:\*\*\s*🔄\s*MONITORING/i
-      'monitoring'
+      "monitoring"
     else
-      'open'
+      "open"
     end
   end
 
   def extract_severity(text)
     case text
     when /\*\*Severity:\*\*\s*Critical/i
-      'critical'
+      "critical"
     when /\*\*Severity:\*\*\s*High/i
-      'high'
+      "high"
     when /\*\*Severity:\*\*\s*Medium/i
-      'medium'
+      "medium"
     when /\*\*Severity:\*\*\s*Low/i
-      'low'
+      "low"
     else
-      'medium'
+      "medium"
     end
   end
 
@@ -305,7 +305,7 @@ class LexiconImporterAll
 
     begin
       bug = DocumentedBug.create!(entry_data)
-      type_label = entry_data[:knowledge_type] == 'bug' ? '🐛' : (entry_data[:knowledge_type] == 'architecture' ? '🏗️' : '📊')
+      type_label = entry_data[:knowledge_type] == "bug" ? "🐛" : (entry_data[:knowledge_type] == "architecture" ? "🏗️" : "📊")
       puts "  ✅ Imported #{type_label}: #{bug.bug_title}"
     rescue => e
       puts "  ❌ Failed: #{entry_data[:bug_title]}"

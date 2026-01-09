@@ -1,25 +1,25 @@
-require 'anthropic'
+require "anthropic"
 
 class DocumentDuplicateService
   MODEL = "claude-sonnet-4-20250514"
 
   class DuplicateError < StandardError; end
 
-  # Find all duplicate documents (same title within same company)
+  # Find all duplicate documents (same file_name within same company)
   def self.find_duplicates(company_id: nil)
-    scope = CompanyDocument.select(:title, :company_id)
-                          .group(:title, :company_id)
+    scope = CorporateCompanyDocument.select(:file_name, :company_id)
+                          .group(:file_name, :company_id)
                           .having("COUNT(*) > 1")
 
     scope = scope.where(company_id: company_id) if company_id.present?
 
     duplicates = []
     scope.each do |dup|
-      docs = CompanyDocument.where(title: dup.title, company_id: dup.company_id)
-                           .includes(:company)
+      docs = CorporateCompanyDocument.where(file_name: dup.file_name, company_id: dup.company_id)
+                           .includes(:corporate_company)
                            .order(:created_at)
       duplicates << {
-        title: dup.title,
+        file_name: dup.file_name,
         company_id: dup.company_id,
         company_name: docs.first&.company&.name,
         count: docs.count,
@@ -32,7 +32,7 @@ class DocumentDuplicateService
 
   # Analyze a set of duplicate documents and get AI recommendation
   def self.analyze_duplicates(document_ids)
-    documents = CompanyDocument.where(id: document_ids).includes(:company)
+    documents = CorporateCompanyDocument.where(id: document_ids).includes(:corporate_company)
     return { error: "No documents found" } if documents.empty?
     return { error: "Need at least 2 documents to compare" } if documents.count < 2
 
@@ -40,14 +40,14 @@ class DocumentDuplicateService
     doc_contents = documents.map do |doc|
       {
         id: doc.id,
-        title: doc.title,
+        file_name: doc.file_name,
         folder: doc.folder,
         company: doc.company&.name,
         company_code: doc.company&.code,
         created_at: doc.created_at,
         file_size: doc.file_size,
         ai_status: doc.ai_verification_status,
-        onedrive_file_id: doc.onedrive_file_id,
+        sharepoint_file_id: doc.sharepoint_file_id,
         content_preview: extract_content_preview(doc)
       }
     end
@@ -86,7 +86,7 @@ class DocumentDuplicateService
     rename: 74        # rename only
   }.freeze
 
-  DESTRUCTIVE_ACTIONS = [:delete_all, :merge, :keep_newest, :keep_oldest, :keep_verified].freeze
+  DESTRUCTIVE_ACTIONS = [ :delete_all, :merge, :keep_newest, :keep_oldest, :keep_verified ].freeze
 
   # Automatically resolve all duplicates using AI
   # Options:
@@ -99,7 +99,7 @@ class DocumentDuplicateService
     duplicates.each do |dup_set|
       document_ids = dup_set[:documents].map { |d| d[:id] }
 
-      Rails.logger.info "[AutoResolve] Analyzing: #{dup_set[:title]} (#{dup_set[:count]} copies)"
+      Rails.logger.info "[AutoResolve] Analyzing: #{dup_set[:file_name]} (#{dup_set[:count]} copies)"
 
       begin
         # Get AI recommendation
@@ -107,7 +107,7 @@ class DocumentDuplicateService
 
         if analysis[:error]
           results << {
-            title: dup_set[:title],
+            file_name: dup_set[:file_name],
             company: dup_set[:company_name],
             status: :error,
             error: analysis[:error]
@@ -119,7 +119,7 @@ class DocumentDuplicateService
         confidence = analysis[:confidence] || 0
 
         result_entry = {
-          title: dup_set[:title],
+          file_name: dup_set[:file_name],
           company: dup_set[:company_name],
           document_ids: document_ids,
           recommendation: recommendation,
@@ -184,9 +184,9 @@ class DocumentDuplicateService
         results << result_entry
 
       rescue StandardError => e
-        Rails.logger.error "[AutoResolve] Error processing #{dup_set[:title]}: #{e.message}"
+        Rails.logger.error "[AutoResolve] Error processing #{dup_set[:file_name]}: #{e.message}"
         results << {
-          title: dup_set[:title],
+          file_name: dup_set[:file_name],
           company: dup_set[:company_name],
           status: :error,
           error: e.message
@@ -212,31 +212,31 @@ class DocumentDuplicateService
   def self.document_summary(doc)
     {
       id: doc.id,
-      title: doc.title,
+      file_name: doc.file_name,
       folder: doc.folder,
       created_at: doc.created_at,
       file_size: doc.file_size,
       ai_verification_status: doc.ai_verification_status,
-      onedrive_file_id: doc.onedrive_file_id
+      sharepoint_file_id: doc.sharepoint_file_id
     }
   end
 
   def self.extract_content_preview(doc)
-    return nil unless doc.onedrive_file_id.present?
+    return nil unless doc.sharepoint_file_id.present?
 
     begin
-      credential = OrganizationOneDriveCredential.active_credential
+      credential = MicrosoftCredential.sharepoint_credential
       return nil unless credential
 
       client = MicrosoftGraphClient.new(credential)
-      content = client.download_file(doc.onedrive_file_id)
+      content = client.download_file(doc.sharepoint_file_id)
 
       # Extract text preview based on file type
-      if doc.title&.end_with?('.pdf')
+      if doc.file_name&.end_with?(".pdf")
         extract_pdf_preview(content)
       else
         # For other files, just get first 500 chars
-        content.to_s.force_encoding('UTF-8').scrub[0..500]
+        content.to_s.force_encoding("UTF-8").scrub[0..500]
       end
     rescue StandardError => e
       Rails.logger.warn("Could not extract content preview for doc #{doc.id}: #{e.message}")
@@ -244,26 +244,20 @@ class DocumentDuplicateService
     end
   end
 
+  # SSoT: Uses PdfTextExtractionService for all PDF text extraction
   def self.extract_pdf_preview(content)
-    Tempfile.create(['doc', '.pdf']) do |file|
-      file.binmode
-      file.write(content)
-      file.rewind
+    result = PdfTextExtractionService.extract(
+      content,
+      max_pages: 1,
+      max_chars_per_page: 500,
+      join_pages: true
+    )
 
-      begin
-        reader = PDF::Reader.new(file.path)
-        # Get first page text
-        first_page = reader.pages.first
-        first_page&.text.to_s[0..500]
-      rescue StandardError => e
-        Rails.logger.warn("PDF extraction failed: #{e.message}")
-        nil
-      end
-    end
+    result[:success] ? result[:text] : nil
   end
 
   def self.analyze_with_ai(doc_contents)
-    api_key = ENV['ANTHROPIC_API_KEY']
+    api_key = ENV["ANTHROPIC_API_KEY"]
     raise DuplicateError, "ANTHROPIC_API_KEY not configured" unless api_key
 
     client = Anthropic::Client.new(access_token: api_key)
@@ -274,7 +268,7 @@ class DocumentDuplicateService
       parameters: {
         model: MODEL,
         max_tokens: 1024,
-        messages: [{ role: "user", content: prompt }]
+        messages: [ { role: "user", content: prompt } ]
       }
     )
 
@@ -288,13 +282,13 @@ class DocumentDuplicateService
     docs_json = doc_contents.map do |d|
       <<~DOC
         Document ID: #{d[:id]}
-        Title: #{d[:title]}
+        File Name: #{d[:file_name]}
         Company: #{d[:company]} (#{d[:company_code]})
         Folder: #{d[:folder]}
         Created: #{d[:created_at]}
         File Size: #{d[:file_size]} bytes
         AI Status: #{d[:ai_status]}
-        OneDrive ID: #{d[:onedrive_file_id]}
+        OneDrive ID: #{d[:sharepoint_file_id]}
         Content Preview: #{d[:content_preview] || "(could not extract)"}
       DOC
     end.join("\n---\n")
@@ -360,7 +354,7 @@ class DocumentDuplicateService
   # Note: "delete" actions actually rename with DELETE prefix for safety
   # Users can review and permanently delete later
   def self.keep_newest(document_ids)
-    docs = CompanyDocument.where(id: document_ids).order(created_at: :desc)
+    docs = CorporateCompanyDocument.where(id: document_ids).order(created_at: :desc)
     keep = docs.first
     to_mark = docs.offset(1)
 
@@ -375,7 +369,7 @@ class DocumentDuplicateService
   end
 
   def self.keep_oldest(document_ids)
-    docs = CompanyDocument.where(id: document_ids).order(created_at: :asc)
+    docs = CorporateCompanyDocument.where(id: document_ids).order(created_at: :asc)
     keep = docs.first
     to_mark = docs.offset(1)
 
@@ -390,8 +384,8 @@ class DocumentDuplicateService
   end
 
   def self.keep_verified(document_ids)
-    docs = CompanyDocument.where(id: document_ids)
-    verified = docs.find_by(ai_verification_status: 'verified')
+    docs = CorporateCompanyDocument.where(id: document_ids)
+    verified = docs.find_by(ai_verification_status: "verified")
 
     unless verified
       return { error: "No verified document found among duplicates" }
@@ -409,20 +403,20 @@ class DocumentDuplicateService
   end
 
   def self.rename_document(document_id, new_name)
-    doc = CompanyDocument.find(document_id)
+    doc = CorporateCompanyDocument.find(document_id)
 
     # Rename in SharePoint
-    if doc.onedrive_file_id.present?
-      credential = OrganizationOneDriveCredential.active_credential
+    if doc.sharepoint_file_id.present?
+      credential = MicrosoftCredential.sharepoint_credential
       if credential
         client = MicrosoftGraphClient.new(credential)
-        client.rename_file(doc.onedrive_file_id, new_name)
+        client.rename_file(doc.sharepoint_file_id, new_name)
       end
     end
 
     # Update database
-    old_name = doc.title
-    doc.update!(title: new_name)
+    old_name = doc.file_name
+    doc.update!(file_name: new_name)
 
     {
       success: true,
@@ -437,7 +431,7 @@ class DocumentDuplicateService
 
   # Merge multiple PDFs into one combined PDF
   def self.merge_documents(document_ids, keep_id)
-    docs = CompanyDocument.where(id: document_ids).includes(:company)
+    docs = CorporateCompanyDocument.where(id: document_ids).includes(:corporate_company)
     return { error: "No documents found" } if docs.empty?
 
     # Determine which doc to keep (use provided keep_id or newest)
@@ -448,12 +442,12 @@ class DocumentDuplicateService
     return { error: "Need at least 2 documents to merge" } if other_docs.empty?
 
     # Only merge PDFs
-    unless docs.all? { |d| d.title&.downcase&.end_with?('.pdf') }
+    unless docs.all? { |d| d.file_name&.downcase&.end_with?(".pdf") }
       return { error: "Can only merge PDF documents" }
     end
 
     begin
-      credential = OrganizationOneDriveCredential.active_credential
+      credential = MicrosoftCredential.sharepoint_credential
       return { error: "No active OneDrive credential" } unless credential
 
       client = MicrosoftGraphClient.new(credential)
@@ -462,8 +456,8 @@ class DocumentDuplicateService
       pdf_contents = docs.order(:created_at).map do |doc|
         {
           id: doc.id,
-          title: doc.title,
-          content: client.download_file(doc.onedrive_file_id)
+          file_name: doc.file_name,
+          content: client.download_file(doc.sharepoint_file_id)
         }
       end
 
@@ -483,29 +477,29 @@ class DocumentDuplicateService
       merged_content = output.string
 
       # Upload merged PDF (replace the keep document)
-      file_info = client.get_item(keep_doc.onedrive_file_id)
-      parent_folder_id = file_info.dig('parentReference', 'id')
+      file_info = client.get_item(keep_doc.sharepoint_file_id)
+      parent_folder_id = file_info.dig("parentReference", "id")
 
       # Delete original keep file first
-      client.delete_file(keep_doc.onedrive_file_id) rescue nil
+      client.delete_file(keep_doc.sharepoint_file_id) rescue nil
 
       # Upload merged file with same name
-      result = client.upload_file_content(parent_folder_id, keep_doc.title, merged_content)
+      result = client.upload_file_content(parent_folder_id, keep_doc.file_name, merged_content)
 
       # Update keep document record
       keep_doc.update!(
-        onedrive_file_id: result[:id],
+        sharepoint_file_id: result[:id],
         file_size: merged_content.bytesize,
-        ai_verification_status: 'pending', # Re-verify merged doc
+        ai_verification_status: "pending", # Re-verify merged doc
         ai_analysis_notes: "Merged from #{docs.count} documents: #{docs.pluck(:id).join(', ')}"
       )
 
       # Delete other documents from SharePoint and database
       other_docs.each do |doc|
         begin
-          client.delete_file(doc.onedrive_file_id) if doc.onedrive_file_id.present?
+          client.delete_file(doc.sharepoint_file_id) if doc.sharepoint_file_id.present?
         rescue StandardError => e
-          Rails.logger.warn("Could not delete SharePoint file #{doc.onedrive_file_id}: #{e.message}")
+          Rails.logger.warn("Could not delete SharePoint file #{doc.sharepoint_file_id}: #{e.message}")
         end
         doc.destroy
       end
@@ -516,7 +510,7 @@ class DocumentDuplicateService
         deleted: other_docs.pluck(:id),
         merged_page_count: merged_pdf.pages.count,
         new_file_size: merged_content.bytesize,
-        message: "Merged #{docs.count} documents into #{keep_doc.title} (#{merged_pdf.pages.count} pages)"
+        message: "Merged #{docs.count} documents into #{keep_doc.file_name} (#{merged_pdf.pages.count} pages)"
       }
 
     rescue StandardError => e
@@ -542,34 +536,34 @@ class DocumentDuplicateService
   def self.mark_for_deletion(document_ids)
     results = []
 
-    CompanyDocument.where(id: document_ids).find_each do |doc|
+    CorporateCompanyDocument.where(id: document_ids).find_each do |doc|
       # Skip if already marked for deletion
-      if doc.title.start_with?(DELETE_PREFIX)
-        results << { id: doc.id, title: doc.title, status: :already_marked }
+      if doc.file_name.start_with?(DELETE_PREFIX)
+        results << { id: doc.id, file_name: doc.file_name, status: :already_marked }
         next
       end
 
-      new_name = "#{DELETE_PREFIX}#{doc.title}"
+      new_name = "#{DELETE_PREFIX}#{doc.file_name}"
 
       begin
         # Rename in SharePoint
-        if doc.onedrive_file_id.present?
-          credential = OrganizationOneDriveCredential.active_credential
+        if doc.sharepoint_file_id.present?
+          credential = MicrosoftCredential.sharepoint_credential
           if credential
             client = MicrosoftGraphClient.new(credential)
-            client.rename_file(doc.onedrive_file_id, new_name)
+            client.rename_file(doc.sharepoint_file_id, new_name)
           end
         end
 
         # Update database
-        old_name = doc.title
-        doc.update!(title: new_name)
+        old_name = doc.file_name
+        doc.update!(file_name: new_name)
         Rails.logger.info("Marked for deletion: #{old_name} -> #{new_name}")
 
         results << { id: doc.id, old_name: old_name, new_name: new_name, status: :marked }
       rescue StandardError => e
         Rails.logger.warn("Could not mark document #{doc.id} for deletion: #{e.message}")
-        results << { id: doc.id, title: doc.title, status: :error, error: e.message }
+        results << { id: doc.id, file_name: doc.file_name, status: :error, error: e.message }
       end
     end
 
@@ -578,18 +572,18 @@ class DocumentDuplicateService
 
   # Actually delete documents (for when user confirms deletion of marked files)
   def self.permanently_delete(document_ids)
-    CompanyDocument.where(id: document_ids).find_each do |doc|
+    CorporateCompanyDocument.where(id: document_ids).find_each do |doc|
       # Delete from SharePoint
-      if doc.onedrive_file_id.present?
+      if doc.sharepoint_file_id.present?
         begin
-          credential = OrganizationOneDriveCredential.active_credential
+          credential = MicrosoftCredential.sharepoint_credential
           if credential
             client = MicrosoftGraphClient.new(credential)
-            client.delete_file(doc.onedrive_file_id)
-            Rails.logger.info("Permanently deleted SharePoint file: #{doc.onedrive_file_id}")
+            client.delete_file(doc.sharepoint_file_id)
+            Rails.logger.info("Permanently deleted SharePoint file: #{doc.sharepoint_file_id}")
           end
         rescue StandardError => e
-          Rails.logger.warn("Could not delete SharePoint file #{doc.onedrive_file_id}: #{e.message}")
+          Rails.logger.warn("Could not delete SharePoint file #{doc.sharepoint_file_id}: #{e.message}")
           # Continue with database deletion even if SharePoint fails
         end
       end
@@ -607,33 +601,33 @@ class DocumentDuplicateService
 
   # Find all documents marked for deletion
   def self.find_marked_for_deletion(company_id: nil)
-    scope = CompanyDocument.where("title LIKE ?", "#{DELETE_PREFIX}%")
+    scope = CorporateCompanyDocument.where("file_name LIKE ?", "#{DELETE_PREFIX}%")
     scope = scope.where(company_id: company_id) if company_id.present?
-    scope.includes(:company).map { |d| document_summary(d) }
+    scope.includes(:corporate_company).map { |d| document_summary(d) }
   end
 
   # Restore a document marked for deletion (remove DELETE prefix)
   def self.restore_document(document_id)
-    doc = CompanyDocument.find(document_id)
+    doc = CorporateCompanyDocument.find(document_id)
 
-    unless doc.title.start_with?(DELETE_PREFIX)
+    unless doc.file_name.start_with?(DELETE_PREFIX)
       return { error: "Document is not marked for deletion" }
     end
 
-    new_name = doc.title.sub(DELETE_PREFIX, '')
+    new_name = doc.file_name.sub(DELETE_PREFIX, "")
 
     # Rename in SharePoint
-    if doc.onedrive_file_id.present?
-      credential = OrganizationOneDriveCredential.active_credential
+    if doc.sharepoint_file_id.present?
+      credential = MicrosoftCredential.sharepoint_credential
       if credential
         client = MicrosoftGraphClient.new(credential)
-        client.rename_file(doc.onedrive_file_id, new_name)
+        client.rename_file(doc.sharepoint_file_id, new_name)
       end
     end
 
     # Update database
-    old_name = doc.title
-    doc.update!(title: new_name)
+    old_name = doc.file_name
+    doc.update!(file_name: new_name)
 
     {
       success: true,

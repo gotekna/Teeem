@@ -1,12 +1,12 @@
 class Api::V1::GoldStandardTableController < ApplicationController
-  before_action :set_item, only: [:update, :destroy, :merge]
+  before_action :set_item, only: [ :update, :destroy, :merge ]
   # sync_with_columns uses the default authorize_request from ApplicationController
 
   def index
     # Pagination parameters
     page = (params[:page] || 1).to_i
-    per_page = [(params[:per_page] || 250).to_i, 250].min  # Default 250, cap at 250 max
-    page = [page, 1].max  # Ensure page is at least 1
+    per_page = [ (params[:per_page] || 250).to_i, 250 ].min  # Default 250, cap at 250 max
+    page = [ page, 1 ].max  # Ensure page is at least 1
 
     # Calculate offset
     offset = (page - 1) * per_page
@@ -14,23 +14,25 @@ class Api::V1::GoldStandardTableController < ApplicationController
     # Start with base query
     query = GoldStandardTable.all
 
-    # Apply search if provided
+    # Apply search using SSoT SearchService
     if params[:search].present?
-      search_term = "%#{params[:search].downcase}%"
-      if params[:search_all] == 'true'
-        # Search across all text columns
-        text_columns = GoldStandardTable.column_names.select do |col|
-          GoldStandardTable.columns_hash[col].type.in?([:string, :text])
+      search_columns = if params[:search_all] == "true"
+        # Search all text columns
+        GoldStandardTable.column_names.select do |col|
+          GoldStandardTable.columns_hash[col].type.in?([ :string, :text ])
         end
-        conditions = text_columns.map { |col| "LOWER(CAST(#{col} AS TEXT)) LIKE ?" }.join(' OR ')
-        query = query.where(conditions, *text_columns.map { search_term })
       else
-        # Search only primary text columns
-        query = query.where(
-          "LOWER(CAST(single_line_text AS TEXT)) LIKE ? OR LOWER(CAST(multiple_lines_text AS TEXT)) LIKE ? OR CAST(id AS TEXT) LIKE ?",
-          search_term, search_term, search_term
-        )
+        # Search primary columns only
+        %w[single_line_text multiple_lines_text]
       end
+
+      query = SearchService.apply(
+        query,
+        params[:search],
+        columns: search_columns,
+        mode: params[:search_mode] || 'contains',
+        model: GoldStandardTable
+      )
     end
 
     # Apply filters if provided
@@ -49,9 +51,9 @@ class Api::V1::GoldStandardTableController < ApplicationController
 
     # Disable caching for admin table - needs to reflect changes immediately
     # expires_in 5.minutes, public: true unless params[:filters].present?
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-    response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '0'
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
 
     render json: {
       success: true,
@@ -94,7 +96,7 @@ class Api::V1::GoldStandardTableController < ApplicationController
   # POST /api/v1/gold_standard_table/bulk_delete
   def bulk_delete
     ids = params[:ids]
-    return render json: { success: false, error: 'No IDs provided' }, status: :bad_request if ids.blank?
+    return render json: { success: false, error: "No IDs provided" }, status: :bad_request if ids.blank?
 
     ids = ids.first(1000) if ids.is_a?(Array)
     deleted_count = GoldStandardTable.where(id: ids).delete_all
@@ -113,7 +115,7 @@ class Api::V1::GoldStandardTableController < ApplicationController
   def merge
     secondary_ids = params[:secondary_ids]
 
-    return render json: { success: false, error: 'No secondary IDs provided' }, status: :bad_request if secondary_ids.blank?
+    return render json: { success: false, error: "No secondary IDs provided" }, status: :bad_request if secondary_ids.blank?
 
     secondary_items = GoldStandardTable.where(id: secondary_ids)
 
@@ -152,8 +154,9 @@ class Api::V1::GoldStandardTableController < ApplicationController
   # NOTE: This should be protected in production - see Item 14
   def sync_with_columns
     begin
-      # Fetch all columns for the Gold Standard table (table_id = 9)
-      columns = Column.where(table_id: 9).order(:position)
+      # SSoT: Use slug lookup, not hardcoded numeric ID (differs per environment)
+      gold_standard = Foundation.find_by(slug: 'gold_standard_table')
+      columns = Column.where(foundation_id: gold_standard&.id).order(:position)
 
       render json: {
         success: true,
@@ -198,7 +201,9 @@ class Api::V1::GoldStandardTableController < ApplicationController
       case column.type
       when :string, :text
         # Text fields: case-insensitive partial match
-        query = query.where("LOWER(#{column_name}) LIKE ?", "%#{value.to_s.downcase}%")
+        # Use quote_column_name to prevent SQL injection
+        safe_column = ActiveRecord::Base.connection.quote_column_name(column_name)
+        query = query.where("LOWER(#{safe_column}) LIKE ?", "%#{value.to_s.downcase}%")
       when :integer, :decimal, :float
         # Numeric fields: exact match (or could extend to support ranges)
         query = query.where(column_name => value)

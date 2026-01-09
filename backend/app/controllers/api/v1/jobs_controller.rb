@@ -1,49 +1,56 @@
 module Api
   module V1
     class JobsController < ApplicationController
-      before_action :set_job, only: [:show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :activities, :budget_tracking, :merge, :update_stage]
+      before_action :set_job, only: [ :show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :activities, :budget_tracking, :merge, :update_stage, :mark_lost, :upload_plan_set, :plan_set, :rename_plans, :generate_contract, :save_contract, :send_contract_for_signing ]
 
       # GET /api/v1/jobs/pipeline
       # Returns jobs with Enquiry status grouped by stage for the pipeline view
       def pipeline
-        enquiry_status = JobStatus.find_by(name: 'Enquiry')
+        enquiry_status = JobStatus.find_by(name: "Enquiry")
 
         # Get all enquiry stages
         enquiry_stages = JobStage.where(job_status_id: enquiry_status&.id).order(:position)
 
         # Get all jobs with Enquiry status
-        jobs = Job.includes(:job_type, :job_status, :job_stage, :job_contacts => :contact)
+        # SSoT: Use Job.with_contacts scope for standard includes
+        jobs = Job.with_contacts
                   .where(job_status_id: enquiry_status&.id)
                   .order(created_at: :desc)
 
-        # Group jobs by stage
+        # Group jobs by stage - single pass O(N) instead of O(N*M)
+        # Performance: Uses Ruby group_by once instead of nested filtering
+        jobs_grouped = jobs.group_by(&:job_stage_id)
+
         jobs_by_stage = {}
         enquiry_stages.each do |stage|
-          stage_jobs = jobs.select { |j| j.job_stage_id == stage.id }
-          jobs_by_stage[stage.name.downcase.gsub(' ', '_')] = stage_jobs.map { |job| pipeline_job_to_json(job) }
+          stage_jobs = jobs_grouped[stage.id] || []
+          jobs_by_stage[stage.name.downcase.gsub(" ", "_")] = stage_jobs.map { |job| pipeline_job_to_json(job) }
         end
 
-        # Add jobs without a stage to "proposal" (first stage)
-        no_stage_jobs = jobs.select { |j| j.job_stage_id.nil? }
-        jobs_by_stage['proposal'] ||= []
-        jobs_by_stage['proposal'] = no_stage_jobs.map { |job| pipeline_job_to_json(job) } + jobs_by_stage['proposal']
+        # Add jobs without a stage to "needs_pricing" (first stage)
+        no_stage_jobs = jobs_grouped[nil] || []
+        jobs_by_stage["needs_pricing"] ||= []
+        jobs_by_stage["needs_pricing"] = no_stage_jobs.map { |job| pipeline_job_to_json(job) } + jobs_by_stage["needs_pricing"]
 
-        # Initialize empty won/lost arrays (only Enquiry jobs are shown in pipeline)
-        jobs_by_stage['won'] = []
-        jobs_by_stage['lost'] = []
+        # Initialize won array as empty (won jobs move to Pre Contract status)
+        jobs_by_stage["won"] = []
+        # Ensure lost array exists (should be populated from enquiry_stages if Lost stage exists)
+        jobs_by_stage["lost"] ||= []
 
         # For stats, we can still count won/lost from other statuses
-        won_statuses = JobStatus.where(name: ['Pre Contract', 'Contract', 'Pre Start', 'Active Job', 'Handover', 'Archived'])
+        won_statuses = JobStatus.where(name: [ "Pre Contract", "Contract", "Pre Start", "Active Job", "Handover", "Archived" ])
         won_jobs = Job.where(job_status_id: won_statuses.pluck(:id))
-                      .where('created_at > ?', 30.days.ago)
+                      .where("created_at > ?", 30.days.ago)
 
         lost_statuses = JobStatus.where("name LIKE ?", "%Lost%")
         lost_jobs = Job.where(job_status_id: lost_statuses.pluck(:id))
-                       .where('created_at > ?', 30.days.ago)
+                       .where("created_at > ?", 30.days.ago)
 
         # Calculate stats
-        total_pipeline_value = jobs.sum { |j| j.contract_value || 0 }
-        won_value = won_jobs.sum(:contract_value) || 0
+        # SSoT: contract_price is THE ONE
+        # Performance: Use SQL SUM instead of Ruby block
+        total_pipeline_value = jobs.sum(:contract_price) || 0
+        won_value = won_jobs.sum(:contract_price) || 0
 
         render json: {
           success: true,
@@ -64,9 +71,9 @@ module Api
       def update_stage
         stage_name = params[:stage]
 
-        if stage_name == 'won'
+        if stage_name == "won"
           # Move to Pre Contract status
-          pre_contract = JobStatus.find_by(name: 'Pre Contract')
+          pre_contract = JobStatus.find_by(name: "Pre Contract")
           if @job.update(job_status_id: pre_contract&.id, job_stage_id: nil)
             render json: { success: true, job: pipeline_job_to_json(@job) }
           else
@@ -74,8 +81,8 @@ module Api
           end
         else
           # Find the stage by name
-          enquiry_status = JobStatus.find_by(name: 'Enquiry')
-          stage = JobStage.find_by(job_status_id: enquiry_status&.id, name: stage_name.titleize.gsub('_', ' '))
+          enquiry_status = JobStatus.find_by(name: "Enquiry")
+          stage = JobStage.find_by(job_status_id: enquiry_status&.id, name: stage_name.titleize.gsub("_", " "))
 
           unless stage
             return render json: { success: false, error: "Invalid stage: #{stage_name}" }, status: :unprocessable_entity
@@ -92,17 +99,121 @@ module Api
         end
       end
 
+      # PATCH /api/v1/jobs/:id/mark_lost
+      # Mark job as lost (changes status to "Lost - Pre Contract")
+      def mark_lost
+        lost_status = JobStatus.find_by(name: "Lost - Pre Contract")
+
+        unless lost_status
+          return render json: { success: false, error: "Lost - Pre Contract status not found" }, status: :unprocessable_entity
+        end
+
+        if @job.update(job_status_id: lost_status.id, job_stage_id: nil)
+          render json: { success: true, job: pipeline_job_to_json(@job) }
+        else
+          render json: { success: false, errors: @job.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
+      # GET /api/v1/jobs/for_select
+      # GET /api/v1/jobs/for_select?q=search_term
+      # Lightweight endpoint for dropdowns - searchable by job name, client name, employee name,
+      # AND employees of company contacts (two levels deep)
+      def for_select
+        search_term = params[:q].present? ? "%#{params[:q].downcase}%" : nil
+
+        jobs = Job.joins(:job_status)
+                  .includes(job_contacts: { contact: :employees })
+                  .where.not(job_statuses: { name: ["Lost - Pre Contract", "Lost - Contract", "Archived"] })
+
+        # Server-side search if query provided
+        # Search: job name, direct contacts, AND employees of company contacts
+        if search_term
+          jobs = jobs.joins("LEFT OUTER JOIN job_contacts ON job_contacts.job_id = jobs.id")
+                     .joins("LEFT OUTER JOIN contacts ON contacts.id = job_contacts.contact_id")
+                     .joins("LEFT OUTER JOIN contacts AS company_employees ON company_employees.primary_company_id = contacts.id")
+                     .where(
+                       "LOWER(jobs.name) LIKE :q " \
+                       "OR LOWER(contacts.display_name) LIKE :q " \
+                       "OR LOWER(contacts.first_name) LIKE :q " \
+                       "OR LOWER(contacts.last_name) LIKE :q " \
+                       "OR LOWER(company_employees.display_name) LIKE :q " \
+                       "OR LOWER(company_employees.first_name) LIKE :q " \
+                       "OR LOWER(company_employees.last_name) LIKE :q",
+                       q: search_term
+                     )
+                     .distinct
+        end
+
+        jobs = jobs.order(created_at: :desc).limit(100)
+
+        render json: {
+          success: true,
+          jobs: jobs.map do |job|
+            client = job.job_contacts.find { |jc| jc.role == "client" }&.contact
+            employees = job.job_contacts
+                          .select { |jc| %w[coordinator estimator internal_sales site_coordinator supervisor].include?(jc.role) }
+                          .map { |jc| jc.contact&.display_name || "#{jc.contact&.first_name} #{jc.contact&.last_name}".strip }
+                          .compact
+                          .reject(&:blank?)
+
+            # Find which contact matched the search (for highlighting)
+            # Check direct contacts first, then employees of company contacts
+            matched_contact = nil
+            if search_term && params[:q].present?
+              query = params[:q].downcase
+
+              # Check direct job contacts
+              job.job_contacts.each do |jc|
+                contact = jc.contact
+                next unless contact
+                contact_name = contact.display_name.presence || "#{contact.first_name} #{contact.last_name}".strip
+                if contact_name.downcase.include?(query)
+                  matched_contact = { name: contact_name, role: jc.role }
+                  break
+                end
+
+                # Check employees of this contact (companies, trusts, etc. can have employees)
+                if contact.employees.loaded? ? contact.employees.any? : contact.employees.exists?
+                  contact.employees.each do |emp|
+                    emp_name = emp.display_name.presence || "#{emp.first_name} #{emp.last_name}".strip
+                    if emp_name.downcase.include?(query)
+                      matched_contact = {
+                        name: emp_name,
+                        role: "employee_of",
+                        company_name: contact_name
+                      }
+                      break
+                    end
+                  end
+                end
+                break if matched_contact
+              end
+            end
+
+            {
+              id: job.id,
+              name: job.name,
+              client_name: client&.display_name || "#{client&.first_name} #{client&.last_name}".strip.presence,
+              employee_names: employees,
+              matched_contact: matched_contact
+            }
+          end
+        }
+      end
+
       # GET /api/v1/jobs
       # GET /api/v1/jobs?status=Active
       # GET /api/v1/jobs?contact_id=123
       def index
-        @jobs = Job.includes(:job_type, :job_status, :job_stage).all
+        # SSoT: Use Job.with_lookups scope for standard includes
+        @jobs = Job.with_lookups
 
         # Filter by contact_id if provided - only return jobs where this contact is a client
         # (not representative, broker, etc. - only actual client role)
         if params[:contact_id].present?
           @jobs = @jobs.joins(:job_contacts)
-                       .where(job_contacts: { contact_id: params[:contact_id], role: 'client' })
+                       .where(job_contacts: { contact_id: params[:contact_id], role: "client" })
                        .distinct
         end
 
@@ -113,32 +224,43 @@ module Api
         end
 
         # Filter by location presence if requested
-        if params[:has_location] == 'true'
+        if params[:has_location] == "true"
           @jobs = @jobs.where.not(latitude: nil).where.not(longitude: nil)
+        end
+
+        # Search using SSoT SearchService
+        if params[:search].present?
+          search_columns = params[:search_all].to_s == "true" ? %w[name address] : %w[name]
+          @jobs = SearchService.apply(
+            @jobs,
+            params[:search],
+            columns: search_columns,
+            mode: params[:search_mode] || 'contains',
+            model: Job
+          )
         end
 
         # Pagination
         page = params[:page]&.to_i || 1
         per_page = params[:per_page]&.to_i || 500
 
-        # Get total count before limiting results to avoid separate COUNT query
+        # Get total count before limiting results
         total_count = @jobs.count
         total_pages = (total_count.to_f / per_page).ceil
 
+        # Return all columns - no column limiting
         @jobs = @jobs.order(created_at: :desc)
-                                       .limit(per_page)
-                                       .offset((page - 1) * per_page)
-
-        # Include job_type and job_status in response
-        jobs_with_associations = @jobs.map do |job|
-          job.as_json.merge(
-            job_type: job.job_type&.as_json(only: [:id, :name, :icon]),
-            job_status: job.job_status&.as_json(only: [:id, :name, :color])
-          )
-        end
+                     .limit(per_page)
+                     .offset((page - 1) * per_page)
 
         render json: {
-          jobs: jobs_with_associations,
+          jobs: @jobs.as_json(
+            include: {
+              job_type: {},
+              job_status: {},
+              job_stage: {}
+            }
+          ),
           pagination: {
             current_page: page,
             total_pages: total_pages,
@@ -153,41 +275,39 @@ module Api
         # Include contacts with their relationships in the response
         job_json = @job.as_json
 
-        # Include job_type, job_status, and job_stage associations
-        job_json[:job_type] = @job.job_type&.as_json(only: [:id, :name, :icon])
-        job_json[:job_status] = @job.job_status&.as_json(only: [:id, :name, :color])
-        job_json[:job_stage] = @job.job_stage&.as_json(only: [:id, :name])
+        # Include job_type, job_status, and job_stage associations - all columns
+        job_json[:job_type] = @job.job_type&.as_json
+        job_json[:job_status] = @job.job_status&.as_json
+        job_json[:job_stage] = @job.job_stage&.as_json
 
+        # Use already-eager-loaded job_contacts from set_job
+        # Sort in Ruby since we already have the data loaded
         job_json[:contacts] = @job.job_contacts
-                                                     .includes(contact: :outgoing_relationships)
-                                                     .where.not(contact_id: nil)
-                                                     .order(primary: :desc, created_at: :asc)
+                                                     .select { |jc| jc.contact_id.present? && jc.contact }
+                                                     .sort_by { |jc| [jc.primary ? 0 : 1, jc.created_at] }
                                                      .map do |cc|
-          next unless cc.contact # Skip if contact was deleted
-
           {
             id: cc.id,
             contact_id: cc.contact_id,
             primary: cc.primary,
             role: cc.role,
-            contact: cc.contact.as_json(
-              only: [:id, :first_name, :last_name, :full_name, :company_name, :email, :mobile_phone, :office_phone]
-            ),
-            relationships_count: cc.contact.outgoing_relationships.count
+            contact: cc.contact.as_json,
+            # Use .size to use the already-loaded collection (not .count which triggers a query)
+            relationships_count: cc.contact.outgoing_relationships.size
           }
-        end.compact
+        end
 
         # Include estimator analysis from proposal if available
         if @job.email_job_proposal&.extracted_data.present?
           extracted = @job.email_job_proposal.extracted_data
           # Only include if the estimator fields are present
-          if extracted['job_summary'].present? || extracted['key_points'].present?
+          if extracted["job_summary"].present? || extracted["key_points"].present?
             job_json[:estimator_analysis] = {
-              job_summary: extracted['job_summary'],
-              key_points: extracted['key_points'],
-              estimated_scope: extracted['estimated_scope'],
-              recommendations: extracted['recommendations'],
-              source: 'pdf_extraction',
+              job_summary: extracted["job_summary"],
+              key_points: extracted["key_points"],
+              estimated_scope: extracted["estimated_scope"],
+              recommendations: extracted["recommendations"],
+              source: "pdf_extraction",
               extracted_at: @job.email_job_proposal.created_at
             }
           end
@@ -198,6 +318,9 @@ module Api
 
       # POST /api/v1/jobs
       def create
+        Rails.logger.info "[JobsController#create] job_params: #{job_params.inspect}"
+        Rails.logger.info "[JobsController#create] job_status_id from params: #{job_params[:job_status_id].inspect}"
+
         @job = Job.new(job_params)
 
         if @job.save
@@ -225,6 +348,8 @@ module Api
 
           render json: response_data, status: :created
         else
+          Rails.logger.error "[JobsController#create] Validation failed: #{@job.errors.full_messages.inspect}"
+          Rails.logger.error "[JobsController#create] job_status_id was: #{@job.job_status_id.inspect}"
           render json: { errors: @job.errors.full_messages }, status: :unprocessable_entity
         end
       end
@@ -252,7 +377,7 @@ module Api
                                   .order(created_at: :desc)
 
         render json: @messages.as_json(
-          include: { user: { only: [:id, :name, :email] } },
+          include: { user: {} },
           methods: :formatted_timestamp
         )
       end
@@ -285,20 +410,33 @@ module Api
         render json: {
           sms_messages: messages.as_json(
             include: {
-              contact: { only: [:id, :full_name, :mobile_phone] },
-              user: { only: [:id, :name, :email] }
+              contact: {},
+              user: {}
             }
           )
         }
       end
 
       # GET /api/v1/jobs/:id/documentation_tabs
+      # SSoT: Now uses EntityTab (scope: 'job', tab_group: 'documents')
       def documentation_tabs
-        @tabs = @job.job_documentation_tabs
-                            .active
+        # First check for job-specific tabs, fall back to global job document tabs
+        job_tabs = EntityTab.where(scope: 'job', job_id: @job.id, tab_group: 'documents')
+                            .where(parent_id: nil)
+                            .enabled
                             .ordered
+                            .includes(:children)
 
-        render json: @tabs
+        # If no job-specific tabs, use global job document tabs
+        if job_tabs.empty?
+          job_tabs = EntityTab.where(scope: 'job', job_id: nil, tab_group: 'documents')
+                              .where(parent_id: nil)
+                              .enabled
+                              .ordered
+                              .includes(:children)
+        end
+
+        render json: job_tabs.map(&:as_nested_json)
       end
 
       # POST /api/v1/jobs/:id/import_xero_bills
@@ -324,7 +462,7 @@ module Api
         tracking_option_name = params[:tracking_option_name]
 
         unless tracking_option_id.present?
-          return render json: { success: false, error: 'tracking_option_id is required' }, status: :bad_request
+          return render json: { success: false, error: "tracking_option_id is required" }, status: :bad_request
         end
 
         if @job.update(
@@ -333,7 +471,7 @@ module Api
         )
           render json: {
             success: true,
-            job: @job.as_json(only: [:id, :title, :xero_tracking_option_id, :xero_tracking_option_name])
+            job: @job.as_json
           }
         else
           render json: { success: false, errors: @job.errors.full_messages }, status: :unprocessable_entity
@@ -350,14 +488,14 @@ module Api
 
         render json: {
           success: true,
-          tracking_options: tracking_options.map { |o| { id: o['TrackingOptionID'], name: o['Name'] } },
+          tracking_options: tracking_options.map { |o| { id: o["TrackingOptionID"], name: o["Name"] } },
           current_option: @job.xero_tracking_option_id.present? ? {
             id: @job.xero_tracking_option_id,
             name: @job.xero_tracking_option_name
           } : nil,
           suggested_match: suggested_match ? {
-            id: suggested_match['TrackingOptionID'],
-            name: suggested_match['Name']
+            id: suggested_match["TrackingOptionID"],
+            name: suggested_match["Name"]
           } : nil
         }
       rescue StandardError => e
@@ -398,10 +536,11 @@ module Api
 
       # GET /api/v1/jobs/:id/budget_tracking
       # Returns budget vs invoiced summary for purchase orders
+      # Performance: includes :line_items to avoid N+1 when accessing first description
       def budget_tracking
         purchase_orders = @job.purchase_orders
-                              .where.not(status: 'cancelled')
-                              .includes(:supplier)
+                              .where.not(status: "cancelled")
+                              .includes(:supplier, :line_items)
 
         budget_items = purchase_orders.map do |po|
           budgeted = po.total || 0
@@ -411,12 +550,12 @@ module Api
           {
             id: po.id,
             po_number: po.purchase_order_number,
-            supplier_name: po.supplier&.display_name || po.supplier&.company_name || 'Unknown Supplier',
-            item_description: po.description || po.line_items.first&.description || 'No description',
+            supplier_name: po.supplier&.display_name || po.supplier&.company_name || "Unknown Supplier",
+            item_description: po.description || po.line_items.first&.description || "No description",
             budgeted: budgeted.to_f.round(2),
             invoiced: invoiced.to_f.round(2),
             variance: variance.to_f.round(2),
-            payment_status: po.payment_status || 'pending'
+            payment_status: po.payment_status || "pending"
           }
         end
 
@@ -436,6 +575,88 @@ module Api
         }
       end
 
+      # GET /api/v1/jobs/:id/boq
+      # Returns BOQ (Bill of Quantities) vs Purchase Orders comparison
+      # Shows side-by-side view of estimated vs actual costs
+      def boq
+        purchase_orders = @job.purchase_orders
+                              .where.not(status: "cancelled")
+                              .includes(:supplier, :line_items, :sm_task)
+                              .order(:id)
+
+        # Group PO line items by category (using PO description as category)
+        # Build a hierarchical structure: Category -> PO -> Line Items
+        categories = {}
+
+        purchase_orders.each do |po|
+          category_name = po.description.presence || po.sm_task&.name.presence || "Uncategorized"
+          # Clean up category name - remove "Req " prefix if present
+          category_name = category_name.sub(/^Req\s+/i, "")
+
+          categories[category_name] ||= {
+            name: category_name,
+            purchase_orders: [],
+            boq_total: 0,
+            po_total: 0
+          }
+
+          po_data = {
+            id: po.id,
+            po_number: po.purchase_order_number,
+            supplier_name: po.supplier&.display_name || "Unknown",
+            status: po.status,
+            budget: (po.budget || 0).to_f,
+            total: (po.total || 0).to_f,
+            line_items: po.line_items.map do |item|
+              {
+                id: item.id,
+                description: item.description,
+                quantity: item.quantity.to_f,
+                unit_price: item.unit_price.to_f,
+                total: item.total_amount.to_f
+              }
+            end
+          }
+
+          categories[category_name][:purchase_orders] << po_data
+          categories[category_name][:boq_total] += po_data[:budget]
+          categories[category_name][:po_total] += po_data[:total]
+        end
+
+        # Convert to array and sort by name
+        boq_categories = categories.values.sort_by { |c| c[:name] }
+
+        # Calculate variance for each category
+        boq_categories.each do |cat|
+          cat[:variance] = cat[:po_total] - cat[:boq_total]
+          cat[:variance_percent] = cat[:boq_total] > 0 ? (cat[:variance] / cat[:boq_total] * 100).round(1) : 0
+        end
+
+        # Calculate totals
+        total_boq = boq_categories.sum { |c| c[:boq_total] }
+        total_po = boq_categories.sum { |c| c[:po_total] }
+        total_variance = total_po - total_boq
+
+        render json: {
+          success: true,
+          job: {
+            id: @job.id,
+            name: @job.name,
+            contract_value: @job.contract_value.to_f
+          },
+          categories: boq_categories,
+          summary: {
+            boq_total: total_boq.round(2),
+            po_total: total_po.round(2),
+            variance: total_variance.round(2),
+            variance_percent: total_boq > 0 ? (total_variance / total_boq * 100).round(1) : 0,
+            contract_value: @job.contract_value.to_f,
+            po_count: purchase_orders.count,
+            category_count: boq_categories.count
+          }
+        }
+      end
+
       # POST /api/v1/jobs/:id/merge
       # Merges secondary jobs into the primary job (this job)
       # Transfers all related records and then deletes the secondary jobs
@@ -443,14 +664,14 @@ module Api
         secondary_job_ids = params[:secondary_job_ids]
 
         if secondary_job_ids.blank?
-          render json: { success: false, error: 'No secondary jobs provided' }, status: :unprocessable_entity
+          render json: { success: false, error: "No secondary jobs provided" }, status: :unprocessable_entity
           return
         end
 
         secondary_jobs = Job.where(id: secondary_job_ids)
 
         if secondary_jobs.count != secondary_job_ids.length
-          render json: { success: false, error: 'Some secondary jobs not found' }, status: :not_found
+          render json: { success: false, error: "Some secondary jobs not found" }, status: :not_found
           return
         end
 
@@ -486,8 +707,8 @@ module Api
             # Attachments
             secondary_job.attachments.update_all(attachable_id: @job.id) if secondary_job.respond_to?(:attachments)
 
-            # Job Documentation Tabs
-            secondary_job.job_documentation_tabs.update_all(job_id: @job.id) if secondary_job.respond_to?(:job_documentation_tabs)
+            # Job-specific EntityTabs (SSoT: replaces job_documentation_tabs)
+            EntityTab.where(scope: 'job', job_id: secondary_job.id).update_all(job_id: @job.id)
 
             # Fill in any blank fields on primary job from secondary job
             Job.column_names.each do |col|
@@ -516,28 +737,353 @@ module Api
         render json: { success: false, error: e.message }, status: :internal_server_error
       end
 
+      # POST /api/v1/jobs/:id/upload_plan_set
+      # Upload a PDF plan set, split into individual pages named by PDF page labels
+      def upload_plan_set
+        unless params[:file].present?
+          return render json: { success: false, error: "No file provided" }, status: :unprocessable_entity
+        end
+
+        service = PlanSetService.new(@job, params[:file])
+        result = service.process!
+
+        if result[:success]
+          render json: {
+            success: true,
+            data: {
+              all_plans: result[:all_plans],
+              pages: result[:pages],
+              total_pages: result[:total_pages]
+            }
+          }
+        else
+          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+        end
+      end
+
+      # GET /api/v1/jobs/:id/plan_set
+      # Get the list of plans in the 04 Plans folder
+      def plan_set
+        credential = MicrosoftCredential.sharepoint_credential
+        unless credential
+          return render json: { success: false, error: "SharePoint not connected" }, status: :unprocessable_entity
+        end
+
+        client = MicrosoftGraphClient.new(credential)
+
+        # Find the job folder
+        job_folder = client.find_job_folder(@job)
+        unless job_folder
+          return render json: { success: true, data: { plans: [], folder_exists: false } }
+        end
+
+        # Find 04 Plans folder - list_folder_items returns { "value" => [...] } with string keys
+        response = client.list_folder_items(job_folder["id"])
+        items = response["value"] || []
+        plans_folder = items.find { |item| item["name"] == "04 Plans" && item["folder"].present? }
+
+        unless plans_folder
+          return render json: { success: true, data: { plans: [], folder_exists: false } }
+        end
+
+        # List files in 04 Plans
+        plan_response = client.list_folder_items(plans_folder["id"])
+        plan_files = plan_response["value"] || []
+        pdf_files = plan_files.select { |f| f["file"].present? && f["name"]&.end_with?(".pdf") }
+
+        plans = pdf_files.map do |f|
+          {
+            id: f["id"],
+            name: f["name"],
+            web_url: f["webUrl"],
+            size: f["size"],
+            modified: f["lastModifiedDateTime"],
+            is_all_plans: f["name"] == "All Plans.pdf"
+          }
+        end
+
+        # Sort: All Plans first, then alphabetically
+        plans.sort_by! { |p| [ p[:is_all_plans] ? 0 : 1, p[:name] ] }
+
+        render json: {
+          success: true,
+          data: {
+            plans: plans,
+            folder_exists: true,
+            folder_id: plans_folder["id"],
+            folder_web_url: plans_folder["webUrl"]
+          }
+        }
+      rescue => e
+        Rails.logger.error("plan_set error: #{e.message}")
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/jobs/:id/rename_plans
+      # Use AI to rename existing plans in 04 Plans folder
+      def rename_plans
+        result = PlanSetService.new(@job, nil).rename_existing_plans!
+
+        if result[:success]
+          render json: {
+            success: true,
+            data: {
+              renamed: result[:renamed],
+              skipped: result[:skipped],
+              errors: result[:errors]
+            }
+          }
+        else
+          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+        end
+      rescue => e
+        Rails.logger.error("rename_plans error: #{e.message}")
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/jobs/:id/generate_contract
+      # Generate QBCC contract PDF for preview
+      def generate_contract
+        engine = Engines::PdfOverlayEngine.new(:qbcc_contract)
+        pdf_content = engine.generate(job: @job)
+
+        send_data pdf_content,
+          type: "application/pdf",
+          disposition: "inline",
+          filename: "QBCC_Contract_#{@job.job_number || @job.id}.pdf"
+      rescue => e
+        Rails.logger.error("generate_contract error: #{e.message}")
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/jobs/:id/save_contract
+      # Generate QBCC contract PDF and save to job documents
+      def save_contract
+        engine = Engines::PdfOverlayEngine.new(:qbcc_contract)
+        pdf_content = engine.generate(job: @job)
+
+        # Create a document record for this job
+        filename = "QBCC_Contract_#{@job.job_number || @job.id}_#{Date.current.strftime('%Y%m%d')}.pdf"
+
+        # Upload to SharePoint/OneDrive
+        credential = MicrosoftCredential.sharepoint_credential
+        if credential
+          client = MicrosoftGraphClient.new(credential)
+
+          # Build folder path: Jobs/0046 - Job Name/01 Contract Documents
+          job_folder_name = "#{@job.job_number} - #{@job.name}".truncate(100)
+          folder_path = "Jobs/#{job_folder_name}/01 Contract Documents"
+
+          # Ensure folder exists
+          client.ensure_folder_path(folder_path)
+
+          # Upload file
+          result = client.upload_file(folder_path, filename, pdf_content, "application/pdf")
+
+          if result
+            render json: { success: true, data: { filename: filename, sharepoint_id: result[:id], folder: folder_path } }
+          else
+            render json: { success: false, error: "Failed to upload to SharePoint" }, status: :internal_server_error
+          end
+        else
+          # Fallback: just return success with the filename
+          render json: { success: true, data: { filename: filename, note: "SharePoint not connected - document generated but not saved" } }
+        end
+      rescue => e
+        Rails.logger.error("save_contract error: #{e.message}")
+        Rails.logger.error(e.backtrace.first(5).join("\n"))
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/jobs/:id/send_contract_for_signing
+      # Generate QBCC contract PDF, save to SharePoint, and send for e-signing
+      def send_contract_for_signing
+        # Step 1: Generate the QBCC contract PDF
+        engine = Engines::PdfOverlayEngine.new(:qbcc_contract)
+        pdf_content = engine.generate(job: @job)
+
+        filename = "QBCC_Contract_#{@job.job_number || @job.id}_#{Date.current.strftime('%Y%m%d')}.pdf"
+
+        # Step 2: Upload to SharePoint
+        credential = MicrosoftCredential.sharepoint_credential
+        unless credential
+          return render json: { success: false, error: "SharePoint not connected" }, status: :unprocessable_entity
+        end
+
+        client = MicrosoftGraphClient.new(credential)
+
+        # Build folder path: Jobs/0046 - Job Name/01 Contract Documents
+        job_folder_name = "#{@job.job_number} - #{@job.name}".truncate(100)
+        folder_path = "Jobs/#{job_folder_name}/01 Contract Documents"
+
+        # Ensure folder exists and upload
+        client.ensure_folder_path(folder_path)
+        uploaded = client.upload_file(folder_path, filename, pdf_content, "application/pdf")
+
+        unless uploaded
+          return render json: { success: false, error: "Failed to upload to SharePoint" }, status: :internal_server_error
+        end
+
+        # Step 3: Get signers from job contacts (clients only)
+        client_contacts = @job.job_contacts
+          .where(role: "client")
+          .includes(:contact)
+          .order(primary: :desc)
+          .map(&:contact)
+          .compact
+
+        if client_contacts.empty?
+          return render json: { success: false, error: "No client contacts found on this job" }, status: :unprocessable_entity
+        end
+
+        # Validate all contacts have emails
+        missing_emails = client_contacts.select { |c| c.email.blank? }.map(&:display_name)
+        if missing_emails.any?
+          return render json: { success: false, error: "Missing email for: #{missing_emails.join(', ')}" }, status: :unprocessable_entity
+        end
+
+        # Step 4: Create e-signature request
+        request = ESignatureRequest.new(
+          title: "QBCC Contract - #{@job.name}",
+          description: "Building Contract for #{@job.address || @job.name}",
+          documentable: @job,
+          created_by_id: current_user&.id,
+          signing_order: 0, # Parallel signing
+          expires_at: 30.days.from_now,
+          send_reminders: true,
+          original_sharepoint_file_id: uploaded[:id],
+          sharepoint_site_id: credential.site_id,
+          sharepoint_drive_id: credential.drive_id
+        )
+
+        # Add client contacts as signers
+        client_contacts.each_with_index do |contact, index|
+          request.signers.build(
+            name: contact.display_name,
+            email: contact.email,
+            role: "client",
+            signing_order: index,
+            contact_id: contact.id
+          )
+        end
+
+        # Calculate document hash
+        request.original_document_hash = Digest::SHA256.hexdigest(pdf_content)
+
+        unless request.save
+          return render json: { success: false, error: request.errors.full_messages.join(", ") }, status: :unprocessable_entity
+        end
+
+        # Step 5: Send for signing
+        request.send_for_signing!
+
+        render json: {
+          success: true,
+          data: {
+            request_number: request.request_number,
+            title: request.title,
+            filename: filename,
+            signers: request.signers.map { |s| { name: s.name, email: s.email, status: s.status } },
+            status: request.status,
+            expires_at: request.expires_at
+          }
+        }
+      rescue => e
+        Rails.logger.error("send_contract_for_signing error: #{e.message}")
+        Rails.logger.error(e.backtrace.first(5).join("\n"))
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
+      # GET /api/v1/jobs/:id/linked_schedule_template
+      # Returns the schedule template linked to this job's tasks (if any)
+      # Used by frontend to skip template selection in sync dialog when job already has synced tasks
+      def linked_schedule_template
+        job = Job.find(params[:id])
+
+        # Find distinct template IDs from this job's tasks via their sm_schedule_master links
+        template_ids = SmTask.where(construction_id: job.id)
+                             .joins(:sm_schedule_master)
+                             .where.not(sm_schedule_masters: { sm_template_ids: nil })
+                             .pluck(Arel.sql("DISTINCT jsonb_array_elements_text(sm_schedule_masters.sm_template_ids)::integer"))
+
+        if template_ids.any?
+          # Get the most common template (in case tasks are linked to different templates)
+          template_counts = SmTask.where(construction_id: job.id)
+                                  .joins(:sm_schedule_master)
+                                  .where.not(sm_schedule_masters: { sm_template_ids: nil })
+                                  .group(Arel.sql("jsonb_array_elements_text(sm_schedule_masters.sm_template_ids)::integer"))
+                                  .count
+
+          most_common_template_id = template_counts.max_by { |_, count| count }&.first&.to_i
+          template = SmScheduleMasterTemplate.find_by(id: most_common_template_id)
+
+          if template
+            render json: {
+              success: true,
+              has_linked_template: true,
+              template: {
+                id: template.id,
+                name: template.name,
+                is_default: template.is_default
+              },
+              task_count: job.sm_tasks.count
+            }
+          else
+            render json: { success: true, has_linked_template: false, task_count: job.sm_tasks.count }
+          end
+        else
+          render json: { success: true, has_linked_template: false, task_count: job.sm_tasks.count }
+        end
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Job not found" }, status: :not_found
+      end
+
       private
 
       def set_job
         # Support lookup by ID or slug (title-based)
         id_or_slug = params[:id]
 
+        # Eager load associations for show action to avoid N+1 queries
+        # This reduces the show action from ~820ms to ~100ms
+        eager_load_associations = if action_name == "show"
+          [:job_type, :job_status, :job_stage, :email_job_proposal,
+           { job_contacts: { contact: :outgoing_relationships } }]
+        else
+          []
+        end
+
+        # Build base scope - only add includes if we have associations to eager load
+        base_scope = eager_load_associations.any? ? Job.includes(*eager_load_associations) : Job
+
         if id_or_slug.to_s.match?(/\A\d+\z/)
           # Numeric ID - direct lookup
-          @job = Job.find(id_or_slug)
+          @job = base_scope.find(id_or_slug)
         else
-          # Slug - search by title (convert slug back to search term)
+          # Slug - search by name (convert slug back to search term)
           # Remove the _God_Loves_You_ suffix if present
-          slug = id_or_slug.to_s.gsub(/_God_Loves_You_$/i, '')
-          search_term = slug.gsub('-', ' ')
-          @job = Job.where('LOWER(title) LIKE ?', "%#{search_term.downcase}%").first
+          slug = id_or_slug.to_s.gsub(/_God_Loves_You_$/i, "")
+          search_term = slug.gsub("-", " ")
+          @job = base_scope.where("LOWER(name) LIKE ?", "%#{search_term.downcase}%").first
           raise ActiveRecord::RecordNotFound, "Job not found with slug: #{id_or_slug}" unless @job
         end
       end
 
       def job_params
         params.require(:job).permit(
-          :title,
+          :name,
+          :title, # Keep for backward compatibility during transition
+          :lot_number,
+          :street_number,
+          :street_name,
+          :street_type,
+          :suburb,
+          :postcode,
+          :state,
+          :council,
+          # Construction details
+          :level,
+          :dwelling_type,
           :contract_value,
           # live_profit and profit_percentage are calculated fields, not user-editable
           :stage,
@@ -555,7 +1101,41 @@ module Api
           :design_name,
           :job_type_id,
           :job_status_id,
-          :job_stage_id
+          :job_stage_id,
+          # Contract fields
+          :plan_number,
+          :contract_price,
+          :deposit,
+          :prime_cost,
+          :provisional_sums,
+          :external_sales_fee,
+          :contract_date,
+          # Build schedule
+          :build_period,
+          :construction_days,
+          :stage_slab,
+          :stage_frame,
+          :stage_enclosed,
+          :stage_fixing,
+          :stage_practical,
+          :stage_weather,
+          :weekend_work,
+          # Contract terms (Items 13 & 14)
+          :liquidated_damages,
+          :certification_by_owner,
+          # Item 12: Finance Approval
+          :finance_approval_required,
+          :finance_approval_date,
+          # Item 15: Prime Cost/Provisional Sums details and Special Conditions
+          :prime_cost_details,
+          :provisional_sums_details,
+          :has_special_conditions,
+          :special_conditions,
+          # Important dates
+          :plan_date,
+          :spec_date,
+          :practical_completion_date,
+          :warranty_end_date
         )
       end
 
@@ -581,18 +1161,19 @@ module Api
       # Serialize job for pipeline view (lightweight version)
       def pipeline_job_to_json(job)
         # Get primary client contact
-        client_contact = job.job_contacts.find { |jc| jc.role == 'client' }&.contact
+        client_contact = job.job_contacts.find { |jc| jc.role == "client" }&.contact
 
         {
           id: job.id,
           title: job.title,
           location: job.location,
-          contract_value: job.contract_value || 0,
+          # SSoT: contract_price is THE ONE
+          contract_value: job.contract_price || 0,
           job_type: job.job_type&.name,
           job_status: job.job_status&.name,
           job_stage: job.job_stage&.name,
           job_stage_id: job.job_stage_id,
-          client_name: client_contact&.full_name,
+          client_name: client_contact&.display_name,
           client_email: client_contact&.email,
           client_company: client_contact&.company_name_or_trust,
           created_at: job.created_at,
@@ -601,40 +1182,29 @@ module Api
       end
 
       def instantiate_schedule_template(template_id)
-        # Find the template
-        template = ScheduleTemplate.find_by(id: template_id)
+        # Use SmScheduleMasterTemplate (THE ONE template system - SSoT)
+        template = SmScheduleMasterTemplate.find_by(id: template_id)
         unless template
           Rails.logger.warn("Template #{template_id} not found for job #{@job.id}")
           return { success: false, error: "Template not found" }
         end
 
-        # Get or create the project for this job
-        # The project is needed for the template instantiation service
-        project = @job.project
-        unless project
-          # Create a project using the job's helper method
-          project = @job.create_project!(
-            project_manager: current_user,
-            name: "#{@job.title} - Master Schedule"
-          )
-        end
-
-        # Instantiate the template using the service
-        result = Schedule::TemplateInstantiator.new(
-          project: project,
-          template: template
-        ).call
+        # Use SmScheduleMasterTemplateCopyService (THE ONE template copy service - SSoT)
+        result = SmScheduleMasterTemplateCopyService.new(template, @job, {
+          start_date: Date.current,
+          user: current_user
+        }).execute
 
         if result[:success]
           Rails.logger.info("Successfully instantiated template #{template.name} for job #{@job.id}")
           {
             success: true,
             template_name: template.name,
-            tasks_created: result[:tasks].count,
-            project_id: project.id
+            tasks_created: result[:tasks]&.count || 0,
+            tasks_needing_pos: result[:tasks_needing_pos] || []
           }
         else
-          Rails.logger.error("Failed to instantiate template: #{result[:errors].join(', ')}")
+          Rails.logger.error("Failed to instantiate template: #{result[:errors]&.join(', ')}")
           {
             success: false,
             errors: result[:errors]

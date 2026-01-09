@@ -18,7 +18,7 @@ class AddCategoryToDocumentationEntries < ActiveRecord::Migration[8.0]
 
     # Add index for performance
     add_index :documentation_entries, :category
-    add_index :documentation_entries, [:category, :chapter_number]
+    add_index :documentation_entries, [ :category, :chapter_number ]
 
     # Migrate Bible rules to documentation_entries
     execute <<-SQL
@@ -55,7 +55,7 @@ class AddCategoryToDocumentationEntries < ActiveRecord::Migration[8.0]
 
     # Remove indexes
     remove_index :documentation_entries, :category
-    remove_index :documentation_entries, [:category, :chapter_number]
+    remove_index :documentation_entries, [ :category, :chapter_number ]
 
     # Remove column
     remove_column :documentation_entries, :category

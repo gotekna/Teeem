@@ -4,26 +4,22 @@ import * as React from "react";
 import {
   Sheet,
   SheetContent,
-  SheetHeader,
-  SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import {
   FileText,
   ExternalLink,
   Maximize2,
-  Loader2,
   X,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 interface CompanyDocument {
   id: number | string;
-  title?: string;
-  display_title?: string;
   file_name?: string;
+  display_name?: string;
   file_url?: string;
   file_size?: number;
   folder?: string;
@@ -31,7 +27,14 @@ interface CompanyDocument {
   financial_years?: number[] | string;
   source?: string;
   company?: { id: number; name: string; code: string };
-  onedrive_file_id?: string;
+  sharepoint_file_id?: string;
+  // Confidence scores (0-100)
+  ocr_confidence?: number;
+  ocr_method?: string; // 'text_extraction' | 'vision'
+  ai_confidence_score?: number;
+  ai_verification_status?: string;
+  human_confidence?: number;
+  user_validated_at?: string;
 }
 
 interface DocumentSidePanelProps {
@@ -55,7 +58,7 @@ export default function DocumentSidePanel({
   // Fetch embeddable preview URL for OneDrive files
   React.useEffect(() => {
     const fetchPreviewUrl = async () => {
-      if (!document?.onedrive_file_id || !open) {
+      if (!document?.sharepoint_file_id || !open) {
         setPreviewUrl(null);
         return;
       }
@@ -70,17 +73,17 @@ export default function DocumentSidePanel({
           error?: string;
         }>(`/api/v1/company_documents/${document.id}/preview`);
 
-        if (response.success && response.preview_url) {
+        if (response?.success && response.preview_url) {
           setPreviewUrl(response.preview_url);
         } else {
           setPreviewError(response.error || "Preview not available");
           setPreviewUrl(null);
         }
-      } catch (error: unknown) {
+      } catch (_error: unknown) {
         // Don't log OneDrive credential errors - expected in local dev
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage = _error instanceof Error ? _error.message : String(_error);
         if (!errorMessage.includes("OneDrive credentials not available")) {
-          console.error("Failed to fetch preview URL:", error);
+          console.error("Failed to fetch preview URL:", _error);
         }
         setPreviewError("Preview not available");
         setPreviewUrl(null);
@@ -90,11 +93,11 @@ export default function DocumentSidePanel({
     };
 
     fetchPreviewUrl();
-  }, [document?.id, document?.onedrive_file_id, open]);
+  }, [document?.id, document?.sharepoint_file_id, open]);
 
   if (!document) return null;
 
-  const fileName = document.file_name || document.title || "Document";
+  const fileName = document.file_name || "Document";
   const fileExtension = fileName.split(".").pop()?.toLowerCase() || "";
   const fileType = ["pdf"].includes(fileExtension)
     ? "pdf"
@@ -119,7 +122,7 @@ export default function DocumentSidePanel({
           <div className="flex items-center justify-between p-4 border-b bg-background">
             <div className="flex-1 min-w-0 mr-4">
               <h3 className="font-semibold text-sm truncate">{fileName}</h3>
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
                 {document.folder && (
                   <Badge variant="outline" className="text-xs">
                     {document.folder}
@@ -130,6 +133,72 @@ export default function DocumentSidePanel({
                     {document.source}
                   </Badge>
                 )}
+                {/* OCR Confidence Badge */}
+                {document.ocr_confidence != null ? (
+                  <Badge
+                    variant="outline"
+                    className={`text-xs font-medium ${
+                      document.ocr_confidence >= 90
+                        ? "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-700"
+                        : document.ocr_confidence >= 70
+                        ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-600"
+                        : "bg-blue-50/50 text-blue-600 border-blue-200 dark:bg-blue-900/10 dark:text-blue-300 dark:border-blue-500"
+                    }`}
+                    title={`OCR text extraction confidence (${document.ocr_method || 'unknown'})`}
+                  >
+                    OCR {Math.round(document.ocr_confidence)}%
+                  </Badge>
+                ) : document.ocr_method === "vision" ? (
+                  <Badge
+                    variant="outline"
+                    className="text-xs font-medium bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-700"
+                    title="Document processed using AI vision (no text extraction)"
+                  >
+                    OCR Vision
+                  </Badge>
+                ) : null}
+
+                {/* AI Classification Confidence Badge */}
+                {document.ai_confidence_score != null && (
+                  <Badge
+                    variant="outline"
+                    className={`text-xs font-medium ${
+                      document.ai_confidence_score >= 90
+                        ? "bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-700"
+                        : document.ai_confidence_score >= 70
+                        ? "bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-700"
+                        : "bg-red-100 text-red-800 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-700"
+                    }`}
+                    title="AI classification confidence score"
+                  >
+                    AI {Math.round(document.ai_confidence_score)}%
+                  </Badge>
+                )}
+
+                {/* Human Validation Confidence Badge */}
+                {document.human_confidence != null ? (
+                  <Badge
+                    variant="outline"
+                    className={`text-xs font-medium ${
+                      document.human_confidence >= 90
+                        ? "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700"
+                        : document.human_confidence >= 70
+                        ? "bg-teal-100 text-teal-800 border-teal-300 dark:bg-teal-900/30 dark:text-teal-400 dark:border-teal-700"
+                        : "bg-cyan-100 text-cyan-800 border-cyan-300 dark:bg-cyan-900/30 dark:text-cyan-400 dark:border-cyan-700"
+                    }`}
+                    title="Human validation confidence score"
+                  >
+                    Human {Math.round(document.human_confidence)}%
+                  </Badge>
+                ) : document.user_validated_at ? (
+                  <Badge
+                    variant="outline"
+                    className="text-xs font-medium bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700"
+                    title="Validated by human"
+                  >
+                    Human ✓
+                  </Badge>
+                ) : null}
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -167,7 +236,7 @@ export default function DocumentSidePanel({
           >
             {previewLoading ? (
               <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                <Loader2 className="h-12 w-12 animate-spin mb-4" />
+                <Spinner size={48} className="mb-4" />
                 <p className="text-sm">Loading preview...</p>
               </div>
             ) : previewUrl ? (
@@ -177,7 +246,7 @@ export default function DocumentSidePanel({
                 title="Document Preview"
                 allow="fullscreen"
               />
-            ) : fileType === "pdf" && document.file_url && !document.onedrive_file_id ? (
+            ) : fileType === "pdf" && document.file_url && !document.sharepoint_file_id ? (
               <iframe
                 src={document.file_url}
                 className="w-full h-full border-0"
@@ -198,8 +267,8 @@ export default function DocumentSidePanel({
                   {previewError || "Preview not available"}
                 </p>
                 <p className="text-sm text-center mb-4">
-                  {document.onedrive_file_id
-                    ? "Could not load OneDrive preview"
+                  {document.sharepoint_file_id
+                    ? "Could not load SharePoint preview"
                     : "This file type cannot be previewed inline"}
                 </p>
                 <div className="flex gap-2">

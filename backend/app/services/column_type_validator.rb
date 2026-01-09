@@ -58,21 +58,21 @@ class ColumnTypeValidator
       str_value = value.to_s
 
       case column_type&.to_s
-      when 'email'
+      when "email"
         unless str_value.match?(EMAIL_REGEX)
           return "must be a valid email address"
         end
 
-      when 'phone', 'mobile'
+      when "phone", "mobile"
         unless str_value.match?(PHONE_REGEX)
           return "contains invalid characters"
         end
-        digit_count = str_value.gsub(/\D/, '').length
+        digit_count = str_value.gsub(/\D/, "").length
         if digit_count > 0 && digit_count < 8
           return "must have at least 8 digits"
         end
 
-      when 'url'
+      when "url"
         begin
           uri = URI.parse(str_value)
           unless uri.is_a?(URI::HTTP) || uri.is_a?(URI::HTTPS)
@@ -82,7 +82,7 @@ class ColumnTypeValidator
           return "must be a valid URL"
         end
 
-      when 'whole_number'
+      when "whole_number"
         unless str_value.match?(/\A-?\d+\z/)
           return "must be a whole number"
         end
@@ -90,17 +90,15 @@ class ColumnTypeValidator
           return "must be 0 or greater"
         end
 
-      when 'number', 'currency'
+      when "number", "currency"
+        # Note: Currency and number can be negative (e.g., variances, refunds, credits)
         begin
-          num = Float(str_value)
-          if num < 0
-            return "must be 0 or greater"
-          end
+          Float(str_value)
         rescue ArgumentError
           return "must be a number"
         end
 
-      when 'percentage'
+      when "percentage"
         begin
           num = Float(str_value)
           if num < 0 || num > 100
@@ -110,47 +108,47 @@ class ColumnTypeValidator
           return "must be a number"
         end
 
-      when 'gps_coordinates'
+      when "gps_coordinates"
         unless str_value.match?(GPS_REGEX)
           return "must be in format: latitude,longitude"
         end
 
-      when 'color_picker'
+      when "color_picker"
         unless str_value.match?(HEX_COLOR_REGEX)
           return "must be a valid hex color (e.g., #FF0000)"
         end
 
-      when 'abn'
-        digits = str_value.gsub(/\s/, '')
+      when "abn"
+        digits = str_value.gsub(/\s/, "")
         unless digits.match?(/\A\d{11}\z/)
           return "must be 11 digits"
         end
 
-      when 'acn'
-        digits = str_value.gsub(/\s/, '')
+      when "acn"
+        digits = str_value.gsub(/\s/, "")
         unless digits.match?(/\A\d{9}\z/)
           return "must be 9 digits"
         end
 
-      when 'bsb'
-        digits = str_value.gsub(/[\s\-]/, '')
+      when "bsb"
+        digits = str_value.gsub(/[\s\-]/, "")
         unless digits.match?(/\A\d{6}\z/)
           return "must be 6 digits"
         end
 
-      when 'bank_account'
-        digits = str_value.gsub(/[\s\-]/, '')
+      when "bank_account"
+        digits = str_value.gsub(/[\s\-]/, "")
         unless digits.match?(/\A\d{6,10}\z/)
           return "must be 6-10 digits"
         end
 
-      when 'postcode'
+      when "postcode"
         unless str_value.match?(/\A\d{4}\z/)
           return "must be 4 digits"
         end
 
-      when 'tfn'
-        digits = str_value.gsub(/\s/, '')
+      when "tfn"
+        digits = str_value.gsub(/\s/, "")
         unless digits.match?(/\A\d{8,9}\z/)
           return "must be 8-9 digits"
         end
@@ -165,13 +163,13 @@ class ColumnTypeValidator
       return value if value.blank?
 
       case column_type&.to_s
-      when 'phone', 'mobile'
+      when "phone", "mobile"
         format_australian_phone(value)
-      when 'bsb'
+      when "bsb"
         format_bsb(value)
-      when 'abn'
+      when "abn"
         format_abn(value)
-      when 'acn'
+      when "acn"
         format_acn(value)
       else
         value
@@ -182,15 +180,15 @@ class ColumnTypeValidator
     def format_australian_phone(number)
       return number if number.blank?
 
-      digits = number.to_s.gsub(/\D/, '')
+      digits = number.to_s.gsub(/\D/, "")
 
       # Australian mobile (10 digits starting with 04)
-      if digits.length == 10 && digits.start_with?('04')
+      if digits.length == 10 && digits.start_with?("04")
         return "#{digits[0..3]} #{digits[4..6]} #{digits[7..9]}"
       end
 
       # Australian landline (10 digits starting with 0)
-      if digits.length == 10 && digits.start_with?('0')
+      if digits.length == 10 && digits.start_with?("0")
         return "#{digits[0..1]} #{digits[2..5]} #{digits[6..9]}"
       end
 
@@ -205,7 +203,7 @@ class ColumnTypeValidator
     # Format BSB: XXX-XXX
     def format_bsb(value)
       return value if value.blank?
-      digits = value.to_s.gsub(/\D/, '')
+      digits = value.to_s.gsub(/\D/, "")
       return value unless digits.length == 6
       "#{digits[0..2]}-#{digits[3..5]}"
     end
@@ -213,7 +211,7 @@ class ColumnTypeValidator
     # Format ABN: XX XXX XXX XXX
     def format_abn(value)
       return value if value.blank?
-      digits = value.to_s.gsub(/\D/, '')
+      digits = value.to_s.gsub(/\D/, "")
       return value unless digits.length == 11
       "#{digits[0..1]} #{digits[2..4]} #{digits[5..7]} #{digits[8..10]}"
     end
@@ -221,7 +219,7 @@ class ColumnTypeValidator
     # Format ACN: XXX XXX XXX
     def format_acn(value)
       return value if value.blank?
-      digits = value.to_s.gsub(/\D/, '')
+      digits = value.to_s.gsub(/\D/, "")
       return value unless digits.length == 9
       "#{digits[0..2]} #{digits[3..5]} #{digits[6..8]}"
     end
