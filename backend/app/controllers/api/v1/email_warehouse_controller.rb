@@ -697,9 +697,10 @@ class Api::V1::EmailWarehouseController < ApplicationController
   # Creates a contact from the email sender and links it to the email
   # Reuses EmailToContactExtractionService for company suggestion and creation
   def quick_create_contact
-    # Check if contact already exists with this email
-    existing = Contact.find_by(email: @email.from_email)
-    if existing
+    # Check if contact already exists with this email (emails stored in ContactEmail model)
+    contact_email = ContactEmail.find_by(email: @email.from_email&.downcase)
+    if contact_email
+      existing = contact_email.contact
       # Just link it if not already linked
       current_ids = @email.contact_ids || []
       unless current_ids.include?(existing.id)
@@ -713,7 +714,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
 
       return render json: {
         success: true,
-        contact: existing.as_json(only: [ :id, :display_name, :email ]),
+        contact: existing.as_json(only: [ :id, :display_name ]).merge(email: contact_email.email),
         message: "Contact already exists, linked to email",
         already_existed: true
       }
