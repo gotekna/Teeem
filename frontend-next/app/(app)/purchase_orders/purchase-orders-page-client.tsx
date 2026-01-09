@@ -39,7 +39,7 @@ export default function PurchaseOrdersPageClient({
   return (
     <TablePage>
       <TeeemTableView
-        foundationId="purchase_orders"
+        foundationId="purchase-orders"
         tableName="Purchase Orders"
         enableExport
         onRowClick={handleRowClick}

@@ -10,7 +10,7 @@ import PurchaseOrdersPageClient from "./purchase-orders-page-client";
  */
 export default async function PurchaseOrdersPage() {
   // Fetch first 20 records on server for fast LCP
-  const { columns, records, hasMore } = await fetchFoundationForSSR("purchase_orders", {
+  const { columns, records, hasMore } = await fetchFoundationForSSR("purchase-orders", {
     limit: 20,
   });
 
