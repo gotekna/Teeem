@@ -3,8 +3,8 @@ class ContactPhone < ApplicationRecord
 
   PHONE_TYPES = %w[mobile office fax home].freeze
 
-  # Explicit presence validation (also enforced by belongs_to in Rails 5+)
-  validates :contact_id, presence: true
+  # NOTE: contact_id presence validation removed - belongs_to validates automatically
+  # and handles nested attributes correctly (doesn't validate until parent is saved)
   validates :phone_number, presence: true
   validates :phone_type, presence: true, inclusion: { in: PHONE_TYPES }
   validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }

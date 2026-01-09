@@ -1,8 +1,8 @@
 class ContactEmail < ApplicationRecord
   belongs_to :contact
 
-  # Explicit presence validation (also enforced by belongs_to in Rails 5+)
-  validates :contact_id, presence: true
+  # NOTE: contact_id presence validation removed - belongs_to validates automatically
+  # and handles nested attributes correctly (doesn't validate until parent is saved)
   validates :email, presence: true, format: { with: URI::MailTo::EMAIL_REGEXP }
   validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
 
