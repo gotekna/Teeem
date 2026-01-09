@@ -245,16 +245,20 @@ class EmailToContactExtractionService
           phones = selection[:phones] || {}
 
           # Create contact
-          contact = Contact.create!(
-            email: normalize_email(selection[:email]),
+          contact = Contact.new(
             first_name: parsed_name[:first_name],
             last_name: parsed_name[:last_name],
             entity_type: selection[:entity_type] || "person",
             primary_company_id: company_id,
-            mobile_phone: phones[:mobile],
-            office_phone: phones[:office] || phones[:direct],
             is_active: true
           )
+
+          # Use setter methods for email and phones (writes to contact_emails/contact_phones tables)
+          contact.email = normalize_email(selection[:email])
+          contact.mobile_phone = phones[:mobile] if phones[:mobile].present?
+          contact.office_phone = phones[:office] || phones[:direct] if (phones[:office] || phones[:direct]).present?
+
+          contact.save!
 
           created_contacts << {
             id: contact.id,
