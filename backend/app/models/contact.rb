@@ -1510,6 +1510,10 @@ class Contact < ApplicationRecord
     # Initial sync: if company_name_or_trust is blank but display_name exists
     elsif company_name_or_trust.blank? && display_name.present?
       self.company_name_or_trust = display_name
+    # Fix existing mismatch: if display_name doesn't match company_name_or_trust, sync it
+    # This catches legacy data where the sync didn't run due to case-sensitivity bug
+    elsif company_name_or_trust.present? && display_name != company_name_or_trust
+      self.display_name = company_name_or_trust
     end
   end
 
