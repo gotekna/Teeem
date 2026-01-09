@@ -327,16 +327,105 @@ class Contact < ApplicationRecord
     primary_email
   end
 
+  def email=(value)
+    return if value.blank?
+
+    # Find existing email record (persisted or built)
+    existing = contact_emails.find { |e| e.is_primary } || contact_emails.first
+
+    if existing
+      # Update existing record (works for both persisted and built records)
+      existing.email = value
+    else
+      # Build new email record (will be saved when contact is saved)
+      contact_emails.build(
+        email: value,
+        is_primary: true,
+        label: 'Primary',
+        position: 0
+      )
+    end
+    clear_email_cache!
+  end
+
   def mobile_phone
     primary_mobile
+  end
+
+  def mobile_phone=(value)
+    return if value.blank?
+
+    # Find existing mobile phone record (persisted or built)
+    existing = contact_phones.find { |p| p.phone_type == 'mobile' }
+
+    if existing
+      # Update existing record (works for both persisted and built records)
+      existing.phone_number = value
+    else
+      # Build new phone record (will be saved when contact is saved)
+      contact_phones.build(
+        phone_number: value,
+        phone_type: 'mobile',
+        is_primary: true,
+        label: 'Mobile',
+        position: 0
+      )
+    end
+    clear_phone_cache!
   end
 
   def office_phone
     primary_office_phone
   end
 
+  def office_phone=(value)
+    return if value.blank?
+
+    # Find existing office phone record (persisted or built)
+    existing = contact_phones.find { |p| p.phone_type == 'office' }
+
+    if existing
+      # Update existing record (works for both persisted and built records)
+      existing.phone_number = value
+    else
+      # Office phone is not primary if mobile exists
+      has_mobile = contact_phones.any? { |p| p.phone_type == 'mobile' }
+      # Build new phone record (will be saved when contact is saved)
+      contact_phones.build(
+        phone_number: value,
+        phone_type: 'office',
+        is_primary: !has_mobile,
+        label: 'Office',
+        position: has_mobile ? 1 : 0
+      )
+    end
+    clear_phone_cache!
+  end
+
   def fax_phone
     primary_fax
+  end
+
+  def fax_phone=(value)
+    return if value.blank?
+
+    # Find existing fax phone record (persisted or built)
+    existing = contact_phones.find { |p| p.phone_type == 'fax' }
+
+    if existing
+      # Update existing record (works for both persisted and built records)
+      existing.phone_number = value
+    else
+      # Build new phone record (will be saved when contact is saved)
+      contact_phones.build(
+        phone_number: value,
+        phone_type: 'fax',
+        is_primary: false,
+        label: 'Fax',
+        position: 2
+      )
+    end
+    clear_phone_cache!
   end
 
   # Xero-synced accounting fields - READ ONLY in TEEEM (synced from Xero)
