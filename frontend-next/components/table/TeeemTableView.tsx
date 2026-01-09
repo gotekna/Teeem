@@ -4318,7 +4318,7 @@ export default function TeeemTableView({
     const currentColLabel = COLUMNS.find((c) => c.key === currentColKey)?.label || currentColKey;
     const result: React.ReactNode[] = [];
 
-    // Sort groups alphabetically by display name
+    // Sort groups by custom order (if defined) or alphabetically by display name
     // "(Empty)" group always goes last (SSoT: all null/undefined values use "(Empty)")
     const isEmptyGroup = (key: string) => key === "(Empty)";
     const isGroupingByCompany = currentColKey?.includes('company') || currentColKey?.includes('employer');
@@ -4326,11 +4326,26 @@ export default function TeeemTableView({
     // Collect all group keys to filter companies from "No Employees Assigned" group
     const groupKeysAtRoot = new Set(Object.keys(groups));
 
+    // Check if there's a custom sort order for the current groupBy column
+    const customSortForGroup = sortColumns.find(
+      (s) => s.column === currentColKey && s.dir === 'custom' && s.customOrder && s.customOrder.length > 0
+    );
+
     const sortedGroupEntries = Object.entries(groups).sort(([keyA], [keyB]) => {
       if (isEmptyGroup(keyA)) return 1;
       if (isEmptyGroup(keyB)) return -1;
       const displayA = combinedDisplayMap.get(`${currentColKey}:${keyA}`) || combinedDisplayMap.get(keyA) || keyA;
       const displayB = combinedDisplayMap.get(`${currentColKey}:${keyB}`) || combinedDisplayMap.get(keyB) || keyB;
+
+      // Use custom order if defined for this column
+      if (customSortForGroup?.customOrder) {
+        const aIndex = customSortForGroup.customOrder.indexOf(displayA);
+        const bIndex = customSortForGroup.customOrder.indexOf(displayB);
+        const aPos = aIndex === -1 ? customSortForGroup.customOrder.length : aIndex;
+        const bPos = bIndex === -1 ? customSortForGroup.customOrder.length : bIndex;
+        return aPos - bPos;
+      }
+
       return naturalCompare(displayA, displayB);
     });
 
@@ -4622,9 +4637,15 @@ export default function TeeemTableView({
     // Collect all group keys at depth 0 to filter companies from "(Empty)"
     const groupKeysAtRoot = allGroupKeys || new Set(Object.keys(groups));
 
-    // Sort groups alphabetically by display name
+    // Sort groups by custom order (if defined) or alphabetically by display name
     // "(Empty)" group always goes last (SSoT: all null/undefined values use "(Empty)")
     const isEmptyGroup = (key: string) => key === "(Empty)";
+
+    // Check if there's a custom sort order for the current groupBy column
+    const customSortForGroup = sortColumns.find(
+      (s) => s.column === currentColKey && s.dir === 'custom' && s.customOrder && s.customOrder.length > 0
+    );
+
     const sortedGroupEntries = Object.entries(groups).sort(([keyA], [keyB]) => {
       if (isEmptyGroup(keyA)) return 1;
       if (isEmptyGroup(keyB)) return -1;
@@ -4632,6 +4653,15 @@ export default function TeeemTableView({
       // Try prefixed key first (e.g., "primary_company_id:123"), then unprefixed, then raw key
       const displayA = combinedDisplayMap.get(`${currentColKey}:${keyA}`) || combinedDisplayMap.get(keyA) || keyA;
       const displayB = combinedDisplayMap.get(`${currentColKey}:${keyB}`) || combinedDisplayMap.get(keyB) || keyB;
+
+      // Use custom order if defined for this column
+      if (customSortForGroup?.customOrder) {
+        const aIndex = customSortForGroup.customOrder.indexOf(displayA);
+        const bIndex = customSortForGroup.customOrder.indexOf(displayB);
+        const aPos = aIndex === -1 ? customSortForGroup.customOrder.length : aIndex;
+        const bPos = bIndex === -1 ? customSortForGroup.customOrder.length : bIndex;
+        return aPos - bPos;
+      }
       return naturalCompare(displayA, displayB);
     });
 
