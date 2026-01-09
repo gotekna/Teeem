@@ -56,7 +56,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { api } from "@/lib/api";
 import { PAGE_SIZE_LIST } from "@/lib/constants/pagination-constants";
-import { formatDistanceToNow, format } from "date-fns";
+import { formatDistanceToNow, format, isToday, differenceInDays } from "date-fns";
 import { ComposeEmailModal } from "@/components/emails/ComposeEmailModal";
 import {
   SplitInboxTabs,
@@ -157,6 +157,27 @@ function decodeHtmlEntities(text: string | null | undefined): string {
   decoded = decoded.replace(/\s+/g, " ").trim();
 
   return decoded;
+}
+
+// Smart date formatter for email list:
+// - Today: Show time only (e.g., "2:35 PM")
+// - Last 7 days: Show day + time (e.g., "Thu 2:35 PM")
+// - Older: Show date only (e.g., "09/01/2026")
+function formatEmailDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const daysDiff = differenceInDays(now, date);
+
+  if (isToday(date)) {
+    // Today: just time
+    return format(date, "h:mm a");
+  } else if (daysDiff < 7) {
+    // Last 7 days: day + time
+    return format(date, "EEE h:mm a");
+  } else {
+    // Older: just date
+    return format(date, "dd/MM/yyyy");
+  }
 }
 
 interface Email {
@@ -394,7 +415,7 @@ const EmailListItem = memo(function EmailListItem({
                   "text-[10px] whitespace-nowrap shrink-0 group-hover:hidden",
                   !email.is_read ? "font-semibold text-muted-foreground" : "text-muted-foreground"
                 )}>
-                  {format(new Date(email.received_at), 'dd/MM/yyyy')}
+                  {formatEmailDate(email.received_at)}
                 </span>
               </div>
               <p className={cn(
@@ -463,7 +484,7 @@ const EmailListItem = memo(function EmailListItem({
                     "text-[10px] whitespace-nowrap shrink-0",
                     !threadEmail.is_read ? "font-semibold text-muted-foreground" : "text-muted-foreground"
                   )}>
-                    {format(new Date(threadEmail.received_at), "MMM d, h:mm a")}
+                    {formatEmailDate(threadEmail.received_at)}
                   </div>
                 </div>
               </div>
