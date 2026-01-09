@@ -75,8 +75,12 @@ export function useNotebookPage(pageId: number | null) {
           setLastSaved(new Date());
           setHasUnsavedChanges(false);
           pendingChangesRef.current = null;
-          // Update the cache
+          // Update the page cache
           queryClient.setQueryData(["notebook-page", id], response);
+          // If title changed, also invalidate the notebook cache so sidebar updates
+          if (changes.title && response.page.notebook?.id) {
+            queryClient.invalidateQueries({ queryKey: ["notebook", response.page.notebook.id] });
+          }
         }
       } catch (err) {
         console.error("Failed to save page:", err);
