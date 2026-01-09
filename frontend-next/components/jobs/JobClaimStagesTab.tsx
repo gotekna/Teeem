@@ -119,6 +119,7 @@ interface ClaimStage {
     date: string;
     due_date: string | null;
     fully_paid_date: string | null;
+    pending_push?: boolean;
   } | null;
 }
 
@@ -160,6 +161,7 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
   const [autoMatching, setAutoMatching] = React.useState(false);
   const [matchingStageId, setMatchingStageId] = React.useState<number | null>(null);
   const [creatingInvoiceId, setCreatingInvoiceId] = React.useState<number | null>(null);
+  const [sendingToClientId, setSendingToClientId] = React.useState<number | null>(null);
   const [generatingPdfId, setGeneratingPdfId] = React.useState<number | null>(null);
   const [releasingRetainageId, setReleasingRetainageId] = React.useState<number | null>(null);
   const [showMatchDialog, setShowMatchDialog] = React.useState(false);
@@ -308,7 +310,7 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
       if (response.success && response.data) {
         toast({
           title: "Invoice Created",
-          description: `Invoice ${response.data.invoice.invoice_number} created and synced to Xero`,
+          description: response.data.message || `Invoice ${response.data.invoice.invoice_number} created as draft`,
         });
         loadData();
       } else {
@@ -328,6 +330,54 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
       });
     } finally {
       setCreatingInvoiceId(null);
+    }
+  };
+
+  const handleSendToClient = async (stage: ClaimStage) => {
+    setSendingToClientId(stage.id);
+    try {
+      const response = await api.post<{
+        success: boolean;
+        data?: {
+          stage: ClaimStage;
+          invoice: { invoice_number: string };
+          message: string;
+        };
+        error?: string;
+      }>(`/api/v1/jobs/${jobId}/claim_stages/${stage.id}/send_to_client`, {});
+
+      if (!response) {
+        toast({
+          title: "Error",
+          description: "No response from server",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (response.success && response.data) {
+        toast({
+          title: "Invoice Sent",
+          description: response.data.message || `Invoice ${response.data.invoice.invoice_number} sent to Xero`,
+        });
+        loadData();
+      } else {
+        toast({
+          title: "Error",
+          description: response.error || "Failed to send invoice to Xero",
+          variant: "destructive",
+        });
+      }
+    } catch (error: unknown) {
+      console.error("Failed to send invoice to Xero:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to send invoice";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setSendingToClientId(null);
     }
   };
 
@@ -651,6 +701,11 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                                   {stage.invoice.invoice_number}
                                 </span>
                               )}
+                              {stage.invoice.pending_push && (
+                                <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800">
+                                  DRAFT
+                                </Badge>
+                              )}
                               {stage.invoice.reference && (
                                 <span className="text-xs text-muted-foreground">
                                   {stage.invoice.reference}
@@ -663,34 +718,53 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                             </div>
                           </div>
                           <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={() => handleGeneratePdf(stage)}
-                              disabled={generatingPdfId === stage.id}
-                              title="Generate Invoice PDF"
-                            >
-                              {generatingPdfId === stage.id ? (
-                                <Spinner size={16} />
-                              ) : (
-                                <FileDown className="h-4 w-4" />
-                              )}
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={() => handleUnmatch(stage.id)}
-                              disabled={matchingStageId === stage.id}
-                              title="Unmatch invoice"
-                            >
-                              {matchingStageId === stage.id ? (
-                                <Spinner size={16} />
-                              ) : (
-                                <Unlink className="h-4 w-4" />
-                              )}
-                            </Button>
+                            {stage.invoice.pending_push ? (
+                              <Button
+                                variant="default"
+                                size="sm"
+                                className="h-8"
+                                onClick={() => handleSendToClient(stage)}
+                                disabled={sendingToClientId === stage.id}
+                              >
+                                {sendingToClientId === stage.id ? (
+                                  <Spinner size={16} className="mr-1" />
+                                ) : (
+                                  <Send className="h-4 w-4 mr-1" />
+                                )}
+                                Send to Client
+                              </Button>
+                            ) : (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() => handleGeneratePdf(stage)}
+                                  disabled={generatingPdfId === stage.id}
+                                  title="Generate Invoice PDF"
+                                >
+                                  {generatingPdfId === stage.id ? (
+                                    <Spinner size={16} />
+                                  ) : (
+                                    <FileDown className="h-4 w-4" />
+                                  )}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() => handleUnmatch(stage.id)}
+                                  disabled={matchingStageId === stage.id}
+                                  title="Unmatch invoice"
+                                >
+                                  {matchingStageId === stage.id ? (
+                                    <Spinner size={16} />
+                                  ) : (
+                                    <Unlink className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </>
+                            )}
                           </div>
                         </div>
                       ) : (

@@ -9,12 +9,12 @@ class Api::V1::NotebookPageAttachmentsController < ApplicationController
   # GET /api/v1/notebook_pages/:page_id/attachments
   def index
     @attachments = @page.attachments.order(created_at: :desc)
-    render json: { attachments: @attachments.map { |a| attachment_json(a) } }
+    render json: { success: true, attachments: @attachments.map { |a| attachment_json(a) } }
   end
 
   # GET /api/v1/notebook_page_attachments/:id
   def show
-    render json: { attachment: attachment_json(@attachment) }
+    render json: { success: true, attachment: attachment_json(@attachment) }
   end
 
   # POST /api/v1/notebook_pages/:page_id/attachments
@@ -37,9 +37,9 @@ class Api::V1::NotebookPageAttachmentsController < ApplicationController
     @attachment.file.attach(uploaded_file)
 
     if @attachment.save
-      render json: { attachment: attachment_json(@attachment) }, status: :created
+      render json: { success: true, attachment: attachment_json(@attachment) }, status: :created
     else
-      render json: { errors: @attachment.errors.full_messages }, status: :unprocessable_entity
+      render json: { success: false, errors: @attachment.errors.full_messages }, status: :unprocessable_entity
     end
   end
 
@@ -91,7 +91,7 @@ class Api::V1::NotebookPageAttachmentsController < ApplicationController
     notebook = @page&.notebook || @attachment&.notebook
     return if notebook.nil?
 
-    unless notebook.can_edit?(current_user)
+    unless notebook.editable_by?(current_user)
       render json: { error: "Not authorized to edit" }, status: :forbidden
     end
   end

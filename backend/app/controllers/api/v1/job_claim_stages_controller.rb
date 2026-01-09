@@ -237,7 +237,7 @@ module Api
       end
 
       # POST /api/v1/jobs/:job_id/claim_stages/:id/create_invoice
-      # Create a sales invoice in TEEEM and sync to Xero
+      # Create a sales invoice as DRAFT in TEEEM (not synced to Xero yet)
       def create_invoice
         # Validate stage doesn't already have an invoice
         if @stage.external_invoice_id.present?
@@ -618,7 +618,8 @@ module Api
             status: invoice.status,
             date: invoice.invoice_date,
             due_date: invoice.due_date,
-            fully_paid_date: invoice.fully_paid_date
+            fully_paid_date: invoice.fully_paid_date,
+            pending_push: invoice.pending_push
           } : nil,
 
           created_at: stage.created_at,
