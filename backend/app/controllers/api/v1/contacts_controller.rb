@@ -695,13 +695,24 @@ module Api
       # POST /api/v1/contacts
 
       def create
+        Rails.logger.info "[ContactCreate] Received params: #{contact_params.inspect}"
+
         @contact = Contact.new(contact_params)
 
+        Rails.logger.info "[ContactCreate] Contact built, valid? #{@contact.valid?}"
+        Rails.logger.info "[ContactCreate] Validation errors: #{@contact.errors.full_messages}" unless @contact.valid?
+
         if @contact.save
+          Rails.logger.info "[ContactCreate] Contact saved successfully: #{@contact.id}"
           render json: { success: true, contact: @contact }, status: :created
         else
+          Rails.logger.error "[ContactCreate] Save failed: #{@contact.errors.full_messages.join(', ')}"
           render json: { success: false, errors: @contact.errors.full_messages }, status: :unprocessable_entity
         end
+      rescue StandardError => e
+        Rails.logger.error "[ContactCreate] Exception: #{e.class.name} - #{e.message}"
+        Rails.logger.error e.backtrace.first(10).join("\n")
+        render json: { success: false, error: "#{e.class.name}: #{e.message}" }, status: :internal_server_error
       end
 
       # PATCH /api/v1/contacts/:id
