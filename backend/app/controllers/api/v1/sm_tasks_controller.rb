@@ -35,7 +35,18 @@ module Api
         @tasks = @tasks.by_trade(params[:trade]) if params[:trade].present?
         @tasks = @tasks.active if params[:active_only] == "true"
         @tasks = @tasks.hold_tasks if params[:hold_tasks_only] == "true"
-        @tasks = @tasks.for_user_roles(current_user) if params[:mine] == "true"
+        # Mine filter: tasks assigned to user OR (optionally) tasks user is following
+        if params[:mine] == "true"
+          if params[:include_following] == "true"
+            # Get tasks user is assigned to OR tasks they're following
+            assigned_task_ids = SmTask.for_user_roles(current_user).pluck(:id)
+            following_task_ids = TaskFollower.where(user_id: current_user.id).pluck(:sm_task_id)
+            all_task_ids = (assigned_task_ids + following_task_ids).uniq
+            @tasks = @tasks.where(id: all_task_ids)
+          else
+            @tasks = @tasks.for_user_roles(current_user)
+          end
+        end
         @tasks = @tasks.where(assigned_user_id: nil, assigned_role: nil) if params[:unassigned] == "true"
         # Filter by specific user - shows all tasks they can work on (direct + role-based)
         if params[:for_user_id].present?

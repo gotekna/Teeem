@@ -157,6 +157,7 @@ export interface TaskFilters {
   showMyTasksOnly: boolean;
   showOverdueOnly: boolean;
   selectedUserId: number | 'unassigned' | null;
+  includeFollowing: boolean;
 }
 
 export interface UserTaskCount {
@@ -264,6 +265,7 @@ const defaultFilters: TaskFilters = {
   showMyTasksOnly: false,
   showOverdueOnly: false,
   selectedUserId: null,
+  includeFollowing: false,
 };
 
 // Mock data for development testing - DISABLED to avoid confusion with real data
@@ -712,6 +714,10 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
       // Filter by assigned_role matching user's roles (backend handles this)
       if (filters.showMyTasksOnly || activeView === 'my-tasks') {
         params.append('mine', 'true');
+        // Include tasks user is following
+        if (filters.includeFollowing) {
+          params.append('include_following', 'true');
+        }
       }
 
       // Filter by selected user in "All" dropdown
@@ -747,7 +753,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     } finally {
       setLoading(false);
     }
-  }, [filters.jobIds, filters.statuses, filters.showMyTasksOnly, filters.selectedUserId, activeView]);
+  }, [filters.jobIds, filters.statuses, filters.showMyTasksOnly, filters.selectedUserId, filters.includeFollowing, activeView]);
 
   // Initial load
   useEffect(() => {

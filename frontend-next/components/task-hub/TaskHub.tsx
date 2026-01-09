@@ -27,7 +27,9 @@ import {
   X,
   Workflow,
   ChevronDown,
+  Eye,
 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { BoardView } from './views/BoardView';
 import { ListView } from './views/ListView';
 import { MyTasksView } from './views/MyTasksView';
@@ -164,6 +166,24 @@ export function TaskHub() {
             <User className="h-3 w-3 mr-1" />
             Mine
           </TabsTrigger>
+          {/* Include Following checkbox - only show when on Mine tab */}
+          {activeView === 'my-tasks' && (
+            <div className="flex items-center gap-1.5 ml-2 px-2 border-l">
+              <Checkbox
+                id="include-following"
+                checked={filters.includeFollowing}
+                onCheckedChange={(checked) => setFilters({ includeFollowing: !!checked })}
+                className="h-3.5 w-3.5"
+              />
+              <label
+                htmlFor="include-following"
+                className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1"
+              >
+                <Eye className="h-3 w-3" />
+                Following
+              </label>
+            </div>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
