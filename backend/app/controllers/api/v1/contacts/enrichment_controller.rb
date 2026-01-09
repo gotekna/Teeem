@@ -151,8 +151,8 @@ module Api
 
           # FIRST: Check if any existing contacts with this domain already have a company
           # This is faster and prevents duplicate companies
-          existing_contact_with_company = Contact.joins(:primary_company)
-                                                 .where("contacts.email LIKE ?", "%@#{domain}")
+          existing_contact_with_company = Contact.joins(:primary_company, :contact_emails)
+                                                 .where("contact_emails.email LIKE ?", "%@#{domain}")
                                                  .where.not(id: @contact.id)
                                                  .includes(:primary_company)
                                                  .first
