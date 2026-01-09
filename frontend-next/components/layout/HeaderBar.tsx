@@ -317,6 +317,18 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             </div>
           </Link>
 
+          {/* TeeemXL - Excel Tools */}
+          <Link prefetch={false}
+            href="/admin/system/teeem-xl"
+            className="p-1.5 text-gray-400 hover:text-green-500 dark:hover:text-green-400 rounded-md"
+            title="TeeemXL - Excel Tools"
+          >
+            <span className="sr-only">TeeemXL</span>
+            <div className="h-4 w-4 flex items-center justify-center font-bold text-[8px] border border-current rounded bg-current/5">
+              XL
+            </div>
+          </Link>
+
           {/* Workflow Tasks */}
           <Link prefetch={false}
             href="/tasks/workflow"

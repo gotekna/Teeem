@@ -76,7 +76,10 @@ module TeeemXl
           # row_num is actually a cell reference like "A1"
           current_worksheet.cell(row_num)&.value
         else
-          current_worksheet.cell(row_num, col_num - 1)&.value # Convert 1-based to 0-based col
+          # Convert row/col numbers to cell reference (e.g., 1, 1 -> "A1")
+          col_letter = index_to_column(col_num - 1) # Convert 1-based to 0-based
+          reference = "#{col_letter}#{row_num}"
+          current_worksheet.cell(reference)&.value
         end
       end
 
@@ -108,6 +111,18 @@ module TeeemXl
 
       def current_worksheet
         @workbook.sheets.find { |s| s.name == @current_sheet_name } || @workbook.first_sheet
+      end
+
+      # Convert 0-based column index to Excel column letter (0 -> A, 25 -> Z, 26 -> AA)
+      def index_to_column(index)
+        result = ""
+        n = index + 1
+        while n > 0
+          n -= 1
+          result = ((n % 26) + 65).chr + result
+          n /= 26
+        end
+        result
       end
     end
 

@@ -12,7 +12,7 @@
 #
 class UniversalDocumentReader
   SUPPORTED_TYPES = {
-    excel: %w[xlsx xls csv].freeze,
+    excel: %w[xlsx csv].freeze, # XLS deprecated
     word: %w[docx doc].freeze,
     pdf: %w[pdf].freeze,
     image: %w[png jpg jpeg gif webp].freeze
@@ -217,7 +217,7 @@ class UniversalDocumentReader
   end
 
   def open_spreadsheet
-    Roo::Spreadsheet.open(file_path, extension: extension.to_sym)
+    TeeemXl::SpreadsheetAdapter.open(file_path, extension: extension)
   end
 
   def open_word_document

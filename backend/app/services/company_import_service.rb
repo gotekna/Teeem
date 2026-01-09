@@ -8,7 +8,7 @@ class CompanyImportService
 
   def initialize(file_path)
     @file_path = file_path
-    @spreadsheet = Roo::Spreadsheet.open(file_path)
+    @spreadsheet = TeeemXl::SpreadsheetAdapter.open(file_path)
     @import_log = []
     @errors = []
   end

@@ -66,7 +66,7 @@ class AsicConnectService
     case extension
     when ".pdf"
       parse_pdf_extract(file_path)
-    when ".xlsx", ".xls"
+    when ".xlsx"
       parse_excel_extract(file_path)
     else
       { success: false, error: "Unsupported file type: #{extension}" }
@@ -115,13 +115,11 @@ class AsicConnectService
   end
 
   def parse_excel_extract(file_path)
-    require "roo"
-
     begin
-      xlsx = Roo::Spreadsheet.open(file_path)
-      sheet = xlsx.sheet(0) # First sheet
+      xlsx = TeeemXl::SpreadsheetAdapter.open(file_path)
+      xlsx.sheet(xlsx.sheets.first) # First sheet
 
-      directors = extract_directors_from_spreadsheet(sheet)
+      directors = extract_directors_from_spreadsheet(xlsx)
 
       {
         success: true,

@@ -1,5 +1,3 @@
-require "roo"
-
 class PriceHistoryImportService
   attr_reader :file_path, :errors, :warnings, :effective_date_override
 
@@ -33,7 +31,7 @@ class PriceHistoryImportService
     return { success: false, errors: @errors } unless validate_file
 
     begin
-      spreadsheet = Roo::Spreadsheet.open(@file_path)
+      spreadsheet = TeeemXl::SpreadsheetAdapter.open(@file_path)
 
       # Parse headers
       headers = parse_headers(spreadsheet)
@@ -65,8 +63,8 @@ class PriceHistoryImportService
     end
 
     extension = File.extname(@file_path).downcase
-    unless [ ".csv", ".xlsx", ".xls" ].include?(extension)
-      @errors << "Invalid file format. Please upload CSV or Excel files only."
+    unless [ ".csv", ".xlsx" ].include?(extension)
+      @errors << "Invalid file format. Please upload CSV or Excel (.xlsx) files only."
       return false
     end
 

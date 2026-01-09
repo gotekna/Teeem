@@ -108,48 +108,36 @@ rescue => e
   puts e.backtrace.first(5).join("\n")
 end
 
-# Test 3: Compare with existing library (Roo)
-puts "\n[Test 3] Compare with Roo (current library)..."
+# Test 3: Test SpreadsheetAdapter (Roo-compatible API)
+puts "\n[Test 3] Test SpreadsheetAdapter (Roo-compatible API)..."
 if File.exist?(test_file)
   begin
-    require 'roo'
+    # Use SpreadsheetAdapter (Roo-compatible interface)
+    adapter = TeeemXl::SpreadsheetAdapter.open(test_file)
 
-    # Read with Roo
-    roo_workbook = Roo::Spreadsheet.open(test_file)
-    roo_sheets = roo_workbook.sheets
+    puts "  ✓ SpreadsheetAdapter opened file successfully"
+    puts "  ✓ Sheets: #{adapter.sheets.join(', ')}"
+    puts "  ✓ First row: #{adapter.row(1).first(5).join(', ')}..."
+    puts "  ✓ Last row: #{adapter.last_row}"
+    puts "  ✓ Last column: #{adapter.last_column}"
 
-    # Read with TeeemXl
+    # Test cell access
+    cell_a1 = adapter.cell(1, 1)
+    puts "  ✓ Cell(1,1): #{cell_a1}"
+
+    # Compare with direct TeeemXl read
     teeem_workbook = TeeemXl.read(test_file)
-    teeem_sheets = teeem_workbook.sheet_names
-
-    if roo_sheets == teeem_sheets
-      puts "  ✓ Sheet names match: #{roo_sheets.join(', ')}"
-    else
-      puts "  ⚠ Sheet names differ:"
-      puts "    Roo: #{roo_sheets.join(', ')}"
-      puts "    TeeemXl: #{teeem_sheets.join(', ')}"
-    end
-
-    # Compare first sheet cell count
-    roo_workbook.default_sheet = roo_sheets.first
-    roo_rows = roo_workbook.last_row || 0
-    roo_cols = roo_workbook.last_column || 0
-
     teeem_sheet = teeem_workbook.first_sheet
-    teeem_rows = teeem_sheet.max_row
-    teeem_cols = teeem_sheet.max_column + 1
 
-    puts "  Roo dimensions: #{roo_rows} rows x #{roo_cols} cols"
-    puts "  TeeemXl dimensions: #{teeem_rows} rows x #{teeem_cols} cols"
-
-    if roo_rows == teeem_rows && roo_cols == teeem_cols
-      puts "  ✓ Dimensions match!"
+    if adapter.last_row == teeem_sheet.max_row
+      puts "  ✓ Row count matches TeeemXl native: #{adapter.last_row}"
     else
-      puts "  ⚠ Dimensions differ (may be due to empty cell handling)"
+      puts "  ⚠ Row count differs: Adapter=#{adapter.last_row}, Native=#{teeem_sheet.max_row}"
     end
 
   rescue => e
-    puts "  ⚠ Comparison error: #{e.message}"
+    puts "  ✗ Adapter error: #{e.message}"
+    puts e.backtrace.first(3).join("\n")
   end
 else
   puts "  ⚠ Test file not found"

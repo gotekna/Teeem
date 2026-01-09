@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# SpreadsheetParser - Generic parser for Excel/CSV files using Roo
+# SpreadsheetParser - Generic parser for Excel/CSV files using TeeemXl
 #
 # Usage:
 #   parser = SpreadsheetParser.new(file_path)
@@ -11,7 +11,7 @@
 #   end
 #
 class SpreadsheetParser
-  SUPPORTED_EXTENSIONS = %w[.xlsx .xls .csv].freeze
+  SUPPORTED_EXTENSIONS = %w[.xlsx .csv].freeze # XLS deprecated
 
   attr_reader :file_path, :spreadsheet, :headers
 
@@ -80,18 +80,13 @@ class SpreadsheetParser
   def open_spreadsheet!
     ext = File.extname(file_path).downcase
 
-    @spreadsheet = case ext
-    when ".csv"
-      Roo::CSV.new(file_path)
-    when ".xls"
-      Roo::Excel.new(file_path)
-    when ".xlsx"
-      Roo::Excelx.new(file_path)
-    end
+    @spreadsheet = TeeemXl::SpreadsheetAdapter.open(file_path, extension: ext.delete_prefix("."))
 
     if @spreadsheet.nil? || @spreadsheet.last_row.nil? || @spreadsheet.last_row < 1
       @errors << "File appears to be empty or invalid"
     end
+  rescue TeeemXl::SpreadsheetAdapter::UnsupportedFormatError => e
+    @errors << e.message
   rescue StandardError => e
     @errors << "Failed to open spreadsheet: #{e.message}"
   end

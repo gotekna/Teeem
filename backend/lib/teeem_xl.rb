@@ -125,27 +125,27 @@ module TeeemXl
 end
 
 # Require all components
-require_relative "package"
-require_relative "content_types"
-require_relative "relationships"
+require_relative "teeem_xl/package"
+require_relative "teeem_xl/content_types"
+require_relative "teeem_xl/relationships"
 
 # Models
-require_relative "models/workbook"
-require_relative "models/worksheet"
-require_relative "models/cell"
-require_relative "models/style"
+require_relative "teeem_xl/models/workbook"
+require_relative "teeem_xl/models/worksheet"
+require_relative "teeem_xl/models/cell"
+require_relative "teeem_xl/models/style"
 
 # Readers
-require_relative "reader/workbook_reader"
-require_relative "reader/worksheet_reader"
-require_relative "reader/shared_strings_reader"
-require_relative "reader/styles_reader"
+require_relative "teeem_xl/reader/workbook_reader"
+require_relative "teeem_xl/reader/worksheet_reader"
+require_relative "teeem_xl/reader/shared_strings_reader"
+require_relative "teeem_xl/reader/styles_reader"
 
 # Writers
-require_relative "writer/workbook_writer"
-require_relative "writer/worksheet_writer"
-require_relative "writer/shared_strings_writer"
-require_relative "writer/styles_writer"
+require_relative "teeem_xl/writer/workbook_writer"
+require_relative "teeem_xl/writer/worksheet_writer"
+require_relative "teeem_xl/writer/shared_strings_writer"
+require_relative "teeem_xl/writer/styles_writer"
 
 # Adapters (Roo compatibility layer)
-require_relative "spreadsheet_adapter"
+require_relative "teeem_xl/spreadsheet_adapter"
