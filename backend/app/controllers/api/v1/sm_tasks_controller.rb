@@ -1207,6 +1207,34 @@ module Api
         end
       end
 
+      # POST /api/v1/sm_tasks/from_email/:email_id
+      # Creates a standalone task from an email (same as forwarding to newtask@tekna.com.au)
+      # Uses EmailToTaskService for consistent behavior
+      def create_from_email
+        email = EmailWarehouse.find_by(id: params[:email_id])
+
+        unless email
+          return render json: {
+            success: false,
+            error: "Email not found"
+          }, status: :not_found
+        end
+
+        service = EmailToTaskService.new(email, user: current_user)
+        task = service.create_task
+
+        render json: {
+          success: true,
+          message: "Task created from email",
+          sm_task: task_to_json(task)
+        }, status: :created
+      rescue EmailToTaskService::TaskCreationError => e
+        render json: {
+          success: false,
+          error: "Failed to create task: #{e.message}"
+        }, status: :unprocessable_entity
+      end
+
       private
 
       # Parse user counts from SQL result, ensuring valid integer IDs

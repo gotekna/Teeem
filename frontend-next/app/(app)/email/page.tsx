@@ -40,6 +40,7 @@ import {
   FolderPlus,
   MoreVertical,
   CheckCheck,
+  ListTodo,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -503,6 +504,7 @@ export default function EmailPage() {
   const [loadingFolders, setLoadingFolders] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [creatingTask, setCreatingTask] = useState(false);
   // SSoT: Uses PAGE_SIZE_LIST from pagination-constants.ts
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
@@ -1122,8 +1124,8 @@ export default function EmailPage() {
         }
       );
 
-      if (response.success) {
-        toast({ title: response.message });
+      if (response?.success) {
+        toast({ title: response.message || "Folder marked as read" });
         // Refresh emails to show updated read status
         fetchEmails();
       }
@@ -1272,6 +1274,42 @@ To: ${email.to_emails?.join(", ") || ""}
       fromAccountId: selectedAccount,
     });
     setComposeOpen(true);
+  };
+
+  // Create a task from email (same as forwarding to newtask@tekna.com.au)
+  const handleCreateTaskFromEmail = async (email: Email) => {
+    if (creatingTask) return;
+
+    setCreatingTask(true);
+    try {
+      const response = await api.post<{ success: boolean; sm_task: { id: number; name: string }; error?: string }>(
+        `/api/v1/sm_tasks/from_email/${email.id}`
+      );
+
+      if (!response) {
+        throw new Error("No response from server");
+      }
+
+      if (response.success && response.sm_task) {
+        toast({
+          title: "Task Created",
+          description: `Task "${response.sm_task.name}" created successfully`,
+        });
+        // Open the task in a new tab
+        window.open(`/sm-tasks/${response.sm_task.id}`, "_blank");
+      } else {
+        throw new Error(response.error || "Failed to create task");
+      }
+    } catch (error) {
+      console.error("Failed to create task:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create task from email",
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingTask(false);
+    }
   };
 
   // Handle snooze email (show toast for now, can integrate SnoozePicker later)
@@ -1804,14 +1842,27 @@ To: ${email.to_emails?.join(", ") || ""}
                 Forward
               </Button>
 
-              {/* Contact Matching - right aligned */}
-              <div className="ml-auto">
+              {/* Right-aligned actions: Contact Matching + Task Creation */}
+              <div className="ml-auto flex items-center gap-2">
                 <EmailContactMatch
                   emailId={selectedEmail.id}
                   primaryContact={selectedEmail.primary_contact}
                   contacts={selectedEmail.contacts || []}
                   onContactsChanged={() => handleEmailClick(selectedEmail)}
                 />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleCreateTaskFromEmail(selectedEmail)}
+                  disabled={creatingTask}
+                >
+                  {creatingTask ? (
+                    <Spinner className="h-4 w-4 mr-2" />
+                  ) : (
+                    <ListTodo className="h-4 w-4 mr-2" />
+                  )}
+                  + Task
+                </Button>
               </div>
             </div>
 

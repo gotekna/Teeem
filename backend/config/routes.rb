@@ -1428,6 +1428,7 @@ Rails.application.routes.draw do
         collection do
           post :bulk_update
           get :user_counts
+          post "from_email/:email_id", action: :create_from_email
         end
         member do
           post :start
