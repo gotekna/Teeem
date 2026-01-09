@@ -146,8 +146,13 @@ module Api
                                                .pluck(:id)
 
                 # Include both direct supplier matches AND supplier companies found via employee search
-                @contacts = @contacts.where(is_supplier_cached: true)
-                                     .or(Contact.where(id: supplier_employer_ids))
+                # Use SQL WHERE to avoid .or() DISTINCT incompatibility
+                # (Rails .or() requires structurally compatible relations)
+                if supplier_employer_ids.any?
+                  @contacts = @contacts.where("contacts.is_supplier_cached = ? OR contacts.id IN (?)", true, supplier_employer_ids)
+                else
+                  @contacts = @contacts.where(is_supplier_cached: true)
+                end
               else
                 @contacts = @contacts.where(is_supplier_cached: true)
               end

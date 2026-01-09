@@ -1140,7 +1140,11 @@ export default function TeeemTableView({
 
       console.log('[TeeemTableView] Proceeding with API fetch');
 
-      setIsLoadingMore(true);
+      // Skip loading indicator for background refresh (L2 cache already displayed data)
+      const isBackground = isBackgroundRefreshRef.current;
+      if (!isBackground) {
+        setIsLoadingMore(true);
+      }
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const params: Record<string, any> = { limit: 100 };
@@ -1171,10 +1175,18 @@ export default function TeeemTableView({
         if (newRecords.length > 0) {
           setCachedRecords(effectiveFoundationId, newRecords as Record<string, unknown>[], null, response.has_more ?? true);
         }
+        // Log completion of background refresh
+        if (isBackground) {
+          console.log(`[RecordsCache] Background refresh complete - ${newRecords.length} fresh records loaded`);
+          isBackgroundRefreshRef.current = false;
+        }
       } catch (error) {
         console.error(`[TeeemTableView] Failed to fetch records for Foundation ${effectiveFoundationId}:`, error);
+        isBackgroundRefreshRef.current = false; // Reset on error too
       } finally {
-        setIsLoadingMore(false);
+        if (!isBackground) {
+          setIsLoadingMore(false);
+        }
       }
     };
 
