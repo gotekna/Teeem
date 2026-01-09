@@ -487,9 +487,14 @@ class EmailToContactExtractionService
   # "tekna.com.au" => "Tekna"
   # "abc-construction.com" => "ABC Construction"
   # "svp.com.au" => "SVP" (abbreviation handling)
+  # "info.buildable.com.au" => "Buildable" (strips common subdomains)
   def format_company_name(domain)
     # Remove common TLDs
     name = domain.gsub(/\.(com|net|org|au|uk|co|io|dev|app|tech|biz|info)(\..*)?$/, "")
+
+    # Strip common subdomains (www, mail, info, webmail, smtp, etc.)
+    # These are not part of the company name
+    name = name.sub(/^(www|mail|info|webmail|smtp|imap|pop|pop3|ftp|admin|portal|app|api|secure|support|help|contact|email)\./i, "")
 
     # Replace hyphens and underscores with spaces
     name = name.tr("-_", " ")
