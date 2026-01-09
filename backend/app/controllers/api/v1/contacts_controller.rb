@@ -145,19 +145,30 @@ module Api
                                                .where(is_active: true)
                                                .pluck(:id)
 
-                # Include both direct supplier matches AND supplier companies found via employee search
+                # Include supplier companies (direct matches + employer companies found via employee search)
+                # EXCLUDE employees: people with primary_company_id should not appear directly
+                # (show their employer company instead)
                 # Use SQL WHERE to avoid .or() DISTINCT incompatibility
-                # (Rails .or() requires structurally compatible relations)
                 if supplier_employer_ids.any?
-                  @contacts = @contacts.where("contacts.is_supplier_cached = ? OR contacts.id IN (?)", true, supplier_employer_ids)
+                  # Suppliers that are: companies OR sole traders (no employer) OR employer companies of matching employees
+                  @contacts = @contacts.where(
+                    "(contacts.is_supplier_cached = ? AND (contacts.entity_type IN ('company', 'trust') OR contacts.primary_company_id IS NULL)) OR contacts.id IN (?)",
+                    true, supplier_employer_ids
+                  )
                 else
+                  # No employer matches - just show direct supplier matches (excluding employees)
                   @contacts = @contacts.where(is_supplier_cached: true)
+                                       .where("contacts.entity_type IN ('company', 'trust') OR contacts.primary_company_id IS NULL")
                 end
               else
+                # No search term - show all suppliers (excluding employees who have employer companies)
                 @contacts = @contacts.where(is_supplier_cached: true)
+                                     .where("contacts.entity_type IN ('company', 'trust') OR contacts.primary_company_id IS NULL")
               end
             else
+              # No search term - show all suppliers (excluding employees who have employer companies)
               @contacts = @contacts.where(is_supplier_cached: true)
+                                   .where("contacts.entity_type IN ('company', 'trust') OR contacts.primary_company_id IS NULL")
             end
           when "customers"
             # Customers: contacts with is_customer_cached=true
