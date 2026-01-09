@@ -970,8 +970,6 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
           </Button>
         </div>
       </div>
-      {/* End of header */}
-      </div>
 
       {/* Description Section - Always show (editable) */}
       <div className="p-2 bg-background/50 rounded border">

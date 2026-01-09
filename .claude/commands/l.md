@@ -12,7 +12,7 @@ Commits only THIS chat session's changes and deploys to production.
 ## PRODUCTION DEPLOY
 
 - Backend: Heroku (`teeemlive`) - manual deploy via FAST orphan method
-- Frontend: Vercel - auto-deploys from GitHub push
+- Frontend: Auto-deploys from GitHub push (no version tracking)
 
 ## Instructions
 
@@ -55,7 +55,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ```bash
 git push origin Live
 ```
-*Vercel auto-deploys frontend from this push*
+*Frontend auto-deploys from this push*
 
 ### Step 3.5 - Verify Backend Changes Were Committed
 **CRITICAL: If Step 1 showed backend/ files, verify they're in the commit:**
@@ -169,18 +169,12 @@ rm -rf "$DEPLOY_DIR"
 
 ### Step 6 - Report Status
 
-**Get version numbers and show deploy status:**
+**Get version and show deploy status:**
 
 ```bash
-# Get current versions
 BACKEND_VERSION=$(curl -s https://teeemlive-ce8e2660a615.herokuapp.com/version | jq -r '.version' 2>/dev/null || echo "unknown")
-FRONTEND_VERSION=$(cat frontend-next/package.json | jq -r '.version' 2>/dev/null || echo "unknown")
-HEROKU_RELEASE=$(heroku releases --app teeemlive -n 1 2>/dev/null | tail -1 | awk '{print $1}')
 BRISBANE_TIME=$(TZ='Australia/Brisbane' date '+%H:%M %d/%m')
-
-# Check what's required
-BACKEND_REQUIRED=$(git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && echo "REQUIRED" || echo "not required")
-FRONTEND_REQUIRED=$(git diff --name-only HEAD~1 HEAD | grep -q "^frontend" && echo "REQUIRED" || echo "not required")
+BACKEND_DEPLOYED=$(git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && echo "deployed" || echo "skipped")
 ```
 
 **Output format:**
@@ -189,9 +183,7 @@ FRONTEND_REQUIRED=$(git diff --name-only HEAD~1 HEAD | grep -q "^frontend" && ec
 DEPLOYED: HH:MM DD/MM (Brisbane)
 Commit: [hash] - [message]
 ----------------------------------------
-Backend:  v[XXX] - [REQUIRED/not required]
-Frontend: v[XXX] - [REQUIRED/not required]
-Heroku:   [vXXX] - [deployed/skipped]
+Backend: v[XXX] - [deployed/skipped]
 ========================================
 ```
 
