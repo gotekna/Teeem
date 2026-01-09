@@ -49,9 +49,10 @@ class EnrichContactsFromEmailsJob < ApplicationJob
       # 1. Have an email address
       # 2. Are missing phone OR address
       # 3. Have emails in the warehouse from them
-      Contact.where.not(email: [ nil, "" ])
+      Contact.joins(:contact_emails)
              .where("(mobile_phone IS NULL OR mobile_phone = '') OR (office_phone IS NULL OR office_phone = '') OR (address IS NULL OR address = '')")
-             .where("EXISTS (SELECT 1 FROM email_warehouse WHERE LOWER(email_warehouse.from_email) = LOWER(contacts.email))")
+             .where("EXISTS (SELECT 1 FROM email_warehouse WHERE LOWER(email_warehouse.from_email) = LOWER(contact_emails.email))")
+             .distinct
              .limit(limit)
     end
 

@@ -429,10 +429,10 @@ class EmailWarehouse < ApplicationRecord
 
     # Single query to find all jobs linked to these email addresses
     contact_jobs = Job
-      .joins(job_contacts: :contact)
-      .where("LOWER(contacts.email) IN (?)", all_emails)
+      .joins(job_contacts: { contact: :contact_emails })
+      .where("LOWER(contact_emails.email) IN (?)", all_emails)
       .distinct
-      .select("jobs.*, contacts.email as matched_email")
+      .select("jobs.*, contact_emails.email as matched_email")
 
     contact_jobs.each do |job|
       # Only match if email has job-specific context (stricter filtering)
