@@ -77,6 +77,7 @@ class EmailToTaskService
       task_number: generate_task_number,
       sequence_order: 1,
       created_by: @user,
+      assigned_user: @user,  # Auto-assign to the user creating the task
       is_private: false
     )
   end
