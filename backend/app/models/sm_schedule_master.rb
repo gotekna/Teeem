@@ -66,6 +66,17 @@ class SmScheduleMaster < ApplicationRecord
   has_many :document_types, through: :sm_schedule_master_document_types
   accepts_nested_attributes_for :sm_schedule_master_document_types, allow_destroy: true
 
+  # Related PO tasks - for supplier coordination info in auto-created PO descriptions
+  # When this task's PO is created, it will include contact info for these related PO suppliers
+  has_many :sm_schedule_master_related_pos, dependent: :destroy
+  has_many :related_po_tasks, through: :sm_schedule_master_related_pos, source: :related_sm_schedule_master
+
+  # Setter for related_po_task_ids to work with API
+  def related_po_task_ids=(ids)
+    ids = Array(ids).compact.map(&:to_i).uniq
+    self.related_po_tasks = SmScheduleMaster.where(id: ids, po_required: true)
+  end
+
   # Validations
   validates :name, presence: true, length: { maximum: 255 }
   # Note: task_number is synced to equal id after creation (see sync_task_number_to_id callback)

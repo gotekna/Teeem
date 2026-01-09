@@ -183,6 +183,9 @@ interface SmScheduleMaster {
   po_line_items?: Array<{ pricebook_item_id: number; qty: number }>;
   // Linked non-PO tasks (visibility follows this PO task)
   linked_task_ids?: number[];
+  // Related PO tasks for supplier coordination info
+  related_po_task_ids?: number[];
+  related_po_task_names?: string[];
   // Checklist and task linking
   checklist_id?: number | { id: number; display: string } | null;
   spawn_scan_task_id?: number | { id: number; display: string } | null;
@@ -1250,6 +1253,9 @@ export function ScheduleMasterTab() {
       requires_document_to_complete: row.requires_document_to_complete || false,
       completion_document_type_id: row.completion_document_type_id || null,
       completion_document_type_name: row.completion_document_type_name || null,
+      // Related PO tasks for supplier coordination info
+      related_po_task_ids: row.related_po_task_ids || [],
+      related_po_task_names: row.related_po_task_names || [],
     };
   }, []);
 
@@ -1296,6 +1302,8 @@ export function ScheduleMasterTab() {
       // Completion document requirement
       requires_document_to_complete: data.requires_document_to_complete,
       completion_document_type_id: data.completion_document_type_id,
+      // Related PO tasks for supplier coordination
+      related_po_task_ids: data.related_po_task_ids,
     };
 
     // Transform document_types to Rails nested attributes format (SSoT: sm_schedule_master_document_types)

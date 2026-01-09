@@ -48,6 +48,9 @@ export interface EditRowData {
   po_supplier_id?: number | null;
   po_supplier_name?: string | null;
   po_line_items?: Array<{ pricebook_item_id: number; qty: number }>;
+  // Related PO tasks for supplier coordination info in auto-created PO descriptions
+  related_po_task_ids?: number[];
+  related_po_task_names?: string[];
   linked_task_ids?: number[];
   checklist_id?: number | { id: number; display: string } | null;
   spawn_scan_task_id?: number | { id: number; display: string } | null;
@@ -226,6 +229,9 @@ export function EditRowDialog({
         spawn_call_task: row.spawn_call_task,
         order_time_days: row.order_time_days,
         call_time_days: row.call_time_days,
+        // Related PO tasks for supplier coordination
+        related_po_task_ids: row.related_po_task_ids || [],
+        related_po_task_names: row.related_po_task_names || [],
         linked_task_ids: row.linked_task_ids,
         allow_header: row.allow_header,
         is_active: row.is_active,
@@ -584,6 +590,33 @@ export function EditRowDialog({
                         Spawn Call Task
                       </Label>
                     </div>
+                    {/* Related PO Tasks - for supplier coordination info */}
+                    {(editRowForm.po_required || editRowForm.create_po_on_job_start) && (
+                      <div className="pt-2 border-t">
+                        <Label className="text-xs">Related PO Tasks (for supplier coordination)</Label>
+                        <MultipleSelector
+                          value={(editRowForm.related_po_task_ids || []).map(id => {
+                            const relatedRow = allRows.find(r => r.id === id && r.po_required);
+                            return { value: String(id), label: relatedRow?.name || `Task ${id}` };
+                          })}
+                          options={allRows
+                            .filter(r => r.po_required && r.id !== row?.id)
+                            .map(r => ({ value: String(r.id), label: r.name }))
+                          }
+                          onChange={(selected) => {
+                            setEditRowForm({
+                              ...editRowForm,
+                              related_po_task_ids: selected.map(s => Number(s.value))
+                            });
+                          }}
+                          placeholder="Select related PO tasks..."
+                          emptyIndicator="No PO tasks available"
+                        />
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          When this PO is created, supplier contact info for these tasks will be included in the description.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="pt-2 border-t">

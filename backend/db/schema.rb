@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_10_110000) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_10_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8124,6 +8124,17 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_10_110000) do
     t.index ["sm_schedule_master_id"], name: "idx_on_sm_schedule_master_id_ece8c53030"
   end
 
+  create_table "sm_schedule_master_related_pos", force: :cascade do |t|
+    t.bigint "sm_schedule_master_id", null: false
+    t.bigint "related_sm_schedule_master_id", null: false
+    t.integer "position", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["related_sm_schedule_master_id"], name: "idx_on_related_sm_schedule_master_id_2e458adbb2"
+    t.index ["sm_schedule_master_id", "related_sm_schedule_master_id"], name: "idx_sm_related_pos_unique", unique: true
+    t.index ["sm_schedule_master_id"], name: "index_sm_schedule_master_related_pos_on_sm_schedule_master_id"
+  end
+
   create_table "sm_schedule_master_templates", force: :cascade do |t|
     t.string "name", null: false
     t.text "description"
@@ -10550,6 +10561,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_10_110000) do
   add_foreign_key "sm_rollover_logs", "sm_tasks", column: "task_id", on_delete: :cascade
   add_foreign_key "sm_schedule_master_document_types", "document_types"
   add_foreign_key "sm_schedule_master_document_types", "sm_schedule_masters"
+  add_foreign_key "sm_schedule_master_related_pos", "sm_schedule_masters"
+  add_foreign_key "sm_schedule_master_related_pos", "sm_schedule_masters", column: "related_sm_schedule_master_id"
   add_foreign_key "sm_schedule_master_templates", "sm_schedule_master_templates", column: "copied_from_id"
   add_foreign_key "sm_schedule_master_templates", "users", column: "created_by_id"
   add_foreign_key "sm_schedule_master_templates", "users", column: "updated_by_id"

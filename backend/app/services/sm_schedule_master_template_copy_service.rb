@@ -62,6 +62,9 @@ class SmScheduleMasterTemplateCopyService
       # Fourth pass: Create POs for tasks with create_po_on_job_start
       create_purchase_orders
 
+      # Fifth pass: Update PO descriptions with related supplier info
+      update_related_po_descriptions
+
       if @errors.any?
         raise ActiveRecord::Rollback
       end
@@ -381,6 +384,55 @@ class SmScheduleMasterTemplateCopyService
     end
 
     po
+  end
+
+  # Fifth pass: Update PO descriptions with related supplier contact info
+  # This runs after all POs are created so we can reference their PO numbers
+  def update_related_po_descriptions
+    return if @created_purchase_orders.empty?
+
+    @created_purchase_orders.each do |po|
+      template_row = po.sm_task&.sm_schedule_master
+      next unless template_row&.related_po_tasks&.any?
+
+      related_info = build_related_po_info(po, template_row)
+      next if related_info.blank?
+
+      # Append related info to existing description
+      new_description = [po.description, related_info].compact.join("\n\n")
+      po.update!(description: new_description)
+      Rails.logger.info "SmScheduleMasterTemplateCopyService: Added related PO info to #{po.purchase_order_number}"
+    end
+  end
+
+  # Build the related supplier contact section for a PO description
+  def build_related_po_info(po, template_row)
+    related_entries = template_row.related_po_tasks.filter_map do |related_template|
+      # Find the PO created for this related template row on the same job
+      related_task = job.sm_tasks.find_by(sm_schedule_master_id: related_template.id)
+      related_po = related_task&.purchase_order
+      next unless related_po
+
+      supplier = related_po.supplier
+      phone = supplier&.contact_phones&.first&.phone_number
+
+      "📦 #{related_po.purchase_order_number} - #{related_template.name}\n" \
+      "   Supplier: #{supplier&.display_name || 'TBD'}\n" \
+      "   Phone: #{phone || 'N/A'}"
+    end
+
+    return nil if related_entries.empty?
+
+    separator = "═" * 43
+    [
+      separator,
+      "RELATED SUPPLIER CONTACTS FOR COORDINATION",
+      separator,
+      "",
+      related_entries.join("\n\n"),
+      "",
+      separator
+    ].join("\n")
   end
 
   # SSoT: Create or reuse JobClaimStage from CLAIM task template row

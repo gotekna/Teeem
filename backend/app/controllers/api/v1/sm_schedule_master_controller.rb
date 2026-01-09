@@ -182,6 +182,7 @@ module Api
           :start_workflow,
           :complete_workflow,
           :sm_task_group,
+          :related_po_tasks,
           { sm_schedule_master_document_types: :document_type }
         ]
       end
@@ -241,6 +242,8 @@ module Api
           tags: [],
           # Multi-template support
           sm_template_ids: [],
+          # Related PO tasks for supplier coordination info
+          related_po_task_ids: [],
           # PO line items with quantities
           po_line_items: [ :pricebook_item_id, :qty ],
           # Document types for GET task spawning
@@ -347,6 +350,9 @@ module Api
           # Task group for PO/non-PO grouping
           sm_task_group_id: row.sm_task_group_id,
           sm_task_group_name: row.sm_task_group&.name,
+          # Related PO tasks for supplier coordination info
+          related_po_task_ids: row.related_po_tasks.pluck(:id),
+          related_po_task_names: row.related_po_tasks.pluck(:name),
           # Multi-template support
           sm_template_ids: row.sm_template_ids || [],
           # New Schedule Master fields
