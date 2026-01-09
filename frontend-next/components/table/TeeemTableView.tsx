@@ -557,6 +557,7 @@ export default function TeeemTableView({
   onDataHealthIssueClick,
   initialShowTotals = true,
   hideFooter = false,
+  hideAddRecord = false,
   alwaysVisibleColumns = [],
   enableFullscreen = true, // SSoT: Default enabled for all tables
   stats,
@@ -5654,14 +5655,23 @@ export default function TeeemTableView({
             <h1 className="text-2xl font-bold tracking-tight font-serif">{tableName}</h1>
             <span className="text-sm text-muted-foreground">
               {/* CLS FIX: For grouped views, use serverTotalRecords from SSR to prevent "0 records" flash */}
+              {/* When searching, show filtered count but keep "X of Y" format so user knows total available */}
               {(() => {
-                // For grouped views with SSR data, show serverTotalRecords immediately
-                const displayCount = groupByColumns.length > 0 && serverTotalRecords !== undefined && serverTotalRecords > 0
-                  ? serverTotalRecords
-                  : filteredAndSortedEntries.length;
+                const hasActiveSearch = Boolean(searchRef.current);
 
-                return totalCount !== null
-                  ? `${displayCount.toLocaleString()} of ${totalCount.toLocaleString()} records`
+                // Display count: filtered results when searching, otherwise SSR total for grouped views
+                const displayCount = hasActiveSearch
+                  ? filteredAndSortedEntries.length  // Search results count
+                  : (groupByColumns.length > 0 && serverTotalRecords !== undefined && serverTotalRecords > 0
+                      ? serverTotalRecords
+                      : filteredAndSortedEntries.length);
+
+                // Use totalCount if passed directly, otherwise fall back to SSR initialTotalCount
+                const effectiveTotalCount = totalCount ?? initialTotalCount ?? null;
+
+                // Always show "X of Y" format when totalCount is available (helps user know total during search)
+                return effectiveTotalCount !== null
+                  ? `${displayCount.toLocaleString()} of ${effectiveTotalCount.toLocaleString()} records`
                   : `${displayCount.toLocaleString()} records`;
               })()}
             </span>
@@ -5733,8 +5743,8 @@ export default function TeeemTableView({
             "toolbar-left flex items-center gap-2 flex-shrink-0",
             debugGrid && "border border-purple-300 bg-purple-100/50 dark:bg-purple-900/30 mt-6"
           )}>
-            {/* Add Row button - auto-shown when effectiveOnAddRow is available */}
-            {effectiveOnAddRow && (
+            {/* Add Row button - auto-shown when effectiveOnAddRow is available (SSoT: use hideAddRecord when page has custom create action) */}
+            {effectiveOnAddRow && !hideAddRecord && (
               <Button
                 variant="default"
                 size="sm"

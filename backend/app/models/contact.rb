@@ -583,21 +583,21 @@ class Contact < ApplicationRecord
   # Note: is_director? is defined below and checks actual company directorships
   # To check for Director role, use has_role?('Director')
 
-  # Entity type helpers
+  # Entity type helpers (case-insensitive to handle legacy data)
   def is_person?
-    entity_type == "person"
+    entity_type&.downcase == "person"
   end
 
   def is_company?
-    entity_type == "company"
+    entity_type&.downcase == "company"
   end
 
   def is_trust?
-    entity_type == "trust"
+    entity_type&.downcase == "trust"
   end
 
   def is_sole_trader?
-    entity_type == "sole_trader"
+    entity_type&.downcase == "sole_trader"
   end
 
   # Family/Director helpers
@@ -1395,7 +1395,7 @@ class Contact < ApplicationRecord
   # Note: auto_fix_name_casing runs before validation to auto-correct
   # This validation only triggers if auto-fix couldn't run (e.g., Xero sync)
   def validate_name_casing
-    return unless entity_type == "person"
+    return unless entity_type&.downcase == "person"
 
     # Check first_name (skip single letters - they're fine as caps)
     if first_name.present? && first_name.length > 1
@@ -1480,7 +1480,8 @@ class Contact < ApplicationRecord
   # For company/trust, display_name is synced from company_name_or_trust
   def generate_display_name
     # For person/sole_trader: display_name is derived from first_name + middle_name + last_name
-    if entity_type.in?(%w[person sole_trader]) && (first_name.present? || last_name.present?)
+    # Case-insensitive check to handle legacy data with capitalized entity_type
+    if entity_type&.downcase.in?(%w[person sole_trader]) && (first_name.present? || last_name.present?)
       generated = [ first_name, middle_name, last_name ].map(&:presence).compact.join(" ")
       # Always update display_name to match name parts for person contacts
       # This ensures SSoT: first_name + middle_name + last_name = display_name
@@ -1497,7 +1498,8 @@ class Contact < ApplicationRecord
   # SSoT: company_name_or_trust is the source of truth for display_name
   # This keeps both fields in sync for backwards compatibility
   def sync_company_name_or_trust
-    return unless %w[company trust].include?(entity_type)
+    # Case-insensitive check to handle legacy data with capitalized entity_type
+    return unless %w[company trust].include?(entity_type&.downcase)
 
     # If company_name_or_trust was changed, update display_name to match
     if company_name_or_trust_changed? && company_name_or_trust.present?
@@ -1515,7 +1517,7 @@ class Contact < ApplicationRecord
   # Only applies to person entity types
   # Skips single-letter names (initials are fine as uppercase)
   def auto_fix_name_casing
-    return unless entity_type == "person"
+    return unless entity_type&.downcase == "person"
 
     # Fix first_name if ALL CAPS or all lowercase (skip single letters)
     if first_name.present? && first_name.length > 1
@@ -1567,8 +1569,9 @@ class Contact < ApplicationRecord
     return unless entity_type_changed?
     return if entity_type.blank?
 
-    old_type = entity_type_was
-    new_type = entity_type
+    # Use downcased versions for case-insensitive comparison (handles legacy data with "Company", "Person", etc.)
+    old_type = entity_type_was&.downcase
+    new_type = entity_type&.downcase
 
     # company/trust → person/sole_trader: Move company name to first name
     if old_type.in?(%w[company trust]) && new_type.in?(%w[person sole_trader])
@@ -1629,7 +1632,8 @@ class Contact < ApplicationRecord
   def should_sync_to_corporate?
     # Only sync if this is a company/trust with a linked CorporateCompany record
     # Don't sync if we're already syncing from CorporateCompany to Contact (prevent loop)
-    entity_type.in?([ "company", "trust" ]) &&
+    # Case-insensitive check to handle legacy data with capitalized entity_type
+    entity_type&.downcase.in?([ "company", "trust" ]) &&
       company_record.present? &&
       !Thread.current[:syncing_company_to_contact]
   end
