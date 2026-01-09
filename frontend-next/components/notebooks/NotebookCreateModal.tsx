@@ -60,12 +60,6 @@ export function NotebookCreateModal({
     setError(null);
 
     try {
-      console.log("[NotebookCreateModal] Starting create...", {
-        name: name.trim(),
-        color,
-        notable_type: notableType,
-        notable_id: notableId,
-      });
       const notebook = await notebookActions.create({
         name: name.trim(),
         description: description.trim() || undefined,
@@ -73,7 +67,6 @@ export function NotebookCreateModal({
         notable_type: notableType,
         notable_id: notableId,
       });
-      console.log("[NotebookCreateModal] Create succeeded:", notebook);
 
       // Reset form
       setName("");
@@ -82,7 +75,6 @@ export function NotebookCreateModal({
       onOpenChange(false);
       onCreated?.(notebook);
     } catch (err) {
-      console.error("[NotebookCreateModal] Create failed:", err);
       setError(err instanceof Error ? err.message : "Failed to create notebook");
     } finally {
       setIsSubmitting(false);
