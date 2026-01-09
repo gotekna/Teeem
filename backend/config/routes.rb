@@ -1158,6 +1158,7 @@ Rails.application.routes.draw do
         collection do
           get :star_colors
           post :bulk_action
+          post :mark_folder_read
           get "for_email/:email_id", action: :show
           patch "for_email/:email_id", action: :update
           post "for_email/:email_id/toggle_pin", action: :toggle_pin

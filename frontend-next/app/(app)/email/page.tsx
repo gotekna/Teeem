@@ -39,6 +39,7 @@ import {
   ArrowUpDown,
   FolderPlus,
   MoreVertical,
+  CheckCheck,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -1099,6 +1100,39 @@ export default function EmailPage() {
     }
   };
 
+  // Mark all emails in current folder as read
+  const handleMarkFolderRead = async () => {
+    if (!selectedAccount || selectedAccount === "all") {
+      toast({ title: "Select a mailbox first", variant: "destructive" });
+      return;
+    }
+
+    const account = accounts.find(a => String(a.id) === selectedAccount);
+    if (!account?.email_address) {
+      toast({ title: "Mailbox email not found", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const response = await api.post<{ success: boolean; data: { affected_count: number }; message: string }>(
+        "/api/v1/email_user_states/mark_folder_read",
+        {
+          mailbox_email: account.email_address,
+          folder_name: selectedFolder,
+        }
+      );
+
+      if (response.success) {
+        toast({ title: response.message });
+        // Refresh emails to show updated read status
+        fetchEmails();
+      }
+    } catch (error) {
+      console.error("Failed to mark folder as read:", error);
+      toast({ title: "Failed to mark folder as read", variant: "destructive" });
+    }
+  };
+
   const handleEmailClick = useCallback(async (email: Email, openPopout = false) => {
     if (!email || !email.id) {
       console.error("Invalid email object:", email);
@@ -1376,6 +1410,14 @@ To: ${email.to_emails?.join(", ") || ""}
                   </DropdownMenuItem>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={handleMarkFolderRead}
+                disabled={!selectedAccount || selectedAccount === "all"}
+              >
+                <CheckCheck className="h-4 w-4 mr-2" />
+                Mark folder as read
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => router.push("/email/rules")}>
                 <Settings2 className="h-4 w-4 mr-2" />
