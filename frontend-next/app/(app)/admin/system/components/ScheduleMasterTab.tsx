@@ -85,7 +85,7 @@ import { isWorkingDay, skipToPreviousWorkingDay, type GanttTask, type SmSchedule
 import { useToast } from "@/components/ui/use-toast";
 import { EditRowDialog, type EditRowData, type EditRowFormData } from "@/components/schedule/EditRowDialog";
 import { Spinner } from "@/components/ui/spinner";
-import { Check, AlertCircle, Link2Off, PlayCircle, GitBranch } from "lucide-react";
+import { Check, AlertCircle, Link2Off, PlayCircle, GitBranch, Search } from "lucide-react";
 import { useAtom, useStore } from "jotai";
 import { smDataViewTemplateIdAtom } from "@/lib/table-atoms";
 
@@ -279,7 +279,7 @@ const ALL_COLUMNS = [
   // Scheduling
   "duration_days", "predecessor_ids", "predecessor_ids_backup",
   // Locking & Status (prevents cascade, confirms completion)
-  "hold", "hold_date", "hold_at", "dependency_broken",
+  "hold", "hold_date", "hold_at", "dependency_broken", "started", "previous_hold_date",
   "confirm", "confirmed_at",
   "supplier_confirm", "supplier_confirmed_at",
   "completed", "completed_at",
@@ -290,10 +290,19 @@ const ALL_COLUMNS = [
   // Auto-PO (create_po_on_job_start + po_line_items work together)
   "create_po_on_job_start", "po_line_items",
   "order_time_days", "call_time_days", "po_supplier_id",
+  // Related PO Tasks (for supplier coordination)
+  "related_po_task_ids",
   // Completion Requirements
   "require_photo", "pass_fail_enabled",
+  // Workflow Triggers
+  "start_workflow_enabled", "start_workflow_id", "complete_workflow_enabled", "complete_workflow_id",
+  // Document Requirements
+  "requires_document_to_complete", "completion_document_type_id", "document_types",
+  // Task Groups
+  "sm_task_group_id",
   // Claim Task Settings (SSoT for job claims)
-  "is_claim_task", "claim_percentage", "claim_invoice_pattern",
+  "is_claim_task", "is_variation", "claim_percentage", "claim_sequence_number",
+  "claim_invoice_pattern", "claim_invoice_template_id", "claim_trading_name_id",
   // Subtasks
   "has_subtasks", "subtask_count", "subtask_names", "linked_task_ids",
   // Documentation
@@ -526,6 +535,9 @@ export function ScheduleMasterTab() {
     complete: {},
   });
 
+  // Column reference search
+  const [columnSearch, setColumnSearch] = React.useState("");
+
   // Job EntityTabs for photo storage dropdown
   const [jobEntityTabs, setJobEntityTabs] = React.useState<Array<{ id: number; display_name: string; tab_key: string }>>([]);
 
@@ -623,6 +635,21 @@ export function ScheduleMasterTab() {
   // Calculate stats
   const completeCount = Object.values(columnStatus.complete).filter(Boolean).length;
     const totalColumns = ALL_COLUMNS.length;
+
+  // Column search helper - checks if column name matches search query
+  const columnMatchesSearch = (columnName: string): boolean => {
+    if (!columnSearch.trim()) return true;
+    const query = columnSearch.toLowerCase().trim();
+    // Match against column name (with underscores converted to spaces for natural search)
+    return columnName.toLowerCase().includes(query) ||
+           columnName.replace(/_/g, " ").toLowerCase().includes(query);
+  };
+
+  // Check if a section has any matching columns
+  const sectionHasMatches = (columnNames: string[]): boolean => {
+    if (!columnSearch.trim()) return true;
+    return columnNames.some(columnMatchesSearch);
+  };
 
   // v2711 note: Ref sync moved to wrapper setters (setGanttTemplateId, setDataViewTemplateId,
   // setGanttV2TemplateId) which update refs synchronously BEFORE state. This prevents race
@@ -2820,6 +2847,27 @@ export function ScheduleMasterTab() {
                   </div>
                 </div>
               </div>
+              <div className="flex items-center gap-4 mb-4">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search columns..."
+                    value={columnSearch}
+                    onChange={(e) => setColumnSearch(e.target.value)}
+                    className="pl-9"
+                  />
+                  {columnSearch && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 p-0"
+                      onClick={() => setColumnSearch("")}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+              </div>
               <div className="flex items-center gap-4 mb-6">
                 <Progress value={(completeCount / totalColumns) * 100} className="flex-1" />
                 <span className="text-sm font-medium">{Math.round((completeCount / totalColumns) * 100)}%</span>
@@ -2827,6 +2875,7 @@ export function ScheduleMasterTab() {
             </div>
 
             {/* Core Identity */}
+            {sectionHasMatches(["task_number", "name", "description", "sequence_order", "header_gantt", "allow_header"]) && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Core Identity</CardTitle>
@@ -2840,45 +2889,58 @@ export function ScheduleMasterTab() {
                     <span>Type</span>
                     <span>Description</span>
                   </div>
+                  {columnMatchesSearch("task_number") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["task_number"] || false} onCheckedChange={(v) => updateColumnStatus("task_number", !!v)} />
                     <CopyableCode>task_number</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">integer</Badge>
                     <span className="text-muted-foreground">The unique number shown next to each task (e.g., Task #47). Used when referencing tasks in dependencies like &quot;starts after Task 46&quot;.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("name") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["name"] || false} onCheckedChange={(v) => updateColumnStatus("name", !!v)} />
                     <CopyableCode>name</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">string</Badge>
                     <span className="text-muted-foreground">The main title of the task that appears in the Gantt chart and lists (e.g., &quot;Slab Pour&quot;, &quot;Frame Inspection&quot;). Keep it short and descriptive.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("description") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["description"] || false} onCheckedChange={(v) => updateColumnStatus("description", !!v)} />
                     <CopyableCode>description</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">text</Badge>
                     <span className="text-muted-foreground">Additional notes or instructions for this task. Use this for details like special requirements, contact numbers, or things to watch out for.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("sequence_order") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["sequence_order"] || false} onCheckedChange={(v) => updateColumnStatus("sequence_order", !!v)} />
                     <CopyableCode>sequence_order</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">decimal</Badge>
                     <span className="text-muted-foreground">Determines where this task appears in the list. Lower numbers appear first. You can use decimals (e.g., 1.5) to insert tasks between existing ones.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("header_gantt") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["header_gantt"] || false} onCheckedChange={(v) => updateColumnStatus("header_gantt", !!v)} />
                     <CopyableCode>header_gantt</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">string</Badge>
                     <span className="text-muted-foreground">Links this task to a parent header row for grouping in the Gantt chart. Select another task that has &quot;Allow Header&quot; enabled, or set to &quot;Header&quot; to make this row itself a section divider.</span>
                   </div>
+                  )}
+                  {columnMatchesSearch("allow_header") && (
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["allow_header"] || false} onCheckedChange={(v) => updateColumnStatus("allow_header", !!v)} />
                     <CopyableCode>allow_header</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
                     <span className="text-muted-foreground">When turned on, this task can be selected as a header/parent for other tasks. Use this for major milestones that other tasks should be grouped under.</span>
                   </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
+            )}
 
             {/* Scheduling */}
             <Card>
@@ -3355,6 +3417,222 @@ export function ScheduleMasterTab() {
                     <CopyableCode>updated_at</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">datetime</Badge>
                     <span className="text-muted-foreground">The date and time of the last change to this task. Updates automatically whenever any field is modified.</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Workflow Triggers */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Workflow Triggers</CardTitle>
+                <CardDescription>Automated workflow execution on task events</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 text-sm">
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center text-xs text-muted-foreground border-b pb-2 mb-1">
+                    <span title="Complete">Done</span>
+                    <span>Column</span>
+                    <span>Type</span>
+                    <span>Description</span>
+                  </div>
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["start_workflow_enabled"] || false} onCheckedChange={(v) => updateColumnStatus("start_workflow_enabled", !!v)} />
+                    <CopyableCode>start_workflow_enabled</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">When enabled, automatically runs a workflow when this task is started. Useful for triggering notifications, creating follow-up tasks, or updating external systems.</span>
+                  </div>
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center pl-6">
+                    <Checkbox checked={columnStatus.complete["start_workflow_id"] || false} onCheckedChange={(v) => updateColumnStatus("start_workflow_id", !!v)} />
+                    <CopyableCode>start_workflow_id</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">FK</Badge>
+                    <span className="text-muted-foreground">↳ The workflow to execute when the task starts. Select from available workflow templates.</span>
+                  </div>
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["complete_workflow_enabled"] || false} onCheckedChange={(v) => updateColumnStatus("complete_workflow_enabled", !!v)} />
+                    <CopyableCode>complete_workflow_enabled</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">When enabled, automatically runs a workflow when this task is completed. Great for triggering invoicing, notifications to next trades, or quality control checks.</span>
+                  </div>
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center pl-6">
+                    <Checkbox checked={columnStatus.complete["complete_workflow_id"] || false} onCheckedChange={(v) => updateColumnStatus("complete_workflow_id", !!v)} />
+                    <CopyableCode>complete_workflow_id</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">FK</Badge>
+                    <span className="text-muted-foreground">↳ The workflow to execute when the task completes. Select from available workflow templates.</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Document Requirements */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Document Requirements</CardTitle>
+                <CardDescription>Documents required for task completion and spawned GET tasks</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 text-sm">
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center text-xs text-muted-foreground border-b pb-2 mb-1">
+                    <span title="Complete">Done</span>
+                    <span>Column</span>
+                    <span>Type</span>
+                    <span>Description</span>
+                  </div>
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["requires_document_to_complete"] || false} onCheckedChange={(v) => updateColumnStatus("requires_document_to_complete", !!v)} />
+                    <CopyableCode>requires_document_to_complete</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">When enabled, a specific document type must be attached before the task can be marked complete. Ensures critical paperwork is collected.</span>
+                  </div>
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center pl-6">
+                    <Checkbox checked={columnStatus.complete["completion_document_type_id"] || false} onCheckedChange={(v) => updateColumnStatus("completion_document_type_id", !!v)} />
+                    <CopyableCode>completion_document_type_id</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">FK</Badge>
+                    <span className="text-muted-foreground">↳ The type of document required for completion. Example: &quot;Council Inspection Certificate&quot; for inspection tasks.</span>
+                  </div>
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["document_types"] || false} onCheckedChange={(v) => updateColumnStatus("document_types", !!v)} />
+                    <CopyableCode>document_types</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">join</Badge>
+                    <span className="text-muted-foreground">Document types that spawn GET (scanning) tasks when this task completes. Each document type can have a lag time and assigned role for the scan task.</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Task Groups */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Task Groups</CardTitle>
+                <CardDescription>Organize tasks into logical groups</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 text-sm">
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center text-xs text-muted-foreground border-b pb-2 mb-1">
+                    <span title="Complete">Done</span>
+                    <span>Column</span>
+                    <span>Type</span>
+                    <span>Description</span>
+                  </div>
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["sm_task_group_id"] || false} onCheckedChange={(v) => updateColumnStatus("sm_task_group_id", !!v)} />
+                    <CopyableCode>sm_task_group_id</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">FK</Badge>
+                    <span className="text-muted-foreground">Links this task to a task group for organizational purposes. Task groups help categorize PO vs non-PO tasks and enable bulk operations on related tasks.</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Related PO Tasks */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Related PO Tasks</CardTitle>
+                <CardDescription>Supplier coordination between PO tasks</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 text-sm">
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center text-xs text-muted-foreground border-b pb-2 mb-1">
+                    <span title="Complete">Done</span>
+                    <span>Column</span>
+                    <span>Type</span>
+                    <span>Description</span>
+                  </div>
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["related_po_task_ids"] || false} onCheckedChange={(v) => updateColumnStatus("related_po_task_ids", !!v)} />
+                    <CopyableCode>related_po_task_ids</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">join</Badge>
+                    <span className="text-muted-foreground">Links to other PO tasks whose supplier contact info should be included in this task&apos;s PO description. Enables suppliers to coordinate directly (e.g., Carpenter can call Crane hire and Roof Trusses supplier).</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Claim Settings */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Claim Settings</CardTitle>
+                <CardDescription>Progress claim and invoicing configuration</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 text-sm">
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center text-xs text-muted-foreground border-b pb-2 mb-1">
+                    <span title="Complete">Done</span>
+                    <span>Column</span>
+                    <span>Type</span>
+                    <span>Description</span>
+                  </div>
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["is_claim_task"] || false} onCheckedChange={(v) => updateColumnStatus("is_claim_task", !!v)} />
+                    <CopyableCode>is_claim_task</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">Marks this as a progress claim milestone. When completed, this task triggers a claim invoice to the client for the specified percentage of the contract.</span>
+                  </div>
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["is_variation"] || false} onCheckedChange={(v) => updateColumnStatus("is_variation", !!v)} />
+                    <CopyableCode>is_variation</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">Indicates this claim task is for a variation (extra work) rather than the original contract. Variations are invoiced separately from scheduled progress claims.</span>
+                  </div>
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["claim_percentage"] || false} onCheckedChange={(v) => updateColumnStatus("claim_percentage", !!v)} />
+                    <CopyableCode>claim_percentage</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">decimal</Badge>
+                    <span className="text-muted-foreground">The percentage of the total contract value to claim when this task is completed. Example: 10% for slab pour, 15% for frame complete.</span>
+                  </div>
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["claim_sequence_number"] || false} onCheckedChange={(v) => updateColumnStatus("claim_sequence_number", !!v)} />
+                    <CopyableCode>claim_sequence_number</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">integer</Badge>
+                    <span className="text-muted-foreground">The order this claim appears in the progress claim schedule. Used to generate claim numbering like &quot;Progress Claim #3&quot;.</span>
+                  </div>
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["claim_invoice_pattern"] || false} onCheckedChange={(v) => updateColumnStatus("claim_invoice_pattern", !!v)} />
+                    <CopyableCode>claim_invoice_pattern</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">string</Badge>
+                    <span className="text-muted-foreground">Naming pattern for the generated invoice. Supports variables like {`{job_number}`}, {`{claim_number}`}, {`{date}`}.</span>
+                  </div>
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["claim_invoice_template_id"] || false} onCheckedChange={(v) => updateColumnStatus("claim_invoice_template_id", !!v)} />
+                    <CopyableCode>claim_invoice_template_id</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">FK</Badge>
+                    <span className="text-muted-foreground">The invoice template to use when generating the claim invoice. Different templates can have different layouts, logos, and terms.</span>
+                  </div>
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["claim_trading_name_id"] || false} onCheckedChange={(v) => updateColumnStatus("claim_trading_name_id", !!v)} />
+                    <CopyableCode>claim_trading_name_id</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">FK</Badge>
+                    <span className="text-muted-foreground">Which company trading name to invoice from. Useful when your business operates under multiple trading names for different types of work.</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Additional Status Fields */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Additional Status Fields</CardTitle>
+                <CardDescription>Extra status tracking columns</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 text-sm">
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center text-xs text-muted-foreground border-b pb-2 mb-1">
+                    <span title="Complete">Done</span>
+                    <span>Column</span>
+                    <span>Type</span>
+                    <span>Description</span>
+                  </div>
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["started"] || false} onCheckedChange={(v) => updateColumnStatus("started", !!v)} />
+                    <CopyableCode>started</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">Indicates work has begun on this task. Once started, the task is LOCKED and won&apos;t be pushed by predecessor delays. The actual start date is recorded.</span>
+                  </div>
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["previous_hold_date"] || false} onCheckedChange={(v) => updateColumnStatus("previous_hold_date", !!v)} />
+                    <CopyableCode>previous_hold_date</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">date</Badge>
+                    <span className="text-muted-foreground">Stores the previous hold date before a change was made. Useful for audit trails when dates are adjusted and you need to know what was originally planned.</span>
                   </div>
                 </div>
               </CardContent>
