@@ -173,6 +173,13 @@ class Api::V1::EmailUserStatesController < ApplicationController
       data: { affected_count: affected },
       message: "Marked #{affected} emails as read"
     }
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound => e
+    Rails.logger.error("[mark_folder_read] Validation error: #{e.message}")
+    render json: { success: false, error: e.message }, status: :unprocessable_entity
+  rescue StandardError => e
+    Rails.logger.error("[mark_folder_read] Error: #{e.class} - #{e.message}")
+    Rails.logger.error(e.backtrace.first(5).join("\n"))
+    render json: { success: false, error: "Failed to mark folder as read: #{e.message}" }, status: :internal_server_error
   end
 
   # POST /api/v1/email_user_states/bulk_action

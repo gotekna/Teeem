@@ -1153,7 +1153,8 @@ export default function EmailPage() {
       }
     } catch (error) {
       console.error("Failed to mark folder as read:", error);
-      toast({ title: "Failed to mark folder as read", variant: "destructive" });
+      const errorMessage = error instanceof Error ? error.message : "Failed to mark folder as read";
+      toast({ title: errorMessage, variant: "destructive" });
     }
   };
 
