@@ -155,9 +155,9 @@ export function ListView() {
                 onClick={() => toggleTaskExpansion(task.id)}
                 className={cn(
                   'grid grid-cols-[28px_1fr_130px_60px_60px_100px_70px_32px] gap-1 px-2 py-1 items-center text-xs hover:bg-muted/30 cursor-pointer transition-colors',
-                  selectedTaskIds.has(task.id) && 'bg-primary/5',
-                  getTaskRowColorClass(task),
-                  isExpanded && 'bg-primary/10 border-l-4 border-primary shadow-sm'
+                  selectedTaskIds.has(task.id) && !isExpanded && 'bg-primary/5',
+                  !isExpanded && getTaskRowColorClass(task),
+                  isExpanded && 'bg-primary/20 dark:bg-primary/30 border-l-4 border-primary shadow-md font-medium'
                 )}
               >
                 <div onClick={(e) => e.stopPropagation()}>
