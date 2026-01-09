@@ -65,7 +65,9 @@ export function JobExpensesTab({ jobId }: JobExpensesTabProps) {
         `/api/v1/foundations/${foundationId}/records`,
         {
           params: {
-            "filters[job_id]": String(jobId),
+            filters: JSON.stringify([
+              { column: "job_id", operator: "=", value: String(jobId) }
+            ]),
             per_page: 500,
           },
         }
