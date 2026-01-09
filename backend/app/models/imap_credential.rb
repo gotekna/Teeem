@@ -1,6 +1,6 @@
 class ImapCredential < ApplicationRecord
   belongs_to :user
-  has_many :email_warehouse, dependent: :nullify
+  has_many :email_warehouses, dependent: :nullify
   has_many :email_rules, dependent: :destroy
 
   # SSoT: Ownership is determined at creation time by controller

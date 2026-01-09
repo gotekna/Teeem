@@ -14,7 +14,7 @@ class User < ApplicationRecord
   has_many :email_user_states, dependent: :destroy
   has_many :email_drafts, dependent: :destroy
   has_many :vip_senders, dependent: :destroy
-  has_many :email_warehouse, foreign_key: :synced_by_user_id, dependent: :nullify
+  has_many :email_warehouses, foreign_key: :synced_by_user_id, dependent: :nullify
   has_one :email_sync_status, dependent: :destroy
   has_many :notifications, dependent: :destroy
   has_many :user_navigation_configs, dependent: :destroy

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_08_231322) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_09_104149) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2770,27 +2770,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_08_231322) do
     t.index ["searchable"], name: "idx_email_warehouse_searchable_gin", using: :gin
     t.index ["synced_by_user_id"], name: "idx_email_warehouse_synced_by_user"
     t.index ["to_emails"], name: "idx_email_warehouse_to_emails_gin", using: :gin
-  end
-
-  create_table "emails", id: :bigint, default: nil, force: :cascade do |t|
-    t.bigint "job_id"
-    t.bigint "user_id"
-    t.string "from_email", null: false
-    t.text "to_emails"
-    t.text "cc_emails"
-    t.text "bcc_emails"
-    t.text "subject"
-    t.text "body_text"
-    t.text "body_html"
-    t.string "message_id"
-    t.string "in_reply_to"
-    t.text "references"
-    t.datetime "received_at"
-    t.boolean "has_attachments", default: false
-    t.integer "attachment_count", default: 0
-    t.text "raw_email"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
   end
 
   create_table "entity_tab_document_types", force: :cascade do |t|
