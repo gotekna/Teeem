@@ -1221,6 +1221,10 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
         also_complete_task_ids: alsoCompleteTaskIds || [],
       });
 
+      if (!response?.success) {
+        throw new Error('Failed to complete task');
+      }
+
       // Update local state with completion
       const now = new Date().toISOString();
       const today = new Date().toISOString().split('T')[0];
