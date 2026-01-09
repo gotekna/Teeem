@@ -455,6 +455,7 @@ Rails.application.routes.draw do
             post :match
             delete :unmatch
             post :create_invoice
+            post :send_to_client
             post :generate_pdf
             post :release_retainage
           end

@@ -4,7 +4,7 @@ module Api
   module V1
     class JobClaimStagesController < ApplicationController
       before_action :set_job
-      before_action :set_stage, only: [:show, :update, :destroy, :match, :unmatch, :create_invoice, :generate_pdf, :release_retainage]
+      before_action :set_stage, only: [:show, :update, :destroy, :match, :unmatch, :create_invoice, :send_to_client, :generate_pdf, :release_retainage]
 
       # GET /api/v1/jobs/:job_id/claim_stages
       def index
@@ -340,6 +340,57 @@ module Api
           matcher = ClaimStageMatcherService.new(@job)
           matcher.manual_match(@stage, invoice)
 
+          # Reload to get updated data
+          invoice.reload
+          @stage.reload
+
+          render json: {
+            success: true,
+            data: {
+              stage: stage_json(@stage),
+              invoice: {
+                id: invoice.id,
+                invoice_number: invoice.invoice_number || "DRAFT",
+                external_id: invoice.external_id,
+                total: invoice.total&.to_f,
+                status: invoice.status,
+                pending_push: invoice.pending_push
+              },
+              message: "Invoice created as draft in TEEEM. Click 'Send to Client' to sync to Xero."
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.error("Failed to create invoice for claim stage #{@stage.id}: #{e.message}")
+          Rails.logger.error(e.backtrace.join("\n"))
+
+          render json: { success: false, error: "Failed to create invoice: #{e.message}" },
+                 status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/jobs/:job_id/claim_stages/:id/send_to_client
+      # Push draft invoice to Xero
+      def send_to_client
+        invoice = @stage.external_invoice
+
+        unless invoice
+          return render json: { success: false, error: "No invoice linked to this stage" },
+                       status: :unprocessable_entity
+        end
+
+        unless invoice.pending_push?
+          return render json: { success: false, error: "Invoice has already been sent to Xero" },
+                       status: :unprocessable_entity
+        end
+
+        # Get Xero credential
+        xero_credential = XeroCredential.current
+        unless xero_credential
+          return render json: { success: false, error: "No Xero connection configured" },
+                       status: :unprocessable_entity
+        end
+
+        begin
           # Push to Xero
           sync_service = ExternalInvoiceSyncService.new(source: "xero", tenant_id: xero_credential.tenant_id)
           sync_service.send(:push_invoice_to_xero, invoice)
@@ -359,14 +410,14 @@ module Api
                 total: invoice.total&.to_f,
                 status: invoice.status
               },
-              message: "Invoice created and synced to Xero"
+              message: "Invoice sent to Xero successfully"
             }
           }
         rescue StandardError => e
-          Rails.logger.error("Failed to create invoice for claim stage #{@stage.id}: #{e.message}")
+          Rails.logger.error("Failed to send invoice to Xero: #{e.message}")
           Rails.logger.error(e.backtrace.join("\n"))
 
-          render json: { success: false, error: "Failed to create invoice: #{e.message}" },
+          render json: { success: false, error: "Failed to send to Xero: #{e.message}" },
                  status: :unprocessable_entity
         end
       end

@@ -47,6 +47,7 @@ import {
   Lock,
   Unlock,
   ShieldCheck,
+  Send,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
