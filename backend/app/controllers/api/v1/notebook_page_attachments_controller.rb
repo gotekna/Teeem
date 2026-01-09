@@ -20,7 +20,7 @@ class Api::V1::NotebookPageAttachmentsController < ApplicationController
   # POST /api/v1/notebook_pages/:page_id/attachments
   def create
     unless params[:file].present?
-      render json: { error: "File is required" }, status: :unprocessable_entity
+      render json: { success: false, error: "File is required" }, status: :unprocessable_entity
       return
     end
 
@@ -47,13 +47,13 @@ class Api::V1::NotebookPageAttachmentsController < ApplicationController
   def destroy
     @attachment.file.purge if @attachment.file.attached?
     @attachment.destroy!
-    head :no_content
+    render json: { success: true }
   end
 
   # GET /api/v1/notebook_page_attachments/:id/download
   def download
     unless @attachment.file.attached?
-      render json: { error: "File not found" }, status: :not_found
+      render json: { success: false, error: "File not found" }, status: :not_found
       return
     end
 
@@ -65,7 +65,7 @@ class Api::V1::NotebookPageAttachmentsController < ApplicationController
       protocol: request.protocol.delete_suffix("://")
     )
 
-    render json: { url: url, file_name: @attachment.file_name }
+    render json: { success: true, url: url, file_name: @attachment.file_name }
   end
 
   private
@@ -83,7 +83,7 @@ class Api::V1::NotebookPageAttachmentsController < ApplicationController
     return if notebook.nil?
 
     unless notebook.accessible_by?(current_user)
-      render json: { error: "Not authorized" }, status: :forbidden
+      render json: { success: false, error: "Not authorized" }, status: :forbidden
     end
   end
 
@@ -92,7 +92,7 @@ class Api::V1::NotebookPageAttachmentsController < ApplicationController
     return if notebook.nil?
 
     unless notebook.editable_by?(current_user)
-      render json: { error: "Not authorized to edit" }, status: :forbidden
+      render json: { success: false, error: "Not authorized to edit" }, status: :forbidden
     end
   end
 
