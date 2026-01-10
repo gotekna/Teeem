@@ -671,19 +671,56 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
   // Handle drag end for reordering
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    const currentOverHeaderId = overHeaderId; // Capture before clearing
     setActiveDragId(null);
     setOverHeaderId(null);
 
     const { active, over } = event;
-    if (!over || active.id === over.id) return;
+    if (!over) return;
+    if (active.id === over.id && !currentOverHeaderId) return;
 
     const allItems = groupedQuestions.allItems;
     const oldIndex = allItems.findIndex(item => item.id === active.id);
-    const newIndex = allItems.findIndex(item => item.id === over.id);
-
-    if (oldIndex === -1 || newIndex === -1) return;
-
     const draggedItem = allItems[oldIndex];
+
+    if (oldIndex === -1) return;
+
+    // Don't allow headers to become children of other headers
+    if (draggedItem.item_type === 'header' && currentOverHeaderId) {
+      return;
+    }
+
+    // CASE 1: Dropping on a header (detected by overHeaderId) - add as child
+    if (currentOverHeaderId && draggedItem.item_type !== 'header') {
+      // Find the header and its last child to position after
+      const header = allItems.find(item => item.id === currentOverHeaderId);
+      if (!header) return;
+
+      // Find last child of this header to insert after
+      const headerChildren = allItems.filter(item => item.parent_item_id === currentOverHeaderId);
+      const lastChildIndex = headerChildren.length > 0
+        ? allItems.findIndex(item => item.id === headerChildren[headerChildren.length - 1].id)
+        : allItems.findIndex(item => item.id === currentOverHeaderId);
+
+      // Move item to after the last child (or after header if no children)
+      const targetIndex = lastChildIndex + 1;
+      const reorderedItems = arrayMove(allItems, oldIndex, oldIndex < targetIndex ? targetIndex - 1 : targetIndex);
+
+      // Update positions and set parent
+      const updates = reorderedItems.map((item, index) => ({
+        id: item.id,
+        position: index,
+        parent_item_id: item.id === draggedItem.id ? currentOverHeaderId : (item.parent_item_id ?? null)
+      }));
+
+      await reorderActionItems(task.id, updates);
+      return;
+    }
+
+    // CASE 2: Normal reordering
+    const newIndex = allItems.findIndex(item => item.id === over.id);
+    if (newIndex === -1) return;
+
     const targetItem = allItems[newIndex];
 
     // Determine new parent based on where we're dropping
@@ -708,7 +745,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     }));
 
     await reorderActionItems(task.id, updates);
-  }, [groupedQuestions.allItems, reorderActionItems, task.id]);
+  }, [groupedQuestions.allItems, reorderActionItems, task.id, overHeaderId]);
 
   // Add header
   const handleAddHeader = useCallback(async () => {
