@@ -1625,9 +1625,19 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
       {/* 4-Column Content */}
       <div className="flex-1 overflow-auto">
-        <div className="grid grid-cols-4 gap-6 p-6 min-h-full">
+        <div
+          className="grid gap-6 p-6 min-h-full transition-all duration-200"
+          style={{
+            gridTemplateColumns: [
+              columnsCollapsed.description ? '48px' : '1fr',
+              columnsCollapsed.questions ? '48px' : '1fr',
+              columnsCollapsed.actions ? '48px' : '1fr',
+              columnsCollapsed.attachments ? '48px' : '1fr',
+            ].join(' ')
+          }}
+        >
           {/* Column 1: Description */}
-          <div className="flex flex-col gap-4">
+          <div className={cn("flex flex-col gap-4", columnsCollapsed.description && "overflow-hidden")}>
             <div
               className="flex items-center gap-2 cursor-pointer mb-2"
               onClick={() => toggleColumn('description')}
@@ -1741,6 +1751,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           <div
             className={cn(
               "flex flex-col h-full relative",
+              columnsCollapsed.questions && "overflow-hidden",
               dragTargetColumn === 'questions' && "after:absolute after:inset-0 after:border-2 after:border-dashed after:border-green-500 after:bg-green-500/5 after:rounded-lg after:pointer-events-none"
             )}
             onDragOver={handleQuestionsDragOver}
@@ -2116,7 +2127,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           </div>
 
           {/* Column 3: Actions */}
-          <div className="flex flex-col h-full">
+          <div className={cn("flex flex-col h-full", columnsCollapsed.actions && "overflow-hidden")}>
             <div className="flex items-center justify-between mb-2 shrink-0">
               <div
                 className="flex items-center gap-2 cursor-pointer"
@@ -2294,6 +2305,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           <div
             className={cn(
               "flex flex-col h-full relative",
+              columnsCollapsed.attachments && "overflow-hidden",
               isDragging && "after:absolute after:inset-0 after:border-2 after:border-dashed after:border-primary after:bg-primary/5 after:rounded-lg after:pointer-events-none"
             )}
             onDragOver={handleDragOver}
