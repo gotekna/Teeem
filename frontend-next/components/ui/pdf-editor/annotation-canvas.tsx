@@ -246,9 +246,11 @@ export function AnnotationCanvas({
     let startX = 0;
     let startY = 0;
     let shape: fabric.FabricObject | null = null;
+    let calloutText: fabric.IText | null = null;
+    let calloutArrow: fabric.Line | null = null;
 
     const handleMouseDown = (e: fabric.TPointerEventInfo) => {
-      if (!["rectangle", "circle", "arrow", "text"].includes(currentTool)) return;
+      if (!["rectangle", "circle", "arrow", "text", "callout"].includes(currentTool)) return;
       if (!e.pointer) return;
 
       isDrawingShape = true;
@@ -269,6 +271,24 @@ export function AnnotationCanvas({
         text.enterEditing();
         isDrawingShape = false;
         canvas.renderAll();
+      } else if (currentTool === "callout") {
+        // Create text at click position
+        calloutText = new fabric.IText("Label", {
+          left: startX,
+          top: startY - 20,
+          fontSize: 14 * (zoom / 100),
+          fill: strokeColor,
+          fontFamily: "Arial",
+          objectCaching: false,
+        });
+        // Create arrow from text to target (will be updated on drag)
+        calloutArrow = new fabric.Line([startX, startY, startX, startY], {
+          stroke: strokeColor,
+          strokeWidth: strokeWidth,
+          objectCaching: false,
+        });
+        canvas.add(calloutArrow);
+        canvas.add(calloutText);
       } else if (currentTool === "rectangle") {
         shape = new fabric.Rect({
           left: startX,
@@ -304,10 +324,22 @@ export function AnnotationCanvas({
     };
 
     const handleMouseMove = (e: fabric.TPointerEventInfo) => {
-      if (!isDrawingShape || !shape || !e.pointer) return;
+      if (!isDrawingShape || !e.pointer) return;
 
       const currentX = e.pointer.x;
       const currentY = e.pointer.y;
+
+      if (currentTool === "callout" && calloutArrow) {
+        // Update arrow endpoint to follow mouse
+        calloutArrow.set({
+          x2: currentX,
+          y2: currentY,
+        });
+        requestRender();
+        return;
+      }
+
+      if (!shape) return;
 
       if (currentTool === "rectangle" && shape instanceof fabric.Rect) {
         const w = Math.abs(currentX - startX);
@@ -339,12 +371,24 @@ export function AnnotationCanvas({
     };
 
     const handleMouseUp = () => {
-      if (isDrawingShape && shape) {
-        // Enable caching after drawing is complete
-        shape.set({ objectCaching: true });
-        canvas.setActiveObject(shape);
-        canvas.renderAll();
-        shape = null;
+      if (isDrawingShape) {
+        if (currentTool === "callout" && calloutText && calloutArrow) {
+          // Enable caching on both elements
+          calloutText.set({ objectCaching: true });
+          calloutArrow.set({ objectCaching: true });
+          // Select the text for editing
+          canvas.setActiveObject(calloutText);
+          calloutText.enterEditing();
+          canvas.renderAll();
+          calloutText = null;
+          calloutArrow = null;
+        } else if (shape) {
+          // Enable caching after drawing is complete
+          shape.set({ objectCaching: true });
+          canvas.setActiveObject(shape);
+          canvas.renderAll();
+          shape = null;
+        }
       }
       isDrawingShape = false;
     };

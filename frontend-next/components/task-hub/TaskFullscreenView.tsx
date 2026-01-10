@@ -1949,6 +1949,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   }
                 }}
                 className="h-8 text-sm"
+                spellCheck={true}
               />
               <Button
                 size="sm"
@@ -2028,6 +2029,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                 }}
                                 className="h-8 text-sm flex-1"
                                 autoFocus
+                                spellCheck={true}
                               />
                               <Button
                                 size="sm"
@@ -2241,6 +2243,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   }
                 }}
                 className="h-8 text-sm"
+                spellCheck={true}
               />
               <Button
                 size="sm"
@@ -2292,6 +2295,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                         }}
                         className="h-6 text-sm flex-1"
                         autoFocus
+                        spellCheck={true}
                       />
                     ) : (
                       <span
