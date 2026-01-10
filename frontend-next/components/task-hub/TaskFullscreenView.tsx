@@ -43,6 +43,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { ComboboxDropdown, ComboboxItem } from '@/components/ui/combobox-dropdown';
 import { CascadeCompletionDialog } from '@/components/schedule/CascadeCompletionDialog';
+import DocumentPreviewModal from '@/components/corporate/DocumentPreviewModal';
 
 interface Job {
   id: number;
@@ -127,6 +128,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [attachmentLoading, setAttachmentLoading] = useState(false);
   const [emailKeywords, setEmailKeywords] = useState(task.email_keywords || '');
   const [selectedEmailId, setSelectedEmailId] = useState<number | null>(null);
+  const [selectedDocumentId, setSelectedDocumentId] = useState<number | null>(null);
 
   // Followers
   const [shareOpen, setShareOpen] = useState(false);
@@ -693,14 +695,27 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           </div>
 
           {/* Column 2: Actions */}
-          <div className="flex flex-col">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-sm font-medium text-muted-foreground">Actions</h2>
-              <Badge variant="secondary" className="text-xs">{actionItems.length}</Badge>
+          <div className="flex flex-col h-full">
+            <div className="flex items-center justify-between mb-2 shrink-0">
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-medium text-muted-foreground">Actions</h2>
+                <Badge variant="secondary" className="text-xs">{actionItems.length}</Badge>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-xs"
+                onClick={() => {
+                  setNewActionItemType('action');
+                  setShowBulkPaste(true);
+                }}
+              >
+                + Paste List
+              </Button>
             </div>
 
             {/* Add action input */}
-            <div className="flex gap-2 mb-3">
+            <div className="flex gap-2 mb-3 shrink-0">
               <Input
                 placeholder="Add action item..."
                 value={newActionItemType === 'action' ? newActionItemText : ''}
@@ -727,7 +742,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             </div>
 
             {/* Action items list */}
-            <div className="flex-1 overflow-auto space-y-1">
+            <div className="flex-1 overflow-auto space-y-1 min-h-0">
               {actionItems.map((item) => (
                 <div
                   key={item.id}
@@ -833,29 +848,30 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
               )}
             </div>
 
-            {/* Bulk paste button */}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="mt-2 text-xs"
-              onClick={() => {
-                setNewActionItemType('action');
-                setShowBulkPaste(true);
-              }}
-            >
-              + Paste List
-            </Button>
           </div>
 
           {/* Column 3: Questions */}
-          <div className="flex flex-col">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-sm font-medium text-muted-foreground">Questions</h2>
-              <Badge variant="secondary" className="text-xs">{questionItems.length}</Badge>
+          <div className="flex flex-col h-full">
+            <div className="flex items-center justify-between mb-2 shrink-0">
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-medium text-muted-foreground">Questions</h2>
+                <Badge variant="secondary" className="text-xs">{questionItems.length}</Badge>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-xs"
+                onClick={() => {
+                  setNewActionItemType('question');
+                  setShowBulkPaste(true);
+                }}
+              >
+                + Paste List
+              </Button>
             </div>
 
             {/* Add question input */}
-            <div className="flex gap-2 mb-3">
+            <div className="flex gap-2 mb-3 shrink-0">
               <Input
                 placeholder="Add question..."
                 value={newActionItemType === 'question' ? newActionItemText : ''}
@@ -882,7 +898,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             </div>
 
             {/* Question items list */}
-            <div className="flex-1 overflow-auto space-y-2">
+            <div className="flex-1 overflow-auto space-y-2 min-h-0">
               {questionItems.map((item) => (
                 <div
                   key={item.id}
@@ -1015,36 +1031,29 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
               )}
             </div>
 
-            {/* Bulk paste button */}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="mt-2 text-xs"
-              onClick={() => {
-                setNewActionItemType('question');
-                setShowBulkPaste(true);
-              }}
-            >
-              + Paste List
-            </Button>
           </div>
 
           {/* Column 4: Attachments */}
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col h-full">
+            {/* Header with + Add button */}
+            <div className="flex items-center justify-between mb-2 shrink-0">
+              <div className="flex items-center gap-2">
+                <Paperclip className="h-4 w-4 text-muted-foreground" />
+                <h2 className="text-sm font-medium text-muted-foreground">Attachments</h2>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-6 text-xs"
+                onClick={() => setShowAttachmentPicker(!showAttachmentPicker)}
+              >
+                {showAttachmentPicker ? 'Close' : '+ Add'}
+              </Button>
+            </div>
+
             {/* Attachment Picker (inline) */}
             {showAttachmentPicker && (
-              <div className="p-2 border rounded bg-muted/30">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">Add Attachment</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 p-0"
-                    onClick={() => setShowAttachmentPicker(false)}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                </div>
+              <div className="p-2 border rounded bg-muted/30 mb-3 shrink-0">
                 <AttachmentPicker
                   attachments={pendingAttachments}
                   onAdd={handleAddAttachment}
@@ -1055,28 +1064,15 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             )}
 
             {/* Emails Section */}
-            <div className="flex-1 flex flex-col min-h-0">
+            <div className="mb-3">
               <div
-                className="flex items-center justify-between mb-2 cursor-pointer"
+                className="flex items-center gap-2 mb-2 cursor-pointer"
                 onClick={() => setEmailsCollapsed(!emailsCollapsed)}
               >
-                <div className="flex items-center gap-2">
-                  {emailsCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  <Mail className="h-4 w-4 text-muted-foreground" />
-                  <h2 className="text-sm font-medium text-muted-foreground">Emails</h2>
-                  <Badge variant="secondary" className="text-xs">{emailAttachments.length}</Badge>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-6 text-xs"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowAttachmentPicker(true);
-                  }}
-                >
-                  + Add
-                </Button>
+                {emailsCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                <Mail className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium text-muted-foreground">Emails</span>
+                <Badge variant="secondary" className="text-xs">{emailAttachments.length}</Badge>
               </div>
 
               {!emailsCollapsed && (
@@ -1092,8 +1088,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                     />
                   </div>
 
-                  {/* Email list */}
-                  <div className="flex-1 overflow-auto border rounded-md">
+                  {/* Email list - no scroll, shows all */}
+                  <div className="border rounded-md">
                     {emailAttachments.length > 0 ? (
                       <div className="divide-y">
                         {emailAttachments.map((att) => (
@@ -1122,7 +1118,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                         ))}
                       </div>
                     ) : (
-                      <p className="text-xs text-muted-foreground text-center py-4">No emails attached</p>
+                      <p className="text-xs text-muted-foreground text-center py-3">No emails attached</p>
                     )}
                   </div>
                 </>
@@ -1130,38 +1126,33 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             </div>
 
             {/* Documents Section */}
-            <div className="flex-1 flex flex-col min-h-0">
+            <div>
               <div
-                className="flex items-center justify-between mb-2 cursor-pointer"
+                className="flex items-center gap-2 mb-2 cursor-pointer"
                 onClick={() => setDocumentsCollapsed(!documentsCollapsed)}
               >
-                <div className="flex items-center gap-2">
-                  {documentsCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                  <h2 className="text-sm font-medium text-muted-foreground">Documents</h2>
-                  <Badge variant="secondary" className="text-xs">{documentAttachments.length}</Badge>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-6 text-xs"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowAttachmentPicker(true);
-                  }}
-                >
-                  + Add
-                </Button>
+                {documentsCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium text-muted-foreground">Documents</span>
+                <Badge variant="secondary" className="text-xs">{documentAttachments.length}</Badge>
               </div>
 
               {!documentsCollapsed && (
-                <div className="flex-1 overflow-auto border rounded-md">
+                <div className="border rounded-md">
                   {documentAttachments.length > 0 ? (
                     <div className="divide-y">
                       {documentAttachments.map((att) => (
                         <div
                           key={att.id}
-                          className="flex items-center gap-2 p-2 hover:bg-muted/50 text-xs group"
+                          className="flex items-center gap-2 p-2 hover:bg-muted/50 text-xs group cursor-pointer"
+                          onClick={() => att.document && setSelectedDocumentId(att.document.id)}
+                          onDoubleClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (att.document?.sharepoint_url) {
+                              window.open(att.document.sharepoint_url, '_blank');
+                            }
+                          }}
                         >
                           <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
                           <div className="flex-1 min-w-0">
@@ -1172,21 +1163,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                               <div className="text-muted-foreground">{att.document.document_type}</div>
                             )}
                           </div>
-                          {att.document?.sharepoint_url && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-5 w-5 p-0"
-                              onClick={() => window.open(att.document?.sharepoint_url, '_blank')}
-                            >
-                              <ExternalLink className="h-3 w-3" />
-                            </Button>
-                          )}
                           <Button
                             variant="ghost"
                             size="sm"
                             className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100"
-                            onClick={() => handleRemoveAttachment(att.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveAttachment(att.id);
+                            }}
                           >
                             <X className="h-3 w-3" />
                           </Button>
@@ -1194,8 +1178,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-muted-foreground text-center py-4">No documents attached</p>
-                    )}
+                    <p className="text-xs text-muted-foreground text-center py-3">No documents attached</p>
+                  )}
                 </div>
               )}
             </div>
@@ -1232,7 +1216,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             <Textarea
               value={bulkPasteText}
               onChange={(e) => setBulkPasteText(e.target.value)}
-              placeholder={`Action 1\nAction 2\nAction 3`}
+              placeholder={newActionItemType === 'action' ? `Action 1\nAction 2\nAction 3` : `Question 1?\nQuestion 2?\nQuestion 3?`}
               className="min-h-[150px] mb-3"
               autoFocus
             />
@@ -1245,6 +1229,24 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           </div>
         </div>
       )}
+
+      {/* Document preview modal */}
+      {selectedDocumentId && (() => {
+        const selectedDoc = documentAttachments.find(a => a.document?.id === selectedDocumentId)?.document;
+        if (!selectedDoc) return null;
+        return (
+          <DocumentPreviewModal
+            document={{
+              id: selectedDoc.id,
+              file_name: selectedDoc.file_name,
+              display_name: selectedDoc.display_name,
+              document_type: selectedDoc.document_type,
+            }}
+            open={!!selectedDocumentId}
+            onOpenChange={(open) => !open && setSelectedDocumentId(null)}
+          />
+        );
+      })()}
     </div>
   );
 }
