@@ -81,20 +81,27 @@ class TaskActionItem < ApplicationRecord
     )
   end
 
-  # Delegate the question to another user by creating a sub-task
+  # Delegate the question or action to another user by creating a sub-task
   # The sub-task will be assigned to the user, and when completed,
   # the answer and attachments will be copied back to this item
   def delegate_to!(user, created_by:)
-    return { success: false, error: 'Only questions can be delegated' } unless question?
+    return { success: false, error: 'Only questions and actions can be delegated' } if header?
     return { success: false, error: 'Already delegated' } if delegated?
 
     parent_task = sm_task
+    is_question = question?
 
     # Build rich description with context
     description_parts = []
-    description_parts << "Please answer this question and attach any required documents."
-    description_parts << ""
-    description_parts << "**Question:** #{text}"
+    if is_question
+      description_parts << "Please answer this question and attach any required documents."
+      description_parts << ""
+      description_parts << "**Question:** #{text}"
+    else
+      description_parts << "Please complete this action item."
+      description_parts << ""
+      description_parts << "**Action:** #{text}"
+    end
     description_parts << ""
     description_parts << "---"
     description_parts << "**Context:**"
@@ -111,9 +118,10 @@ class TaskActionItem < ApplicationRecord
       description_parts << "**Original Task ID:** ##{parent_task.id} (view for more context)"
     end
 
-    # Create a sub-task for the delegated question
+    # Create a sub-task for the delegated item
+    task_prefix = is_question ? "Question" : "Action"
     sub_task = SmTask.create!(
-      name: "Question: #{text.truncate(100)}",
+      name: "#{task_prefix}: #{text.truncate(100)}",
       description: description_parts.join("\n"),
       parent_task_id: parent_task.id,
       assigned_user_id: user.id,
@@ -127,14 +135,14 @@ class TaskActionItem < ApplicationRecord
       duration_days: 0,
       status: 'not_started',
       source_type: 'manual',
-      is_delegated_question: true  # Flag to identify delegation sub-tasks
+      is_delegated_question: true  # Flag to identify delegation sub-tasks (works for actions too)
     )
 
     # Link the action item to the sub-task
     update!(delegated_task_id: sub_task.id)
 
-    # Notify the assignee about the delegated question
-    notify_delegation_assignee(sub_task, user, created_by)
+    # Notify the assignee about the delegated item
+    notify_delegation_assignee(sub_task, user, created_by, is_question)
 
     { success: true, task: sub_task }
   rescue => e
@@ -143,15 +151,16 @@ class TaskActionItem < ApplicationRecord
 
   private
 
-  def notify_delegation_assignee(sub_task, assignee, sender)
+  def notify_delegation_assignee(sub_task, assignee, sender, is_question = true)
     job_context = sub_task.job.present? ? " for #{sub_task.job.name}" : ""
+    item_type = is_question ? "question" : "action"
 
     Notification.create!(
       user: assignee,
       notifiable: sub_task,
-      notification_type: "question_delegated",
-      title: "Question from #{sender.name}",
-      message: "#{sender.name} sent you a question#{job_context}: \"#{text.truncate(80)}\""
+      notification_type: is_question ? "question_delegated" : "action_delegated",
+      title: "#{item_type.capitalize} from #{sender.name}",
+      message: "#{sender.name} sent you #{item_type == 'question' ? 'a' : 'an'} #{item_type}#{job_context}: \"#{text.truncate(80)}\""
     )
   rescue StandardError => e
     Rails.logger.error("[TaskActionItem] Failed to create delegation notification: #{e.message}")

@@ -679,6 +679,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [showBulkPaste, setShowBulkPaste] = useState(false);
   const [bulkPasteText, setBulkPasteText] = useState('');
   const [delegatingQuestionId, setDelegatingQuestionId] = useState<number | null>(null);
+  const [delegatingActionId, setDelegatingActionId] = useState<number | null>(null);
   const [delegationUsers, setDelegationUsers] = useState<User[]>([]);
 
   // Attachment state
@@ -1318,6 +1319,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     setActionItemLoading(itemId);
     await delegateActionItem(task.id, itemId, userId);
     setDelegatingQuestionId(null);
+    setActionItemLoading(null);
+    refresh();
+  };
+
+  const handleDelegateAction = async (itemId: number, userId: number) => {
+    setActionItemLoading(itemId);
+    await delegateActionItem(task.id, itemId, userId);
+    setDelegatingActionId(null);
     setActionItemLoading(null);
     refresh();
   };
@@ -2660,9 +2669,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                     </div>
                   </div>
 
-                  {/* Show link to delegated task if exists (for backwards compatibility) */}
-                  {/* Note: Delegation is only supported for questions, not actions */}
-                  {item.delegated_task_id && (
+                  {/* Delegated task link or create task button */}
+                  {item.delegated_task_id ? (
                     <div className="ml-6">
                       <Button
                         variant="link"
@@ -2671,6 +2679,34 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                         onClick={() => window.open(`/sm_tasks/${item.delegated_task_id}`, '_blank')}
                       >
                         → Task #{item.delegated_task_id}
+                      </Button>
+                    </div>
+                  ) : delegatingActionId === item.id ? (
+                    <div className="ml-6 flex gap-2 items-center">
+                      <ComboboxDropdown
+                        items={delegationUsers.map(u => ({ id: u.id.toString(), label: u.name }))}
+                        placeholder="Select person..."
+                        onSelect={(selected) => handleDelegateAction(item.id, parseInt(selected.id))}
+                        className="h-6 text-xs w-40"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0"
+                        onClick={() => setDelegatingActionId(null)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="ml-6">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 text-xs p-0 text-muted-foreground hover:text-primary"
+                        onClick={() => setDelegatingActionId(item.id)}
+                      >
+                        → Task
                       </Button>
                     </div>
                   )}
