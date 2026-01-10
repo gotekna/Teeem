@@ -415,8 +415,8 @@ const EmailListItem = memo(function EmailListItem({
                 <ThreadCountBadge count={threadCount} isExpanded={isExpanded} />
                 {/* Timestamp - inline with sender */}
                 <span className={cn(
-                  "text-[10px] whitespace-nowrap shrink-0 group-hover:hidden",
-                  !email.is_read ? "font-semibold text-muted-foreground" : "text-muted-foreground"
+                  "text-xs whitespace-nowrap shrink-0 group-hover:hidden",
+                  !email.is_read ? "font-medium text-muted-foreground" : "text-muted-foreground"
                 )}>
                   {formatEmailDate(email.received_at)}
                 </span>
@@ -484,8 +484,8 @@ const EmailListItem = memo(function EmailListItem({
                     </p>
                   </div>
                   <div className={cn(
-                    "text-[10px] whitespace-nowrap shrink-0",
-                    !threadEmail.is_read ? "font-semibold text-muted-foreground" : "text-muted-foreground"
+                    "text-xs whitespace-nowrap shrink-0",
+                    !threadEmail.is_read ? "font-medium text-muted-foreground" : "text-muted-foreground"
                   )}>
                     {formatEmailDate(threadEmail.received_at)}
                   </div>
@@ -1631,7 +1631,7 @@ To: ${email.to_emails?.join(", ") || ""}
                 )}
               >
                 <Mail className="h-3.5 w-3.5 shrink-0" />
-                <span className="flex-1 text-left truncate text-xs">
+                <span className="flex-1 text-left truncate text-sm">
                   {account.email_address || account.name}
                 </span>
               </button>
@@ -1997,34 +1997,34 @@ To: ${email.to_emails?.join(", ") || ""}
 
             {/* Subject Line */}
             <div className="px-4 py-3 border-b shrink-0">
-              <h1 className="text-lg font-semibold">
+              <h1 className="text-base font-semibold">
                 {selectedEmail.subject || "(No subject)"}
               </h1>
-              <p className="text-sm text-muted-foreground mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 {format(new Date(selectedEmail.received_at), "PPpp")}
               </p>
             </div>
 
             {/* From / To - Outlook inline style */}
-            <div className="px-4 py-2 border-b space-y-1 shrink-0">
-              <div className="flex items-center text-sm">
-                <span className="text-muted-foreground w-12 flex-shrink-0">From</span>
-                <span className="font-medium">
+            <div className="px-4 py-2 border-b space-y-1 shrink-0 text-sm">
+              <div className="flex items-start">
+                <span className="text-muted-foreground w-10 flex-shrink-0">From</span>
+                <span>
                   {selectedEmail.from_name || selectedEmail.from_email || selectedEmail.from_address}
                   {selectedEmail.from_name && selectedEmail.from_email && (
-                    <span className="font-normal text-muted-foreground ml-1">
+                    <span className="text-muted-foreground ml-1">
                       &lt;{selectedEmail.from_email}&gt;
                     </span>
                   )}
                 </span>
               </div>
-              <div className="flex items-center text-sm">
-                <span className="text-muted-foreground w-12 flex-shrink-0">To</span>
+              <div className="flex items-start">
+                <span className="text-muted-foreground w-10 flex-shrink-0">To</span>
                 <span>{(selectedEmail.to_addresses || selectedEmail.to_emails)?.join(", ")}</span>
               </div>
               {selectedEmail.cc_emails && selectedEmail.cc_emails.length > 0 && (
-                <div className="flex items-center text-sm">
-                  <span className="text-muted-foreground w-12 flex-shrink-0">Cc</span>
+                <div className="flex items-start">
+                  <span className="text-muted-foreground w-10 flex-shrink-0">Cc</span>
                   <span>{selectedEmail.cc_emails.join(", ")}</span>
                 </div>
               )}
@@ -2130,7 +2130,7 @@ To: ${email.to_emails?.join(", ") || ""}
           {popoutEmail && (
             <>
               <DialogHeader className="shrink-0">
-                <DialogTitle className="text-lg font-semibold pr-8">
+                <DialogTitle className="text-base font-semibold pr-8">
                   {popoutEmail.subject || "(No subject)"}
                 </DialogTitle>
                 <DialogDescription id="email-popout-description" className="sr-only">
@@ -2139,31 +2139,31 @@ To: ${email.to_emails?.join(", ") || ""}
               </DialogHeader>
 
               {/* From / To */}
-              <div className="space-y-1 py-2 border-b shrink-0">
-                <div className="flex items-center text-sm">
-                  <span className="text-muted-foreground w-12 flex-shrink-0">From</span>
-                  <span className="font-medium">
+              <div className="space-y-1 py-2 border-b shrink-0 text-sm">
+                <div className="flex items-start">
+                  <span className="text-muted-foreground w-10 flex-shrink-0">From</span>
+                  <span>
                     {popoutEmail.from_name || popoutEmail.from_email || popoutEmail.from_address}
                     {popoutEmail.from_name && popoutEmail.from_email && (
-                      <span className="font-normal text-muted-foreground ml-1">
+                      <span className="text-muted-foreground ml-1">
                         &lt;{popoutEmail.from_email}&gt;
                       </span>
                     )}
                   </span>
                 </div>
-                <div className="flex items-center text-sm">
-                  <span className="text-muted-foreground w-12 flex-shrink-0">To</span>
+                <div className="flex items-start">
+                  <span className="text-muted-foreground w-10 flex-shrink-0">To</span>
                   <span>{(popoutEmail.to_addresses || popoutEmail.to_emails)?.join(", ")}</span>
                 </div>
                 {popoutEmail.cc_emails && popoutEmail.cc_emails.length > 0 && (
-                  <div className="flex items-center text-sm">
-                    <span className="text-muted-foreground w-12 flex-shrink-0">Cc</span>
+                  <div className="flex items-start">
+                    <span className="text-muted-foreground w-10 flex-shrink-0">Cc</span>
                     <span>{popoutEmail.cc_emails.join(", ")}</span>
                   </div>
                 )}
-                <div className="flex items-center text-sm">
-                  <span className="text-muted-foreground w-12 flex-shrink-0">Date</span>
-                  <span>{format(new Date(popoutEmail.received_at), "PPpp")}</span>
+                <div className="flex items-start">
+                  <span className="text-muted-foreground w-10 flex-shrink-0">Date</span>
+                  <span className="text-muted-foreground">{format(new Date(popoutEmail.received_at), "PPpp")}</span>
                 </div>
               </div>
 

@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { useOptionalTaskHub } from '@/contexts/TaskHubContext';
+import { TASK_STATUS } from '@/lib/constants/task-status';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   Dialog,
@@ -184,7 +185,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
     setSaving(true);
     try {
       // Determine status based on started checkbox
-      const status = formData.started ? 'started' : 'not_started';
+      const status = formData.started ? TASK_STATUS.STARTED : TASK_STATUS.NOT_STARTED;
 
       // Use nested route if job selected, otherwise use standalone route
       const url = formData.job_id

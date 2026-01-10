@@ -10,6 +10,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTaskHub, SmTask } from '@/contexts/TaskHubContext';
+import { TASK_STATUS } from '@/lib/constants/task-status';
 import { Badge } from '@/components/ui/badge';
 import {
   Sheet,
@@ -35,17 +36,17 @@ interface TaskItem extends SmTask {
 // Column definitions using the standard KanbanColumnDef type
 const columns: KanbanColumnDef<TaskItem>[] = [
   {
-    id: 'not_started',
+    id: TASK_STATUS.NOT_STARTED,
     title: 'To Do',
     color: 'gray',
   },
   {
-    id: 'started',
+    id: TASK_STATUS.STARTED,
     title: 'Active',
     color: 'blue',
   },
   {
-    id: 'completed',
+    id: TASK_STATUS.COMPLETED,
     title: 'Done',
     color: 'green',
   },
@@ -57,19 +58,19 @@ function TaskCardContent({ task }: { task: TaskItem }) {
     <div
       className={cn(
         'px-2 py-1.5 text-xs flex items-center gap-1.5',
-        task.is_overdue && task.status !== 'completed' && 'bg-red-50/50 dark:bg-red-950/30'
+        task.is_overdue && task.status !== TASK_STATUS.COMPLETED && 'bg-red-50/50 dark:bg-red-950/30'
       )}
     >
       <span
         className={cn(
           'flex-1 truncate',
-          task.status === 'completed' && 'line-through text-muted-foreground'
+          task.status === TASK_STATUS.COMPLETED && 'line-through text-muted-foreground'
         )}
       >
         {task.name}
       </span>
 
-      {task.is_overdue && task.status !== 'completed' && (
+      {task.is_overdue && task.status !== TASK_STATUS.COMPLETED && (
         <AlertTriangle className="h-3 w-3 text-red-500 shrink-0" />
       )}
       {task.locked && (
@@ -128,7 +129,7 @@ export function BoardView() {
       id={task.id}
       isDragging={isDragging}
       className={cn(
-        task.is_overdue && task.status !== 'completed' && 'border-red-300'
+        task.is_overdue && task.status !== TASK_STATUS.COMPLETED && 'border-red-300'
       )}
     >
       <div

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useTaskHub, SmTask } from '@/contexts/TaskHubContext';
+import { TASK_STATUS } from '@/lib/constants/task-status';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';

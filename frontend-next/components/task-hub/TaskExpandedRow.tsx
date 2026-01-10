@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { SmTask, TaskAttachment, TaskActionItem, TaskFollower, useTaskHub, ActionItemType } from '@/contexts/TaskHubContext';
+import { TASK_STATUS } from '@/lib/constants/task-status';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -564,7 +565,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
       if (checked) {
         await startTask(task.id);
       } else {
-        await updateTask(task.id, { status: 'not_started', started_at: undefined });
+        await updateTask(task.id, { status: TASK_STATUS.NOT_STARTED, started_at: undefined });
       }
     } finally {
       setLoading(null);
@@ -630,7 +631,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
       // Un-completing - no dialog needed
       setLoading('completed');
       try {
-        await updateTask(task.id, { status: 'started', completed_at: undefined });
+        await updateTask(task.id, { status: TASK_STATUS.STARTED, completed_at: undefined });
       } finally {
         setLoading(null);
       }
@@ -1048,9 +1049,9 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             <div className="flex items-center gap-1">
               <Checkbox
                 id={`started-${task.id}`}
-                checked={task.status === 'started' || task.status === 'completed'}
+                checked={task.status === TASK_STATUS.STARTED || task.status === TASK_STATUS.COMPLETED}
                 onCheckedChange={handleStartedChange}
-                disabled={!!loading || task.status === 'completed'}
+                disabled={!!loading || task.status === TASK_STATUS.COMPLETED}
                 className={cn("h-4 w-4", statusColors.started)}
               />
               <Label htmlFor={`started-${task.id}`} className="text-xs cursor-pointer">Started</Label>
@@ -1156,7 +1157,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             <div className="flex items-center gap-1">
               <Checkbox
                 id={`completed-${task.id}`}
-                checked={task.status === 'completed'}
+                checked={task.status === TASK_STATUS.COMPLETED}
                 onCheckedChange={handleCompletedChange}
                 disabled={!!loading}
                 className={cn("h-4 w-4", statusColors.completed)}
@@ -1398,9 +1399,9 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                           <div className="flex-1">
                             <p className="text-xs text-purple-700 dark:text-purple-300">
                               Sent to <span className="font-medium">{item.delegated_task.assigned_user_name || 'Unknown'}</span>
-                              {item.delegated_task.status === 'completed' && ' • Completed'}
-                              {item.delegated_task.status === 'started' && ' • In Progress'}
-                              {item.delegated_task.status === 'not_started' && ' • Pending'}
+                              {item.delegated_task.status === TASK_STATUS.COMPLETED && ' • Completed'}
+                              {item.delegated_task.status === TASK_STATUS.STARTED && ' • In Progress'}
+                              {item.delegated_task.status === TASK_STATUS.NOT_STARTED && ' • Pending'}
                             </p>
                           </div>
                         </div>

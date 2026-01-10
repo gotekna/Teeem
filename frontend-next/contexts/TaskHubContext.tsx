@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useMemo, R
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useAuth } from './AuthContext';
+import { TASK_STATUS, type CoreTaskStatus } from '@/lib/constants/task-status';
 
 // Types
 // Task attachment types
@@ -93,7 +94,7 @@ export interface SmTask {
   task_number: number;
   name: string;
   description?: string;
-  status: 'not_started' | 'started' | 'completed';
+  status: CoreTaskStatus;
   start_date: string;
   end_date: string;
   duration_days: number;
@@ -177,7 +178,7 @@ export interface SmTask {
 
 export interface TaskFilters {
   jobIds: number[];
-  statuses: ('not_started' | 'started' | 'completed')[];
+  statuses: CoreTaskStatus[];
   assignedUserIds: number[];
   trades: string[];
   stages: string[];
@@ -325,7 +326,7 @@ const generateMockTasks = (currentUserId?: number): SmTask[] => {
       task_number: 1,
       name: 'Foundation Pour - Stage 1',
       description: 'Pour concrete foundation for main building',
-      status: 'completed',
+      status: TASK_STATUS.COMPLETED,
       start_date: formatDate(twoDaysAgo),
       end_date: formatDate(yesterday),
       duration_days: 2,
@@ -349,7 +350,7 @@ const generateMockTasks = (currentUserId?: number): SmTask[] => {
       task_number: 2,
       name: 'Framing - Ground Floor',
       description: 'Frame ground floor walls and ceiling',
-      status: 'started',
+      status: TASK_STATUS.STARTED,
       start_date: formatDate(yesterday),
       end_date: formatDate(tomorrow),
       duration_days: 3,
@@ -375,7 +376,7 @@ const generateMockTasks = (currentUserId?: number): SmTask[] => {
       task_number: 3,
       name: 'Electrical Rough-In',
       description: 'Run electrical wiring before drywall',
-      status: 'not_started',
+      status: TASK_STATUS.NOT_STARTED,
       start_date: formatDate(tomorrow),
       end_date: formatDate(nextWeek),
       duration_days: 5,
@@ -400,7 +401,7 @@ const generateMockTasks = (currentUserId?: number): SmTask[] => {
       task_number: 4,
       name: 'Plumbing Rough-In',
       description: 'Install water and drain lines',
-      status: 'not_started',
+      status: TASK_STATUS.NOT_STARTED,
       start_date: formatDate(tomorrow),
       end_date: formatDate(nextWeek),
       duration_days: 4,
@@ -425,7 +426,7 @@ const generateMockTasks = (currentUserId?: number): SmTask[] => {
       task_number: 5,
       name: 'Site Inspection - Council',
       description: 'Council building inspector visit',
-      status: 'not_started',
+      status: TASK_STATUS.NOT_STARTED,
       start_date: formatDate(twoDaysAgo),
       end_date: formatDate(yesterday),
       duration_days: 1,
@@ -450,7 +451,7 @@ const generateMockTasks = (currentUserId?: number): SmTask[] => {
       task_number: 6,
       name: 'HVAC Installation',
       description: 'Install heating and cooling system',
-      status: 'not_started',
+      status: TASK_STATUS.NOT_STARTED,
       start_date: formatDate(nextWeek),
       end_date: formatDate(inTwoWeeks),
       duration_days: 5,
@@ -476,7 +477,7 @@ const generateMockTasks = (currentUserId?: number): SmTask[] => {
       task_number: 1,
       name: 'Demolition',
       description: 'Remove existing structures',
-      status: 'completed',
+      status: TASK_STATUS.COMPLETED,
       start_date: formatDate(twoDaysAgo),
       end_date: formatDate(twoDaysAgo),
       duration_days: 1,
@@ -500,7 +501,7 @@ const generateMockTasks = (currentUserId?: number): SmTask[] => {
       task_number: 2,
       name: 'Kitchen Cabinets Install',
       description: 'Install new kitchen cabinetry',
-      status: 'started',
+      status: TASK_STATUS.STARTED,
       start_date: formatDate(today),
       end_date: formatDate(tomorrow),
       duration_days: 2,
@@ -528,7 +529,7 @@ const generateMockTasks = (currentUserId?: number): SmTask[] => {
       task_number: 1,
       name: 'Order materials for next week',
       description: 'Place orders for timber, nails, and fixtures',
-      status: 'not_started',
+      status: TASK_STATUS.NOT_STARTED,
       start_date: formatDate(today),
       end_date: formatDate(today),
       duration_days: 1,
@@ -550,7 +551,7 @@ const generateMockTasks = (currentUserId?: number): SmTask[] => {
       task_number: 2,
       name: 'Submit timesheet',
       description: 'Weekly timesheet submission',
-      status: 'not_started',
+      status: TASK_STATUS.NOT_STARTED,
       start_date: formatDate(today),
       end_date: formatDate(today),
       duration_days: 1,
@@ -572,7 +573,7 @@ const generateMockTasks = (currentUserId?: number): SmTask[] => {
       task_number: 3,
       name: 'Call supplier about delay',
       description: 'Follow up on late material delivery',
-      status: 'started',
+      status: TASK_STATUS.STARTED,
       start_date: formatDate(yesterday),
       end_date: formatDate(today),
       duration_days: 2,
@@ -596,7 +597,7 @@ const generateMockTasks = (currentUserId?: number): SmTask[] => {
       task_number: 7,
       name: 'Paint - Interior Walls',
       description: 'First coat of interior paint',
-      status: 'not_started',
+      status: TASK_STATUS.NOT_STARTED,
       start_date: formatDate(nextWeek),
       end_date: formatDate(inTwoWeeks),
       duration_days: 4,
@@ -617,7 +618,7 @@ const generateMockTasks = (currentUserId?: number): SmTask[] => {
       task_number: 8,
       name: 'Flooring - Hardwood Install',
       description: 'Install hardwood flooring throughout',
-      status: 'not_started',
+      status: TASK_STATUS.NOT_STARTED,
       start_date: formatDate(inTwoWeeks),
       end_date: formatDate(inTwoWeeks),
       duration_days: 3,
@@ -887,7 +888,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
 
   // Computed: overdue tasks
   const overdueTasks = useMemo(() => {
-    return filteredTasks.filter(task => task.is_overdue && task.status !== 'completed');
+    return filteredTasks.filter(task => task.is_overdue && task.status !== TASK_STATUS.COMPLETED);
   }, [filteredTasks]);
 
   // Computed: today's tasks
@@ -900,7 +901,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     return filteredTasks.filter(task => {
       const startDate = new Date(task.start_date);
       startDate.setHours(0, 0, 0, 0);
-      return startDate >= today && startDate < tomorrow && task.status !== 'completed';
+      return startDate >= today && startDate < tomorrow && task.status !== TASK_STATUS.COMPLETED;
     });
   }, [filteredTasks]);
 
@@ -914,7 +915,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     return filteredTasks.filter(task => {
       const startDate = new Date(task.start_date);
       startDate.setHours(0, 0, 0, 0);
-      return startDate >= today && startDate < nextWeek && task.status !== 'completed';
+      return startDate >= today && startDate < nextWeek && task.status !== TASK_STATUS.COMPLETED;
     });
   }, [filteredTasks]);
 
@@ -923,7 +924,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     totalCount: filteredTasks.length,
     overdueCount: overdueTasks.length,
     dueTodayCount: todayTasks.length,
-    inProgressCount: filteredTasks.filter(t => t.status === 'started').length,
+    inProgressCount: filteredTasks.filter(t => t.status === TASK_STATUS.STARTED).length,
   }), [filteredTasks, overdueTasks, todayTasks]);
 
   // Actions
@@ -1321,7 +1322,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
   // Task action handlers
   const startTask = useCallback(async (taskId: number) => {
     const now = new Date().toISOString();
-    await updateTask(taskId, { status: 'started', started_at: now } as Partial<SmTask>);
+    await updateTask(taskId, { status: TASK_STATUS.STARTED, started_at: now } as Partial<SmTask>);
   }, [updateTask]);
 
   const completeTask = useCallback(async (taskId: number, alsoCompleteTaskIds?: number[], delegationResponse?: string): Promise<{ cascadeCompletedTasks?: SmTask[] }> => {
@@ -1345,7 +1346,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
 
       setTasks(prev => prev.map(t =>
         completedIds.has(t.id)
-          ? { ...t, status: 'completed' as const, completed_at: now, end_date: today }
+          ? { ...t, status: TASK_STATUS.COMPLETED, completed_at: now, end_date: today }
           : t
       ));
 
@@ -1368,7 +1369,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     return tasks.filter(t =>
       task.completion_linked_task_ids!.includes(t.id) &&
       t.construction_id === task.construction_id &&
-      t.status !== 'completed' &&
+      t.status !== TASK_STATUS.COMPLETED &&
       !t.hold
     );
   }, [tasks]);

@@ -1,6 +1,7 @@
 'use client';
 
 import { useTaskHub, SmTask } from '@/contexts/TaskHubContext';
+import { TASK_STATUS } from '@/lib/constants/task-status';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { ChevronDown, ChevronRight } from 'lucide-react';
