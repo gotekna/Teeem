@@ -151,7 +151,7 @@ When discovering duplicates:
 | Constant | SSoT Location |
 |----------|---------------|
 | `ASSIGNABLE_ROLES` | `User::ASSIGNABLE_ROLES` |
-| `COLUMN_TYPES` | `Column::COLUMN_SQL_TYPE_MAP` |
+| `COLUMN_TYPES` | `column_type_definitions` table (34 types, API: `/api/v1/column_type_definitions`) |
 | System columns | `lib/constants/system-columns.ts` |
 | Document types | `lib/constants/document-types.ts` |
 | UI components | `lib/component-registry.ts` |

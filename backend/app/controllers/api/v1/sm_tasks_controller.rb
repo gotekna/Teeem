@@ -847,8 +847,9 @@ module Api
           file_name: file.original_filename,
           display_name: file.original_filename,
           document_type: "Task Upload",
-          organization: @task.organization,
-          uploaded_by: current_user
+          job_id: @task.job_id,
+          user: current_user,
+          filed_by: current_user&.name
         )
 
         # Attach the file to the document

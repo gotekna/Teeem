@@ -123,7 +123,7 @@ When I say something seems impossible, that's your cue to ultrathink harder. The
 |------|------|
 | System columns | `lib/constants/system-columns.ts` |
 | Document types | `lib/constants/document-types.ts` |
-| Column types | `lib/column-types.ts` |
+| Column types | `column_type_definitions` DB table (via `lib/column-type-registry.ts`) |
 | UI components | `lib/component-registry.ts` |
 
 **Before creating ANY `const`:** `grep -r "CONSTANT_NAME" lib/constants/`
