@@ -786,12 +786,15 @@ module Api
       end
 
       # POST /api/v1/sm_tasks/:id/attachments/upload
-      # Upload a file and attach it to the task using ActiveStorage
+      # Upload a file and attach it to the task
       # Params:
       #   - file: The file to upload (required)
       #   - category: "info" or "response" (default: "info")
       #   - notes: Optional notes
-      # For response files with a job, uploads to SharePoint /Responses/ folder
+      # If task has a job, uploads to SharePoint. Otherwise, uses ActiveStorage.
+      # SharePoint paths:
+      #   - "response" → /Jobs/{code}/Responses/{filename}
+      #   - "info" → /Jobs/{code}/Task Attachments/{filename}
       def upload_attachment
         unless params[:file].present?
           return render json: { success: false, error: "No file provided" }, status: :bad_request
@@ -801,9 +804,9 @@ module Api
         category = params[:category] || "info"
 
         begin
-          # For response files with a job, upload to SharePoint /Responses/ folder
-          if category == "response" && @task.job.present?
-            upload_response_file(file, category)
+          # Upload ALL task files to SharePoint when job exists (enables sharing links)
+          if @task.job.present?
+            upload_to_sharepoint(file, category)
           else
             upload_standard_file(file, category)
           end
@@ -816,9 +819,12 @@ module Api
         end
       end
 
-      # Upload response file to SharePoint and create SmTaskAttachment
-      def upload_response_file(file, category)
-        uploader = TaskResponseUploader.new(job: @task.job, task: @task)
+      # Upload file to SharePoint and create SmTaskAttachment
+      # Uses TaskResponseUploader which handles folder paths based on category:
+      #   - "response" → /Jobs/{code}/Responses/{filename}
+      #   - other → /Jobs/{code}/Task Attachments/{filename}
+      def upload_to_sharepoint(file, category)
+        uploader = TaskResponseUploader.new(job: @task.job, task: @task, category: category)
         result = uploader.upload(file)
         doc = uploader.create_document_record(result, file)
 

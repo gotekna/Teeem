@@ -1,29 +1,32 @@
 # frozen_string_literal: true
 
 # TaskResponseUploader
-# Uploads task response files to a dedicated SharePoint subfolder
-# Path: /Shared Documents/TEEEM Jobs/{JobCode}/Responses/{filename}
+# Uploads task files to SharePoint under the job folder
+# Paths based on category:
+#   - "response" → /Shared Documents/TEEEM Jobs/{JobCode}/Responses/{filename}
+#   - other → /Shared Documents/TEEEM Jobs/{JobCode}/Task Attachments/{filename}
 class TaskResponseUploader
   class UploadError < StandardError; end
 
-  attr_reader :job, :task, :organization
+  attr_reader :job, :task, :organization, :category
 
-  def initialize(job:, task:, organization: nil)
+  def initialize(job:, task:, category: "response", organization: nil)
     @job = job
     @task = task
+    @category = category
     @organization = organization || job&.organization || Organization.current
   end
 
-  # Upload a file to the Responses folder
+  # Upload a file to the appropriate folder based on category
   # @param file [ActionDispatch::Http::UploadedFile] The file to upload
   # @return [Hash] { success: true, sharepoint_url: "...", file_id: "...", filename: "..." }
   def upload(file)
-    raise UploadError, "Job is required for response file uploads" unless job.present?
+    raise UploadError, "Job is required for SharePoint file uploads" unless job.present?
 
     provider = document_provider
-    folder_path = response_folder_path
+    folder_path = target_folder_path
 
-    # Ensure the Responses folder exists
+    # Ensure the folder exists
     ensure_folder_exists(provider, folder_path)
 
     # Read file content
@@ -45,7 +48,7 @@ class TaskResponseUploader
     raise UploadError, "SharePoint is not connected. Please check system settings."
   rescue DocumentProviders::Base::NotFoundError => e
     Rails.logger.error("[TaskResponseUploader] Folder not found: #{e.message}")
-    raise UploadError, "Could not find or create the Responses folder."
+    raise UploadError, "Could not find or create the #{folder_name} folder."
   rescue StandardError => e
     Rails.logger.error("[TaskResponseUploader] Upload failed: #{e.message}")
     raise UploadError, "Failed to upload file: #{e.message}"
@@ -61,8 +64,8 @@ class TaskResponseUploader
       display_name: upload_result[:filename],
       sharepoint_url: upload_result[:sharepoint_url],
       sharepoint_file_id: upload_result[:file_id],
-      document_type: "task_response",
-      folder: "Responses",
+      document_type: document_type,
+      folder: folder_name,
       source: "task_upload",
       documentable: job
     )
@@ -74,15 +77,26 @@ class TaskResponseUploader
     DocumentProviders::SharePoint.for_organization(organization)
   end
 
-  def response_folder_path
+  # Folder name based on category
+  def folder_name
+    category == "response" ? "Responses" : "Task Attachments"
+  end
+
+  # Document type based on category
+  def document_type
+    category == "response" ? "task_response" : "task_attachment"
+  end
+
+  # Target folder path based on category
+  def target_folder_path
     # Use SSoT: CorporateCompanySetting.job_path for consistent path resolution
-    CorporateCompanySetting.job_path(job.code, "Responses")
+    CorporateCompanySetting.job_path(job.code, folder_name)
   end
 
   def ensure_folder_exists(provider, folder_path)
     return if provider.folder_exists?(folder_path)
 
-    # Create the Responses folder under the job folder
+    # Create the folder under the job folder
     provider.create_folder(folder_path, create_parents: true)
   rescue DocumentProviders::Base::AlreadyExistsError
     # Folder already exists, that's fine
