@@ -163,6 +163,11 @@ export interface SmTask {
 
   // Completion linked tasks - tasks that can be completed together when this task completes
   completion_linked_task_ids?: number[];
+
+  // Delegation fields - for tasks created from delegated questions/actions
+  is_delegated_question?: boolean;
+  source_action_item_id?: number;
+  parent_task_name?: string;
 }
 
 export interface TaskFilters {

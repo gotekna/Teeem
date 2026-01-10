@@ -83,6 +83,183 @@ interface TaskHistoryEntry {
   created_at: string;
 }
 
+// Simplified view for delegated questions/actions
+// Shows only: question context, attachments, due date, complete button
+function DelegatedTaskView({
+  task,
+  onClose,
+  onComplete,
+}: {
+  task: SmTask;
+  onClose?: () => void;
+  onComplete: () => Promise<void>;
+}) {
+  const [completing, setCompleting] = useState(false);
+  const [localAttachments, setLocalAttachments] = useState<TaskAttachment[]>(task.attachments || []);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Extract the question/action from the description
+  const questionMatch = task.description?.match(/\*\*(Question|Action):\*\*\s*(.+?)(?:\n|$)/);
+  const questionText = questionMatch?.[2] || task.name.replace(/^(Question|Action):\s*/i, '');
+  const questionType = questionMatch?.[1] || (task.name.startsWith('Action:') ? 'Action' : 'Question');
+
+  // Extract context info
+  const fromTaskMatch = task.description?.match(/- From task:\s*(.+?)(?:\n|$)/);
+  const sentByMatch = task.description?.match(/- Sent by:\s*(.+?)(?:\n|$)/);
+  const fromTask = fromTaskMatch?.[1] || task.parent_task_name;
+  const sentBy = sentByMatch?.[1];
+
+  const handleComplete = async () => {
+    setCompleting(true);
+    try {
+      await onComplete();
+    } finally {
+      setCompleting(false);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files?.length) return;
+
+    setUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('category', 'response');
+
+        const result = await api.postFormData<{ success: boolean; attachment: TaskAttachment }>(
+          `/api/v1/sm_tasks/${task.id}/attachments/upload`,
+          formData
+        );
+
+        if (result?.success && result.attachment) {
+          setLocalAttachments(prev => [...prev, result.attachment]);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to upload file:', err);
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleRemoveAttachment = async (attachmentId: number) => {
+    try {
+      await api.delete(`/api/v1/sm_tasks/${task.id}/attachments/${attachmentId}`);
+      setLocalAttachments(prev => prev.filter(a => a.id !== attachmentId));
+    } catch (err) {
+      console.error('Failed to remove attachment:', err);
+    }
+  };
+
+  return (
+    <div className="bg-muted/30 border-t border-b px-4 py-4 space-y-4 animate-in slide-in-from-top-2 duration-200">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-xs">
+            {questionType}
+          </Badge>
+          <span className="text-sm text-muted-foreground">
+            From: {fromTask || 'Unknown task'}
+          </span>
+          {sentBy && (
+            <span className="text-sm text-muted-foreground">
+              • Sent by: {sentBy}
+            </span>
+          )}
+        </div>
+        {onClose && (
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
+
+      {/* Question/Action text */}
+      <div className="bg-primary/10 border-l-4 border-primary rounded-r px-4 py-3">
+        <p className="font-medium">{questionText}</p>
+      </div>
+
+      {/* Attachments */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label className="text-sm font-medium">Attachments</Label>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            onChange={handleFileUpload}
+            className="hidden"
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Paperclip className="h-4 w-4 mr-1" />
+            Add File
+          </Button>
+        </div>
+        {localAttachments.length > 0 ? (
+          <div className="space-y-1">
+            {localAttachments.map((att) => (
+              <div
+                key={att.id}
+                className="flex items-center justify-between p-2 bg-muted/50 rounded text-sm"
+              >
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <span>{att.document?.file_name || att.document?.display_name || 'File'}</span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0"
+                  onClick={() => handleRemoveAttachment(att.id)}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">No attachments yet</p>
+        )}
+      </div>
+
+      {/* Due date */}
+      <div className="flex items-center gap-4 text-sm">
+        <div className="flex items-center gap-2">
+          <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+          <span>Due: {task.end_date ? format(new Date(task.end_date), 'dd MMM yyyy') : 'No due date'}</span>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center justify-end gap-2 pt-2 border-t">
+        <Button
+          variant="default"
+          onClick={handleComplete}
+          disabled={completing}
+          className="gap-2"
+        >
+          {completing ? (
+            <Spinner size={16} />
+          ) : (
+            <Check className="h-4 w-4" />
+          )}
+          Complete & Submit
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   const { user: currentUser } = useAuth();
   const {
@@ -677,6 +854,20 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
       return <span key={index}>{part}</span>;
     });
   };
+
+  // Simplified view for delegated questions/actions
+  if (task.is_delegated_question) {
+    return (
+      <DelegatedTaskView
+        task={task}
+        onClose={onClose}
+        onComplete={async () => {
+          await completeTask(task.id);
+          onClose?.();
+        }}
+      />
+    );
+  }
 
   return (
     <div className="bg-muted/30 border-t border-b px-3 py-3 space-y-3 animate-in slide-in-from-top-2 duration-200">

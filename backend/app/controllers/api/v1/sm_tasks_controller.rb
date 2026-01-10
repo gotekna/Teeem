@@ -2055,7 +2055,11 @@ module Api
           # Action items (checkable checklist items)
           action_items: task.action_items.map { |item| action_item_to_json(item) },
           # Email keywords for auto-matching
-          email_keywords: task.email_keywords
+          email_keywords: task.email_keywords,
+          # Delegation fields
+          is_delegated_question: task.is_delegated_question,
+          source_action_item_id: task.source_action_item&.id,
+          parent_task_name: task.parent_task&.name
         }
 
         if include_dependencies
