@@ -233,7 +233,12 @@ class CorporateCompanyDocument < ApplicationRecord
     )
   end
 
+  # Allow skipping owner validation for task attachments
+  attr_accessor :skip_owner_validation
+
   def must_have_owner
+    return if skip_owner_validation
+
     # Documents must belong to a company, contact, OR be attached to a job
     if company_id.blank? && contact_id.blank? && job_id.blank?
       errors.add(:base, "Document must belong to a company, contact, or job")

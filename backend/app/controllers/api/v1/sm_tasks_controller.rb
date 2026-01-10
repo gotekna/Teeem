@@ -852,7 +852,8 @@ module Api
           uploaded_at: Time.current
         }
 
-        # Set owner: job if available, otherwise use task supplier or user's linked contact
+        # Set owner if available (job > supplier > user's contact)
+        # For task attachments, documents can exist without an owner - they're linked via SmTaskAttachment
         if @task.job_id.present?
           doc_attrs[:job_id] = @task.job_id
         elsif @task.supplier_id.present?
@@ -860,8 +861,9 @@ module Api
         elsif current_user&.contact_id.present?
           doc_attrs[:contact_id] = current_user.contact_id
         end
-        # Note: If none of these are set, validation will fail - personal tasks without
-        # a linked contact cannot have file attachments until job/contact is set
+
+        # Skip owner validation for task attachments - the task IS the owner
+        doc_attrs[:skip_owner_validation] = true
 
         doc = CorporateCompanyDocument.create!(doc_attrs)
 
