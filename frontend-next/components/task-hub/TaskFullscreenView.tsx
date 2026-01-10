@@ -15,7 +15,7 @@ import { TaskAssignmentInline } from './TaskAssignmentInline';
 import { AttachmentPicker, PendingAttachment } from './AttachmentPicker';
 import TeeemTableView from '@/components/table/TeeemTableView';
 import { EmailDetailDialog } from '@/components/emails/EmailDetailDialog';
-import { api } from '@/lib/api';
+import { api, getApiBaseUrl } from '@/lib/api';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   DndContext,
@@ -62,7 +62,7 @@ import { format } from 'date-fns';
 import { ComboboxDropdown, ComboboxItem } from '@/components/ui/combobox-dropdown';
 import { ExpandChevron } from '@/components/ui/expand-chevron';
 import { CascadeCompletionDialog } from '@/components/schedule/CascadeCompletionDialog';
-import DocumentPreviewModal from '@/components/corporate/DocumentPreviewModal';
+import { DocumentViewerModal, getFileType } from '@/components/ui/document-viewer-modal';
 import { AttachmentCategoryDialog } from './AttachmentCategoryDialog';
 import { ComposeEmailModal } from '@/components/emails/ComposeEmailModal';
 
@@ -604,11 +604,17 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [attachmentLoading, setAttachmentLoading] = useState(false);
   const [emailKeywords, setEmailKeywords] = useState(task.email_keywords || '');
   const [selectedEmailId, setSelectedEmailId] = useState<number | null>(null);
-  const [selectedDocumentId, setSelectedDocumentId] = useState<number | null>(null);
 
   // Email-to-document highlighting state
   const [selectedEmailForHighlight, setSelectedEmailForHighlight] = useState<number | null>(null);
   const [highlightedDocHashes, setHighlightedDocHashes] = useState<Set<string>>(new Set());
+
+  // Document viewer state (for markup/annotations)
+  const [viewerDocument, setViewerDocument] = useState<{
+    url: string;
+    fileName: string;
+    fileType: 'pdf' | 'image' | 'other';
+  } | null>(null);
 
   // Column collapse state
   const [columnsCollapsed, setColumnsCollapsed] = useState({
@@ -2093,9 +2099,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100"
+                        className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
                         onClick={() => handleRemoveAttachment(att.id)}
-                        title="Remove from response"
+                        title="Delete attachment"
                       >
                         <X className="h-3 w-3" />
                       </Button>
@@ -2397,11 +2403,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100"
+                              className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleRemoveAttachment(att.id);
                               }}
+                              title="Delete attachment"
                             >
                               <X className="h-3 w-3" />
                             </Button>
@@ -2440,7 +2447,17 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             att.document?.content_hash && highlightedDocHashes.has(att.document.content_hash) &&
                               "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30"
                           )}
-                          onClick={() => att.document && setSelectedDocumentId(att.document.id)}
+                          onClick={() => {
+                            if (att.document) {
+                              // Open document viewer with markup tools
+                              const docUrl = `${getApiBaseUrl()}/api/v1/company_documents/${att.document.id}/content`;
+                              setViewerDocument({
+                                url: docUrl,
+                                fileName: att.document.display_name || att.document.file_name || 'document',
+                                fileType: getFileType(att.document.file_name),
+                              });
+                            }
+                          }}
                           onDoubleClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
@@ -2461,11 +2478,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100"
+                            className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleRemoveAttachment(att.id);
                             }}
+                            title="Delete attachment"
                           >
                             <X className="h-3 w-3" />
                           </Button>
@@ -2514,8 +2532,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100"
+                          className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
                           onClick={() => handleRemoveAttachment(att.id)}
+                          title="Delete attachment"
                         >
                           <X className="h-3 w-3" />
                         </Button>
@@ -2650,25 +2669,26 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         </div>
       )}
 
-      {/* Document preview modal */}
-      {selectedDocumentId && (() => {
-        // Search both info and response attachments
-        const allDocAttachments = [...infoAttachments, ...responseAttachments];
-        const selectedDoc = allDocAttachments.find(a => a.document?.id === selectedDocumentId)?.document;
-        if (!selectedDoc) return null;
-        return (
-          <DocumentPreviewModal
-            document={{
-              id: selectedDoc.id,
-              file_name: selectedDoc.file_name,
-              display_name: selectedDoc.display_name,
-              document_type: selectedDoc.document_type,
-            }}
-            open={!!selectedDocumentId}
-            onOpenChange={(open) => !open && setSelectedDocumentId(null)}
-          />
-        );
-      })()}
+      {/* Document viewer modal with markup/annotation tools */}
+      {viewerDocument && (
+        <DocumentViewerModal
+          url={viewerDocument.url}
+          fileName={viewerDocument.fileName}
+          fileType={viewerDocument.fileType}
+          open={!!viewerDocument}
+          onOpenChange={(open) => !open && setViewerDocument(null)}
+          onSave={async (pdfBytes, fileName) => {
+            // Download the annotated PDF
+            const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName.replace(/\.[^.]+$/, '') + '_annotated.pdf';
+            a.click();
+            URL.revokeObjectURL(url);
+          }}
+        />
+      )}
 
       {/* Attachment category dialog */}
       <AttachmentCategoryDialog

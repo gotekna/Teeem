@@ -3,6 +3,7 @@ namespace :documents do
   task fix_sharepoint_mismatches: :environment do
     puts "=" * 60
     puts "SHAREPOINT DOCUMENT MISMATCH FIX"
+    puts "SSoT: SharePoint filename is truth - update DB to match"
     puts "=" * 60
 
     credential = MicrosoftCredential.sharepoint_credential
@@ -42,32 +43,14 @@ namespace :documents do
           puts "     DB:        #{doc.file_name}"
           puts "     SharePoint: #{sp_name}"
 
-          # Try to find the correct file
-          search_results = client.search(doc.file_name)
-
-          if search_results["value"].present?
-            correct_file = search_results["value"].find do |result|
-              result["name"] == doc.file_name &&
-              (result.dig("parentReference", "path") || "").include?(doc.corporate_company&.code.to_s)
-            end
-
-            if correct_file && correct_file["id"] != doc.sharepoint_file_id
-              old_id = doc.sharepoint_file_id
-              doc.update!(sharepoint_file_id: correct_file["id"])
-              fixed << { id: doc.id, old_id: old_id, new_id: correct_file["id"] }
-              puts "     ✅ FIXED: Updated sharepoint_file_id"
-              puts "        Old: #{old_id}"
-              puts "        New: #{correct_file["id"]}"
-            else
-              puts "     ⚠️  Could not find correct file in SharePoint"
-            end
-          else
-            puts "     ⚠️  No search results for: #{doc.file_name}"
-          end
+          # FIX: Update DB filename to match SharePoint (SSoT)
+          old_name = doc.file_name
+          doc.update!(file_name: sp_name)
+          fixed << { id: doc.id, old_name: old_name, new_name: sp_name }
+          puts "     ✅ FIXED: Updated DB filename to match SharePoint"
         end
       rescue MicrosoftGraphClient::APIError => e
         errors << { id: doc.id, file_name: doc.file_name, error: e.message }
-        # Don't print every error - too noisy
       rescue => e
         errors << { id: doc.id, file_name: doc.file_name, error: e.message }
       end
@@ -87,15 +70,7 @@ namespace :documents do
     if fixed.any?
       puts "FIXED DOCUMENTS:"
       fixed.each do |f|
-        puts "  ID #{f[:id]}: #{f[:old_id]} -> #{f[:new_id]}"
-      end
-      puts ""
-    end
-
-    if (mismatches.count - fixed.count) > 0
-      puts "UNFIXED MISMATCHES (#{mismatches.count - fixed.count}):"
-      (mismatches - fixed.map { |f| mismatches.find { |m| m[:id] == f[:id] } }).compact.each do |m|
-        puts "  ID #{m[:id]} (#{m[:company_code]}): #{m[:db_name]}"
+        puts "  ID #{f[:id]}: '#{f[:old_name]}' -> '#{f[:new_name]}'"
       end
     end
   end
