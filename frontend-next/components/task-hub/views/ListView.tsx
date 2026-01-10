@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useTaskHub, SmTask } from '@/contexts/TaskHubContext';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -40,6 +41,7 @@ type SortField = 'name' | 'status' | 'start_date' | 'end_date' | 'job_name' | 't
 type SortDirection = 'asc' | 'desc';
 
 export function ListView() {
+  const router = useRouter();
   const {
     filteredTasks,
     selectedTaskIds,
@@ -169,7 +171,7 @@ export function ListView() {
                 onDoubleClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  window.open(`/sm_tasks/${task.id}`, '_blank');
+                  router.push(`/sm_tasks/${task.id}`);
                 }}
                 className={cn(
                   'grid grid-cols-[28px_1fr_130px_60px_60px_100px_70px_32px] gap-1 px-2 items-center cursor-pointer transition-colors',
