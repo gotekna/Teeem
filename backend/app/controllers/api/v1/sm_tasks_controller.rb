@@ -1119,6 +1119,7 @@ module Api
         update_attrs = {}
         update_attrs[:text] = params[:text] if params.key?(:text)
         update_attrs[:item_type] = params[:item_type] if params.key?(:item_type)
+        update_attrs[:include_in_response] = params[:include_in_response] if params.key?(:include_in_response)
 
         item.update!(update_attrs)
 
@@ -1623,6 +1624,7 @@ module Api
           responded_by_id: item.responded_by_id,
           responded_by_name: item.responded_by&.name,
           responded_at: item.responded_at,
+          include_in_response: item.include_in_response,
           # Delegation info
           delegated: item.delegated?,
           delegated_task_id: item.delegated_task_id

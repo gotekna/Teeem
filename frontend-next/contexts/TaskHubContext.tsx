@@ -59,6 +59,7 @@ export interface TaskActionItem {
   responded_by_id?: number;
   responded_by_name?: string;
   responded_at?: string;
+  include_in_response?: boolean;
   // Delegation fields
   delegated?: boolean;
   delegated_task_id?: number;
@@ -240,12 +241,13 @@ export interface TaskHubContextType extends TaskHubState {
 
   // Action items
   addActionItem: (taskId: number, text: string, itemType?: ActionItemType) => Promise<TaskActionItem>;
-  bulkAddActionItems: (taskId: number, items: { text: string; item_type: ActionItemType }[]) => Promise<TaskActionItem[]>;
+  bulkAddActionItems: (taskId: number, items: { text: string; item_type: ActionItemType }[], createLinkedActions?: boolean) => Promise<TaskActionItem[]>;
   toggleActionItem: (taskId: number, itemId: number) => Promise<void>;
   answerActionItem: (taskId: number, itemId: number, response: string) => Promise<TaskActionItem>;
   updateActionItem: (taskId: number, itemId: number, text: string) => Promise<TaskActionItem>;
   removeActionItem: (taskId: number, itemId: number) => Promise<void>;
   delegateActionItem: (taskId: number, itemId: number, userId: number) => Promise<TaskActionItem>;
+  toggleIncludeInResponse: (taskId: number, itemId: number) => Promise<void>;
 
   // Privacy
   setTaskPrivacy: (taskId: number, isPrivate: boolean) => Promise<void>;
@@ -998,10 +1000,28 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     throw new Error('Failed to add action item');
   }, []);
 
-  const bulkAddActionItems = useCallback(async (taskId: number, items: { text: string; item_type: ActionItemType }[]): Promise<TaskActionItem[]> => {
+  const bulkAddActionItems = useCallback(async (
+    taskId: number,
+    items: { text: string; item_type: ActionItemType }[],
+    createLinkedActions?: boolean
+  ): Promise<TaskActionItem[]> => {
+    // If createLinkedActions is true, expand questions to include paired actions
+    let itemsToSend = items;
+    if (createLinkedActions) {
+      itemsToSend = items.flatMap(item => {
+        if (item.item_type === 'question') {
+          return [
+            { text: item.text, item_type: 'question' as ActionItemType },
+            { text: item.text, item_type: 'action' as ActionItemType }
+          ];
+        }
+        return [item];
+      });
+    }
+
     const response = await api.post<{ action_items: TaskActionItem[]; success: boolean }>(
       `/api/v1/sm_tasks/${taskId}/action_items/bulk`,
-      { items }
+      { items: itemsToSend }
     );
     if (response?.success && response?.action_items) {
       // Update local task state
@@ -1106,6 +1126,47 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     }
     throw new Error('Failed to delegate question');
   }, []);
+
+  const toggleIncludeInResponse = useCallback(async (taskId: number, itemId: number) => {
+    // Find current value
+    const currentTask = tasks.find(t => t.id === taskId);
+    const item = currentTask?.action_items?.find(i => i.id === itemId);
+    if (!item) return;
+
+    const newValue = !item.include_in_response;
+
+    // Optimistic update
+    setTasks(prev => prev.map(t =>
+      t.id === taskId
+        ? {
+            ...t,
+            action_items: (t.action_items || []).map(i =>
+              i.id === itemId ? { ...i, include_in_response: newValue } : i
+            )
+          }
+        : t
+    ));
+
+    try {
+      await api.patch(`/api/v1/sm_tasks/${taskId}/action_items/${itemId}`, {
+        include_in_response: newValue
+      });
+    } catch (err) {
+      console.error('Failed to update include_in_response:', err);
+      // Revert optimistic update on error
+      setTasks(prev => prev.map(t =>
+        t.id === taskId
+          ? {
+              ...t,
+              action_items: (t.action_items || []).map(i =>
+                i.id === itemId ? { ...i, include_in_response: item.include_in_response } : i
+              )
+            }
+          : t
+      ));
+      throw err;
+    }
+  }, [tasks]);
 
   const setTaskPrivacy = useCallback(async (taskId: number, isPrivate: boolean) => {
     const originalTasks = [...tasks];
@@ -1331,6 +1392,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     updateActionItem,
     removeActionItem,
     delegateActionItem,
+    toggleIncludeInResponse,
     // Privacy
     setTaskPrivacy,
     // Followers

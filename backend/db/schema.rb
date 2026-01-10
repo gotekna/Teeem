@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_10_130002) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_10_130003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8931,6 +8931,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_10_130002) do
     t.bigint "responded_by_id"
     t.datetime "responded_at"
     t.bigint "delegated_task_id"
+    t.boolean "include_in_response", default: false
     t.index ["checked_by_id"], name: "index_task_action_items_on_checked_by_id"
     t.index ["delegated_task_id"], name: "index_task_action_items_on_delegated_task_id"
     t.index ["responded_by_id"], name: "index_task_action_items_on_responded_by_id"

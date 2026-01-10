@@ -22,6 +22,7 @@ class TaskActionItem < ApplicationRecord
   scope :unanswered, -> { where(response: [nil, '']) }
   scope :delegated, -> { where.not(delegated_task_id: nil) }
   scope :not_delegated, -> { where(delegated_task_id: nil) }
+  scope :for_response, -> { questions.where(include_in_response: true) }
 
   # Predicates
   def action?

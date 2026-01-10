@@ -89,6 +89,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     updateActionItem,
     removeActionItem,
     delegateActionItem,
+    toggleIncludeInResponse,
     setTaskPrivacy,
     getFollowers,
     addFollower,
@@ -136,6 +137,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [dragTargetColumn, setDragTargetColumn] = useState<'attachments' | 'questions' | null>(null);
+
+  // Editing answers inline
+  const [editingAnswerId, setEditingAnswerId] = useState<number | null>(null);
+  const [editingAnswerText, setEditingAnswerText] = useState('');
 
   // Email compose for responses
   const [showComposeEmail, setShowComposeEmail] = useState(false);
@@ -312,7 +318,13 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     if (!bulkPasteText.trim()) return;
     setActionItemLoading('bulk');
     const lines = bulkPasteText.split('\n').filter(line => line.trim());
-    await bulkAddActionItems(task.id, lines.map(text => ({ text, item_type: newActionItemType })));
+    // When pasting questions, also create linked action items
+    const createLinkedActions = newActionItemType === 'question';
+    await bulkAddActionItems(
+      task.id,
+      lines.map(text => ({ text, item_type: newActionItemType })),
+      createLinkedActions
+    );
     setBulkPasteText('');
     setShowBulkPaste(false);
     setActionItemLoading(null);
@@ -419,23 +431,49 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     setPendingFile(null);
   };
 
+  // Helper to upload file directly with a category (bypasses dialog)
+  const uploadFileWithCategory = async (file: File, category: AttachmentCategory) => {
+    setAttachmentLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('category', category);
+
+      const response = await api.postFormData<{ success: boolean; attachment: TaskAttachment }>(
+        `/api/v1/sm_tasks/${task.id}/attachments/upload`,
+        formData
+      );
+
+      if (response?.success && response.attachment) {
+        setLocalAttachments(prev => [...prev, response.attachment]);
+      }
+    } catch (err) {
+      console.error('Failed to upload file:', err);
+    } finally {
+      setAttachmentLoading(false);
+    }
+  };
+
   // Drag and drop handlers for the attachment column
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(true);
+    setDragTargetColumn('attachments');
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
+    setDragTargetColumn(null);
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
+    setDragTargetColumn(null);
 
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
@@ -443,15 +481,50 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     }
   };
 
+  // Drag and drop handlers for the Questions column (auto-categorizes as response)
+  const handleQuestionsDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragTargetColumn('questions');
+  };
+
+  const handleQuestionsDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragTargetColumn(null);
+  };
+
+  const handleQuestionsDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragTargetColumn(null);
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      // Auto-upload as response (skip category dialog)
+      await uploadFileWithCategory(files[0], 'response');
+    }
+  };
+
+  // Handler for updating an answer inline
+  const handleUpdateAnswer = async (itemId: number) => {
+    if (!editingAnswerText.trim()) return;
+    setActionItemLoading(itemId);
+    await answerActionItem(task.id, itemId, editingAnswerText.trim());
+    setEditingAnswerId(null);
+    setEditingAnswerText('');
+    setActionItemLoading(null);
+  };
+
   // Generate response email body with Q&A and file links
   const generateResponseBody = (): string => {
     let body = '';
 
-    // Add answered questions
-    const answeredQuestions = questionItems.filter(q => q.response);
-    if (answeredQuestions.length > 0) {
+    // Add questions marked for inclusion in response (with answers)
+    const includedQuestions = questionItems.filter(q => q.include_in_response && q.response);
+    if (includedQuestions.length > 0) {
       body += 'Responses to your questions:\n\n';
-      answeredQuestions.forEach((q, i) => {
+      includedQuestions.forEach((q, i) => {
         body += `${i + 1}. ${q.text}\n`;
         body += `   → ${q.response}\n\n`;
       });
@@ -956,7 +1029,23 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           </div>
 
           {/* Column 3: Questions */}
-          <div className="flex flex-col h-full">
+          <div
+            className={cn(
+              "flex flex-col h-full relative",
+              dragTargetColumn === 'questions' && "after:absolute after:inset-0 after:border-2 after:border-dashed after:border-green-500 after:bg-green-500/5 after:rounded-lg after:pointer-events-none"
+            )}
+            onDragOver={handleQuestionsDragOver}
+            onDragLeave={handleQuestionsDragLeave}
+            onDrop={handleQuestionsDrop}
+          >
+            {/* Drag overlay message for questions */}
+            {dragTargetColumn === 'questions' && (
+              <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+                <div className="bg-green-600 text-white px-4 py-2 rounded-lg font-medium text-sm shadow-lg">
+                  Drop to attach as Response
+                </div>
+              </div>
+            )}
             <div className="flex items-center justify-between mb-2 shrink-0">
               <div className="flex items-center gap-2">
                 <h2 className="text-sm font-medium text-muted-foreground">Questions</h2>
@@ -1012,6 +1101,13 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   )}
                 >
                   <div className="flex items-start gap-2">
+                    {/* Include in response checkbox */}
+                    <Checkbox
+                      checked={item.include_in_response || false}
+                      onCheckedChange={() => toggleIncludeInResponse(task.id, item.id)}
+                      className="mt-0.5 shrink-0 data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
+                      title="Include Q&A in response email"
+                    />
                     <HelpCircle className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
                     {editingItemId === item.id ? (
                       <Input
@@ -1051,10 +1147,37 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
                   {/* Answer */}
                   {item.response ? (
-                    <div className="ml-6 p-2 rounded bg-green-50 dark:bg-green-950/30 border-l-2 border-green-500">
-                      <span className="text-xs text-green-600 dark:text-green-400">Answer:</span>
-                      <p className="text-sm">{item.response}</p>
-                    </div>
+                    editingAnswerId === item.id ? (
+                      <div className="ml-6 flex gap-2">
+                        <Input
+                          value={editingAnswerText}
+                          onChange={(e) => setEditingAnswerText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleUpdateAnswer(item.id);
+                            if (e.key === 'Escape') {
+                              setEditingAnswerId(null);
+                              setEditingAnswerText('');
+                            }
+                          }}
+                          className="h-7 text-sm"
+                          autoFocus
+                        />
+                        <Button size="sm" onClick={() => handleUpdateAnswer(item.id)} className="h-7">
+                          <Check className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div
+                        className="ml-6 p-2 rounded bg-green-50 dark:bg-green-950/30 border-l-2 border-green-500 cursor-pointer hover:bg-green-100 dark:hover:bg-green-900/40"
+                        onClick={() => {
+                          setEditingAnswerId(item.id);
+                          setEditingAnswerText(item.response || '');
+                        }}
+                      >
+                        <span className="text-xs text-green-600 dark:text-green-400">Answer:</span>
+                        <p className="text-sm">{item.response}</p>
+                      </div>
+                    )
                   ) : answeringItemId === item.id ? (
                     <div className="ml-6 flex gap-2">
                       <Input
