@@ -271,7 +271,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const handleUpdateItem = async (itemId: number) => {
     if (!editingItemText.trim()) return;
     setActionItemLoading(itemId);
-    await updateActionItem(task.id, itemId, { content: editingItemText.trim() });
+    await updateActionItem(task.id, itemId, editingItemText.trim());
     setEditingItemId(null);
     setEditingItemText('');
     setActionItemLoading(null);
@@ -296,7 +296,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     if (!bulkPasteText.trim()) return;
     setActionItemLoading('bulk');
     const lines = bulkPasteText.split('\n').filter(line => line.trim());
-    await bulkAddActionItems(task.id, lines, newActionItemType);
+    await bulkAddActionItems(task.id, lines.map(text => ({ text, item_type: newActionItemType })));
     setBulkPasteText('');
     setShowBulkPaste(false);
     setActionItemLoading(null);
@@ -322,21 +322,28 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const handleAddAttachment = async (attachment: PendingAttachment) => {
     setAttachmentLoading(true);
     try {
-      const response = await api.post<{ success: boolean; attachment: TaskAttachment }>(
-        `/api/v1/sm_tasks/${task.id}/attachments`,
-        {
-          attachment_type: attachment.type,
-          attachable_id: attachment.id,
-          attachable_type: attachment.type === 'email' ? 'EmailWarehouse' : 'CorporateCompanyDocument',
+      if (attachment.id) {
+        const response = await api.post<{ success: boolean; attachment: TaskAttachment }>(
+          `/api/v1/sm_tasks/${task.id}/attachments`,
+          {
+            attachment_type: attachment.type,
+            attachable_id: attachment.id,
+            attachable_type: attachment.type === 'email' ? 'EmailWarehouse' : 'CorporateCompanyDocument',
+          }
+        );
+        if (response?.success && response.attachment) {
+          setLocalAttachments(prev => [...prev, response.attachment]);
+          setShowAttachmentPicker(false);
         }
-      );
-      if (response?.success && response.attachment) {
-        setLocalAttachments(prev => [...prev, response.attachment]);
       }
     } catch (err) {
       console.error('Failed to add attachment:', err);
     }
     setAttachmentLoading(false);
+  };
+
+  const handleRemovePendingAttachment = (index: number) => {
+    setPendingAttachments(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleRemoveAttachment = async (attachmentId: number) => {
@@ -361,9 +368,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   // Job items for combobox
   const jobItems: ComboboxItem[] = useMemo(() => {
     return jobs.map(job => ({
-      value: job.id.toString(),
+      id: job.id.toString(),
       label: job.name,
-      sublabel: job.client_name,
+      searchText: job.client_name,
     }));
   }, [jobs]);
 
@@ -627,11 +634,13 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 <div className="flex-1">
                   <ComboboxDropdown
                     items={jobItems}
-                    value={task.construction_id > 0 ? task.construction_id.toString() : undefined}
-                    onValueChange={(val) => handleJobChange(val ? parseInt(val) : null)}
+                    selectedItem={task.construction_id > 0 ? {
+                      id: task.construction_id.toString(),
+                      label: task.job_name || 'Unknown Job'
+                    } : undefined}
+                    onSelect={(item) => handleJobChange(parseInt(item.id))}
                     placeholder="Select job..."
                     searchPlaceholder="Search jobs..."
-                    emptyText="No jobs found"
                     className="h-8"
                   />
                 </div>
@@ -641,7 +650,13 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground w-20">Assigned:</span>
                 <div className="flex-1">
-                  <TaskAssignmentInline task={task} />
+                  <TaskAssignmentInline
+                    assignedUserId={task.assigned_user_id}
+                    assignedRole={task.assigned_role}
+                    onAssign={async (userId, role) => {
+                      await updateTask(task.id, { assigned_user_id: userId, assigned_role: role });
+                    }}
+                  />
                 </div>
               </div>
 
@@ -718,12 +733,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   key={item.id}
                   className={cn(
                     "p-2 rounded-md border bg-card text-sm group space-y-1",
-                    item.completed && "bg-muted/50"
+                    item.checked && "bg-muted/50"
                   )}
                 >
                   <div className="flex items-start gap-2">
                     <Checkbox
-                      checked={item.completed}
+                      checked={item.checked}
                       onCheckedChange={() => handleToggleItem(item.id)}
                       className="mt-0.5 shrink-0"
                       disabled={actionItemLoading === item.id}
@@ -747,14 +762,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       <span
                         className={cn(
                           "flex-1 cursor-pointer",
-                          item.completed && "line-through text-muted-foreground"
+                          item.checked && "line-through text-muted-foreground"
                         )}
                         onClick={() => {
                           setEditingItemId(item.id);
-                          setEditingItemText(item.content);
+                          setEditingItemText(item.text);
                         }}
                       >
-                        {item.content}
+                        {item.text}
                       </span>
                     )}
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -785,9 +800,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   ) : delegatingActionId === item.id ? (
                     <div className="ml-6 flex gap-2 items-center">
                       <ComboboxDropdown
-                        items={delegationUsers.map(u => ({ value: u.id.toString(), label: u.name }))}
+                        items={delegationUsers.map(u => ({ id: u.id.toString(), label: u.name }))}
                         placeholder="Select person..."
-                        onValueChange={(val) => val && handleDelegateAction(item.id, parseInt(val))}
+                        onSelect={(selected) => handleDelegateAction(item.id, parseInt(selected.id))}
                         className="h-6 text-xs w-40"
                       />
                       <Button
@@ -897,10 +912,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                         className="flex-1 cursor-pointer"
                         onClick={() => {
                           setEditingItemId(item.id);
-                          setEditingItemText(item.content);
+                          setEditingItemText(item.text);
                         }}
                       >
-                        {item.content}
+                        {item.text}
                       </span>
                     )}
                     <Button
@@ -914,10 +929,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   </div>
 
                   {/* Answer */}
-                  {item.answer ? (
+                  {item.response ? (
                     <div className="ml-6 p-2 rounded bg-green-50 dark:bg-green-950/30 border-l-2 border-green-500">
                       <span className="text-xs text-green-600 dark:text-green-400">Answer:</span>
-                      <p className="text-sm">{item.answer}</p>
+                      <p className="text-sm">{item.response}</p>
                     </div>
                   ) : answeringItemId === item.id ? (
                     <div className="ml-6 flex gap-2">
@@ -967,9 +982,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   ) : delegatingQuestionId === item.id ? (
                     <div className="ml-6 flex gap-2 items-center">
                       <ComboboxDropdown
-                        items={delegationUsers.map(u => ({ value: u.id.toString(), label: u.name }))}
+                        items={delegationUsers.map(u => ({ id: u.id.toString(), label: u.name }))}
                         placeholder="Select person..."
-                        onValueChange={(val) => val && handleDelegateQuestion(item.id, parseInt(val))}
+                        onSelect={(selected) => handleDelegateQuestion(item.id, parseInt(selected.id))}
                         className="h-6 text-xs w-40"
                       />
                       <Button
@@ -1016,6 +1031,29 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
           {/* Column 4: Attachments */}
           <div className="flex flex-col gap-4">
+            {/* Attachment Picker (inline) */}
+            {showAttachmentPicker && (
+              <div className="p-2 border rounded bg-muted/30">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium">Add Attachment</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0"
+                    onClick={() => setShowAttachmentPicker(false)}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+                <AttachmentPicker
+                  attachments={pendingAttachments}
+                  onAdd={handleAddAttachment}
+                  onRemove={handleRemovePendingAttachment}
+                  jobId={task.construction_id > 0 ? String(task.construction_id) : undefined}
+                />
+              </div>
+            )}
+
             {/* Emails Section */}
             <div className="flex-1 flex flex-col min-h-0">
               <div
@@ -1170,19 +1208,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         <CascadeCompletionDialog
           open={showCascadeDialog}
           onOpenChange={setShowCascadeDialog}
+          taskName={task.name}
           linkedTasks={linkedTasks}
-          onConfirm={handleConfirmComplete}
+          onComplete={handleConfirmComplete}
         />
       )}
 
-      {showAttachmentPicker && (
-        <AttachmentPicker
-          open={showAttachmentPicker}
-          onOpenChange={setShowAttachmentPicker}
-          onSelect={handleAddAttachment}
-          jobId={task.construction_id > 0 ? task.construction_id : undefined}
-        />
-      )}
 
       {selectedEmailId && (
         <EmailDetailDialog
