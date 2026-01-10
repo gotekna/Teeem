@@ -3,16 +3,20 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { TaskHubProvider, useTaskHub, SmTask } from '@/contexts/TaskHubContext';
-import { TaskExpandedRow } from '@/components/task-hub/TaskExpandedRow';
+import { TaskFullscreenView } from '@/components/task-hub/TaskFullscreenView';
 import { Spinner } from '@/components/ui/spinner';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, ExternalLink } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useSetLayoutMode } from '@/contexts/LayoutModeContext';
 
 function TaskDetailContent() {
   const params = useParams();
   const router = useRouter();
   const taskId = Number(params.id);
+
+  // Fullscreen mode - hides sidebar and breadcrumbs
+  useSetLayoutMode('fullscreen');
 
   const { tasks, expandTask, loading: contextLoading } = useTaskHub();
   const [task, setTask] = useState<SmTask | null>(null);
@@ -91,47 +95,10 @@ function TaskDetailContent() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto py-4">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4 px-4">
-        <Button variant="ghost" size="sm" onClick={() => router.push('/tasks')}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Tasks
-        </Button>
-
-        {/* Quick links */}
-        <div className="flex items-center gap-2">
-          {task.construction_id > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.open(`/jobs/${task.construction_id}`, '_blank')}
-            >
-              <ExternalLink className="h-3 w-3 mr-1" />
-              Open Job
-            </Button>
-          )}
-          {task.purchase_order_id && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.open(`/purchase_orders/${task.purchase_order_id}`, '_blank')}
-            >
-              <ExternalLink className="h-3 w-3 mr-1" />
-              Open PO
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Task Detail - Full Width */}
-      <div className="bg-background rounded-lg border shadow-sm">
-        <TaskExpandedRow
-          task={task}
-          onClose={() => router.push('/tasks')}
-        />
-      </div>
-    </div>
+    <TaskFullscreenView
+      task={task}
+      onClose={() => router.push('/tasks')}
+    />
   );
 }
 

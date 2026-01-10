@@ -282,12 +282,14 @@ class EmailToTaskService
         .to_a
     end
 
-    # 2. Similar subject line (catches broken threads)
+    # 2. Similar subject line (catches broken threads and forwards)
+    # FRC: Extended to 90 days because forwards create new conversation IDs,
+    # so subject matching is the only way to link back to original emails.
     base_subject = normalize_subject(@email.subject)
     if base_subject.present? && emails.size < 10
       subject_emails = EmailWarehouse
         .where("subject ILIKE ?", "%#{base_subject}%")
-        .where("received_at > ?", 30.days.ago)
+        .where("received_at > ?", 90.days.ago)
         .where.not(id: [@email.id] + emails.map(&:id))
         .order(received_at: :desc)
         .limit(10 - emails.size)
@@ -297,11 +299,12 @@ class EmailToTaskService
     end
 
     # 3. Emails with same external party (not internal @tekna.com.au or @teeem.au)
+    # FRC: Extended to 90 days to match subject matching window
     external_email = find_external_party
     if external_email.present? && emails.size < 10
       party_emails = EmailWarehouse
         .involving_email(external_email)
-        .where("received_at > ?", 30.days.ago)
+        .where("received_at > ?", 90.days.ago)
         .where.not(id: [@email.id] + emails.map(&:id))
         .order(received_at: :desc)
         .limit(10 - emails.size)
