@@ -47,8 +47,8 @@ class EmailRecipient < ApplicationRecord
       return
     end
 
-    # Try to match to external contact
-    matched_contact = Contact.find_by("LOWER(email) = ?", normalized_email)
+    # Try to match to external contact (SSoT: find_by_email uses contact_emails table)
+    matched_contact = Contact.find_by_email(normalized_email)
     if matched_contact
       self.contact = matched_contact
       self.is_internal = false

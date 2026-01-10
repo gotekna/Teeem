@@ -375,10 +375,10 @@ class EmailToCaseService
         party["seen_count"] = known.seen_count
       end
 
-      # Then check for existing contact
+      # Then check for existing contact (SSoT: find_by_email uses contact_emails table)
       contact = nil
       if party["email"].present?
-        contact = Contact.find_by(email: party["email"])
+        contact = Contact.find_by_email(party["email"])
       end
       contact ||= Contact.find_by(display_name: party["name"]) if party["name"].present?
 
@@ -452,8 +452,8 @@ class EmailToCaseService
       if party["contact_id"].present?
         contact = Contact.find_by(id: party["contact_id"])
       elsif email.present?
-        # SSoT: Case-insensitive email lookup to prevent duplicates
-        contact = Contact.find_by("LOWER(email) = ?", email.downcase)
+        # SSoT: find_by_email uses contact_emails table
+        contact = Contact.find_by_email(email)
       elsif party["name"].present?
         # Try to find by exact name match
         contact = Contact.find_by(display_name: party["name"])

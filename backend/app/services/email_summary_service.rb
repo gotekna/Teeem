@@ -171,7 +171,8 @@ class EmailSummaryService
     # Reference might be a hash with name/email
     if reference.is_a?(Hash)
       if reference["email"].present?
-        contact = Contact.find_by("LOWER(email) = ?", reference["email"].downcase)
+        # SSoT: find_by_email uses contact_emails table
+        contact = Contact.find_by_email(reference["email"])
         return { id: contact.id, name: contact.display_name } if contact
       end
 
@@ -181,9 +182,9 @@ class EmailSummaryService
         return { id: contact.id, name: contact.display_name } if contact
       end
     elsif reference.is_a?(String)
-      # Try email match
+      # Try email match (SSoT: find_by_email uses contact_emails table)
       if reference.include?("@")
-        contact = Contact.find_by("LOWER(email) = ?", reference.downcase)
+        contact = Contact.find_by_email(reference)
         return { id: contact.id, name: contact.display_name } if contact
       end
 

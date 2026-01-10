@@ -809,9 +809,10 @@ class Api::V1::EmailWarehouseController < ApplicationController
     email_addresses.concat(email.cc_emails || [])
     email_addresses = email_addresses.compact.uniq.map(&:downcase)
 
-    # Find contacts matching these email addresses
-    suggestions = Contact.where("LOWER(email) IN (?)", email_addresses)
-                         .or(Contact.where("LOWER(secondary_email) IN (?)", email_addresses))
+    # SSoT: Find contacts through contact_emails table (Contact doesn't have email column)
+    suggestions = Contact.joins(:contact_emails)
+                         .where("LOWER(contact_emails.email) IN (?)", email_addresses)
+                         .distinct
                          .limit(10)
 
     # Also check AI-extracted entities if available
