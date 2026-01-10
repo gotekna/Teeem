@@ -94,11 +94,15 @@ function DelegatedTaskView({
   onClose?: () => void;
   onComplete: (delegationResponse?: string) => Promise<void>;
 }) {
-  const { navigateToTask } = useTaskHub();
+  const { navigateToTask, updateTask } = useTaskHub();
   const [completing, setCompleting] = useState(false);
   const [response, setResponse] = useState('');
   const [localAttachments, setLocalAttachments] = useState<TaskAttachment[]>(task.attachments || []);
   const [uploading, setUploading] = useState(false);
+  const [dueDate, setDueDate] = useState<Date | undefined>(
+    task.end_date ? new Date(task.end_date) : undefined
+  );
+  const [dueDateOpen, setDueDateOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Extract the item type from task name
@@ -153,6 +157,15 @@ function DelegatedTaskView({
       setLocalAttachments(prev => prev.filter(a => a.id !== attachmentId));
     } catch (err) {
       console.error('Failed to remove attachment:', err);
+    }
+  };
+
+  const handleDueDateChange = async (date: Date | undefined) => {
+    setDueDate(date);
+    setDueDateOpen(false);
+    if (date) {
+      const dateStr = format(date, 'yyyy-MM-dd');
+      await updateTask(task.id, { end_date: dateStr });
     }
   };
 
@@ -248,12 +261,25 @@ function DelegatedTaskView({
         )}
       </div>
 
-      {/* Due date */}
+      {/* Due date - editable */}
       <div className="flex items-center gap-4 text-sm">
-        <div className="flex items-center gap-2">
-          <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-          <span>Due: {task.end_date ? format(new Date(task.end_date), 'dd MMM yyyy') : 'No due date'}</span>
-        </div>
+        <Popover open={dueDateOpen} onOpenChange={setDueDateOpen}>
+          <PopoverTrigger asChild>
+            <button className="flex items-center gap-2 hover:text-primary transition-colors">
+              <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+              <span>Due: {dueDate ? format(dueDate, 'dd MMM yyyy') : 'No due date'}</span>
+              <Pencil className="h-3 w-3 text-muted-foreground" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={dueDate}
+              onSelect={handleDueDateChange}
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
       </div>
 
       {/* Actions */}
