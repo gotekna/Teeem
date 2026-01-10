@@ -1200,6 +1200,9 @@ Rails.application.routes.draw do
         end
       end
 
+      # Writing Assistant (AI-powered spell check, grammar, tone)
+      post "writing_assistant/check", to: "writing_assistant#check"
+
       # IMAP Email Credentials (unified inbox)
       resources :imap_credentials, only: [ :index, :show, :create, :update, :destroy ] do
         collection do

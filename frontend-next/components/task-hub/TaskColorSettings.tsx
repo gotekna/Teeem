@@ -13,6 +13,43 @@ import { Label } from '@/components/ui/label';
 import { Settings, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+// Overdue gradient colors - 10 shades from light (1 day) to dark (10+ days)
+// Each entry: [lightModeBg, darkModeBg, borderClass]
+const OVERDUE_GRADIENT: [string, string, string][] = [
+  ['bg-red-50/40', 'dark:bg-red-950/15', 'border-l-red-200'],      // 1 day
+  ['bg-red-50/55', 'dark:bg-red-950/20', 'border-l-red-250'],      // 2 days
+  ['bg-red-100/45', 'dark:bg-red-950/25', 'border-l-red-300'],     // 3 days
+  ['bg-red-100/60', 'dark:bg-red-950/30', 'border-l-red-350'],     // 4 days
+  ['bg-red-100/75', 'dark:bg-red-900/30', 'border-l-red-400'],     // 5 days
+  ['bg-red-200/50', 'dark:bg-red-900/35', 'border-l-red-450'],     // 6 days
+  ['bg-red-200/65', 'dark:bg-red-900/40', 'border-l-red-500'],     // 7 days
+  ['bg-red-200/80', 'dark:bg-red-900/45', 'border-l-red-550'],     // 8 days
+  ['bg-red-300/55', 'dark:bg-red-900/50', 'border-l-red-600'],     // 9 days
+  ['bg-red-300/70', 'dark:bg-red-800/50', 'border-l-red-700'],     // 10+ days
+];
+
+/**
+ * Get the overdue color classes based on days overdue.
+ * Returns gradient from light (1 day) to dark (10+ days).
+ * @param daysOverdue - Number of days the task is overdue
+ * @returns Object with bg (combined light+dark), border, and intensity (0-1) for custom styling
+ */
+export function getOverdueColorClasses(daysOverdue: number): { bg: string; border: string; intensity: number } {
+  if (daysOverdue <= 0) {
+    return { bg: '', border: '', intensity: 0 };
+  }
+
+  // Clamp to 1-10 range (array is 0-indexed)
+  const index = Math.min(Math.max(daysOverdue, 1), 10) - 1;
+  const [lightBg, darkBg, border] = OVERDUE_GRADIENT[index];
+
+  return {
+    bg: `${lightBg} ${darkBg}`,
+    border: `border-l-4 ${border}`,
+    intensity: Math.min(daysOverdue / 10, 1),
+  };
+}
+
 // Color presets for task highlighting
 const COLOR_PRESETS = [
   { id: 'none', name: 'None', bg: '', border: '', text: '' },
@@ -81,11 +118,13 @@ export function getTaskRowColorClass(task: {
   construction_id?: number;
   purchase_order_id?: number | null;
   is_overdue?: boolean;
+  days_overdue?: number;
   status?: string;
 }): string {
-  // Overdue takes priority (always red)
-  if (task.is_overdue && task.status !== 'completed') {
-    return 'bg-red-50/50 dark:bg-red-950/20';
+  // Overdue takes priority (gradient based on days overdue)
+  if (task.is_overdue && task.status !== 'completed' && task.days_overdue) {
+    const overdueColors = getOverdueColorClasses(task.days_overdue);
+    return `${overdueColors.bg} ${overdueColors.border}`;
   }
 
   const settings = getTaskColorSettings();

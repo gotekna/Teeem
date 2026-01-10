@@ -5,6 +5,7 @@ import { SmTask, TaskAttachment, TaskAttachmentEmail, TaskActionItem, TaskFollow
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SmartInput } from '@/components/ui/smart-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -69,6 +70,8 @@ import { CascadeCompletionDialog } from '@/components/schedule/CascadeCompletion
 import { DocumentViewerModal, getFileType } from '@/components/ui/document-viewer-modal';
 import { AttachmentCategoryDialog } from './AttachmentCategoryDialog';
 import { ComposeEmailModal } from '@/components/emails/ComposeEmailModal';
+import { getOverdueColorClasses } from './TaskColorSettings';
+import { TASK_STATUS } from '@/lib/constants/task-status';
 
 interface Job {
   id: number;
@@ -1829,10 +1832,20 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     }));
   }, [jobs]);
 
+  // Get overdue gradient colors if task is overdue
+  const overdueColors = task.is_overdue && task.status !== TASK_STATUS.COMPLETED && task.days_overdue
+    ? getOverdueColorClasses(task.days_overdue)
+    : null;
+
   return (
     <div className="h-full flex flex-col bg-background">
       {/* Header */}
-      <header className="border-b px-6 py-3 flex items-center justify-between shrink-0 bg-primary/5 dark:bg-primary/10">
+      <header className={cn(
+        "border-b px-6 py-3 flex items-center justify-between shrink-0",
+        overdueColors
+          ? `${overdueColors.bg} ${overdueColors.border}`
+          : "bg-primary/5 dark:bg-primary/10"
+      )}>
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <Button variant="ghost" size="sm" onClick={onClose} className="shrink-0">
             <ArrowLeft className="h-4 w-4" />
@@ -1841,9 +1854,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
           {/* Editable task name */}
           {isEditingName ? (
-            <Input
+            <SmartInput
               value={editedName}
-              onChange={(e) => setEditedName(e.target.value)}
+              onChange={setEditedName}
+              context="task_name"
               onBlur={handleSaveName}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleSaveName();

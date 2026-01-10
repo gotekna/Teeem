@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/kanban';
 import { Lock, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getOverdueColorClasses } from '../TaskColorSettings';
 
 // Extend SmTask to include KanbanItem requirements
 interface TaskItem extends SmTask {
@@ -54,11 +55,16 @@ const columns: KanbanColumnDef<TaskItem>[] = [
 
 // Task card content renderer
 function TaskCardContent({ task }: { task: TaskItem }) {
+  // Get overdue gradient colors
+  const overdueColors = task.is_overdue && task.status !== TASK_STATUS.COMPLETED && task.days_overdue
+    ? getOverdueColorClasses(task.days_overdue)
+    : null;
+
   return (
     <div
       className={cn(
         'px-2 py-1.5 text-xs flex items-center gap-1.5',
-        task.is_overdue && task.status !== TASK_STATUS.COMPLETED && 'bg-red-50/50 dark:bg-red-950/30'
+        overdueColors && overdueColors.bg
       )}
     >
       <span
@@ -126,15 +132,21 @@ export function BoardView() {
   };
 
   // Render a task card
-  const renderCard = (task: TaskItem, isDragging: boolean) => (
-    <KanbanCard
-      key={task.id}
-      id={task.id}
-      isDragging={isDragging}
-      className={cn(
-        task.is_overdue && task.status !== TASK_STATUS.COMPLETED && 'border-red-300'
-      )}
-    >
+  const renderCard = (task: TaskItem, isDragging: boolean) => {
+    // Get overdue gradient colors
+    const overdueColors = task.is_overdue && task.status !== TASK_STATUS.COMPLETED && task.days_overdue
+      ? getOverdueColorClasses(task.days_overdue)
+      : null;
+
+    return (
+      <KanbanCard
+        key={task.id}
+        id={task.id}
+        isDragging={isDragging}
+        className={cn(
+          overdueColors && overdueColors.border
+        )}
+      >
       <div
         onClick={() => handleCardClick(task)}
         onDoubleClick={(e) => {
@@ -147,7 +159,8 @@ export function BoardView() {
         <TaskCardContent task={task} />
       </div>
     </KanbanCard>
-  );
+    );
+  };
 
   return (
     <>

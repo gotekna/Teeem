@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SmartInput } from "@/components/ui/smart-input";
 import { Label } from "@/components/ui/label";
 import { RichTextEditor, plainTextToHtml } from "@/components/ui/rich-text-editor";
 import { Badge } from "@/components/ui/badge";
@@ -682,11 +683,13 @@ export function ComposeEmailModal({
 
             {/* Subject - Outlook style underlined */}
             <div className="flex items-center border-b px-4 py-2">
-              <Input
+              <SmartInput
                 placeholder="Add a subject"
                 value={formData.subject}
-                onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                onChange={(value) => setFormData({ ...formData, subject: value })}
+                context="email_subject"
                 className="border-0 shadow-none text-base px-0 h-8 focus-visible:ring-0"
+                indicatorPosition="outside"
               />
             </div>
 
