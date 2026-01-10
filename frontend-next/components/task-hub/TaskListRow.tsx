@@ -21,7 +21,6 @@ import {
   Lock,
   MoreHorizontal,
   Pause,
-  Pencil,
   Play,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -83,11 +82,11 @@ export function TaskListRow({
         onClick={handleRowClick}
         onDoubleClick={handleRowDoubleClick}
         className={cn(
-          'grid grid-cols-[28px_1fr_130px_60px_60px_100px_70px_32px] gap-1 px-2 items-center cursor-pointer transition-colors',
-          !isExpanded && 'py-2 text-xs hover:bg-muted/30',
+          'grid grid-cols-[28px_1fr_130px_60px_60px_100px_70px_32px] gap-1 px-2 py-2 text-xs items-center cursor-pointer transition-colors',
+          !isExpanded && 'hover:bg-muted/30',
           !isExpanded && selectedTaskIds.has(task.id) && 'bg-primary/5',
           !isExpanded && getTaskRowColorClass(task),
-          isExpanded && '!bg-primary/30 dark:!bg-primary/40 border-l-4 !border-primary shadow-xl !py-3 !text-base font-semibold'
+          isExpanded && 'border-l-4 border-primary bg-muted/50'
         )}
       >
         <div onClick={(e) => e.stopPropagation()}>
@@ -128,8 +127,7 @@ export function TaskListRow({
               <span
                 className={cn(
                   'truncate cursor-text hover:bg-muted/50 px-1 -mx-1 rounded flex-1',
-                  task.status === 'completed' && 'line-through text-muted-foreground',
-                  isExpanded && '!font-bold !text-lg'
+                  task.status === 'completed' && 'line-through text-muted-foreground'
                 )}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -140,9 +138,6 @@ export function TaskListRow({
               >
                 {task.name}
               </span>
-              {isExpanded && (
-                <Pencil className="h-3 w-3 text-muted-foreground shrink-0 opacity-50" />
-              )}
             </div>
           )}
           {task.is_overdue && task.status !== 'completed' && (
