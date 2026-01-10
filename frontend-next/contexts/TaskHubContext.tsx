@@ -244,7 +244,7 @@ export interface TaskHubContextType extends TaskHubState {
 
   // Action items
   addActionItem: (taskId: number, text: string, itemType?: ActionItemType, parentItemId?: number | null) => Promise<TaskActionItem>;
-  bulkAddActionItems: (taskId: number, items: { text: string; item_type: ActionItemType }[], createLinkedActions?: boolean) => Promise<TaskActionItem[]>;
+  bulkAddActionItems: (taskId: number, items: { text: string; item_type: ActionItemType; parent_item_id?: number }[], createLinkedActions?: boolean) => Promise<TaskActionItem[]>;
   toggleActionItem: (taskId: number, itemId: number) => Promise<void>;
   answerActionItem: (taskId: number, itemId: number, response: string) => Promise<TaskActionItem>;
   updateActionItem: (taskId: number, itemId: number, text: string) => Promise<TaskActionItem>;
@@ -1011,7 +1011,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
 
   const bulkAddActionItems = useCallback(async (
     taskId: number,
-    items: { text: string; item_type: ActionItemType }[],
+    items: { text: string; item_type: ActionItemType; parent_item_id?: number }[],
     createLinkedActions?: boolean
   ): Promise<TaskActionItem[]> => {
     // If createLinkedActions is true, expand questions to include paired actions
@@ -1020,7 +1020,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
       itemsToSend = items.flatMap(item => {
         if (item.item_type === 'question') {
           return [
-            { text: item.text, item_type: 'question' as ActionItemType },
+            { text: item.text, item_type: 'question' as ActionItemType, parent_item_id: item.parent_item_id },
             { text: item.text, item_type: 'action' as ActionItemType }
           ];
         }

@@ -1034,11 +1034,13 @@ module Api
           return render json: { success: false, error: "Not authorized" }, status: :forbidden
         end
 
+        item_type = params[:item_type] || 'action'
         item = @task.action_items.create!(
           text: params[:text],
-          item_type: params[:item_type] || 'action',
+          item_type: item_type,
           parent_item_id: params[:parent_item_id],
-          position: params[:position] || @task.action_items.maximum(:position).to_i + 1
+          position: params[:position] || @task.action_items.maximum(:position).to_i + 1,
+          include_in_response: item_type == 'question'  # Questions default to included
         )
 
         render json: {
@@ -1063,11 +1065,13 @@ module Api
         max_position = @task.action_items.maximum(:position).to_i
 
         items_data.each_with_index do |item_data, index|
+          item_type = item_data[:item_type] || 'action'
           item = @task.action_items.create!(
             text: item_data[:text],
-            item_type: item_data[:item_type] || 'action',
+            item_type: item_type,
             parent_item_id: item_data[:parent_item_id],
-            position: max_position + index + 1
+            position: max_position + index + 1,
+            include_in_response: item_type == 'question'  # Questions default to included
           )
           created_items << action_item_to_json(item)
         end

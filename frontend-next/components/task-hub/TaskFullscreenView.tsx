@@ -24,6 +24,8 @@ import {
   useSensor,
   useSensors,
   DragEndEvent,
+  DragOverEvent,
+  DragOverlay,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -94,9 +96,11 @@ interface SortableQuestionItemProps {
   task?: SmTask;
   isHeader?: boolean;
   isCollapsed?: boolean;
+  isDropTarget?: boolean;  // Visual feedback when item is being dragged over
   onToggleCollapse?: () => void;
   onEdit: (text: string) => void;
   onRemove: () => void;
+  onAddChild?: () => void;  // For adding question under header
   editingItemId: number | null;
   editingItemText: string;
   setEditingItemText: (text: string) => void;
@@ -126,9 +130,11 @@ function SortableQuestionItem({
   task,
   isHeader = false,
   isCollapsed = false,
+  isDropTarget = false,
   onToggleCollapse,
   onEdit,
   onRemove,
+  onAddChild,
   editingItemId,
   editingItemText,
   setEditingItemText,
@@ -173,8 +179,9 @@ function SortableQuestionItem({
         ref={setNodeRef}
         style={style}
         className={cn(
-          "flex items-center gap-2 p-2 bg-muted/50 rounded-md font-medium text-sm",
-          isDragging && "shadow-lg"
+          "flex items-center gap-2 p-2 bg-muted/50 rounded-md font-medium text-sm transition-all",
+          isDragging && "shadow-lg opacity-50",
+          isDropTarget && "ring-2 ring-primary ring-offset-2 bg-primary/10"
         )}
       >
         <div {...attributes} {...listeners} className="cursor-grab touch-none">
@@ -210,11 +217,26 @@ function SortableQuestionItem({
             {item.text}
           </span>
         )}
-        {isCollapsed && childCount > 0 && (
+        {isCollapsed && childCount > 0 && !isDropTarget && (
           <span className="text-xs text-muted-foreground">
             ({childCount} questions)
           </span>
         )}
+        {isDropTarget && (
+          <span className="text-xs text-primary font-medium animate-pulse">
+            Drop to add here
+          </span>
+        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 px-2 text-xs shrink-0"
+          onClick={onAddChild}
+          title="Add question to this header"
+        >
+          <Plus className="h-3 w-3 mr-1" />
+          Add
+        </Button>
         <Button
           variant="ghost"
           size="sm"
@@ -495,6 +517,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [addingHeaderText, setAddingHeaderText] = useState('');
   const [showAddHeader, setShowAddHeader] = useState(false);
 
+  // Adding question to specific header
+  const [addingToHeaderId, setAddingToHeaderId] = useState<number | null>(null);
+  const [addingToHeaderText, setAddingToHeaderText] = useState('');
+
+  // Drag-drop state for visual feedback
+  const [activeDragId, setActiveDragId] = useState<number | null>(null);
+  const [overHeaderId, setOverHeaderId] = useState<number | null>(null);
+
   // Sync local state when task changes
   useEffect(() => {
     setLocalAttachments(task.attachments || []);
@@ -558,8 +588,34 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     });
   }, []);
 
+  // Handle drag start - track what's being dragged
+  const handleDragStart = useCallback((event: { active: { id: number | string } }) => {
+    setActiveDragId(Number(event.active.id));
+  }, []);
+
+  // Handle drag over - track if we're over a header for visual feedback
+  const handleDragOver = useCallback((event: DragOverEvent) => {
+    const { over } = event;
+    if (!over) {
+      setOverHeaderId(null);
+      return;
+    }
+
+    const overId = Number(over.id);
+    const overItem = groupedQuestions.allItems.find(item => item.id === overId);
+
+    if (overItem?.item_type === 'header') {
+      setOverHeaderId(overId);
+    } else {
+      setOverHeaderId(null);
+    }
+  }, [groupedQuestions.allItems]);
+
   // Handle drag end for reordering
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    setActiveDragId(null);
+    setOverHeaderId(null);
+
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -612,17 +668,25 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   }, [addActionItem, addingHeaderText, task.id]);
 
   // Add question under a specific header
-  const handleAddQuestionToHeader = useCallback(async (headerId: number, text: string) => {
-    if (!text.trim()) return;
+  const handleAddQuestionToHeader = useCallback(async (headerId: number) => {
+    if (!addingToHeaderText.trim()) return;
     setActionItemLoading('new');
     try {
-      await addActionItem(task.id, text, 'question', headerId);
+      await addActionItem(task.id, addingToHeaderText, 'question', headerId);
+      setAddingToHeaderText('');
+      setAddingToHeaderId(null);
+      // Expand header if collapsed
+      setCollapsedHeaders(prev => {
+        const next = new Set(prev);
+        next.delete(headerId);
+        return next;
+      });
     } catch (err) {
       console.error('Failed to add question to header:', err);
     } finally {
       setActionItemLoading(null);
     }
-  }, [addActionItem, task.id]);
+  }, [addActionItem, addingToHeaderText, task.id]);
 
   // Load jobs for assignment
   useEffect(() => {
@@ -754,14 +818,93 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const handleBulkPaste = async () => {
     if (!bulkPasteText.trim()) return;
     setActionItemLoading('bulk');
+
     const lines = bulkPasteText.split('\n').filter(line => line.trim());
-    // When pasting questions, also create linked action items
-    const createLinkedActions = newActionItemType === 'question';
-    await bulkAddActionItems(
-      task.id,
-      lines.map(text => ({ text, item_type: newActionItemType })),
-      createLinkedActions
-    );
+
+    // Parse indentation to create headers and children
+    // Lines starting with tab or 2+ spaces are children of the previous non-indented line
+    const parsedItems: Array<{ text: string; item_type: ActionItemType; isChild: boolean }> = [];
+
+    lines.forEach((line) => {
+      const isIndented = /^(\t|  +)/.test(line);
+      const cleanText = line.replace(/^(\t|  +)/, '').trim();
+
+      if (isIndented && parsedItems.length > 0) {
+        // This is a child - mark it
+        parsedItems.push({ text: cleanText, item_type: newActionItemType, isChild: true });
+      } else {
+        // This is a potential header or standalone item
+        parsedItems.push({ text: cleanText, item_type: newActionItemType, isChild: false });
+      }
+    });
+
+    // Now determine which non-indented items should be headers
+    // A non-indented item becomes a header if the next item is indented
+    const itemsToCreate: Array<{ text: string; item_type: ActionItemType; parent_index?: number }> = [];
+    let currentHeaderIndex: number | null = null;
+
+    parsedItems.forEach((item, index) => {
+      if (!item.isChild) {
+        // Check if next item is a child
+        const nextItem = parsedItems[index + 1];
+        if (nextItem?.isChild) {
+          // This becomes a header
+          itemsToCreate.push({ text: item.text, item_type: 'header' });
+          currentHeaderIndex = itemsToCreate.length - 1;
+        } else {
+          // Standalone item
+          itemsToCreate.push({ text: item.text, item_type: newActionItemType });
+          currentHeaderIndex = null;
+        }
+      } else {
+        // Child item - associate with current header
+        itemsToCreate.push({
+          text: item.text,
+          item_type: newActionItemType,
+          parent_index: currentHeaderIndex ?? undefined
+        });
+      }
+    });
+
+    // Create items - first create headers, then children with parent references
+    // For now, create all items and let the backend handle positioning
+    // We need to create headers first to get their IDs
+    const headerItems = itemsToCreate.filter(i => i.item_type === 'header');
+    const nonHeaderItems = itemsToCreate.filter(i => i.item_type !== 'header');
+
+    try {
+      // Create headers first
+      const createdHeaders: { index: number; id: number }[] = [];
+      for (let i = 0; i < headerItems.length; i++) {
+        const header = headerItems[i];
+        const originalIndex = itemsToCreate.indexOf(header);
+        const created = await addActionItem(task.id, header.text, 'header');
+        createdHeaders.push({ index: originalIndex, id: created.id });
+      }
+
+      // Create non-header items with parent references
+      const itemsWithParents = nonHeaderItems.map(item => {
+        let parentId: number | undefined;
+        if (item.parent_index !== undefined) {
+          const headerInfo = createdHeaders.find(h => h.index === item.parent_index);
+          parentId = headerInfo?.id;
+        }
+        return {
+          text: item.text,
+          item_type: item.item_type,
+          parent_item_id: parentId
+        };
+      });
+
+      if (itemsWithParents.length > 0) {
+        // When pasting questions, also create linked action items (but only for non-header items without parents)
+        const createLinkedActions = newActionItemType === 'question' && !itemsWithParents.some(i => i.parent_item_id);
+        await bulkAddActionItems(task.id, itemsWithParents, createLinkedActions);
+      }
+    } catch (err) {
+      console.error('Failed to bulk add items:', err);
+    }
+
     setBulkPasteText('');
     setShowBulkPaste(false);
     setActionItemLoading(null);
@@ -953,7 +1096,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     setActionItemLoading(null);
   };
 
-  // Generate response email body with Q&A and file links
+  // Generate response email body with Q&A, actions, and file links
   const generateResponseBody = (): string => {
     let body = '';
 
@@ -965,6 +1108,18 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         body += `${i + 1}. ${q.text}\n`;
         body += `   → ${q.response}\n\n`;
       });
+    }
+
+    // Add actions marked for inclusion in response
+    const includedActions = actionItems.filter(a => a.include_in_response);
+    if (includedActions.length > 0) {
+      body += body ? '\n' : '';
+      body += 'Actions completed:\n\n';
+      includedActions.forEach((a, i) => {
+        const status = a.checked ? '✓' : '○';
+        body += `${status} ${a.text}\n`;
+      });
+      body += '\n';
     }
 
     // Add response file links
@@ -1367,6 +1522,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   )}
                 >
                   <div className="flex items-start gap-2">
+                    {/* Include in response checkbox */}
+                    <Checkbox
+                      checked={item.include_in_response || false}
+                      onCheckedChange={() => toggleIncludeInResponse(task.id, item.id)}
+                      className="mt-0.5 shrink-0 data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
+                      title="Include in response email"
+                    />
+                    {/* Completion checkbox */}
                     <Checkbox
                       checked={item.checked}
                       onCheckedChange={() => handleToggleItem(item.id)}
@@ -1602,6 +1765,16 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                           setEditingItemText(text);
                         }}
                         onRemove={() => handleRemoveItem(header.id)}
+                        onAddChild={() => {
+                          setAddingToHeaderId(header.id);
+                          setAddingToHeaderText('');
+                          // Expand header when adding
+                          setCollapsedHeaders(prev => {
+                            const next = new Set(prev);
+                            next.delete(header.id);
+                            return next;
+                          });
+                        }}
                         editingItemId={editingItemId}
                         editingItemText={editingItemText}
                         setEditingItemText={setEditingItemText}
@@ -1610,9 +1783,50 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                         childCount={header.children.length}
                       />
 
-                      {/* Children (if expanded) */}
-                      {!collapsedHeaders.has(header.id) && header.children.length > 0 && (
+                      {/* Children (if expanded) or adding input */}
+                      {(!collapsedHeaders.has(header.id) || addingToHeaderId === header.id) && (
                         <div className="ml-4 border-l-2 border-muted pl-2 space-y-2">
+                          {/* Add question input for this header */}
+                          {addingToHeaderId === header.id && (
+                            <div className="flex gap-2">
+                              <Input
+                                value={addingToHeaderText}
+                                onChange={(e) => setAddingToHeaderText(e.target.value)}
+                                placeholder="Add question to this group..."
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && addingToHeaderText.trim()) {
+                                    handleAddQuestionToHeader(header.id);
+                                  }
+                                  if (e.key === 'Escape') {
+                                    setAddingToHeaderId(null);
+                                    setAddingToHeaderText('');
+                                  }
+                                }}
+                                className="h-8 text-sm flex-1"
+                                autoFocus
+                              />
+                              <Button
+                                size="sm"
+                                onClick={() => handleAddQuestionToHeader(header.id)}
+                                disabled={!addingToHeaderText.trim() || actionItemLoading === 'new'}
+                                className="h-8"
+                              >
+                                Add
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setAddingToHeaderId(null);
+                                  setAddingToHeaderText('');
+                                }}
+                                className="h-8"
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          )}
+                          {/* Existing children */}
                           {header.children.map((child) => (
                             <SortableQuestionItem
                               key={child.id}
@@ -1944,24 +2158,87 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         />
       )}
 
-      {/* Bulk paste dialog */}
+      {/* Bulk paste dialog - large for organizing */}
       {showBulkPaste && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-background rounded-lg shadow-lg p-4 w-[400px]">
-            <h3 className="font-medium mb-2">Paste Multiple {newActionItemType === 'action' ? 'Actions' : 'Questions'}</h3>
-            <p className="text-sm text-muted-foreground mb-3">One per line</p>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-8">
+          <div className="bg-background rounded-lg shadow-lg p-6 w-full max-w-4xl max-h-[90vh] flex flex-col">
+            <h3 className="font-medium text-lg mb-1">Paste Multiple {newActionItemType === 'action' ? 'Actions' : 'Questions'}</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              One per line. Press <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">Tab</kbd> to indent lines as sub-items under a header.
+            </p>
             <Textarea
               value={bulkPasteText}
               onChange={(e) => setBulkPasteText(e.target.value)}
-              placeholder={newActionItemType === 'action' ? `Action 1\nAction 2\nAction 3` : `Question 1?\nQuestion 2?\nQuestion 3?`}
-              className="min-h-[150px] mb-3"
+              onKeyDown={(e) => {
+                if (e.key === 'Tab') {
+                  e.preventDefault();
+                  const target = e.target as HTMLTextAreaElement;
+                  const start = target.selectionStart;
+                  const end = target.selectionEnd;
+                  const value = target.value;
+
+                  // If text is selected, indent all selected lines
+                  if (start !== end) {
+                    const beforeSelection = value.substring(0, start);
+                    const selection = value.substring(start, end);
+                    const afterSelection = value.substring(end);
+
+                    // Find start of first selected line
+                    const lineStart = beforeSelection.lastIndexOf('\n') + 1;
+                    const prefix = value.substring(0, lineStart);
+                    const selectedLines = (beforeSelection.substring(lineStart) + selection).split('\n');
+
+                    if (e.shiftKey) {
+                      // Unindent - remove leading tab or spaces
+                      const unindentedLines = selectedLines.map(line => line.replace(/^(\t|  )/, ''));
+                      const newValue = prefix + unindentedLines.join('\n') + afterSelection;
+                      setBulkPasteText(newValue);
+                    } else {
+                      // Indent - add tab to each line
+                      const indentedLines = selectedLines.map(line => '\t' + line);
+                      const newValue = prefix + indentedLines.join('\n') + afterSelection;
+                      setBulkPasteText(newValue);
+                    }
+                  } else {
+                    // No selection - indent current line
+                    const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+                    const beforeLine = value.substring(0, lineStart);
+                    const afterCursor = value.substring(start);
+                    const currentLineBeforeCursor = value.substring(lineStart, start);
+
+                    if (e.shiftKey) {
+                      // Unindent current line
+                      const newLine = currentLineBeforeCursor.replace(/^(\t|  )/, '');
+                      const removed = currentLineBeforeCursor.length - newLine.length;
+                      const newValue = beforeLine + newLine + afterCursor;
+                      setBulkPasteText(newValue);
+                      setTimeout(() => target.setSelectionRange(start - removed, start - removed), 0);
+                    } else {
+                      // Insert tab at start of line
+                      const newValue = beforeLine + '\t' + currentLineBeforeCursor + afterCursor;
+                      setBulkPasteText(newValue);
+                      setTimeout(() => target.setSelectionRange(start + 1, start + 1), 0);
+                    }
+                  }
+                }
+              }}
+              placeholder={newActionItemType === 'action'
+                ? `Action 1\nAction 2\nAction 3`
+                : `160 Alperton Road\n\tWhat is the property timeline?\n\tWestpac loan statements?\nHarder Family Trust\n\tTrust distribution records?\n\tAnnual returns?`
+              }
+              className="flex-1 min-h-[400px] font-mono text-sm mb-4 resize-none"
               autoFocus
             />
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowBulkPaste(false)}>Cancel</Button>
-              <Button onClick={handleBulkPaste} disabled={!bulkPasteText.trim() || actionItemLoading === 'bulk'}>
-                {actionItemLoading === 'bulk' ? <Spinner className="h-4 w-4" /> : 'Add All'}
-              </Button>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">
+                Indented lines become sub-questions. Non-indented lines with children become headers.
+              </p>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => { setShowBulkPaste(false); setBulkPasteText(''); }}>Cancel</Button>
+                <Button onClick={handleBulkPaste} disabled={!bulkPasteText.trim() || actionItemLoading === 'bulk'}>
+                  {actionItemLoading === 'bulk' ? <Spinner className="h-4 w-4" /> : 'Add All'}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
