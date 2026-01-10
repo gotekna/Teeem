@@ -1091,9 +1091,11 @@ export default function EmailPage() {
     setSyncing(true);
     try {
       const syncPromises = [];
+      const currentAccount = accounts.find(a => String(a.id) === selectedAccount);
+      const isOutlookType = currentAccount?.type === "outlook" || currentAccount?.type === "ms365";
 
-      // Sync Outlook if selected
-      if (selectedAccount === "outlook") {
+      // Sync Office 365/Outlook accounts via email_warehouse
+      if (isOutlookType || selectedAccount === "outlook") {
         syncPromises.push(api.post("/api/v1/email_warehouse/sync").catch(() => {}));
       } else {
         // Sync IMAP account
@@ -1122,8 +1124,8 @@ export default function EmailPage() {
       // Always trigger the main sync endpoint (handles all IMAP accounts)
       syncPromises.push(api.post("/api/v1/imap_credentials/sync_all").catch(() => {}));
 
-      // Also sync Outlook if accounts are loaded
-      if (accounts.some(a => a.type === "outlook")) {
+      // Also sync Office 365/Outlook if any such accounts exist
+      if (accounts.some(a => a.type === "outlook" || a.type === "ms365")) {
         syncPromises.push(api.post("/api/v1/email_warehouse/sync").catch(() => {}));
       }
 

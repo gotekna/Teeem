@@ -388,6 +388,18 @@ class Api::V1::EmailWarehouseController < ApplicationController
     }
   end
 
+  # POST /api/v1/email_warehouse/sync
+  # Trigger manual email sync from Office 365
+  def sync
+    # Trigger org-wide email sync in background
+    OrgEmailSyncJob.perform_later("incremental")
+
+    render json: {
+      success: true,
+      message: "Email sync started. New emails will appear shortly."
+    }
+  end
+
   # GET /api/v1/email_warehouse/search
   # Search warehouse emails
   def search

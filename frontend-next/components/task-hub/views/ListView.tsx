@@ -110,7 +110,7 @@ export function ListView() {
     const completed: SmTask[] = [];
 
     filteredTasks.forEach(task => {
-      if (task.status === 'completed') {
+      if (task.status === TASK_STATUS.COMPLETED) {
         completed.push(task);
         return;
       }

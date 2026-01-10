@@ -105,14 +105,14 @@ export function MyTasksView() {
     );
 
     const upcoming = myTasks.filter(task => {
-      if (task.status === 'completed') return false;
+      if (task.status === TASK_STATUS.COMPLETED) return false;
       if (myOverdue.some(t => t.id === task.id)) return false;
       if (myToday.some(t => t.id === task.id)) return false;
       if (myThisWeek.some(t => t.id === task.id)) return false;
       return true;
     });
 
-    const completed = myTasks.filter(task => task.status === 'completed').slice(0, 5);
+    const completed = myTasks.filter(task => task.status === TASK_STATUS.COMPLETED).slice(0, 5);
 
     return { upcoming, completed, myOverdue, myToday, myThisWeek };
   }, [myTasks, overdueTasks, todayTasks, thisWeekTasks]);
