@@ -4,17 +4,8 @@ import { useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTaskHub, SmTask } from '@/contexts/TaskHubContext';
 import { GanttUnified } from '@/components/gantt-v2/GanttUnified';
-import { GanttTask, GanttDependency, TaskStatus } from '@/lib/gantt/types';
-
-// Map SmTask status to GanttTask status
-const mapStatus = (status: SmTask['status']): TaskStatus => {
-  switch (status) {
-    case 'not_started': return 'not-started';
-    case 'started': return 'in-progress';
-    case 'completed': return 'completed';
-    default: return 'not-started';
-  }
-};
+import { GanttTask, GanttDependency } from '@/lib/gantt/types';
+import { TASK_STATUS, type TaskStatus } from '@/lib/constants/task-status';
 
 /**
  * GanttView for Task Hub
@@ -34,7 +25,8 @@ export function GanttView() {
       startDate: new Date(task.start_date),
       endDate: new Date(task.end_date),
       progress: task.progress_percentage || 0,
-      status: mapStatus(task.status),
+      // SmTask status matches TaskStatus (both use snake_case: not_started, started, completed)
+      status: task.status as TaskStatus,
       // Include predecessor_ids for dependency rendering
       predecessorIds: task.predecessor_ids?.map((p: any) => String(p.id || p)) || [],
       // Map SmTask fields to GanttTask

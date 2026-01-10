@@ -337,7 +337,8 @@ export function RichTextEditor({
         inline: true,
         allowBase64: true,
         HTMLAttributes: {
-          class: "max-w-full h-auto rounded",
+          class: "max-w-full max-h-[300px] w-auto h-auto rounded object-contain cursor-pointer",
+          style: "display: inline-block;",
         },
       }),
       // Table support for email signatures

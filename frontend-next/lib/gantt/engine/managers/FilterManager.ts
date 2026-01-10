@@ -12,17 +12,20 @@
  *
  * @example
  * ```typescript
+ * import { TASK_STATUS } from '@/lib/constants/task-status';
+ *
  * const filterManager = new FilterManager();
  * filterManager.setTasks(tasks);
  *
  * // Apply filters
- * filterManager.setFilter({ status: ['in-progress'], searchText: 'foundation' });
+ * filterManager.setFilter({ status: [TASK_STATUS.STARTED], searchText: 'foundation' });
  * const filtered = filterManager.getFilteredTasks();
  * const stats = filterManager.getStats();
  * ```
  */
 
 import type { GanttTask, GanttDependency } from '../GanttCanvas';
+import { TASK_STATUS } from '@/lib/constants/task-status';
 
 // ============================================================================
 // Types
@@ -254,7 +257,7 @@ export class FilterManager {
 
     // On hold only
     if (this.filter.onHoldOnly) {
-      if (task.status !== 'on-hold') {
+      if (task.status !== TASK_STATUS.ON_HOLD) {
         return false;
       }
     }
@@ -334,7 +337,7 @@ export class FilterManager {
    * Get tasks that are on hold
    */
   getOnHoldTasks(): GanttTask[] {
-    return this.tasks.filter(t => t.status === 'on-hold');
+    return this.tasks.filter(t => t.status === TASK_STATUS.ON_HOLD);
   }
 
   /**

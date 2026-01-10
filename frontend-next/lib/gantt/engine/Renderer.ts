@@ -16,6 +16,7 @@ import { Viewport } from './Viewport';
 import type { WorkingDaysCalendar } from './WorkingDaysCalendar';
 import { getTodayInCompanyTimezone } from '@/lib/stores/company-settings-store';
 import { TAILWIND_COLORS, GANTT_COLORS, CHART_COLORS, CATEGORY_COLORS, STATUS_COLORS, COLORS } from '@/lib/constants/color-constants';
+import { TASK_STATUS } from '@/lib/constants/task-status';
 
 // ============================================================================
 // Renderer Class
@@ -1551,13 +1552,13 @@ export class Renderer {
 
     // 6. Default gray for not started
     switch (task.status) {
-      case 'completed':
+      case TASK_STATUS.COMPLETED:
         return taskBar.completed;
-      case 'in-progress':
+      case TASK_STATUS.STARTED:
         return taskBar.inProgress;
-      case 'on-hold':
+      case TASK_STATUS.ON_HOLD:
         return taskBar.onHold;
-      case 'at-risk':
+      case TASK_STATUS.AT_RISK:
         return taskBar.atRisk;
       default:
         return TAILWIND_COLORS.gray[400]; // Default gray for not started

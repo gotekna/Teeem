@@ -14,6 +14,7 @@ import { WorkingDaysCalendar, Holiday, WorkingDaysConfig } from './WorkingDaysCa
 import { calculateCriticalPath, CriticalPathResult, TaskSchedule } from './CriticalPath';
 import { getTodayInCompanyTimezone } from '@/lib/stores/company-settings-store';
 import { CHART_COLORS, GANTT_COLORS, TAILWIND_COLORS, CATEGORY_COLORS } from '@/lib/constants/color-constants';
+import { TASK_STATUS, TaskStatus, TASK_STATUS_LABELS } from '@/lib/constants/task-status';
 
 // Extracted Managers (Day 2-7 Refactor)
 import { SelectionManager, SelectionChangeEvent } from './managers/SelectionManager';
@@ -76,7 +77,7 @@ export interface GanttTask {
   startDate: Date;
   endDate: Date;
   progress?: number;
-  status?: 'not-started' | 'in-progress' | 'completed' | 'on-hold' | 'at-risk';
+  status?: TaskStatus;
   locked?: 'supplierConfirmed' | 'started' | 'manuallyPositioned';
   /** Predecessor task IDs (optional - used for dependency tracking) */
   predecessorIds?: string[];
@@ -1751,7 +1752,7 @@ export class GanttCanvas {
     const task = this.state.tasks.find(t => t.id === taskId);
     if (!task) return;
 
-    task.status = 'on-hold';
+    task.status = TASK_STATUS.ON_HOLD;
     task.holdState = {
       reason,
       notes,
@@ -1765,11 +1766,11 @@ export class GanttCanvas {
   /**
    * Resume a task from hold
    * @param taskId - The task to resume
-   * @param newStatus - The status to set after resuming (default: 'in-progress')
+   * @param newStatus - The status to set after resuming (default: TASK_STATUS.STARTED)
    */
-  resumeTask(taskId: string, newStatus: 'not-started' | 'in-progress' = 'in-progress'): void {
+  resumeTask(taskId: string, newStatus: TASK_STATUS.NOT_STARTED | TASK_STATUS.STARTED = TASK_STATUS.STARTED): void {
     const task = this.state.tasks.find(t => t.id === taskId);
-    if (!task || task.status !== 'on-hold') return;
+    if (!task || task.status !== TASK_STATUS.ON_HOLD) return;
 
     task.status = newStatus;
     task.holdState = undefined;
@@ -1782,7 +1783,7 @@ export class GanttCanvas {
    */
   isTaskOnHold(taskId: string): boolean {
     const task = this.state.tasks.find(t => t.id === taskId);
-    return task?.status === 'on-hold';
+    return task?.status === TASK_STATUS.ON_HOLD;
   }
 
   /**
@@ -1797,14 +1798,14 @@ export class GanttCanvas {
    * Get all tasks currently on hold
    */
   getTasksOnHold(): GanttTask[] {
-    return this.state.tasks.filter(t => t.status === 'on-hold');
+    return this.state.tasks.filter(t => t.status === TASK_STATUS.ON_HOLD);
   }
 
   /**
    * Get tasks on hold by reason
    */
   getTasksOnHoldByReason(reason: HoldReason): GanttTask[] {
-    return this.state.tasks.filter(t => t.status === 'on-hold' && t.holdState?.reason === reason);
+    return this.state.tasks.filter(t => t.status === TASK_STATUS.ON_HOLD && t.holdState?.reason === reason);
   }
 
   /**
@@ -1852,7 +1853,7 @@ export class GanttCanvas {
     if (!task) return false;
 
     // Already started or completed tasks don't violate
-    if (task.status === 'in-progress' || task.status === 'completed') {
+    if (task.status === TASK_STATUS.STARTED || task.status === TASK_STATUS.COMPLETED) {
       return false;
     }
 
@@ -1872,7 +1873,7 @@ export class GanttCanvas {
     const today = getTodayInCompanyTimezone();
 
     return this.state.tasks.filter(task => {
-      if (task.status === 'in-progress' || task.status === 'completed') {
+      if (task.status === TASK_STATUS.STARTED || task.status === TASK_STATUS.COMPLETED) {
         return false;
       }
 
@@ -3836,7 +3837,7 @@ export class GanttCanvas {
         if (!e.ctrlKey && !e.metaKey) {
           e.preventDefault();
           // S: Start selected task
-          if (selectedTask && selectedTask.status !== 'completed') {
+          if (selectedTask && selectedTask.status !== TASK_STATUS.COMPLETED) {
             this.startTask(selectedTask.id);
           }
         }
@@ -3846,9 +3847,9 @@ export class GanttCanvas {
         e.preventDefault();
         // Space: Toggle task completion / increment progress
         if (selectedTask) {
-          if (selectedTask.status === 'completed') {
+          if (selectedTask.status === TASK_STATUS.COMPLETED) {
             // If completed, reset to in-progress
-            this.setStatus(selectedTask.id, 'in-progress');
+            this.setStatus(selectedTask.id, TASK_STATUS.STARTED);
             this.setProgress(selectedTask.id, 50);
           } else {
             // Increment progress by 25% or complete if >= 75%
@@ -3879,7 +3880,7 @@ export class GanttCanvas {
           e.preventDefault();
           // H: Toggle hold on selected task
           if (selectedTask) {
-            if (selectedTask.status === 'on-hold') {
+            if (selectedTask.status === TASK_STATUS.ON_HOLD) {
               this.resumeTask(selectedTask.id);
             } else {
               this.holdTask(selectedTask.id, 'other');
@@ -4228,7 +4229,7 @@ export class GanttCanvas {
     if (!task) return;
 
     task.progress = 100;
-    task.status = 'completed';
+    task.status = TASK_STATUS.COMPLETED;
     this.onProgressChange?.(task, 100);
     this.onTaskUpdate?.(task);
     this.markDirty();
@@ -4255,7 +4256,7 @@ export class GanttCanvas {
       ...task,
       startDate: new Date(task.startDate),
       endDate: new Date(task.endDate),
-      status: task.status || 'not-started',
+      status: task.status || TASK_STATUS.NOT_STARTED,
       progress: task.progress ?? 0,
     };
 
@@ -4286,7 +4287,7 @@ export class GanttCanvas {
       name: 'New Task',
       startDate: today,
       endDate: endDate,
-      status: 'not-started',
+      status: TASK_STATUS.NOT_STARTED,
       progress: 0,
       ...overrides,
     };
@@ -4382,7 +4383,7 @@ export class GanttCanvas {
       startDate: newStartDate,
       endDate: newEndDate,
       progress: 0,
-      status: 'not-started',
+      status: TASK_STATUS.NOT_STARTED,
       locked: undefined,
       holdState: undefined,
       brokenPredecessorIds: undefined,
@@ -4452,13 +4453,13 @@ export class GanttCanvas {
     task.status = status;
 
     // Auto-update progress for completed tasks
-    if (status === 'completed' && (task.progress || 0) < 100) {
+    if (status === TASK_STATUS.COMPLETED && (task.progress || 0) < 100) {
       task.progress = 100;
       this.onProgressChange?.(task, 100);
     }
 
     // Clear hold state if resuming
-    if (oldStatus === 'on-hold' && status !== 'on-hold') {
+    if (oldStatus === TASK_STATUS.ON_HOLD && status !== TASK_STATUS.ON_HOLD) {
       task.holdState = undefined;
     }
 
@@ -4480,7 +4481,7 @@ export class GanttCanvas {
     const task = this.state.tasks.find(t => t.id === taskId);
     if (!task) return;
 
-    task.status = 'in-progress';
+    task.status = TASK_STATUS.STARTED;
     task.locked = 'started';
     this.onTaskUpdate?.(task);
     this.markDirty();
@@ -4490,7 +4491,7 @@ export class GanttCanvas {
    * Mark task as at-risk
    */
   markAtRisk(taskId: string): void {
-    this.setStatus(taskId, 'at-risk');
+    this.setStatus(taskId, TASK_STATUS.AT_RISK);
   }
 
   /**
@@ -4505,15 +4506,15 @@ export class GanttCanvas {
    */
   getStatusCounts(): Record<string, number> {
     const counts: Record<string, number> = {
-      'not-started': 0,
-      'in-progress': 0,
-      'completed': 0,
-      'on-hold': 0,
-      'at-risk': 0,
+      [TASK_STATUS.NOT_STARTED]: 0,
+      [TASK_STATUS.STARTED]: 0,
+      [TASK_STATUS.COMPLETED]: 0,
+      [TASK_STATUS.ON_HOLD]: 0,
+      [TASK_STATUS.AT_RISK]: 0,
     };
 
     this.state.tasks.forEach(t => {
-      const status = t.status || 'not-started';
+      const status = t.status || TASK_STATUS.NOT_STARTED;
       counts[status] = (counts[status] || 0) + 1;
     });
 
@@ -4525,7 +4526,7 @@ export class GanttCanvas {
    */
   getCompletionPercentage(): number {
     if (this.state.tasks.length === 0) return 0;
-    const completed = this.state.tasks.filter(t => t.status === 'completed').length;
+    const completed = this.state.tasks.filter(t => t.status === TASK_STATUS.COMPLETED).length;
     return Math.round((completed / this.state.tasks.length) * 100);
   }
 
@@ -4757,7 +4758,7 @@ export class GanttCanvas {
   findOverdueTasks(): GanttTask[] {
     const today = getTodayInCompanyTimezone();
     return this.state.tasks.filter(t => {
-      return t.status !== 'completed' && t.endDate < today;
+      return t.status !== TASK_STATUS.COMPLETED && t.endDate < today;
     });
   }
 
@@ -4770,7 +4771,7 @@ export class GanttCanvas {
     futureDate.setDate(futureDate.getDate() + days);
 
     return this.state.tasks.filter(t => {
-      return t.status !== 'completed' && t.endDate >= today && t.endDate <= futureDate;
+      return t.status !== TASK_STATUS.COMPLETED && t.endDate >= today && t.endDate <= futureDate;
     });
   }
 
@@ -4783,7 +4784,7 @@ export class GanttCanvas {
     futureDate.setDate(futureDate.getDate() + days);
 
     return this.state.tasks.filter(t => {
-      return t.status === 'not-started' && t.startDate >= today && t.startDate <= futureDate;
+      return t.status === TASK_STATUS.NOT_STARTED && t.startDate >= today && t.startDate <= futureDate;
     });
   }
 
@@ -5086,7 +5087,7 @@ export class GanttCanvas {
       }
 
       // Check progress vs status mismatch
-      if (task.status === 'completed' && (task.progress || 0) < 100) {
+      if (task.status === TASK_STATUS.COMPLETED && (task.progress || 0) < 100) {
         issues.push({
           taskId: task.id,
           issue: 'Task marked complete but progress < 100%',
@@ -5096,7 +5097,7 @@ export class GanttCanvas {
 
       // Check for predecessor constraint violations
       const earliestStart = this.calculateEarliestStart(task.id);
-      if (task.startDate < earliestStart && task.status !== 'completed') {
+      if (task.startDate < earliestStart && task.status !== TASK_STATUS.COMPLETED) {
         issues.push({
           taskId: task.id,
           issue: `Task starts before predecessors allow (earliest: ${earliestStart.toLocaleDateString()})`,
@@ -5204,11 +5205,11 @@ export class GanttCanvas {
 
     return {
       totalTasks: this.state.tasks.length,
-      completedTasks: statusCounts['completed'] || 0,
-      inProgressTasks: statusCounts['in-progress'] || 0,
-      notStartedTasks: statusCounts['not-started'] || 0,
-      onHoldTasks: statusCounts['on-hold'] || 0,
-      atRiskTasks: statusCounts['at-risk'] || 0,
+      completedTasks: statusCounts[TASK_STATUS.COMPLETED] || 0,
+      inProgressTasks: statusCounts[TASK_STATUS.STARTED] || 0,
+      notStartedTasks: statusCounts[TASK_STATUS.NOT_STARTED] || 0,
+      onHoldTasks: statusCounts[TASK_STATUS.ON_HOLD] || 0,
+      atRiskTasks: statusCounts[TASK_STATUS.AT_RISK] || 0,
       overdueTasks: this.findOverdueTasks().length,
       completionRate: this.getCompletionPercentage(),
       averageProgress: this.getAverageProgress(),
@@ -5351,7 +5352,7 @@ export class GanttCanvas {
     tasks.forEach((task, index) => {
       const duration = this.getTaskDuration(task.id);
       const progress = task.progress || 0;
-      const status = task.status || 'not-started';
+      const status = task.status || TASK_STATUS.NOT_STARTED;
       const predecessorIds = this.getPredecessorIds(task.id);  // SSoT: derive from dependencies
       const preds = predecessorIds.length > 0 ? predecessorIds.join(', ') : '-';
 
@@ -5699,7 +5700,7 @@ export class GanttCanvas {
 
     const index = this.getTaskIndex(taskId);
     const duration = this.getTaskDuration(taskId);
-    const status = task.status || 'not-started';
+    const status = task.status || TASK_STATUS.NOT_STARTED;
     const progress = task.progress || 0;
     const locked = task.locked ? ', locked' : '';
     const onHold = this.isTaskOnHold(taskId) ? ', on hold' : '';
@@ -6209,7 +6210,7 @@ export class GanttCanvas {
     const isManuallyPositioned = task.rowData?.hold === true;
     this.contextMenuItems = [
       { id: 'edit', label: 'Edit Task' },
-      { id: 'start', label: task.status === 'in-progress' ? 'Mark Not Started' : 'Start Task' },
+      { id: 'start', label: task.status === TASK_STATUS.STARTED ? 'Mark Not Started' : 'Start Task' },
       { id: 'complete', label: 'Mark Complete' },
       { id: 'separator1', label: '', separator: true },
       { id: 'lock', label: task.locked ? 'Unlock' : 'Lock Position' },
@@ -8173,24 +8174,18 @@ export class GanttCanvas {
 
   // Helper formatters for tooltip
   private formatStatus(status: string): string {
-    const statusMap: Record<string, string> = {
-      'not-started': 'Not Started',
-      'in-progress': 'In Progress',
-      'completed': 'Completed',
-      'on-hold': 'On Hold',
-      'at-risk': 'At Risk'
-    };
-    return statusMap[status] || status;
+    // SSoT: Use TASK_STATUS_LABELS from shared constants
+    return TASK_STATUS_LABELS[status as TaskStatus] || status;
   }
 
   private getStatusColor(status: string): string {
     // SSoT: Uses GANTT_COLORS from @/lib/constants/color-constants
     const colorMap: Record<string, string> = {
-      'not-started': GANTT_COLORS.taskStatus.notStarted,
-      'in-progress': GANTT_COLORS.taskStatus.inProgress,
-      'completed': GANTT_COLORS.taskStatus.completed,
-      'on-hold': GANTT_COLORS.taskStatus.onHold,
-      'at-risk': GANTT_COLORS.taskStatus.atRisk
+      [TASK_STATUS.NOT_STARTED]: GANTT_COLORS.taskStatus.notStarted,
+      [TASK_STATUS.STARTED]: GANTT_COLORS.taskStatus.inProgress,
+      [TASK_STATUS.COMPLETED]: GANTT_COLORS.taskStatus.completed,
+      [TASK_STATUS.ON_HOLD]: GANTT_COLORS.taskStatus.onHold,
+      [TASK_STATUS.AT_RISK]: GANTT_COLORS.taskStatus.atRisk
     };
     return colorMap[status] || TAILWIND_COLORS.gray[500];
   }
@@ -8797,8 +8792,8 @@ export class GanttCanvas {
       .map(id => this.state.tasks.find(t => t.id === id))
       .filter((t): t is GanttTask => t !== undefined);
 
-    const completedCount = childTasks.filter(t => t.status === 'completed').length;
-    const inProgressCount = childTasks.filter(t => t.status === 'in-progress').length;
+    const completedCount = childTasks.filter(t => t.status === TASK_STATUS.COMPLETED).length;
+    const inProgressCount = childTasks.filter(t => t.status === TASK_STATUS.STARTED).length;
     const totalProgress = childTasks.reduce((sum, t) => sum + (t.progress || 0), 0);
 
     return {
@@ -12746,7 +12741,7 @@ export class GanttCanvas {
       endDate: task.endDate,
       duration: Math.ceil((task.endDate.getTime() - task.startDate.getTime()) / (1000 * 60 * 60 * 24)),
       progress: task.progress || 0,
-      status: task.status || 'not-started',
+      status: task.status || TASK_STATUS.NOT_STARTED,
       locked: task.locked,
       predecessorIds: this.getPredecessorIds(task.id),  // SSoT: derive from dependencies
       rowIndex: index,
@@ -12843,7 +12838,7 @@ export class GanttCanvas {
 
   // Get tasks that can be auto-completed
   getAutoCompletableTasks(): GanttTask[] {
-    return this.state.tasks.filter(t => t.status !== 'completed');
+    return this.state.tasks.filter(t => t.status !== TASK_STATUS.COMPLETED);
   }
 
   // =========================================================================
@@ -13272,7 +13267,7 @@ export class GanttCanvas {
       endDate: task.endDate.toISOString().split('T')[0],
       duration: Math.ceil((task.endDate.getTime() - task.startDate.getTime()) / (1000 * 60 * 60 * 24)),
       progress: task.progress || 0,
-      status: task.status || 'not-started',
+      status: task.status || TASK_STATUS.NOT_STARTED,
       locked: task.locked || '',
       predecessors: this.formatPredecessorsForExport(task),
       supplierId: task.supplierId || '',
@@ -15791,7 +15786,7 @@ ${this.getAutomatedTestResults()}
   getCriticalPathSummary(): { taskCount: number; totalDuration: number; taskIds: string[] } {
     // Critical path detection: tasks with no slack (latest finish = earliest finish)
     // Simplified critical path - tasks at 0% progress or on-hold are considered critical
-    const criticalTasks = this.state.tasks.filter(t => t.progress === 0 || t.status === 'on-hold' || t.status === 'at-risk');
+    const criticalTasks = this.state.tasks.filter(t => t.progress === 0 || t.status === TASK_STATUS.ON_HOLD || t.status === TASK_STATUS.AT_RISK);
     const totalDuration = criticalTasks.reduce((sum, t) => sum + this.getTaskDuration(t.id), 0);
 
     return {
@@ -15951,11 +15946,11 @@ ${this.getAutomatedTestResults()}
   }
 
   // FEATURE 592-599: HOLD REASON MANAGEMENT
-  // Note: isTaskOnHold() already exists at line ~1306 - uses task.status === 'on-hold'
+  // Note: isTaskOnHold() already exists at line ~1306 - uses task.status === TASK_STATUS.ON_HOLD
   // Note: getHoldState() already exists at line ~1314 - returns HoldState
 
   // FEATURE 600: HOLD DATE TRACKING
-  // Note: getTasksOnHold() already exists at line ~1322 - filters by status === 'on-hold'
+  // Note: getTasksOnHold() already exists at line ~1322 - filters by status === TASK_STATUS.ON_HOLD
 
   getTaskHoldInfoExtended(taskId: string): {
     isOnHold: boolean;
@@ -15968,7 +15963,7 @@ ${this.getAutomatedTestResults()}
     if (!task?.holdState) return null;
 
     return {
-      isOnHold: task.status === 'on-hold',
+      isOnHold: task.status === TASK_STATUS.ON_HOLD,
       reason: task.holdState.reason || null,
       notes: task.holdState.notes || null,
       heldAt: task.holdState.heldAt || null,

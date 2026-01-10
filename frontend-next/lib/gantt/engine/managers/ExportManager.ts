@@ -24,6 +24,7 @@
  */
 
 import type { GanttTask, GanttDependency } from '../GanttCanvas';
+import { TASK_STATUS, TASK_STATUS_LABELS } from '@/lib/constants/task-status';
 
 // ============================================================================
 // Types
@@ -204,7 +205,7 @@ export class ExportManager {
         formatDate(t.endDate),
         duration.toString(),
         (t.progress || 0).toString(),
-        t.status || 'not-started',
+        t.status || TASK_STATUS.NOT_STARTED,
         t.locked || '',
         predecessors,
       ].join(delimiter);
@@ -388,9 +389,10 @@ export class ExportManager {
             y = 15;
           }
 
-          const status = task.status || 'not-started';
+          const status = task.status || TASK_STATUS.NOT_STARTED;
+          const statusLabel = TASK_STATUS_LABELS[status] || status;
           const progress = task.progress || 0;
-          pdf.text(`${index + 1}. ${task.name} - ${status} (${progress}%)`, 10, y);
+          pdf.text(`${index + 1}. ${task.name} - ${statusLabel} (${progress}%)`, 10, y);
           y += 7;
         });
       }

@@ -5,19 +5,37 @@
  * These types are used across the engine, API integration, and React components.
  */
 
+import {
+  TASK_STATUS,
+  type TaskStatus,
+  TASK_STATUS_LABELS,
+  TASK_STATUS_COLORS,
+  TASK_STATUS_PROGRESS,
+  isValidTaskStatus,
+  getStatusLabel,
+  getStatusColors,
+  getStatusProgress,
+} from '@/lib/constants/task-status';
+
 // ============================================================================
 // Core Task Types
 // ============================================================================
 
 /**
- * Task status values matching backend SmScheduleMaster states
+ * Task status - re-exported from shared constants (SSoT)
+ * See: lib/constants/task-status.ts
  */
-export type TaskStatus =
-  | 'not-started'
-  | 'in-progress'
-  | 'completed'
-  | 'on-hold'
-  | 'at-risk';
+export {
+  TASK_STATUS,
+  type TaskStatus,
+  TASK_STATUS_LABELS,
+  TASK_STATUS_COLORS,
+  TASK_STATUS_PROGRESS,
+  isValidTaskStatus,
+  getStatusLabel,
+  getStatusColors,
+  getStatusProgress,
+};
 
 /**
  * Lock types that prevent task movement
@@ -623,7 +641,7 @@ export function convertRowToTask(
     startDate,
     endDate,
     progress: 0,
-    status: 'not-started',
+    status: TASK_STATUS.NOT_STARTED,
     locked: undefined,
     // SSoT: predecessorIds removed - dependencies come from GanttDependency[] array
     supplierId: row.supplier_id ?? undefined,

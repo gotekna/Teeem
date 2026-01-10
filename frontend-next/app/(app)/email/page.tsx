@@ -1256,9 +1256,10 @@ export default function EmailPage() {
   const handleReply = (email: Email) => {
     // Build quoted original message as HTML to preserve formatting
     const originalBody = email.body_html || email.body_text || "";
-    const quotedBody = `<br><br>
+    // Start with empty paragraph for typing, then quoted content below
+    const quotedBody = `<p></p>
 <div style="border-left: 2px solid #ccc; padding-left: 10px; margin-left: 5px; color: #555;">
-<p><strong>--- Original Message ---</strong><br>
+<p style="margin: 0 0 8px 0;"><strong>--- Original Message ---</strong><br>
 <strong>From:</strong> ${email.from_email || email.from_address}<br>
 <strong>Date:</strong> ${email.received_at ? format(new Date(email.received_at), "PPpp") : "Unknown"}<br>
 <strong>Subject:</strong> ${email.subject || ""}</p>
@@ -1292,9 +1293,10 @@ ${originalBody}
 
     // Build quoted original message as HTML to preserve formatting
     const originalBody = email.body_html || email.body_text || "";
-    const quotedBody = `<br><br>
+    // Start with empty paragraph for typing, then quoted content below
+    const quotedBody = `<p></p>
 <div style="border-left: 2px solid #ccc; padding-left: 10px; margin-left: 5px; color: #555;">
-<p><strong>--- Original Message ---</strong><br>
+<p style="margin: 0 0 8px 0;"><strong>--- Original Message ---</strong><br>
 <strong>From:</strong> ${email.from_email || email.from_address}<br>
 <strong>Date:</strong> ${email.received_at ? format(new Date(email.received_at), "PPpp") : "Unknown"}<br>
 <strong>Subject:</strong> ${email.subject || ""}</p>
