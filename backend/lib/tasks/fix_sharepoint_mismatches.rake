@@ -44,15 +44,20 @@ namespace :documents do
           puts "     SharePoint: #{sp_name}"
 
           # FIX: Update DB filename to match SharePoint (SSoT)
-          old_name = doc.file_name
-          doc.update!(file_name: sp_name)
-          fixed << { id: doc.id, old_name: old_name, new_name: sp_name }
-          puts "     ✅ FIXED: Updated DB filename to match SharePoint"
+          begin
+            old_name = doc.file_name
+            doc.update!(file_name: sp_name)
+            fixed << { id: doc.id, old_name: old_name, new_name: sp_name }
+            puts "     ✅ FIXED: Updated DB filename to match SharePoint"
+          rescue => update_error
+            errors << { id: doc.id, file_name: doc.file_name, error: "Update failed: #{update_error.message}" }
+            puts "     ❌ UPDATE FAILED: #{update_error.message}"
+          end
         end
       rescue MicrosoftGraphClient::APIError => e
-        errors << { id: doc.id, file_name: doc.file_name, error: e.message }
+        errors << { id: doc.id, file_name: doc.file_name, error: "API error: #{e.message}" }
       rescue => e
-        errors << { id: doc.id, file_name: doc.file_name, error: e.message }
+        errors << { id: doc.id, file_name: doc.file_name, error: "Error: #{e.message}" }
       end
     end
 
@@ -71,6 +76,14 @@ namespace :documents do
       puts "FIXED DOCUMENTS:"
       fixed.each do |f|
         puts "  ID #{f[:id]}: '#{f[:old_name]}' -> '#{f[:new_name]}'"
+      end
+      puts ""
+    end
+
+    if errors.any?
+      puts "ERRORS:"
+      errors.each do |e|
+        puts "  ID #{e[:id]}: #{e[:error]}"
       end
     end
   end
