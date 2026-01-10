@@ -842,67 +842,97 @@ export function FoldersTab() {
 
   const loadTemplates = async () => {
     try {
-      const response = await api.get<{ folder_templates: FolderTemplate[] } | FolderTemplate[]>(
-        "/api/v1/folder_templates"
-      );
-      const data = Array.isArray(response) ? response : response?.folder_templates || [];
-      setTemplates(data);
-      // Select first template by default
-      if (data.length > 0 && !selectedTemplate) {
-        setSelectedTemplate(data[0]);
+      // SSoT: Use entity_tabs API - folder_templates was removed
+      const response = await api.get<{
+        success: boolean;
+        data: {
+          tabs: Array<{
+            id: number;
+            display_name: string;
+            description?: string;
+            has_sharepoint_folder: boolean;
+            is_system_tab: boolean;
+            children?: Array<{
+              id: number;
+              display_name: string;
+              has_sharepoint_folder: boolean;
+              order_position: number;
+              parent_id: number | null;
+              children?: unknown[];
+            }>;
+          }>;
+        };
+      }>("/api/v1/entity_tabs?scope=job&include_disabled=true");
+
+      if (response?.success && response.data?.tabs) {
+        // Map entity_tabs to FolderTemplate structure for UI compatibility
+        // Filter to only tabs with has_sharepoint_folder (actual folder structure)
+        const folderTabs = response.data.tabs.filter(t => t.has_sharepoint_folder);
+
+        // Define a simple recursive type for tabs with children
+        interface TabWithChildren {
+          id: number;
+          display_name: string;
+          has_sharepoint_folder?: boolean;
+          children?: TabWithChildren[];
+        }
+
+        // Create a single "Job Folders" template from the entity_tabs tree
+        const mapTabToItem = (tab: TabWithChildren, parentId: number | null = null): FolderTemplateItem => ({
+          id: tab.id,
+          name: tab.display_name,
+          item_type: "folder",
+          parent_id: parentId,
+          order: 0,
+          children: (tab.children || [])
+            .filter(c => c.has_sharepoint_folder)
+            .map(child => mapTabToItem(child, tab.id))
+        });
+
+        const flattenItems = (items: FolderTemplateItem[], order = 0): FolderTemplateItem[] => {
+          const result: FolderTemplateItem[] = [];
+          items.forEach((item, idx) => {
+            result.push({ ...item, order: order + idx, children: undefined });
+            if (item.children) {
+              result.push(...flattenItems(item.children, order + idx + 1));
+            }
+          });
+          return result;
+        };
+
+        const template: FolderTemplate = {
+          id: 1, // Virtual template ID
+          name: "Job Folder Structure",
+          description: "Default folder structure for new jobs (managed via Entity Tabs)",
+          template_type: "system",
+          items: flattenItems(folderTabs.map(t => mapTabToItem(t as unknown as TabWithChildren))),
+          created_at: new Date().toISOString(),
+        };
+
+        setTemplates(folderTabs.length > 0 ? [template] : []);
+        if (folderTabs.length > 0 && !selectedTemplate) {
+          setSelectedTemplate(template);
+        }
+      } else {
+        setTemplates([]);
       }
     } catch (error) {
       console.error("Failed to load templates:", error);
-      toast({ title: "Error", description: "Failed to load folder templates", variant: "destructive" });
+      // Don't show toast for 404 - just show empty state
+      setTemplates([]);
     } finally {
       setLoading(false);
     }
   };
 
   const handleTemplateUpdate = async (updatedTemplate: FolderTemplate) => {
-    setSelectedTemplate(updatedTemplate);
-    setTemplates((prev) =>
-      prev.map((t) => (t.id === updatedTemplate.id ? updatedTemplate : t))
-    );
-
-    // Auto-save to backend
-    setSaving(true);
-    try {
-      await api.patch<{ folder_template: FolderTemplate }>(
-        `/api/v1/folder_templates/${updatedTemplate.id}`,
-        {
-          folder_template: {
-            name: updatedTemplate.name,
-            folder_template_items_attributes: updatedTemplate.items.map((item) => ({
-              id: item.id > 1000000 ? undefined : item.id, // New items have large temp IDs
-              name: item.name,
-              level: getItemLevel(item, updatedTemplate.items),
-              order: item.order,
-              parent_id: item.parent_id,
-            })),
-          },
-        }
-      );
-      // Reload templates to get fresh IDs for any newly created items
-      await loadTemplates();
-    } catch (error: unknown) {
-      console.error("Failed to save template:", error);
-      const errorMessage = error instanceof Error ? error.message : "Failed to save changes";
-      // If we get a 404 or 409 (out of sync), reload and let user try again
-      if (errorMessage.includes("not found") || errorMessage.includes("404") ||
-          errorMessage.includes("out of sync") || errorMessage.includes("409")) {
-        toast({
-          title: "Sync Error",
-          description: "Template data was out of sync. Reloading... please try your change again.",
-          variant: "destructive",
-        });
-        await loadTemplates();
-      } else {
-        toast({ title: "Error", description: errorMessage, variant: "destructive" });
-      }
-    } finally {
-      setSaving(false);
-    }
+    // SSoT: Folder structure is now managed via Entity Tabs
+    // This view is read-only - direct users to Entity Tabs for changes
+    toast({
+      title: "Read-Only View",
+      description: "Folder structure is managed via Admin → Tabs. Use Entity Tabs to add/edit folders.",
+      variant: "default",
+    });
   };
 
   const getItemLevel = (item: FolderTemplateItem, items: FolderTemplateItem[]): number => {
@@ -912,31 +942,22 @@ export function FoldersTab() {
     return getItemLevel(parent, items) + 1;
   };
 
-  const handleDuplicate = async (id: number) => {
-    try {
-      await api.post(`/api/v1/folder_templates/${id}/duplicate`);
-      toast({ title: "Success", description: "Template duplicated successfully" });
-      loadTemplates();
-    } catch (error) {
-      console.error("Failed to duplicate template:", error);
-      toast({ title: "Error", description: "Failed to duplicate template", variant: "destructive" });
-    }
+  const handleDuplicate = async (_id: number) => {
+    // SSoT: Folder structure is now managed via Entity Tabs
+    toast({
+      title: "Not Available",
+      description: "Folder structure is managed via Admin → Tabs. Duplicate functionality is not available here.",
+      variant: "default",
+    });
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this template?")) return;
-
-    try {
-      await api.delete(`/api/v1/folder_templates/${id}`);
-      toast({ title: "Success", description: "Template deleted successfully" });
-      if (selectedTemplate?.id === id) {
-        setSelectedTemplate(null);
-      }
-      loadTemplates();
-    } catch (error) {
-      console.error("Failed to delete template:", error);
-      toast({ title: "Error", description: "Failed to delete template", variant: "destructive" });
-    }
+  const handleDelete = async (_id: number) => {
+    // SSoT: Folder structure is now managed via Entity Tabs
+    toast({
+      title: "Not Available",
+      description: "Folder structure is managed via Admin → Tabs. Use Entity Tabs to delete folders.",
+      variant: "default",
+    });
   };
 
   if (loading) {
