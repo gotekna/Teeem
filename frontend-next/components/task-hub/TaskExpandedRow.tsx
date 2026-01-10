@@ -882,9 +882,9 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   }
 
   return (
-    <div className="bg-muted/30 border-t border-b px-3 py-3 space-y-3 animate-in slide-in-from-top-2 duration-200">
+    <div className="border-t border-b px-3 py-3 space-y-3 animate-in slide-in-from-top-2 duration-200">
       {/* Header with prominent colored background */}
-      <div className="bg-primary/20 dark:bg-primary/30 border-l-4 border-primary rounded px-3 py-3 -mx-3 mb-3">
+      <div className="bg-muted/50 border-l-4 border-primary rounded px-3 py-3 -mx-3 mb-3">
         <div className="flex items-center justify-between mb-2">
           {/* Task name - editable */}
           <div className="flex items-center gap-2 flex-1 min-w-0">
