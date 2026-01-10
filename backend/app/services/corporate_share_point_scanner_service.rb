@@ -494,11 +494,36 @@ class CorporateSharePointScannerService
     document_type_string = parent_folder_name.upcase
 
     # Create or update company document record
-    # Find by sharepoint_file_id only (unique constraint), then update company if needed
-    company_doc = CorporateCompanyDocument.find_or_initialize_by(
-      sharepoint_file_id: doc["id"]
-    )
-    # Update company_id to the correct company (may have been synced to wrong company before)
+    # ⚠️ SAFETY: Don't blindly reuse existing records by sharepoint_file_id
+    # SharePoint can reuse IDs after file deletion, which would hijack old records
+    company_doc = CorporateCompanyDocument.find_by(sharepoint_file_id: doc["id"])
+
+    if company_doc
+      # Verify this is actually the same file - check filename AND company match
+      filename_matches = company_doc.file_name == doc["name"]
+      company_matches = company_doc.company_id == company.id
+
+      unless filename_matches && company_matches
+        # ID was reused for a different file - orphan the old record and create new
+        Rails.logger.warn "[SharePointScanner] ID REUSE DETECTED: #{doc['id']}"
+        Rails.logger.warn "  Old: #{company_doc.file_name} (company_id=#{company_doc.company_id})"
+        Rails.logger.warn "  New: #{doc['name']} (company_id=#{company.id})"
+
+        # Orphan the old record so we don't lose its history
+        company_doc.update!(
+          sharepoint_file_id: nil,
+          orphaned_at: Time.current,
+          orphan_reason: "sharepoint_id_reused_by_#{doc['name'].truncate(50)}"
+        )
+        @results[:errors] << "ID reuse detected: orphaned old doc #{company_doc.id} (#{company_doc.file_name})"
+
+        # Create new record for the new file
+        company_doc = CorporateCompanyDocument.new(sharepoint_file_id: doc["id"])
+      end
+    else
+      company_doc = CorporateCompanyDocument.new(sharepoint_file_id: doc["id"])
+    end
+
     # SSoT: Model uses belongs_to :corporate_company, foreign_key: "company_id"
     company_doc.corporate_company = company
 
