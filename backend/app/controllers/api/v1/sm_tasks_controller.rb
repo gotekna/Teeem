@@ -949,14 +949,16 @@ module Api
           return render json: { success: false, error: "SharePoint not configured" }, status: :unprocessable_entity
         end
 
-        # Create anonymous sharing link
+        # Create anonymous sharing link using public method
         client = MicrosoftAppGraphClient.new(credential)
-        response = client.post("/drives/#{credential.drive_id}/items/#{document.sharepoint_file_id}/createLink", {
+        result = client.create_share_link(
+          drive_id: credential.drive_id,
+          item_id: document.sharepoint_file_id,
           type: "view",
           scope: "anonymous"  # "Anyone with the link" - no login required
-        })
+        )
 
-        share_url = response.dig("link", "webUrl")
+        share_url = result[:url]
 
         if share_url.present?
           render json: { success: true, share_url: share_url }

@@ -887,6 +887,26 @@ class MicrosoftAppGraphClient
     new_item
   end
 
+  # Create a sharing link for a file
+  # type: "view" (read-only) or "edit" (read-write)
+  # scope: "anonymous" (anyone with link), "organization" (org members only)
+  # Returns: { url: "https://...", type: "view", scope: "anonymous" }
+  def create_share_link(drive_id:, item_id:, type: "view", scope: "anonymous")
+    endpoint = "/drives/#{drive_id}/items/#{item_id}/createLink"
+
+    response = post(endpoint, {
+      type: type,
+      scope: scope
+    })
+
+    {
+      url: response.dig("link", "webUrl"),
+      type: response.dig("link", "type"),
+      scope: response.dig("link", "scope"),
+      id: response["id"]
+    }
+  end
+
   private
 
   def access_token
