@@ -1925,6 +1925,29 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
             {/* Add question input */}
             <div className="flex gap-2 mb-3 shrink-0">
+              <Input
+                placeholder="Add question..."
+                value={newActionItemType === 'question' ? newActionItemText : ''}
+                onChange={(e) => {
+                  setNewActionItemText(e.target.value);
+                  setNewActionItemType('question');
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newActionItemText.trim()) {
+                    handleAddActionItem('question');
+                  }
+                }}
+                className="h-8 text-sm"
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleAddActionItem('question')}
+                disabled={!newActionItemText.trim() || actionItemLoading === 'new'}
+                className="h-8 shrink-0"
+              >
+                <HelpCircle className="h-3 w-3" />
+              </Button>
               {/* Collapse/Expand all headers button */}
               {groupedQuestions.headers.length > 0 && (
                 <Button
@@ -1950,29 +1973,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   )}
                 </Button>
               )}
-              <Input
-                placeholder="Add question..."
-                value={newActionItemType === 'question' ? newActionItemText : ''}
-                onChange={(e) => {
-                  setNewActionItemText(e.target.value);
-                  setNewActionItemType('question');
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && newActionItemText.trim()) {
-                    handleAddActionItem('question');
-                  }
-                }}
-                className="h-8 text-sm"
-              />
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleAddActionItem('question')}
-                disabled={!newActionItemText.trim() || actionItemLoading === 'new'}
-                className="h-8 shrink-0"
-              >
-                <HelpCircle className="h-3 w-3" />
-              </Button>
             </div>
 
             {/* Question items list with drag-drop */}
