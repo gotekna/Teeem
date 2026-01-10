@@ -843,14 +843,28 @@ module Api
       # Creates a CorporateCompanyDocument record to track the file
       def upload_standard_file(file, category)
         # Create a document record for the uploaded file
-        doc = CorporateCompanyDocument.create!(
+        # Document ownership: job_id OR contact_id (for personal tasks)
+        doc_attrs = {
           file_name: file.original_filename,
           display_name: file.original_filename,
-          document_type: "Task Upload",
-          job_id: @task.job_id,
+          document_type: "other",
           filed_by: current_user&.name,
           uploaded_at: Time.current
-        )
+        }
+
+        # Set owner: job if available, otherwise use task supplier or assignee's contact
+        if @task.job_id.present?
+          doc_attrs[:job_id] = @task.job_id
+        elsif @task.supplier_id.present?
+          doc_attrs[:contact_id] = @task.supplier_id
+        elsif current_user&.contact_id.present?
+          doc_attrs[:contact_id] = current_user.contact_id
+        else
+          # Fallback: use the first contact for the user
+          doc_attrs[:contact_id] = current_user&.contacts&.first&.id
+        end
+
+        doc = CorporateCompanyDocument.create!(doc_attrs)
 
         # Attach the file to the document
         doc.file.attach(file)

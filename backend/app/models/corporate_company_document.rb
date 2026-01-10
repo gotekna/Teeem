@@ -234,8 +234,9 @@ class CorporateCompanyDocument < ApplicationRecord
   end
 
   def must_have_owner
-    if company_id.blank? && contact_id.blank?
-      errors.add(:base, "Document must belong to a company or contact")
+    # Documents must belong to a company, contact, OR be attached to a job
+    if company_id.blank? && contact_id.blank? && job_id.blank?
+      errors.add(:base, "Document must belong to a company, contact, or job")
     end
   end
 
