@@ -1458,16 +1458,23 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       return fileName;
     };
 
-    // Get all included questions (with answers)
-    const includedQuestions = questionItems.filter(q => q.include_in_response && q.response);
+    // Get all included questions (with answers OR attachments)
+    // A question is included if marked AND has either a text response or attachments
+    const includedQuestions = questionItems.filter(q =>
+      q.include_in_response && (q.response || (q.attachments && q.attachments.length > 0))
+    );
 
-    // Debug: Log questions and their attachments
-    console.log('[generateResponseBody] Included questions:', includedQuestions.map(q => ({
+    // Debug: Log ALL questions to diagnose filtering
+    console.log('[generateResponseBody] ALL questions:', questionItems.map(q => ({
       id: q.id,
       text: q.text.substring(0, 50),
-      attachments: q.attachments,
-      attachmentCount: q.attachments?.length || 0
+      include_in_response: q.include_in_response,
+      response: q.response ? q.response.substring(0, 30) + '...' : null,
+      hasResponse: !!q.response,
+      attachmentCount: q.attachments?.length || 0,
+      willBeIncluded: q.include_in_response && (!!q.response || (q.attachments && q.attachments.length > 0))
     })));
+    console.log('[generateResponseBody] Filtered to include:', includedQuestions.length, 'of', questionItems.length);
 
     if (includedQuestions.length > 0) {
       body += '<p><strong>Responses to your questions:</strong></p>\n\n';
@@ -1509,7 +1516,16 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         // Add questions under this header
         questions.forEach(q => {
           body += `<p>${questionNum}. ${q.text}<br>\n`;
-          body += `&nbsp;&nbsp;&nbsp;→ ${q.response}</p>\n`;
+
+          // Show text response if present
+          if (q.response) {
+            body += `&nbsp;&nbsp;&nbsp;→ ${q.response}</p>\n`;
+          } else if (q.attachments && q.attachments.length > 0) {
+            // No text response but has attachments - the attachments ARE the answer
+            body += `&nbsp;&nbsp;&nbsp;→ See attached</p>\n`;
+          } else {
+            body += '</p>\n';
+          }
 
           // Include attachments linked to this question
           if (q.attachments && q.attachments.length > 0) {
