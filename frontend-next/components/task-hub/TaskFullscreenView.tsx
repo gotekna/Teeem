@@ -1946,7 +1946,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 disabled={!newActionItemText.trim() || actionItemLoading === 'new'}
                 className="h-8 shrink-0"
               >
-                <HelpCircle className="h-3 w-3" />
+                <Plus className="h-3 w-3" />
               </Button>
               {/* Collapse/Expand all headers button */}
               {groupedQuestions.headers.length > 0 && (
