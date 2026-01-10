@@ -28,6 +28,7 @@ import {
   DragOverEvent,
   DragOverlay,
   CollisionDetection,
+  useDroppable,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -203,73 +204,90 @@ function SortableQuestionItem({
         style={style}
         data-item-id={item.id}
         className={cn(
-          "flex items-center gap-2 p-2 bg-muted/50 rounded-md font-medium text-sm transition-all",
-          isDragging && "shadow-lg opacity-50",
-          isDropTarget && "ring-2 ring-primary ring-offset-2 bg-primary/10"
+          "relative transition-all duration-200",
+          isDropTarget && "py-1"
         )}
       >
-        <div {...attributes} {...listeners} className="cursor-grab touch-none">
-          <GripVertical className="h-4 w-4 text-muted-foreground" />
-        </div>
-        <button onClick={onToggleCollapse} className="shrink-0">
-          {isCollapsed ? (
-            <ChevronRight className="h-4 w-4" />
-          ) : (
-            <ChevronDown className="h-4 w-4" />
-          )}
-        </button>
-        {editingItemId === item.id ? (
-          <Input
-            value={editingItemText}
-            onChange={(e) => setEditingItemText(e.target.value)}
-            onBlur={() => handleUpdateItem(item.id)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleUpdateItem(item.id);
-              if (e.key === 'Escape') {
-                setEditingItemId(null);
-                setEditingItemText('');
-              }
-            }}
-            className="h-6 text-sm font-medium flex-1"
-            autoFocus
-            spellCheck={true}
-          />
-        ) : (
-          <span
-            className="flex-1 cursor-pointer"
-            onClick={() => onEdit(item.text)}
-          >
-            {item.text}
-          </span>
-        )}
-        {isCollapsed && childCount > 0 && !isDropTarget && (
-          <span className="text-xs text-muted-foreground">
-            ({childCount} questions)
-          </span>
-        )}
+        {/* Drop indicator above header */}
         {isDropTarget && (
-          <span className="text-xs text-primary font-medium animate-pulse">
-            Drop to add here
-          </span>
+          <div className="absolute -top-1 left-0 right-0 h-1 bg-primary rounded-full animate-pulse" />
         )}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 px-2 text-xs shrink-0"
-          onClick={onAddChild}
-          title="Add question to this header"
+        <div
+          className={cn(
+            "flex items-center gap-2 p-2 bg-muted/50 rounded-md font-medium text-sm transition-all",
+            isDragging && "shadow-lg opacity-50",
+            isDropTarget && "ring-2 ring-primary bg-primary/20 scale-[1.02] shadow-lg"
+          )}
         >
-          <Plus className="h-3 w-3 mr-1" />
-          Add
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 w-6 p-0 shrink-0"
-          onClick={onRemove}
-        >
-          <X className="h-3 w-3" />
-        </Button>
+          <div {...attributes} {...listeners} className="cursor-grab touch-none">
+            <GripVertical className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <button onClick={onToggleCollapse} className="shrink-0">
+            {isCollapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+          </button>
+          {editingItemId === item.id ? (
+            <Input
+              value={editingItemText}
+              onChange={(e) => setEditingItemText(e.target.value)}
+              onBlur={() => handleUpdateItem(item.id)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleUpdateItem(item.id);
+                if (e.key === 'Escape') {
+                  setEditingItemId(null);
+                  setEditingItemText('');
+                }
+              }}
+              className="h-6 text-sm font-medium flex-1"
+              autoFocus
+              spellCheck={true}
+            />
+          ) : (
+            <span
+              className="flex-1 cursor-pointer"
+              onClick={() => onEdit(item.text)}
+            >
+              {item.text}
+            </span>
+          )}
+          {isCollapsed && childCount > 0 && !isDropTarget && (
+            <span className="text-xs text-muted-foreground">
+              ({childCount} questions)
+            </span>
+          )}
+          {isDropTarget && (
+            <span className="text-xs text-primary font-semibold bg-primary/20 px-2 py-0.5 rounded animate-pulse">
+              Drop here
+            </span>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-xs shrink-0"
+            onClick={onAddChild}
+            title="Add question to this header"
+          >
+            <Plus className="h-3 w-3 mr-1" />
+            Add
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0 shrink-0"
+            onClick={onRemove}
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+        {/* Drop zone indicator below header when hovering */}
+        {isDropTarget && (
+          <div className="mt-1 h-8 border-2 border-dashed border-primary rounded bg-primary/10 flex items-center justify-center">
+            <span className="text-xs text-primary font-medium">Release to add question here</span>
+          </div>
+        )}
       </div>
     );
   }
@@ -579,6 +597,38 @@ function SortableQuestionItem({
   );
 }
 
+// Ungroup drop zone component - appears when dragging a grouped question
+function UngroupDropZone({
+  isOver,
+  onIsOverChange,
+}: {
+  isOver: boolean;
+  onIsOverChange: (isOver: boolean) => void;
+}) {
+  const { setNodeRef, isOver: isOverInternal } = useDroppable({
+    id: 'ungroup-zone',
+  });
+
+  // Sync internal isOver state to parent
+  useEffect(() => {
+    onIsOverChange(isOverInternal);
+  }, [isOverInternal, onIsOverChange]);
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "mt-2 p-3 border-2 border-dashed rounded-lg text-center text-sm transition-all",
+        isOver
+          ? "border-primary bg-primary/10 text-primary font-medium"
+          : "border-muted-foreground/30 text-muted-foreground"
+      )}
+    >
+      {isOver ? "Release to remove from header" : "Drop here to remove from header"}
+    </div>
+  );
+}
+
 export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const { user: currentUser } = useAuth();
   const {
@@ -628,7 +678,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [answerText, setAnswerText] = useState('');
   const [showBulkPaste, setShowBulkPaste] = useState(false);
   const [bulkPasteText, setBulkPasteText] = useState('');
-  const [delegatingActionId, setDelegatingActionId] = useState<number | null>(null);
   const [delegatingQuestionId, setDelegatingQuestionId] = useState<number | null>(null);
   const [delegationUsers, setDelegationUsers] = useState<User[]>([]);
 
@@ -871,6 +920,16 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     });
   }, []);
 
+  // Check if we're dragging a grouped item (for showing ungroup zone)
+  const isDraggingGroupedItem = useMemo(() => {
+    if (!activeDragId) return false;
+    const item = groupedQuestions.allItems.find(i => i.id === activeDragId);
+    return item?.parent_item_id != null && item?.item_type !== 'header';
+  }, [activeDragId, groupedQuestions.allItems]);
+
+  // Ungroup drop zone - appears when dragging a grouped question
+  const [isOverUngroupZone, setIsOverUngroupZone] = useState(false);
+
   // Handle drag start - track what's being dragged
   const handleDragStart = useCallback((event: { active: { id: number | string } }) => {
     setActiveDragId(Number(event.active.id));
@@ -897,18 +956,39 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   // Handle drag end for reordering
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
     const currentOverHeaderId = overHeaderId; // Capture before clearing
+    const wasOverUngroupZone = isOverUngroupZone; // Capture before clearing
     setActiveDragId(null);
     setOverHeaderId(null);
+    setIsOverUngroupZone(false);
 
     const { active, over } = event;
-    if (!over) return;
-    if (active.id === over.id && !currentOverHeaderId) return;
 
     const allItems = groupedQuestions.allItems;
     const oldIndex = allItems.findIndex(item => item.id === active.id);
     const draggedItem = allItems[oldIndex];
 
     if (oldIndex === -1) return;
+
+    // CASE 0: Dropping on ungroup zone - remove from header
+    if (wasOverUngroupZone && draggedItem.parent_item_id) {
+      // Move to end of ungrouped items
+      const ungroupedItems = allItems.filter(i => !i.parent_item_id && i.item_type !== 'header');
+      const lastUngroupedIndex = ungroupedItems.length > 0
+        ? allItems.findIndex(i => i.id === ungroupedItems[ungroupedItems.length - 1].id) + 1
+        : allItems.length;
+
+      const reorderedItems = arrayMove(allItems, oldIndex, lastUngroupedIndex > oldIndex ? lastUngroupedIndex - 1 : lastUngroupedIndex);
+      const updates = reorderedItems.map((item, index) => ({
+        id: item.id,
+        position: index,
+        parent_item_id: item.id === draggedItem.id ? null : (item.parent_item_id ?? null)
+      }));
+      await reorderActionItems(task.id, updates);
+      return;
+    }
+
+    if (!over) return;
+    if (active.id === over.id && !currentOverHeaderId) return;
 
     // Don't allow headers to become children of other headers
     if (draggedItem.item_type === 'header' && currentOverHeaderId) {
@@ -970,7 +1050,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     }));
 
     await reorderActionItems(task.id, updates);
-  }, [groupedQuestions.allItems, reorderActionItems, task.id, overHeaderId]);
+  }, [groupedQuestions.allItems, reorderActionItems, task.id, overHeaderId, isOverUngroupZone]);
 
   // Add header
   const handleAddHeader = useCallback(async () => {
@@ -1232,14 +1312,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     setBulkPasteText('');
     setShowBulkPaste(false);
     setActionItemLoading(null);
-  };
-
-  const handleDelegateAction = async (itemId: number, userId: number) => {
-    setActionItemLoading(itemId);
-    await delegateActionItem(task.id, itemId, userId);
-    setDelegatingActionId(null);
-    setActionItemLoading(null);
-    refresh();
   };
 
   const handleDelegateQuestion = async (itemId: number, userId: number) => {
@@ -2385,6 +2457,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   ))}
                 </SortableContext>
 
+                {/* Ungroup drop zone - appears when dragging a grouped question */}
+                {isDraggingGroupedItem && (
+                  <UngroupDropZone
+                    isOver={isOverUngroupZone}
+                    onIsOverChange={setIsOverUngroupZone}
+                  />
+                )}
+
                 {/* Drag overlay for smooth dragging preview */}
                 <DragOverlay>
                   {activeDragId ? (() => {
@@ -2580,8 +2660,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                     </div>
                   </div>
 
-                  {/* Delegated task link or create task button */}
-                  {item.delegated_task_id ? (
+                  {/* Show link to delegated task if exists (for backwards compatibility) */}
+                  {/* Note: Delegation is only supported for questions, not actions */}
+                  {item.delegated_task_id && (
                     <div className="ml-6">
                       <Button
                         variant="link"
@@ -2590,34 +2671,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                         onClick={() => window.open(`/sm_tasks/${item.delegated_task_id}`, '_blank')}
                       >
                         → Task #{item.delegated_task_id}
-                      </Button>
-                    </div>
-                  ) : delegatingActionId === item.id ? (
-                    <div className="ml-6 flex gap-2 items-center">
-                      <ComboboxDropdown
-                        items={delegationUsers.map(u => ({ id: u.id.toString(), label: u.name }))}
-                        placeholder="Select person..."
-                        onSelect={(selected) => handleDelegateAction(item.id, parseInt(selected.id))}
-                        className="h-6 text-xs w-40"
-                      />
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0"
-                        onClick={() => setDelegatingActionId(null)}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="ml-6">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-5 text-xs p-0 text-muted-foreground hover:text-primary"
-                        onClick={() => setDelegatingActionId(item.id)}
-                      >
-                        → Task
                       </Button>
                     </div>
                   )}
