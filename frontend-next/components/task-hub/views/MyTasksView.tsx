@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useTaskHub, SmTask } from '@/contexts/TaskHubContext';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -23,7 +22,6 @@ interface TaskRowProps {
 }
 
 function TaskRow({ task }: TaskRowProps) {
-  const router = useRouter();
   const {
     updateTask,
     toggleTaskSelection,
@@ -45,7 +43,7 @@ function TaskRow({ task }: TaskRowProps) {
   const handleRowDoubleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    router.push(`/sm_tasks/${task.id}`);
+    window.open(`/sm_tasks/${task.id}`, '_blank');
   };
 
   return (
