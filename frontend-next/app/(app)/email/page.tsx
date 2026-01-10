@@ -59,6 +59,7 @@ import { api } from "@/lib/api";
 import { PAGE_SIZE_LIST } from "@/lib/constants/pagination-constants";
 import { formatDistanceToNow, format, isToday, differenceInDays } from "date-fns";
 import { ComposeEmailModal } from "@/components/emails/ComposeEmailModal";
+import { DraftsList } from "@/components/emails/DraftsList";
 import {
   SplitInboxTabs,
   ViewModeToggle,
@@ -572,6 +573,8 @@ export default function EmailPage() {
   const [popoutEmail, setPopoutEmail] = useState<Email | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
+  const [showDrafts, setShowDrafts] = useState(false);
+  const [resumeDraft, setResumeDraft] = useState<import("@/lib/email-types").EmailDraft | null>(null);
   const [replyTo, setReplyTo] = useState<{ to: string; cc?: string; subject: string; body?: string; messageId?: string; fromAccountId?: string; replyToMessageId?: string } | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -1572,6 +1575,17 @@ To: ${email.to_emails?.join(", ") || ""}
           </DropdownMenu>
         </div>
 
+        {/* Drafts Section */}
+        <DraftsList
+          compact
+          className="border-b"
+          onResume={(draft) => {
+            setResumeDraft(draft);
+            setReplyTo(null);
+            setComposeOpen(true);
+          }}
+        />
+
         <div className="flex-1 overflow-y-auto py-2">
           {/* All Inbox - Combined view from all accounts */}
           <button
@@ -2068,16 +2082,24 @@ To: ${email.to_emails?.join(", ") || ""}
       {/* Compose Modal */}
       <ComposeEmailModal
         open={composeOpen}
-        onOpenChange={setComposeOpen}
+        onOpenChange={(open) => {
+          setComposeOpen(open);
+          if (!open) {
+            setReplyTo(null);
+            setResumeDraft(null);
+          }
+        }}
         defaultTo={replyTo?.to || ""}
         defaultCc={replyTo?.cc || ""}
         defaultSubject={replyTo?.subject || ""}
         defaultBody={replyTo?.body || ""}
         defaultFromAccountId={replyTo?.fromAccountId}
         replyToMessageId={replyTo?.replyToMessageId}
+        draft={resumeDraft || undefined}
         onSent={() => {
           fetchEmails();
           setReplyTo(null);
+          setResumeDraft(null);
         }}
       />
 

@@ -730,8 +730,8 @@ export default function SchedulePage() {
         startDate,
         endDate,
         progress: task.progress_percentage || 0,
-        status: task.status === 'completed' ? 'completed' as const :
-                task.status === 'started' ? 'in-progress' as const : 'not-started' as const,
+        // SmTask status matches GanttTask TaskStatus (both use snake_case)
+        status: task.status as GanttTask["status"],
         // SSoT: Convert boolean flags to LockType for Gantt
         locked: task.supplier_confirm ? 'supplierConfirmed' as const :
                 task.confirm ? 'manuallyPositioned' as const : undefined,
