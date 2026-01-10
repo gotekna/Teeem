@@ -84,7 +84,7 @@ interface TaskHistoryEntry {
 }
 
 // Simplified view for delegated questions/actions
-// Shows only: question context, response textarea, attachments, due date, complete button
+// Shows only: context link, response textarea, attachments, due date, complete button
 function DelegatedTaskView({
   task,
   onClose,
@@ -94,21 +94,20 @@ function DelegatedTaskView({
   onClose?: () => void;
   onComplete: (delegationResponse?: string) => Promise<void>;
 }) {
+  const { navigateToTask } = useTaskHub();
   const [completing, setCompleting] = useState(false);
   const [response, setResponse] = useState('');
   const [localAttachments, setLocalAttachments] = useState<TaskAttachment[]>(task.attachments || []);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Extract the question/action from the description
-  const questionMatch = task.description?.match(/\*\*(Question|Action):\*\*\s*(.+?)(?:\n|$)/);
-  const questionText = questionMatch?.[2] || task.name.replace(/^(Question|Action):\s*/i, '');
-  const questionType = questionMatch?.[1] || (task.name.startsWith('Action:') ? 'Action' : 'Question');
+  // Extract the item type from task name
+  const questionType = task.name.startsWith('Action:') ? 'Action' : 'Question';
 
-  // Extract context info
-  const fromTaskMatch = task.description?.match(/- From task:\s*(.+?)(?:\n|$)/);
+  // Extract context info from description
   const sentByMatch = task.description?.match(/- Sent by:\s*(.+?)(?:\n|$)/);
-  const fromTask = fromTaskMatch?.[1] || task.parent_task_name;
+  const fromTask = task.parent_task_name;
+  const parentTaskId = task.parent_task_id;
   const sentBy = sentByMatch?.[1];
 
   const handleComplete = async () => {
@@ -159,14 +158,24 @@ function DelegatedTaskView({
 
   return (
     <div className="bg-muted/30 border-t border-b px-4 py-4 space-y-4 animate-in slide-in-from-top-2 duration-200">
-      {/* Header */}
+      {/* Header with context link */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Badge variant="outline" className="text-xs">
             {questionType}
           </Badge>
           <span className="text-sm text-muted-foreground">
-            From: {fromTask || 'Unknown task'}
+            From:{' '}
+            {parentTaskId ? (
+              <button
+                onClick={() => navigateToTask(parentTaskId)}
+                className="text-primary hover:underline font-medium"
+              >
+                {fromTask || 'Parent task'}
+              </button>
+            ) : (
+              fromTask || 'Unknown task'
+            )}
           </span>
           {sentBy && (
             <span className="text-sm text-muted-foreground">
@@ -179,11 +188,6 @@ function DelegatedTaskView({
             <X className="h-4 w-4" />
           </Button>
         )}
-      </div>
-
-      {/* Question/Action text */}
-      <div className="bg-primary/10 border-l-4 border-primary rounded-r px-4 py-3">
-        <p className="font-medium">{questionText}</p>
       </div>
 
       {/* Response textarea */}

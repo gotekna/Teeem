@@ -167,6 +167,7 @@ export interface SmTask {
   // Delegation fields - for tasks created from delegated questions/actions
   is_delegated_question?: boolean;
   source_action_item_id?: number;
+  parent_task_id?: number;
   parent_task_name?: string;
 }
 
