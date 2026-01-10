@@ -17,11 +17,12 @@ module Api
       ]
 
       # GET /api/v1/sm_tasks (global - all tasks across jobs)
-      # Performance: includes sm_task_attachments to avoid N+1 (200 queries → 1)
+      # Performance: includes all associations to avoid N+1
+      # WARNING: Do not use linked_purchase_order - it bypasses eager loading (see model alias issue)
       def index
         @tasks = SmTask.ordered.includes(
           :job, :hold_reason, :purchase_order, :assigned_user, :supplier,
-          :action_items,
+          :action_items, :start_workflow, :complete_workflow, :completion_document_type,
           sm_task_attachments: :attachable
         )
 
@@ -1984,9 +1985,12 @@ module Api
         json[:assigned_role] = task.assigned_role
         json[:is_overdue] = task.status != "completed" && task.end_date.present? && task.end_date < Date.current
         json[:days_until_due] = task.end_date.present? ? (task.end_date - Date.current).to_i : nil
-        # SSoT: Using jsonb-based methods (predecessor_ids column)
-        json[:predecessor_count] = task.active_predecessor_dependencies.count
-        json[:successor_count] = task.active_successor_dependencies.count
+        # Performance: Count from jsonb array directly (O(1), no queries)
+        # Previously called active_predecessor/successor_dependencies.count which did N+1 queries
+        json[:predecessor_count] = task.predecessor_ids.size
+        # Successor count requires querying other tasks - skip for list view (not displayed in TaskHub)
+        # Only calculate when needed (e.g., in show action with include_dependencies: true)
+        json[:successor_count] = 0
 
         json
       end

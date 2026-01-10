@@ -623,14 +623,16 @@ class SmTask < ApplicationRecord
     end.compact
   end
 
-  # SSoT: PO-Task link is via PurchaseOrder.sm_task_id
-  # This reverse lookup finds the PO that points to this task
+  # SSoT: PO-Task link is via PurchaseOrder.sm_task_id (has_one :purchase_order defined at line 70)
+  # Performance: Use the association directly - it supports eager loading via includes(:purchase_order)
+  # The old linked_purchase_order method did PurchaseOrder.find_by which bypassed eager loading
   def linked_purchase_order
-    @linked_purchase_order ||= PurchaseOrder.find_by(sm_task_id: id)
+    # Delegate to the has_one association to use eager loading when available
+    association(:purchase_order).reader
   end
 
-  # Alias for backwards compatibility
-  alias_method :purchase_order, :linked_purchase_order
+  # WARNING: Do not use alias_method to override :purchase_order - it breaks eager loading!
+  # The has_one :purchase_order association at line 70 already works correctly.
 
   def has_linked_po?
     PurchaseOrder.exists?(sm_task_id: id)

@@ -28,12 +28,14 @@ import {
   Workflow,
   ChevronDown,
   Eye,
+  GanttChart,
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { BoardView } from './views/BoardView';
 import { ListView } from './views/ListView';
 import { MyTasksView } from './views/MyTasksView';
 import { WorkflowTasksView } from './views/WorkflowTasksView';
+import { GanttView } from './views/GanttView';
 import { CreateTaskDialog } from './CreateTaskDialog';
 import { TaskColorSettingsDialog } from './TaskColorSettings';
 
@@ -237,6 +239,10 @@ export function TaskHub() {
             <List className="h-3 w-3 mr-1" />
             List
           </TabsTrigger>
+          <TabsTrigger value="gantt" className="text-xs h-7 px-3">
+            <GanttChart className="h-3 w-3 mr-1" />
+            Gantt
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="my-tasks" className="mt-3">
@@ -257,6 +263,10 @@ export function TaskHub() {
 
         <TabsContent value="list" className="mt-3">
           <ListView key={`list-${colorSettingsKey}`} />
+        </TabsContent>
+
+        <TabsContent value="gantt" className="mt-3">
+          <GanttView key={`gantt-${colorSettingsKey}`} />
         </TabsContent>
       </Tabs>
 

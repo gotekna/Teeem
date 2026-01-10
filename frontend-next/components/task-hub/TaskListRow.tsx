@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useTaskHub, SmTask } from '@/contexts/TaskHubContext';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -45,6 +46,7 @@ export function TaskListRow({
   setEditingTaskName,
   onTaskNameSave,
 }: TaskListRowProps) {
+  const router = useRouter();
   const {
     updateTask,
     toggleTaskSelection,
@@ -66,7 +68,8 @@ export function TaskListRow({
   const handleRowDoubleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    window.open(`/sm_tasks/${task.id}`, '_blank');
+    // SSoT: Use router.push for same-tab client-side navigation (matches Jobs/Contacts/Pricebook pattern)
+    router.push(`/sm_tasks/${task.id}`);
   };
 
   const handleStatusChange = async (newStatus: SmTask['status']) => {

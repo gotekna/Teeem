@@ -184,9 +184,64 @@ CORRECT ASSESSMENT:
 
 **Root cause was:** Header used `filteredAndSortedEntries.length` (0 on SSR) instead of `serverTotalRecords` (correct count from SSR group data).
 
-### Step 2: Backend Performance Data
+### Step 2: System Health Performance Dashboard
 
-Fetch from API and analyze:
+Navigate to the Performance Observatory page and analyze:
+
+**URL:** `http://localhost:3000/system-health/performance`
+
+#### What to Check
+
+1. **Summary Metrics**
+   - Total Requests & req/min rate
+   - Avg Response Time (target: <100ms)
+   - P95 Latency (target: <200ms)
+   - P99 Latency (target: <500ms)
+   - Error Rate (target: <1%)
+
+2. **Active Anomalies** (CRITICAL)
+   - Any "Slow Query Surge" alerts = investigate immediately
+   - Check which table is affected and expected vs actual count
+   - Example: "email_warehouses had 75 slow queries (expected: 11)" = **FIX REQUIRED**
+
+3. **Performance Budget Compliance**
+   - Target: 100% Compliant
+   - Check "Top Budget Violations" section for specific endpoints
+   - Common violations:
+     - p99 exceeds target → Check for N+1 queries, missing indexes
+     - error_rate exceeds target → Check for unhandled exceptions
+
+4. **Slowest Endpoints (by P95)**
+   - Any endpoint >500ms P95 = investigate
+   - Any endpoint >1000ms P95 = **FIX REQUIRED**
+   - Look for patterns: Foundation endpoints, specific tables
+
+5. **Tables with Slow Queries**
+   - Tables with >100 slow queries = **FIX REQUIRED**
+   - Check avg duration - anything >500ms needs index optimization
+   - Common culprits: email_warehouses, jobs, contacts
+
+6. **Service Level Objectives (SLOs)**
+   - API P95 Latency: ≤500ms
+   - API Error Rate: ≤1%
+   - LCP: ≤2500ms
+   - CLS: ≤0.1
+   - INP: ≤200ms
+   - Any "Violated" status = **FIX REQUIRED**
+
+#### Detection Thresholds
+
+| Metric | Pass | Warn | Fail |
+|--------|------|------|------|
+| P95 Latency | <200ms | 200-500ms | >500ms |
+| P99 Latency | <500ms | 500-1000ms | >1000ms |
+| Error Rate | <0.5% | 0.5-1% | >1% |
+| Slow Queries (per table) | <50 | 50-100 | >100 |
+| Budget Compliance | >95% | 80-95% | <80% |
+
+### Step 2.5: Backend Performance API (Optional)
+
+If more detail needed, fetch from API directly:
 
 1. `GET http://localhost:3001/api/v1/performance` - Overview metrics
 2. `GET http://localhost:3001/api/v1/performance/slow_queries` - Slow DB queries
@@ -251,10 +306,32 @@ Tasks List                  650ms      0.01     [PASS]
 Tasks > Fullscreen          450ms      0.00     [PASS]
 ================================================================================
 
-BACKEND PERFORMANCE:
-- p95 Response Time: 234ms
-- Slow Queries: 2 detected
-- Open Anomalies: 1
+SYSTEM HEALTH PERFORMANCE DASHBOARD:
+--------------------------------------------------------------------------------
+Metric                      Value      Target     Status
+--------------------------------------------------------------------------------
+Avg Response Time           26ms       <100ms     [PASS]
+P95 Latency                 80ms       <200ms     [PASS]
+P99 Latency                 392ms      <500ms     [PASS]
+Error Rate                  1.17%      <1%        [FAIL]
+Budget Compliance           87%        >95%       [WARN]
+Active Anomalies            2          0          [FAIL]
+================================================================================
+
+SLO COMPLIANCE:
+--------------------------------------------------------------------------------
+API P95 Latency             —          ≤500ms     [NO DATA]
+API Error Rate              0.30%      ≤1%        [VIOLATED] 99.7% compliance
+LCP                         2848ms     ≤2500ms    [VIOLATED] 68.6% compliance
+CLS                         0.090      ≤0.1       [VIOLATED] 80.6% compliance
+INP                         128ms      ≤200ms     [VIOLATED] 85.9% compliance
+================================================================================
+
+TOP ISSUES TO FIX:
+1. /api/v1/sm_tasks: p99 3362ms (target 1000ms), error_rate 7% (target 1%)
+2. email_warehouses: 839 slow queries, avg 276ms
+3. job_address_searches: 205 slow queries, avg 213ms
+================================================================================
 
 ISSUES FOUND & FIXED:
 1. Jobs > Schedule: High CLS (0.15) - Added SSR pre-loading for view config

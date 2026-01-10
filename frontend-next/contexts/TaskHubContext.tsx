@@ -191,7 +191,7 @@ export interface UserTaskCount {
   count: number;
 }
 
-export type ViewType = 'board' | 'list' | 'my-tasks' | 'all' | 'workflow';
+export type ViewType = 'board' | 'list' | 'gantt';
 
 export interface TaskHubState {
   tasks: SmTask[];
@@ -661,25 +661,20 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     // Load saved view from localStorage
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('taskHub_activeView') as ViewType;
-      if (saved && ['board', 'list', 'my-tasks', 'all', 'workflow'].includes(saved)) {
+      if (saved && ['board', 'list', 'gantt'].includes(saved)) {
         return saved;
       }
     }
-    return 'my-tasks';
+    return 'list';
   });
 
   const [filters, setFiltersState] = useState<TaskFilters>(() => {
     // Load saved filters from localStorage
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('taskHub_filters');
-      const savedView = localStorage.getItem('taskHub_activeView') as ViewType;
       if (saved) {
         try {
           const parsedFilters = { ...defaultFilters, ...JSON.parse(saved) };
-          // Clear selectedUserId if view is "my-tasks" - user expects only their tasks
-          if (savedView === 'my-tasks' || !savedView) {
-            parsedFilters.selectedUserId = null;
-          }
           return parsedFilters;
         } catch {
           // Ignore invalid JSON
@@ -688,6 +683,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     }
     return {
       ...defaultFilters,
+      showMyTasksOnly: true, // Default to "Mine"
       jobIds: initialJobId ? [initialJobId] : [],
     };
   });
@@ -752,7 +748,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
         filters.statuses.forEach(s => params.append('statuses[]', s));
       }
       // Filter by assigned_role matching user's roles (backend handles this)
-      if (filters.showMyTasksOnly || activeView === 'my-tasks') {
+      if (filters.showMyTasksOnly) {
         params.append('mine', 'true');
         // Include tasks user is following
         if (filters.includeFollowing) {
@@ -793,7 +789,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     } finally {
       setLoading(false);
     }
-  }, [filters.jobIds, filters.statuses, filters.showMyTasksOnly, filters.selectedUserId, filters.includeFollowing, activeView]);
+  }, [filters.jobIds, filters.statuses, filters.showMyTasksOnly, filters.selectedUserId, filters.includeFollowing]);
 
   // Initial load
   useEffect(() => {
@@ -875,15 +871,15 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
 
   // Computed: my tasks (assigned to user's roles - already filtered by API when activeView is 'my-tasks')
   const myTasks = useMemo(() => {
-    // When on my-tasks view, API already filters by assigned_role matching user's roles
+    // When showMyTasksOnly is true, API already filters by assigned_role matching user's roles
     // So all filteredTasks are "my tasks"
-    if (activeView === 'my-tasks') {
+    if (filters.showMyTasksOnly) {
       return filteredTasks;
     }
-    // On other views, filter by assigned_user_id (for backwards compatibility)
+    // When showing all tasks, filter by assigned_user_id for "my tasks" subset
     if (!user?.id) return [];
     return filteredTasks.filter(task => task.assigned_user_id === user.id);
-  }, [filteredTasks, user?.id, activeView]);
+  }, [filteredTasks, user?.id, filters.showMyTasksOnly]);
 
   // Computed: overdue tasks
   const overdueTasks = useMemo(() => {
