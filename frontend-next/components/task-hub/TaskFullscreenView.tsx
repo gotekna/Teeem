@@ -671,6 +671,33 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   // Email compose for responses
   const [showComposeEmail, setShowComposeEmail] = useState(false);
 
+  // Multi-select documents
+  const [selectedDocIds, setSelectedDocIds] = useState<Set<number>>(new Set());
+  const toggleDocSelection = (id: number) => {
+    setSelectedDocIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const clearDocSelection = () => setSelectedDocIds(new Set());
+  const selectAllDocs = (ids: number[]) => setSelectedDocIds(new Set(ids));
+  const handleBulkDeleteDocs = async () => {
+    if (selectedDocIds.size === 0) return;
+    setAttachmentLoading(true);
+    try {
+      for (const id of selectedDocIds) {
+        await api.delete(`/api/v1/sm_tasks/${task.id}/attachments/${id}`);
+      }
+      setLocalAttachments(prev => prev.filter(a => !selectedDocIds.has(a.id)));
+      clearDocSelection();
+    } catch (err) {
+      console.error('Failed to delete attachments:', err);
+    }
+    setAttachmentLoading(false);
+  };
+
   // Followers
   const [shareOpen, setShareOpen] = useState(false);
   const [followers, setFollowers] = useState<TaskFollower[]>([]);
@@ -2512,55 +2539,108 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
             {/* Documents Section (Info attachments) */}
             <div className="mb-3">
-              <div
-                className="flex items-center gap-2 mb-2 cursor-pointer"
-                onClick={() => setDocumentsCollapsed(!documentsCollapsed)}
-              >
-                {documentsCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                <FileText className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-muted-foreground">Documents</span>
-                <Badge variant="secondary" className="text-xs">{infoAttachments.length}</Badge>
+              <div className="flex items-center gap-2 mb-2">
+                <div
+                  className="flex items-center gap-2 cursor-pointer flex-1"
+                  onClick={() => setDocumentsCollapsed(!documentsCollapsed)}
+                >
+                  {documentsCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium text-muted-foreground">Documents</span>
+                  <Badge variant="secondary" className="text-xs">{infoAttachments.length}</Badge>
+                </div>
+                {/* Bulk actions when documents selected */}
+                {selectedDocIds.size > 0 && (
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-muted-foreground">{selectedDocIds.size} selected</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs text-destructive hover:text-destructive"
+                      onClick={handleBulkDeleteDocs}
+                      disabled={attachmentLoading}
+                    >
+                      <Trash2 className="h-3 w-3 mr-1" />
+                      Delete
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs"
+                      onClick={clearDocSelection}
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                )}
               </div>
 
               {!documentsCollapsed && (
                 <div className="border rounded-md">
                   {infoAttachments.length > 0 ? (
                     <div className="divide-y">
+                      {/* Select all checkbox */}
+                      <div className="flex items-center gap-2 p-2 bg-muted/30 text-xs border-b">
+                        <input
+                          type="checkbox"
+                          className="h-3 w-3 rounded border-gray-300"
+                          checked={infoAttachments.length > 0 && infoAttachments.every(a => selectedDocIds.has(a.id))}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              selectAllDocs(infoAttachments.map(a => a.id));
+                            } else {
+                              clearDocSelection();
+                            }
+                          }}
+                        />
+                        <span className="text-muted-foreground">Select all</span>
+                      </div>
                       {infoAttachments.map((att) => (
                         <div
                           key={att.id}
                           className={cn(
                             "flex items-center gap-2 p-2 hover:bg-muted/50 text-xs group cursor-pointer",
+                            selectedDocIds.has(att.id) && "bg-primary/10",
                             att.document?.content_hash && highlightedDocHashes.has(att.document.content_hash) &&
                               "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30"
                           )}
-                          onClick={() => {
-                            if (att.document) {
-                              // Open document viewer with markup tools
-                              const docUrl = `${getApiBaseUrl()}/api/v1/company_documents/${att.document.id}/content`;
-                              setViewerDocument({
-                                url: docUrl,
-                                fileName: att.document.display_name || att.document.file_name || 'document',
-                                fileType: getFileType(att.document.file_name),
-                              });
-                            }
-                          }}
-                          onDoubleClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            if (att.document?.sharepoint_url) {
-                              window.open(att.document.sharepoint_url, '_blank');
-                            }
-                          }}
                         >
-                          <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium truncate">
-                              {att.document?.display_name || att.document?.file_name}
+                          <input
+                            type="checkbox"
+                            className="h-3 w-3 rounded border-gray-300"
+                            checked={selectedDocIds.has(att.id)}
+                            onChange={() => toggleDocSelection(att.id)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <div
+                            className="flex items-center gap-2 flex-1 min-w-0"
+                            onClick={() => {
+                              if (att.document) {
+                                const docUrl = `${getApiBaseUrl()}/api/v1/company_documents/${att.document.id}/content`;
+                                setViewerDocument({
+                                  url: docUrl,
+                                  fileName: att.document.display_name || att.document.file_name || 'document',
+                                  fileType: getFileType(att.document.file_name),
+                                });
+                              }
+                            }}
+                            onDoubleClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (att.document?.sharepoint_url) {
+                                window.open(att.document.sharepoint_url, '_blank');
+                              }
+                            }}
+                          >
+                            <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium truncate">
+                                {att.document?.display_name || att.document?.file_name}
+                              </div>
+                              {att.document?.document_type && (
+                                <div className="text-muted-foreground">{att.document.document_type}</div>
+                              )}
                             </div>
-                            {att.document?.document_type && (
-                              <div className="text-muted-foreground">{att.document.document_type}</div>
-                            )}
                           </div>
                           <Button
                             variant="ghost"
