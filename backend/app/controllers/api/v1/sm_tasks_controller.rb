@@ -1646,7 +1646,8 @@ module Api
               document_attachments_count: email.document_attachments_count,
               conversation_id: email.conversation_id,
               thread_count: email.thread_count,
-              body_preview: email.body_preview || email.body_text&.truncate(200)
+              body_preview: email.body_preview || email.body_text&.truncate(200),
+              attachment_content_hashes: email.email_attachments.pluck(:content_hash).compact
             }
           )
         when "CorporateCompanyDocument"
@@ -1659,7 +1660,8 @@ module Api
               document_type: doc.document_type,
               sharepoint_url: doc.try(:sharepoint_url),
               file_url: doc.file.attached? ? Rails.application.routes.url_helpers.rails_blob_url(doc.file, only_path: true) : nil,
-              created_at: doc.created_at
+              created_at: doc.created_at,
+              content_hash: doc.content_hash
             }
           )
         else

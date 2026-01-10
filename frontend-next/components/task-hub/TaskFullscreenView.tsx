@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { SmTask, TaskAttachment, TaskActionItem, TaskFollower, useTaskHub, ActionItemType, AttachmentCategory } from '@/contexts/TaskHubContext';
+import { SmTask, TaskAttachment, TaskAttachmentEmail, TaskActionItem, TaskFollower, useTaskHub, ActionItemType, AttachmentCategory } from '@/contexts/TaskHubContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -60,6 +60,7 @@ import {
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { ComboboxDropdown, ComboboxItem } from '@/components/ui/combobox-dropdown';
+import { ExpandChevron } from '@/components/ui/expand-chevron';
 import { CascadeCompletionDialog } from '@/components/schedule/CascadeCompletionDialog';
 import DocumentPreviewModal from '@/components/corporate/DocumentPreviewModal';
 import { AttachmentCategoryDialog } from './AttachmentCategoryDialog';
@@ -605,6 +606,22 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [selectedEmailId, setSelectedEmailId] = useState<number | null>(null);
   const [selectedDocumentId, setSelectedDocumentId] = useState<number | null>(null);
 
+  // Email-to-document highlighting state
+  const [selectedEmailForHighlight, setSelectedEmailForHighlight] = useState<number | null>(null);
+  const [highlightedDocHashes, setHighlightedDocHashes] = useState<Set<string>>(new Set());
+
+  // Column collapse state
+  const [columnsCollapsed, setColumnsCollapsed] = useState({
+    description: false,
+    questions: false,
+    actions: false,
+    attachments: false,
+  });
+
+  const toggleColumn = useCallback((column: keyof typeof columnsCollapsed) => {
+    setColumnsCollapsed(prev => ({ ...prev, [column]: !prev[column] }));
+  }, []);
+
   // File drop and category selection
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
@@ -660,8 +677,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     setEmailKeywords(task.email_keywords || '');
   }, [task]);
 
-  // Filter attachments
-  const emailAttachments = localAttachments.filter(a => a.email);
+  // Filter attachments - emails sorted by date (latest first)
+  const emailAttachments = localAttachments
+    .filter(a => a.email)
+    .sort((a, b) => {
+      const dateA = a.email?.received_at ? new Date(a.email.received_at).getTime() : 0;
+      const dateB = b.email?.received_at ? new Date(b.email.received_at).getTime() : 0;
+      return dateB - dateA; // DESC - latest first
+    });
   const documentAttachments = localAttachments.filter(a => a.document && !a.email);
 
   // Split document attachments by category
@@ -1136,6 +1159,30 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     }
   };
 
+  // Email-to-document highlighting handler
+  const handleEmailHighlight = useCallback((email: TaskAttachmentEmail) => {
+    // Collect content hashes from this email
+    const hashes = new Set<string>(email.attachment_content_hashes || []);
+
+    // If email has a conversation_id, aggregate hashes from all emails in the thread
+    if (email.conversation_id) {
+      emailAttachments
+        .filter(att => att.email?.conversation_id === email.conversation_id)
+        .forEach(att => {
+          (att.email?.attachment_content_hashes || []).forEach(h => hashes.add(h));
+        });
+    }
+
+    setSelectedEmailForHighlight(email.id);
+    setHighlightedDocHashes(hashes);
+  }, [emailAttachments]);
+
+  // Clear highlighting when clicking outside
+  const handleClearHighlight = useCallback(() => {
+    setSelectedEmailForHighlight(null);
+    setHighlightedDocHashes(new Set());
+  }, []);
+
   // File drop handlers
   const handleFileDrop = (file: File) => {
     setPendingFile(file);
@@ -1575,27 +1622,35 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         <div className="grid grid-cols-4 gap-6 p-6 min-h-full">
           {/* Column 1: Description */}
           <div className="flex flex-col gap-4">
-            <div>
-              <h2 className="text-sm font-medium text-muted-foreground mb-2">Description</h2>
-              {isEditingDescription ? (
-                <Textarea
-                  value={editedDescription}
-                  onChange={(e) => setEditedDescription(e.target.value)}
-                  onBlur={handleSaveDescription}
-                  className="min-h-[150px]"
-                  autoFocus
-                />
-              ) : (
-                <div
-                  className="min-h-[100px] p-3 rounded-md border bg-muted/30 cursor-pointer hover:bg-muted/50 text-sm whitespace-pre-wrap"
-                  onClick={() => setIsEditingDescription(true)}
-                >
-                  {task.description || <span className="text-muted-foreground italic">Click to add description...</span>}
-                </div>
-              )}
+            <div
+              className="flex items-center gap-2 cursor-pointer mb-2"
+              onClick={() => toggleColumn('description')}
+            >
+              <ExpandChevron expanded={!columnsCollapsed.description} size={14} />
+              <h2 className="text-sm font-medium text-muted-foreground">Description</h2>
             </div>
+            {!columnsCollapsed.description && (
+              <>
+                <div>
+                  {isEditingDescription ? (
+                    <Textarea
+                      value={editedDescription}
+                      onChange={(e) => setEditedDescription(e.target.value)}
+                      onBlur={handleSaveDescription}
+                      className="min-h-[150px]"
+                      autoFocus
+                    />
+                  ) : (
+                    <div
+                      className="min-h-[100px] p-3 rounded-md border bg-muted/30 cursor-pointer hover:bg-muted/50 text-sm whitespace-pre-wrap"
+                      onClick={() => setIsEditingDescription(true)}
+                    >
+                      {task.description || <span className="text-muted-foreground italic">Click to add description...</span>}
+                    </div>
+                  )}
+                </div>
 
-            <div className="border-t pt-4 space-y-3">
+                <div className="border-t pt-4 space-y-3">
               {/* Duration */}
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground w-20">Duration:</span>
@@ -1672,173 +1727,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 </Button>
               )}
             </div>
+              </>
+            )}
           </div>
 
-          {/* Column 2: Actions */}
-          <div className="flex flex-col h-full">
-            <div className="flex items-center justify-between mb-2 shrink-0">
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-medium text-muted-foreground">Actions</h2>
-                <Badge variant="secondary" className="text-xs">{actionItems.length}</Badge>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 text-xs"
-                onClick={() => {
-                  setNewActionItemType('action');
-                  setShowBulkPaste(true);
-                }}
-              >
-                + Paste List
-              </Button>
-            </div>
-
-            {/* Add action input */}
-            <div className="flex gap-2 mb-3 shrink-0">
-              <Input
-                placeholder="Add action item..."
-                value={newActionItemType === 'action' ? newActionItemText : ''}
-                onChange={(e) => {
-                  setNewActionItemText(e.target.value);
-                  setNewActionItemType('action');
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && newActionItemText.trim()) {
-                    handleAddActionItem('action');
-                  }
-                }}
-                className="h-8 text-sm"
-              />
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleAddActionItem('action')}
-                disabled={!newActionItemText.trim() || actionItemLoading === 'new'}
-                className="h-8 shrink-0"
-              >
-                <Plus className="h-3 w-3" />
-              </Button>
-            </div>
-
-            {/* Action items list */}
-            <div className="flex-1 overflow-auto space-y-1 min-h-0">
-              {actionItems.map((item) => (
-                <div
-                  key={item.id}
-                  className={cn(
-                    "p-2 rounded-md border bg-card text-sm group space-y-1",
-                    item.checked && "bg-muted/50"
-                  )}
-                >
-                  <div className="flex items-start gap-2">
-                    {/* Include in response checkbox */}
-                    <Checkbox
-                      checked={item.include_in_response || false}
-                      onCheckedChange={() => toggleIncludeInResponse(task.id, item.id)}
-                      className="mt-0.5 shrink-0 data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
-                      title="Include in response email"
-                    />
-                    {/* Completion checkbox */}
-                    <Checkbox
-                      checked={item.checked}
-                      onCheckedChange={() => handleToggleItem(item.id)}
-                      className="mt-0.5 shrink-0"
-                      disabled={actionItemLoading === item.id}
-                    />
-                    {editingItemId === item.id ? (
-                      <Input
-                        value={editingItemText}
-                        onChange={(e) => setEditingItemText(e.target.value)}
-                        onBlur={() => handleUpdateItem(item.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleUpdateItem(item.id);
-                          if (e.key === 'Escape') {
-                            setEditingItemId(null);
-                            setEditingItemText('');
-                          }
-                        }}
-                        className="h-6 text-sm flex-1"
-                        autoFocus
-                      />
-                    ) : (
-                      <span
-                        className={cn(
-                          "flex-1 cursor-pointer",
-                          item.checked && "line-through text-muted-foreground"
-                        )}
-                        onClick={() => {
-                          setEditingItemId(item.id);
-                          setEditingItemText(item.text);
-                        }}
-                      >
-                        {item.text}
-                      </span>
-                    )}
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0"
-                        onClick={() => handleRemoveItem(item.id)}
-                        disabled={actionItemLoading === item.id}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Delegated task link or create task button */}
-                  {item.delegated_task_id ? (
-                    <div className="ml-6">
-                      <Button
-                        variant="link"
-                        size="sm"
-                        className="h-5 text-xs p-0 text-primary"
-                        onClick={() => window.open(`/sm_tasks/${item.delegated_task_id}`, '_blank')}
-                      >
-                        → Task #{item.delegated_task_id}
-                      </Button>
-                    </div>
-                  ) : delegatingActionId === item.id ? (
-                    <div className="ml-6 flex gap-2 items-center">
-                      <ComboboxDropdown
-                        items={delegationUsers.map(u => ({ id: u.id.toString(), label: u.name }))}
-                        placeholder="Select person..."
-                        onSelect={(selected) => handleDelegateAction(item.id, parseInt(selected.id))}
-                        className="h-6 text-xs w-40"
-                      />
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0"
-                        onClick={() => setDelegatingActionId(null)}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="ml-6">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-5 text-xs p-0 text-muted-foreground hover:text-primary"
-                        onClick={() => setDelegatingActionId(item.id)}
-                      >
-                        → Task
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ))}
-              {actionItems.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-4">No action items yet</p>
-              )}
-            </div>
-
-          </div>
-
-          {/* Column 3: Questions */}
+          {/* Column 2: Questions */}
           <div
             className={cn(
               "flex flex-col h-full relative",
@@ -1857,33 +1750,42 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
               </div>
             )}
             <div className="flex items-center justify-between mb-2 shrink-0">
-              <div className="flex items-center gap-2">
+              <div
+                className="flex items-center gap-2 cursor-pointer"
+                onClick={() => toggleColumn('questions')}
+              >
+                <ExpandChevron expanded={!columnsCollapsed.questions} size={14} />
                 <h2 className="text-sm font-medium text-muted-foreground">Questions</h2>
                 <Badge variant="secondary" className="text-xs">{questionItems.length + headerItems.length}</Badge>
               </div>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 text-xs"
-                  onClick={() => setShowAddHeader(!showAddHeader)}
-                >
-                  + Header
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 text-xs"
-                  onClick={() => {
-                    setNewActionItemType('question');
-                    setShowBulkPaste(true);
-                  }}
-                >
-                  + Paste List
-                </Button>
-              </div>
+              {!columnsCollapsed.questions && (
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs"
+                    onClick={(e) => { e.stopPropagation(); setShowAddHeader(!showAddHeader); }}
+                  >
+                    + Header
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setNewActionItemType('question');
+                      setShowBulkPaste(true);
+                    }}
+                  >
+                    + Paste List
+                  </Button>
+                </div>
+              )}
             </div>
 
+            {!columnsCollapsed.questions && (
+              <>
             {/* Add header input (when + Header clicked) */}
             {showAddHeader && (
               <div className="flex gap-2 mb-2 shrink-0">
@@ -1925,6 +1827,27 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
             {/* Add question input */}
             <div className="flex gap-2 mb-3 shrink-0">
+              {/* Collapse/Expand all headers button - on the left */}
+              {groupedQuestions.headers.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 w-8 p-0 shrink-0"
+                  onClick={() => {
+                    const allCollapsed = groupedQuestions.headers.every(h => collapsedHeaders.has(h.id));
+                    if (allCollapsed) {
+                      // Expand all
+                      setCollapsedHeaders(new Set());
+                    } else {
+                      // Collapse all
+                      setCollapsedHeaders(new Set(groupedQuestions.headers.map(h => h.id)));
+                    }
+                  }}
+                  title={groupedQuestions.headers.every(h => collapsedHeaders.has(h.id)) ? "Expand all headers" : "Collapse all headers"}
+                >
+                  <ExpandChevron expanded={!groupedQuestions.headers.every(h => collapsedHeaders.has(h.id))} />
+                </Button>
+              )}
               <Input
                 placeholder="Add question..."
                 value={newActionItemType === 'question' ? newActionItemText : ''}
@@ -1948,31 +1871,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
               >
                 <Plus className="h-3 w-3" />
               </Button>
-              {/* Collapse/Expand all headers button */}
-              {groupedQuestions.headers.length > 0 && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-8 w-8 p-0 shrink-0"
-                  onClick={() => {
-                    const allCollapsed = groupedQuestions.headers.every(h => collapsedHeaders.has(h.id));
-                    if (allCollapsed) {
-                      // Expand all
-                      setCollapsedHeaders(new Set());
-                    } else {
-                      // Collapse all
-                      setCollapsedHeaders(new Set(groupedQuestions.headers.map(h => h.id)));
-                    }
-                  }}
-                  title={groupedQuestions.headers.every(h => collapsedHeaders.has(h.id)) ? "Expand all headers" : "Collapse all headers"}
-                >
-                  {groupedQuestions.headers.every(h => collapsedHeaders.has(h.id)) ? (
-                    <ChevronRight className="h-4 w-4" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4" />
-                  )}
-                </Button>
-              )}
             </div>
 
             {/* Question items list with drag-drop */}
@@ -2206,6 +2104,183 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 </div>
               </div>
             )}
+              </>
+            )}
+
+          </div>
+
+          {/* Column 3: Actions */}
+          <div className="flex flex-col h-full">
+            <div className="flex items-center justify-between mb-2 shrink-0">
+              <div
+                className="flex items-center gap-2 cursor-pointer"
+                onClick={() => toggleColumn('actions')}
+              >
+                <ExpandChevron expanded={!columnsCollapsed.actions} size={14} />
+                <h2 className="text-sm font-medium text-muted-foreground">Actions</h2>
+                <Badge variant="secondary" className="text-xs">{actionItems.length}</Badge>
+              </div>
+              {!columnsCollapsed.actions && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setNewActionItemType('action');
+                    setShowBulkPaste(true);
+                  }}
+                >
+                  + Paste List
+                </Button>
+              )}
+            </div>
+
+            {!columnsCollapsed.actions && (
+              <>
+            {/* Add action input */}
+            <div className="flex gap-2 mb-3 shrink-0">
+              <Input
+                placeholder="Add action item..."
+                value={newActionItemType === 'action' ? newActionItemText : ''}
+                onChange={(e) => {
+                  setNewActionItemText(e.target.value);
+                  setNewActionItemType('action');
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newActionItemText.trim()) {
+                    handleAddActionItem('action');
+                  }
+                }}
+                className="h-8 text-sm"
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleAddActionItem('action')}
+                disabled={!newActionItemText.trim() || actionItemLoading === 'new'}
+                className="h-8 shrink-0"
+              >
+                <Plus className="h-3 w-3" />
+              </Button>
+            </div>
+
+            {/* Action items list */}
+            <div className="flex-1 overflow-auto space-y-1 min-h-0">
+              {actionItems.map((item) => (
+                <div
+                  key={item.id}
+                  className={cn(
+                    "p-2 rounded-md border bg-card text-sm group space-y-1",
+                    item.checked && "bg-muted/50"
+                  )}
+                >
+                  <div className="flex items-start gap-2">
+                    {/* Include in response checkbox */}
+                    <Checkbox
+                      checked={item.include_in_response || false}
+                      onCheckedChange={() => toggleIncludeInResponse(task.id, item.id)}
+                      className="mt-0.5 shrink-0 data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
+                      title="Include in response email"
+                    />
+                    {/* Completion checkbox */}
+                    <Checkbox
+                      checked={item.checked}
+                      onCheckedChange={() => handleToggleItem(item.id)}
+                      className="mt-0.5 shrink-0"
+                      disabled={actionItemLoading === item.id}
+                    />
+                    {editingItemId === item.id ? (
+                      <Input
+                        value={editingItemText}
+                        onChange={(e) => setEditingItemText(e.target.value)}
+                        onBlur={() => handleUpdateItem(item.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleUpdateItem(item.id);
+                          if (e.key === 'Escape') {
+                            setEditingItemId(null);
+                            setEditingItemText('');
+                          }
+                        }}
+                        className="h-6 text-sm flex-1"
+                        autoFocus
+                      />
+                    ) : (
+                      <span
+                        className={cn(
+                          "flex-1 cursor-pointer",
+                          item.checked && "line-through text-muted-foreground"
+                        )}
+                        onClick={() => {
+                          setEditingItemId(item.id);
+                          setEditingItemText(item.text);
+                        }}
+                      >
+                        {item.text}
+                      </span>
+                    )}
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0"
+                        onClick={() => handleRemoveItem(item.id)}
+                        disabled={actionItemLoading === item.id}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Delegated task link or create task button */}
+                  {item.delegated_task_id ? (
+                    <div className="ml-6">
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="h-5 text-xs p-0 text-primary"
+                        onClick={() => window.open(`/sm_tasks/${item.delegated_task_id}`, '_blank')}
+                      >
+                        → Task #{item.delegated_task_id}
+                      </Button>
+                    </div>
+                  ) : delegatingActionId === item.id ? (
+                    <div className="ml-6 flex gap-2 items-center">
+                      <ComboboxDropdown
+                        items={delegationUsers.map(u => ({ id: u.id.toString(), label: u.name }))}
+                        placeholder="Select person..."
+                        onSelect={(selected) => handleDelegateAction(item.id, parseInt(selected.id))}
+                        className="h-6 text-xs w-40"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0"
+                        onClick={() => setDelegatingActionId(null)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="ml-6">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 text-xs p-0 text-muted-foreground hover:text-primary"
+                        onClick={() => setDelegatingActionId(item.id)}
+                      >
+                        → Task
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ))}
+              {actionItems.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">No action items yet</p>
+              )}
+            </div>
+              </>
+            )}
 
           </div>
 
@@ -2230,20 +2305,28 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
             {/* Header with + Add button */}
             <div className="flex items-center justify-between mb-2 shrink-0">
-              <div className="flex items-center gap-2">
+              <div
+                className="flex items-center gap-2 cursor-pointer"
+                onClick={() => toggleColumn('attachments')}
+              >
+                <ExpandChevron expanded={!columnsCollapsed.attachments} size={14} />
                 <Paperclip className="h-4 w-4 text-muted-foreground" />
                 <h2 className="text-sm font-medium text-muted-foreground">Attachments</h2>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-6 text-xs"
-                onClick={() => setShowAttachmentPicker(!showAttachmentPicker)}
-              >
-                {showAttachmentPicker ? 'Close' : '+ Add'}
-              </Button>
+              {!columnsCollapsed.attachments && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-6 text-xs"
+                  onClick={(e) => { e.stopPropagation(); setShowAttachmentPicker(!showAttachmentPicker); }}
+                >
+                  {showAttachmentPicker ? 'Close' : '+ Add'}
+                </Button>
+              )}
             </div>
 
+            {!columnsCollapsed.attachments && (
+              <>
             {/* Attachment Picker (inline) */}
             {showAttachmentPicker && (
               <div className="p-2 border rounded bg-muted/30 mb-3 shrink-0">
@@ -2288,13 +2371,28 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                         {emailAttachments.map((att) => (
                           <div
                             key={att.id}
-                            className="flex items-center gap-2 p-2 hover:bg-muted/50 cursor-pointer text-xs group"
-                            onClick={() => att.email && setSelectedEmailId(att.email.id)}
+                            className={cn(
+                              "flex items-center gap-2 p-2 hover:bg-muted/50 cursor-pointer text-xs group",
+                              selectedEmailForHighlight === att.email?.id && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30"
+                            )}
+                            onClick={() => {
+                              if (att.email) {
+                                setSelectedEmailId(att.email.id);
+                                handleEmailHighlight(att.email);
+                              }
+                            }}
                           >
                             <Mail className="h-3 w-3 text-muted-foreground shrink-0" />
                             <div className="flex-1 min-w-0">
                               <div className="font-medium truncate">{att.email?.subject}</div>
-                              <div className="text-muted-foreground truncate">{att.email?.from_email}</div>
+                              <div className="text-muted-foreground truncate flex items-center gap-2">
+                                <span className="truncate">{att.email?.from_email}</span>
+                                {att.email?.received_at && (
+                                  <span className="shrink-0 text-[10px]">
+                                    {format(new Date(att.email.received_at), 'dd MMM HH:mm')}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             <Button
                               variant="ghost"
@@ -2337,7 +2435,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       {infoAttachments.map((att) => (
                         <div
                           key={att.id}
-                          className="flex items-center gap-2 p-2 hover:bg-muted/50 text-xs group cursor-pointer"
+                          className={cn(
+                            "flex items-center gap-2 p-2 hover:bg-muted/50 text-xs group cursor-pointer",
+                            att.document?.content_hash && highlightedDocHashes.has(att.document.content_hash) &&
+                              "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30"
+                          )}
                           onClick={() => att.document && setSelectedDocumentId(att.document.id)}
                           onDoubleClick={(e) => {
                             e.preventDefault();
@@ -2436,6 +2538,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 </p>
               )}
             </div>
+              </>
+            )}
           </div>
         </div>
       </div>

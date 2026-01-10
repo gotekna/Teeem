@@ -19,6 +19,7 @@ export interface TaskAttachmentEmail {
   conversation_id?: string;
   thread_count?: number;
   body_preview?: string;
+  attachment_content_hashes?: string[]; // Content hashes of email file attachments for linking to documents
 }
 
 export interface TaskAttachmentDocument {
@@ -28,6 +29,7 @@ export interface TaskAttachmentDocument {
   document_type?: string;
   sharepoint_url?: string;
   created_at: string;
+  content_hash?: string; // For matching with email attachment hashes
 }
 
 export type AttachmentCategory = 'info' | 'response';
