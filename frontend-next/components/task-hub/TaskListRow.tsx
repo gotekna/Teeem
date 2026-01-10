@@ -85,7 +85,7 @@ export function TaskListRow({
           'grid grid-cols-[28px_1fr_130px_60px_60px_100px_70px_32px] gap-1 px-2 py-2 text-xs items-center cursor-pointer transition-colors',
           !isExpanded && 'hover:bg-muted/30',
           !isExpanded && selectedTaskIds.has(task.id) && 'bg-primary/5',
-          !isExpanded && getTaskRowColorClass(task),
+          getTaskRowColorClass(task),
           isExpanded && 'border-l-4 border-primary'
         )}
       >
