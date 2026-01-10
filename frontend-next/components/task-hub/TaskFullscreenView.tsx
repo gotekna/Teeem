@@ -266,13 +266,17 @@ function SortableQuestionItem({
     setIsFileDropTarget(false);
   };
 
-  const handleQuestionFileDrop = (e: React.DragEvent) => {
+  const handleQuestionFileDropEvent = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsFileDropTarget(false);
     const files = Array.from(e.dataTransfer.files);
+    console.log('[SortableQuestionItem] File drop on question:', item.id, 'files:', files.length, 'onFileDrop:', !!onFileDrop);
     if (files.length > 0 && onFileDrop) {
+      console.log('[SortableQuestionItem] Calling onFileDrop with file:', files[0].name);
       onFileDrop(files[0], item.id);
+    } else if (files.length > 0 && !onFileDrop) {
+      console.error('[SortableQuestionItem] onFileDrop handler is not provided!');
     }
   };
 
@@ -288,7 +292,7 @@ function SortableQuestionItem({
       )}
       onDragOver={handleQuestionFileDragOver}
       onDragLeave={handleQuestionFileDragLeave}
-      onDrop={handleQuestionFileDrop}
+      onDrop={handleQuestionFileDropEvent}
     >
       <div className="flex items-start gap-2">
         <div {...attributes} {...listeners} className="cursor-grab touch-none mt-0.5">
@@ -1145,7 +1149,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   };
 
   // Handle file drop on a specific question
-  const handleQuestionFileDrop = async (file: File, actionItemId: number) => {
+  const handleFileDropOnQuestion = async (file: File, actionItemId: number) => {
+    console.log('[TaskFullscreenView] handleFileDropOnQuestion called:', file.name, 'actionItemId:', actionItemId);
     await uploadFileWithCategory(file, 'response', actionItemId);
   };
 
@@ -1195,8 +1200,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     setDragTargetColumn(null);
 
     const files = Array.from(e.dataTransfer.files);
+    console.log('[TaskFullscreenView] handleQuestionsDrop - Questions COLUMN drop handler fired, files:', files.length);
     if (files.length > 0) {
-      console.log('[TaskFullscreenView] Dropping file as response:', files[0].name);
+      console.log('[TaskFullscreenView] Dropping file as response (column level):', files[0].name);
       // Auto-upload as response (skip category dialog)
       await uploadFileWithCategory(files[0], 'response');
     }
@@ -1980,7 +1986,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                 setEditingItemText(text);
                               }}
                               onRemove={() => handleRemoveItem(child.id)}
-                              onFileDrop={handleQuestionFileDrop}
+                              onFileDrop={handleFileDropOnQuestion}
                               editingItemId={editingItemId}
                               editingItemText={editingItemText}
                               setEditingItemText={setEditingItemText}
@@ -2019,7 +2025,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                         setEditingItemText(text);
                       }}
                       onRemove={() => handleRemoveItem(item.id)}
-                      onFileDrop={handleQuestionFileDrop}
+                      onFileDrop={handleFileDropOnQuestion}
                       editingItemId={editingItemId}
                       editingItemText={editingItemText}
                       setEditingItemText={setEditingItemText}
