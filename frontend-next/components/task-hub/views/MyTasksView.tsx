@@ -40,10 +40,17 @@ function TaskRow({ task }: TaskRowProps) {
     toggleTaskExpansion(task.id);
   };
 
+  const handleRowDoubleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    window.open(`/sm_tasks/${task.id}`, '_blank');
+  };
+
   return (
     <div>
       <div
         onClick={handleRowClick}
+        onDoubleClick={handleRowDoubleClick}
         className={cn(
           'grid grid-cols-[20px_1fr_90px_16px_140px_60px_60px] gap-1 py-1.5 px-2 hover:bg-muted/50 rounded text-sm group cursor-pointer items-center',
           selectedTaskIds.has(task.id) && 'bg-primary/5',

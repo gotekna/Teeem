@@ -166,6 +166,11 @@ export function ListView() {
             <div key={task.id}>
               <div
                 onClick={() => toggleTaskExpansion(task.id)}
+                onDoubleClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  window.open(`/sm_tasks/${task.id}`, '_blank');
+                }}
                 className={cn(
                   'grid grid-cols-[28px_1fr_130px_60px_60px_100px_70px_32px] gap-1 px-2 items-center cursor-pointer transition-colors',
                   !isExpanded && 'py-2 text-xs hover:bg-muted/30',
