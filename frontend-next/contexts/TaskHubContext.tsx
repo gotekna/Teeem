@@ -247,7 +247,7 @@ export interface TaskHubContextType extends TaskHubState {
 
   // Task actions
   startTask: (taskId: number) => Promise<void>;
-  completeTask: (taskId: number, alsoCompleteTaskIds?: number[]) => Promise<{ cascadeCompletedTasks?: SmTask[] }>;
+  completeTask: (taskId: number, alsoCompleteTaskIds?: number[], delegationResponse?: string) => Promise<{ cascadeCompletedTasks?: SmTask[] }>;
   getCompletableLinkedTasks: (taskId: number) => SmTask[];
   setTaskHold: (taskId: number, hold: boolean) => Promise<void>;
   confirmTask: (taskId: number, date: string) => Promise<void>;
@@ -1323,13 +1323,14 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     await updateTask(taskId, { status: 'started', started_at: now } as Partial<SmTask>);
   }, [updateTask]);
 
-  const completeTask = useCallback(async (taskId: number, alsoCompleteTaskIds?: number[]): Promise<{ cascadeCompletedTasks?: SmTask[] }> => {
+  const completeTask = useCallback(async (taskId: number, alsoCompleteTaskIds?: number[], delegationResponse?: string): Promise<{ cascadeCompletedTasks?: SmTask[] }> => {
     try {
       const response = await api.post<{
         success: boolean;
         cascade_completed_tasks?: SmTask[];
       }>(`/api/v1/sm_tasks/${taskId}/complete`, {
         also_complete_task_ids: alsoCompleteTaskIds || [],
+        delegation_response: delegationResponse,
       });
 
       if (!response?.success) {

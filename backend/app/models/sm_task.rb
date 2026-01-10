@@ -13,6 +13,9 @@ class SmTask < ApplicationRecord
 
   self.table_name = "sm_tasks"
 
+  # Virtual attribute for delegation response (set in controller, used in callback)
+  attr_accessor :delegation_response
+
   # ActiveStorage attachments (for email attachments, uploads, etc.)
   has_many_attached :files
 
@@ -792,15 +795,20 @@ class SmTask < ApplicationRecord
   end
 
   # Handle completion of a delegated question task
-  # Copies the answer (description) and attachments back to the source action item
+  # Copies the answer and attachments back to the source action item
+  # Uses delegation_response if provided, otherwise falls back to description
   def handle_delegation_completion
     return unless is_delegated_question?
     return unless source_action_item.present?
 
-    Rails.logger.info("[SmTask] Completing delegation for task #{id}, copying to action item #{source_action_item.id}")
+    # Use delegation_response if provided (from user input), otherwise fall back to description
+    response_text = delegation_response.presence || description
 
-    # Copy the description as the answer
-    source_action_item.complete_delegation!(description, assigned_user)
+    Rails.logger.info("[SmTask] Completing delegation for task #{id}, copying to action item #{source_action_item.id}")
+    Rails.logger.info("[SmTask] Response text: #{response_text.to_s.truncate(100)}")
+
+    # Copy the response and attachments back to the source action item
+    source_action_item.complete_delegation!(response_text, assigned_user)
 
     # Optionally: Auto-delete the sub-task after copying (or just leave as completed)
     # destroy! # Uncomment to auto-delete

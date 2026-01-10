@@ -84,7 +84,7 @@ interface TaskHistoryEntry {
 }
 
 // Simplified view for delegated questions/actions
-// Shows only: question context, attachments, due date, complete button
+// Shows only: question context, response textarea, attachments, due date, complete button
 function DelegatedTaskView({
   task,
   onClose,
@@ -92,9 +92,10 @@ function DelegatedTaskView({
 }: {
   task: SmTask;
   onClose?: () => void;
-  onComplete: () => Promise<void>;
+  onComplete: (delegationResponse?: string) => Promise<void>;
 }) {
   const [completing, setCompleting] = useState(false);
+  const [response, setResponse] = useState('');
   const [localAttachments, setLocalAttachments] = useState<TaskAttachment[]>(task.attachments || []);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -113,7 +114,7 @@ function DelegatedTaskView({
   const handleComplete = async () => {
     setCompleting(true);
     try {
-      await onComplete();
+      await onComplete(response.trim() || undefined);
     } finally {
       setCompleting(false);
     }
@@ -183,6 +184,17 @@ function DelegatedTaskView({
       {/* Question/Action text */}
       <div className="bg-primary/10 border-l-4 border-primary rounded-r px-4 py-3">
         <p className="font-medium">{questionText}</p>
+      </div>
+
+      {/* Response textarea */}
+      <div className="space-y-2">
+        <Label className="text-sm font-medium">Your Answer</Label>
+        <textarea
+          value={response}
+          onChange={(e) => setResponse(e.target.value)}
+          placeholder="Type your answer here..."
+          className="w-full min-h-[100px] p-3 border rounded-md bg-background resize-y text-sm"
+        />
       </div>
 
       {/* Attachments */}
@@ -861,8 +873,8 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
       <DelegatedTaskView
         task={task}
         onClose={onClose}
-        onComplete={async () => {
-          await completeTask(task.id);
+        onComplete={async (delegationResponse) => {
+          await completeTask(task.id, [], delegationResponse);
           onClose?.();
         }}
       />

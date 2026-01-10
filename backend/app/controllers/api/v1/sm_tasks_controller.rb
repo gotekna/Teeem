@@ -442,9 +442,16 @@ module Api
       # Params:
       #   passed: boolean - for pass/fail tasks
       #   also_complete_task_ids: array of task IDs to cascade complete with this task
+      #   delegation_response: string - response text for delegated questions/actions
       def complete
         passed = params[:passed].nil? ? nil : ActiveModel::Type::Boolean.new.cast(params[:passed])
         also_complete_task_ids = Array(params[:also_complete_task_ids]).map(&:to_i).compact
+
+        # Set delegation_response on the task if provided (for delegated questions/actions)
+        # This will be used by the handle_delegation_completion callback
+        if params[:delegation_response].present? && @task.is_delegated_question?
+          @task.delegation_response = params[:delegation_response]
+        end
 
         service = SmTaskCompletionService.new(@task, user: current_user)
         result = service.complete(passed: passed, also_complete_task_ids: also_complete_task_ids)
