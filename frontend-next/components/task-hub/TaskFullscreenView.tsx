@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { SmTask, TaskAttachment, TaskActionItem, TaskFollower, useTaskHub, ActionItemType, AttachmentCategory } from '@/contexts/TaskHubContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,21 @@ import { EmailDetailDialog } from '@/components/emails/EmailDetailDialog';
 import { api } from '@/lib/api';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {
   ArrowLeft,
   Calendar as CalendarIcon,
   Check,
@@ -27,6 +42,7 @@ import {
   Eye,
   EyeOff,
   FileText,
+  GripVertical,
   HelpCircle,
   Lock,
   LockOpen,
@@ -72,6 +88,313 @@ interface User {
   name: string;
 }
 
+// Sortable question/header item component
+interface SortableQuestionItemProps {
+  item: TaskActionItem;
+  task?: SmTask;
+  isHeader?: boolean;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
+  onEdit: (text: string) => void;
+  onRemove: () => void;
+  editingItemId: number | null;
+  editingItemText: string;
+  setEditingItemText: (text: string) => void;
+  handleUpdateItem: (id: number) => void;
+  setEditingItemId: (id: number | null) => void;
+  childCount?: number;
+  // Question-specific props
+  toggleIncludeInResponse?: (taskId: number, itemId: number) => void;
+  answeringItemId?: number | null;
+  setAnsweringItemId?: (id: number | null) => void;
+  answerText?: string;
+  setAnswerText?: (text: string) => void;
+  handleAnswerItem?: (id: number) => void;
+  editingAnswerId?: number | null;
+  setEditingAnswerId?: (id: number | null) => void;
+  editingAnswerText?: string;
+  setEditingAnswerText?: (text: string) => void;
+  handleUpdateAnswer?: (id: number) => void;
+  delegatingQuestionId?: number | null;
+  setDelegatingQuestionId?: (id: number | null) => void;
+  delegationUsers?: User[];
+  handleDelegateQuestion?: (itemId: number, userId: number) => void;
+}
+
+function SortableQuestionItem({
+  item,
+  task,
+  isHeader = false,
+  isCollapsed = false,
+  onToggleCollapse,
+  onEdit,
+  onRemove,
+  editingItemId,
+  editingItemText,
+  setEditingItemText,
+  handleUpdateItem,
+  setEditingItemId,
+  childCount = 0,
+  toggleIncludeInResponse,
+  answeringItemId,
+  setAnsweringItemId,
+  answerText,
+  setAnswerText,
+  handleAnswerItem,
+  editingAnswerId,
+  setEditingAnswerId,
+  editingAnswerText,
+  setEditingAnswerText,
+  handleUpdateAnswer,
+  delegatingQuestionId,
+  setDelegatingQuestionId,
+  delegationUsers,
+  handleDelegateQuestion,
+}: SortableQuestionItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  if (isHeader) {
+    // Header rendering
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className={cn(
+          "flex items-center gap-2 p-2 bg-muted/50 rounded-md font-medium text-sm",
+          isDragging && "shadow-lg"
+        )}
+      >
+        <div {...attributes} {...listeners} className="cursor-grab touch-none">
+          <GripVertical className="h-4 w-4 text-muted-foreground" />
+        </div>
+        <button onClick={onToggleCollapse} className="shrink-0">
+          {isCollapsed ? (
+            <ChevronRight className="h-4 w-4" />
+          ) : (
+            <ChevronDown className="h-4 w-4" />
+          )}
+        </button>
+        {editingItemId === item.id ? (
+          <Input
+            value={editingItemText}
+            onChange={(e) => setEditingItemText(e.target.value)}
+            onBlur={() => handleUpdateItem(item.id)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleUpdateItem(item.id);
+              if (e.key === 'Escape') {
+                setEditingItemId(null);
+                setEditingItemText('');
+              }
+            }}
+            className="h-6 text-sm font-medium flex-1"
+            autoFocus
+          />
+        ) : (
+          <span
+            className="flex-1 cursor-pointer"
+            onClick={() => onEdit(item.text)}
+          >
+            {item.text}
+          </span>
+        )}
+        {isCollapsed && childCount > 0 && (
+          <span className="text-xs text-muted-foreground">
+            ({childCount} questions)
+          </span>
+        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 w-6 p-0 shrink-0"
+          onClick={onRemove}
+        >
+          <X className="h-3 w-3" />
+        </Button>
+      </div>
+    );
+  }
+
+  // Question rendering
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "p-2 rounded-md border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-sm space-y-2",
+        isDragging && "shadow-lg"
+      )}
+    >
+      <div className="flex items-start gap-2">
+        <div {...attributes} {...listeners} className="cursor-grab touch-none mt-0.5">
+          <GripVertical className="h-4 w-4 text-muted-foreground" />
+        </div>
+        {/* Include in response checkbox */}
+        {toggleIncludeInResponse && task && (
+          <Checkbox
+            checked={item.include_in_response || false}
+            onCheckedChange={() => toggleIncludeInResponse(task.id, item.id)}
+            className="mt-0.5 shrink-0 data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
+            title="Include Q&A in response email"
+          />
+        )}
+        <HelpCircle className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+        {editingItemId === item.id ? (
+          <Input
+            value={editingItemText}
+            onChange={(e) => setEditingItemText(e.target.value)}
+            onBlur={() => handleUpdateItem(item.id)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleUpdateItem(item.id);
+              if (e.key === 'Escape') {
+                setEditingItemId(null);
+                setEditingItemText('');
+              }
+            }}
+            className="h-6 text-sm flex-1"
+            autoFocus
+          />
+        ) : (
+          <span
+            className="flex-1 cursor-pointer"
+            onClick={() => onEdit(item.text)}
+          >
+            {item.text}
+          </span>
+        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 w-6 p-0"
+          onClick={onRemove}
+        >
+          <X className="h-3 w-3" />
+        </Button>
+      </div>
+
+      {/* Answer section */}
+      {item.response ? (
+        editingAnswerId === item.id ? (
+          <div className="ml-6 flex gap-2">
+            <Input
+              value={editingAnswerText}
+              onChange={(e) => setEditingAnswerText?.(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleUpdateAnswer?.(item.id);
+                if (e.key === 'Escape') {
+                  setEditingAnswerId?.(null);
+                  setEditingAnswerText?.('');
+                }
+              }}
+              className="h-7 text-sm"
+              autoFocus
+            />
+            <Button size="sm" onClick={() => handleUpdateAnswer?.(item.id)} className="h-7">
+              <Check className="h-3 w-3" />
+            </Button>
+          </div>
+        ) : (
+          <div
+            className="ml-6 p-2 rounded bg-green-50 dark:bg-green-950/30 border-l-2 border-green-500 cursor-pointer hover:bg-green-100 dark:hover:bg-green-900/40"
+            onClick={() => {
+              setEditingAnswerId?.(item.id);
+              setEditingAnswerText?.(item.response || '');
+            }}
+          >
+            <span className="text-xs text-green-600 dark:text-green-400">Answer:</span>
+            <p className="text-sm">{item.response}</p>
+          </div>
+        )
+      ) : answeringItemId === item.id ? (
+        <div className="ml-6 flex gap-2">
+          <Input
+            value={answerText}
+            onChange={(e) => setAnswerText?.(e.target.value)}
+            placeholder="Type answer..."
+            className="h-7 text-sm"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleAnswerItem?.(item.id);
+              if (e.key === 'Escape') {
+                setAnsweringItemId?.(null);
+                setAnswerText?.('');
+              }
+            }}
+            autoFocus
+          />
+          <Button size="sm" onClick={() => handleAnswerItem?.(item.id)} className="h-7">
+            <Send className="h-3 w-3" />
+          </Button>
+        </div>
+      ) : (
+        <div className="ml-6">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 text-xs"
+            onClick={() => setAnsweringItemId?.(item.id)}
+          >
+            + Add Answer
+          </Button>
+        </div>
+      )}
+
+      {/* Delegated task link or create task button */}
+      {item.delegated_task_id ? (
+        <div className="ml-6">
+          <Button
+            variant="link"
+            size="sm"
+            className="h-6 text-xs p-0 text-primary"
+            onClick={() => window.open(`/sm_tasks/${item.delegated_task_id}`, '_blank')}
+          >
+            → Task #{item.delegated_task_id}
+          </Button>
+        </div>
+      ) : delegatingQuestionId === item.id ? (
+        <div className="ml-6 flex gap-2 items-center">
+          <ComboboxDropdown
+            items={(delegationUsers || []).map(u => ({ id: u.id.toString(), label: u.name }))}
+            placeholder="Select person..."
+            onSelect={(selected) => handleDelegateQuestion?.(item.id, parseInt(selected.id))}
+            className="h-6 text-xs w-40"
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0"
+            onClick={() => setDelegatingQuestionId?.(null)}
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+      ) : (
+        <div className="ml-6">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-5 text-xs p-0 text-muted-foreground hover:text-primary"
+            onClick={() => setDelegatingQuestionId?.(item.id)}
+          >
+            → Task
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const { user: currentUser } = useAuth();
   const {
@@ -90,6 +413,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     removeActionItem,
     delegateActionItem,
     toggleIncludeInResponse,
+    reorderActionItems,
     setTaskPrivacy,
     getFollowers,
     addFollower,
@@ -165,6 +489,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   // Collapsible sections
   const [emailsCollapsed, setEmailsCollapsed] = useState(false);
   const [documentsCollapsed, setDocumentsCollapsed] = useState(false);
+  const [collapsedHeaders, setCollapsedHeaders] = useState<Set<number>>(new Set());
+
+  // Adding header mode (when user clicks "+ Add Header")
+  const [addingHeaderText, setAddingHeaderText] = useState('');
+  const [showAddHeader, setShowAddHeader] = useState(false);
 
   // Sync local state when task changes
   useEffect(() => {
@@ -186,6 +515,114 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   // Filter action items
   const actionItems = task.action_items?.filter(item => item.item_type === 'action') || [];
   const questionItems = task.action_items?.filter(item => item.item_type === 'question') || [];
+  const headerItems = task.action_items?.filter(item => item.item_type === 'header') || [];
+
+  // Group questions by parent header
+  const groupedQuestions = useMemo(() => {
+    const headers = headerItems.map(h => ({
+      ...h,
+      children: questionItems.filter(q => q.parent_item_id === h.id).sort((a, b) => a.position - b.position)
+    })).sort((a, b) => a.position - b.position);
+
+    const ungrouped = questionItems.filter(q => !q.parent_item_id).sort((a, b) => a.position - b.position);
+
+    // Create flat list for drag-drop (headers first, then their children, then ungrouped)
+    const allItems: TaskActionItem[] = [];
+    headers.forEach(h => {
+      allItems.push(h);
+      if (!collapsedHeaders.has(h.id)) {
+        allItems.push(...h.children);
+      }
+    });
+    allItems.push(...ungrouped);
+
+    return { headers, ungrouped, allItems };
+  }, [headerItems, questionItems, collapsedHeaders]);
+
+  // dnd-kit sensors for drag-drop
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
+
+  // Toggle header collapse
+  const toggleHeaderCollapse = useCallback((headerId: number) => {
+    setCollapsedHeaders(prev => {
+      const next = new Set(prev);
+      if (next.has(headerId)) next.delete(headerId);
+      else next.add(headerId);
+      return next;
+    });
+  }, []);
+
+  // Handle drag end for reordering
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const allItems = groupedQuestions.allItems;
+    const oldIndex = allItems.findIndex(item => item.id === active.id);
+    const newIndex = allItems.findIndex(item => item.id === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const draggedItem = allItems[oldIndex];
+    const targetItem = allItems[newIndex];
+
+    // Determine new parent based on where we're dropping
+    let newParentId: number | null = null;
+    if (targetItem.item_type === 'header') {
+      // Dropping ON a header - become child of that header
+      newParentId = targetItem.id;
+    } else if (targetItem.parent_item_id) {
+      // Dropping next to a child - become sibling (same parent)
+      newParentId = targetItem.parent_item_id;
+    }
+    // else: dropping in ungrouped area, newParentId stays null
+
+    // Build new order
+    const reorderedItems = arrayMove(allItems, oldIndex, newIndex);
+
+    // Calculate new positions and parent assignments
+    const updates = reorderedItems.map((item, index) => ({
+      id: item.id,
+      position: index,
+      parent_item_id: item.id === draggedItem.id ? newParentId : (item.parent_item_id ?? null)
+    }));
+
+    await reorderActionItems(task.id, updates);
+  }, [groupedQuestions.allItems, reorderActionItems, task.id]);
+
+  // Add header
+  const handleAddHeader = useCallback(async () => {
+    if (!addingHeaderText.trim()) return;
+    setActionItemLoading('new');
+    try {
+      await addActionItem(task.id, addingHeaderText, 'header');
+      setAddingHeaderText('');
+      setShowAddHeader(false);
+    } catch (err) {
+      console.error('Failed to add header:', err);
+    } finally {
+      setActionItemLoading(null);
+    }
+  }, [addActionItem, addingHeaderText, task.id]);
+
+  // Add question under a specific header
+  const handleAddQuestionToHeader = useCallback(async (headerId: number, text: string) => {
+    if (!text.trim()) return;
+    setActionItemLoading('new');
+    try {
+      await addActionItem(task.id, text, 'question', headerId);
+    } catch (err) {
+      console.error('Failed to add question to header:', err);
+    } finally {
+      setActionItemLoading(null);
+    }
+  }, [addActionItem, task.id]);
 
   // Load jobs for assignment
   useEffect(() => {
@@ -1049,20 +1486,69 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             <div className="flex items-center justify-between mb-2 shrink-0">
               <div className="flex items-center gap-2">
                 <h2 className="text-sm font-medium text-muted-foreground">Questions</h2>
-                <Badge variant="secondary" className="text-xs">{questionItems.length}</Badge>
+                <Badge variant="secondary" className="text-xs">{questionItems.length + headerItems.length}</Badge>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 text-xs"
-                onClick={() => {
-                  setNewActionItemType('question');
-                  setShowBulkPaste(true);
-                }}
-              >
-                + Paste List
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs"
+                  onClick={() => setShowAddHeader(!showAddHeader)}
+                >
+                  + Header
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs"
+                  onClick={() => {
+                    setNewActionItemType('question');
+                    setShowBulkPaste(true);
+                  }}
+                >
+                  + Paste List
+                </Button>
+              </div>
             </div>
+
+            {/* Add header input (when + Header clicked) */}
+            {showAddHeader && (
+              <div className="flex gap-2 mb-2 shrink-0">
+                <Input
+                  placeholder="Header name..."
+                  value={addingHeaderText}
+                  onChange={(e) => setAddingHeaderText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAddHeader();
+                    if (e.key === 'Escape') {
+                      setShowAddHeader(false);
+                      setAddingHeaderText('');
+                    }
+                  }}
+                  className="h-8 text-sm font-medium"
+                  autoFocus
+                />
+                <Button
+                  size="sm"
+                  onClick={handleAddHeader}
+                  disabled={!addingHeaderText.trim() || actionItemLoading === 'new'}
+                  className="h-8 shrink-0"
+                >
+                  Add
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setShowAddHeader(false);
+                    setAddingHeaderText('');
+                  }}
+                  className="h-8 shrink-0"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
 
             {/* Add question input */}
             <div className="flex gap-2 mb-3 shrink-0">
@@ -1091,170 +1577,116 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
               </Button>
             </div>
 
-            {/* Question items list */}
+            {/* Question items list with drag-drop */}
             <div className="flex-1 overflow-auto space-y-2 min-h-0">
-              {questionItems.map((item) => (
-                <div
-                  key={item.id}
-                  className={cn(
-                    "p-2 rounded-md border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-sm space-y-2"
-                  )}
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={groupedQuestions.allItems.map(item => item.id)}
+                  strategy={verticalListSortingStrategy}
                 >
-                  <div className="flex items-start gap-2">
-                    {/* Include in response checkbox */}
-                    <Checkbox
-                      checked={item.include_in_response || false}
-                      onCheckedChange={() => toggleIncludeInResponse(task.id, item.id)}
-                      className="mt-0.5 shrink-0 data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
-                      title="Include Q&A in response email"
+                  {/* Headers with their children */}
+                  {groupedQuestions.headers.map((header) => (
+                    <div key={header.id} className="space-y-1">
+                      {/* Header row */}
+                      <SortableQuestionItem
+                        item={header}
+                        isHeader
+                        isCollapsed={collapsedHeaders.has(header.id)}
+                        onToggleCollapse={() => toggleHeaderCollapse(header.id)}
+                        onEdit={(text) => {
+                          setEditingItemId(header.id);
+                          setEditingItemText(text);
+                        }}
+                        onRemove={() => handleRemoveItem(header.id)}
+                        editingItemId={editingItemId}
+                        editingItemText={editingItemText}
+                        setEditingItemText={setEditingItemText}
+                        handleUpdateItem={handleUpdateItem}
+                        setEditingItemId={setEditingItemId}
+                        childCount={header.children.length}
+                      />
+
+                      {/* Children (if expanded) */}
+                      {!collapsedHeaders.has(header.id) && header.children.length > 0 && (
+                        <div className="ml-4 border-l-2 border-muted pl-2 space-y-2">
+                          {header.children.map((child) => (
+                            <SortableQuestionItem
+                              key={child.id}
+                              item={child}
+                              task={task}
+                              onEdit={(text) => {
+                                setEditingItemId(child.id);
+                                setEditingItemText(text);
+                              }}
+                              onRemove={() => handleRemoveItem(child.id)}
+                              editingItemId={editingItemId}
+                              editingItemText={editingItemText}
+                              setEditingItemText={setEditingItemText}
+                              handleUpdateItem={handleUpdateItem}
+                              setEditingItemId={setEditingItemId}
+                              toggleIncludeInResponse={toggleIncludeInResponse}
+                              answeringItemId={answeringItemId}
+                              setAnsweringItemId={setAnsweringItemId}
+                              answerText={answerText}
+                              setAnswerText={setAnswerText}
+                              handleAnswerItem={handleAnswerItem}
+                              editingAnswerId={editingAnswerId}
+                              setEditingAnswerId={setEditingAnswerId}
+                              editingAnswerText={editingAnswerText}
+                              setEditingAnswerText={setEditingAnswerText}
+                              handleUpdateAnswer={handleUpdateAnswer}
+                              delegatingQuestionId={delegatingQuestionId}
+                              setDelegatingQuestionId={setDelegatingQuestionId}
+                              delegationUsers={delegationUsers}
+                              handleDelegateQuestion={handleDelegateQuestion}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Ungrouped questions */}
+                  {groupedQuestions.ungrouped.map((item) => (
+                    <SortableQuestionItem
+                      key={item.id}
+                      item={item}
+                      task={task}
+                      onEdit={(text) => {
+                        setEditingItemId(item.id);
+                        setEditingItemText(text);
+                      }}
+                      onRemove={() => handleRemoveItem(item.id)}
+                      editingItemId={editingItemId}
+                      editingItemText={editingItemText}
+                      setEditingItemText={setEditingItemText}
+                      handleUpdateItem={handleUpdateItem}
+                      setEditingItemId={setEditingItemId}
+                      toggleIncludeInResponse={toggleIncludeInResponse}
+                      answeringItemId={answeringItemId}
+                      setAnsweringItemId={setAnsweringItemId}
+                      answerText={answerText}
+                      setAnswerText={setAnswerText}
+                      handleAnswerItem={handleAnswerItem}
+                      editingAnswerId={editingAnswerId}
+                      setEditingAnswerId={setEditingAnswerId}
+                      editingAnswerText={editingAnswerText}
+                      setEditingAnswerText={setEditingAnswerText}
+                      handleUpdateAnswer={handleUpdateAnswer}
+                      delegatingQuestionId={delegatingQuestionId}
+                      setDelegatingQuestionId={setDelegatingQuestionId}
+                      delegationUsers={delegationUsers}
+                      handleDelegateQuestion={handleDelegateQuestion}
                     />
-                    <HelpCircle className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
-                    {editingItemId === item.id ? (
-                      <Input
-                        value={editingItemText}
-                        onChange={(e) => setEditingItemText(e.target.value)}
-                        onBlur={() => handleUpdateItem(item.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleUpdateItem(item.id);
-                          if (e.key === 'Escape') {
-                            setEditingItemId(null);
-                            setEditingItemText('');
-                          }
-                        }}
-                        className="h-6 text-sm flex-1"
-                        autoFocus
-                      />
-                    ) : (
-                      <span
-                        className="flex-1 cursor-pointer"
-                        onClick={() => {
-                          setEditingItemId(item.id);
-                          setEditingItemText(item.text);
-                        }}
-                      >
-                        {item.text}
-                      </span>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0"
-                      onClick={() => handleRemoveItem(item.id)}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </div>
+                  ))}
+                </SortableContext>
+              </DndContext>
 
-                  {/* Answer */}
-                  {item.response ? (
-                    editingAnswerId === item.id ? (
-                      <div className="ml-6 flex gap-2">
-                        <Input
-                          value={editingAnswerText}
-                          onChange={(e) => setEditingAnswerText(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleUpdateAnswer(item.id);
-                            if (e.key === 'Escape') {
-                              setEditingAnswerId(null);
-                              setEditingAnswerText('');
-                            }
-                          }}
-                          className="h-7 text-sm"
-                          autoFocus
-                        />
-                        <Button size="sm" onClick={() => handleUpdateAnswer(item.id)} className="h-7">
-                          <Check className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <div
-                        className="ml-6 p-2 rounded bg-green-50 dark:bg-green-950/30 border-l-2 border-green-500 cursor-pointer hover:bg-green-100 dark:hover:bg-green-900/40"
-                        onClick={() => {
-                          setEditingAnswerId(item.id);
-                          setEditingAnswerText(item.response || '');
-                        }}
-                      >
-                        <span className="text-xs text-green-600 dark:text-green-400">Answer:</span>
-                        <p className="text-sm">{item.response}</p>
-                      </div>
-                    )
-                  ) : answeringItemId === item.id ? (
-                    <div className="ml-6 flex gap-2">
-                      <Input
-                        value={answerText}
-                        onChange={(e) => setAnswerText(e.target.value)}
-                        placeholder="Type answer..."
-                        className="h-7 text-sm"
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleAnswerItem(item.id);
-                          if (e.key === 'Escape') {
-                            setAnsweringItemId(null);
-                            setAnswerText('');
-                          }
-                        }}
-                        autoFocus
-                      />
-                      <Button size="sm" onClick={() => handleAnswerItem(item.id)} className="h-7">
-                        <Send className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="ml-6">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 text-xs"
-                        onClick={() => setAnsweringItemId(item.id)}
-                      >
-                        + Add Answer
-                      </Button>
-                    </div>
-                  )}
-
-                  {/* Delegated task link or create task button */}
-                  {item.delegated_task_id ? (
-                    <div className="ml-6">
-                      <Button
-                        variant="link"
-                        size="sm"
-                        className="h-6 text-xs p-0 text-primary"
-                        onClick={() => window.open(`/sm_tasks/${item.delegated_task_id}`, '_blank')}
-                      >
-                        → Task #{item.delegated_task_id}
-                      </Button>
-                    </div>
-                  ) : delegatingQuestionId === item.id ? (
-                    <div className="ml-6 flex gap-2 items-center">
-                      <ComboboxDropdown
-                        items={delegationUsers.map(u => ({ id: u.id.toString(), label: u.name }))}
-                        placeholder="Select person..."
-                        onSelect={(selected) => handleDelegateQuestion(item.id, parseInt(selected.id))}
-                        className="h-6 text-xs w-40"
-                      />
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0"
-                        onClick={() => setDelegatingQuestionId(null)}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="ml-6">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-5 text-xs p-0 text-muted-foreground hover:text-primary"
-                        onClick={() => setDelegatingQuestionId(item.id)}
-                      >
-                        → Task
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ))}
-              {questionItems.length === 0 && (
+              {questionItems.length === 0 && headerItems.length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-4">No questions yet</p>
               )}
             </div>

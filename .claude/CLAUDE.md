@@ -301,6 +301,26 @@ return (
 
 **Local:** Frontend port 3000, Backend port 3001
 
+### 🔴 CRITICAL: Heroku Backend Deploy Method
+
+**This is a monorepo. NEVER push directly to Heroku.**
+
+- ❌ WRONG: `git push heroku Live:main` (pushes full monorepo, Puma can't find config)
+- ✅ RIGHT: Use `/l` or `/lp` commands (extracts `backend/` only)
+
+**Why:** Heroku expects Rails app at root. The monorepo has `backend/` subdirectory, so direct push breaks with `config/puma.rb not found`.
+
+**If backend crashes after bad deploy, fix with:**
+```bash
+cd /Users/robertharder/GitHub/teeem
+DEPLOY_DIR=$(mktemp -d)
+cp -r backend/* "$DEPLOY_DIR/"
+cd "$DEPLOY_DIR" && git init && git add . && git commit -m "Fix deploy"
+git remote add heroku https://git.heroku.com/teeemlive.git
+git push heroku HEAD:main --force
+cd /Users/robertharder/GitHub/teeem && rm -rf "$DEPLOY_DIR"
+```
+
 ## 🔴 Production Frontend (Vercel)
 
 | Environment | URL | Notes |
