@@ -1992,6 +1992,9 @@ module Api
         # Only calculate when needed (e.g., in show action with include_dependencies: true)
         json[:successor_count] = 0
 
+        # Include predecessor_ids for Gantt dependency rendering
+        json[:predecessor_ids] = task.predecessor_ids || []
+
         json
       end
 

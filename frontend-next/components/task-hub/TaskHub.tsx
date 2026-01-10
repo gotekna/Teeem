@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useTaskHub, ViewType } from '@/contexts/TaskHubContext';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -25,23 +24,21 @@ import {
   RefreshCw,
   AlertTriangle,
   X,
-  Workflow,
   ChevronDown,
   Eye,
   GanttChart,
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
+import { cn } from '@/lib/utils';
 import { BoardView } from './views/BoardView';
 import { ListView } from './views/ListView';
-import { MyTasksView } from './views/MyTasksView';
-import { WorkflowTasksView } from './views/WorkflowTasksView';
 import { GanttView } from './views/GanttView';
 import { CreateTaskDialog } from './CreateTaskDialog';
 import { TaskColorSettingsDialog } from './TaskColorSettings';
 
 export function TaskHub() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [colorSettingsKey, setColorSettingsKey] = useState(0); // Force re-render when colors change
+  const [colorSettingsKey, setColorSettingsKey] = useState(0);
   const {
     activeView,
     setActiveView,
@@ -59,7 +56,6 @@ export function TaskHub() {
     totalActiveCount,
   } = useTaskHub();
 
-  // Called when color settings change to trigger re-render
   const handleColorSettingsChange = () => {
     setColorSettingsKey((k) => k + 1);
   };
@@ -74,12 +70,19 @@ export function TaskHub() {
     return 'All';
   };
 
+  // Handle switching to "Mine" filter
+  const handleMineClick = () => {
+    setFilters({ showMyTasksOnly: true, selectedUserId: null });
+  };
+
+  // Handle switching to "All" filter
+  const handleAllClick = () => {
+    setFilters({ showMyTasksOnly: false, selectedUserId: null });
+  };
+
   // Handle user selection from dropdown
   const handleUserSelect = (userId: number | 'unassigned' | null) => {
-    setFilters({ selectedUserId: userId });
-    if (activeView !== 'all') {
-      setActiveView('all');
-    }
+    setFilters({ showMyTasksOnly: false, selectedUserId: userId });
   };
 
   if (loading) {
@@ -102,6 +105,19 @@ export function TaskHub() {
       </div>
     );
   }
+
+  // Render the active view
+  const renderView = () => {
+    switch (activeView) {
+      case 'board':
+        return <BoardView key={`board-${colorSettingsKey}`} />;
+      case 'gantt':
+        return <GanttView key={`gantt-${colorSettingsKey}`} />;
+      case 'list':
+      default:
+        return <ListView key={`list-${colorSettingsKey}`} />;
+    }
+  };
 
   return (
     <div className="space-y-3">
@@ -138,7 +154,7 @@ export function TaskHub() {
         </div>
       </div>
 
-      {/* Bulk Actions Bar - Compact */}
+      {/* Bulk Actions Bar */}
       {selectedTaskIds.size > 0 && (
         <div className="flex items-center gap-2 px-2 py-1.5 bg-muted/50 rounded text-xs">
           <span className="font-medium">{selectedTaskIds.size} selected</span>
@@ -155,22 +171,26 @@ export function TaskHub() {
         </div>
       )}
 
-      {/* Compact View Tabs */}
-      <Tabs value={activeView} onValueChange={(v) => {
-        setActiveView(v as ViewType);
-        // Clear user filter when switching to "Mine" - user expects to see only their tasks
-        if (v === 'my-tasks') {
-          setFilters({ selectedUserId: null });
-        }
-      }}>
-        <TabsList className="h-8">
-          <TabsTrigger value="my-tasks" className="text-xs h-7 px-3">
-            <User className="h-3 w-3 mr-1" />
+      {/* Filter & View Mode Controls */}
+      <div className="flex items-center gap-4">
+        {/* Filter: Mine / All */}
+        <div className="flex items-center bg-muted rounded-md p-0.5">
+          <button
+            onClick={handleMineClick}
+            className={cn(
+              'inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-sm px-3 text-xs font-medium transition-all h-7',
+              filters.showMyTasksOnly
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <User className="h-3 w-3" />
             Mine
-          </TabsTrigger>
-          {/* Include Following checkbox - only show when on Mine tab */}
-          {activeView === 'my-tasks' && (
-            <div className="flex items-center gap-1.5 ml-2 px-2 border-l">
+          </button>
+
+          {/* Include Following checkbox - only show when "Mine" is selected */}
+          {filters.showMyTasksOnly && (
+            <div className="flex items-center gap-1.5 px-2 border-l border-border/50">
               <Checkbox
                 id="include-following"
                 checked={filters.includeFollowing}
@@ -186,22 +206,24 @@ export function TaskHub() {
               </label>
             </div>
           )}
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                className={`inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-sm px-3 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 h-7 ${
-                  activeView === 'all'
+                className={cn(
+                  'inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-sm px-3 text-xs font-medium transition-all h-7',
+                  !filters.showMyTasksOnly
                     ? 'bg-background text-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
-                }`}
+                )}
                 onClick={() => {
-                  if (activeView !== 'all') {
-                    setActiveView('all');
+                  if (filters.showMyTasksOnly) {
+                    handleAllClick();
                   }
                 }}
               >
                 <Users className="h-3 w-3" />
-                {getSelectedUserName()}
+                {filters.showMyTasksOnly ? 'All' : getSelectedUserName()}
                 <ChevronDown className="h-3 w-3 opacity-50" />
               </button>
             </DropdownMenuTrigger>
@@ -227,48 +249,56 @@ export function TaskHub() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <TabsTrigger value="workflow" className="text-xs h-7 px-3">
-            <Workflow className="h-3 w-3 mr-1" />
-            Workflow
-          </TabsTrigger>
-          <TabsTrigger value="board" className="text-xs h-7 px-3">
-            <LayoutGrid className="h-3 w-3 mr-1" />
-            Board
-          </TabsTrigger>
-          <TabsTrigger value="list" className="text-xs h-7 px-3">
-            <List className="h-3 w-3 mr-1" />
+        </div>
+
+        {/* Separator */}
+        <div className="w-px h-6 bg-border" />
+
+        {/* View Mode: List / Board / Gantt */}
+        <div className="flex items-center bg-muted rounded-md p-0.5">
+          <button
+            onClick={() => setActiveView('list')}
+            className={cn(
+              'inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-sm px-3 text-xs font-medium transition-all h-7',
+              activeView === 'list'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <List className="h-3 w-3" />
             List
-          </TabsTrigger>
-          <TabsTrigger value="gantt" className="text-xs h-7 px-3">
-            <GanttChart className="h-3 w-3 mr-1" />
+          </button>
+          <button
+            onClick={() => setActiveView('board')}
+            className={cn(
+              'inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-sm px-3 text-xs font-medium transition-all h-7',
+              activeView === 'board'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <LayoutGrid className="h-3 w-3" />
+            Board
+          </button>
+          <button
+            onClick={() => setActiveView('gantt')}
+            className={cn(
+              'inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-sm px-3 text-xs font-medium transition-all h-7',
+              activeView === 'gantt'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <GanttChart className="h-3 w-3" />
             Gantt
-          </TabsTrigger>
-        </TabsList>
+          </button>
+        </div>
+      </div>
 
-        <TabsContent value="my-tasks" className="mt-3">
-          <MyTasksView key={`my-${colorSettingsKey}`} />
-        </TabsContent>
-
-        <TabsContent value="all" className="mt-3">
-          <ListView key={`all-${colorSettingsKey}`} />
-        </TabsContent>
-
-        <TabsContent value="workflow" className="mt-3">
-          <WorkflowTasksView />
-        </TabsContent>
-
-        <TabsContent value="board" className="mt-3">
-          <BoardView key={`board-${colorSettingsKey}`} />
-        </TabsContent>
-
-        <TabsContent value="list" className="mt-3">
-          <ListView key={`list-${colorSettingsKey}`} />
-        </TabsContent>
-
-        <TabsContent value="gantt" className="mt-3">
-          <GanttView key={`gantt-${colorSettingsKey}`} />
-        </TabsContent>
-      </Tabs>
+      {/* View Content */}
+      <div className="mt-3">
+        {renderView()}
+      </div>
 
       <CreateTaskDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen} />
     </div>

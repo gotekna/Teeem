@@ -142,6 +142,10 @@ export interface SmTask {
   predecessor_count?: number;
   successor_count?: number;
 
+  // Dependencies - predecessor_ids jsonb column
+  // Format: [{id: task_number_or_id, lag: 0, type: "FS"}, ...]
+  predecessor_ids?: Array<{ id: number; lag?: number; type?: string } | number>;
+
   // Attachments
   attachments_count?: number;
   attachments?: TaskAttachment[];

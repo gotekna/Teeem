@@ -1254,13 +1254,16 @@ export default function EmailPage() {
   }, [selection]);
 
   const handleReply = (email: Email) => {
-    // Build quoted original message for inline editing
-    const quotedBody = `\n\n--- Original Message ---
-From: ${email.from_email || email.from_address}
-Date: ${email.received_at ? format(new Date(email.received_at), "PPpp") : "Unknown"}
-Subject: ${email.subject || ""}
-
-${email.body_text || ""}`;
+    // Build quoted original message as HTML to preserve formatting
+    const originalBody = email.body_html || email.body_text || "";
+    const quotedBody = `<br><br>
+<div style="border-left: 2px solid #ccc; padding-left: 10px; margin-left: 5px; color: #555;">
+<p><strong>--- Original Message ---</strong><br>
+<strong>From:</strong> ${email.from_email || email.from_address}<br>
+<strong>Date:</strong> ${email.received_at ? format(new Date(email.received_at), "PPpp") : "Unknown"}<br>
+<strong>Subject:</strong> ${email.subject || ""}</p>
+${originalBody}
+</div>`;
 
     setReplyTo({
       to: email.from_email || email.from_address,
@@ -1287,13 +1290,16 @@ ${email.body_text || ""}`;
       .filter((e: string) => e.toLowerCase() !== currentUserEmail);
     const ccRecipients = [...new Set([...originalTo, ...originalCc])]; // Dedupe
 
-    // Build quoted original message for inline editing
-    const quotedBody = `\n\n--- Original Message ---
-From: ${email.from_email || email.from_address}
-Date: ${email.received_at ? format(new Date(email.received_at), "PPpp") : "Unknown"}
-Subject: ${email.subject || ""}
-
-${email.body_text || ""}`;
+    // Build quoted original message as HTML to preserve formatting
+    const originalBody = email.body_html || email.body_text || "";
+    const quotedBody = `<br><br>
+<div style="border-left: 2px solid #ccc; padding-left: 10px; margin-left: 5px; color: #555;">
+<p><strong>--- Original Message ---</strong><br>
+<strong>From:</strong> ${email.from_email || email.from_address}<br>
+<strong>Date:</strong> ${email.received_at ? format(new Date(email.received_at), "PPpp") : "Unknown"}<br>
+<strong>Subject:</strong> ${email.subject || ""}</p>
+${originalBody}
+</div>`;
 
     setReplyTo({
       to,
