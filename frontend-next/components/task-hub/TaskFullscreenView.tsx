@@ -270,13 +270,36 @@ function SortableQuestionItem({
     e.preventDefault();
     e.stopPropagation();
     setIsFileDropTarget(false);
+
+    // Log everything about the drop to debug OneDrive drags
     const files = Array.from(e.dataTransfer.files);
-    console.log('[SortableQuestionItem] File drop on question:', item.id, 'files:', files.length, 'onFileDrop:', !!onFileDrop);
+    const items = Array.from(e.dataTransfer.items);
+    const types = e.dataTransfer.types;
+
+    console.log('[SortableQuestionItem] Drop event details:');
+    console.log('  - Question ID:', item.id);
+    console.log('  - Files count:', files.length);
+    console.log('  - Items count:', items.length);
+    console.log('  - Types:', types);
+
+    // Log each item's kind and type
+    items.forEach((item, i) => {
+      console.log(`  - Item ${i}: kind=${item.kind}, type=${item.type}`);
+      if (item.kind === 'string') {
+        item.getAsString((s) => console.log(`    String data: ${s.substring(0, 200)}...`));
+      }
+    });
+
     if (files.length > 0 && onFileDrop) {
       console.log('[SortableQuestionItem] Calling onFileDrop with file:', files[0].name);
       onFileDrop(files[0], item.id);
-    } else if (files.length > 0 && !onFileDrop) {
-      console.error('[SortableQuestionItem] onFileDrop handler is not provided!');
+    } else if (files.length === 0) {
+      console.log('[SortableQuestionItem] No files in drop - might be URL/text drag from OneDrive');
+      // Try to get URL or text data
+      const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
+      if (url) {
+        console.log('[SortableQuestionItem] Got URL/text:', url);
+      }
     }
   };
 
