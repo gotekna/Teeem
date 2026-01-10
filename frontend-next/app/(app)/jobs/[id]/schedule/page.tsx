@@ -278,18 +278,13 @@ interface AnalyzeResult {
 }
 
 function mapTaskToGanttTask(task: SmTask): GanttTask {
-  const statusMap: Record<string, GanttTask["status"]> = {
-    not_started: "not-started",
-    started: "in-progress",
-    completed: "completed",
-  };
-
+  // SmTask status matches GanttTask TaskStatus (both use snake_case: not_started, started, completed)
   return {
     id: String(task.id),
     name: task.name,
     startDate: parseISO(task.start_date),
     endDate: parseISO(task.end_date),
-    status: statusMap[task.status] || "not-started",
+    status: task.status as GanttTask["status"],
     progress: task.progress_percentage || 0,
     locked: task.locked ? "manuallyPositioned" : undefined,
     // SSoT: predecessorIds removed - dependencies come from gantt_data.dependencies array

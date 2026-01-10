@@ -1766,9 +1766,9 @@ export class GanttCanvas {
   /**
    * Resume a task from hold
    * @param taskId - The task to resume
-   * @param newStatus - The status to set after resuming (default: TASK_STATUS.STARTED)
+   * @param newStatus - The status to set after resuming (default: started)
    */
-  resumeTask(taskId: string, newStatus: TASK_STATUS.NOT_STARTED | TASK_STATUS.STARTED = TASK_STATUS.STARTED): void {
+  resumeTask(taskId: string, newStatus: typeof TASK_STATUS.NOT_STARTED | typeof TASK_STATUS.STARTED = TASK_STATUS.STARTED): void {
     const task = this.state.tasks.find(t => t.id === taskId);
     if (!task || task.status !== TASK_STATUS.ON_HOLD) return;
 

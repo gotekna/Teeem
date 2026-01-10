@@ -23,6 +23,7 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
+  Save,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { EmailContactAutocomplete } from "./EmailContactAutocomplete";
@@ -508,6 +509,26 @@ export function ComposeEmailModal({
               </div>
             )}
           </div>
+
+          {/* Save Draft Button */}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              await autoSave.save();
+              onOpenChange(false);
+            }}
+            disabled={sending || autoSave.isSaving || !autoSave.hasContent}
+            title="Save as draft and close"
+          >
+            {autoSave.isSaving ? (
+              <Spinner className="h-4 w-4 mr-2" />
+            ) : (
+              <Save className="h-4 w-4 mr-2" />
+            )}
+            Save Draft
+          </Button>
 
           {/* From Account - native select for reliability inside dialogs */}
           {accounts.length > 0 && (
