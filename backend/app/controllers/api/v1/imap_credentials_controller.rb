@@ -374,7 +374,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
       render json: {
         success: true,
         message: "Email sent successfully",
-        data: result.data.merge(message_id: result.message_id)
+        data: (result.data || {}).merge(message_id: result.message_id)
       }
     else
       render json: {

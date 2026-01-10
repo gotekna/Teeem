@@ -443,6 +443,8 @@ export function ComposeEmailModal({
     } catch (err: unknown) {
       const error = err as { response?: { data?: { error?: string } } };
       setError(error.response?.data?.error || isScheduled ? "Failed to schedule email" : "Failed to send email");
+      // Force-save draft on send failure so user doesn't lose their work
+      await autoSave.save();
     } finally {
       setSending(false);
     }
