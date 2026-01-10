@@ -427,7 +427,9 @@ export default function ScheduleTemplateEditor() {
 
   const loadTemplates = async () => {
     try {
-      const response = await api.get('/api/v1/schedule_templates')
+      // SSoT: Use sm_schedule_master_templates endpoint (schedule_templates was removed)
+      const data = await api.get('/api/v1/sm_schedule_master_templates')
+      const response = data?.sm_schedule_master_templates || []
       setTemplates(response)
 
       if (response.length > 0 && !selectedTemplate) {
@@ -462,7 +464,7 @@ export default function ScheduleTemplateEditor() {
         setLoading(true)
       }
       console.log('🐛 loadTemplateRows: Fetching rows for template', templateId)
-      const response = await api.get(`/api/v1/schedule_templates/${templateId}`)
+      const response = await api.get(`/api/v1/sm_schedule_master_templates/${templateId}`)
       console.log('🐛 loadTemplateRows: API response received')
       console.log('  - Response rows count:', response.rows?.length || 0)
       console.log('  - Response row IDs:', response.rows?.map(r => r?.id) || [])
@@ -501,7 +503,7 @@ export default function ScheduleTemplateEditor() {
 
   const handleCreateTemplate = async () => {
     try {
-      const response = await api.post('/api/v1/schedule_templates', {
+      const response = await api.post('/api/v1/sm_schedule_master_templates', {
         schedule_template: templateForm
       })
       showToast('Template created successfully', 'success')
@@ -522,7 +524,7 @@ export default function ScheduleTemplateEditor() {
     if (!newName) return
 
     try {
-      const response = await api.post(`/api/v1/schedule_templates/${selectedTemplate.id}/duplicate`, {
+      const response = await api.post(`/api/v1/sm_schedule_master_templates/${selectedTemplate.id}/duplicate`, {
         new_name: newName
       })
       showToast('Template duplicated successfully', 'success')
@@ -538,7 +540,7 @@ export default function ScheduleTemplateEditor() {
     if (!selectedTemplate) return
 
     try {
-      await api.post(`/api/v1/schedule_templates/${selectedTemplate.id}/set_as_default`)
+      await api.post(`/api/v1/sm_schedule_master_templates/${selectedTemplate.id}/set_as_default`)
       showToast('Template set as default', 'success')
       await loadTemplates()
     } catch (err) {
@@ -561,11 +563,11 @@ export default function ScheduleTemplateEditor() {
     if (!confirm(confirmMessage)) return
 
     try {
-      await api.delete(`/api/v1/schedule_templates/${selectedTemplate.id}`)
+      await api.delete(`/api/v1/sm_schedule_master_templates/${selectedTemplate.id}`)
       showToast('Template deleted successfully', 'success')
 
       // Reload templates and select the first one
-      const response = await api.get('/api/v1/schedule_templates')
+      const response = await api.get('/api/v1/sm_schedule_master_templates')
       setTemplates(response)
       setSelectedTemplate(response.length > 0 ? response[0] : null)
       setRows([])
@@ -932,7 +934,7 @@ export default function ScheduleTemplateEditor() {
 
         // Bulk create rows
         for (const rowData of importedRows) {
-          await api.post(`/api/v1/schedule_templates/${selectedTemplate.id}/rows`, {
+          await api.post(`/api/v1/sm_schedule_master_templates/${selectedTemplate.id}/rows`, {
             schedule_template_row: rowData
           })
         }
@@ -993,7 +995,7 @@ export default function ScheduleTemplateEditor() {
     try {
       console.log('🐛 handleAddRow: Creating new task')
       const response = await api.post(
-        `/api/v1/schedule_templates/${selectedTemplate.id}/rows`,
+        `/api/v1/sm_schedule_master_templates/${selectedTemplate.id}/rows`,
         { schedule_template_row: newRow }
       )
       console.log('🐛 handleAddRow: Task created with ID:', response.id)
@@ -1161,10 +1163,10 @@ export default function ScheduleTemplateEditor() {
 
       // Make API call in background
       // BUG HUNTER: Track API call
-      bugHunter.trackApiCall('PATCH', `/api/v1/schedule_templates/${selectedTemplate.id}/rows/${rowId}`, rowId, updates)
+      bugHunter.trackApiCall('PATCH', `/api/v1/sm_schedule_master_templates/${selectedTemplate.id}/rows/${rowId}`, rowId, updates)
 
       const response = await api.patch(
-        `/api/v1/schedule_templates/${selectedTemplate.id}/rows/${rowId}`,
+        `/api/v1/sm_schedule_master_templates/${selectedTemplate.id}/rows/${rowId}`,
         { schedule_template_row: updates }
       )
 
@@ -1380,7 +1382,7 @@ export default function ScheduleTemplateEditor() {
     if (!confirm('Delete this row?')) return
 
     try {
-      await api.delete(`/api/v1/schedule_templates/${selectedTemplate.id}/rows/${rowId}`)
+      await api.delete(`/api/v1/sm_schedule_master_templates/${selectedTemplate.id}/rows/${rowId}`)
       setRows(prevRows => prevRows.filter(r => r.id !== rowId))
       showToast('Row deleted', 'success')
     } catch (err) {
@@ -1411,7 +1413,7 @@ export default function ScheduleTemplateEditor() {
 
     try {
       await api.post(
-        `/api/v1/schedule_templates/${selectedTemplate.id}/rows/reorder`,
+        `/api/v1/sm_schedule_master_templates/${selectedTemplate.id}/rows/reorder`,
         { row_ids: reorderedRowIds }
       )
 
@@ -1479,7 +1481,7 @@ export default function ScheduleTemplateEditor() {
       await Promise.all(
         updates.map(update =>
           api.patch(
-            `/api/v1/schedule_templates/${selectedTemplate.id}/rows/${update.id}`,
+            `/api/v1/sm_schedule_master_templates/${selectedTemplate.id}/rows/${update.id}`,
             { schedule_template_row: { [field]: value } }
           )
         )
@@ -1502,7 +1504,7 @@ export default function ScheduleTemplateEditor() {
     try {
       const ids = Array.from(selectedRows)
       // Use batch endpoint - single request instead of N requests
-      await api.post(`/api/v1/schedule_templates/${selectedTemplate.id}/rows/bulk_delete`, { ids })
+      await api.post(`/api/v1/sm_schedule_master_templates/${selectedTemplate.id}/rows/bulk_delete`, { ids })
 
       setRows(prevRows => prevRows.filter(r => !selectedRows.has(r.id)))
       setSelectedRows(new Set())

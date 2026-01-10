@@ -2939,7 +2939,7 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
         // Call backend API to update task and trigger cascade
         if (templateId) {
           try {
-            const apiUrl = `/api/v1/schedule_templates/${templateId}/rows/${testTask.id}`
+            const apiUrl = `/api/v1/sm_schedule_master_templates/${templateId}/rows/${testTask.id}`
             console.log('🧪 Calling backend API:', apiUrl)
             await updateProgress(`🔄 Calling backend API for task #${testTask.id}...`)
 
@@ -3035,7 +3035,7 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
         // Move back - unset manually_positioned to allow cascade recalculation
         if (templateId) {
           try {
-            await api.patch(`/api/v1/schedule_templates/${templateId}/rows/${testTask.id}`, {
+            await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${testTask.id}`, {
               schedule_template_row: {
                 hold: false
               }
