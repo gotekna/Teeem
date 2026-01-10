@@ -691,6 +691,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [showComposeEmail, setShowComposeEmail] = useState(false);
   const [emailFileAttachments, setEmailFileAttachments] = useState<File[]>([]);
   const [prepareEmailLoading, setPrepareEmailLoading] = useState(false);
+  const [prepareEmailStatus, setPrepareEmailStatus] = useState('');
   // Track how each attachment should be included: 'attach' (file), 'link' (SharePoint URL), 'none' (exclude)
   const [attachmentEmailOptions, setAttachmentEmailOptions] = useState<Record<number, 'attach' | 'link' | 'none'>>({});
   // Store SharePoint share links created for 'link' option
@@ -1600,53 +1601,64 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   // Prepare email: download file attachments and get sharing links
   const prepareEmailResponse = async () => {
     setPrepareEmailLoading(true);
+    setPrepareEmailStatus('');
     try {
       const filesToAttach: File[] = [];
       const shareLinks: Record<number, string> = {};
 
-      // Process each response attachment based on user's choice
-      for (const att of responseAttachments) {
-        const option = attachmentEmailOptions[att.id];
+      // Count files to process for progress
+      const toAttach = responseAttachments.filter(a => attachmentEmailOptions[a.id] === 'attach');
+      const toLink = responseAttachments.filter(a => {
+        const opt = attachmentEmailOptions[a.id];
+        const hasSharePoint = a.document?.sharepoint_url || a.sharepoint_url;
+        return opt === 'link' && hasSharePoint;
+      });
+      const totalToProcess = toAttach.length + toLink.length;
+      let processed = 0;
 
-        if (option === 'attach') {
-          // Download file content and convert to File object
-          try {
-            const response = await api.get<{ success: boolean; filename: string; content: string; content_type: string }>(
-              `/api/v1/sm_tasks/${task.id}/attachments/${att.id}/download`
-            );
-            if (response.success) {
-              // Convert base64 to File
-              const byteCharacters = atob(response.content);
-              const byteNumbers = new Array(byteCharacters.length);
-              for (let i = 0; i < byteCharacters.length; i++) {
-                byteNumbers[i] = byteCharacters.charCodeAt(i);
-              }
-              const byteArray = new Uint8Array(byteNumbers);
-              const blob = new Blob([byteArray], { type: response.content_type });
-              const file = new File([blob], response.filename, { type: response.content_type });
-              filesToAttach.push(file);
+      // Process files to attach
+      for (const att of toAttach) {
+        const fileName = att.document?.display_name || att.document?.file_name || 'file';
+        setPrepareEmailStatus(`Downloading ${fileName}... (${processed + 1}/${totalToProcess})`);
+        try {
+          const response = await api.get<{ success: boolean; filename: string; content: string; content_type: string }>(
+            `/api/v1/sm_tasks/${task.id}/attachments/${att.id}/download`
+          );
+          if (response.success) {
+            const byteCharacters = atob(response.content);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i);
             }
-          } catch (err) {
-            console.error(`Failed to download attachment ${att.id}:`, err);
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: response.content_type });
+            const file = new File([blob], response.filename, { type: response.content_type });
+            filesToAttach.push(file);
           }
-        } else if (option === 'link') {
-          // Get SharePoint sharing link (only for files on SharePoint)
-          const hasSharePoint = att.document?.sharepoint_url || att.sharepoint_url;
-          if (hasSharePoint) {
-            try {
-              const response = await api.post<{ success: boolean; share_url: string }>(
-                `/api/v1/sm_tasks/${task.id}/attachments/${att.id}/share_link`
-              );
-              if (response?.success && response?.share_url) {
-                shareLinks[att.id] = response.share_url;
-              }
-            } catch (err) {
-              console.error(`Failed to create share link for attachment ${att.id}:`, err);
-            }
-          }
+        } catch (err) {
+          console.error(`Failed to download attachment ${att.id}:`, err);
         }
-        // 'none' - skip this attachment
+        processed++;
       }
+
+      // Process files to create share links
+      for (const att of toLink) {
+        const fileName = att.document?.display_name || att.document?.file_name || 'file';
+        setPrepareEmailStatus(`Creating share link for ${fileName}... (${processed + 1}/${totalToProcess})`);
+        try {
+          const response = await api.post<{ success: boolean; share_url: string }>(
+            `/api/v1/sm_tasks/${task.id}/attachments/${att.id}/share_link`
+          );
+          if (response?.success && response?.share_url) {
+            shareLinks[att.id] = response.share_url;
+          }
+        } catch (err) {
+          console.error(`Failed to create share link for attachment ${att.id}:`, err);
+        }
+        processed++;
+      }
+
+      setPrepareEmailStatus('Opening email...');
 
       // Store the share links and file attachments
       setShareLinksMap(shareLinks);
@@ -1658,6 +1670,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       console.error('Failed to prepare email:', err);
     } finally {
       setPrepareEmailLoading(false);
+      setPrepareEmailStatus('');
     }
   };
 
@@ -2937,6 +2950,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   </>
                 )}
               </Button>
+              {prepareEmailStatus && (
+                <p className="text-xs text-muted-foreground text-center mt-1 truncate" title={prepareEmailStatus}>
+                  {prepareEmailStatus}
+                </p>
+              )}
             </div>
               </>
             )}
