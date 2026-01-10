@@ -104,11 +104,11 @@ class CorporateCompanySetting < ApplicationRecord
   end
 
   # Get full path for a document scope
-  # Returns: "/Shared Documents/Jobs" for scope: :jobs
+  # Returns: "/Jobs" for scope: :jobs
   # SSoT: All paths come from database - NO HARDCODED FALLBACKS
   def self.sharepoint_full_path(scope)
     setting = instance
-    root = setting.sharepoint_root_path.presence || "/Shared Documents"
+    root = setting.sharepoint_root_path.presence || ""
     sub_path = case scope.to_sym
                when :jobs, :job
                  setting.sharepoint_jobs_path.presence || "Jobs"
@@ -138,7 +138,7 @@ class CorporateCompanySetting < ApplicationRecord
       site_id: setting.sharepoint_site_id,
       drive_id: setting.sharepoint_drive_id,
       drive_name: setting.sharepoint_drive_name,
-      root_path: setting.sharepoint_root_path.presence || "/Shared Documents",
+      root_path: setting.sharepoint_root_path.presence || "",
       paths: {
         jobs: setting.sharepoint_jobs_path.presence || "Jobs",
         tasks: setting.sharepoint_tasks_path.presence || "Tasks",
@@ -180,7 +180,7 @@ class CorporateCompanySetting < ApplicationRecord
   end
 
   # Resolve a full path for a job document
-  # Returns: "/Shared Documents/TEEEM Jobs/JOB-001/Plans"
+  # Returns: "/Jobs/JOB-001/Plans"
   def self.job_path(job_code, category = nil)
     base = sharepoint_full_path(:jobs)
     template = sharepoint_template(:job)
@@ -192,7 +192,7 @@ class CorporateCompanySetting < ApplicationRecord
   end
 
   # Resolve a full path for a standalone task document (tasks without a job)
-  # Returns: "/Shared Documents/Tasks/Task-123/Responses"
+  # Returns: "/Tasks/Task-123/Responses"
   def self.task_path(task_id, category = nil)
     base = sharepoint_full_path(:tasks)
     template = sharepoint_template(:task)
@@ -204,7 +204,7 @@ class CorporateCompanySetting < ApplicationRecord
   end
 
   # Resolve a full path for a company document
-  # Returns: "/Shared Documents/00 TEEEM PRIVATE/GroupName/COMP-001/TabName"
+  # Returns: "/Corporate/GroupName/COMP-001/TabName"
   def self.company_path(company_group: nil, company_code: nil, tab_name: nil)
     base = sharepoint_full_path(:company)
     template = sharepoint_template(:company)
@@ -217,7 +217,7 @@ class CorporateCompanySetting < ApplicationRecord
   end
 
   # Resolve a full path for a people document
-  # Returns: "/Shared Documents/Corporate/People/John Smith/Contracts"
+  # Returns: "/Corporate/People/John Smith/Contracts"
   def self.people_path(contact_name, category = nil)
     base = sharepoint_full_path(:people)
     template = sharepoint_template(:people)
