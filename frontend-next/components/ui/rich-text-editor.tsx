@@ -419,3 +419,99 @@ export function plainTextToHtml(text: string): string {
 }
 
 export default RichTextEditor;
+
+// Compact version for inline editing in table cells
+export function InlineRichTextEditor({
+  value,
+  onChange,
+  onBlur,
+  placeholder = "Enter text...",
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onBlur?: () => void;
+  placeholder?: string;
+}) {
+  const inlineExtensions = React.useMemo(
+    () => [
+      StarterKit.configure({
+        // Disable features not needed for inline editing
+        heading: false,
+        blockquote: false,
+        codeBlock: false,
+        horizontalRule: false,
+      }),
+      Placeholder.configure({
+        placeholder,
+      }),
+    ],
+    [placeholder]
+  );
+
+  const editor = useEditor({
+    extensions: inlineExtensions,
+    content: value || "",
+    immediatelyRender: false,
+    onUpdate: ({ editor }) => {
+      onChange(editor.getHTML());
+    },
+    onBlur: () => {
+      onBlur?.();
+    },
+    editorProps: {
+      attributes: {
+        class: cn(
+          "prose prose-sm max-w-none focus:outline-none px-2 py-1 min-h-[60px]",
+          "[&_ul]:list-disc [&_ul]:ml-3 [&_ol]:list-decimal [&_ol]:ml-3",
+          "dark:prose-invert text-sm"
+        ),
+      },
+    },
+  });
+
+  React.useEffect(() => {
+    if (editor && value !== editor.getHTML()) {
+      editor.commands.setContent(value || "");
+    }
+  }, [value, editor]);
+
+  if (!editor) {
+    return null;
+  }
+
+  return (
+    <div className="border rounded bg-background">
+      {/* Mini toolbar */}
+      <div className="border-b bg-muted/30 p-0.5 flex gap-0.5">
+        <Button
+          type="button"
+          variant={editor.isActive("bold") ? "default" : "ghost"}
+          size="sm"
+          onClick={() => editor.chain().focus().toggleBold().run()}
+          className="h-6 w-6 p-0"
+        >
+          <Bold className="h-3 w-3" />
+        </Button>
+        <Button
+          type="button"
+          variant={editor.isActive("italic") ? "default" : "ghost"}
+          size="sm"
+          onClick={() => editor.chain().focus().toggleItalic().run()}
+          className="h-6 w-6 p-0"
+        >
+          <Italic className="h-3 w-3" />
+        </Button>
+        <Button
+          type="button"
+          variant={editor.isActive("bulletList") ? "default" : "ghost"}
+          size="sm"
+          onClick={() => editor.chain().focus().toggleBulletList().run()}
+          className="h-6 w-6 p-0"
+        >
+          <List className="h-3 w-3" />
+        </Button>
+      </div>
+      <EditorContent editor={editor} />
+    </div>
+  );
+}

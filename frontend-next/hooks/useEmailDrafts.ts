@@ -186,6 +186,7 @@ export function useEmailDrafts() {
       body: draftData.body,
       reply_to_message_id: draftData.reply_to_message_id,
       attachment_names: draftData.attachment_names || [],
+      status: 'draft',
     };
 
     try {

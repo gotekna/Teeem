@@ -199,7 +199,7 @@ import dynamic from "next/dynamic";
 
 // Dynamic import to avoid SSR issues with TipTap
 const InlineRichTextEditor = dynamic(
-  () => import("@/components/common/RichTextEditor").then(mod => mod.InlineRichTextEditor),
+  () => import("@/components/ui/rich-text-editor").then(mod => mod.InlineRichTextEditor),
   { ssr: false, loading: () => <div className="h-[60px] bg-muted/50 animate-pulse rounded" /> }
 );
 
