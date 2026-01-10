@@ -1,9 +1,20 @@
 'use client';
 
 import { useMemo, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useTaskHub, SmTask } from '@/contexts/TaskHubContext';
 import { GanttUnified } from '@/components/gantt-v2/GanttUnified';
-import { GanttTask, GanttDependency } from '@/lib/gantt/types';
+import { GanttTask, GanttDependency, TaskStatus } from '@/lib/gantt/types';
+
+// Map SmTask status to GanttTask status
+const mapStatus = (status: SmTask['status']): TaskStatus => {
+  switch (status) {
+    case 'not_started': return 'not-started';
+    case 'started': return 'in-progress';
+    case 'completed': return 'completed';
+    default: return 'not-started';
+  }
+};
 
 /**
  * GanttView for Task Hub
@@ -12,6 +23,7 @@ import { GanttTask, GanttDependency } from '@/lib/gantt/types';
  * Converts SmTask to GanttTask format and supports dependencies.
  */
 export function GanttView() {
+  const router = useRouter();
   const { filteredTasks, expandTask, updateTask } = useTaskHub();
 
   // Convert SmTask to GanttTask format
@@ -22,7 +34,7 @@ export function GanttView() {
       startDate: new Date(task.start_date),
       endDate: new Date(task.end_date),
       progress: task.progress_percentage || 0,
-      status: task.status,
+      status: mapStatus(task.status),
       // Include predecessor_ids for dependency rendering
       predecessorIds: task.predecessor_ids?.map((p: any) => String(p.id || p)) || [],
       // Map SmTask fields to GanttTask
@@ -93,13 +105,21 @@ export function GanttView() {
     return deps;
   }, [filteredTasks]);
 
-  // Handle task click - expand the task
+  // Handle task click - expand the task inline
   const handleTaskClick = useCallback((task: GanttTask) => {
     const taskId = parseInt(task.id, 10);
     if (!isNaN(taskId)) {
       expandTask(taskId);
     }
   }, [expandTask]);
+
+  // Handle task double-click - open in fullscreen
+  const handleTaskDoubleClick = useCallback((task: GanttTask) => {
+    const taskId = parseInt(task.id, 10);
+    if (!isNaN(taskId)) {
+      router.push(`/sm_tasks/${taskId}`);
+    }
+  }, [router]);
 
   // Handle dependency create
   const handleDependencyCreate = useCallback(async (fromId: string, toId: string, type: string) => {
@@ -169,7 +189,7 @@ export function GanttView() {
         dependencies={dependencies}
         showToolbar={true}
         onTaskClick={handleTaskClick}
-        onTaskDoubleClick={handleTaskClick}
+        onTaskDoubleClick={handleTaskDoubleClick}
         onDependencyCreate={handleDependencyCreate}
         onDependencyDelete={handleDependencyDelete}
         className="h-full"

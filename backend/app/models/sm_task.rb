@@ -109,19 +109,35 @@ class SmTask < ApplicationRecord
     predecessor_ids.map { |p| (p["id"] || p[:id]).to_i }.compact
   end
 
-  # Get actual predecessor SmTask records (looks up by task_number on same job)
+  # Get actual predecessor SmTask records
+  # For job tasks: looks up by task_number on same job
+  # For non-job tasks: looks up by task.id directly
   def predecessors
-    return SmTask.none if predecessor_ids.empty? || job_id.nil?
-    task_numbers = predecessor_task_numbers_array
-    return SmTask.none if task_numbers.empty?
-    SmTask.where(job_id: job_id, task_number: task_numbers)
+    return SmTask.none if predecessor_ids.empty?
+
+    pred_ids = predecessor_task_numbers_array
+    return SmTask.none if pred_ids.empty?
+
+    if job_id.present?
+      # Job task - lookup by task_number within same job
+      SmTask.where(job_id: job_id, task_number: pred_ids)
+    else
+      # Non-job task - lookup by task.id directly
+      SmTask.where(id: pred_ids)
+    end
   end
 
   # Get actual successor SmTask records (tasks that have this task in their predecessor_ids)
   def successors
-    return SmTask.none if job_id.nil?
-    SmTask.where(job_id: job_id)
-          .where("predecessor_ids @> ?", [{ id: task_number }].to_json)
+    if job_id.present?
+      # Job task - find successors within same job using task_number
+      SmTask.where(job_id: job_id)
+            .where("predecessor_ids @> ?", [{ id: task_number }].to_json)
+    else
+      # Non-job task - find successors using task.id
+      SmTask.where(job_id: nil)
+            .where("predecessor_ids @> ?", [{ id: id }].to_json)
+    end
   end
 
   # Format predecessors as "2FS+3, 5SS" etc (matching SmScheduleMaster format)
@@ -576,12 +592,23 @@ class SmTask < ApplicationRecord
 
   # Dependency accessors - now based on predecessor_ids jsonb column
   # Returns array of OpenStruct objects for backwards compatibility with old table-based code
+  #
+  # For JOB tasks: predecessor_ids stores task_number (within the same job)
+  # For NON-JOB tasks: predecessor_ids stores task.id directly
   def active_predecessor_dependencies
-    return [] if predecessor_ids.empty? || job_id.nil?
+    return [] if predecessor_ids.empty?
 
     predecessor_ids.map do |pred_data|
-      task_number = pred_data["id"] || pred_data[:id]
-      predecessor_task = SmTask.find_by(job_id: job_id, task_number: task_number)
+      pred_id = pred_data["id"] || pred_data[:id]
+
+      # Find predecessor task based on whether this is a job task or non-job task
+      predecessor_task = if job_id.present?
+        # Job task - lookup by task_number within same job
+        SmTask.find_by(job_id: job_id, task_number: pred_id)
+      else
+        # Non-job task - lookup by task.id directly
+        SmTask.find_by(id: pred_id)
+      end
       next unless predecessor_task
 
       OpenStruct.new(
@@ -599,29 +626,48 @@ class SmTask < ApplicationRecord
   end
 
   def active_successor_dependencies
-    return [] if job_id.nil?
+    # Find all tasks that have this task in their predecessor_ids
+    # For job tasks: look by task_number within same job
+    # For non-job tasks: look by task.id across all non-job tasks
 
-    # Find all tasks on this job that have this task in their predecessor_ids
-    SmTask.where(job_id: job_id)
-          .where("predecessor_ids @> ?", [{ id: task_number }].to_json)
-          .map do |successor_task|
-      # Find this task's entry in successor's predecessor_ids
-      pred_data = successor_task.predecessor_ids.find { |p| (p["id"] || p[:id]).to_i == task_number }
-      next unless pred_data
-
-      OpenStruct.new(
-        # Backwards compat: generate synthetic ID from task IDs
-        id: "#{self.id}_#{successor_task.id}",
-        predecessor_task_id: self.id,
-        successor_task_id: successor_task.id,
-        predecessor_task: self,
-        successor_task: successor_task,
-        dependency_type: pred_data["type"] || pred_data[:type] || "FS",
-        lag_days: pred_data["lag"] || pred_data[:lag] || 0,
-        active: true
-      )
-    end.compact
+    if job_id.present?
+      # Job task - find successors within same job using task_number
+      SmTask.where(job_id: job_id)
+            .where("predecessor_ids @> ?", [{ id: task_number }].to_json)
+            .map do |successor_task|
+        pred_data = successor_task.predecessor_ids.find { |p| (p["id"] || p[:id]).to_i == task_number }
+        next unless pred_data
+        build_successor_dependency(successor_task, pred_data)
+      end.compact
+    else
+      # Non-job task - find successors using task.id (no job_id filter)
+      SmTask.where(job_id: nil)
+            .where("predecessor_ids @> ?", [{ id: id }].to_json)
+            .map do |successor_task|
+        pred_data = successor_task.predecessor_ids.find { |p| (p["id"] || p[:id]).to_i == id }
+        next unless pred_data
+        build_successor_dependency(successor_task, pred_data)
+      end.compact
+    end
   end
+
+  private
+
+  def build_successor_dependency(successor_task, pred_data)
+    OpenStruct.new(
+      # Backwards compat: generate synthetic ID from task IDs
+      id: "#{self.id}_#{successor_task.id}",
+      predecessor_task_id: self.id,
+      successor_task_id: successor_task.id,
+      predecessor_task: self,
+      successor_task: successor_task,
+      dependency_type: pred_data["type"] || pred_data[:type] || "FS",
+      lag_days: pred_data["lag"] || pred_data[:lag] || 0,
+      active: true
+    )
+  end
+
+  public
 
   # SSoT: PO-Task link is via PurchaseOrder.sm_task_id (has_one :purchase_order defined at line 70)
   # Performance: Use the association directly - it supports eager loading via includes(:purchase_order)

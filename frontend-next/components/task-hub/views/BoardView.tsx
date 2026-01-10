@@ -8,6 +8,7 @@
  */
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useTaskHub, SmTask } from '@/contexts/TaskHubContext';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -84,6 +85,7 @@ function TaskCardContent({ task }: { task: TaskItem }) {
 }
 
 export function BoardView() {
+  const router = useRouter();
   const { filteredTasks, updateTask } = useTaskHub();
   const [selectedTask, setSelectedTask] = useState<TaskItem | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -114,6 +116,11 @@ export function BoardView() {
     setSheetOpen(true);
   };
 
+  // Handle double-click to open in fullscreen
+  const handleCardDoubleClick = (task: TaskItem) => {
+    router.push(`/sm_tasks/${task.id}`);
+  };
+
   // Render a task card
   const renderCard = (task: TaskItem, isDragging: boolean) => (
     <KanbanCard
@@ -126,6 +133,11 @@ export function BoardView() {
     >
       <div
         onClick={() => handleCardClick(task)}
+        onDoubleClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          handleCardDoubleClick(task);
+        }}
         className="cursor-pointer"
       >
         <TaskCardContent task={task} />

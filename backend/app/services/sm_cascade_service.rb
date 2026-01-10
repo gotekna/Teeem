@@ -23,7 +23,9 @@ class SmCascadeService
     @task = task
     @construction = task.construction
     @options = options
-    @calendar = WorkingDaysCalculator.new(construction.company_setting)
+    # Non-job tasks use CorporateCompanySetting (global), job tasks use job's company_setting
+    company_setting = construction&.company_setting || CorporateCompanySetting.instance
+    @calendar = WorkingDaysCalculator.new(company_setting)
   end
 
   # Preview cascade without making changes
@@ -87,10 +89,14 @@ class SmCascadeService
 
       # 3. Process tasks to break (break dependency, task stays in place)
       # SSoT: Remove predecessor from successor's predecessor_ids jsonb
+      # For job tasks: predecessor_ids stores task_number
+      # For non-job tasks: predecessor_ids stores task.id
       cascade_params[:tasks_to_break]&.each do |task_id|
         successor = SmTask.find(task_id)
+        # Use task_number for job tasks, task.id for non-job tasks
+        pred_id_to_remove = task.job_id.present? ? task.task_number : task.id
         updated_preds = successor.predecessor_ids.reject do |p|
-          (p["id"] || p[:id]).to_i == task.task_number
+          (p["id"] || p[:id]).to_i == pred_id_to_remove
         end
         if updated_preds.length != successor.predecessor_ids.length
           successor.update!(
