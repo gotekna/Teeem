@@ -21,6 +21,7 @@ import {
   Lock,
   MoreHorizontal,
   Pause,
+  Pencil,
   Play,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -126,18 +127,23 @@ export function TaskListRow({
             <div className="flex items-center gap-1 flex-1 min-w-0">
               <span
                 className={cn(
-                  'truncate cursor-text hover:bg-muted/50 px-1 -mx-1 rounded flex-1',
+                  'truncate flex-1',
                   task.status === 'completed' && 'line-through text-muted-foreground'
                 )}
+              >
+                {task.name}
+              </span>
+              <button
                 onClick={(e) => {
                   e.stopPropagation();
                   setEditingTaskId(task.id);
                   setEditingTaskName(task.name);
                 }}
-                title="Click to edit task name"
+                className="p-0.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground shrink-0"
+                title="Edit task name"
               >
-                {task.name}
-              </span>
+                <Pencil className="h-3 w-3" />
+              </button>
             </div>
           )}
           {task.is_overdue && task.status !== 'completed' && (
