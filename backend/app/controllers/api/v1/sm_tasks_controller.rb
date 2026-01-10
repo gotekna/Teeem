@@ -852,17 +852,16 @@ module Api
           uploaded_at: Time.current
         }
 
-        # Set owner: job if available, otherwise use task supplier or assignee's contact
+        # Set owner: job if available, otherwise use task supplier or user's linked contact
         if @task.job_id.present?
           doc_attrs[:job_id] = @task.job_id
         elsif @task.supplier_id.present?
           doc_attrs[:contact_id] = @task.supplier_id
         elsif current_user&.contact_id.present?
           doc_attrs[:contact_id] = current_user.contact_id
-        else
-          # Fallback: use the first contact for the user
-          doc_attrs[:contact_id] = current_user&.contacts&.first&.id
         end
+        # Note: If none of these are set, validation will fail - personal tasks without
+        # a linked contact cannot have file attachments until job/contact is set
 
         doc = CorporateCompanyDocument.create!(doc_attrs)
 
