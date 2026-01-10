@@ -156,7 +156,8 @@ class Api::V1::EmailUserStatesController < ApplicationController
     return render json: { success: false, error: "mailbox_email required" }, status: :bad_request unless mailbox_email.present?
 
     # Find all unread emails in this folder
-    emails = EmailWarehouse.where(mailbox_email: mailbox_email)
+    # SSoT: Column is mailbox_owner_email, not mailbox_email
+    emails = EmailWarehouse.where(mailbox_owner_email: mailbox_email)
                            .where("folder_name ILIKE ?", folder_name)
 
     affected = 0
