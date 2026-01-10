@@ -66,7 +66,7 @@ const MAIN_TABS = [
 const COMPACT_TABS = ["schedule-master"];
 
 // Full-page tabs that hide all navigation
-const FULL_PAGE_TABS = ["pdf-fields", "document-types"];
+const FULL_PAGE_TABS = ["pdf-fields", "document-types", "teeem-xl"];
 
 export default function SystemAdminLayout({
   children,

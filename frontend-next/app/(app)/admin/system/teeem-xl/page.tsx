@@ -242,12 +242,40 @@ export default function TeeemXLPage() {
     setSelectedCell(ref);
     setEditingCell(ref);
     const cell = sheets[activeSheetIndex].cells[ref];
-    setEditValue(cell?.value?.toString() || "");
+    // Show formula if it's a formula cell, otherwise show value
+    setEditValue(cell?.formula || cell?.value?.toString() || "");
     setTimeout(() => inputRef.current?.focus(), 0);
   };
 
   const handleCellChange = (value: string) => {
     setEditValue(value);
+  };
+
+  // Simple formula evaluator
+  const evaluateFormula = (formula: string, cells: Record<string, CellData>): number | string => {
+    try {
+      // Remove leading =
+      const expr = formula.substring(1).trim();
+
+      // Replace cell references with their values
+      const evaluated = expr.replace(/([A-Z]+)(\d+)/gi, (match) => {
+        const cell = cells[match.toUpperCase()];
+        if (!cell) return "0";
+        const val = cell.type === "formula" ? evaluateFormula(cell.formula || "", cells) : cell.value;
+        return String(val ?? 0);
+      });
+
+      // Only allow safe math operations
+      if (!/^[\d\s+\-*/().]+$/.test(evaluated)) {
+        return "#ERROR";
+      }
+
+      // Evaluate the expression
+      const result = Function(`"use strict"; return (${evaluated})`)();
+      return typeof result === "number" && !isNaN(result) ? result : "#ERROR";
+    } catch {
+      return "#ERROR";
+    }
   };
 
   const handleCellBlur = () => {
@@ -259,11 +287,17 @@ export default function TeeemXLPage() {
       if (editValue.trim() === "") {
         delete activeSheet.cells[editingCell];
       } else {
-        // Detect type
+        // Detect type - check for formula first
         let cellValue: string | number | boolean = editValue;
-        let cellType: "string" | "number" | "boolean" = "string";
+        let cellType: "string" | "number" | "boolean" | "formula" = "string";
+        let formula: string | undefined;
 
-        if (!isNaN(Number(editValue)) && editValue.trim() !== "") {
+        if (editValue.startsWith("=")) {
+          // Formula
+          cellType = "formula";
+          formula = editValue;
+          cellValue = evaluateFormula(editValue, activeSheet.cells);
+        } else if (!isNaN(Number(editValue)) && editValue.trim() !== "") {
           cellValue = Number(editValue);
           cellType = "number";
         } else if (editValue.toLowerCase() === "true" || editValue.toLowerCase() === "false") {
@@ -271,7 +305,7 @@ export default function TeeemXLPage() {
           cellType = "boolean";
         }
 
-        activeSheet.cells[editingCell] = { value: cellValue, type: cellType };
+        activeSheet.cells[editingCell] = { value: cellValue, type: cellType, formula };
       }
 
       newSheets[activeSheetIndex] = activeSheet;
@@ -281,7 +315,8 @@ export default function TeeemXLPage() {
     setEditingCell(null);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  // Input-specific keydown handler (stops propagation to prevent double handling)
+  const handleInputKeyDown = (e: React.KeyboardEvent) => {
     if (!selectedCell) return;
 
     const match = selectedCell.match(/^([A-Z]+)(\d+)$/i);
@@ -291,37 +326,63 @@ export default function TeeemXLPage() {
     const row = parseInt(match[2], 10) - 1;
 
     if (e.key === "Enter") {
-      if (editingCell) {
-        handleCellBlur();
-        // Move down
-        const newRef = getCellRef(row + 1, col);
-        setSelectedCell(newRef);
-      } else {
-        handleCellDoubleClick(selectedCell);
-      }
+      e.preventDefault();
+      e.stopPropagation();
+      handleCellBlur();
+      // Move down
+      const newRef = getCellRef(row + 1, col);
+      setSelectedCell(newRef);
+    } else if (e.key === "Tab") {
+      e.preventDefault();
+      e.stopPropagation();
+      handleCellBlur();
+      // Move right (or left with shift)
+      const newCol = e.shiftKey ? Math.max(0, col - 1) : col + 1;
+      const newRef = getCellRef(row, newCol);
+      setSelectedCell(newRef);
+    } else if (e.key === "Escape") {
+      e.stopPropagation();
+      setEditingCell(null);
+    }
+    // Let other keys (typing) be handled normally by the input
+  };
+
+  // Grid keydown handler (for navigation when not editing)
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!selectedCell || editingCell) return; // Don't handle when editing
+
+    const match = selectedCell.match(/^([A-Z]+)(\d+)$/i);
+    if (!match) return;
+
+    const col = match[1].charCodeAt(0) - 65;
+    const row = parseInt(match[2], 10) - 1;
+
+    if (e.key === "Enter") {
+      handleCellDoubleClick(selectedCell);
       e.preventDefault();
     } else if (e.key === "Tab") {
-      if (editingCell) handleCellBlur();
-      // Move right
-      const newRef = getCellRef(row, col + 1);
+      // Move right (or left with shift)
+      const newCol = e.shiftKey ? Math.max(0, col - 1) : col + 1;
+      const newRef = getCellRef(row, newCol);
       setSelectedCell(newRef);
       e.preventDefault();
-    } else if (e.key === "Escape") {
-      setEditingCell(null);
-    } else if (!editingCell) {
-      if (e.key === "ArrowUp" && row > 0) {
-        setSelectedCell(getCellRef(row - 1, col));
-      } else if (e.key === "ArrowDown") {
-        setSelectedCell(getCellRef(row + 1, col));
-      } else if (e.key === "ArrowLeft" && col > 0) {
-        setSelectedCell(getCellRef(row, col - 1));
-      } else if (e.key === "ArrowRight") {
-        setSelectedCell(getCellRef(row, col + 1));
-      } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
-        // Start typing
-        handleCellDoubleClick(selectedCell);
-        setEditValue(e.key);
-      }
+    } else if (e.key === "ArrowUp" && row > 0) {
+      setSelectedCell(getCellRef(row - 1, col));
+      e.preventDefault();
+    } else if (e.key === "ArrowDown") {
+      setSelectedCell(getCellRef(row + 1, col));
+      e.preventDefault();
+    } else if (e.key === "ArrowLeft" && col > 0) {
+      setSelectedCell(getCellRef(row, col - 1));
+      e.preventDefault();
+    } else if (e.key === "ArrowRight") {
+      setSelectedCell(getCellRef(row, col + 1));
+      e.preventDefault();
+    } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+      // Start typing - clear cell and start fresh with the typed character
+      handleCellDoubleClick(selectedCell);
+      setEditValue(e.key);
+      e.preventDefault();
     }
   };
 
@@ -359,13 +420,13 @@ export default function TeeemXLPage() {
             value={editValue}
             onChange={(e) => handleCellChange(e.target.value)}
             onBlur={handleCellBlur}
-            onKeyDown={handleKeyDown}
+            onKeyDown={handleInputKeyDown}
             className="w-full h-full bg-transparent outline-none text-sm"
             autoFocus
           />
         ) : (
           <span className="text-sm truncate">
-            {cell?.value?.toString() ?? ""}
+            {cell?.type === "formula" ? cell.value?.toString() : cell?.value?.toString() ?? ""}
           </span>
         )}
       </div>
