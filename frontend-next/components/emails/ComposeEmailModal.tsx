@@ -57,6 +57,8 @@ interface ComposeEmailModalProps {
   defaultFromAccountId?: string; // Account ID to send from (for replies)
   /** Resume from a saved draft */
   draft?: EmailDraft;
+  /** Pre-loaded file attachments (e.g., from Task response) */
+  initialAttachments?: File[];
   onSent?: () => void;
 }
 
@@ -70,6 +72,7 @@ export function ComposeEmailModal({
   replyToMessageId,
   defaultFromAccountId,
   draft,
+  initialAttachments,
   onSent,
 }: ComposeEmailModalProps) {
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
@@ -246,7 +249,7 @@ export function ComposeEmailModal({
         }
       }
 
-      setAttachments([]);
+      setAttachments(initialAttachments || []);
       setError(null);
       setSignatureHtml(""); // Reset signature (will be regenerated when account selected)
       // Reset schedule state
@@ -254,7 +257,7 @@ export function ComposeEmailModal({
       setScheduledDate(undefined);
       setScheduledTime("09:00");
     }
-  }, [open, defaultTo, defaultCc, defaultSubject, defaultBody, draft]);
+  }, [open, defaultTo, defaultCc, defaultSubject, defaultBody, draft, initialAttachments]);
 
 
   // Generate signature when account is selected and user/company data is available

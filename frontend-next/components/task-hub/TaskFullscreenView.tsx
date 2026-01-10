@@ -689,6 +689,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
   // Email compose for responses
   const [showComposeEmail, setShowComposeEmail] = useState(false);
+  const [emailFileAttachments, setEmailFileAttachments] = useState<File[]>([]);
+  const [prepareEmailLoading, setPrepareEmailLoading] = useState(false);
+  // Track how each attachment should be included: 'attach' (file), 'link' (SharePoint URL), 'none' (exclude)
+  const [attachmentEmailOptions, setAttachmentEmailOptions] = useState<Record<number, 'attach' | 'link' | 'none'>>({});
+  // Store SharePoint share links created for 'link' option
+  const [shareLinksMap, setShareLinksMap] = useState<Record<number, string>>({});
 
   // Multi-select documents
   const [selectedDocIds, setSelectedDocIds] = useState<Set<number>>(new Set());
@@ -772,6 +778,28 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   // Split document attachments by category
   const infoAttachments = documentAttachments.filter(a => a.category !== 'response');
   const responseAttachments = documentAttachments.filter(a => a.category === 'response');
+
+  // Initialize default email options for response attachments
+  // Default: 'link' for SharePoint files, 'attach' for ActiveStorage files
+  useEffect(() => {
+    const newOptions: Record<number, 'attach' | 'link' | 'none'> = {};
+    responseAttachments.forEach(att => {
+      // Keep existing choice if already set
+      if (attachmentEmailOptions[att.id]) {
+        newOptions[att.id] = attachmentEmailOptions[att.id];
+      } else {
+        // Default: use link for SharePoint files, attach for others
+        const hasSharePoint = att.document?.sharepoint_url || att.sharepoint_url;
+        newOptions[att.id] = hasSharePoint ? 'link' : 'attach';
+      }
+    });
+    // Only update if different to avoid infinite loop
+    const hasChanges = Object.keys(newOptions).length !== Object.keys(attachmentEmailOptions).length ||
+      Object.entries(newOptions).some(([id, val]) => attachmentEmailOptions[Number(id)] !== val);
+    if (hasChanges) {
+      setAttachmentEmailOptions(newOptions);
+    }
+  }, [responseAttachments]);
 
   // Filter action items
   const actionItems = task.action_items?.filter(item => item.item_type === 'action') || [];
@@ -1511,6 +1539,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     }
 
     // Add general response file links (not linked to specific questions)
+    // Respects attachmentEmailOptions: 'attach' (file attached), 'link' (SharePoint URL), 'none' (excluded)
     const generalResponseAttachments = responseAttachments.filter(att => {
       const linkedToQuestion = questionItems.some(q =>
         q.attachments?.some(a => a.id === att.id)
@@ -1518,19 +1547,102 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       return !linkedToQuestion;
     });
 
-    if (generalResponseAttachments.length > 0) {
-      body += '<p><strong>See attached:</strong></p>\n';
+    // Separate by option type
+    const attachedFiles = generalResponseAttachments.filter(att => attachmentEmailOptions[att.id] === 'attach');
+    const linkedFiles = generalResponseAttachments.filter(att => attachmentEmailOptions[att.id] === 'link');
+    // 'none' files are excluded
+
+    // Show files that are attached to the email (no hyperlink - they're attachments)
+    if (attachedFiles.length > 0) {
+      body += '<p><strong>Files attached:</strong></p>\n';
       body += '<ul>\n';
-      generalResponseAttachments.forEach(att => {
+      attachedFiles.forEach(att => {
         const fileName = att.document?.display_name || att.document?.file_name || 'Document';
-        // Try SharePoint URL first, then ActiveStorage file_url
-        const url = att.sharepoint_url || att.document?.sharepoint_url || att.document?.file_url;
+        body += `<li>📎 ${fileName}</li>\n`;
+      });
+      body += '</ul>\n';
+    }
+
+    // Show files with SharePoint sharing links
+    if (linkedFiles.length > 0) {
+      body += '<p><strong>File links:</strong></p>\n';
+      body += '<ul>\n';
+      linkedFiles.forEach(att => {
+        const fileName = att.document?.display_name || att.document?.file_name || 'Document';
+        // Use SharePoint share link if available, otherwise fall back to existing URL
+        const shareUrl = shareLinksMap[att.id];
+        const fallbackUrl = att.sharepoint_url || att.document?.sharepoint_url || att.document?.file_url;
+        const url = shareUrl || fallbackUrl;
         body += `<li>${formatFileLink(fileName, url)}</li>\n`;
       });
       body += '</ul>\n';
     }
 
     return body.trim();
+  };
+
+  // Prepare email: download file attachments and get sharing links
+  const prepareEmailResponse = async () => {
+    setPrepareEmailLoading(true);
+    try {
+      const filesToAttach: File[] = [];
+      const shareLinks: Record<number, string> = {};
+
+      // Process each response attachment based on user's choice
+      for (const att of responseAttachments) {
+        const option = attachmentEmailOptions[att.id];
+
+        if (option === 'attach') {
+          // Download file content and convert to File object
+          try {
+            const response = await api.get<{ success: boolean; filename: string; content: string; content_type: string }>(
+              `/api/v1/sm_tasks/${task.id}/attachments/${att.id}/download`
+            );
+            if (response.success) {
+              // Convert base64 to File
+              const byteCharacters = atob(response.content);
+              const byteNumbers = new Array(byteCharacters.length);
+              for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+              }
+              const byteArray = new Uint8Array(byteNumbers);
+              const blob = new Blob([byteArray], { type: response.content_type });
+              const file = new File([blob], response.filename, { type: response.content_type });
+              filesToAttach.push(file);
+            }
+          } catch (err) {
+            console.error(`Failed to download attachment ${att.id}:`, err);
+          }
+        } else if (option === 'link') {
+          // Get SharePoint sharing link (only for files on SharePoint)
+          const hasSharePoint = att.document?.sharepoint_url || att.sharepoint_url;
+          if (hasSharePoint) {
+            try {
+              const response = await api.post<{ success: boolean; share_url: string }>(
+                `/api/v1/sm_tasks/${task.id}/attachments/${att.id}/share_link`
+              );
+              if (response?.success && response?.share_url) {
+                shareLinks[att.id] = response.share_url;
+              }
+            } catch (err) {
+              console.error(`Failed to create share link for attachment ${att.id}:`, err);
+            }
+          }
+        }
+        // 'none' - skip this attachment
+      }
+
+      // Store the share links and file attachments
+      setShareLinksMap(shareLinks);
+      setEmailFileAttachments(filesToAttach);
+
+      // Open compose modal
+      setShowComposeEmail(true);
+    } catch (err) {
+      console.error('Failed to prepare email:', err);
+    } finally {
+      setPrepareEmailLoading(false);
+    }
   };
 
   // Job items for combobox
@@ -2709,49 +2821,81 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
               {responseAttachments.length > 0 ? (
                 <div className="border rounded-md divide-y bg-primary/5 dark:bg-primary/10 mb-2">
-                  {responseAttachments.map((att) => (
-                    <div
-                      key={att.id}
-                      className="flex items-center gap-2 p-2 text-xs group hover:bg-muted/50 cursor-pointer"
-                      onClick={() => {
-                        if (att.document) {
-                          const docUrl = `${getApiBaseUrl()}/api/v1/company_documents/${att.document.id}/content`;
-                          setViewerDocument({
-                            url: docUrl,
-                            fileName: att.document.display_name || att.document.file_name || 'document',
-                            fileType: getFileType(att.document.file_name),
-                          });
-                        }
-                      }}
-                      onDoubleClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const url = att.sharepoint_url || att.document?.sharepoint_url;
-                        if (url) {
-                          window.open(url, '_blank');
-                        }
-                      }}
-                    >
-                      <FileText className="h-3 w-3 text-primary shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium truncate">
-                          {att.document?.display_name || att.document?.file_name}
+                  {responseAttachments.map((att) => {
+                    const hasSharePoint = att.document?.sharepoint_url || att.sharepoint_url;
+                    const emailOption = attachmentEmailOptions[att.id] || 'link';
+                    return (
+                      <div key={att.id} className="p-2 text-xs">
+                        <div
+                          className="flex items-center gap-2 group hover:bg-muted/50 cursor-pointer rounded p-1 -m-1"
+                          onClick={() => {
+                            if (att.document) {
+                              const docUrl = `${getApiBaseUrl()}/api/v1/company_documents/${att.document.id}/content`;
+                              setViewerDocument({
+                                url: docUrl,
+                                fileName: att.document.display_name || att.document.file_name || 'document',
+                                fileType: getFileType(att.document.file_name),
+                              });
+                            }
+                          }}
+                        >
+                          <FileText className="h-3 w-3 text-primary shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium truncate">
+                              {att.document?.display_name || att.document?.file_name}
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveAttachment(att.id);
+                            }}
+                            title="Delete attachment"
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        {/* Email inclusion options */}
+                        <div className="flex items-center gap-3 mt-1.5 ml-5 text-[10px]">
+                          <label className="flex items-center gap-1 cursor-pointer">
+                            <input
+                              type="radio"
+                              name={`att-${att.id}`}
+                              checked={emailOption === 'attach'}
+                              onChange={() => setAttachmentEmailOptions(prev => ({ ...prev, [att.id]: 'attach' }))}
+                              className="w-3 h-3"
+                            />
+                            <span>Attach</span>
+                          </label>
+                          {hasSharePoint && (
+                            <label className="flex items-center gap-1 cursor-pointer">
+                              <input
+                                type="radio"
+                                name={`att-${att.id}`}
+                                checked={emailOption === 'link'}
+                                onChange={() => setAttachmentEmailOptions(prev => ({ ...prev, [att.id]: 'link' }))}
+                                className="w-3 h-3"
+                              />
+                              <span>Link</span>
+                            </label>
+                          )}
+                          <label className="flex items-center gap-1 cursor-pointer text-muted-foreground">
+                            <input
+                              type="radio"
+                              name={`att-${att.id}`}
+                              checked={emailOption === 'none'}
+                              onChange={() => setAttachmentEmailOptions(prev => ({ ...prev, [att.id]: 'none' }))}
+                              className="w-3 h-3"
+                            />
+                            <span>Skip</span>
+                          </label>
                         </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemoveAttachment(att.id);
-                        }}
-                        title="Delete attachment"
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-xs text-muted-foreground text-center py-3 mb-2 border border-dashed rounded-md">
@@ -2762,10 +2906,20 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 variant="default"
                 size="sm"
                 className="w-full"
-                onClick={() => setShowComposeEmail(true)}
+                onClick={prepareEmailResponse}
+                disabled={prepareEmailLoading}
               >
-                <Mail className="h-4 w-4 mr-2" />
-                Send Response Email
+                {prepareEmailLoading ? (
+                  <>
+                    <Spinner className="h-4 w-4 mr-2" />
+                    Preparing...
+                  </>
+                ) : (
+                  <>
+                    <Mail className="h-4 w-4 mr-2" />
+                    Send Response Email
+                  </>
+                )}
               </Button>
             </div>
               </>
@@ -2916,6 +3070,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           onOpenChange={setShowComposeEmail}
           defaultSubject={`Re: Task #${task.task_number} - ${task.name}`}
           defaultBody={generateResponseBody()}
+          initialAttachments={emailFileAttachments}
           onSent={() => {
             setShowComposeEmail(false);
             refresh();

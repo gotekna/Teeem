@@ -10,6 +10,7 @@ module Api
         :hold, :release_hold, :cascade_preview, :cascade_execute, :move,
         :working_drawings, :process_working_drawings, :override_page_category,
         :attachments, :add_attachment, :remove_attachment, :upload_attachment,
+        :download_attachment_for_email, :create_attachment_share_link,
         :follow, :unfollow, :followers, :add_follower, :remove_follower,
         :history,
         :compare_to_template, :sync_from_template
@@ -885,6 +886,82 @@ module Api
             action_item_id: attachment.action_item_id
           )
         }
+      end
+
+      # GET /api/v1/sm_tasks/:id/attachments/:attachment_id/download
+      # Download file content for email attachment (returns base64)
+      def download_attachment_for_email
+        attachment = @task.sm_task_attachments.find(params[:attachment_id])
+        document = attachment.attachable
+
+        unless document.is_a?(CorporateCompanyDocument)
+          return render json: { success: false, error: "Attachment is not a document" }, status: :unprocessable_entity
+        end
+
+        # Get file content from ActiveStorage or SharePoint
+        content = if document.file.attached?
+          document.file.download
+        elsif document.file_url.present?
+          begin
+            response = HTTParty.get(document.file_url, timeout: 30)
+            response.success? ? response.body : nil
+          rescue => e
+            Rails.logger.warn "[SmTasksController#download_attachment] Download failed: #{e.message}"
+            nil
+          end
+        end
+
+        unless content
+          return render json: { success: false, error: "Could not download file content" }, status: :unprocessable_entity
+        end
+
+        render json: {
+          success: true,
+          filename: document.file_name || document.display_name || "attachment",
+          content: Base64.strict_encode64(content),
+          content_type: document.mime_type || "application/octet-stream"
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Attachment not found" }, status: :not_found
+      end
+
+      # POST /api/v1/sm_tasks/:id/attachments/:attachment_id/share_link
+      # Create anonymous SharePoint sharing link ("Anyone with the link")
+      def create_attachment_share_link
+        attachment = @task.sm_task_attachments.find(params[:attachment_id])
+        document = attachment.attachable
+
+        unless document.is_a?(CorporateCompanyDocument) && document.sharepoint_file_id.present?
+          return render json: { success: false, error: "File not on SharePoint" }, status: :unprocessable_entity
+        end
+
+        # Get SharePoint client
+        credential = MicrosoftCredential.active_for_org(current_organization)
+        unless credential
+          return render json: { success: false, error: "SharePoint not configured" }, status: :unprocessable_entity
+        end
+
+        # Create anonymous sharing link
+        client = MicrosoftAppGraphClient.new(credential)
+        response = client.post("/drives/#{credential.drive_id}/items/#{document.sharepoint_file_id}/createLink", {
+          type: "view",
+          scope: "anonymous"  # "Anyone with the link" - no login required
+        })
+
+        share_url = response.dig("link", "webUrl")
+
+        if share_url.present?
+          render json: { success: true, share_url: share_url }
+        else
+          render json: { success: false, error: "Failed to create sharing link" }, status: :unprocessable_entity
+        end
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Attachment not found" }, status: :not_found
+      rescue MicrosoftAppGraphClient::NotConnectedError => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      rescue => e
+        Rails.logger.error "[SmTasksController#create_attachment_share_link] Error: #{e.message}"
+        render json: { success: false, error: "Failed to create sharing link" }, status: :internal_server_error
       end
 
       # ===== Task Followers =====
