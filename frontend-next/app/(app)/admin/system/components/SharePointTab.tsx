@@ -75,10 +75,10 @@ export function SharePointTab() {
     sharepoint_drive_name: "",
     // Folder paths
     sharepoint_root_path: "/Shared Documents",
-    sharepoint_jobs_path: "TEEEM Jobs",
+    sharepoint_jobs_path: "Jobs",
     sharepoint_tasks_path: "Tasks",
     sharepoint_people_path: "Corporate/People",
-    sharepoint_company_path: "00 TEEEM PRIVATE",
+    sharepoint_company_path: "Corporate",
     sharepoint_contacts_path: "Contacts",
     // Path templates
     sharepoint_job_template: "{{JobCode}}/{{Category}}",
@@ -106,10 +106,10 @@ export function SharePointTab() {
           sharepoint_drive_id: response.data.drive_id || "",
           sharepoint_drive_name: response.data.drive_name || "",
           sharepoint_root_path: response.data.root_path || "/Shared Documents",
-          sharepoint_jobs_path: response.data.paths?.jobs || "TEEEM Jobs",
+          sharepoint_jobs_path: response.data.paths?.jobs || "Jobs",
           sharepoint_tasks_path: response.data.paths?.tasks || "Tasks",
           sharepoint_people_path: response.data.paths?.people || "Corporate/People",
-          sharepoint_company_path: response.data.paths?.company || "00 TEEEM PRIVATE",
+          sharepoint_company_path: response.data.paths?.company || "Corporate",
           sharepoint_contacts_path: response.data.paths?.contacts || "Contacts",
           sharepoint_job_template: response.data.templates?.job || "{{JobCode}}/{{Category}}",
           sharepoint_company_template: response.data.templates?.company || "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
@@ -410,7 +410,7 @@ export function SharePointTab() {
                   id="jobs_path"
                   value={formData.sharepoint_jobs_path}
                   onChange={(e) => handleChange("sharepoint_jobs_path", e.target.value)}
-                  placeholder="TEEEM Jobs"
+                  placeholder="Jobs"
                   className="flex-1"
                 />
                 <Button variant="outline" size="icon" onClick={() => setShowBrowser("jobs")}>

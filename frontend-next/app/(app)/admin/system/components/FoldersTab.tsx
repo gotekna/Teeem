@@ -751,7 +751,7 @@ export function FoldersTab() {
           connected: response.data.configured,
           url: response.data.site_url || undefined,
           document_library: response.data.drive_name || "Shared Documents",
-          root_folder: response.data.paths?.jobs || "TEEEM Jobs",
+          root_folder: response.data.paths?.jobs || "Jobs",
           drive_id: response.data.drive_id || undefined,
         };
         setSharePointConfig(config);
@@ -1000,7 +1000,7 @@ export function FoldersTab() {
                         <Folder className="h-3 w-3 text-yellow-500" />
                         <span>{sharePointConfig.document_library || "Shared Documents"}</span>
                         <span className="text-muted-foreground">/</span>
-                        <span>{sharePointConfig.root_folder || "TEEEM Jobs"}</span>
+                        <span>{sharePointConfig.root_folder || "Jobs"}</span>
                         <span className="text-muted-foreground">/</span>
                         <button
                           onClick={() => setJobNameFormatDialogOpen(true)}
@@ -1120,7 +1120,7 @@ export function FoldersTab() {
                 variant="outline"
                 className="shrink-0"
                 onClick={() => {
-                  setNewFolderPath(sharePointConfig.root_folder || "TEEEM Jobs");
+                  setNewFolderPath(sharePointConfig.root_folder || "Jobs");
                   setFolderDialogOpen(true);
                 }}
               >
@@ -1188,7 +1188,7 @@ export function FoldersTab() {
                   id="folder-path"
                   value={newFolderPath}
                   onChange={(e) => setNewFolderPath(e.target.value)}
-                  placeholder="TEEEM Jobs"
+                  placeholder="Jobs"
                   className="font-mono"
                 />
                 <p className="text-xs text-muted-foreground">
@@ -1206,7 +1206,7 @@ export function FoldersTab() {
               <span className="text-foreground">
                 {folderSelectionMode === "browse"
                   ? (selectedBrowserFolder?.path || "Select a folder...")
-                  : (newFolderPath || "TEEEM Jobs")}
+                  : (newFolderPath || "Jobs")}
               </span>{" "}
               / [Job Code] - [Project Name] / ...
             </div>

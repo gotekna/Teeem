@@ -192,6 +192,7 @@ module Api
           # Folder paths (relative to root)
           :sharepoint_root_path,
           :sharepoint_jobs_path,
+          :sharepoint_tasks_path,
           :sharepoint_people_path,
           :sharepoint_company_path,
           :sharepoint_contacts_path,

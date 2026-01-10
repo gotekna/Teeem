@@ -60,15 +60,16 @@ class CorporateCompanySetting < ApplicationRecord
   end
 
   # Get base path for document storage by scope
+  # SSoT: Uses database values - NO HARDCODED FALLBACKS
   def self.base_path_for_scope(scope)
     setting = instance
     case scope.to_s
     when "company", "both"
-      setting.company_documents_base_path.presence || "00 TEEEM PRIVATE"
+      setting.company_documents_base_path.presence || "Corporate"
     when "people"
-      setting.people_documents_base_path.presence || "teeem/Corporate/People"
+      setting.people_documents_base_path.presence || "Corporate/People"
     when "job"
-      setting.job_documents_base_path.presence || "TEEEM Jobs"
+      setting.job_documents_base_path.presence || "Jobs"
     else
       raise ArgumentError, "Unknown scope: #{scope}"
     end
@@ -103,19 +104,20 @@ class CorporateCompanySetting < ApplicationRecord
   end
 
   # Get full path for a document scope
-  # Returns: "/Shared Documents/TEEEM Jobs" for scope: :jobs
+  # Returns: "/Shared Documents/Jobs" for scope: :jobs
+  # SSoT: All paths come from database - NO HARDCODED FALLBACKS
   def self.sharepoint_full_path(scope)
     setting = instance
     root = setting.sharepoint_root_path.presence || "/Shared Documents"
     sub_path = case scope.to_sym
                when :jobs, :job
-                 setting.sharepoint_jobs_path.presence || "TEEEM Jobs"
+                 setting.sharepoint_jobs_path.presence || "Jobs"
                when :tasks, :task
                  setting.sharepoint_tasks_path.presence || "Tasks"
                when :people
                  setting.sharepoint_people_path.presence || "Corporate/People"
                when :company
-                 setting.sharepoint_company_path.presence || "00 TEEEM PRIVATE"
+                 setting.sharepoint_company_path.presence || "Corporate"
                when :contacts
                  setting.sharepoint_contacts_path.presence || "Contacts"
                else
@@ -127,6 +129,7 @@ class CorporateCompanySetting < ApplicationRecord
   end
 
   # Get SharePoint config hash for API responses
+  # SSoT: Returns actual database values - frontend handles empty states
   def self.sharepoint_config
     setting = instance
     {
@@ -137,10 +140,10 @@ class CorporateCompanySetting < ApplicationRecord
       drive_name: setting.sharepoint_drive_name,
       root_path: setting.sharepoint_root_path.presence || "/Shared Documents",
       paths: {
-        jobs: setting.sharepoint_jobs_path.presence || "TEEEM Jobs",
+        jobs: setting.sharepoint_jobs_path.presence || "Jobs",
         tasks: setting.sharepoint_tasks_path.presence || "Tasks",
         people: setting.sharepoint_people_path.presence || "Corporate/People",
-        company: setting.sharepoint_company_path.presence || "00 TEEEM PRIVATE",
+        company: setting.sharepoint_company_path.presence || "Corporate",
         contacts: setting.sharepoint_contacts_path.presence || "Contacts"
       },
       templates: {

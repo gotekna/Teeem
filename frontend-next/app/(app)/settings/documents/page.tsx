@@ -155,7 +155,7 @@ export default function DocumentSettingsPage() {
               onChange={(e) =>
                 setPaths({ ...paths, job_documents_base_path: e.target.value })
               }
-              placeholder="TEEEM Jobs"
+              placeholder="Jobs"
             />
             <p className="text-xs text-muted-foreground">
               Root folder for job documents. Structure:{" "}

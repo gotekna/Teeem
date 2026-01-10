@@ -136,7 +136,7 @@ class OrganizationSharePointCredential < ApplicationRecord
   def jobs_root_folder_path
     root_folder_path.presence ||
       CorporateCompanySetting.instance.sharepoint_jobs_path.presence ||
-      "TEEEM Jobs"
+      "Jobs"
   end
 
   # Get folder path for a specific construction/job

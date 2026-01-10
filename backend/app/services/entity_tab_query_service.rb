@@ -81,9 +81,9 @@ class EntityTabQueryService
     {
       root_path: setting.sharepoint_root_path.presence || "/Shared Documents",
       paths: {
-        job: setting.sharepoint_jobs_path.presence || "TEEEM Jobs",
+        job: setting.sharepoint_jobs_path.presence || "Jobs",
         people: setting.sharepoint_people_path.presence || "Corporate/People",
-        company: setting.sharepoint_company_path.presence || "00 TEEEM PRIVATE",
+        company: setting.sharepoint_company_path.presence || "Corporate",
         contacts: setting.sharepoint_contacts_path.presence || "Contacts"
       },
       templates: {

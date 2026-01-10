@@ -89,8 +89,8 @@ export const DEFAULT_TEMPLATES: Record<ScopeType, string> = {
 
 // SSoT: Default scope paths (relative to root)
 export const DEFAULT_SCOPE_PATHS: Record<ScopeType, string> = {
-  job: "TEEEM Jobs",
-  company: "00 TEEEM PRIVATE",
+  job: "Jobs",
+  company: "Corporate",
   people: "Corporate/People",
   contacts: "Contacts",
 };
