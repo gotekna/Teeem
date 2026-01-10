@@ -32,6 +32,7 @@ export type AnnotationTool =
   | "rectangle"
   | "circle"
   | "arrow"
+  | "callout"  // Text + arrow combined
   | "stamp"
   | "eraser"
   // E-signature field tools

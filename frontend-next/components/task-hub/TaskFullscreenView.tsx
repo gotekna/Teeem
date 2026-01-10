@@ -229,6 +229,7 @@ function SortableQuestionItem({
             }}
             className="h-6 text-sm font-medium flex-1"
             autoFocus
+            spellCheck={true}
           />
         ) : (
           <span
@@ -362,6 +363,7 @@ function SortableQuestionItem({
             }}
             className="h-6 text-sm flex-1"
             autoFocus
+            spellCheck={true}
           />
         ) : (
           <span
@@ -401,23 +403,37 @@ function SortableQuestionItem({
       {/* Answer section */}
       {item.response ? (
         editingAnswerId === item.id ? (
-          <div className="ml-6 flex gap-2">
-            <Input
+          <div className="ml-6 space-y-2">
+            <Textarea
               value={editingAnswerText}
               onChange={(e) => setEditingAnswerText?.(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') handleUpdateAnswer?.(item.id);
                 if (e.key === 'Escape') {
                   setEditingAnswerId?.(null);
                   setEditingAnswerText?.('');
                 }
               }}
-              className="h-7 text-sm"
+              className="min-h-[60px] text-sm resize-y"
               autoFocus
+              spellCheck={true}
             />
-            <Button size="sm" onClick={() => handleUpdateAnswer?.(item.id)} className="h-7">
-              <Check className="h-3 w-3" />
-            </Button>
+            <div className="flex gap-2 justify-end">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setEditingAnswerId?.(null);
+                  setEditingAnswerText?.('');
+                }}
+                className="h-7"
+              >
+                Cancel
+              </Button>
+              <Button size="sm" onClick={() => handleUpdateAnswer?.(item.id)} className="h-7">
+                <Check className="h-3 w-3 mr-1" />
+                Save
+              </Button>
+            </div>
           </div>
         ) : (
           <div
@@ -428,28 +444,42 @@ function SortableQuestionItem({
             }}
           >
             <span className="text-xs text-green-600 dark:text-green-400">Answer:</span>
-            <p className="text-sm">{item.response}</p>
+            <p className="text-sm whitespace-pre-wrap">{item.response}</p>
           </div>
         )
       ) : answeringItemId === item.id ? (
-        <div className="ml-6 flex gap-2">
-          <Input
+        <div className="ml-6 space-y-2">
+          <Textarea
             value={answerText}
             onChange={(e) => setAnswerText?.(e.target.value)}
             placeholder="Type answer..."
-            className="h-7 text-sm"
+            className="min-h-[60px] text-sm resize-y"
             onKeyDown={(e) => {
-              if (e.key === 'Enter') handleAnswerItem?.(item.id);
               if (e.key === 'Escape') {
                 setAnsweringItemId?.(null);
                 setAnswerText?.('');
               }
             }}
             autoFocus
+            spellCheck={true}
           />
-          <Button size="sm" onClick={() => handleAnswerItem?.(item.id)} className="h-7">
-            <Send className="h-3 w-3" />
-          </Button>
+          <div className="flex gap-2 justify-end">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setAnsweringItemId?.(null);
+                setAnswerText?.('');
+              }}
+              className="h-7"
+            >
+              Cancel
+            </Button>
+            <Button size="sm" onClick={() => handleAnswerItem?.(item.id)} className="h-7">
+              <Send className="h-3 w-3 mr-1" />
+              Save
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="ml-6">
@@ -1335,29 +1365,74 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     setActionItemLoading(null);
   };
 
-  // Generate response email body with Q&A, actions, and file links
+  // Generate response email body with Q&A (grouped by headers), actions, and file links
+  // Uses HTML formatting for proper hyperlinks that work for external recipients
   const generateResponseBody = (): string => {
     let body = '';
 
-    // Add questions marked for inclusion in response (with answers)
+    // Helper to format a file link as HTML hyperlink
+    const formatFileLink = (fileName: string, url?: string): string => {
+      if (url) {
+        return `<a href="${url}">${fileName}</a>`;
+      }
+      return fileName;
+    };
+
+    // Get all included questions (with answers)
     const includedQuestions = questionItems.filter(q => q.include_in_response && q.response);
+
     if (includedQuestions.length > 0) {
-      body += 'Responses to your questions:\n\n';
-      includedQuestions.forEach((q, i) => {
-        body += `${i + 1}. ${q.text}\n`;
-        body += `   → ${q.response}\n`;
-        // Include attachments linked to this question
-        if (q.attachments && q.attachments.length > 0) {
-          q.attachments.forEach(att => {
-            const fileName = att.document?.display_name || att.document?.file_name || 'Document';
-            const url = att.sharepoint_url || att.document?.sharepoint_url;
-            if (url) {
-              body += `   📎 See attached: ${fileName} - ${url}\n`;
-            } else {
-              body += `   📎 See attached: ${fileName}\n`;
-            }
-          });
+      body += '<p><strong>Responses to your questions:</strong></p>\n\n';
+
+      // Group questions by their parent header
+      const headerMap = new Map<number | null, typeof includedQuestions>();
+      includedQuestions.forEach(q => {
+        const parentId = q.parent_item_id || null;
+        if (!headerMap.has(parentId)) {
+          headerMap.set(parentId, []);
         }
+        headerMap.get(parentId)!.push(q);
+      });
+
+      // Get header names for display
+      const getHeaderName = (headerId: number | null): string | null => {
+        if (!headerId) return null;
+        const header = headerItems.find(h => h.id === headerId);
+        return header?.text || null;
+      };
+
+      // Sort headers: named headers first, then ungrouped (null)
+      const sortedParentIds = Array.from(headerMap.keys()).sort((a, b) => {
+        if (a === null) return 1;
+        if (b === null) return -1;
+        return 0;
+      });
+
+      let questionNum = 1;
+      sortedParentIds.forEach(parentId => {
+        const questions = headerMap.get(parentId) || [];
+        const headerName = getHeaderName(parentId);
+
+        // Add header if it exists
+        if (headerName) {
+          body += `<p><strong><u>${headerName}</u></strong></p>\n`;
+        }
+
+        // Add questions under this header
+        questions.forEach(q => {
+          body += `<p>${questionNum}. ${q.text}<br>\n`;
+          body += `&nbsp;&nbsp;&nbsp;→ ${q.response}</p>\n`;
+
+          // Include attachments linked to this question
+          if (q.attachments && q.attachments.length > 0) {
+            q.attachments.forEach(att => {
+              const fileName = att.document?.display_name || att.document?.file_name || 'Document';
+              const url = att.sharepoint_url || att.document?.sharepoint_url;
+              body += `<p>&nbsp;&nbsp;&nbsp;📎 See attached: ${formatFileLink(fileName, url)}</p>\n`;
+            });
+          }
+          questionNum++;
+        });
         body += '\n';
       });
     }
@@ -1365,18 +1440,17 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     // Add actions marked for inclusion in response
     const includedActions = actionItems.filter(a => a.include_in_response);
     if (includedActions.length > 0) {
-      body += body ? '\n' : '';
-      body += 'Actions completed:\n\n';
-      includedActions.forEach((a, i) => {
+      body += '<p><strong>Actions completed:</strong></p>\n';
+      body += '<ul>\n';
+      includedActions.forEach(a => {
         const status = a.checked ? '✓' : '○';
-        body += `${status} ${a.text}\n`;
+        body += `<li>${status} ${a.text}</li>\n`;
       });
-      body += '\n';
+      body += '</ul>\n\n';
     }
 
     // Add general response file links (not linked to specific questions)
     const generalResponseAttachments = responseAttachments.filter(att => {
-      // Get attachments that aren't linked to any question
       const linkedToQuestion = questionItems.some(q =>
         q.attachments?.some(a => a.id === att.id)
       );
@@ -1384,17 +1458,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     });
 
     if (generalResponseAttachments.length > 0) {
-      body += body ? '\n' : '';
-      body += 'See attached:\n';
+      body += '<p><strong>See attached:</strong></p>\n';
+      body += '<ul>\n';
       generalResponseAttachments.forEach(att => {
         const fileName = att.document?.display_name || att.document?.file_name || 'Document';
         const url = att.sharepoint_url || att.document?.sharepoint_url;
-        if (url) {
-          body += `• ${fileName} - ${url}\n`;
-        } else {
-          body += `• ${fileName}\n`;
-        }
+        body += `<li>${formatFileLink(fileName, url)}</li>\n`;
       });
+      body += '</ul>\n';
     }
 
     return body.trim();
@@ -2518,56 +2589,54 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
               </div>
 
               {responseAttachments.length > 0 ? (
-                <>
-                  <div className="border rounded-md divide-y bg-primary/5 dark:bg-primary/10">
-                    {responseAttachments.map((att) => (
-                      <div
-                        key={att.id}
-                        className="flex items-center gap-2 p-2 text-xs group"
+                <div className="border rounded-md divide-y bg-primary/5 dark:bg-primary/10 mb-2">
+                  {responseAttachments.map((att) => (
+                    <div
+                      key={att.id}
+                      className="flex items-center gap-2 p-2 text-xs group"
+                    >
+                      <FileText className="h-3 w-3 text-primary shrink-0" />
+                      <span className="flex-1 truncate font-medium">
+                        {att.document?.display_name || att.document?.file_name}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 w-5 p-0"
+                        onClick={() => {
+                          const url = att.sharepoint_url || att.document?.sharepoint_url;
+                          if (url) window.open(url, '_blank');
+                        }}
+                        title="Open in SharePoint"
                       >
-                        <FileText className="h-3 w-3 text-primary shrink-0" />
-                        <span className="flex-1 truncate font-medium">
-                          {att.document?.display_name || att.document?.file_name}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-5 w-5 p-0"
-                          onClick={() => {
-                            const url = att.sharepoint_url || att.document?.sharepoint_url;
-                            if (url) window.open(url, '_blank');
-                          }}
-                          title="Open in SharePoint"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
-                          onClick={() => handleRemoveAttachment(att.id)}
-                          title="Delete attachment"
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                  <Button
-                    variant="default"
-                    size="sm"
-                    className="w-full mt-2"
-                    onClick={() => setShowComposeEmail(true)}
-                  >
-                    <Mail className="h-4 w-4 mr-2" />
-                    Send Response Email
-                  </Button>
-                </>
+                        <ExternalLink className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => handleRemoveAttachment(att.id)}
+                        title="Delete attachment"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
               ) : (
-                <p className="text-xs text-muted-foreground text-center py-3 border border-dashed rounded-md">
+                <p className="text-xs text-muted-foreground text-center py-3 mb-2 border border-dashed rounded-md">
                   Drag files here to add response attachments
                 </p>
               )}
+              <Button
+                variant="default"
+                size="sm"
+                className="w-full"
+                onClick={() => setShowComposeEmail(true)}
+              >
+                <Mail className="h-4 w-4 mr-2" />
+                Send Response Email
+              </Button>
             </div>
               </>
             )}

@@ -24,6 +24,7 @@ import {
   Square,
   Circle,
   ArrowRight,
+  MessageSquareMore,
   Stamp,
   Eraser,
   Undo2,
@@ -48,6 +49,7 @@ const TOOLS: { tool: AnnotationTool; icon: React.ReactNode; label: string }[] = 
   { tool: "rectangle", icon: <Square className="h-4 w-4" />, label: "Rectangle" },
   { tool: "circle", icon: <Circle className="h-4 w-4" />, label: "Circle" },
   { tool: "arrow", icon: <ArrowRight className="h-4 w-4" />, label: "Arrow" },
+  { tool: "callout", icon: <MessageSquareMore className="h-4 w-4" />, label: "Callout" },
   { tool: "stamp", icon: <Stamp className="h-4 w-4" />, label: "Stamp" },
   { tool: "eraser", icon: <Eraser className="h-4 w-4" />, label: "Eraser" },
 ];

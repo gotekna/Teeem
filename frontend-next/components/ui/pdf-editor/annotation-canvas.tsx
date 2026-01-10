@@ -19,6 +19,15 @@ interface AnnotationCanvasProps {
   className?: string;
 }
 
+// Debounce helper
+function debounce<T extends (...args: any[]) => void>(fn: T, ms: number): T {
+  let timeoutId: ReturnType<typeof setTimeout>;
+  return ((...args: any[]) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => fn(...args), ms);
+  }) as T;
+}
+
 export function AnnotationCanvas({
   pageImage,
   width,
@@ -38,24 +47,75 @@ export function AnnotationCanvas({
     states: [],
     index: -1,
   });
+  const isInitializedRef = React.useRef(false);
+  const renderRequestRef = React.useRef<number | null>(null);
+
+  // Debounced annotation save (300ms delay)
+  const debouncedSaveAnnotations = React.useMemo(
+    () =>
+      debounce((canvas: fabric.Canvas) => {
+        const objects = canvas.getObjects().map((obj) => obj.toJSON());
+        onAnnotationsChange(objects);
+      }, 300),
+    [onAnnotationsChange]
+  );
+
+  // Debounced history save (500ms delay)
+  const debouncedSaveHistory = React.useMemo(
+    () =>
+      debounce((canvas: fabric.Canvas) => {
+        const json = JSON.stringify(canvas.toJSON());
+        const history = historyRef.current;
+
+        // Remove any redo states
+        history.states = history.states.slice(0, history.index + 1);
+        history.states.push(json);
+        history.index = history.states.length - 1;
+
+        // Limit history size
+        if (history.states.length > 30) {
+          history.states.shift();
+          history.index--;
+        }
+
+        onHistoryChange(history.index > 0, false);
+      }, 500),
+    [onHistoryChange]
+  );
+
+  // Throttled render using requestAnimationFrame
+  const requestRender = React.useCallback(() => {
+    if (renderRequestRef.current) return;
+    renderRequestRef.current = requestAnimationFrame(() => {
+      fabricRef.current?.renderAll();
+      renderRequestRef.current = null;
+    });
+  }, []);
 
   // Initialize fabric canvas
   React.useEffect(() => {
-    if (!canvasRef.current) return;
+    if (!canvasRef.current || isInitializedRef.current) return;
 
     const canvas = new fabric.Canvas(canvasRef.current, {
       width: width * (zoom / 100),
       height: height * (zoom / 100),
       isDrawingMode: false,
       selection: true,
+      // Performance optimizations
+      renderOnAddRemove: false, // Manual render control
+      skipTargetFind: false,
+      enableRetinaScaling: false, // Disable retina for performance
     });
 
     fabricRef.current = canvas;
+    isInitializedRef.current = true;
 
-    // Load background image
-    fabric.FabricImage.fromURL(pageImage).then((img) => {
+    // Load background image with caching
+    fabric.FabricImage.fromURL(pageImage, { crossOrigin: "anonymous" }).then((img) => {
       img.scaleToWidth(width * (zoom / 100));
       img.scaleToHeight(height * (zoom / 100));
+      // Cache the background image
+      img.set({ objectCaching: true });
       canvas.backgroundImage = img;
       canvas.renderAll();
     });
@@ -63,22 +123,32 @@ export function AnnotationCanvas({
     // Load existing annotations
     if (annotations.length > 0) {
       canvas.loadFromJSON({ objects: annotations }).then(() => {
+        // Enable caching on all objects
+        canvas.getObjects().forEach((obj) => {
+          obj.set({ objectCaching: true });
+        });
         canvas.renderAll();
-        saveHistory();
       });
-    } else {
-      saveHistory();
     }
 
-    // Event handlers
-    canvas.on("object:added", handleObjectChange);
-    canvas.on("object:modified", handleObjectChange);
-    canvas.on("object:removed", handleObjectChange);
+    // Event handlers - debounced
+    const handleChange = () => {
+      debouncedSaveHistory(canvas);
+      debouncedSaveAnnotations(canvas);
+      requestRender();
+    };
+
+    canvas.on("object:added", handleChange);
+    canvas.on("object:modified", handleChange);
+    canvas.on("object:removed", handleChange);
 
     return () => {
+      if (renderRequestRef.current) {
+        cancelAnimationFrame(renderRequestRef.current);
+      }
       canvas.dispose();
+      isInitializedRef.current = false;
     };
-     
   }, [pageImage, width, height]);
 
   // Update canvas size on zoom change
@@ -130,56 +200,44 @@ export function AnnotationCanvas({
         // Shape tools handled in mouse events
         break;
     }
-     
   }, [currentTool, strokeColor, strokeWidth]);
 
   // Handle eraser click
-  const handleEraserClick = React.useCallback((e: fabric.TPointerEventInfo) => {
-    const canvas = fabricRef.current;
-    if (!canvas || currentTool !== "eraser") return;
+  const handleEraserClick = React.useCallback(
+    (e: fabric.TPointerEventInfo) => {
+      const canvas = fabricRef.current;
+      if (!canvas || currentTool !== "eraser") return;
 
-    const target = canvas.findTarget(e.e as MouseEvent);
-    if (target && target !== canvas.backgroundImage) {
-      canvas.remove(target);
-      canvas.renderAll();
-    }
-  }, [currentTool]);
+      const target = canvas.findTarget(e.e as MouseEvent);
+      if (target && target !== canvas.backgroundImage) {
+        canvas.remove(target);
+        canvas.renderAll();
+      }
+    },
+    [currentTool]
+  );
 
-  // Save history for undo/redo
-  const saveHistory = React.useCallback(() => {
-    const canvas = fabricRef.current;
-    if (!canvas) return;
+  // Handle keyboard delete
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const canvas = fabricRef.current;
+      if (!canvas) return;
 
-    const json = JSON.stringify(canvas.toJSON());
-    const history = historyRef.current;
+      if (e.key === "Delete" || e.key === "Backspace") {
+        const activeObjects = canvas.getActiveObjects();
+        if (activeObjects.length > 0) {
+          activeObjects.forEach((obj) => canvas.remove(obj));
+          canvas.discardActiveObject();
+          canvas.renderAll();
+        }
+      }
+    };
 
-    // Remove any redo states
-    history.states = history.states.slice(0, history.index + 1);
-    history.states.push(json);
-    history.index = history.states.length - 1;
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
-    // Limit history size
-    if (history.states.length > 50) {
-      history.states.shift();
-      history.index--;
-    }
-
-    onHistoryChange(history.index > 0, false);
-  }, [onHistoryChange]);
-
-  // Handle object changes
-  const handleObjectChange = React.useCallback(() => {
-    const canvas = fabricRef.current;
-    if (!canvas) return;
-
-    saveHistory();
-
-    // Get all objects (excluding background)
-    const objects = canvas.getObjects().map((obj) => obj.toJSON());
-    onAnnotationsChange(objects);
-  }, [saveHistory, onAnnotationsChange]);
-
-  // Handle shape drawing
+  // Handle shape drawing with throttled rendering
   React.useEffect(() => {
     const canvas = fabricRef.current;
     if (!canvas) return;
@@ -204,11 +262,13 @@ export function AnnotationCanvas({
           fontSize: 16 * (zoom / 100),
           fill: strokeColor,
           fontFamily: "Arial",
+          objectCaching: true,
         });
         canvas.add(text);
         canvas.setActiveObject(text);
         text.enterEditing();
         isDrawingShape = false;
+        canvas.renderAll();
       } else if (currentTool === "rectangle") {
         shape = new fabric.Rect({
           left: startX,
@@ -218,6 +278,7 @@ export function AnnotationCanvas({
           fill: "transparent",
           stroke: strokeColor,
           strokeWidth: strokeWidth,
+          objectCaching: false, // Disable during drawing for responsiveness
         });
         canvas.add(shape);
       } else if (currentTool === "circle") {
@@ -229,12 +290,14 @@ export function AnnotationCanvas({
           fill: "transparent",
           stroke: strokeColor,
           strokeWidth: strokeWidth,
+          objectCaching: false,
         });
         canvas.add(shape);
       } else if (currentTool === "arrow") {
         shape = new fabric.Line([startX, startY, startX, startY], {
           stroke: strokeColor,
           strokeWidth: strokeWidth,
+          objectCaching: false,
         });
         canvas.add(shape);
       }
@@ -247,11 +310,11 @@ export function AnnotationCanvas({
       const currentY = e.pointer.y;
 
       if (currentTool === "rectangle" && shape instanceof fabric.Rect) {
-        const width = Math.abs(currentX - startX);
-        const height = Math.abs(currentY - startY);
+        const w = Math.abs(currentX - startX);
+        const h = Math.abs(currentY - startY);
         shape.set({
-          width,
-          height,
+          width: w,
+          height: h,
           left: Math.min(startX, currentX),
           top: Math.min(startY, currentY),
         });
@@ -271,12 +334,16 @@ export function AnnotationCanvas({
         });
       }
 
-      canvas.renderAll();
+      // Use throttled render instead of renderAll on every move
+      requestRender();
     };
 
     const handleMouseUp = () => {
       if (isDrawingShape && shape) {
+        // Enable caching after drawing is complete
+        shape.set({ objectCaching: true });
         canvas.setActiveObject(shape);
+        canvas.renderAll();
         shape = null;
       }
       isDrawingShape = false;
@@ -291,7 +358,7 @@ export function AnnotationCanvas({
       canvas.off("mouse:move", handleMouseMove);
       canvas.off("mouse:up", handleMouseUp);
     };
-  }, [currentTool, strokeColor, strokeWidth, zoom]);
+  }, [currentTool, strokeColor, strokeWidth, zoom, requestRender]);
 
   return (
     <div className={cn("relative", className)}>
