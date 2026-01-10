@@ -594,7 +594,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   }, []);
 
   // Handle drag over - track if we're over a header for visual feedback
-  const handleDragOver = useCallback((event: DragOverEvent) => {
+  const handleDndDragOver = useCallback((event: DragOverEvent) => {
     const { over } = event;
     if (!over) {
       setOverHeaderId(null);
@@ -1745,6 +1745,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
+                onDragStart={handleDragStart}
+                onDragOver={handleDndDragOver}
                 onDragEnd={handleDragEnd}
               >
                 <SortableContext
@@ -1759,6 +1761,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                         item={header}
                         isHeader
                         isCollapsed={collapsedHeaders.has(header.id)}
+                        isDropTarget={overHeaderId === header.id && activeDragId !== header.id}
                         onToggleCollapse={() => toggleHeaderCollapse(header.id)}
                         onEdit={(text) => {
                           setEditingItemId(header.id);
@@ -1898,6 +1901,34 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                     />
                   ))}
                 </SortableContext>
+
+                {/* Drag overlay for smooth dragging preview */}
+                <DragOverlay>
+                  {activeDragId ? (() => {
+                    const activeItem = groupedQuestions.allItems.find(item => item.id === activeDragId);
+                    if (!activeItem) return null;
+
+                    if (activeItem.item_type === 'header') {
+                      return (
+                        <div className="flex items-center gap-2 p-2 bg-muted rounded-md font-medium text-sm shadow-lg border-2 border-primary">
+                          <GripVertical className="h-4 w-4 text-muted-foreground" />
+                          <ChevronDown className="h-4 w-4" />
+                          <span>{activeItem.text}</span>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="p-2 rounded-md border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-sm shadow-lg border-2 border-primary">
+                        <div className="flex items-center gap-2">
+                          <GripVertical className="h-4 w-4 text-muted-foreground" />
+                          <HelpCircle className="h-4 w-4 text-blue-500" />
+                          <span>{activeItem.text}</span>
+                        </div>
+                      </div>
+                    );
+                  })() : null}
+                </DragOverlay>
               </DndContext>
 
               {questionItems.length === 0 && headerItems.length === 0 && (
