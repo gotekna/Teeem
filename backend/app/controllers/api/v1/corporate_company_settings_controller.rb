@@ -40,29 +40,40 @@ module Api
       end
 
       # GET /api/v1/corporate_company_settings/document_paths
+      # SSoT: Reads from sharepoint_* columns (the SSoT) but returns legacy key names for compatibility
+      # Deprecated: Use /api/v1/corporate_company_settings/sharepoint instead
       def document_paths
         settings = CorporateCompanySetting.instance
         render json: {
           success: true,
           data: {
-            company_documents_base_path: settings.company_documents_base_path,
-            people_documents_base_path: settings.people_documents_base_path,
-            job_documents_base_path: settings.job_documents_base_path
+            # SSoT: Use sharepoint_* columns, return with legacy key names for backward compatibility
+            company_documents_base_path: settings.sharepoint_company_path.presence || "Corporate",
+            people_documents_base_path: settings.sharepoint_people_path.presence || "Corporate/People",
+            job_documents_base_path: settings.sharepoint_jobs_path.presence || "Jobs"
           }
         }
       end
 
       # PATCH /api/v1/corporate_company_settings/document_paths
+      # SSoT: Writes to sharepoint_* columns (the SSoT)
+      # Deprecated: Use /api/v1/corporate_company_settings/sharepoint instead
       def update_document_paths
         settings = CorporateCompanySetting.instance
 
-        if settings.update(document_paths_params)
+        # SSoT: Map legacy param names to SSoT column names
+        ssot_params = {}
+        ssot_params[:sharepoint_company_path] = params.dig(:settings, :company_documents_base_path) if params.dig(:settings, :company_documents_base_path)
+        ssot_params[:sharepoint_people_path] = params.dig(:settings, :people_documents_base_path) if params.dig(:settings, :people_documents_base_path)
+        ssot_params[:sharepoint_jobs_path] = params.dig(:settings, :job_documents_base_path) if params.dig(:settings, :job_documents_base_path)
+
+        if settings.update(ssot_params)
           render json: {
             success: true,
             data: {
-              company_documents_base_path: settings.company_documents_base_path,
-              people_documents_base_path: settings.people_documents_base_path,
-              job_documents_base_path: settings.job_documents_base_path
+              company_documents_base_path: settings.sharepoint_company_path.presence || "Corporate",
+              people_documents_base_path: settings.sharepoint_people_path.presence || "Corporate/People",
+              job_documents_base_path: settings.sharepoint_jobs_path.presence || "Jobs"
             }
           }
         else
@@ -198,6 +209,7 @@ module Api
           :sharepoint_contacts_path,
           # Path templates (with placeholders)
           :sharepoint_job_template,
+          :sharepoint_task_template,
           :sharepoint_company_template,
           :sharepoint_people_template,
           :sharepoint_contacts_template

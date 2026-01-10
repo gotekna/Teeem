@@ -73,8 +73,8 @@ export function SharePointTab() {
     sharepoint_site_id: "",
     sharepoint_drive_id: "",
     sharepoint_drive_name: "",
-    // Folder paths
-    sharepoint_root_path: "/Shared Documents",
+    // Folder paths - root path empty by default (SSoT: paths are relative to drive root)
+    sharepoint_root_path: "",
     sharepoint_jobs_path: "Jobs",
     sharepoint_tasks_path: "Tasks",
     sharepoint_people_path: "Corporate/People",
@@ -82,6 +82,7 @@ export function SharePointTab() {
     sharepoint_contacts_path: "Contacts",
     // Path templates
     sharepoint_job_template: "{{JobCode}}/{{Category}}",
+    sharepoint_task_template: "Task-{{TaskId}}/{{Category}}",
     sharepoint_company_template: "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
     sharepoint_people_template: "{{ContactName}}/{{Category}}",
     sharepoint_contacts_template: "{{ContactName}}/{{Category}}",
@@ -105,13 +106,15 @@ export function SharePointTab() {
           sharepoint_site_id: response.data.site_id || "",
           sharepoint_drive_id: response.data.drive_id || "",
           sharepoint_drive_name: response.data.drive_name || "",
-          sharepoint_root_path: response.data.root_path || "/Shared Documents",
+          // SSoT: root path defaults to empty (drive root), not "/Shared Documents"
+          sharepoint_root_path: response.data.root_path || "",
           sharepoint_jobs_path: response.data.paths?.jobs || "Jobs",
           sharepoint_tasks_path: response.data.paths?.tasks || "Tasks",
           sharepoint_people_path: response.data.paths?.people || "Corporate/People",
           sharepoint_company_path: response.data.paths?.company || "Corporate",
           sharepoint_contacts_path: response.data.paths?.contacts || "Contacts",
           sharepoint_job_template: response.data.templates?.job || "{{JobCode}}/{{Category}}",
+          sharepoint_task_template: response.data.templates?.task || "Task-{{TaskId}}/{{Category}}",
           sharepoint_company_template: response.data.templates?.company || "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
           sharepoint_people_template: response.data.templates?.people || "{{ContactName}}/{{Category}}",
           sharepoint_contacts_template: response.data.templates?.contacts || "{{ContactName}}/{{Category}}",
@@ -223,7 +226,8 @@ export function SharePointTab() {
   const resolveTemplatePreview = (template: string) => {
     return template
       .replace("{{JobCode}}", "JOB-001")
-      .replace("{{Category}}", "Plans")
+      .replace("{{TaskId}}", "2236")
+      .replace("{{Category}}", "Responses")
       .replace("{{CompanyGroup}}", "Tekna Group")
       .replace("{{CompanyCode}}", "TEK")
       .replace("{{TabName}}", "ASIC")
@@ -457,7 +461,7 @@ export function SharePointTab() {
                   id="company_path"
                   value={formData.sharepoint_company_path}
                   onChange={(e) => handleChange("sharepoint_company_path", e.target.value)}
-                  placeholder="00 TEEEM PRIVATE"
+                  placeholder="Corporate"
                   className="flex-1"
                 />
                 <Button variant="outline" size="icon" onClick={() => setShowBrowser("company")}>
@@ -554,6 +558,29 @@ export function SharePointTab() {
                   {getFullPath(formData.sharepoint_jobs_path, resolveTemplatePreview(formData.sharepoint_job_template))}
                 </p>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-1 text-sm font-medium">
+                <ClipboardList className="h-3 w-3 text-cyan-500" />
+                Task Template
+              </div>
+              <TokenBuilder
+                value={formData.sharepoint_task_template}
+                onChange={(value) => handleChange("sharepoint_task_template", value)}
+                scope="sharepoint"
+                showPreview={false}
+                placeholder="Click tokens below to build path..."
+              />
+              <div className="text-xs space-y-1">
+                <p className="text-muted-foreground">Full path preview:</p>
+                <p className="font-mono text-green-600 dark:text-green-400 break-all">
+                  {getFullPath(formData.sharepoint_tasks_path, resolveTemplatePreview(formData.sharepoint_task_template))}
+                </p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                For standalone tasks (tasks without a job)
+              </p>
             </div>
 
             <div className="space-y-2">

@@ -17,7 +17,7 @@ class CorporateSharePointScannerService
 
   # SSoT: Get the preferred company folder path from CorporateCompanySetting
   def self.company_folder_path
-    CorporateCompanySetting.instance.sharepoint_company_path.presence || "00 TEEEM PRIVATE"
+    CorporateCompanySetting.instance.sharepoint_company_path.presence || "Corporate"
   end
 
   # Try multiple possible paths for corporate documents
@@ -33,7 +33,7 @@ class CorporateSharePointScannerService
 
   # DEPRECATED: Use self.company_folder_path instead (SSoT: CorporateCompanySetting)
   # Kept for backwards compatibility only - do not use in new code
-  DEFAULT_FOLDER_PATH = "00 TEEEM PRIVATE"
+  DEFAULT_FOLDER_PATH = "Corporate"
 
   # Known group folders that contain company subfolders
   # These match the groups defined in the Company model

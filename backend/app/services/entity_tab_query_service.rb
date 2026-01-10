@@ -76,18 +76,21 @@ class EntityTabQueryService
   end
 
   # Load SharePoint config once (eliminates 192 queries)
+  # SSoT: root_path defaults to empty string (drive root), not "/Shared Documents"
   def load_sharepoint_config
     setting = CorporateCompanySetting.instance
     {
-      root_path: setting.sharepoint_root_path.presence || "/Shared Documents",
+      root_path: setting.sharepoint_root_path.presence || "",
       paths: {
         job: setting.sharepoint_jobs_path.presence || "Jobs",
+        task: setting.sharepoint_tasks_path.presence || "Tasks",
         people: setting.sharepoint_people_path.presence || "Corporate/People",
         company: setting.sharepoint_company_path.presence || "Corporate",
         contacts: setting.sharepoint_contacts_path.presence || "Contacts"
       },
       templates: {
         job: setting.sharepoint_job_template.presence || "{{JobCode}}/{{Category}}",
+        task: setting.sharepoint_task_template.presence || "Task-{{TaskId}}/{{Category}}",
         people: setting.sharepoint_people_template.presence || "{{ContactName}}/{{Category}}",
         company: setting.sharepoint_company_template.presence || "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
         contacts: setting.sharepoint_contacts_template.presence || "{{ContactName}}/{{Category}}"

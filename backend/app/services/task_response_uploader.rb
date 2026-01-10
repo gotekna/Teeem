@@ -4,11 +4,13 @@
 # Uploads task files to SharePoint
 #
 # For tasks WITH a job:
-#   - "response" → /Shared Documents/Jobs/{JobCode}/Responses/{filename}
-#   - "info" → /Shared Documents/Jobs/{JobCode}/Task Attachments/{filename}
+#   - "response" → /Jobs/{JobCode}/Responses/{filename}
+#   - "info" → /Jobs/{JobCode}/Task Attachments/{filename}
 #
 # For tasks WITHOUT a job (standalone tasks):
-#   - All files → /Shared Documents/Tasks/Task-{id}/{Category}/{filename}
+#   - All files → /Tasks/Task-{id}/{Category}/{filename}
+#
+# SSoT: Paths come from CorporateCompanySetting.job_path() and CorporateCompanySetting.task_path()
 class TaskResponseUploader
   class UploadError < StandardError; end
 

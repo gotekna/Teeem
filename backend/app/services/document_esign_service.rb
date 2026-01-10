@@ -162,7 +162,8 @@ class DocumentEsignService
   end
 
   def build_job_folder_path
-    # Build path like: "TEEEM Jobs/123 - Smith Residence/Documents"
+    # Build path like: "Jobs/123 - Smith Residence/Documents"
+    # SSoT: Uses sharepoint_jobs_path via CorporateCompanySetting.job_documents_base_path
     base_path = CorporateCompanySetting.job_documents_base_path
     job_folder = job.sharepoint_folder_name || "#{job.id} - #{job.name}"
     "#{base_path}/#{job_folder}/Documents"

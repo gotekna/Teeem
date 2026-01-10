@@ -142,9 +142,9 @@ class EntityTab < ApplicationRecord
   def full_sharepoint_path
     return nil unless has_sharepoint_folder && sharepoint_folder_path.present?
 
-    # Get base path from settings
+    # Get base path from settings (SSoT: defaults to drive root, not "/Shared Documents")
     config = CorporateCompanySetting.sharepoint_config rescue {}
-    base_path = config[:root_path] || '/Shared Documents'
+    base_path = config[:root_path] || ''
 
     "#{base_path}/#{sharepoint_folder_path}"
   end

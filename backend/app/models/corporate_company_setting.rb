@@ -60,16 +60,17 @@ class CorporateCompanySetting < ApplicationRecord
   end
 
   # Get base path for document storage by scope
-  # SSoT: Uses database values - NO HARDCODED FALLBACKS
+  # SSoT: Uses sharepoint_* columns (not legacy *_documents_base_path columns)
+  # The sharepoint_* columns are THE SSoT - configured at /admin/system/entity-config/sharepoint_config
   def self.base_path_for_scope(scope)
     setting = instance
     case scope.to_s
     when "company", "both"
-      setting.company_documents_base_path.presence || "Corporate"
+      setting.sharepoint_company_path.presence || "Corporate"
     when "people"
-      setting.people_documents_base_path.presence || "Corporate/People"
+      setting.sharepoint_people_path.presence || "Corporate/People"
     when "job"
-      setting.job_documents_base_path.presence || "Jobs"
+      setting.sharepoint_jobs_path.presence || "Jobs"
     else
       raise ArgumentError, "Unknown scope: #{scope}"
     end
@@ -148,7 +149,7 @@ class CorporateCompanySetting < ApplicationRecord
       },
       templates: {
         job: setting.sharepoint_job_template.presence || "{{JobCode}}/{{Category}}",
-        task: "Task-{{TaskId}}/{{Category}}",
+        task: setting.sharepoint_task_template.presence || "Task-{{TaskId}}/{{Category}}",
         company: setting.sharepoint_company_template.presence || "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
         people: setting.sharepoint_people_template.presence || "{{ContactName}}/{{Category}}",
         contacts: setting.sharepoint_contacts_template.presence || "{{ContactName}}/{{Category}}"
@@ -167,7 +168,7 @@ class CorporateCompanySetting < ApplicationRecord
     when :jobs, :job
       setting.sharepoint_job_template.presence || "{{JobCode}}/{{Category}}"
     when :tasks, :task
-      "Task-{{TaskId}}/{{Category}}"
+      setting.sharepoint_task_template.presence || "Task-{{TaskId}}/{{Category}}"
     when :people
       setting.sharepoint_people_template.presence || "{{ContactName}}/{{Category}}"
     when :company
