@@ -2,7 +2,7 @@
 "use client";
 
 import { Command as CommandPrimitive, useCommandState } from "cmdk";
-import { X, Check } from "lucide-react";
+import { X, Check, Search } from "lucide-react";
 import * as React from "react";
 import { forwardRef, useEffect } from "react";
 
@@ -471,32 +471,35 @@ const MultipleSelector = React.forwardRef<
           }}
         >
           {/* Search input - always on top for easy access */}
-          <CommandPrimitive.Input
-            {...inputProps}
-            ref={inputRef}
-            value={inputValue}
-            disabled={disabled}
-            onValueChange={(value) => {
-              setInputValue(value);
-              inputProps?.onValueChange?.(value);
-            }}
-            onBlur={(event) => {
-              if (!onScrollbar) {
-                setOpen(false);
-              }
-              inputProps?.onBlur?.(event);
-            }}
-            onFocus={(event) => {
-              setOpen(true);
-              triggerSearchOnFocus && onSearch?.(debouncedSearchTerm);
-              inputProps?.onFocus?.(event);
-            }}
-            placeholder={placeholder || "Search..."}
-            className={cn(
-              "w-full bg-transparent outline-none placeholder:text-muted-foreground py-2 px-1",
-              inputProps?.className,
-            )}
-          />
+          <div className="flex items-center gap-2 px-2 py-2 border border-input rounded-md bg-background mb-2">
+            <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+            <CommandPrimitive.Input
+              {...inputProps}
+              ref={inputRef}
+              value={inputValue}
+              disabled={disabled}
+              onValueChange={(value) => {
+                setInputValue(value);
+                inputProps?.onValueChange?.(value);
+              }}
+              onBlur={(event) => {
+                if (!onScrollbar) {
+                  setOpen(false);
+                }
+                inputProps?.onBlur?.(event);
+              }}
+              onFocus={(event) => {
+                setOpen(true);
+                triggerSearchOnFocus && onSearch?.(debouncedSearchTerm);
+                inputProps?.onFocus?.(event);
+              }}
+              placeholder={placeholder || "Search..."}
+              className={cn(
+                "flex-1 bg-transparent outline-none placeholder:text-muted-foreground text-sm",
+                inputProps?.className,
+              )}
+            />
+          </div>
           {/* Selected items below search */}
           {selected.length > 0 && (
             <div className="relative flex flex-wrap gap-1 pb-2 px-1">

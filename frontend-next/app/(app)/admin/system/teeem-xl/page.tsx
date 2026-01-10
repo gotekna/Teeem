@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useLayoutMode } from "@/contexts/LayoutModeContext";
 
 // Grid configuration
 const DEFAULT_ROWS = 50;
@@ -80,6 +81,13 @@ export default function TeeemXLPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const spreadsheetId = searchParams.get("id");
+  const { setMode } = useLayoutMode();
+
+  // Enable fullscreen mode (hide sidebar/breadcrumbs)
+  React.useEffect(() => {
+    setMode("fullscreen");
+    return () => setMode("padded");
+  }, [setMode]);
 
   // State
   const [loading, setLoading] = React.useState(true);
