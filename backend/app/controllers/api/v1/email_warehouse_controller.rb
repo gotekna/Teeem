@@ -836,7 +836,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
   end
 
   # GET /api/v1/email_warehouse/:id/attachments/:attachment_id/download
-  # Download an attachment - tries SharePoint first (SSoT), falls back to Outlook
+  # Download an attachment - tries local storage first (SSoT), then SharePoint, then Outlook
   # attachment_id can be either local EmailAttachment ID or outlook_attachment_id
   def download_attachment
     attachment_id = params[:attachment_id]
@@ -847,7 +847,21 @@ class Api::V1::EmailWarehouseController < ApplicationController
     filename_hint = email_attachment&.filename || email_attachment&.attachment&.filename
     content_type_hint = email_attachment&.attachment&.content_type
 
-    # SSoT: Try SharePoint first if attachment is synced there
+    # SSoT: Try local ActiveStorage files first (most reliable)
+    if @email.files.attached? && filename_hint.present?
+      local_file = @email.files.find { |f| f.filename.to_s == filename_hint }
+      if local_file
+        Rails.logger.info "[EmailWarehouse] Downloading attachment from local storage: #{filename_hint}"
+        return send_data(
+          local_file.download,
+          filename: filename_hint,
+          type: local_file.content_type || "application/octet-stream",
+          disposition: "attachment"
+        )
+      end
+    end
+
+    # Fallback 1: Try SharePoint if attachment is synced there
     if email_attachment&.attachment&.sharepoint_file_id.present?
       sp_config = MicrosoftCredential.teeem_sharepoint_config
       if sp_config

@@ -717,11 +717,14 @@ class EmailWarehouse < ApplicationRecord
     pdf_texts.presence
   end
 
-  # Sync PDF attachments from Microsoft 365 using org credentials
-  # SSoT: Uses org-level credentials via MicrosoftAppGraphClient (per-user credentials removed)
-  def sync_attachments!
+  # Sync ALL attachments from Microsoft 365 to local storage (SSoT)
+  # This ensures downloads always work, even if SharePoint/Outlook are unavailable
+  # SSoT: Uses org-level credentials via MicrosoftAppGraphClient
+  # Options:
+  #   force: true - re-sync even if files already attached (for fixing missing attachments)
+  def sync_attachments!(force: false)
     return unless outlook_id.present? && has_attachments
-    return if files.attached?  # Already synced
+    return if files.attached? && !force  # Already synced (unless forced)
 
     # SSoT: Use MicrosoftCredential
     credential = if microsoft_credential_id.present?
@@ -747,11 +750,24 @@ class EmailWarehouse < ApplicationRecord
       attachments = client.get_email_attachments(mailbox, outlook_id)
 
       attachments.each do |attachment|
-        # Only download PDF files
-        next unless attachment["contentType"] == "application/pdf"
+        content_type = attachment["contentType"]&.downcase
+
+        # Skip inline/embedded images (signatures, etc.) - they're usually small
+        # and reference-type attachments that can't be downloaded
+        next if attachment["isInline"] == true
+        next if attachment["@odata.type"] == "#microsoft.graph.referenceAttachment"
+
+        # Only download allowed file types (security)
+        next unless ALLOWED_EMAIL_ATTACHMENT_TYPES.any? { |t| content_type&.start_with?(t.split("/").first) }
 
         file_data = client.download_email_attachment(mailbox, outlook_id, attachment["id"])
         next unless file_data
+
+        # Skip if file is too large (> 25MB)
+        next if file_data[:content].bytesize > 25.megabytes
+
+        # Skip if file already attached (for force re-sync)
+        next if files.any? { |f| f.filename.to_s == file_data[:filename] }
 
         # Attach to EmailWarehouse using ActiveStorage
         files.attach(
@@ -760,7 +776,7 @@ class EmailWarehouse < ApplicationRecord
           content_type: file_data[:content_type]
         )
 
-        Rails.logger.info "[EmailWarehouse] Attached PDF #{file_data[:filename]} to email #{id}"
+        Rails.logger.info "[EmailWarehouse] Attached #{file_data[:filename]} (#{file_data[:content_type]}) to email #{id}"
       end
     rescue StandardError => e
       Rails.logger.error "[EmailWarehouse] Failed to sync attachments for email #{id}: #{e.message}"
