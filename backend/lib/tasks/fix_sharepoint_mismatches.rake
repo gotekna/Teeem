@@ -44,9 +44,10 @@ namespace :documents do
           puts "     SharePoint: #{sp_name}"
 
           # FIX: Update DB filename to match SharePoint (SSoT)
+          # Use update_column to bypass validations (we're just syncing the filename)
           begin
             old_name = doc.file_name
-            doc.update!(file_name: sp_name)
+            doc.update_column(:file_name, sp_name)
             fixed << { id: doc.id, old_name: old_name, new_name: sp_name }
             puts "     ✅ FIXED: Updated DB filename to match SharePoint"
           rescue => update_error

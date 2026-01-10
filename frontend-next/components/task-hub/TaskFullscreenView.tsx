@@ -2597,31 +2597,40 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   {responseAttachments.map((att) => (
                     <div
                       key={att.id}
-                      className="flex items-center gap-2 p-2 text-xs group"
+                      className="flex items-center gap-2 p-2 text-xs group hover:bg-muted/50 cursor-pointer"
+                      onClick={() => {
+                        if (att.document) {
+                          const docUrl = `${getApiBaseUrl()}/api/v1/company_documents/${att.document.id}/content`;
+                          setViewerDocument({
+                            url: docUrl,
+                            fileName: att.document.display_name || att.document.file_name || 'document',
+                            fileType: getFileType(att.document.file_name),
+                          });
+                        }
+                      }}
+                      onDoubleClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const url = att.sharepoint_url || att.document?.sharepoint_url;
+                        if (url) {
+                          window.open(url, '_blank');
+                        }
+                      }}
                     >
                       <FileText className="h-3 w-3 text-primary shrink-0" />
-                      {(() => {
-                        const url = att.sharepoint_url || att.document?.sharepoint_url;
-                        const fileName = att.document?.display_name || att.document?.file_name;
-                        return url ? (
-                          <a
-                            href={url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex-1 truncate font-medium text-primary hover:underline"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {fileName}
-                          </a>
-                        ) : (
-                          <span className="flex-1 truncate font-medium">{fileName}</span>
-                        );
-                      })()}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">
+                          {att.document?.display_name || att.document?.file_name}
+                        </div>
+                      </div>
                       <Button
                         variant="ghost"
                         size="sm"
                         className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
-                        onClick={() => handleRemoveAttachment(att.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveAttachment(att.id);
+                        }}
                         title="Delete attachment"
                       >
                         <X className="h-3 w-3" />
