@@ -2600,21 +2600,23 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       className="flex items-center gap-2 p-2 text-xs group"
                     >
                       <FileText className="h-3 w-3 text-primary shrink-0" />
-                      <span className="flex-1 truncate font-medium">
-                        {att.document?.display_name || att.document?.file_name}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-5 w-5 p-0"
-                        onClick={() => {
-                          const url = att.sharepoint_url || att.document?.sharepoint_url;
-                          if (url) window.open(url, '_blank');
-                        }}
-                        title="Open in SharePoint"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                      </Button>
+                      {(() => {
+                        const url = att.sharepoint_url || att.document?.sharepoint_url;
+                        const fileName = att.document?.display_name || att.document?.file_name;
+                        return url ? (
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex-1 truncate font-medium text-primary hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {fileName}
+                          </a>
+                        ) : (
+                          <span className="flex-1 truncate font-medium">{fileName}</span>
+                        );
+                      })()}
                       <Button
                         variant="ghost"
                         size="sm"
