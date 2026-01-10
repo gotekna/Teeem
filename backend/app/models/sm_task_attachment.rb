@@ -7,11 +7,15 @@ class SmTaskAttachment < ApplicationRecord
   # Attachment types
   ATTACHMENT_TYPES = %w[email document upload].freeze
 
+  # Attachment categories
+  CATEGORIES = %w[info response].freeze
+
   # Validations
   validates :attachable_type, inclusion: {
     in: %w[EmailWarehouse CorporateCompanyDocument]
   }
   validates :attachment_type, inclusion: { in: ATTACHMENT_TYPES }, allow_blank: true
+  validates :category, inclusion: { in: CATEGORIES }, allow_blank: true
 
   # Callbacks
   after_create :auto_populate_keywords
@@ -20,6 +24,8 @@ class SmTaskAttachment < ApplicationRecord
   scope :emails, -> { where(attachable_type: "EmailWarehouse") }
   scope :documents, -> { where(attachable_type: "CorporateCompanyDocument") }
   scope :recent, -> { order(created_at: :desc) }
+  scope :info, -> { where(category: "info") }
+  scope :responses, -> { where(category: "response") }
 
   private
 

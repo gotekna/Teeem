@@ -30,14 +30,18 @@ export interface TaskAttachmentDocument {
   created_at: string;
 }
 
+export type AttachmentCategory = 'info' | 'response';
+
 export interface TaskAttachment {
   id: number;
   attachment_type: string;
+  category?: AttachmentCategory;
   notes?: string;
   added_by?: string;
   created_at: string;
   email?: TaskAttachmentEmail;
   document?: TaskAttachmentDocument;
+  sharepoint_url?: string; // For response files uploaded to SharePoint
 }
 
 export type ActionItemType = 'action' | 'question';

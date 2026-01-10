@@ -292,6 +292,7 @@ class OrgEmailSyncJob < ApplicationJob
       email.synced_by_user_id = teeem_user&.id
     end
 
+    is_new_record = email.new_record?
     email.save!
 
     # Build recipient links (to Users and Contacts)
@@ -302,6 +303,18 @@ class OrgEmailSyncJob < ApplicationJob
       rescue StandardError => e
         Rails.logger.error "[OrgEmailSync] Failed to build recipients for email #{email.id}: #{e.message}"
         # Continue even if recipient building fails - email is still saved
+      end
+
+      # SSoT: Sync attachments to local warehouse storage on first sync
+      # This ensures attachments are always available without hitting Outlook API
+      if is_new_record && email.has_attachments
+        begin
+          email.sync_attachments!
+          Rails.logger.info "[OrgEmailSync] Synced attachments for email #{email.id}"
+        rescue StandardError => e
+          Rails.logger.error "[OrgEmailSync] Failed to sync attachments for email #{email.id}: #{e.message}"
+          # Continue even if attachment sync fails - email is still saved
+        end
       end
 
       # Apply email rules (SSoT: same pattern as IMAP sync)

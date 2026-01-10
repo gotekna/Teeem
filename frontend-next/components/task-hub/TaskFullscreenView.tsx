@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { SmTask, TaskAttachment, TaskActionItem, TaskFollower, useTaskHub, ActionItemType } from '@/contexts/TaskHubContext';
+import { SmTask, TaskAttachment, TaskActionItem, TaskFollower, useTaskHub, ActionItemType, AttachmentCategory } from '@/contexts/TaskHubContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,6 +44,8 @@ import { format } from 'date-fns';
 import { ComboboxDropdown, ComboboxItem } from '@/components/ui/combobox-dropdown';
 import { CascadeCompletionDialog } from '@/components/schedule/CascadeCompletionDialog';
 import DocumentPreviewModal from '@/components/corporate/DocumentPreviewModal';
+import { AttachmentCategoryDialog } from './AttachmentCategoryDialog';
+import { ComposeEmailModal } from '@/components/emails/ComposeEmailModal';
 
 interface Job {
   id: number;
@@ -130,6 +132,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [selectedEmailId, setSelectedEmailId] = useState<number | null>(null);
   const [selectedDocumentId, setSelectedDocumentId] = useState<number | null>(null);
 
+  // File drop and category selection
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [showCategoryDialog, setShowCategoryDialog] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+
+  // Email compose for responses
+  const [showComposeEmail, setShowComposeEmail] = useState(false);
+
   // Followers
   const [shareOpen, setShareOpen] = useState(false);
   const [followers, setFollowers] = useState<TaskFollower[]>([]);
@@ -162,6 +172,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   // Filter attachments
   const emailAttachments = localAttachments.filter(a => a.email);
   const documentAttachments = localAttachments.filter(a => a.document && !a.email);
+
+  // Split document attachments by category
+  const infoAttachments = documentAttachments.filter(a => a.category !== 'response');
+  const responseAttachments = documentAttachments.filter(a => a.category === 'response');
 
   // Filter action items
   const actionItems = task.action_items?.filter(item => item.item_type === 'action') || [];
@@ -365,6 +379,97 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       await updateTask(task.id, { email_keywords: emailKeywords });
       setLoading(null);
     }
+  };
+
+  // File drop handlers
+  const handleFileDrop = (file: File) => {
+    setPendingFile(file);
+    setShowCategoryDialog(true);
+  };
+
+  const handleCategorySelect = async (category: AttachmentCategory) => {
+    if (!pendingFile) return;
+
+    setAttachmentLoading(true);
+    setShowCategoryDialog(false);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', pendingFile);
+      formData.append('category', category);
+
+      const response = await api.postFormData<{ success: boolean; attachment: TaskAttachment }>(
+        `/api/v1/sm_tasks/${task.id}/attachments/upload`,
+        formData
+      );
+
+      if (response?.success && response.attachment) {
+        setLocalAttachments(prev => [...prev, response.attachment]);
+      }
+    } catch (err) {
+      console.error('Failed to upload file:', err);
+    } finally {
+      setAttachmentLoading(false);
+      setPendingFile(null);
+    }
+  };
+
+  const handleCategoryCancel = () => {
+    setShowCategoryDialog(false);
+    setPendingFile(null);
+  };
+
+  // Drag and drop handlers for the attachment column
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      handleFileDrop(files[0]);
+    }
+  };
+
+  // Generate response email body with Q&A and file links
+  const generateResponseBody = (): string => {
+    let body = '';
+
+    // Add answered questions
+    const answeredQuestions = questionItems.filter(q => q.response);
+    if (answeredQuestions.length > 0) {
+      body += 'Responses to your questions:\n\n';
+      answeredQuestions.forEach((q, i) => {
+        body += `${i + 1}. ${q.text}\n`;
+        body += `   → ${q.response}\n\n`;
+      });
+    }
+
+    // Add response file links
+    const responseUrls = responseAttachments
+      .map(a => a.sharepoint_url || a.document?.sharepoint_url)
+      .filter(Boolean);
+
+    if (responseUrls.length > 0) {
+      body += '\nAttached files:\n';
+      responseUrls.forEach(url => {
+        body += `• ${url}\n`;
+      });
+    }
+
+    return body.trim();
   };
 
   // Job items for combobox
@@ -1034,7 +1139,24 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           </div>
 
           {/* Column 4: Attachments */}
-          <div className="flex flex-col h-full">
+          <div
+            className={cn(
+              "flex flex-col h-full relative",
+              isDragging && "after:absolute after:inset-0 after:border-2 after:border-dashed after:border-primary after:bg-primary/5 after:rounded-lg after:pointer-events-none"
+            )}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            {/* Drag overlay message */}
+            {isDragging && (
+              <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+                <div className="bg-primary text-primary-foreground px-4 py-2 rounded-lg font-medium text-sm shadow-lg">
+                  Drop file to attach
+                </div>
+              </div>
+            )}
+
             {/* Header with + Add button */}
             <div className="flex items-center justify-between mb-2 shrink-0">
               <div className="flex items-center gap-2">
@@ -1125,8 +1247,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
               )}
             </div>
 
-            {/* Documents Section */}
-            <div>
+            {/* Documents Section (Info attachments) */}
+            <div className="mb-3">
               <div
                 className="flex items-center gap-2 mb-2 cursor-pointer"
                 onClick={() => setDocumentsCollapsed(!documentsCollapsed)}
@@ -1134,14 +1256,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 {documentsCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 <FileText className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-medium text-muted-foreground">Documents</span>
-                <Badge variant="secondary" className="text-xs">{documentAttachments.length}</Badge>
+                <Badge variant="secondary" className="text-xs">{infoAttachments.length}</Badge>
               </div>
 
               {!documentsCollapsed && (
                 <div className="border rounded-md">
-                  {documentAttachments.length > 0 ? (
+                  {infoAttachments.length > 0 ? (
                     <div className="divide-y">
-                      {documentAttachments.map((att) => (
+                      {infoAttachments.map((att) => (
                         <div
                           key={att.id}
                           className="flex items-center gap-2 p-2 hover:bg-muted/50 text-xs group cursor-pointer"
@@ -1181,6 +1303,66 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                     <p className="text-xs text-muted-foreground text-center py-3">No documents attached</p>
                   )}
                 </div>
+              )}
+            </div>
+
+            {/* Response Files Section */}
+            <div className="border-t pt-3">
+              <div className="flex items-center gap-2 mb-2">
+                <Send className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium">Response Files</span>
+                <Badge variant="secondary" className="text-xs">{responseAttachments.length}</Badge>
+              </div>
+
+              {responseAttachments.length > 0 ? (
+                <>
+                  <div className="border rounded-md divide-y bg-primary/5 dark:bg-primary/10">
+                    {responseAttachments.map((att) => (
+                      <div
+                        key={att.id}
+                        className="flex items-center gap-2 p-2 text-xs group"
+                      >
+                        <FileText className="h-3 w-3 text-primary shrink-0" />
+                        <span className="flex-1 truncate font-medium">
+                          {att.document?.display_name || att.document?.file_name}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-5 w-5 p-0"
+                          onClick={() => {
+                            const url = att.sharepoint_url || att.document?.sharepoint_url;
+                            if (url) window.open(url, '_blank');
+                          }}
+                          title="Open in SharePoint"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100"
+                          onClick={() => handleRemoveAttachment(att.id)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="w-full mt-2"
+                    onClick={() => setShowComposeEmail(true)}
+                  >
+                    <Mail className="h-4 w-4 mr-2" />
+                    Send Response Email
+                  </Button>
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground text-center py-3 border border-dashed rounded-md">
+                  Drag files here to add response attachments
+                </p>
               )}
             </div>
           </div>
@@ -1232,7 +1414,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
       {/* Document preview modal */}
       {selectedDocumentId && (() => {
-        const selectedDoc = documentAttachments.find(a => a.document?.id === selectedDocumentId)?.document;
+        // Search both info and response attachments
+        const allDocAttachments = [...infoAttachments, ...responseAttachments];
+        const selectedDoc = allDocAttachments.find(a => a.document?.id === selectedDocumentId)?.document;
         if (!selectedDoc) return null;
         return (
           <DocumentPreviewModal
@@ -1247,6 +1431,28 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           />
         );
       })()}
+
+      {/* Attachment category dialog */}
+      <AttachmentCategoryDialog
+        open={showCategoryDialog}
+        fileName={pendingFile?.name || ''}
+        onSelect={handleCategorySelect}
+        onCancel={handleCategoryCancel}
+      />
+
+      {/* Compose email modal for responses */}
+      {showComposeEmail && (
+        <ComposeEmailModal
+          open={showComposeEmail}
+          onOpenChange={setShowComposeEmail}
+          defaultSubject={`Re: Task #${task.task_number} - ${task.name}`}
+          defaultBody={generateResponseBody()}
+          onSent={() => {
+            setShowComposeEmail(false);
+            refresh();
+          }}
+        />
+      )}
     </div>
   );
 }

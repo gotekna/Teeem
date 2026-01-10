@@ -786,41 +786,82 @@ module Api
 
       # POST /api/v1/sm_tasks/:id/attachments/upload
       # Upload a file and attach it to the task using ActiveStorage
+      # Params:
+      #   - file: The file to upload (required)
+      #   - category: "info" or "response" (default: "info")
+      #   - notes: Optional notes
+      # For response files with a job, uploads to SharePoint /Responses/ folder
       def upload_attachment
         unless params[:file].present?
           return render json: { success: false, error: "No file provided" }, status: :bad_request
         end
 
         file = params[:file]
+        category = params[:category] || "info"
 
         begin
-          # Attach file directly to task using ActiveStorage
-          @task.files.attach(file)
-          attached_file = @task.files.last
-
-          render json: {
-            success: true,
-            attachment: {
-              id: attached_file.id,
-              attachment_type: "upload",
-              notes: params[:notes],
-              added_by: current_user&.name,
-              created_at: attached_file.created_at,
-              document: {
-                id: attached_file.id,
-                file_name: attached_file.filename.to_s,
-                display_name: attached_file.filename.to_s,
-                file_size: attached_file.byte_size,
-                content_type: attached_file.content_type,
-                created_at: attached_file.created_at,
-                url: Rails.application.routes.url_helpers.rails_blob_url(attached_file, only_path: true)
-              }
-            }
-          }
+          # For response files with a job, upload to SharePoint /Responses/ folder
+          if category == "response" && @task.job.present?
+            upload_response_file(file, category)
+          else
+            upload_standard_file(file, category)
+          end
+        rescue TaskResponseUploader::UploadError => e
+          Rails.logger.error "[SmTasksController#upload_attachment] Response upload failed: #{e.message}"
+          render json: { success: false, error: e.message }, status: :unprocessable_entity
         rescue => e
           Rails.logger.error "[SmTasksController#upload_attachment] Failed: #{e.message}"
           render json: { success: false, error: "Upload failed: #{e.message}" }, status: :unprocessable_entity
         end
+      end
+
+      # Upload response file to SharePoint and create SmTaskAttachment
+      def upload_response_file(file, category)
+        uploader = TaskResponseUploader.new(job: @task.job, task: @task)
+        result = uploader.upload(file)
+        doc = uploader.create_document_record(result, file)
+
+        attachment = @task.sm_task_attachments.create!(
+          attachable: doc,
+          attachment_type: "document",
+          category: category,
+          notes: params[:notes],
+          added_by: current_user
+        )
+
+        render json: {
+          success: true,
+          attachment: attachment_to_json(attachment).merge(
+            sharepoint_url: result[:sharepoint_url]
+          )
+        }
+      end
+
+      # Standard file upload using ActiveStorage
+      def upload_standard_file(file, category)
+        @task.files.attach(file)
+        attached_file = @task.files.last
+
+        render json: {
+          success: true,
+          attachment: {
+            id: attached_file.id,
+            attachment_type: "upload",
+            category: category,
+            notes: params[:notes],
+            added_by: current_user&.name,
+            created_at: attached_file.created_at,
+            document: {
+              id: attached_file.id,
+              file_name: attached_file.filename.to_s,
+              display_name: attached_file.filename.to_s,
+              file_size: attached_file.byte_size,
+              content_type: attached_file.content_type,
+              created_at: attached_file.created_at,
+              url: Rails.application.routes.url_helpers.rails_blob_url(attached_file, only_path: true)
+            }
+          }
+        }
       end
 
       # ===== Task Followers =====
@@ -1527,6 +1568,7 @@ module Api
         base = {
           id: attachment.id,
           attachment_type: attachment.attachment_type,
+          category: attachment.category || "info",
           notes: attachment.notes,
           added_by: attachment.added_by&.name,
           created_at: attachment.created_at
