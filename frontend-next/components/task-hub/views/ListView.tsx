@@ -1,77 +1,90 @@
 'use client';
 
-import { useTaskHub } from '@/contexts/TaskHubContext';
+import { useTaskHub, SmTask } from '@/contexts/TaskHubContext';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ArrowUpDown } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useMemo } from 'react';
 import { TaskListRow, TaskListHeader } from '../TaskListRow';
 
-type SortField = 'name' | 'status' | 'start_date' | 'end_date' | 'job_name' | 'trade';
-type SortDirection = 'asc' | 'desc';
+interface SectionProps {
+  title: string;
+  tasks: SmTask[];
+  defaultOpen?: boolean;
+  variant?: 'default' | 'danger' | 'warning';
+  editingTaskId: number | null;
+  editingTaskName: string;
+  setEditingTaskId: (id: number | null) => void;
+  setEditingTaskName: (name: string) => void;
+  onTaskNameSave: (taskId: number) => void;
+}
+
+function Section({
+  title,
+  tasks,
+  defaultOpen = true,
+  variant = 'default',
+  editingTaskId,
+  editingTaskName,
+  setEditingTaskId,
+  setEditingTaskName,
+  onTaskNameSave,
+}: SectionProps) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  if (tasks.length === 0) return null;
+
+  return (
+    <div className={cn(
+      'border rounded overflow-hidden',
+      variant === 'danger' && 'border-red-200 dark:border-red-900',
+      variant === 'warning' && 'border-yellow-200 dark:border-yellow-900'
+    )}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={cn(
+          'w-full flex items-center gap-2 px-2 py-1.5 text-xs font-medium hover:bg-muted/50',
+          variant === 'danger' && 'text-red-700 dark:text-red-400 bg-red-50/50 dark:bg-red-950/20',
+          variant === 'warning' && 'text-yellow-700 dark:text-yellow-400 bg-yellow-50/50 dark:bg-yellow-950/20'
+        )}
+      >
+        {isOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        {title}
+        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 ml-auto">
+          {tasks.length}
+        </Badge>
+      </button>
+      {isOpen && (
+        <div>
+          <TaskListHeader />
+          <div className="divide-y divide-border/50">
+            {tasks.map(task => (
+              <TaskListRow
+                key={task.id}
+                task={task}
+                editingTaskId={editingTaskId}
+                editingTaskName={editingTaskName}
+                setEditingTaskId={setEditingTaskId}
+                setEditingTaskName={setEditingTaskName}
+                onTaskNameSave={onTaskNameSave}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function ListView() {
   const {
     filteredTasks,
-    selectedTaskIds,
-    selectAll,
-    deselectAll,
     updateTask,
   } = useTaskHub();
 
-  const [sort, setSort] = useState<{ field: SortField; direction: SortDirection }>({
-    field: 'start_date',
-    direction: 'asc'
-  });
-
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
   const [editingTaskName, setEditingTaskName] = useState('');
-
-  const sortedTasks = useMemo(() => {
-    return [...filteredTasks].sort((a, b) => {
-      let aVal: string | number | Date = '';
-      let bVal: string | number | Date = '';
-
-      switch (sort.field) {
-        case 'name':
-          aVal = a.name.toLowerCase();
-          bVal = b.name.toLowerCase();
-          break;
-        case 'status':
-          const statusOrder = { not_started: 0, started: 1, completed: 2 };
-          aVal = statusOrder[a.status];
-          bVal = statusOrder[b.status];
-          break;
-        case 'start_date':
-          aVal = new Date(a.start_date).getTime();
-          bVal = new Date(b.start_date).getTime();
-          break;
-        case 'end_date':
-          aVal = new Date(a.end_date).getTime();
-          bVal = new Date(b.end_date).getTime();
-          break;
-        case 'job_name':
-          aVal = (a.job_name || '').toLowerCase();
-          bVal = (b.job_name || '').toLowerCase();
-          break;
-        case 'trade':
-          aVal = (a.trade || '').toLowerCase();
-          bVal = (b.trade || '').toLowerCase();
-          break;
-      }
-
-      if (aVal < bVal) return sort.direction === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sort.direction === 'asc' ? 1 : -1;
-      return 0;
-    });
-  }, [filteredTasks, sort]);
-
-  const handleSort = (field: SortField) => {
-    setSort(prev => ({
-      field,
-      direction: prev.field === field && prev.direction === 'asc' ? 'desc' : 'asc',
-    }));
-  };
 
   const handleTaskNameSave = async (taskId: number) => {
     if (editingTaskName.trim() && editingTaskName.trim() !== filteredTasks.find(t => t.id === taskId)?.name) {
@@ -81,58 +94,75 @@ export function ListView() {
     setEditingTaskName('');
   };
 
-  const allSelected = filteredTasks.length > 0 && filteredTasks.every(t => selectedTaskIds.has(t.id));
+  const { overdue, today, thisWeek, upcoming, completed } = useMemo(() => {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayEnd = new Date(todayStart);
+    todayEnd.setDate(todayEnd.getDate() + 1);
+    const weekEnd = new Date(todayStart);
+    weekEnd.setDate(weekEnd.getDate() + 7);
 
-  const SortHeader = ({ field, children, className }: { field: SortField; children: React.ReactNode; className?: string }) => (
-    <button
-      onClick={() => handleSort(field)}
-      className={cn('flex items-center gap-0.5 hover:text-foreground', className)}
-    >
-      {children}
-      <ArrowUpDown className={cn('h-3 w-3', sort.field === field && 'text-primary')} />
-    </button>
-  );
+    const overdue: SmTask[] = [];
+    const today: SmTask[] = [];
+    const thisWeek: SmTask[] = [];
+    const upcoming: SmTask[] = [];
+    const completed: SmTask[] = [];
+
+    filteredTasks.forEach(task => {
+      if (task.status === 'completed') {
+        completed.push(task);
+        return;
+      }
+
+      const endDate = new Date(task.end_date);
+
+      if (endDate < todayStart) {
+        overdue.push(task);
+      } else if (endDate < todayEnd) {
+        today.push(task);
+      } else if (endDate < weekEnd) {
+        thisWeek.push(task);
+      } else {
+        upcoming.push(task);
+      }
+    });
+
+    // Sort each group by end_date
+    const sortByEndDate = (a: SmTask, b: SmTask) =>
+      new Date(a.end_date).getTime() - new Date(b.end_date).getTime();
+
+    overdue.sort(sortByEndDate);
+    today.sort(sortByEndDate);
+    thisWeek.sort(sortByEndDate);
+    upcoming.sort(sortByEndDate);
+    completed.sort((a, b) => new Date(b.end_date).getTime() - new Date(a.end_date).getTime()); // Most recent first
+
+    return { overdue, today, thisWeek, upcoming, completed };
+  }, [filteredTasks]);
+
+  const editingProps = {
+    editingTaskId,
+    editingTaskName,
+    setEditingTaskId,
+    setEditingTaskName,
+    onTaskNameSave: handleTaskNameSave,
+  };
+
+  if (filteredTasks.length === 0) {
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        <p className="text-sm">No tasks found</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="border rounded overflow-hidden">
-      {/* Header with sort controls */}
-      <div className="grid grid-cols-[28px_1fr_130px_60px_60px_100px_70px_32px] gap-1 px-2 py-1.5 bg-muted/50 text-[11px] font-medium text-muted-foreground border-b">
-        <div>
-          <Checkbox
-            checked={allSelected}
-            onCheckedChange={() => allSelected ? deselectAll() : selectAll()}
-            className="h-3.5 w-3.5"
-          />
-        </div>
-        <SortHeader field="name">Task</SortHeader>
-        <div className="text-center">Progress</div>
-        <SortHeader field="start_date">Start</SortHeader>
-        <SortHeader field="end_date">End</SortHeader>
-        <SortHeader field="job_name">Job</SortHeader>
-        <SortHeader field="trade">Trade</SortHeader>
-        <div></div>
-      </div>
-
-      {/* Rows */}
-      <div className="divide-y divide-border/50 max-h-[600px] overflow-y-auto">
-        {sortedTasks.map(task => (
-          <TaskListRow
-            key={task.id}
-            task={task}
-            editingTaskId={editingTaskId}
-            editingTaskName={editingTaskName}
-            setEditingTaskId={setEditingTaskId}
-            setEditingTaskName={setEditingTaskName}
-            onTaskNameSave={handleTaskNameSave}
-          />
-        ))}
-
-        {sortedTasks.length === 0 && (
-          <div className="text-center py-8 text-xs text-muted-foreground">
-            No tasks found
-          </div>
-        )}
-      </div>
+    <div className="space-y-2">
+      <Section title="Overdue" tasks={overdue} variant="danger" {...editingProps} />
+      <Section title="Today" tasks={today} variant="warning" {...editingProps} />
+      <Section title="This Week" tasks={thisWeek} {...editingProps} />
+      <Section title="Upcoming" tasks={upcoming} defaultOpen={overdue.length === 0 && today.length === 0} {...editingProps} />
+      <Section title="Completed" tasks={completed} defaultOpen={false} {...editingProps} />
     </div>
   );
 }
