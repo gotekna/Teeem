@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -106,6 +106,12 @@ export function ComposeEmailModal({
   const [isScheduled, setIsScheduled] = useState(false);
   const [sendMenuOpen, setSendMenuOpen] = useState(false);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  // Memoize slash command handler to prevent TipTap extension recreation
+  const handleSlashCommand = useCallback((command: "template") => {
+    if (command === "template") {
+      setTemplatePickerOpen(true);
+    }
+  }, []);
   const [scheduledDate, setScheduledDate] = useState<Date | undefined>(undefined);
   const [scheduledTime, setScheduledTime] = useState("09:00");
 
@@ -696,11 +702,7 @@ export function ComposeEmailModal({
                   onChange={(value) => setFormData({ ...formData, body: value })}
                   placeholder="Type / to insert files and more"
                   minHeight={400}
-                  onSlashCommand={(command) => {
-                    if (command === "template") {
-                      setTemplatePickerOpen(true);
-                    }
-                  }}
+                  onSlashCommand={handleSlashCommand}
                 />
 
                 {/* Signature Preview - rendered separately to preserve HTML formatting */}
