@@ -500,7 +500,8 @@ function SortableQuestionItem({
       {item.attachments && item.attachments.length > 0 && (
         <div className="ml-6 space-y-1">
           {item.attachments.map((att) => {
-            const url = att.sharepoint_url || att.document?.sharepoint_url;
+            // Try SharePoint URL first, then ActiveStorage file_url
+            const url = att.sharepoint_url || att.document?.sharepoint_url || att.document?.file_url;
             const fileName = att.document?.display_name || att.document?.file_name || 'Document';
             return (
               <div key={att.id} className="flex items-center gap-2 text-xs">
