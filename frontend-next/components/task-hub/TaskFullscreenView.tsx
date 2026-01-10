@@ -1925,6 +1925,31 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
             {/* Add question input */}
             <div className="flex gap-2 mb-3 shrink-0">
+              {/* Collapse/Expand all headers button */}
+              {groupedQuestions.headers.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 w-8 p-0 shrink-0"
+                  onClick={() => {
+                    const allCollapsed = groupedQuestions.headers.every(h => collapsedHeaders.has(h.id));
+                    if (allCollapsed) {
+                      // Expand all
+                      setCollapsedHeaders(new Set());
+                    } else {
+                      // Collapse all
+                      setCollapsedHeaders(new Set(groupedQuestions.headers.map(h => h.id)));
+                    }
+                  }}
+                  title={groupedQuestions.headers.every(h => collapsedHeaders.has(h.id)) ? "Expand all headers" : "Collapse all headers"}
+                >
+                  {groupedQuestions.headers.every(h => collapsedHeaders.has(h.id)) ? (
+                    <ChevronRight className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </Button>
+              )}
               <Input
                 placeholder="Add question..."
                 value={newActionItemType === 'question' ? newActionItemText : ''}
