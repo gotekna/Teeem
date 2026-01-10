@@ -301,6 +301,10 @@ export default function TeeemXLPage() {
   const [selection, setSelection] = React.useState<Selection | null>(null);
   const [isDragging, setIsDragging] = React.useState(false);
 
+  // Fill handle state (drag to fill)
+  const [isFillDragging, setIsFillDragging] = React.useState(false);
+  const [fillEnd, setFillEnd] = React.useState<{ row: number; col: number } | null>(null);
+
   // Phase 1: Clipboard state
   const [clipboard, setClipboard] = React.useState<ClipboardData | null>(null);
 
@@ -765,6 +769,175 @@ export default function TeeemXLPage() {
   };
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // FILL (DRAG TO FILL)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Detect numeric series pattern (1,2,3 or 10,20,30)
+  const detectSeriesPattern = (values: CellValue[]): { isPattern: boolean; step: number } => {
+    if (values.length < 2) return { isPattern: false, step: 0 };
+
+    const nums = values.map(v => typeof v === "number" ? v : parseFloat(String(v)));
+    if (nums.some(n => isNaN(n))) return { isPattern: false, step: 0 };
+
+    const step = nums[1] - nums[0];
+    for (let i = 2; i < nums.length; i++) {
+      if (Math.abs((nums[i] - nums[i - 1]) - step) > 0.0001) {
+        return { isPattern: false, step: 0 };
+      }
+    }
+    return { isPattern: true, step };
+  };
+
+  // Get fill handle position (bottom-right of selection)
+  const getFillHandlePosition = (): { row: number; col: number } | null => {
+    if (!selection) {
+      if (selectedCell) {
+        const parsed = parseRef(selectedCell);
+        return parsed;
+      }
+      return null;
+    }
+    return {
+      row: Math.max(selection.start.row, selection.end.row),
+      col: Math.max(selection.start.col, selection.end.col),
+    };
+  };
+
+  // Execute fill operation
+  const executeFill = () => {
+    if (!selection || !fillEnd) return;
+
+    const { minRow, maxRow, minCol, maxCol } = getSelectionBounds();
+    const activeSheet = sheets[activeSheetIndex];
+
+    // Determine fill direction
+    const fillToRow = fillEnd.row;
+    const fillToCol = fillEnd.col;
+
+    // Only fill down or right from selection
+    if (fillToRow < maxRow && fillToCol < maxCol) return;
+    if (fillToRow < minRow || fillToCol < minCol) return;
+
+    saveToHistory();
+    const newSheets = [...sheets];
+    const newSheet = { ...newSheets[activeSheetIndex] };
+    newSheet.cells = { ...newSheet.cells };
+
+    // Get source values for pattern detection
+    const sourceValues: CellValue[] = [];
+    const sourceCells: { ref: string; cell: CellData | undefined; row: number; col: number }[] = [];
+
+    // Fill down
+    if (fillToRow > maxRow && fillToCol <= maxCol) {
+      // Get source column values
+      for (let c = minCol; c <= maxCol; c++) {
+        const colValues: CellValue[] = [];
+        const colCells: typeof sourceCells = [];
+
+        for (let r = minRow; r <= maxRow; r++) {
+          const ref = getCellRef(r, c);
+          const cell = activeSheet.cells[ref];
+          colValues.push(cell?.value ?? null);
+          colCells.push({ ref, cell, row: r, col: c });
+        }
+
+        const { isPattern, step } = detectSeriesPattern(colValues);
+        const sourceHeight = maxRow - minRow + 1;
+
+        // Fill each row
+        for (let r = maxRow + 1; r <= fillToRow; r++) {
+          const sourceIndex = (r - maxRow - 1) % sourceHeight;
+          const repeatCount = Math.floor((r - maxRow - 1) / sourceHeight) + 1;
+          const sourceCell = colCells[sourceIndex];
+          const newRef = getCellRef(r, c);
+
+          if (sourceCell.cell) {
+            const newCell = { ...sourceCell.cell };
+
+            if (isPattern && typeof sourceCell.cell.value === "number") {
+              // Extend the numeric series
+              const lastValue = colValues[colValues.length - 1] as number;
+              newCell.value = lastValue + step * (r - maxRow);
+              newCell.type = "number";
+              newCell.formula = undefined;
+            } else if (sourceCell.cell.formula) {
+              // Adjust formula references
+              const rowOffset = r - sourceCell.row;
+              newCell.formula = adjustFormula(sourceCell.cell.formula, rowOffset, 0);
+              newCell.value = evaluateFormula(newCell.formula, newSheet.cells);
+            }
+            // else: just copy the value as-is
+
+            newSheet.cells[newRef] = newCell;
+          }
+        }
+      }
+    }
+
+    // Fill right
+    if (fillToCol > maxCol && fillToRow <= maxRow) {
+      // Get source row values
+      for (let r = minRow; r <= maxRow; r++) {
+        const rowValues: CellValue[] = [];
+        const rowCells: typeof sourceCells = [];
+
+        for (let c = minCol; c <= maxCol; c++) {
+          const ref = getCellRef(r, c);
+          const cell = activeSheet.cells[ref];
+          rowValues.push(cell?.value ?? null);
+          rowCells.push({ ref, cell, row: r, col: c });
+        }
+
+        const { isPattern, step } = detectSeriesPattern(rowValues);
+        const sourceWidth = maxCol - minCol + 1;
+
+        // Fill each column
+        for (let c = maxCol + 1; c <= fillToCol; c++) {
+          const sourceIndex = (c - maxCol - 1) % sourceWidth;
+          const sourceCell = rowCells[sourceIndex];
+          const newRef = getCellRef(r, c);
+
+          if (sourceCell.cell) {
+            const newCell = { ...sourceCell.cell };
+
+            if (isPattern && typeof sourceCell.cell.value === "number") {
+              // Extend the numeric series
+              const lastValue = rowValues[rowValues.length - 1] as number;
+              newCell.value = lastValue + step * (c - maxCol);
+              newCell.type = "number";
+              newCell.formula = undefined;
+            } else if (sourceCell.cell.formula) {
+              // Adjust formula references
+              const colOffset = c - sourceCell.col;
+              newCell.formula = adjustFormula(sourceCell.cell.formula, 0, colOffset);
+              newCell.value = evaluateFormula(newCell.formula, newSheet.cells);
+            }
+
+            newSheet.cells[newRef] = newCell;
+          }
+        }
+      }
+    }
+
+    newSheets[activeSheetIndex] = newSheet;
+    setSheets(newSheets);
+    setHasChanges(true);
+
+    // Extend selection to include filled area
+    if (fillToRow > maxRow) {
+      setSelection({
+        start: { row: minRow, col: minCol },
+        end: { row: fillToRow, col: maxCol },
+      });
+    } else if (fillToCol > maxCol) {
+      setSelection({
+        start: { row: minRow, col: minCol },
+        end: { row: maxRow, col: fillToCol },
+      });
+    }
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // EXPORT
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -853,16 +1026,36 @@ export default function TeeemXLPage() {
     if (isDragging && selection) {
       setSelection((prev) => (prev ? { ...prev, end: { row, col } } : null));
     }
+    if (isFillDragging) {
+      setFillEnd({ row, col });
+    }
   };
 
   const handleMouseUp = () => {
+    if (isFillDragging && fillEnd) {
+      executeFill();
+    }
     setIsDragging(false);
+    setIsFillDragging(false);
+    setFillEnd(null);
   };
 
   React.useEffect(() => {
     window.addEventListener("mouseup", handleMouseUp);
     return () => window.removeEventListener("mouseup", handleMouseUp);
-  }, []);
+  }, [isFillDragging, fillEnd]);
+
+  // Fill handle mouse down
+  const handleFillHandleMouseDown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setIsFillDragging(true);
+    // Initialize fillEnd to current selection end
+    const fillHandlePos = getFillHandlePosition();
+    if (fillHandlePos) {
+      setFillEnd(fillHandlePos);
+    }
+  };
 
   const handleCellDoubleClick = (ref: string) => {
     setSelectedCell(ref);
@@ -1075,6 +1268,28 @@ export default function TeeemXLPage() {
     const isEditing = editingCell === ref;
     const inSelection = isInSelection(row, col);
 
+    // Check if this cell should show the fill handle
+    const fillHandlePos = getFillHandlePosition();
+    const showFillHandle = fillHandlePos &&
+      fillHandlePos.row === row &&
+      fillHandlePos.col === col &&
+      !isEditing &&
+      !isFillDragging;
+
+    // Check if this cell is in the fill preview area
+    const inFillPreview = isFillDragging && fillEnd && selection && (() => {
+      const { minRow, maxRow, minCol, maxCol } = getSelectionBounds();
+      // Fill down preview
+      if (fillEnd.row > maxRow && fillEnd.col <= maxCol) {
+        return row > maxRow && row <= fillEnd.row && col >= minCol && col <= maxCol;
+      }
+      // Fill right preview
+      if (fillEnd.col > maxCol && fillEnd.row <= maxRow) {
+        return col > maxCol && col <= fillEnd.col && row >= minRow && row <= maxRow;
+      }
+      return false;
+    })();
+
     return (
       <div
         key={ref}
@@ -1082,6 +1297,7 @@ export default function TeeemXLPage() {
           "border-r border-b border-gray-200 dark:border-gray-700 px-1 flex items-center overflow-hidden relative",
           isSelected && "ring-2 ring-blue-500 ring-inset z-10",
           inSelection && !isSelected && "bg-blue-100 dark:bg-blue-900/30",
+          inFillPreview && "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700 border-dashed",
           !isEditing && "cursor-cell"
         )}
         style={{ width: CELL_WIDTH, height: CELL_HEIGHT, minWidth: CELL_WIDTH }}
@@ -1104,6 +1320,15 @@ export default function TeeemXLPage() {
           <span className="text-sm truncate">
             {cell?.value?.toString() ?? ""}
           </span>
+        )}
+
+        {/* Fill handle - small blue square in bottom-right corner */}
+        {showFillHandle && (
+          <div
+            className="absolute bottom-0 right-0 w-2 h-2 bg-blue-500 cursor-crosshair z-20 hover:bg-blue-600"
+            onMouseDown={handleFillHandleMouseDown}
+            title="Drag to fill"
+          />
         )}
       </div>
     );

@@ -896,7 +896,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
     end
 
     # Fetch attachment from Microsoft Graph (Outlook)
-    Rails.logger.info "[EmailWarehouse] Downloading attachment from Outlook: #{outlook_attachment_id}"
+    Rails.logger.info "[EmailWarehouse] Downloading attachment from Outlook: #{outlook_attachment_id} for email #{@email.id} (outlook_id: #{@email.outlook_id})"
     client = MicrosoftAppGraphClient.new(credential)
     attachment_data = client.download_email_attachment(mailbox, @email.outlook_id, outlook_attachment_id)
 
@@ -911,11 +911,14 @@ class Api::V1::EmailWarehouseController < ApplicationController
         disposition: "attachment"
       )
     else
-      render json: { error: "Failed to download attachment" }, status: :not_found
+      # Attachment not found or unsupported type
+      Rails.logger.warn "[EmailWarehouse] Attachment not available: email_id=#{@email.id}, attachment_id=#{attachment_id}, outlook_attachment_id=#{outlook_attachment_id}"
+      render json: { error: "Attachment not available - it may have been deleted from email server" }, status: :not_found
     end
   rescue StandardError => e
-    Rails.logger.error "[EmailWarehouse] Attachment download failed: #{e.message}"
-    render json: { error: "Download failed" }, status: :internal_server_error
+    Rails.logger.error "[EmailWarehouse] Attachment download failed: email_id=#{@email.id}, attachment_id=#{params[:attachment_id]}, error=#{e.class}: #{e.message}"
+    Rails.logger.error e.backtrace.first(5).join("\n")
+    render json: { error: "Download failed - please try again or contact support" }, status: :internal_server_error
   end
 
   # GET /api/v1/email_warehouse/rules
