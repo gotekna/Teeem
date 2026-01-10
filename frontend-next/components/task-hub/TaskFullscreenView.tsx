@@ -101,6 +101,7 @@ interface SortableQuestionItemProps {
   onEdit: (text: string) => void;
   onRemove: () => void;
   onAddChild?: () => void;  // For adding question under header
+  onFileDrop?: (file: File, itemId: number) => void;  // For dropping files on questions
   editingItemId: number | null;
   editingItemText: string;
   setEditingItemText: (text: string) => void;
@@ -135,6 +136,7 @@ function SortableQuestionItem({
   onEdit,
   onRemove,
   onAddChild,
+  onFileDrop,
   editingItemId,
   editingItemText,
   setEditingItemText,
@@ -157,6 +159,8 @@ function SortableQuestionItem({
   delegationUsers,
   handleDelegateQuestion,
 }: SortableQuestionItemProps) {
+  const [isFileDropTarget, setIsFileDropTarget] = useState(false);
+
   const {
     attributes,
     listeners,
@@ -1013,6 +1017,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
   // Helper to upload file directly with a category (bypasses dialog)
   const uploadFileWithCategory = async (file: File, category: AttachmentCategory) => {
+    console.log('[TaskFullscreenView] uploadFileWithCategory:', file.name, 'category:', category);
     setAttachmentLoading(true);
     try {
       const formData = new FormData();
@@ -1024,11 +1029,16 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         formData
       );
 
+      console.log('[TaskFullscreenView] Upload response:', response);
+
       if (response?.success && response.attachment) {
+        console.log('[TaskFullscreenView] Adding attachment to local state:', response.attachment);
         setLocalAttachments(prev => [...prev, response.attachment]);
+      } else {
+        console.error('[TaskFullscreenView] Upload failed or no attachment in response:', response);
       }
     } catch (err) {
-      console.error('Failed to upload file:', err);
+      console.error('[TaskFullscreenView] Failed to upload file:', err);
     } finally {
       setAttachmentLoading(false);
     }
@@ -1081,6 +1091,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
+      console.log('[TaskFullscreenView] Dropping file as response:', files[0].name);
       // Auto-upload as response (skip category dialog)
       await uploadFileWithCategory(files[0], 'response');
     }
@@ -1122,15 +1133,18 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       body += '\n';
     }
 
-    // Add response file links
-    const responseUrls = responseAttachments
-      .map(a => a.sharepoint_url || a.document?.sharepoint_url)
-      .filter(Boolean);
-
-    if (responseUrls.length > 0) {
-      body += '\nAttached files:\n';
-      responseUrls.forEach(url => {
-        body += `• ${url}\n`;
+    // Add response file links with document names
+    if (responseAttachments.length > 0) {
+      body += body ? '\n' : '';
+      body += 'See attached:\n';
+      responseAttachments.forEach(att => {
+        const fileName = att.document?.display_name || att.document?.file_name || 'Document';
+        const url = att.sharepoint_url || att.document?.sharepoint_url;
+        if (url) {
+          body += `• ${fileName} - ${url}\n`;
+        } else {
+          body += `• ${fileName}\n`;
+        }
       });
     }
 
@@ -1935,6 +1949,38 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 <p className="text-sm text-muted-foreground text-center py-4">No questions yet</p>
               )}
             </div>
+
+            {/* Response Documents section - shows attached documents for the response */}
+            {responseAttachments.length > 0 && (
+              <div className="mt-3 pt-3 border-t shrink-0">
+                <div className="flex items-center gap-2 mb-2">
+                  <Paperclip className="h-4 w-4 text-green-600" />
+                  <span className="text-sm font-medium text-green-600">See attached:</span>
+                </div>
+                <div className="space-y-1">
+                  {responseAttachments.map((att) => (
+                    <div
+                      key={att.id}
+                      className="flex items-center gap-2 p-2 rounded bg-green-50 dark:bg-green-950/30 text-sm group"
+                    >
+                      <FileText className="h-4 w-4 text-green-600 shrink-0" />
+                      <span className="flex-1 truncate font-medium">
+                        {att.document?.display_name || att.document?.file_name}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100"
+                        onClick={() => handleRemoveAttachment(att.id)}
+                        title="Remove from response"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
           </div>
 

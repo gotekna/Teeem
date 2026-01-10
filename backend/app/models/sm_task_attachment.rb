@@ -3,6 +3,7 @@ class SmTaskAttachment < ApplicationRecord
   belongs_to :sm_task
   belongs_to :attachable, polymorphic: true
   belongs_to :added_by, class_name: "User", optional: true
+  belongs_to :action_item, class_name: "TaskActionItem", optional: true
 
   # Attachment types
   ATTACHMENT_TYPES = %w[email document upload].freeze

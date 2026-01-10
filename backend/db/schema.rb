@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_10_130004) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_10_130005) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8294,6 +8294,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_10_130004) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "category", default: "info"
+    t.bigint "action_item_id"
+    t.index ["action_item_id"], name: "index_sm_task_attachments_on_action_item_id"
     t.index ["added_by_id"], name: "index_sm_task_attachments_on_added_by_id"
     t.index ["attachable_type", "attachable_id"], name: "index_sm_task_attachments_on_attachable_type_and_attachable_id"
     t.index ["category"], name: "index_sm_task_attachments_on_category"
@@ -10608,6 +10610,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_10_130004) do
   add_foreign_key "sm_spawn_logs", "sm_tasks", column: "spawned_task_id", on_delete: :cascade
   add_foreign_key "sm_spawn_logs", "users", column: "spawned_by_id", on_delete: :nullify
   add_foreign_key "sm_task_attachments", "sm_tasks", on_delete: :cascade
+  add_foreign_key "sm_task_attachments", "task_action_items", column: "action_item_id"
   add_foreign_key "sm_task_attachments", "users", column: "added_by_id", on_delete: :nullify
   add_foreign_key "sm_task_document_types", "document_types"
   add_foreign_key "sm_task_document_types", "sm_tasks"

@@ -826,41 +826,49 @@ module Api
           attachment_type: "document",
           category: category,
           notes: params[:notes],
-          added_by: current_user
+          added_by: current_user,
+          action_item_id: params[:action_item_id]
         )
 
         render json: {
           success: true,
           attachment: attachment_to_json(attachment).merge(
-            sharepoint_url: result[:sharepoint_url]
+            sharepoint_url: result[:sharepoint_url],
+            action_item_id: attachment.action_item_id
           )
         }
       end
 
       # Standard file upload using ActiveStorage
+      # Creates a CorporateCompanyDocument record to track the file
       def upload_standard_file(file, category)
-        @task.files.attach(file)
-        attached_file = @task.files.last
+        # Create a document record for the uploaded file
+        doc = CorporateCompanyDocument.create!(
+          file_name: file.original_filename,
+          display_name: file.original_filename,
+          document_type: "Task Upload",
+          organization: @task.organization,
+          uploaded_by: current_user
+        )
+
+        # Attach the file to the document
+        doc.file.attach(file)
+
+        # Create the task attachment linking to the document
+        attachment = @task.sm_task_attachments.create!(
+          attachable: doc,
+          attachment_type: "document",
+          category: category,
+          notes: params[:notes],
+          added_by: current_user,
+          action_item_id: params[:action_item_id]
+        )
 
         render json: {
           success: true,
-          attachment: {
-            id: attached_file.id,
-            attachment_type: "upload",
-            category: category,
-            notes: params[:notes],
-            added_by: current_user&.name,
-            created_at: attached_file.created_at,
-            document: {
-              id: attached_file.id,
-              file_name: attached_file.filename.to_s,
-              display_name: attached_file.filename.to_s,
-              file_size: attached_file.byte_size,
-              content_type: attached_file.content_type,
-              created_at: attached_file.created_at,
-              url: Rails.application.routes.url_helpers.rails_blob_url(attached_file, only_path: true)
-            }
-          }
+          attachment: attachment_to_json(attachment).merge(
+            action_item_id: attachment.action_item_id
+          )
         }
       end
 
@@ -1663,7 +1671,9 @@ module Api
           child_count: item.child_items.count,
           # Delegation info
           delegated: item.delegated?,
-          delegated_task_id: item.delegated_task_id
+          delegated_task_id: item.delegated_task_id,
+          # Response attachments for this question
+          attachments: item.attachments.map { |att| attachment_to_json(att) }
         }
 
         # Include delegated task details if present

@@ -73,6 +73,8 @@ export interface TaskActionItem {
     assigned_user_id?: number;
     assigned_user_name?: string;
   };
+  // Response attachments linked to this question
+  attachments?: TaskAttachment[];
 }
 
 export interface TaskFollower {

@@ -13,6 +13,9 @@ class TaskActionItem < ApplicationRecord
   belongs_to :parent_item, class_name: 'TaskActionItem', optional: true
   has_many :child_items, class_name: 'TaskActionItem',
            foreign_key: :parent_item_id, dependent: :nullify
+  # Response attachments linked to this question
+  has_many :attachments, class_name: 'SmTaskAttachment',
+           foreign_key: :action_item_id, dependent: :nullify
 
   validates :text, presence: true
   validates :item_type, inclusion: { in: ITEM_TYPES }
