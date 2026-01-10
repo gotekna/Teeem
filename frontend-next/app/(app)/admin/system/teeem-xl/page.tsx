@@ -1,437 +1,504 @@
 "use client";
 
 import * as React from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
-import { FileSpreadsheet, Download, Upload, Check, AlertCircle, Code } from "lucide-react";
+import {
+  Save,
+  Download,
+  Plus,
+  Trash2,
+  FileSpreadsheet,
+  ChevronLeft,
+  MoreVertical,
+} from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
-interface ParsedSheet {
-  name: string;
-  rowCount: number;
-  columnCount: number;
-  preview: (string | number | boolean | Date | null)[][];
+// Grid configuration
+const DEFAULT_ROWS = 50;
+const DEFAULT_COLS = 26; // A-Z
+const CELL_WIDTH = 100;
+const CELL_HEIGHT = 28;
+const ROW_HEADER_WIDTH = 50;
+
+// Types
+interface CellData {
+  value: string | number | boolean | null;
+  type?: "string" | "number" | "boolean" | "formula";
+  formula?: string;
 }
 
-interface ParseResult {
-  sheets: ParsedSheet[];
-  totalCells: number;
-  parseTime: number;
+interface SheetData {
+  name: string;
+  cells: Record<string, CellData>;
+}
+
+interface SpreadsheetData {
+  sheets: SheetData[];
+  activeSheet: number;
+  columnWidths: Record<string, number>;
+  frozenRows: number;
+  frozenCols: number;
+}
+
+interface Spreadsheet {
+  id: number;
+  name: string;
+  data: SpreadsheetData;
+  updatedAt: string;
+  createdAt: string;
+}
+
+// Column letter helper
+function getColumnLetter(index: number): string {
+  let result = "";
+  let n = index + 1;
+  while (n > 0) {
+    n--;
+    result = String.fromCharCode((n % 26) + 65) + result;
+    n = Math.floor(n / 26);
+  }
+  return result;
+}
+
+// Cell reference helper
+function getCellRef(row: number, col: number): string {
+  return `${getColumnLetter(col)}${row + 1}`;
 }
 
 export default function TeeemXLPage() {
-  const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
-  const [parsing, setParsing] = React.useState(false);
-  const [parseResult, setParseResult] = React.useState<ParseResult | null>(null);
-  const [parseError, setParseError] = React.useState<string | null>(null);
-  const [generating, setGenerating] = React.useState(false);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const spreadsheetId = searchParams.get("id");
 
-  // Handle file selection
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-      setParseResult(null);
-      setParseError(null);
-    }
-  };
+  // State
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
+  const [spreadsheet, setSpreadsheet] = React.useState<Spreadsheet | null>(null);
+  const [name, setName] = React.useState("Untitled Spreadsheet");
+  const [sheets, setSheets] = React.useState<SheetData[]>([{ name: "Sheet1", cells: {} }]);
+  const [activeSheetIndex, setActiveSheetIndex] = React.useState(0);
+  const [selectedCell, setSelectedCell] = React.useState<string | null>(null);
+  const [editingCell, setEditingCell] = React.useState<string | null>(null);
+  const [editValue, setEditValue] = React.useState("");
+  const [hasChanges, setHasChanges] = React.useState(false);
 
-  // Parse Excel file using TeeemXL
-  const handleParse = async () => {
-    if (!selectedFile) return;
+  const gridRef = React.useRef<HTMLDivElement>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
 
-    setParsing(true);
-    setParseError(null);
-    setParseResult(null);
+  // Load spreadsheet or create new
+  React.useEffect(() => {
+    const loadOrCreate = async () => {
+      setLoading(true);
+      try {
+        if (spreadsheetId) {
+          // Load existing
+          const response = await api.get<{ success: boolean; data: Spreadsheet }>(
+            `/api/v1/teeem_spreadsheets/${spreadsheetId}`
+          );
+          if (response?.success && response.data) {
+            setSpreadsheet(response.data);
+            setName(response.data.name);
+            setSheets(response.data.data.sheets || [{ name: "Sheet1", cells: {} }]);
+            setActiveSheetIndex(response.data.data.activeSheet || 0);
+          }
+        } else {
+          // Create new spreadsheet
+          const response = await api.post<{ success: boolean; data: Spreadsheet }>(
+            "/api/v1/teeem_spreadsheets",
+            { teeem_spreadsheet: { name: "Untitled Spreadsheet" } }
+          );
+          if (response?.success && response.data) {
+            setSpreadsheet(response.data);
+            setName(response.data.name);
+            setSheets(response.data.data.sheets || [{ name: "Sheet1", cells: {} }]);
+            // Update URL with new ID
+            router.replace(`/admin/system/teeem-xl?id=${response.data.id}`);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load/create spreadsheet:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    const startTime = performance.now();
+    loadOrCreate();
+  }, [spreadsheetId, router]);
 
+  // Auto-save on changes (debounced)
+  React.useEffect(() => {
+    if (!hasChanges || !spreadsheet) return;
+
+    const timeout = setTimeout(async () => {
+      await saveSpreadsheet();
+    }, 2000);
+
+    return () => clearTimeout(timeout);
+  }, [hasChanges, sheets, name]);
+
+  // Save spreadsheet
+  const saveSpreadsheet = async () => {
+    if (!spreadsheet) return;
+
+    setSaving(true);
     try {
-      const TeeemXL = await import("@/lib/teeem-xl");
-      const arrayBuffer = await selectedFile.arrayBuffer();
-      const workbook = await TeeemXL.read(arrayBuffer);
-
-      const sheets: ParsedSheet[] = workbook.sheets.map((sheet) => {
-        const rows = TeeemXL.getRows(sheet);
-        const preview = rows.slice(0, 10);
-
-        return {
-          name: sheet.name,
-          rowCount: rows.length,
-          columnCount: rows[0]?.length || 0,
-          preview,
-        };
-      });
-
-      const totalCells = sheets.reduce(
-        (sum, sheet) => sum + sheet.rowCount * sheet.columnCount,
-        0
-      );
-
-      const parseTime = performance.now() - startTime;
-
-      setParseResult({
+      const data: SpreadsheetData = {
         sheets,
-        totalCells,
-        parseTime,
+        activeSheet: activeSheetIndex,
+        columnWidths: {},
+        frozenRows: 0,
+        frozenCols: 0,
+      };
+
+      await api.patch(`/api/v1/teeem_spreadsheets/${spreadsheet.id}`, {
+        teeem_spreadsheet: { name, data },
       });
+      setHasChanges(false);
     } catch (error) {
-      console.error("Parse error:", error);
-      setParseError(error instanceof Error ? error.message : "Failed to parse file");
+      console.error("Failed to save:", error);
     } finally {
-      setParsing(false);
+      setSaving(false);
     }
   };
 
-  // Generate sample Excel file
-  const handleGenerateSample = async () => {
-    setGenerating(true);
+  // Export to XLSX
+  const handleExport = async () => {
+    if (!spreadsheet) return;
 
     try {
       const TeeemXL = await import("@/lib/teeem-xl");
+      const activeSheet = sheets[activeSheetIndex];
 
-      // Create sample data
-      const headerRow = ["ID", "Name", "Department", "Salary", "Start Date", "Active"];
-      const dataRows = [
-        [1, "Alice Johnson", "Engineering", 95000, new Date("2021-03-15"), true],
-        [2, "Bob Smith", "Marketing", 72000, new Date("2020-07-22"), true],
-        [3, "Carol Williams", "Engineering", 88000, new Date("2019-11-08"), true],
-        [4, "David Brown", "Sales", 65000, new Date("2022-01-10"), false],
-        [5, "Eve Davis", "HR", 58000, new Date("2021-09-03"), true],
-        [6, "Frank Miller", "Engineering", 102000, new Date("2018-05-20"), true],
-        [7, "Grace Wilson", "Marketing", 78000, new Date("2020-12-01"), true],
-        [8, "Henry Taylor", "Sales", 71000, new Date("2021-06-15"), true],
-        [9, "Ivy Anderson", "Engineering", 92000, new Date("2019-04-28"), false],
-        [10, "Jack Thomas", "HR", 55000, new Date("2022-08-12"), true],
-      ];
+      // Convert cells to 2D array
+      const rows: (string | number | boolean | null)[][] = [];
+      let maxRow = 0;
+      let maxCol = 0;
 
-      const allData = [headerRow, ...dataRows];
-
-      const blob = await TeeemXL.write(allData, {
-        sheetName: "Employees",
-        headerStyle: { bold: true, backgroundColor: "4F81BD" },
-        freezeHeader: true,
-        columnWidths: [8, 20, 15, 12, 15, 10],
+      Object.entries(activeSheet.cells).forEach(([ref, cell]) => {
+        const match = ref.match(/^([A-Z]+)(\d+)$/i);
+        if (match) {
+          const col = TeeemXL.columnToIndex(match[1]);
+          const row = parseInt(match[2], 10) - 1;
+          maxRow = Math.max(maxRow, row);
+          maxCol = Math.max(maxCol, col);
+        }
       });
 
-      // Download the file
+      // Build array
+      for (let r = 0; r <= maxRow; r++) {
+        const row: (string | number | boolean | null)[] = [];
+        for (let c = 0; c <= maxCol; c++) {
+          const ref = getCellRef(r, c);
+          const cell = activeSheet.cells[ref];
+          row.push(cell?.value ?? null);
+        }
+        rows.push(row);
+      }
+
+      const blob = await TeeemXL.write(rows, {
+        sheetName: activeSheet.name,
+      });
+
+      // Download
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "teeem-xl-sample.xlsx";
+      a.download = `${name}.xlsx`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (error) {
-      console.error("Generate error:", error);
-    } finally {
-      setGenerating(false);
+      console.error("Export failed:", error);
     }
   };
 
+  // Cell handlers
+  const handleCellClick = (ref: string) => {
+    setSelectedCell(ref);
+    setEditingCell(null);
+  };
+
+  const handleCellDoubleClick = (ref: string) => {
+    setSelectedCell(ref);
+    setEditingCell(ref);
+    const cell = sheets[activeSheetIndex].cells[ref];
+    setEditValue(cell?.value?.toString() || "");
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  const handleCellChange = (value: string) => {
+    setEditValue(value);
+  };
+
+  const handleCellBlur = () => {
+    if (editingCell) {
+      const newSheets = [...sheets];
+      const activeSheet = { ...newSheets[activeSheetIndex] };
+      activeSheet.cells = { ...activeSheet.cells };
+
+      if (editValue.trim() === "") {
+        delete activeSheet.cells[editingCell];
+      } else {
+        // Detect type
+        let cellValue: string | number | boolean = editValue;
+        let cellType: "string" | "number" | "boolean" = "string";
+
+        if (!isNaN(Number(editValue)) && editValue.trim() !== "") {
+          cellValue = Number(editValue);
+          cellType = "number";
+        } else if (editValue.toLowerCase() === "true" || editValue.toLowerCase() === "false") {
+          cellValue = editValue.toLowerCase() === "true";
+          cellType = "boolean";
+        }
+
+        activeSheet.cells[editingCell] = { value: cellValue, type: cellType };
+      }
+
+      newSheets[activeSheetIndex] = activeSheet;
+      setSheets(newSheets);
+      setHasChanges(true);
+    }
+    setEditingCell(null);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!selectedCell) return;
+
+    const match = selectedCell.match(/^([A-Z]+)(\d+)$/i);
+    if (!match) return;
+
+    const col = match[1].charCodeAt(0) - 65;
+    const row = parseInt(match[2], 10) - 1;
+
+    if (e.key === "Enter") {
+      if (editingCell) {
+        handleCellBlur();
+        // Move down
+        const newRef = getCellRef(row + 1, col);
+        setSelectedCell(newRef);
+      } else {
+        handleCellDoubleClick(selectedCell);
+      }
+      e.preventDefault();
+    } else if (e.key === "Tab") {
+      if (editingCell) handleCellBlur();
+      // Move right
+      const newRef = getCellRef(row, col + 1);
+      setSelectedCell(newRef);
+      e.preventDefault();
+    } else if (e.key === "Escape") {
+      setEditingCell(null);
+    } else if (!editingCell) {
+      if (e.key === "ArrowUp" && row > 0) {
+        setSelectedCell(getCellRef(row - 1, col));
+      } else if (e.key === "ArrowDown") {
+        setSelectedCell(getCellRef(row + 1, col));
+      } else if (e.key === "ArrowLeft" && col > 0) {
+        setSelectedCell(getCellRef(row, col - 1));
+      } else if (e.key === "ArrowRight") {
+        setSelectedCell(getCellRef(row, col + 1));
+      } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+        // Start typing
+        handleCellDoubleClick(selectedCell);
+        setEditValue(e.key);
+      }
+    }
+  };
+
+  // Add sheet
+  const addSheet = () => {
+    const newSheets = [...sheets, { name: `Sheet${sheets.length + 1}`, cells: {} }];
+    setSheets(newSheets);
+    setActiveSheetIndex(newSheets.length - 1);
+    setHasChanges(true);
+  };
+
+  // Render cell
+  const renderCell = (row: number, col: number) => {
+    const ref = getCellRef(row, col);
+    const cell = sheets[activeSheetIndex]?.cells[ref];
+    const isSelected = selectedCell === ref;
+    const isEditing = editingCell === ref;
+
+    return (
+      <div
+        key={ref}
+        className={cn(
+          "border-r border-b border-gray-200 dark:border-gray-700 px-1 flex items-center overflow-hidden",
+          isSelected && "ring-2 ring-blue-500 ring-inset z-10",
+          !isEditing && "cursor-cell"
+        )}
+        style={{ width: CELL_WIDTH, height: CELL_HEIGHT, minWidth: CELL_WIDTH }}
+        onClick={() => handleCellClick(ref)}
+        onDoubleClick={() => handleCellDoubleClick(ref)}
+      >
+        {isEditing ? (
+          <input
+            ref={inputRef}
+            type="text"
+            value={editValue}
+            onChange={(e) => handleCellChange(e.target.value)}
+            onBlur={handleCellBlur}
+            onKeyDown={handleKeyDown}
+            className="w-full h-full bg-transparent outline-none text-sm"
+            autoFocus
+          />
+        ) : (
+          <span className="text-sm truncate">
+            {cell?.value?.toString() ?? ""}
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Spinner />
+      </div>
+    );
+  }
+
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <div className="h-12 w-12 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-          <FileSpreadsheet className="h-6 w-6 text-green-600 dark:text-green-400" />
+    <div className="flex flex-col h-full" onKeyDown={handleKeyDown} tabIndex={0}>
+      {/* Toolbar */}
+      <div className="flex items-center gap-2 px-4 py-2 border-b bg-background shrink-0">
+        <Button variant="ghost" size="icon" onClick={() => router.push("/admin/system/teeem-xl/list")}>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+
+        <div className="h-5 w-5 rounded bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+          <FileSpreadsheet className="h-3 w-3 text-green-600 dark:text-green-400" />
         </div>
-        <div>
-          <h1 className="text-2xl font-bold">TeeemXL</h1>
-          <p className="text-muted-foreground">
-            Custom Excel library - lightweight, fast, zero external dependencies
-          </p>
-        </div>
-        <Badge variant="secondary" className="ml-auto">
-          v1.0
-        </Badge>
+
+        <Input
+          value={name}
+          onChange={(e) => {
+            setName(e.target.value);
+            setHasChanges(true);
+          }}
+          className="w-64 h-8 text-sm font-medium"
+        />
+
+        <div className="flex-1" />
+
+        {saving && (
+          <span className="text-xs text-muted-foreground flex items-center gap-1">
+            <Spinner size={12} /> Saving...
+          </span>
+        )}
+
+        {hasChanges && !saving && (
+          <span className="text-xs text-muted-foreground">Unsaved changes</span>
+        )}
+
+        <Button variant="outline" size="sm" onClick={saveSpreadsheet} disabled={saving}>
+          <Save className="h-4 w-4 mr-1" />
+          Save
+        </Button>
+
+        <Button variant="outline" size="sm" onClick={handleExport}>
+          <Download className="h-4 w-4 mr-1" />
+          Export
+        </Button>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => router.push("/admin/system/teeem-xl/list")}>
+              All Spreadsheets
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
-      {/* Feature Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Check className="h-4 w-4 text-green-500" />
-              XLSX Read/Write
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground">
-              Full OOXML support for reading and writing Excel files
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Check className="h-4 w-4 text-green-500" />
-              Formulas & Styles
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground">
-              Preserves formulas, formatting, freeze panes, and column widths
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Check className="h-4 w-4 text-green-500" />
-              Roo-Compatible
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground">
-              Backend adapter provides drop-in replacement for Roo gem
-            </p>
-          </CardContent>
-        </Card>
+      {/* Formula bar */}
+      <div className="flex items-center gap-2 px-4 py-1 border-b bg-muted/30 shrink-0">
+        <span className="text-xs font-mono w-12 text-center">
+          {selectedCell || ""}
+        </span>
+        <div className="h-4 w-px bg-border" />
+        <span className="text-xs flex-1">
+          {selectedCell && sheets[activeSheetIndex]?.cells[selectedCell]?.value?.toString()}
+        </span>
       </div>
 
-      {/* Main Content Tabs */}
-      <Tabs defaultValue="read" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="read">
-            <Upload className="h-4 w-4 mr-2" />
-            Read Excel
-          </TabsTrigger>
-          <TabsTrigger value="write">
-            <Download className="h-4 w-4 mr-2" />
-            Write Excel
-          </TabsTrigger>
-          <TabsTrigger value="api">
-            <Code className="h-4 w-4 mr-2" />
-            API Reference
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Read Tab */}
-        <TabsContent value="read" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Parse Excel File</CardTitle>
-              <CardDescription>
-                Select an .xlsx file to parse using TeeemXL
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-end gap-4">
-                <div className="flex-1 space-y-2">
-                  <Label htmlFor="file">Excel File (.xlsx)</Label>
-                  <Input
-                    id="file"
-                    type="file"
-                    accept=".xlsx"
-                    onChange={handleFileChange}
-                  />
-                </div>
-                <Button
-                  onClick={handleParse}
-                  disabled={!selectedFile || parsing}
-                >
-                  {parsing ? (
-                    <>
-                      <Spinner size={16} className="mr-2" />
-                      Parsing...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Parse
-                    </>
-                  )}
-                </Button>
+      {/* Grid */}
+      <div className="flex-1 overflow-auto" ref={gridRef}>
+        <div className="inline-block min-w-full">
+          {/* Column headers */}
+          <div className="flex sticky top-0 z-20 bg-muted">
+            <div
+              className="border-r border-b border-gray-300 dark:border-gray-600 bg-muted"
+              style={{ width: ROW_HEADER_WIDTH, height: CELL_HEIGHT }}
+            />
+            {Array.from({ length: DEFAULT_COLS }, (_, col) => (
+              <div
+                key={col}
+                className="border-r border-b border-gray-300 dark:border-gray-600 bg-muted flex items-center justify-center text-xs font-medium"
+                style={{ width: CELL_WIDTH, height: CELL_HEIGHT, minWidth: CELL_WIDTH }}
+              >
+                {getColumnLetter(col)}
               </div>
+            ))}
+          </div>
 
-              {parseError && (
-                <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400">
-                  <AlertCircle className="h-4 w-4" />
-                  <span className="text-sm">{parseError}</span>
-                </div>
-              )}
+          {/* Rows */}
+          {Array.from({ length: DEFAULT_ROWS }, (_, row) => (
+            <div key={row} className="flex">
+              {/* Row header */}
+              <div
+                className="border-r border-b border-gray-300 dark:border-gray-600 bg-muted flex items-center justify-center text-xs font-medium sticky left-0 z-10"
+                style={{ width: ROW_HEADER_WIDTH, height: CELL_HEIGHT }}
+              >
+                {row + 1}
+              </div>
+              {/* Cells */}
+              {Array.from({ length: DEFAULT_COLS }, (_, col) => renderCell(row, col))}
+            </div>
+          ))}
+        </div>
+      </div>
 
-              {parseResult && (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-4 text-sm">
-                    <Badge variant="outline">
-                      {parseResult.sheets.length} sheet{parseResult.sheets.length !== 1 ? "s" : ""}
-                    </Badge>
-                    <Badge variant="outline">
-                      {parseResult.totalCells.toLocaleString()} cells
-                    </Badge>
-                    <Badge variant="secondary">
-                      Parsed in {parseResult.parseTime.toFixed(1)}ms
-                    </Badge>
-                  </div>
-
-                  {parseResult.sheets.map((sheet, idx) => (
-                    <Card key={idx}>
-                      <CardHeader className="py-3">
-                        <CardTitle className="text-sm flex items-center gap-2">
-                          <FileSpreadsheet className="h-4 w-4" />
-                          {sheet.name}
-                          <Badge variant="secondary" className="ml-2 text-xs">
-                            {sheet.rowCount} rows × {sheet.columnCount} cols
-                          </Badge>
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="pt-0">
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-xs border-collapse">
-                            <tbody>
-                              {sheet.preview.map((row, rowIdx) => (
-                                <tr key={rowIdx} className={rowIdx === 0 ? "bg-muted font-medium" : ""}>
-                                  {row.map((cell, cellIdx) => (
-                                    <td
-                                      key={cellIdx}
-                                      className="border px-2 py-1 max-w-[150px] truncate"
-                                      title={String(cell ?? "")}
-                                    >
-                                      {cell instanceof Date
-                                        ? cell.toLocaleDateString()
-                                        : cell === true
-                                        ? "TRUE"
-                                        : cell === false
-                                        ? "FALSE"
-                                        : cell ?? ""}
-                                    </td>
-                                  ))}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                        {sheet.rowCount > 10 && (
-                          <p className="text-xs text-muted-foreground mt-2">
-                            Showing first 10 of {sheet.rowCount} rows
-                          </p>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Write Tab */}
-        <TabsContent value="write" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Generate Excel File</CardTitle>
-              <CardDescription>
-                Create a sample Excel file using TeeemXL
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Click the button below to generate and download a sample Excel file with:
-              </p>
-              <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
-                <li>10 employee records with various data types</li>
-                <li>Styled header row (bold, colored background)</li>
-                <li>Frozen header row</li>
-                <li>Custom column widths</li>
-              </ul>
-
-              <Button onClick={handleGenerateSample} disabled={generating}>
-                {generating ? (
-                  <>
-                    <Spinner size={16} className="mr-2" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Download className="h-4 w-4 mr-2" />
-                    Download Sample Excel
-                  </>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* API Reference Tab */}
-        <TabsContent value="api" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Frontend API</CardTitle>
-              <CardDescription>TypeScript/JavaScript usage</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <pre className="bg-muted p-4 rounded-lg text-xs overflow-x-auto">
-{`import * as TeeemXL from '@/lib/teeem-xl';
-
-// Read Excel file
-const workbook = await TeeemXL.read(arrayBuffer);
-workbook.sheets.forEach(sheet => {
-  console.log(sheet.name, sheet.getRows());
-});
-
-// Write Excel file
-const data = [
-  ['Name', 'Age', 'Active'],
-  ['Alice', 30, true],
-  ['Bob', 25, false],
-];
-
-const blob = await TeeemXL.write(data, {
-  sheetName: 'People',
-  headerStyle: { bold: true, backgroundColor: '4F81BD' },
-  freezeHeader: true,
-  columnWidths: [20, 10, 10],
-});`}
-              </pre>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Backend API (Ruby)</CardTitle>
-              <CardDescription>Roo-compatible adapter</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <pre className="bg-muted p-4 rounded-lg text-xs overflow-x-auto">
-{`# Read Excel file (Roo-compatible API)
-spreadsheet = TeeemXl::SpreadsheetAdapter.open('file.xlsx')
-
-spreadsheet.sheets          # => ['Sheet1', 'Sheet2']
-spreadsheet.sheet('Sheet1') # Select sheet
-spreadsheet.row(1)          # => ['Header1', 'Header2', ...]
-spreadsheet.cell(1, 1)      # => 'Header1'
-spreadsheet.last_row        # => 100
-spreadsheet.last_column     # => 5
-
-# Write Excel file
-workbook = TeeemXl::Models::Workbook.new
-sheet = workbook.add_sheet('Data')
-sheet.add_row(['Name', 'Value'])
-sheet.add_row(['Item', 100])
-sheet.column_widths = [20, 15]
-sheet.freeze_panes(row: 1)
-
-TeeemXl.write(workbook, 'output.xlsx')`}
-              </pre>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-
-      {/* Footer */}
-      <div className="text-center text-xs text-muted-foreground pt-4 border-t">
-        TeeemXL replaces ExcelJS (frontend) and Roo (backend) with a custom implementation.
-        <br />
-        No external dependencies. Full OOXML compatibility.
+      {/* Sheet tabs */}
+      <div className="flex items-center gap-1 px-2 py-1 border-t bg-muted/50 shrink-0">
+        {sheets.map((sheet, idx) => (
+          <button
+            key={idx}
+            onClick={() => setActiveSheetIndex(idx)}
+            className={cn(
+              "px-3 py-1 text-xs rounded-t border-t border-l border-r",
+              idx === activeSheetIndex
+                ? "bg-background border-gray-300 dark:border-gray-600"
+                : "bg-muted/50 border-transparent hover:bg-muted"
+            )}
+          >
+            {sheet.name}
+          </button>
+        ))}
+        <button
+          onClick={addSheet}
+          className="p-1 text-muted-foreground hover:text-foreground"
+        >
+          <Plus className="h-4 w-4" />
+        </button>
       </div>
     </div>
   );

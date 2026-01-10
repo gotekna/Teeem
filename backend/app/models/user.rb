@@ -20,6 +20,7 @@ class User < ApplicationRecord
   has_many :user_navigation_configs, dependent: :destroy
   has_many :task_followers, dependent: :destroy
   has_many :followed_tasks, through: :task_followers, source: :sm_task
+  has_many :teeem_spreadsheets, dependent: :destroy
 
   # Digital signature for certificates (Form 43, contracts, etc.)
   has_one_attached :signature

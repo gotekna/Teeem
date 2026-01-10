@@ -29,6 +29,13 @@ Rails.application.routes.draw do
       # Feature Trackers
       resources :feature_trackers, only: [ :index, :create, :update, :destroy ]
 
+      # TeeemXL Spreadsheets - user-created spreadsheets
+      resources :teeem_spreadsheets, only: [ :index, :show, :create, :update, :destroy ] do
+        member do
+          get :export  # GET /api/v1/teeem_spreadsheets/:id/export - download as XLSX
+        end
+      end
+
       # Units of Measure (lookup table for pricebook, recipes, etc.)
       resources :units_of_measure, only: [ :index ]
 

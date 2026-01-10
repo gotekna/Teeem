@@ -643,8 +643,12 @@ class EmailWarehouse < ApplicationRecord
     # Batch load users and contacts (2 queries instead of N*2)
     users_by_email = User.where("LOWER(email) IN (?)", unique_emails)
                          .index_by { |u| u.email.downcase }
-    contacts_by_email = Contact.where("LOWER(email) IN (?)", unique_emails)
-                               .index_by { |c| c.email&.downcase }
+
+    # SSoT: Contact emails live in contact_emails table, not on Contact model
+    contact_email_records = ContactEmail.where("LOWER(email) IN (?)", unique_emails).includes(:contact)
+    contacts_by_email = contact_email_records.each_with_object({}) do |ce, hash|
+      hash[ce.email.downcase] = ce.contact if ce.contact
+    end
 
     # Create recipients with preloaded data
     all_emails.each do |entry|
