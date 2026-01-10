@@ -253,15 +253,42 @@ function SortableQuestionItem({
     );
   }
 
+  // File drop handlers for questions
+  const handleQuestionFileDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsFileDropTarget(true);
+  };
+
+  const handleQuestionFileDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsFileDropTarget(false);
+  };
+
+  const handleQuestionFileDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsFileDropTarget(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0 && onFileDrop) {
+      onFileDrop(files[0], item.id);
+    }
+  };
+
   // Question rendering
   return (
     <div
       ref={setNodeRef}
       style={style}
       className={cn(
-        "p-2 rounded-md border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-sm space-y-2",
-        isDragging && "shadow-lg"
+        "p-2 rounded-md border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-sm space-y-2 transition-all",
+        isDragging && "shadow-lg",
+        isFileDropTarget && "ring-2 ring-green-500 ring-offset-1 bg-green-50 dark:bg-green-950/30"
       )}
+      onDragOver={handleQuestionFileDragOver}
+      onDragLeave={handleQuestionFileDragLeave}
+      onDrop={handleQuestionFileDrop}
     >
       <div className="flex items-start gap-2">
         <div {...attributes} {...listeners} className="cursor-grab touch-none mt-0.5">
@@ -373,6 +400,33 @@ function SortableQuestionItem({
           >
             + Add Answer
           </Button>
+        </div>
+      )}
+
+      {/* Attached response documents - displayed as hyperlinks */}
+      {item.attachments && item.attachments.length > 0 && (
+        <div className="ml-6 space-y-1">
+          {item.attachments.map((att) => {
+            const url = att.sharepoint_url || att.document?.sharepoint_url;
+            const fileName = att.document?.display_name || att.document?.file_name || 'Document';
+            return (
+              <div key={att.id} className="flex items-center gap-2 text-xs">
+                <Paperclip className="h-3 w-3 text-green-600 shrink-0" />
+                {url ? (
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-green-600 hover:text-green-700 hover:underline font-medium"
+                  >
+                    {fileName}
+                  </a>
+                ) : (
+                  <span className="text-green-600 font-medium">{fileName}</span>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -1016,15 +1070,18 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   };
 
   // Helper to upload file directly with a category (bypasses dialog)
-  const uploadFileWithCategory = async (file: File, category: AttachmentCategory) => {
-    console.log('[TaskFullscreenView] uploadFileWithCategory:', file.name, 'category:', category);
+  const uploadFileWithCategory = async (file: File, category: AttachmentCategory, actionItemId?: number) => {
+    console.log('[TaskFullscreenView] uploadFileWithCategory:', file.name, 'category:', category, 'actionItemId:', actionItemId);
     setAttachmentLoading(true);
     try {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('category', category);
+      if (actionItemId) {
+        formData.append('action_item_id', actionItemId.toString());
+      }
 
-      const response = await api.postFormData<{ success: boolean; attachment: TaskAttachment }>(
+      const response = await api.postFormData<{ success: boolean; attachment: TaskAttachment & { action_item_id?: number } }>(
         `/api/v1/sm_tasks/${task.id}/attachments/upload`,
         formData
       );
@@ -1034,6 +1091,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       if (response?.success && response.attachment) {
         console.log('[TaskFullscreenView] Adding attachment to local state:', response.attachment);
         setLocalAttachments(prev => [...prev, response.attachment]);
+
+        // If linked to an action item, also update the local task action items
+        if (actionItemId && response.attachment) {
+          // Force a refresh to get the updated action items with attachments
+          refresh();
+        }
       } else {
         console.error('[TaskFullscreenView] Upload failed or no attachment in response:', response);
       }
@@ -1042,6 +1105,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     } finally {
       setAttachmentLoading(false);
     }
+  };
+
+  // Handle file drop on a specific question
+  const handleQuestionFileDrop = async (file: File, actionItemId: number) => {
+    await uploadFileWithCategory(file, 'response', actionItemId);
   };
 
   // Drag and drop handlers for the attachment column
@@ -1117,7 +1185,20 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       body += 'Responses to your questions:\n\n';
       includedQuestions.forEach((q, i) => {
         body += `${i + 1}. ${q.text}\n`;
-        body += `   → ${q.response}\n\n`;
+        body += `   → ${q.response}\n`;
+        // Include attachments linked to this question
+        if (q.attachments && q.attachments.length > 0) {
+          q.attachments.forEach(att => {
+            const fileName = att.document?.display_name || att.document?.file_name || 'Document';
+            const url = att.sharepoint_url || att.document?.sharepoint_url;
+            if (url) {
+              body += `   📎 See attached: ${fileName} - ${url}\n`;
+            } else {
+              body += `   📎 See attached: ${fileName}\n`;
+            }
+          });
+        }
+        body += '\n';
       });
     }
 
@@ -1133,11 +1214,19 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       body += '\n';
     }
 
-    // Add response file links with document names
-    if (responseAttachments.length > 0) {
+    // Add general response file links (not linked to specific questions)
+    const generalResponseAttachments = responseAttachments.filter(att => {
+      // Get attachments that aren't linked to any question
+      const linkedToQuestion = questionItems.some(q =>
+        q.attachments?.some(a => a.id === att.id)
+      );
+      return !linkedToQuestion;
+    });
+
+    if (generalResponseAttachments.length > 0) {
       body += body ? '\n' : '';
       body += 'See attached:\n';
-      responseAttachments.forEach(att => {
+      generalResponseAttachments.forEach(att => {
         const fileName = att.document?.display_name || att.document?.file_name || 'Document';
         const url = att.sharepoint_url || att.document?.sharepoint_url;
         if (url) {
@@ -1854,6 +1943,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                 setEditingItemText(text);
                               }}
                               onRemove={() => handleRemoveItem(child.id)}
+                              onFileDrop={handleQuestionFileDrop}
                               editingItemId={editingItemId}
                               editingItemText={editingItemText}
                               setEditingItemText={setEditingItemText}
@@ -1892,6 +1982,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                         setEditingItemText(text);
                       }}
                       onRemove={() => handleRemoveItem(item.id)}
+                      onFileDrop={handleQuestionFileDrop}
                       editingItemId={editingItemId}
                       editingItemText={editingItemText}
                       setEditingItemText={setEditingItemText}
