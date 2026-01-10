@@ -848,8 +848,8 @@ module Api
           display_name: file.original_filename,
           document_type: "Task Upload",
           job_id: @task.job_id,
-          user: current_user,
-          filed_by: current_user&.name
+          filed_by: current_user&.name,
+          uploaded_at: Time.current
         )
 
         # Attach the file to the document
