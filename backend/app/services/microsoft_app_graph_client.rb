@@ -131,6 +131,16 @@ class MicrosoftAppGraphClient
     get("/users/#{CGI.escape(user_identifier)}/messages/#{message_id}", { "$select" => select })
   end
 
+  # Mark a message as read or unread in Office 365
+  # @param user_identifier [String] User email or ID
+  # @param message_id [String] The MS Graph message ID
+  # @param is_read [Boolean] true to mark as read, false to mark as unread
+  # @return [Hash] The updated message data
+  def mark_message_read(user_identifier, message_id, is_read: true)
+    endpoint = "/users/#{CGI.escape(user_identifier)}/messages/#{message_id}"
+    patch(endpoint, { isRead: is_read })
+  end
+
   # Get email attachments
   def get_email_attachments(user_identifier, message_id)
     endpoint = "/users/#{CGI.escape(user_identifier)}/messages/#{message_id}/attachments"
@@ -934,6 +944,18 @@ class MicrosoftAppGraphClient
       response = HTTP.auth("Bearer #{access_token}")
                      .headers("Content-Type" => "application/json")
                      .post(url, json: body)
+
+      handle_response(response)
+    end
+  end
+
+  def patch(endpoint, body)
+    url = "#{GRAPH_API_BASE}#{endpoint}"
+
+    with_retry do
+      response = HTTP.auth("Bearer #{access_token}")
+                     .headers("Content-Type" => "application/json")
+                     .patch(url, json: body)
 
       handle_response(response)
     end

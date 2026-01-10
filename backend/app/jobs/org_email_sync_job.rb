@@ -322,6 +322,10 @@ class OrgEmailSyncJob < ApplicationJob
 
       # Auto-attach to task if this email belongs to a task's conversation
       auto_attach_to_task(email)
+
+      # SSoT: Sync read status from Office 365 to EmailUserState
+      # Office 365 is the source of truth for read status
+      sync_read_status_from_office365(email, email_data["isRead"])
     end
 
     email
@@ -435,6 +439,29 @@ class OrgEmailSyncJob < ApplicationJob
   rescue StandardError => e
     Rails.logger.error "[OrgEmailSync] Failed to apply rules to email #{email.id}: #{e.message}"
     # Don't fail the sync if rules fail
+  end
+
+  # SSoT: Sync read status from Office 365 to EmailUserState
+  # Office 365 is the source of truth - we mirror the isRead status to TEEEM
+  # @param email [EmailWarehouse] The email record
+  # @param is_read [Boolean] The read status from Office 365
+  def sync_read_status_from_office365(email, is_read)
+    user = email.synced_by_user
+    return unless user
+
+    # Get or create the user state and sync the read status from Office 365
+    state = EmailUserState.find_or_initialize_by(email_warehouse: email, user: user)
+
+    # Only update if Office 365 status differs (to preserve manual overrides when syncing older emails)
+    # For new states, always sync from Office 365
+    if state.new_record? || state.is_read != is_read
+      state.is_read = is_read
+      state.save!
+      Rails.logger.debug "[OrgEmailSync] Synced read status from O365 for email #{email.id}: #{is_read}"
+    end
+  rescue StandardError => e
+    Rails.logger.warn "[OrgEmailSync] Failed to sync read status for email #{email.id}: #{e.message}"
+    # Don't fail the sync if read status sync fails
   end
 
   # Auto-attach email to task if:

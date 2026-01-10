@@ -840,14 +840,16 @@ class Api::V1::EmailWarehouseController < ApplicationController
   # attachment_id can be either local EmailAttachment ID or outlook_attachment_id
   def download_attachment
     attachment_id = params[:attachment_id]
+    filename_param = params[:filename]  # SSoT: Frontend sends filename for local file matching
 
     # Try to find local EmailAttachment first
     email_attachment = @email.email_attachments.find_by(id: attachment_id)
     outlook_attachment_id = email_attachment&.outlook_attachment_id || attachment_id
-    filename_hint = email_attachment&.filename || email_attachment&.attachment&.filename
+    filename_hint = filename_param || email_attachment&.filename || email_attachment&.attachment&.filename
     content_type_hint = email_attachment&.attachment&.content_type
 
     # SSoT: Try local ActiveStorage files first (most reliable)
+    # This is the primary path - files synced via sync_attachments! are stored here
     if @email.files.attached? && filename_hint.present?
       local_file = @email.files.find { |f| f.filename.to_s == filename_hint }
       if local_file

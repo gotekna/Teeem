@@ -104,6 +104,9 @@ class Api::V1::EmailUserStatesController < ApplicationController
   def toggle_read
     state = EmailUserState.toggle_read!(@email, current_user)
 
+    # Sync read status to Office 365 (fire-and-forget, don't block on errors)
+    sync_read_status_to_office365(@email, state.is_read)
+
     render json: {
       success: true,
       data: state.as_json,
@@ -165,6 +168,7 @@ class Api::V1::EmailUserStatesController < ApplicationController
       state = EmailUserState.for(email, current_user)
       unless state.is_read
         state.update!(is_read: true)
+        sync_read_status_to_office365(email, true)
         affected += 1
       end
     end
@@ -215,8 +219,10 @@ class Api::V1::EmailUserStatesController < ApplicationController
         state.update!(is_archived: false)
       when "mark_read"
         state.update!(is_read: true)
+        sync_read_status_to_office365(email, true)
       when "mark_unread"
         state.update!(is_read: false)
+        sync_read_status_to_office365(email, false)
       end
 
       affected += 1
@@ -289,5 +295,31 @@ class Api::V1::EmailUserStatesController < ApplicationController
         snippet: state.email_warehouse.preview_body(length: 150)
       }
     }
+  end
+
+  # Sync read status back to Office 365 (fire-and-forget)
+  # @param email [EmailWarehouse] The email record
+  # @param is_read [Boolean] The read status to sync
+  def sync_read_status_to_office365(email, is_read)
+    return unless email.outlook_id.present? && email.mailbox_owner_email.present?
+    return unless email.microsoft_credential_id.present?
+
+    # Find the credential for this email's mailbox
+    credential = MicrosoftCredential.find_by(id: email.microsoft_credential_id)
+    return unless credential&.status == "connected"
+
+    # Fire-and-forget - don't block the response on MS Graph call
+    Thread.new do
+      begin
+        client = MicrosoftAppGraphClient.new(credential)
+        client.mark_message_read(email.mailbox_owner_email, email.outlook_id, is_read: is_read)
+        Rails.logger.info "[EmailSync] Synced read status to Office 365: #{email.id} -> #{is_read}"
+      rescue StandardError => e
+        # Don't fail the request if Office 365 sync fails
+        Rails.logger.warn "[EmailSync] Failed to sync read status to Office 365 for email #{email.id}: #{e.message}"
+      ensure
+        ActiveRecord::Base.connection_pool.release_connection
+      end
+    end
   end
 end
