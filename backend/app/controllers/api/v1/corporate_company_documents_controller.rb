@@ -154,7 +154,8 @@ module Api
       end
 
       # GET /api/v1/company_documents/:id/content
-      # Proxies the actual file content from OneDrive (for PDF editor CORS bypass)
+      # SSoT self-healing: verifies SharePoint filename matches before serving
+      # If mismatch detected, searches for correct file and auto-corrects the record
       def content
         unless @document.sharepoint_file_id.present?
           return render json: {
@@ -173,25 +174,36 @@ module Api
           end
 
           client = MicrosoftGraphClient.new(credential)
+
+          # === SSoT SELF-HEALING ===
+          # Verify SharePoint file matches before serving content
+          begin
+            sp_file = client.get_file(@document.sharepoint_file_id)
+            sp_filename = sp_file["name"]
+
+            if sp_filename != @document.file_name
+              Rails.logger.warn "[SSoT SELF-HEAL] Document #{@document.id} mismatch: " \
+                "DB='#{@document.file_name}', SharePoint='#{sp_filename}'"
+
+              # Search for correct file in company's SharePoint folder
+              correct_file_id = find_correct_sharepoint_file(client, @document)
+
+              if correct_file_id && correct_file_id != @document.sharepoint_file_id
+                old_id = @document.sharepoint_file_id
+                @document.update!(sharepoint_file_id: correct_file_id)
+                Rails.logger.info "[SSoT SELF-HEAL] Fixed document #{@document.id}: " \
+                  "#{old_id} -> #{correct_file_id}"
+              end
+            end
+          rescue MicrosoftGraphClient::APIError => e
+            # File may not exist - log and continue, download will fail gracefully
+            Rails.logger.warn "[SSoT SELF-HEAL] Cannot verify #{@document.id}: #{e.message}"
+          end
+          # === END SELF-HEALING ===
+
           file_content = client.download_file(@document.sharepoint_file_id)
 
-          # Determine content type from file extension
-          content_type = case @document.file_name&.downcase
-          when /\.pdf$/
-            "application/pdf"
-          when /\.png$/
-            "image/png"
-          when /\.jpe?g$/
-            "image/jpeg"
-          when /\.gif$/
-            "image/gif"
-          when /\.docx?$/
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          when /\.xlsx?$/
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-          else
-            "application/octet-stream"
-          end
+          content_type = determine_content_type(@document.file_name)
 
           # Set CORS headers for frontend access
           response.headers["Access-Control-Allow-Origin"] = request.headers["Origin"] || "*"
@@ -763,6 +775,43 @@ module Api
           :ref_date, :filed_date,
           financial_years: []
         )
+      end
+
+      # SSoT: Search SharePoint for file by name within company's folder
+      def find_correct_sharepoint_file(client, document)
+        return nil unless document.corporate_company.present?
+
+        company = document.corporate_company
+
+        # Search by exact filename
+        search_results = client.search(document.file_name)
+
+        return nil unless search_results["value"].present?
+
+        # Find matching file in company folder
+        search_results["value"].each do |result|
+          next unless result["name"] == document.file_name
+          parent_path = result.dig("parentReference", "path") || ""
+
+          # Verify it's in the company's folder (by company code)
+          if parent_path.include?(company.code)
+            return result["id"]
+          end
+        end
+
+        nil
+      end
+
+      def determine_content_type(filename)
+        case filename&.downcase
+        when /\.pdf$/ then "application/pdf"
+        when /\.png$/ then "image/png"
+        when /\.jpe?g$/ then "image/jpeg"
+        when /\.gif$/ then "image/gif"
+        when /\.docx?$/ then "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        when /\.xlsx?$/ then "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        else "application/octet-stream"
+        end
       end
     end
   end
