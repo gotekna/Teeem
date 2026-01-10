@@ -154,77 +154,28 @@ module Api
       end
 
       # GET /api/v1/company_documents/:id/content
+      # Serves document content from SharePoint (primary) or Active Storage (fallback)
       # SSoT self-healing: verifies SharePoint filename matches before serving
-      # If mismatch detected, searches for correct file and auto-corrects the record
       def content
-        unless @document.sharepoint_file_id.present?
-          return render json: {
-            success: false,
-            error: "No OneDrive file available"
-          }, status: :unprocessable_entity
-        end
+        # Set CORS headers for frontend access
+        response.headers["Access-Control-Allow-Origin"] = request.headers["Origin"] || "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
 
-        begin
-          credential = MicrosoftCredential.sharepoint_credential
-          unless credential
-            return render json: {
-              success: false,
-              error: "OneDrive credentials not available in this environment"
-            }, status: :service_unavailable
-          end
+        # Priority 1: SharePoint file (SSoT for synced documents)
+        if @document.sharepoint_file_id.present?
+          serve_from_sharepoint
 
-          client = MicrosoftGraphClient.new(credential)
+        # Priority 2: Active Storage blob (for manual uploads)
+        elsif @document.file.attached?
+          serve_from_active_storage
 
-          # === SSoT SELF-HEALING ===
-          # Verify SharePoint file matches before serving content
-          begin
-            sp_file = client.get_file(@document.sharepoint_file_id)
-            sp_filename = sp_file["name"]
-
-            if sp_filename != @document.file_name
-              Rails.logger.warn "[SSoT SELF-HEAL] Document #{@document.id} mismatch: " \
-                "DB='#{@document.file_name}', SharePoint='#{sp_filename}'"
-
-              # Search for correct file in company's SharePoint folder
-              correct_file_id = find_correct_sharepoint_file(client, @document)
-
-              if correct_file_id && correct_file_id != @document.sharepoint_file_id
-                old_id = @document.sharepoint_file_id
-                @document.update!(sharepoint_file_id: correct_file_id)
-                Rails.logger.info "[SSoT SELF-HEAL] Fixed document #{@document.id}: " \
-                  "#{old_id} -> #{correct_file_id}"
-              end
-            end
-          rescue MicrosoftGraphClient::APIError => e
-            # File may not exist - log and continue, download will fail gracefully
-            Rails.logger.warn "[SSoT SELF-HEAL] Cannot verify #{@document.id}: #{e.message}"
-          end
-          # === END SELF-HEALING ===
-
-          file_content = client.download_file(@document.sharepoint_file_id)
-
-          content_type = determine_content_type(@document.file_name)
-
-          # Set CORS headers for frontend access
-          response.headers["Access-Control-Allow-Origin"] = request.headers["Origin"] || "*"
-          response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
-          response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-
-          send_data file_content,
-            type: content_type,
-            disposition: "inline",
-            filename: @document.file_name
-        rescue MicrosoftGraphClient::APIError => e
+        # No file available
+        else
           render json: {
             success: false,
-            error: "Failed to fetch file: #{e.message}"
-          }, status: :bad_gateway
-        rescue StandardError => e
-          Rails.logger.error "Document content fetch error: #{e.message}"
-          render json: {
-            success: false,
-            error: "Failed to fetch document content"
-          }, status: :internal_server_error
+            error: "No file available - document has no SharePoint ID and no uploaded file"
+          }, status: :not_found
         end
       end
 
@@ -812,6 +763,86 @@ module Api
         when /\.xlsx?$/ then "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         else "application/octet-stream"
         end
+      end
+
+      # Serve document content from SharePoint with SSoT self-healing
+      def serve_from_sharepoint
+        credential = MicrosoftCredential.sharepoint_credential
+        unless credential
+          return render json: {
+            success: false,
+            error: "OneDrive credentials not available in this environment"
+          }, status: :service_unavailable
+        end
+
+        client = MicrosoftGraphClient.new(credential)
+
+        # === SSoT SELF-HEALING ===
+        # Verify SharePoint file matches before serving content
+        begin
+          sp_file = client.get_file(@document.sharepoint_file_id)
+          sp_filename = sp_file["name"]
+
+          if sp_filename != @document.file_name
+            Rails.logger.warn "[SSoT SELF-HEAL] Document #{@document.id} mismatch: " \
+              "DB='#{@document.file_name}', SharePoint='#{sp_filename}'"
+
+            # Search for correct file in company's SharePoint folder
+            correct_file_id = find_correct_sharepoint_file(client, @document)
+
+            if correct_file_id && correct_file_id != @document.sharepoint_file_id
+              old_id = @document.sharepoint_file_id
+              @document.update!(sharepoint_file_id: correct_file_id)
+              Rails.logger.info "[SSoT SELF-HEAL] Fixed document #{@document.id}: " \
+                "#{old_id} -> #{correct_file_id}"
+            end
+          end
+        rescue MicrosoftGraphClient::APIError => e
+          # File may not exist - log and continue, download will fail gracefully
+          Rails.logger.warn "[SSoT SELF-HEAL] Cannot verify #{@document.id}: #{e.message}"
+        end
+        # === END SELF-HEALING ===
+
+        file_content = client.download_file(@document.sharepoint_file_id)
+        content_type = determine_content_type(@document.file_name)
+
+        send_data file_content,
+          type: content_type,
+          disposition: "inline",
+          filename: @document.file_name
+      rescue MicrosoftGraphClient::APIError => e
+        render json: {
+          success: false,
+          error: "Failed to fetch file from SharePoint: #{e.message}"
+        }, status: :bad_gateway
+      rescue StandardError => e
+        Rails.logger.error "Document content fetch error: #{e.message}"
+        render json: {
+          success: false,
+          error: "Failed to fetch document content"
+        }, status: :internal_server_error
+      end
+
+      # Serve document content from Active Storage (for manual uploads)
+      def serve_from_active_storage
+        content_type = @document.file.content_type || determine_content_type(@document.file_name)
+
+        send_data @document.file.download,
+          type: content_type,
+          disposition: "inline",
+          filename: @document.file_name
+      rescue ActiveStorage::FileNotFoundError => e
+        Rails.logger.error "Active Storage file not found for document #{@document.id}: #{e.message}"
+        render json: {
+          success: false,
+          error: "File not found in storage"
+        }, status: :not_found
+      rescue StandardError => e
+        Rails.logger.error "Active Storage download error for document #{@document.id}: #{e.message}"
+        render json: {
+          success: false,
+          error: "Failed to download file"
+        }, status: :internal_server_error
       end
     end
   end
