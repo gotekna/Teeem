@@ -1254,9 +1254,18 @@ export default function EmailPage() {
   }, [selection]);
 
   const handleReply = (email: Email) => {
+    // Build quoted original message for inline editing
+    const quotedBody = `\n\n--- Original Message ---
+From: ${email.from_email || email.from_address}
+Date: ${email.received_at ? format(new Date(email.received_at), "PPpp") : "Unknown"}
+Subject: ${email.subject || ""}
+
+${email.body_text || ""}`;
+
     setReplyTo({
       to: email.from_email || email.from_address,
       subject: email.subject?.startsWith("Re:") ? email.subject : `Re: ${email.subject}`,
+      body: quotedBody,
       fromAccountId: selectedAccount, // Reply from the same account that received the email
       replyToMessageId: email.internet_message_id, // For email threading
     });
@@ -1278,10 +1287,19 @@ export default function EmailPage() {
       .filter((e: string) => e.toLowerCase() !== currentUserEmail);
     const ccRecipients = [...new Set([...originalTo, ...originalCc])]; // Dedupe
 
+    // Build quoted original message for inline editing
+    const quotedBody = `\n\n--- Original Message ---
+From: ${email.from_email || email.from_address}
+Date: ${email.received_at ? format(new Date(email.received_at), "PPpp") : "Unknown"}
+Subject: ${email.subject || ""}
+
+${email.body_text || ""}`;
+
     setReplyTo({
       to,
       cc: ccRecipients.join(", "),
       subject: email.subject?.startsWith("Re:") ? email.subject : `Re: ${email.subject}`,
+      body: quotedBody,
       fromAccountId: selectedAccount,
       replyToMessageId: email.internet_message_id, // For email threading
     });

@@ -127,6 +127,21 @@ Navigate to each page and run performance traces:
   - Supplier
   - Risk Analysis
 
+#### Email Flow
+- `http://localhost:3000/email` (main email page)
+- Measure time to load email list
+- Click on a subfolder in the sidebar (e.g., "Sent", "Drafts", or any custom folder)
+- Measure time to load folder contents
+- Double-click on an email to open it
+- Measure time to open email detail view
+
+#### Tasks Flow
+- `http://localhost:3000/tasks` (tasks list page)
+- Measure time to load tasks list with groupings
+- Double-click on a task row to open fullscreen view
+- Measure time to open task in fullscreen mode
+- Verify task details load completely (description, subtasks, comments)
+
 ### Detection Thresholds
 
 For each navigation:
@@ -229,6 +244,11 @@ Contacts > Cases            500ms      0.00     [PASS]
 Contacts > Emails           700ms      0.00     [PASS]
 Pricebook List              600ms      0.00     [PASS]
 Pricebook > Item            550ms      0.00     [PASS]
+Email List                  750ms      0.03     [PASS]
+Email > Subfolder           400ms      0.00     [PASS]
+Email > Detail              500ms      0.02     [PASS]
+Tasks List                  650ms      0.01     [PASS]
+Tasks > Fullscreen          450ms      0.00     [PASS]
 ================================================================================
 
 BACKEND PERFORMANCE:

@@ -62,6 +62,7 @@ import {
 } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { useWorkingDays } from '@/lib/hooks/useWorkingDays';
 import { ComboboxDropdown, ComboboxItem } from '@/components/ui/combobox-dropdown';
 import { ExpandChevron } from '@/components/ui/expand-chevron';
 import { CascadeCompletionDialog } from '@/components/schedule/CascadeCompletionDialog';
@@ -636,6 +637,7 @@ function UngroupDropZone({
 
 export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const { user: currentUser } = useAuth();
+  const { calculateEndDate, calculateDuration } = useWorkingDays();
   const {
     updateTask,
     startTask,
@@ -1147,7 +1149,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const handleDurationSave = async () => {
     if (duration !== task.duration_days) {
       setLoading('duration');
-      await updateTask(task.id, { duration_days: duration });
+      // Calculate new end_date using working days (skips weekends/holidays)
+      const newEndDate = calculateEndDate(task.start_date, duration);
+      await updateTask(task.id, {
+        duration_days: duration,
+        end_date: newEndDate
+      });
       setLoading(null);
     }
   };
@@ -1976,7 +1983,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
               </Tooltip>
             )}
 
-            {/* Done */}
+            {/* Complete */}
             <Tooltip>
               <TooltipTrigger asChild>
                 <div className="flex items-center gap-1">
@@ -1988,10 +1995,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                     }}
                     className={cn("h-5 w-5", statusColors.completed)}
                   />
-                  <span className="text-xs text-muted-foreground">D</span>
+                  <span className="text-xs text-muted-foreground">C</span>
                 </div>
               </TooltipTrigger>
-              <TooltipContent>Done</TooltipContent>
+              <TooltipContent>Complete</TooltipContent>
             </Tooltip>
           </TooltipProvider>
 
@@ -2126,10 +2133,77 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 </div>
               </div>
 
-              {/* Dates */}
+              {/* Start Date */}
               <div className="flex items-center gap-2 text-sm">
-                <span className="text-muted-foreground w-20">Dates:</span>
-                <span>{format(new Date(task.start_date), 'dd MMM')} - {format(new Date(task.end_date), 'dd MMM yyyy')}</span>
+                <span className="text-muted-foreground w-20">Start Date:</span>
+                {task.status === 'not_started' ? (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button className="flex items-center gap-1 hover:text-primary transition-colors">
+                        <CalendarIcon className="h-3 w-3 text-muted-foreground" />
+                        <span>{format(new Date(task.start_date), 'dd MMM yyyy')}</span>
+                        <Pencil className="h-3 w-3 text-muted-foreground" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={new Date(task.start_date)}
+                        onSelect={async (date) => {
+                          if (date) {
+                            // When start date changes, recalculate end_date using working days
+                            const newEndDate = calculateEndDate(date, task.duration_days);
+                            await updateTask(task.id, {
+                              start_date: format(date, 'yyyy-MM-dd'),
+                              end_date: newEndDate
+                            });
+                          }
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                ) : (
+                  <span className="text-muted-foreground">{format(new Date(task.start_date), 'dd MMM yyyy')}</span>
+                )}
+              </div>
+
+              {/* Complete Date */}
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground w-20">Complete Date:</span>
+                {task.status === 'not_started' ? (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button className="flex items-center gap-1 hover:text-primary transition-colors">
+                        <CalendarIcon className="h-3 w-3 text-muted-foreground" />
+                        <span>{format(new Date(task.end_date), 'dd MMM yyyy')}</span>
+                        <Pencil className="h-3 w-3 text-muted-foreground" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={new Date(task.end_date)}
+                        onSelect={async (date) => {
+                          if (date) {
+                            // When end date changes, recalculate duration using working days
+                            const newDuration = calculateDuration(task.start_date, date);
+                            // Ensure minimum duration of 1 day
+                            const validDuration = Math.max(1, newDuration);
+                            await updateTask(task.id, {
+                              end_date: format(date, 'yyyy-MM-dd'),
+                              duration_days: validDuration
+                            });
+                            setDuration(validDuration);
+                          }
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                ) : (
+                  <span className="text-muted-foreground">{format(new Date(task.end_date), 'dd MMM yyyy')}</span>
+                )}
               </div>
             </div>
 
