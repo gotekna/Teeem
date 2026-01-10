@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_10_130006) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_10_130007) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1913,6 +1913,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_10_130006) do
     t.string "bank_bsb"
     t.string "bank_account_number"
     t.string "bank_account_name"
+    t.string "sharepoint_tasks_path"
   end
 
   create_table "corporate_company_shareholdings", force: :cascade do |t|

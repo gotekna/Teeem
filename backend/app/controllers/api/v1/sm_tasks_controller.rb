@@ -791,10 +791,10 @@ module Api
       #   - file: The file to upload (required)
       #   - category: "info" or "response" (default: "info")
       #   - notes: Optional notes
-      # If task has a job, uploads to SharePoint. Otherwise, uses ActiveStorage.
-      # SharePoint paths:
-      #   - "response" → /Jobs/{code}/Responses/{filename}
-      #   - "info" → /Jobs/{code}/Task Attachments/{filename}
+      # ALL files upload to SharePoint (enables sharing links for email):
+      #   - Tasks with job → /Jobs/{code}/{category}/{filename}
+      #   - Standalone tasks → /Tasks/Task-{id}/{category}/{filename}
+      # Falls back to ActiveStorage only if SharePoint is not configured.
       def upload_attachment
         unless params[:file].present?
           return render json: { success: false, error: "No file provided" }, status: :bad_request
@@ -804,8 +804,9 @@ module Api
         category = params[:category] || "info"
 
         begin
-          # Upload ALL task files to SharePoint when job exists (enables sharing links)
-          if @task.job.present?
+          # Always upload to SharePoint (enables sharing links for email)
+          # Falls back to ActiveStorage only if SharePoint isn't configured
+          if CorporateCompanySetting.sharepoint_configured?
             upload_to_sharepoint(file, category)
           else
             upload_standard_file(file, category)
@@ -820,9 +821,10 @@ module Api
       end
 
       # Upload file to SharePoint and create SmTaskAttachment
-      # Uses TaskResponseUploader which handles folder paths based on category:
-      #   - "response" → /Jobs/{code}/Responses/{filename}
-      #   - other → /Jobs/{code}/Task Attachments/{filename}
+      # Uses TaskResponseUploader which handles folder paths:
+      #   - Tasks with job → /Jobs/{code}/{category}/{filename}
+      #   - Standalone tasks → /Tasks/Task-{id}/{category}/{filename}
+      # Category determines subfolder: "response" → Responses, other → Task Attachments
       def upload_to_sharepoint(file, category)
         uploader = TaskResponseUploader.new(job: @task.job, task: @task, category: category)
         result = uploader.upload(file)

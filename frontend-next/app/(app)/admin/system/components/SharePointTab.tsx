@@ -19,6 +19,7 @@ import {
   Briefcase,
   Building2,
   Users,
+  ClipboardList,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -44,12 +45,14 @@ interface SharePointConfig {
   root_path: string;
   paths: {
     jobs: string;
+    tasks: string;
     people: string;
     company: string;
     contacts: string;
   };
   templates: {
     job: string;
+    task: string;
     company: string;
     people: string;
     contacts: string;
@@ -62,7 +65,7 @@ export function SharePointTab() {
   const [saving, setSaving] = React.useState(false);
   const [testing, setTesting] = React.useState(false);
   const [config, setConfig] = React.useState<SharePointConfig | null>(null);
-  const [showBrowser, setShowBrowser] = React.useState<"root" | "jobs" | "company" | "people" | "contacts" | null>(null);
+  const [showBrowser, setShowBrowser] = React.useState<"root" | "jobs" | "tasks" | "company" | "people" | "contacts" | null>(null);
   const [resetting, setResetting] = React.useState(false);
   const [formData, setFormData] = React.useState({
     // Site configuration
@@ -73,6 +76,7 @@ export function SharePointTab() {
     // Folder paths
     sharepoint_root_path: "/Shared Documents",
     sharepoint_jobs_path: "TEEEM Jobs",
+    sharepoint_tasks_path: "Tasks",
     sharepoint_people_path: "Corporate/People",
     sharepoint_company_path: "00 TEEEM PRIVATE",
     sharepoint_contacts_path: "Contacts",
@@ -103,6 +107,7 @@ export function SharePointTab() {
           sharepoint_drive_name: response.data.drive_name || "",
           sharepoint_root_path: response.data.root_path || "/Shared Documents",
           sharepoint_jobs_path: response.data.paths?.jobs || "TEEEM Jobs",
+          sharepoint_tasks_path: response.data.paths?.tasks || "Tasks",
           sharepoint_people_path: response.data.paths?.people || "Corporate/People",
           sharepoint_company_path: response.data.paths?.company || "00 TEEEM PRIVATE",
           sharepoint_contacts_path: response.data.paths?.contacts || "Contacts",
@@ -418,6 +423,31 @@ export function SharePointTab() {
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="tasks_path" className="flex items-center gap-1">
+                <ClipboardList className="h-3 w-3 text-cyan-500" />
+                Task Documents
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  id="tasks_path"
+                  value={formData.sharepoint_tasks_path}
+                  onChange={(e) => handleChange("sharepoint_tasks_path", e.target.value)}
+                  placeholder="Tasks"
+                  className="flex-1"
+                />
+                <Button variant="outline" size="icon" onClick={() => setShowBrowser("tasks")}>
+                  <Search className="h-4 w-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground font-mono">
+                {getFullPath(formData.sharepoint_tasks_path)}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                For standalone tasks (tasks without a job)
+              </p>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="company_path" className="flex items-center gap-1">
                 <Building2 className="h-3 w-3 text-purple-500" />
                 Company Documents
@@ -625,7 +655,7 @@ export function SharePointTab() {
           <SheetContent side="right" className="w-[500px] sm:max-w-xl">
             <SheetHeader>
               <SheetTitle>
-                Select {showBrowser === "root" ? "Root" : showBrowser === "jobs" ? "Jobs" : showBrowser === "company" ? "Company" : "Contacts"} Folder
+                Select {showBrowser === "root" ? "Root" : showBrowser === "jobs" ? "Jobs" : showBrowser === "tasks" ? "Tasks" : showBrowser === "company" ? "Company" : showBrowser === "people" ? "People" : "Contacts"} Folder
               </SheetTitle>
               <SheetDescription>
                 Browse SharePoint to select a folder
@@ -643,6 +673,11 @@ export function SharePointTab() {
                       ? path.slice(formData.sharepoint_root_path.length + 1)
                       : path;
                     handleChange("sharepoint_jobs_path", relativePath);
+                  } else if (showBrowser === "tasks") {
+                    const relativePath = path.startsWith(formData.sharepoint_root_path)
+                      ? path.slice(formData.sharepoint_root_path.length + 1)
+                      : path;
+                    handleChange("sharepoint_tasks_path", relativePath);
                   } else if (showBrowser === "company") {
                     const relativePath = path.startsWith(formData.sharepoint_root_path)
                       ? path.slice(formData.sharepoint_root_path.length + 1)

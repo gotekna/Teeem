@@ -1,28 +1,30 @@
 # frozen_string_literal: true
 
 # TaskResponseUploader
-# Uploads task files to SharePoint under the job folder
-# Paths based on category:
-#   - "response" → /Shared Documents/TEEEM Jobs/{JobCode}/Responses/{filename}
-#   - other → /Shared Documents/TEEEM Jobs/{JobCode}/Task Attachments/{filename}
+# Uploads task files to SharePoint
+#
+# For tasks WITH a job:
+#   - "response" → /Shared Documents/Jobs/{JobCode}/Responses/{filename}
+#   - "info" → /Shared Documents/Jobs/{JobCode}/Task Attachments/{filename}
+#
+# For tasks WITHOUT a job (standalone tasks):
+#   - All files → /Shared Documents/Tasks/Task-{id}/{Category}/{filename}
 class TaskResponseUploader
   class UploadError < StandardError; end
 
   attr_reader :job, :task, :organization, :category
 
-  def initialize(job:, task:, category: "response", organization: nil)
+  def initialize(job: nil, task:, category: "response", organization: nil)
     @job = job
     @task = task
     @category = category
-    @organization = organization || job&.organization || Organization.current
+    @organization = organization || job&.organization || task&.organization || Organization.current
   end
 
-  # Upload a file to the appropriate folder based on category
+  # Upload a file to the appropriate SharePoint folder
   # @param file [ActionDispatch::Http::UploadedFile] The file to upload
   # @return [Hash] { success: true, sharepoint_url: "...", file_id: "...", filename: "..." }
   def upload(file)
-    raise UploadError, "Job is required for SharePoint file uploads" unless job.present?
-
     provider = document_provider
     folder_path = target_folder_path
 
@@ -59,16 +61,24 @@ class TaskResponseUploader
   # @param file [ActionDispatch::Http::UploadedFile] Original file
   # @return [CorporateCompanyDocument] The created document record
   def create_document_record(upload_result, file)
-    CorporateCompanyDocument.create!(
+    attrs = {
       file_name: upload_result[:filename],
       display_name: upload_result[:filename],
       sharepoint_url: upload_result[:sharepoint_url],
       sharepoint_file_id: upload_result[:file_id],
       document_type: document_type,
       folder: folder_name,
-      source: "task_upload",
-      documentable: job
-    )
+      source: "task_upload"
+    }
+
+    # Link to job if available, otherwise link to task
+    if job.present?
+      attrs[:documentable] = job
+    else
+      attrs[:sm_task_id] = task.id
+    end
+
+    CorporateCompanyDocument.create!(attrs)
   end
 
   private
@@ -87,16 +97,21 @@ class TaskResponseUploader
     category == "response" ? "task_response" : "task_attachment"
   end
 
-  # Target folder path based on category
+  # Target folder path based on whether task has a job
   def target_folder_path
-    # Use SSoT: CorporateCompanySetting.job_path for consistent path resolution
-    CorporateCompanySetting.job_path(job.code, folder_name)
+    if job.present?
+      # Task has a job - use job folder structure
+      CorporateCompanySetting.job_path(job.code, folder_name)
+    else
+      # Standalone task - use task folder structure
+      CorporateCompanySetting.task_path(task.id, folder_name)
+    end
   end
 
   def ensure_folder_exists(provider, folder_path)
     return if provider.folder_exists?(folder_path)
 
-    # Create the folder under the job folder
+    # Create the folder
     provider.create_folder(folder_path, create_parents: true)
   rescue DocumentProviders::Base::AlreadyExistsError
     # Folder already exists, that's fine

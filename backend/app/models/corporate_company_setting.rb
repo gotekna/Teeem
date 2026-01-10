@@ -110,6 +110,8 @@ class CorporateCompanySetting < ApplicationRecord
     sub_path = case scope.to_sym
                when :jobs, :job
                  setting.sharepoint_jobs_path.presence || "TEEEM Jobs"
+               when :tasks, :task
+                 setting.sharepoint_tasks_path.presence || "Tasks"
                when :people
                  setting.sharepoint_people_path.presence || "Corporate/People"
                when :company
@@ -136,12 +138,14 @@ class CorporateCompanySetting < ApplicationRecord
       root_path: setting.sharepoint_root_path.presence || "/Shared Documents",
       paths: {
         jobs: setting.sharepoint_jobs_path.presence || "TEEEM Jobs",
+        tasks: setting.sharepoint_tasks_path.presence || "Tasks",
         people: setting.sharepoint_people_path.presence || "Corporate/People",
         company: setting.sharepoint_company_path.presence || "00 TEEEM PRIVATE",
         contacts: setting.sharepoint_contacts_path.presence || "Contacts"
       },
       templates: {
         job: setting.sharepoint_job_template.presence || "{{JobCode}}/{{Category}}",
+        task: "Task-{{TaskId}}/{{Category}}",
         company: setting.sharepoint_company_template.presence || "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
         people: setting.sharepoint_people_template.presence || "{{ContactName}}/{{Category}}",
         contacts: setting.sharepoint_contacts_template.presence || "{{ContactName}}/{{Category}}"
@@ -159,6 +163,8 @@ class CorporateCompanySetting < ApplicationRecord
     case scope.to_sym
     when :jobs, :job
       setting.sharepoint_job_template.presence || "{{JobCode}}/{{Category}}"
+    when :tasks, :task
+      "Task-{{TaskId}}/{{Category}}"
     when :people
       setting.sharepoint_people_template.presence || "{{ContactName}}/{{Category}}"
     when :company
@@ -177,6 +183,18 @@ class CorporateCompanySetting < ApplicationRecord
     template = sharepoint_template(:job)
     resolved = resolve_template(template, {
       "JobCode" => job_code,
+      "Category" => category || ""
+    })
+    clean_path("#{base}/#{resolved}")
+  end
+
+  # Resolve a full path for a standalone task document (tasks without a job)
+  # Returns: "/Shared Documents/Tasks/Task-123/Responses"
+  def self.task_path(task_id, category = nil)
+    base = sharepoint_full_path(:tasks)
+    template = sharepoint_template(:task)
+    resolved = resolve_template(template, {
+      "TaskId" => task_id.to_s,
       "Category" => category || ""
     })
     clean_path("#{base}/#{resolved}")
