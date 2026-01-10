@@ -124,6 +124,7 @@ interface SortableQuestionItemProps {
   setDelegatingQuestionId?: (id: number | null) => void;
   delegationUsers?: User[];
   handleDelegateQuestion?: (itemId: number, userId: number) => void;
+  onCreateAction?: (text: string) => void;  // Create action item from question
 }
 
 function SortableQuestionItem({
@@ -158,6 +159,7 @@ function SortableQuestionItem({
   setDelegatingQuestionId,
   delegationUsers,
   handleDelegateQuestion,
+  onCreateAction,
 }: SortableQuestionItemProps) {
   const [isFileDropTarget, setIsFileDropTarget] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -518,7 +520,7 @@ function SortableQuestionItem({
           </Button>
         </div>
       ) : (
-        <div className="ml-6">
+        <div className="ml-6 flex gap-2">
           <Button
             variant="ghost"
             size="sm"
@@ -526,6 +528,14 @@ function SortableQuestionItem({
             onClick={() => setDelegatingQuestionId?.(item.id)}
           >
             → Task
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-5 text-xs p-0 text-muted-foreground hover:text-green-600"
+            onClick={() => onCreateAction?.(item.text)}
+          >
+            → Action
           </Button>
         </div>
       )}
@@ -2061,6 +2071,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                               setDelegatingQuestionId={setDelegatingQuestionId}
                               delegationUsers={delegationUsers}
                               handleDelegateQuestion={handleDelegateQuestion}
+                              onCreateAction={(text) => addActionItem(task.id, text, 'action')}
                             />
                           ))}
                         </div>
@@ -2100,6 +2111,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       setDelegatingQuestionId={setDelegatingQuestionId}
                       delegationUsers={delegationUsers}
                       handleDelegateQuestion={handleDelegateQuestion}
+                      onCreateAction={(text) => addActionItem(task.id, text, 'action')}
                     />
                   ))}
                 </SortableContext>
