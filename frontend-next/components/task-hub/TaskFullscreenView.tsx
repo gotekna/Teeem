@@ -20,12 +20,14 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import {
   DndContext,
   closestCenter,
+  rectIntersection,
   PointerSensor,
   useSensor,
   useSensors,
   DragEndEvent,
   DragOverEvent,
   DragOverlay,
+  CollisionDetection,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -837,6 +839,27 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       },
     })
   );
+
+  // Custom collision detection that prioritizes headers
+  // This prevents flickering when dragging near headers with children
+  const headerPriorityCollision: CollisionDetection = useCallback((args) => {
+    // First, get all rect intersections
+    const rectCollisions = rectIntersection(args);
+
+    // Find if any collision is with a header
+    const headerCollision = rectCollisions.find(collision => {
+      const item = groupedQuestions.allItems.find(i => i.id === Number(collision.id));
+      return item?.item_type === 'header';
+    });
+
+    // If we're intersecting a header, prioritize it
+    if (headerCollision) {
+      return [headerCollision];
+    }
+
+    // Otherwise use closestCenter for smooth reordering
+    return closestCenter(args);
+  }, [groupedQuestions.allItems]);
 
   // Toggle header collapse
   const toggleHeaderCollapse = useCallback((headerId: number) => {
@@ -2199,7 +2222,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             <div className="flex-1 overflow-auto space-y-2 min-h-0">
               <DndContext
                 sensors={sensors}
-                collisionDetection={closestCenter}
+                collisionDetection={headerPriorityCollision}
                 onDragStart={handleDragStart}
                 onDragOver={handleDndDragOver}
                 onDragEnd={handleDragEnd}
