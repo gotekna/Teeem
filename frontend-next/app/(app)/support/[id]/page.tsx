@@ -17,6 +17,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
 import { TablePage } from "@/components/ui/page-wrappers";
 import { BackButton } from "@/components/ui/back-button";
+import { TASK_STATUS } from "@/lib/constants/task-status";
 
 interface Comment {
   id: number;
@@ -88,9 +89,9 @@ export default function SupportTicketDetail() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "completed":
+      case TASK_STATUS.COMPLETED:
         return <Badge className="bg-green-500/10 text-green-600 border-green-500/20">Resolved</Badge>;
-      case "started":
+      case TASK_STATUS.STARTED:
         return <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20">In Progress</Badge>;
       default:
         return <Badge variant="outline">Open</Badge>;
@@ -200,7 +201,7 @@ export default function SupportTicketDetail() {
               <p className="text-muted-foreground text-center py-8">No comments yet</p>
             )}
 
-            {ticket.status !== "completed" && (
+            {ticket.status !== TASK_STATUS.COMPLETED && (
               <div className="flex gap-2 pt-4 border-t">
                 <Input
                   value={newComment}
@@ -214,7 +215,7 @@ export default function SupportTicketDetail() {
               </div>
             )}
 
-            {ticket.status === "completed" && (
+            {ticket.status === TASK_STATUS.COMPLETED && (
               <div className="text-center py-4 bg-green-500/10 rounded-lg mt-4">
                 <CheckCircle className="h-6 w-6 text-green-500 mx-auto mb-2" />
                 <p className="text-sm text-green-600">This ticket has been resolved</p>

@@ -35,6 +35,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
 import { TablePage } from "@/components/ui/page-wrappers";
+import { TASK_STATUS } from "@/lib/constants/task-status";
 
 interface SupportTicket {
   id: number;
@@ -113,9 +114,9 @@ export default function SupportPage() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "completed":
+      case TASK_STATUS.COMPLETED:
         return <Badge className="bg-green-500/10 text-green-600 border-green-500/20">Resolved</Badge>;
-      case "started":
+      case TASK_STATUS.STARTED:
         return <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20">In Progress</Badge>;
       default:
         return <Badge variant="outline">Open</Badge>;
@@ -135,8 +136,8 @@ export default function SupportPage() {
     }
   };
 
-  const openTickets = tickets.filter((t) => t.status !== "completed");
-  const resolvedTickets = tickets.filter((t) => t.status === "completed");
+  const openTickets = tickets.filter((t) => t.status !== TASK_STATUS.COMPLETED);
+  const resolvedTickets = tickets.filter((t) => t.status === TASK_STATUS.COMPLETED);
 
   if (loading) {
     return (

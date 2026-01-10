@@ -1087,21 +1087,18 @@ export default function EmailPage() {
     }
   }, [emailIdParam]);
 
+  // Sync ALL mailboxes (IMAP + Office 365)
   const handleSync = async () => {
     setSyncing(true);
     try {
-      const syncPromises = [];
-      const currentAccount = accounts.find(a => String(a.id) === selectedAccount);
-      const isOutlookType = currentAccount?.type === "outlook" || currentAccount?.type === "ms365";
+      const syncPromises: Promise<unknown>[] = [];
 
-      // Sync Office 365/Outlook accounts via email_warehouse
-      if (isOutlookType || selectedAccount === "outlook") {
+      // Sync all IMAP accounts
+      syncPromises.push(api.post("/api/v1/imap_credentials/sync_all").catch(() => {}));
+
+      // Sync Office 365/Outlook accounts
+      if (accounts.some(a => a.type === "outlook" || a.type === "ms365")) {
         syncPromises.push(api.post("/api/v1/email_warehouse/sync").catch(() => {}));
-      } else {
-        // Sync IMAP account
-        syncPromises.push(
-          api.post(`/api/v1/imap_credentials/${selectedAccount}/sync`).catch(() => {})
-        );
       }
 
       await Promise.all(syncPromises);
@@ -1115,16 +1112,16 @@ export default function EmailPage() {
     }
   };
 
-  // Sync ALL accounts (for Split Inbox mode)
+  // Sync ALL accounts (same as handleSync - kept for backwards compatibility)
   const handleSplitSync = async () => {
     setSyncing(true);
     try {
       const syncPromises: Promise<unknown>[] = [];
 
-      // Always trigger the main sync endpoint (handles all IMAP accounts)
+      // Sync all IMAP accounts
       syncPromises.push(api.post("/api/v1/imap_credentials/sync_all").catch(() => {}));
 
-      // Also sync Office 365/Outlook if any such accounts exist
+      // Sync Office 365/Outlook accounts
       if (accounts.some(a => a.type === "outlook" || a.type === "ms365")) {
         syncPromises.push(api.post("/api/v1/email_warehouse/sync").catch(() => {}));
       }
