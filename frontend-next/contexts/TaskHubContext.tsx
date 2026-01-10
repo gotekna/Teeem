@@ -28,6 +28,7 @@ export interface TaskAttachmentDocument {
   display_name: string;
   document_type?: string;
   sharepoint_url?: string;
+  file_url?: string; // For ActiveStorage files (when not on SharePoint)
   created_at: string;
   content_hash?: string; // For matching with email attachment hashes
 }

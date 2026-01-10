@@ -199,6 +199,7 @@ function SortableQuestionItem({
       <div
         ref={setNodeRef}
         style={style}
+        data-item-id={item.id}
         className={cn(
           "flex items-center gap-2 p-2 bg-muted/50 rounded-md font-medium text-sm transition-all",
           isDragging && "shadow-lg opacity-50",
@@ -326,6 +327,7 @@ function SortableQuestionItem({
     <div
       ref={setNodeRef}
       style={style}
+      data-item-id={item.id}
       className={cn(
         "p-2 rounded-md border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-sm space-y-2 transition-all",
         isDragging && "shadow-lg",
@@ -667,6 +669,22 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   // Editing answers inline
   const [editingAnswerId, setEditingAnswerId] = useState<number | null>(null);
   const [editingAnswerText, setEditingAnswerText] = useState('');
+
+  // Scroll position preservation after save
+  const lastSavedItemIdRef = useRef<number | null>(null);
+  const scrollToSavedItem = useCallback(() => {
+    if (lastSavedItemIdRef.current !== null) {
+      const itemId = lastSavedItemIdRef.current;
+      // Small delay to let DOM update after state changes
+      requestAnimationFrame(() => {
+        const element = document.querySelector(`[data-item-id="${itemId}"]`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        lastSavedItemIdRef.current = null;
+      });
+    }
+  }, []);
 
   // Email compose for responses
   const [showComposeEmail, setShowComposeEmail] = useState(false);
@@ -1042,20 +1060,24 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
   const handleUpdateItem = async (itemId: number) => {
     if (!editingItemText.trim()) return;
+    lastSavedItemIdRef.current = itemId;  // Remember which item we're saving
     setActionItemLoading(itemId);
     await updateActionItem(task.id, itemId, editingItemText.trim());
     setEditingItemId(null);
     setEditingItemText('');
     setActionItemLoading(null);
+    scrollToSavedItem();  // Scroll back to the saved item
   };
 
   const handleAnswerItem = async (itemId: number) => {
     if (!answerText.trim()) return;
+    lastSavedItemIdRef.current = itemId;  // Remember which item we're saving
     setActionItemLoading(itemId);
     await answerActionItem(task.id, itemId, answerText.trim());
     setAnsweringItemId(null);
     setAnswerText('');
     setActionItemLoading(null);
+    scrollToSavedItem();  // Scroll back to the saved question
   };
 
   const handleRemoveItem = async (itemId: number) => {
@@ -1385,11 +1407,13 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   // Handler for updating an answer inline
   const handleUpdateAnswer = async (itemId: number) => {
     if (!editingAnswerText.trim()) return;
+    lastSavedItemIdRef.current = itemId;  // Remember which item we're saving
     setActionItemLoading(itemId);
     await answerActionItem(task.id, itemId, editingAnswerText.trim());
     setEditingAnswerId(null);
     setEditingAnswerText('');
     setActionItemLoading(null);
+    scrollToSavedItem();  // Scroll back to the saved question
   };
 
   // Generate response email body with Q&A (grouped by headers), actions, and file links
@@ -1407,6 +1431,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
     // Get all included questions (with answers)
     const includedQuestions = questionItems.filter(q => q.include_in_response && q.response);
+
+    // Debug: Log questions and their attachments
+    console.log('[generateResponseBody] Included questions:', includedQuestions.map(q => ({
+      id: q.id,
+      text: q.text.substring(0, 50),
+      attachments: q.attachments,
+      attachmentCount: q.attachments?.length || 0
+    })));
 
     if (includedQuestions.length > 0) {
       body += '<p><strong>Responses to your questions:</strong></p>\n\n';
@@ -1454,7 +1486,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           if (q.attachments && q.attachments.length > 0) {
             q.attachments.forEach(att => {
               const fileName = att.document?.display_name || att.document?.file_name || 'Document';
-              const url = att.sharepoint_url || att.document?.sharepoint_url;
+              // Try SharePoint URL first, then ActiveStorage file_url
+              const url = att.sharepoint_url || att.document?.sharepoint_url || att.document?.file_url;
               body += `<p>&nbsp;&nbsp;&nbsp;📎 See attached: ${formatFileLink(fileName, url)}</p>\n`;
             });
           }
@@ -1489,7 +1522,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       body += '<ul>\n';
       generalResponseAttachments.forEach(att => {
         const fileName = att.document?.display_name || att.document?.file_name || 'Document';
-        const url = att.sharepoint_url || att.document?.sharepoint_url;
+        // Try SharePoint URL first, then ActiveStorage file_url
+        const url = att.sharepoint_url || att.document?.sharepoint_url || att.document?.file_url;
         body += `<li>${formatFileLink(fileName, url)}</li>\n`;
       });
       body += '</ul>\n';
