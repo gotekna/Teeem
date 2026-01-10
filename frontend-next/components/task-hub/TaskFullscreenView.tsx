@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { SmTask, TaskAttachment, TaskActionItem, TaskFollower, useTaskHub, ActionItemType, AttachmentCategory } from '@/contexts/TaskHubContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -160,6 +160,20 @@ function SortableQuestionItem({
   handleDelegateQuestion,
 }: SortableQuestionItemProps) {
   const [isFileDropTarget, setIsFileDropTarget] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Handle file selection from click
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && onFileDrop) {
+      console.log('[SortableQuestionItem] File selected via picker:', file.name);
+      onFileDrop(file, item.id);
+    }
+    // Reset input so same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   const {
     attributes,
@@ -354,6 +368,23 @@ function SortableQuestionItem({
             {item.text}
           </span>
         )}
+        {/* Hidden file input for click-to-attach */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          onChange={handleFileInputChange}
+        />
+        {/* Paperclip button to attach file */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 w-6 p-0 text-muted-foreground hover:text-green-600"
+          onClick={() => fileInputRef.current?.click()}
+          title="Attach file to this question"
+        >
+          <Paperclip className="h-3 w-3" />
+        </Button>
         <Button
           variant="ghost"
           size="sm"
