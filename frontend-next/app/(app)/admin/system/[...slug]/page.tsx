@@ -14,7 +14,6 @@ import { PermissionsTab } from "../components/PermissionsTab";
 import { CorporateTab } from "../components/CorporateTab";
 import { HolidaysTab } from "../components/HolidaysTab";
 import { WorkflowsTab } from "../components/WorkflowsTab";
-import { FoldersTab } from "../components/FoldersTab";
 import { JobSetupTab } from "../components/JobSetupTab";
 import { WorkflowConfigTab } from "../components/WorkflowConfigTab";
 import { ScheduleMasterTab } from "../components/ScheduleMasterTab";
@@ -29,7 +28,6 @@ import { ContactTypesTab } from "../components/ContactTypesTab";
 import { BrandGuidelinesTab } from "../components/BrandGuidelinesTab";
 import { DocumentTemplatesTab } from "../components/DocumentTemplatesTab";
 import { EmailAccountsTab } from "../components/EmailAccountsTab";
-// SSoT: SharePointTab only used in EntityConfigurationTab - not imported here
 import { ScheduledJobsTab } from "../components/ScheduledJobsTab";
 import { NavigationTab } from "../components/NavigationTab";
 import { EntityConfigurationTab } from "../components/EntityConfigurationTab";
@@ -43,8 +41,6 @@ import { AgentsTab } from "../components/AgentsTab";
 import { SMTasksTab } from "../components/SMTasksTab";
 import CompanyInfoTab from "../components/CompanyInfoTab";
 
-// Company subtabs
-// SSoT: SharePoint config removed - use /admin/system/entity-config/sharepoint_config instead
 const COMPANY_TABS = [
   { id: "info", label: "Info" },
   { id: "security", label: "Security" },
@@ -52,7 +48,6 @@ const COMPANY_TABS = [
   { id: "corporate", label: "Corporate" },
   { id: "holidays", label: "Holidays" },
   { id: "workflows", label: "Workflows" },
-  { id: "folders", label: "Folders" },
   { id: "connections", label: "Connections" },
   { id: "job-setup", label: "Job Setup" },
   { id: "workflow-config", label: "Workflow Config" },
@@ -130,10 +125,6 @@ function CompanySettingsContent({ subtab, extra, innerTab }: { subtab: string; e
           <TabsContent value="workflows">
             <WorkflowsTab />
           </TabsContent>
-          <TabsContent value="folders">
-            <FoldersTab />
-          </TabsContent>
-          {/* SSoT: SharePoint moved to /admin/system/entity-config/sharepoint_config */}
           <TabsContent value="connections">
             <ConnectionsTab />
           </TabsContent>
