@@ -86,7 +86,7 @@ export function TaskListRow({
           !isExpanded && 'hover:bg-muted/30',
           !isExpanded && selectedTaskIds.has(task.id) && 'bg-primary/5',
           !isExpanded && getTaskRowColorClass(task),
-          isExpanded && 'border-l-4 border-primary bg-muted/50'
+          isExpanded && 'border-l-4 border-primary'
         )}
       >
         <div onClick={(e) => e.stopPropagation()}>
