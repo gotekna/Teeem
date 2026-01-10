@@ -1280,7 +1280,7 @@ Rails.application.routes.draw do
         post :test_twilio, on: :collection
       end
 
-      # Corporate Company Settings (document paths & SharePoint SSoT)
+      # Corporate Company Settings (document paths, SharePoint, Email SSoT)
       resource :corporate_company_settings, only: [] do
         get :document_paths, on: :collection
         patch :document_paths, on: :collection, action: :update_document_paths
@@ -1289,6 +1289,10 @@ Rails.application.routes.draw do
         get :sharepoint, on: :collection
         patch :sharepoint, on: :collection, action: :update_sharepoint
         post "sharepoint/test", on: :collection, action: :test_sharepoint
+
+        # Email SSoT Configuration
+        get :email_config, on: :collection
+        patch :email_config, on: :collection, action: :update_email_config
       end
 
       # NOTE: folder_templates routes removed - SSoT: EntityTab is now the source of truth for folder structure

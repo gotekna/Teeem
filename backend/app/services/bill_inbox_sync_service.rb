@@ -4,7 +4,10 @@
 # Creates BillInbox records for each PDF attachment and queues AI extraction
 #
 class BillInboxSyncService
+  # SSoT: Use CorporateCompanySetting.monitored_mailbox_pay instead of hardcoded constant
+  # DEPRECATED: Use CorporateCompanySetting.monitored_mailbox_pay
   MONITORED_MAILBOX = "Pay@tekna.com.au"
+
   SUPPORTED_CONTENT_TYPES = [
     "application/pdf",
     "image/png",
@@ -14,7 +17,8 @@ class BillInboxSyncService
 
   def initialize(since: nil, mailbox: nil)
     @since = since || 1.hour.ago
-    @mailbox = mailbox || MONITORED_MAILBOX
+    # SSoT: Get monitored mailbox from CorporateCompanySetting
+    @mailbox = mailbox || CorporateCompanySetting.monitored_mailbox_pay
     @client = MicrosoftAppGraphClient.new
   end
 

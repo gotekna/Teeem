@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { EntityTabsConfig } from "@/components/admin/EntityTabsConfig";
 import { DocumentTypesTab } from "./DocumentTypesTab";
 import { SharePointTab } from "./SharePointTab";
-import { Building2, Users, Briefcase, X, FileText, Settings, Contact2 } from "lucide-react";
+import { EmailConfigTab } from "./EmailConfigTab";
+import { Building2, Users, Briefcase, X, FileText, Settings, Contact2, Mail } from "lucide-react";
 import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
@@ -76,6 +77,16 @@ const scopes = [
     showDocumentTypes: false,
     isEntityTab: false,
     isSharePointConfig: true,
+  },
+  {
+    id: "email_config",
+    label: "Email Config",
+    icon: Mail,
+    showEntityFilters: false,
+    showSharePointPaths: false,
+    showDocumentTypes: false,
+    isEntityTab: false,
+    isEmailConfig: true,
   },
 ] as const;
 
@@ -189,6 +200,8 @@ export function EntityConfigurationTab({ onClose, scope }: EntityConfigurationTa
                 />
               ) : "isSharePointConfig" in scope && scope.isSharePointConfig ? (
                 <SharePointTab />
+              ) : "isEmailConfig" in scope && scope.isEmailConfig ? (
+                <EmailConfigTab />
               ) : (
                 <DocumentTypesTab />
               )}

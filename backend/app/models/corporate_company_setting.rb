@@ -100,8 +100,9 @@ class CorporateCompanySetting < ApplicationRecord
   end
 
   # Get SharePoint site URL
+  # SSoT: Returns configured URL or nil - no hardcoded fallbacks
   def self.sharepoint_site_url
-    instance.sharepoint_site_url.presence || "https://gotekna.sharepoint.com/sites/TEEEM"
+    instance.sharepoint_site_url.presence
   end
 
   # Get full path for a document scope
@@ -290,6 +291,66 @@ class CorporateCompanySetting < ApplicationRecord
   # Update entity types
   def self.update_corporate_entity_types(types)
     instance.update!(corporate_entity_types: types)
+  end
+
+  # ========================================
+  # Email Configuration (SSoT)
+  # ========================================
+
+  # Default internal email domains (used if not configured)
+  DEFAULT_INTERNAL_DOMAINS = %w[tekna.com.au teeem.au teeem.com].freeze
+
+  # Get internal email domains as array
+  # SSoT: Used for detecting internal vs external emails
+  def self.internal_email_domains
+    domains = instance.internal_email_domains.presence
+    return DEFAULT_INTERNAL_DOMAINS if domains.blank?
+
+    domains.split(",").map(&:strip).reject(&:blank?)
+  end
+
+  # Check if an email address is internal
+  def self.internal_email?(email)
+    return false if email.blank?
+
+    domain = email.to_s.split("@").last&.downcase
+    internal_email_domains.any? { |d| domain == d.downcase }
+  end
+
+  # Get internal domains formatted for SQL LIKE patterns
+  # Returns: ["@tekna.com.au", "@teeem.au", "@teeem.com"]
+  def self.internal_domain_patterns
+    internal_email_domains.map { |d| "@#{d}" }
+  end
+
+  # Monitored mailbox addresses (SSoT)
+  def self.monitored_mailbox_pay
+    instance.monitored_mailbox_pay.presence || "Pay@tekna.com.au"
+  end
+
+  def self.monitored_mailbox_newtask
+    instance.monitored_mailbox_newtask.presence || "newtask@tekna.com.au"
+  end
+
+  def self.monitored_mailbox_newjob
+    instance.monitored_mailbox_newjob.presence || "newjob@tekna.com.au"
+  end
+
+  def self.monitored_mailbox_newcase
+    instance.monitored_mailbox_newcase.presence || "newcase@tekna.com.au"
+  end
+
+  # Get email config hash for API responses
+  def self.email_config
+    {
+      internal_domains: internal_email_domains,
+      monitored_mailboxes: {
+        pay: monitored_mailbox_pay,
+        newtask: monitored_mailbox_newtask,
+        newjob: monitored_mailbox_newjob,
+        newcase: monitored_mailbox_newcase
+      }
+    }
   end
 
   private

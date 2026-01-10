@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# EmailToTaskService - Creates tasks from emails sent to newtask@tekna.com.au
+# EmailToTaskService - Creates tasks from emails sent to newtask@ mailbox
 #
 # Unlike EmailToJobService (AI extraction + proposals), this is simple/direct:
 # - Email subject → task name
@@ -9,10 +9,18 @@
 # - CC recipients → auto-followers
 # - Attaches source email and related emails
 #
+# SSoT: Mailbox address configured in CorporateCompanySetting.monitored_mailbox_newtask
+#
 class EmailToTaskService
   class TaskCreationError < StandardError; end
 
+  # DEPRECATED: Use CorporateCompanySetting.monitored_mailbox_newtask
   NEW_TASK_EMAIL_ADDRESS = "newtask@tekna.com.au"
+
+  # SSoT: Get the monitored mailbox from configuration
+  def self.newtask_email_address
+    CorporateCompanySetting.monitored_mailbox_newtask
+  end
 
   def initialize(email_warehouse, user: nil)
     @email = email_warehouse
@@ -331,18 +339,20 @@ class EmailToTaskService
 
   def find_external_party
     # Find the first non-internal email address involved
-    internal_domains = %w[@tekna.com.au @teeem.au @teeem.com]
+    # SSoT: Get internal domains from CorporateCompanySetting
+    internal_domain_patterns = CorporateCompanySetting.internal_domain_patterns
+    newtask_address = CorporateCompanySetting.monitored_mailbox_newtask.downcase
 
     # Check from
     if @email.from_email.present?
-      return @email.from_email unless internal_domains.any? { |d| @email.from_email.downcase.include?(d) }
+      return @email.from_email unless internal_domain_patterns.any? { |d| @email.from_email.downcase.include?(d) }
     end
 
     # Check to recipients
     @email.to_emails&.each do |email_addr|
       next if email_addr.blank?
-      next if email_addr.downcase == NEW_TASK_EMAIL_ADDRESS.downcase
-      next if internal_domains.any? { |d| email_addr.downcase.include?(d) }
+      next if email_addr.downcase == newtask_address
+      next if internal_domain_patterns.any? { |d| email_addr.downcase.include?(d) }
       return email_addr
     end
 

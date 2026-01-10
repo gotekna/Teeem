@@ -670,9 +670,9 @@ class Api::V1::MicrosoftAuthController < ApplicationController
 
     # SSoT: Get SharePoint config from CorporateCompanySetting
     setting = CorporateCompanySetting.instance
-    site_url = setting.sharepoint_site_url.presence || "https://gotekna.sharepoint.com/sites/TEEEM"
+    site_url = setting.sharepoint_site_url.presence
     drive_name = setting.sharepoint_drive_name.presence || "Shared Documents"
-    documents_url = "#{site_url}/#{drive_name.gsub(' ', '%20')}"
+    documents_url = site_url ? "#{site_url}/#{drive_name.gsub(' ', '%20')}" : nil
 
     {
       connected: true,
@@ -690,13 +690,20 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     connected = microsoft_token&.status == "connected"
 
     # Build personal OneDrive URL from email
+    # SSoT: Derive OneDrive domain from SharePoint site URL
     # Format: gotekna-my.sharepoint.com/personal/robert_tekna_com_au
     onedrive_url = nil
 
     if user_email.present?
-      # Convert email to OneDrive path format: robert@tekna.com.au -> robert_tekna_com_au
-      email_path = user_email.gsub("@", "_").gsub(".", "_")
-      onedrive_url = "https://gotekna-my.sharepoint.com/personal/#{email_path}/Documents"
+      # Get the tenant prefix from SharePoint site URL (e.g., "gotekna" from "gotekna.sharepoint.com")
+      site_url = CorporateCompanySetting.instance.sharepoint_site_url.presence
+      tenant_prefix = site_url&.match(/https?:\/\/([^.]+)\.sharepoint\.com/)&.[](1)
+
+      if tenant_prefix.present?
+        # Convert email to OneDrive path format: robert@tekna.com.au -> robert_tekna_com_au
+        email_path = user_email.gsub("@", "_").gsub(".", "_")
+        onedrive_url = "https://#{tenant_prefix}-my.sharepoint.com/personal/#{email_path}/Documents"
+      end
     end
 
     {

@@ -1,20 +1,24 @@
+# SSoT: Mailbox address configured in CorporateCompanySetting.monitored_mailbox_newcase
 class ProcessNewCaseEmailsJob < ApplicationJob
   queue_as :default
 
-  # Email address to monitor for new case emails
+  # DEPRECATED: Use CorporateCompanySetting.monitored_mailbox_newcase
   NEW_CASE_EMAIL_ADDRESS = "newcase@tekna.com.au"
 
   def perform
-    # Find emails sent to newcase@tekna.com.au that don't have proposals yet
+    # SSoT: Get the monitored mailbox from configuration
+    newcase_address = CorporateCompanySetting.monitored_mailbox_newcase
+
+    # Find emails sent to newcase@ mailbox that don't have proposals yet
     new_case_emails = EmailWarehouse
-      .where("? = ANY(to_emails)", NEW_CASE_EMAIL_ADDRESS)
+      .where("? = ANY(to_emails)", newcase_address)
       .where.not(id: EmailCaseProposal.select(:email_warehouse_id))
       .where("created_at > ?", 1.hour.ago) # Only process recent emails
       .order(received_at: :desc)
 
     return if new_case_emails.empty?
 
-    Rails.logger.info "[ProcessNewCaseEmails] Found #{new_case_emails.count} emails to process (sent to #{NEW_CASE_EMAIL_ADDRESS})"
+    Rails.logger.info "[ProcessNewCaseEmails] Found #{new_case_emails.count} emails to process (sent to #{newcase_address})"
 
     new_case_emails.each do |email|
       process_email(email)

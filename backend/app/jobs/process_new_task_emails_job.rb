@@ -1,25 +1,28 @@
 # frozen_string_literal: true
 
-# ProcessNewTaskEmailsJob - Background job to process emails sent to newtask@tekna.com.au
+# ProcessNewTaskEmailsJob - Background job to process emails sent to newtask@ mailbox
 #
 # Runs every 5 minutes (configured in recurring.yml) to:
-# 1. Find emails sent to newtask@tekna.com.au that haven't been processed
+# 1. Find emails sent to the monitored newtask mailbox that haven't been processed
 # 2. Create tasks from each email using EmailToTaskService
 # 3. Notify the assigned user
 #
-# Follows ProcessNewJobEmailsJob pattern but simpler (no AI proposals)
+# SSoT: Mailbox address configured in CorporateCompanySetting.monitored_mailbox_newtask
 #
 class ProcessNewTaskEmailsJob < ApplicationJob
   queue_as :default
 
-  # Email address to monitor for new task emails
+  # DEPRECATED: Use CorporateCompanySetting.monitored_mailbox_newtask
   NEW_TASK_EMAIL_ADDRESS = "newtask@tekna.com.au"
 
   def perform
-    # Find emails sent to newtask@tekna.com.au that haven't been processed
+    # SSoT: Get the monitored mailbox from configuration
+    newtask_address = CorporateCompanySetting.monitored_mailbox_newtask
+
+    # Find emails sent to the monitored mailbox that haven't been processed
     # A processed email has an SmTaskAttachment with the "Source email" notes
     new_task_emails = EmailWarehouse
-      .where("? = ANY(to_emails)", NEW_TASK_EMAIL_ADDRESS)
+      .where("? = ANY(to_emails)", newtask_address)
       .where.not(id: processed_email_ids)
       .where("received_at > ?", 24.hours.ago) # Only process recent emails
       .order(received_at: :desc)

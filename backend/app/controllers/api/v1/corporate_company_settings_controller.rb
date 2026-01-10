@@ -154,6 +154,35 @@ module Api
         end
       end
 
+      # ========================================
+      # Email Configuration (SSoT)
+      # ========================================
+
+      # GET /api/v1/corporate_company_settings/email_config
+      def email_config
+        render json: {
+          success: true,
+          data: CorporateCompanySetting.email_config
+        }
+      end
+
+      # PATCH /api/v1/corporate_company_settings/email_config
+      def update_email_config
+        settings = CorporateCompanySetting.instance
+
+        if settings.update(email_config_params)
+          render json: {
+            success: true,
+            data: CorporateCompanySetting.email_config
+          }
+        else
+          render json: {
+            success: false,
+            errors: settings.errors.full_messages
+          }, status: :unprocessable_entity
+        end
+      end
+
       private
 
       def company_setting_params
@@ -213,6 +242,16 @@ module Api
           :sharepoint_company_template,
           :sharepoint_people_template,
           :sharepoint_contacts_template
+        )
+      end
+
+      def email_config_params
+        params.require(:email_config).permit(
+          :internal_email_domains,
+          :monitored_mailbox_pay,
+          :monitored_mailbox_newtask,
+          :monitored_mailbox_newjob,
+          :monitored_mailbox_newcase
         )
       end
     end
