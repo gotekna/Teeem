@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -10,10 +9,14 @@ import {
   Save,
   Download,
   Plus,
-  Trash2,
   FileSpreadsheet,
   ChevronLeft,
   MoreVertical,
+  Undo2,
+  Redo2,
+  Copy,
+  Scissors,
+  ClipboardPaste,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -33,8 +36,10 @@ const CELL_HEIGHT = 28;
 const ROW_HEADER_WIDTH = 50;
 
 // Types
+type CellValue = string | number | boolean | null;
+
 interface CellData {
-  value: string | number | boolean | null;
+  value: CellValue;
   type?: "string" | "number" | "boolean" | "formula";
   formula?: string;
 }
@@ -60,7 +65,30 @@ interface Spreadsheet {
   createdAt: string;
 }
 
-// Column letter helper
+interface Selection {
+  start: { row: number; col: number };
+  end: { row: number; col: number };
+}
+
+interface ClipboardData {
+  cells: Record<string, CellData>;
+  startRow: number;
+  startCol: number;
+  endRow: number;
+  endCol: number;
+  isCut: boolean;
+}
+
+interface HistoryEntry {
+  sheets: SheetData[];
+  name: string;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HELPER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Column letter helper (0 -> A, 1 -> B, 26 -> AA)
 function getColumnLetter(index: number): string {
   let result = "";
   let n = index + 1;
@@ -72,10 +100,171 @@ function getColumnLetter(index: number): string {
   return result;
 }
 
+// Column letter to index (A -> 0, B -> 1, AA -> 26)
+function colLetterToIndex(col: string): number {
+  let result = 0;
+  const upper = col.toUpperCase();
+  for (let i = 0; i < upper.length; i++) {
+    result = result * 26 + (upper.charCodeAt(i) - 64);
+  }
+  return result - 1;
+}
+
 // Cell reference helper
 function getCellRef(row: number, col: number): string {
   return `${getColumnLetter(col)}${row + 1}`;
 }
+
+// Parse cell reference (A1 -> {row: 0, col: 0})
+function parseRef(ref: string): { row: number; col: number } | null {
+  const match = ref.match(/^([A-Z]+)(\d+)$/i);
+  if (!match) return null;
+  return {
+    col: colLetterToIndex(match[1]),
+    row: parseInt(match[2], 10) - 1,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FORMULA FUNCTIONS (Phase 2)
+// ═══════════════════════════════════════════════════════════════════════════
+
+type FormulaFunction = (args: CellValue[]) => CellValue;
+
+const FUNCTIONS: Record<string, FormulaFunction> = {
+  // Math functions
+  SUM: (args) => {
+    return args.reduce((sum: number, val) => {
+      const num = typeof val === "number" ? val : parseFloat(String(val));
+      return sum + (isNaN(num) ? 0 : num);
+    }, 0);
+  },
+
+  AVERAGE: (args) => {
+    const nums = args
+      .map((v) => (typeof v === "number" ? v : parseFloat(String(v))))
+      .filter((n) => !isNaN(n));
+    if (nums.length === 0) return 0;
+    return nums.reduce((a, b) => a + b, 0) / nums.length;
+  },
+
+  COUNT: (args) => {
+    return args.filter(
+      (v) => typeof v === "number" || !isNaN(parseFloat(String(v)))
+    ).length;
+  },
+
+  COUNTA: (args) => {
+    return args.filter((v) => v !== null && v !== "").length;
+  },
+
+  MIN: (args) => {
+    const nums = args
+      .map((v) => (typeof v === "number" ? v : parseFloat(String(v))))
+      .filter((n) => !isNaN(n));
+    return nums.length ? Math.min(...nums) : 0;
+  },
+
+  MAX: (args) => {
+    const nums = args
+      .map((v) => (typeof v === "number" ? v : parseFloat(String(v))))
+      .filter((n) => !isNaN(n));
+    return nums.length ? Math.max(...nums) : 0;
+  },
+
+  ROUND: (args) => {
+    const [value, decimals = 0] = args;
+    const num = typeof value === "number" ? value : parseFloat(String(value));
+    const dec =
+      typeof decimals === "number" ? decimals : parseInt(String(decimals));
+    if (isNaN(num)) return "#VALUE!";
+    return Math.round(num * Math.pow(10, dec)) / Math.pow(10, dec);
+  },
+
+  ABS: (args) => {
+    const num =
+      typeof args[0] === "number" ? args[0] : parseFloat(String(args[0]));
+    return isNaN(num) ? "#VALUE!" : Math.abs(num);
+  },
+
+  // Logical functions
+  IF: (args) => {
+    const [condition, trueValue, falseValue = ""] = args;
+    return condition ? trueValue : falseValue;
+  },
+
+  AND: (args) => args.every((v) => Boolean(v)),
+
+  OR: (args) => args.some((v) => Boolean(v)),
+
+  NOT: (args) => !Boolean(args[0]),
+
+  // Text functions
+  CONCATENATE: (args) => args.map((v) => String(v ?? "")).join(""),
+
+  LEN: (args) => String(args[0] ?? "").length,
+
+  UPPER: (args) => String(args[0] ?? "").toUpperCase(),
+
+  LOWER: (args) => String(args[0] ?? "").toLowerCase(),
+
+  TRIM: (args) => String(args[0] ?? "").trim(),
+
+  LEFT: (args) => {
+    const [text, count = 1] = args;
+    const n = typeof count === "number" ? count : parseInt(String(count));
+    return String(text ?? "").substring(0, n);
+  },
+
+  RIGHT: (args) => {
+    const [text, count = 1] = args;
+    const str = String(text ?? "");
+    const n = typeof count === "number" ? count : parseInt(String(count));
+    return str.substring(str.length - n);
+  },
+
+  // Date functions
+  TODAY: () => new Date().toISOString().split("T")[0],
+
+  NOW: () => new Date().toISOString(),
+};
+
+// Parse range and return array of cell values (A1:A10)
+function parseRange(
+  range: string,
+  cells: Record<string, CellData>
+): CellValue[] {
+  const match = range.match(/^([A-Z]+)(\d+):([A-Z]+)(\d+)$/i);
+  if (!match) return [];
+
+  const [, startCol, startRow, endCol, endRow] = match;
+  const startColIdx = colLetterToIndex(startCol);
+  const endColIdx = colLetterToIndex(endCol);
+  const startRowIdx = parseInt(startRow) - 1;
+  const endRowIdx = parseInt(endRow) - 1;
+
+  const values: CellValue[] = [];
+  for (
+    let r = Math.min(startRowIdx, endRowIdx);
+    r <= Math.max(startRowIdx, endRowIdx);
+    r++
+  ) {
+    for (
+      let c = Math.min(startColIdx, endColIdx);
+      c <= Math.max(startColIdx, endColIdx);
+      c++
+    ) {
+      const ref = getCellRef(r, c);
+      const cell = cells[ref];
+      values.push(cell?.value ?? null);
+    }
+  }
+  return values;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════
 
 export default function TeeemXLPage() {
   const router = useRouter();
@@ -89,20 +278,42 @@ export default function TeeemXLPage() {
     return () => setMode("padded");
   }, [setMode]);
 
-  // State
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STATE
+  // ═══════════════════════════════════════════════════════════════════════════
+
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
-  const [spreadsheet, setSpreadsheet] = React.useState<Spreadsheet | null>(null);
+  const [spreadsheet, setSpreadsheet] = React.useState<Spreadsheet | null>(
+    null
+  );
   const [name, setName] = React.useState("Untitled Spreadsheet");
-  const [sheets, setSheets] = React.useState<SheetData[]>([{ name: "Sheet1", cells: {} }]);
+  const [sheets, setSheets] = React.useState<SheetData[]>([
+    { name: "Sheet1", cells: {} },
+  ]);
   const [activeSheetIndex, setActiveSheetIndex] = React.useState(0);
   const [selectedCell, setSelectedCell] = React.useState<string | null>(null);
   const [editingCell, setEditingCell] = React.useState<string | null>(null);
   const [editValue, setEditValue] = React.useState("");
   const [hasChanges, setHasChanges] = React.useState(false);
 
+  // Phase 1: Selection state
+  const [selection, setSelection] = React.useState<Selection | null>(null);
+  const [isDragging, setIsDragging] = React.useState(false);
+
+  // Phase 1: Clipboard state
+  const [clipboard, setClipboard] = React.useState<ClipboardData | null>(null);
+
+  // Phase 1: History state (undo/redo)
+  const [history, setHistory] = React.useState<HistoryEntry[]>([]);
+  const [historyIndex, setHistoryIndex] = React.useState(-1);
+
   const gridRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // LOAD / SAVE
+  // ═══════════════════════════════════════════════════════════════════════════
 
   // Load spreadsheet or create new
   React.useEffect(() => {
@@ -110,18 +321,30 @@ export default function TeeemXLPage() {
       setLoading(true);
       try {
         if (spreadsheetId) {
-          // Load existing
           const response = await api.get<{ success: boolean; data: Spreadsheet }>(
             `/api/v1/teeem_spreadsheets/${spreadsheetId}`
           );
           if (response?.success && response.data) {
             setSpreadsheet(response.data);
             setName(response.data.name);
-            setSheets(response.data.data.sheets || [{ name: "Sheet1", cells: {} }]);
+            setSheets(
+              response.data.data.sheets || [{ name: "Sheet1", cells: {} }]
+            );
             setActiveSheetIndex(response.data.data.activeSheet || 0);
+            // Initialize history
+            setHistory([
+              {
+                sheets: JSON.parse(
+                  JSON.stringify(
+                    response.data.data.sheets || [{ name: "Sheet1", cells: {} }]
+                  )
+                ),
+                name: response.data.name,
+              },
+            ]);
+            setHistoryIndex(0);
           }
         } else {
-          // Create new spreadsheet
           const response = await api.post<{ success: boolean; data: Spreadsheet }>(
             "/api/v1/teeem_spreadsheets",
             { teeem_spreadsheet: { name: "Untitled Spreadsheet" } }
@@ -129,8 +352,16 @@ export default function TeeemXLPage() {
           if (response?.success && response.data) {
             setSpreadsheet(response.data);
             setName(response.data.name);
-            setSheets(response.data.data.sheets || [{ name: "Sheet1", cells: {} }]);
-            // Update URL with new ID
+            setSheets(
+              response.data.data.sheets || [{ name: "Sheet1", cells: {} }]
+            );
+            setHistory([
+              {
+                sheets: [{ name: "Sheet1", cells: {} }],
+                name: "Untitled Spreadsheet",
+              },
+            ]);
+            setHistoryIndex(0);
             router.replace(`/admin/system/teeem-xl?id=${response.data.id}`);
           }
         }
@@ -180,7 +411,363 @@ export default function TeeemXLPage() {
     }
   };
 
-  // Export to XLSX
+  // ═══════════════════════════════════════════════════════════════════════════
+  // HISTORY (UNDO/REDO)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const saveToHistory = () => {
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push({
+      sheets: JSON.parse(JSON.stringify(sheets)),
+      name,
+    });
+    // Limit history to 50 items
+    if (newHistory.length > 50) newHistory.shift();
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+  };
+
+  const undo = () => {
+    if (historyIndex > 0) {
+      const prev = history[historyIndex - 1];
+      setSheets(JSON.parse(JSON.stringify(prev.sheets)));
+      setName(prev.name);
+      setHistoryIndex(historyIndex - 1);
+      setHasChanges(true);
+    }
+  };
+
+  const redo = () => {
+    if (historyIndex < history.length - 1) {
+      const next = history[historyIndex + 1];
+      setSheets(JSON.parse(JSON.stringify(next.sheets)));
+      setName(next.name);
+      setHistoryIndex(historyIndex + 1);
+      setHasChanges(true);
+    }
+  };
+
+  const canUndo = historyIndex > 0;
+  const canRedo = historyIndex < history.length - 1;
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FORMULA EVALUATOR (Phase 2)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const evaluateFormula = (
+    formula: string,
+    cells: Record<string, CellData>
+  ): CellValue => {
+    try {
+      let expr = formula.substring(1).trim();
+
+      // Parse function calls recursively
+      let iterations = 0;
+      const maxIterations = 100;
+
+      while (/[A-Z]+\([^()]*\)/i.test(expr) && iterations < maxIterations) {
+        iterations++;
+        expr = expr.replace(
+          /([A-Z]+)\(([^()]*)\)/gi,
+          (match, funcName, argsStr) => {
+            const func = FUNCTIONS[funcName.toUpperCase()];
+            if (!func) return "#NAME?";
+
+            // Parse arguments
+            const args: CellValue[] = [];
+            if (argsStr.trim()) {
+              // Split by comma, but be careful with nested quotes
+              const argParts = argsStr.split(",").map((s: string) => s.trim());
+
+              for (const arg of argParts) {
+                if (arg.includes(":")) {
+                  // Range reference (A1:A10)
+                  args.push(...parseRange(arg, cells));
+                } else if (/^[A-Z]+\d+$/i.test(arg)) {
+                  // Single cell reference
+                  const cell = cells[arg.toUpperCase()];
+                  args.push(cell?.value ?? null);
+                } else if (!isNaN(parseFloat(arg))) {
+                  // Number
+                  args.push(parseFloat(arg));
+                } else if (arg.startsWith('"') && arg.endsWith('"')) {
+                  // String literal
+                  args.push(arg.slice(1, -1));
+                } else if (arg.toUpperCase() === "TRUE") {
+                  args.push(true);
+                } else if (arg.toUpperCase() === "FALSE") {
+                  args.push(false);
+                } else {
+                  // Expression or comparison - try to evaluate
+                  args.push(arg);
+                }
+              }
+            }
+
+            const result = func(args);
+            if (typeof result === "string" && result.startsWith("#")) {
+              return result;
+            }
+            return typeof result === "string" ? `"${result}"` : String(result);
+          }
+        );
+      }
+
+      // Replace remaining cell references with values
+      expr = expr.replace(/([A-Z]+)(\d+)/gi, (match) => {
+        const cell = cells[match.toUpperCase()];
+        const val = cell?.value ?? 0;
+        return typeof val === "string" ? `"${val}"` : String(val);
+      });
+
+      // Check for error codes
+      if (expr.includes("#")) {
+        const errorMatch = expr.match(/#[A-Z!?]+/);
+        if (errorMatch) return errorMatch[0];
+      }
+
+      // Evaluate - only if safe (numbers, math, comparison operators)
+      if (/^[\d\s+\-*/().,"<>=!&|truefalse]+$/i.test(expr)) {
+        const result = Function(`"use strict"; return (${expr})`)();
+        return result;
+      }
+
+      // Try basic evaluation for simple expressions
+      if (/^[\d\s+\-*/().]+$/.test(expr)) {
+        const result = Function(`"use strict"; return (${expr})`)();
+        return typeof result === "number" && !isNaN(result) ? result : "#ERROR";
+      }
+
+      return "#ERROR";
+    } catch {
+      return "#ERROR";
+    }
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SELECTION HELPERS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const getSelectionBounds = () => {
+    if (!selection)
+      return { minRow: 0, maxRow: 0, minCol: 0, maxCol: 0, hasSelection: false };
+    return {
+      minRow: Math.min(selection.start.row, selection.end.row),
+      maxRow: Math.max(selection.start.row, selection.end.row),
+      minCol: Math.min(selection.start.col, selection.end.col),
+      maxCol: Math.max(selection.start.col, selection.end.col),
+      hasSelection: true,
+    };
+  };
+
+  const isInSelection = (row: number, col: number) => {
+    if (!selection) return false;
+    const { minRow, maxRow, minCol, maxCol } = getSelectionBounds();
+    return row >= minRow && row <= maxRow && col >= minCol && col <= maxCol;
+  };
+
+  const forEachSelectedCell = (
+    callback: (row: number, col: number, ref: string) => void
+  ) => {
+    const { minRow, maxRow, minCol, maxCol, hasSelection } =
+      getSelectionBounds();
+    if (!hasSelection) {
+      // Single cell selection
+      if (selectedCell) {
+        const parsed = parseRef(selectedCell);
+        if (parsed) {
+          callback(parsed.row, parsed.col, selectedCell);
+        }
+      }
+      return;
+    }
+
+    for (let r = minRow; r <= maxRow; r++) {
+      for (let c = minCol; c <= maxCol; c++) {
+        callback(r, c, getCellRef(r, c));
+      }
+    }
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // COPY / PASTE
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const copySelection = (isCut: boolean = false) => {
+    const { minRow, maxRow, minCol, maxCol, hasSelection } =
+      getSelectionBounds();
+    const activeSheet = sheets[activeSheetIndex];
+    const copiedCells: Record<string, CellData> = {};
+
+    if (!hasSelection && selectedCell) {
+      const cell = activeSheet.cells[selectedCell];
+      if (cell) {
+        copiedCells[selectedCell] = { ...cell };
+      }
+      const parsed = parseRef(selectedCell);
+      if (parsed) {
+        setClipboard({
+          cells: copiedCells,
+          startRow: parsed.row,
+          startCol: parsed.col,
+          endRow: parsed.row,
+          endCol: parsed.col,
+          isCut,
+        });
+      }
+    } else {
+      for (let r = minRow; r <= maxRow; r++) {
+        for (let c = minCol; c <= maxCol; c++) {
+          const ref = getCellRef(r, c);
+          const cell = activeSheet.cells[ref];
+          if (cell) {
+            copiedCells[ref] = { ...cell };
+          }
+        }
+      }
+      setClipboard({
+        cells: copiedCells,
+        startRow: minRow,
+        startCol: minCol,
+        endRow: maxRow,
+        endCol: maxCol,
+        isCut,
+      });
+    }
+
+    // Also copy to system clipboard as text
+    const text = getSelectionAsText();
+    if (text) {
+      navigator.clipboard.writeText(text).catch(() => {});
+    }
+  };
+
+  const getSelectionAsText = (): string => {
+    const { minRow, maxRow, minCol, maxCol, hasSelection } =
+      getSelectionBounds();
+    const activeSheet = sheets[activeSheetIndex];
+    const rows: string[] = [];
+
+    if (!hasSelection && selectedCell) {
+      const cell = activeSheet.cells[selectedCell];
+      return cell?.value?.toString() ?? "";
+    }
+
+    for (let r = minRow; r <= maxRow; r++) {
+      const cols: string[] = [];
+      for (let c = minCol; c <= maxCol; c++) {
+        const ref = getCellRef(r, c);
+        const cell = activeSheet.cells[ref];
+        cols.push(cell?.value?.toString() ?? "");
+      }
+      rows.push(cols.join("\t"));
+    }
+    return rows.join("\n");
+  };
+
+  // Adjust formula references when pasting
+  const adjustFormula = (
+    formula: string,
+    rowOffset: number,
+    colOffset: number
+  ): string => {
+    return formula.replace(/([A-Z]+)(\d+)/gi, (match, colStr, rowStr) => {
+      const newCol = getColumnLetter(colLetterToIndex(colStr) + colOffset);
+      const newRow = parseInt(rowStr) + rowOffset;
+      if (newRow < 1) return match; // Don't adjust to invalid reference
+      return `${newCol}${newRow}`;
+    });
+  };
+
+  const pasteClipboard = () => {
+    if (!clipboard) return;
+
+    saveToHistory();
+    const newSheets = [...sheets];
+    const activeSheet = { ...newSheets[activeSheetIndex] };
+    activeSheet.cells = { ...activeSheet.cells };
+
+    // Determine paste location
+    let pasteRow = 0;
+    let pasteCol = 0;
+    if (selectedCell) {
+      const parsed = parseRef(selectedCell);
+      if (parsed) {
+        pasteRow = parsed.row;
+        pasteCol = parsed.col;
+      }
+    }
+
+    const rowOffset = pasteRow - clipboard.startRow;
+    const colOffset = pasteCol - clipboard.startCol;
+
+    // Paste cells
+    Object.entries(clipboard.cells).forEach(([ref, cell]) => {
+      const parsed = parseRef(ref);
+      if (!parsed) return;
+
+      const newRow = parsed.row + rowOffset;
+      const newCol = parsed.col + colOffset;
+      if (newRow < 0 || newCol < 0) return;
+
+      const newRef = getCellRef(newRow, newCol);
+      const newCell = { ...cell };
+
+      // Adjust formula references
+      if (cell.formula) {
+        newCell.formula = adjustFormula(cell.formula, rowOffset, colOffset);
+        newCell.value = evaluateFormula(newCell.formula, activeSheet.cells);
+      }
+
+      activeSheet.cells[newRef] = newCell;
+    });
+
+    // If cut, clear original cells
+    if (clipboard.isCut) {
+      Object.keys(clipboard.cells).forEach((ref) => {
+        // Only delete if not in paste area
+        const parsed = parseRef(ref);
+        if (parsed) {
+          const pastedRef = getCellRef(
+            parsed.row + rowOffset,
+            parsed.col + colOffset
+          );
+          if (ref !== pastedRef) {
+            delete activeSheet.cells[ref];
+          }
+        }
+      });
+      setClipboard(null);
+    }
+
+    newSheets[activeSheetIndex] = activeSheet;
+    setSheets(newSheets);
+    setHasChanges(true);
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DELETE
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const deleteSelection = () => {
+    saveToHistory();
+    const newSheets = [...sheets];
+    const activeSheet = { ...newSheets[activeSheetIndex] };
+    activeSheet.cells = { ...activeSheet.cells };
+
+    forEachSelectedCell((row, col, ref) => {
+      delete activeSheet.cells[ref];
+    });
+
+    newSheets[activeSheetIndex] = activeSheet;
+    setSheets(newSheets);
+    setHasChanges(true);
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // EXPORT
+  // ═══════════════════════════════════════════════════════════════════════════
+
   const handleExport = async () => {
     if (!spreadsheet) return;
 
@@ -193,7 +780,7 @@ export default function TeeemXLPage() {
       let maxRow = 0;
       let maxCol = 0;
 
-      Object.entries(activeSheet.cells).forEach(([ref, cell]) => {
+      Object.entries(activeSheet.cells).forEach(([ref]) => {
         const match = ref.match(/^([A-Z]+)(\d+)$/i);
         if (match) {
           const col = TeeemXL.columnToIndex(match[1]);
@@ -203,7 +790,6 @@ export default function TeeemXLPage() {
         }
       });
 
-      // Build array
       for (let r = 0; r <= maxRow; r++) {
         const row: (string | number | boolean | null)[] = [];
         for (let c = 0; c <= maxCol; c++) {
@@ -218,7 +804,6 @@ export default function TeeemXLPage() {
         sheetName: activeSheet.name,
       });
 
-      // Download
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -232,54 +817,64 @@ export default function TeeemXLPage() {
     }
   };
 
-  // Cell handlers
-  const handleCellClick = (ref: string) => {
-    setSelectedCell(ref);
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CELL HANDLERS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const handleCellMouseDown = (
+    row: number,
+    col: number,
+    e: React.MouseEvent
+  ) => {
+    const ref = getCellRef(row, col);
+
+    if (e.shiftKey && selectedCell) {
+      // Extend selection
+      const startParsed = parseRef(selectedCell);
+      if (startParsed) {
+        setSelection({
+          start: startParsed,
+          end: { row, col },
+        });
+      }
+    } else {
+      // New selection
+      setSelectedCell(ref);
+      setSelection({
+        start: { row, col },
+        end: { row, col },
+      });
+      setIsDragging(true);
+    }
     setEditingCell(null);
   };
+
+  const handleCellMouseEnter = (row: number, col: number) => {
+    if (isDragging && selection) {
+      setSelection((prev) => (prev ? { ...prev, end: { row, col } } : null));
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  React.useEffect(() => {
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => window.removeEventListener("mouseup", handleMouseUp);
+  }, []);
 
   const handleCellDoubleClick = (ref: string) => {
     setSelectedCell(ref);
     setEditingCell(ref);
     const cell = sheets[activeSheetIndex].cells[ref];
-    // Show formula if it's a formula cell, otherwise show value
     setEditValue(cell?.formula || cell?.value?.toString() || "");
     setTimeout(() => inputRef.current?.focus(), 0);
   };
 
-  const handleCellChange = (value: string) => {
-    setEditValue(value);
-  };
-
-  // Simple formula evaluator
-  const evaluateFormula = (formula: string, cells: Record<string, CellData>): number | string => {
-    try {
-      // Remove leading =
-      const expr = formula.substring(1).trim();
-
-      // Replace cell references with their values
-      const evaluated = expr.replace(/([A-Z]+)(\d+)/gi, (match) => {
-        const cell = cells[match.toUpperCase()];
-        if (!cell) return "0";
-        const val = cell.type === "formula" ? evaluateFormula(cell.formula || "", cells) : cell.value;
-        return String(val ?? 0);
-      });
-
-      // Only allow safe math operations
-      if (!/^[\d\s+\-*/().]+$/.test(evaluated)) {
-        return "#ERROR";
-      }
-
-      // Evaluate the expression
-      const result = Function(`"use strict"; return (${evaluated})`)();
-      return typeof result === "number" && !isNaN(result) ? result : "#ERROR";
-    } catch {
-      return "#ERROR";
-    }
-  };
-
   const handleCellBlur = () => {
     if (editingCell) {
+      saveToHistory();
       const newSheets = [...sheets];
       const activeSheet = { ...newSheets[activeSheetIndex] };
       activeSheet.cells = { ...activeSheet.cells };
@@ -287,20 +882,21 @@ export default function TeeemXLPage() {
       if (editValue.trim() === "") {
         delete activeSheet.cells[editingCell];
       } else {
-        // Detect type - check for formula first
-        let cellValue: string | number | boolean = editValue;
+        let cellValue: CellValue = editValue;
         let cellType: "string" | "number" | "boolean" | "formula" = "string";
         let formula: string | undefined;
 
         if (editValue.startsWith("=")) {
-          // Formula
           cellType = "formula";
           formula = editValue;
           cellValue = evaluateFormula(editValue, activeSheet.cells);
         } else if (!isNaN(Number(editValue)) && editValue.trim() !== "") {
           cellValue = Number(editValue);
           cellType = "number";
-        } else if (editValue.toLowerCase() === "true" || editValue.toLowerCase() === "false") {
+        } else if (
+          editValue.toLowerCase() === "true" ||
+          editValue.toLowerCase() === "false"
+        ) {
           cellValue = editValue.toLowerCase() === "true";
           cellType = "boolean";
         }
@@ -315,71 +911,141 @@ export default function TeeemXLPage() {
     setEditingCell(null);
   };
 
-  // Input-specific keydown handler (stops propagation to prevent double handling)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // KEYBOARD HANDLERS
+  // ═══════════════════════════════════════════════════════════════════════════
+
   const handleInputKeyDown = (e: React.KeyboardEvent) => {
     if (!selectedCell) return;
 
-    const match = selectedCell.match(/^([A-Z]+)(\d+)$/i);
-    if (!match) return;
-
-    const col = match[1].charCodeAt(0) - 65;
-    const row = parseInt(match[2], 10) - 1;
+    const parsed = parseRef(selectedCell);
+    if (!parsed) return;
 
     if (e.key === "Enter") {
       e.preventDefault();
       e.stopPropagation();
       handleCellBlur();
-      // Move down
-      const newRef = getCellRef(row + 1, col);
+      const newRef = getCellRef(parsed.row + 1, parsed.col);
       setSelectedCell(newRef);
+      setSelection({ start: { row: parsed.row + 1, col: parsed.col }, end: { row: parsed.row + 1, col: parsed.col } });
     } else if (e.key === "Tab") {
       e.preventDefault();
       e.stopPropagation();
       handleCellBlur();
-      // Move right (or left with shift)
-      const newCol = e.shiftKey ? Math.max(0, col - 1) : col + 1;
-      const newRef = getCellRef(row, newCol);
+      const newCol = e.shiftKey ? Math.max(0, parsed.col - 1) : parsed.col + 1;
+      const newRef = getCellRef(parsed.row, newCol);
       setSelectedCell(newRef);
+      setSelection({ start: { row: parsed.row, col: newCol }, end: { row: parsed.row, col: newCol } });
     } else if (e.key === "Escape") {
       e.stopPropagation();
       setEditingCell(null);
     }
-    // Let other keys (typing) be handled normally by the input
   };
 
-  // Grid keydown handler (for navigation when not editing)
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!selectedCell || editingCell) return; // Don't handle when editing
+    // Handle undo/redo
+    if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+      e.preventDefault();
+      if (e.shiftKey) {
+        redo();
+      } else {
+        undo();
+      }
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === "y") {
+      e.preventDefault();
+      redo();
+      return;
+    }
 
-    const match = selectedCell.match(/^([A-Z]+)(\d+)$/i);
-    if (!match) return;
+    // Handle copy/paste
+    if ((e.ctrlKey || e.metaKey) && e.key === "c") {
+      e.preventDefault();
+      copySelection(false);
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === "x") {
+      e.preventDefault();
+      copySelection(true);
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === "v") {
+      e.preventDefault();
+      pasteClipboard();
+      return;
+    }
 
-    const col = match[1].charCodeAt(0) - 65;
-    const row = parseInt(match[2], 10) - 1;
+    // Select all
+    if ((e.ctrlKey || e.metaKey) && e.key === "a") {
+      e.preventDefault();
+      setSelection({
+        start: { row: 0, col: 0 },
+        end: { row: DEFAULT_ROWS - 1, col: DEFAULT_COLS - 1 },
+      });
+      return;
+    }
 
+    if (!selectedCell || editingCell) return;
+
+    const parsed = parseRef(selectedCell);
+    if (!parsed) return;
+
+    // Delete
+    if (e.key === "Delete" || e.key === "Backspace") {
+      e.preventDefault();
+      deleteSelection();
+      return;
+    }
+
+    // Navigation
     if (e.key === "Enter") {
       handleCellDoubleClick(selectedCell);
       e.preventDefault();
     } else if (e.key === "Tab") {
-      // Move right (or left with shift)
-      const newCol = e.shiftKey ? Math.max(0, col - 1) : col + 1;
-      const newRef = getCellRef(row, newCol);
+      const newCol = e.shiftKey ? Math.max(0, parsed.col - 1) : parsed.col + 1;
+      const newRef = getCellRef(parsed.row, newCol);
       setSelectedCell(newRef);
+      setSelection({ start: { row: parsed.row, col: newCol }, end: { row: parsed.row, col: newCol } });
       e.preventDefault();
-    } else if (e.key === "ArrowUp" && row > 0) {
-      setSelectedCell(getCellRef(row - 1, col));
+    } else if (e.key === "ArrowUp" && parsed.row > 0) {
+      const newRef = getCellRef(parsed.row - 1, parsed.col);
+      setSelectedCell(newRef);
+      if (!e.shiftKey) {
+        setSelection({ start: { row: parsed.row - 1, col: parsed.col }, end: { row: parsed.row - 1, col: parsed.col } });
+      } else if (selection) {
+        setSelection({ ...selection, end: { row: parsed.row - 1, col: parsed.col } });
+      }
       e.preventDefault();
     } else if (e.key === "ArrowDown") {
-      setSelectedCell(getCellRef(row + 1, col));
+      const newRef = getCellRef(parsed.row + 1, parsed.col);
+      setSelectedCell(newRef);
+      if (!e.shiftKey) {
+        setSelection({ start: { row: parsed.row + 1, col: parsed.col }, end: { row: parsed.row + 1, col: parsed.col } });
+      } else if (selection) {
+        setSelection({ ...selection, end: { row: parsed.row + 1, col: parsed.col } });
+      }
       e.preventDefault();
-    } else if (e.key === "ArrowLeft" && col > 0) {
-      setSelectedCell(getCellRef(row, col - 1));
+    } else if (e.key === "ArrowLeft" && parsed.col > 0) {
+      const newRef = getCellRef(parsed.row, parsed.col - 1);
+      setSelectedCell(newRef);
+      if (!e.shiftKey) {
+        setSelection({ start: { row: parsed.row, col: parsed.col - 1 }, end: { row: parsed.row, col: parsed.col - 1 } });
+      } else if (selection) {
+        setSelection({ ...selection, end: { row: parsed.row, col: parsed.col - 1 } });
+      }
       e.preventDefault();
     } else if (e.key === "ArrowRight") {
-      setSelectedCell(getCellRef(row, col + 1));
+      const newRef = getCellRef(parsed.row, parsed.col + 1);
+      setSelectedCell(newRef);
+      if (!e.shiftKey) {
+        setSelection({ start: { row: parsed.row, col: parsed.col + 1 }, end: { row: parsed.row, col: parsed.col + 1 } });
+      } else if (selection) {
+        setSelection({ ...selection, end: { row: parsed.row, col: parsed.col + 1 } });
+      }
       e.preventDefault();
     } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
-      // Start typing - clear cell and start fresh with the typed character
+      // Start typing
       handleCellDoubleClick(selectedCell);
       setEditValue(e.key);
       e.preventDefault();
@@ -388,29 +1054,39 @@ export default function TeeemXLPage() {
 
   // Add sheet
   const addSheet = () => {
-    const newSheets = [...sheets, { name: `Sheet${sheets.length + 1}`, cells: {} }];
+    saveToHistory();
+    const newSheets = [
+      ...sheets,
+      { name: `Sheet${sheets.length + 1}`, cells: {} },
+    ];
     setSheets(newSheets);
     setActiveSheetIndex(newSheets.length - 1);
     setHasChanges(true);
   };
 
-  // Render cell
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RENDER CELL
+  // ═══════════════════════════════════════════════════════════════════════════
+
   const renderCell = (row: number, col: number) => {
     const ref = getCellRef(row, col);
     const cell = sheets[activeSheetIndex]?.cells[ref];
     const isSelected = selectedCell === ref;
     const isEditing = editingCell === ref;
+    const inSelection = isInSelection(row, col);
 
     return (
       <div
         key={ref}
         className={cn(
-          "border-r border-b border-gray-200 dark:border-gray-700 px-1 flex items-center overflow-hidden",
+          "border-r border-b border-gray-200 dark:border-gray-700 px-1 flex items-center overflow-hidden relative",
           isSelected && "ring-2 ring-blue-500 ring-inset z-10",
+          inSelection && !isSelected && "bg-blue-100 dark:bg-blue-900/30",
           !isEditing && "cursor-cell"
         )}
         style={{ width: CELL_WIDTH, height: CELL_HEIGHT, minWidth: CELL_WIDTH }}
-        onClick={() => handleCellClick(ref)}
+        onMouseDown={(e) => handleCellMouseDown(row, col, e)}
+        onMouseEnter={() => handleCellMouseEnter(row, col)}
         onDoubleClick={() => handleCellDoubleClick(ref)}
       >
         {isEditing ? (
@@ -418,7 +1094,7 @@ export default function TeeemXLPage() {
             ref={inputRef}
             type="text"
             value={editValue}
-            onChange={(e) => handleCellChange(e.target.value)}
+            onChange={(e) => setEditValue(e.target.value)}
             onBlur={handleCellBlur}
             onKeyDown={handleInputKeyDown}
             className="w-full h-full bg-transparent outline-none text-sm"
@@ -426,12 +1102,16 @@ export default function TeeemXLPage() {
           />
         ) : (
           <span className="text-sm truncate">
-            {cell?.type === "formula" ? cell.value?.toString() : cell?.value?.toString() ?? ""}
+            {cell?.value?.toString() ?? ""}
           </span>
         )}
       </div>
     );
   };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RENDER
+  // ═══════════════════════════════════════════════════════════════════════════
 
   if (loading) {
     return (
@@ -442,10 +1122,18 @@ export default function TeeemXLPage() {
   }
 
   return (
-    <div className="flex flex-col h-full" onKeyDown={handleKeyDown} tabIndex={0}>
+    <div
+      className="flex flex-col h-full"
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
+    >
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-4 py-2 border-b bg-background shrink-0">
-        <Button variant="ghost" size="icon" onClick={() => router.push("/admin/system/teeem-xl/list")}>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => router.push("/admin/system/teeem-xl/list")}
+        >
           <ChevronLeft className="h-4 w-4" />
         </Button>
 
@@ -462,6 +1150,57 @@ export default function TeeemXLPage() {
           className="w-64 h-8 text-sm font-medium"
         />
 
+        <div className="h-6 w-px bg-border" />
+
+        {/* Undo/Redo */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={undo}
+          disabled={!canUndo}
+          title="Undo (Ctrl+Z)"
+        >
+          <Undo2 className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={redo}
+          disabled={!canRedo}
+          title="Redo (Ctrl+Y)"
+        >
+          <Redo2 className="h-4 w-4" />
+        </Button>
+
+        <div className="h-6 w-px bg-border" />
+
+        {/* Copy/Cut/Paste */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => copySelection(false)}
+          title="Copy (Ctrl+C)"
+        >
+          <Copy className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => copySelection(true)}
+          title="Cut (Ctrl+X)"
+        >
+          <Scissors className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={pasteClipboard}
+          disabled={!clipboard}
+          title="Paste (Ctrl+V)"
+        >
+          <ClipboardPaste className="h-4 w-4" />
+        </Button>
+
         <div className="flex-1" />
 
         {saving && (
@@ -474,7 +1213,12 @@ export default function TeeemXLPage() {
           <span className="text-xs text-muted-foreground">Unsaved changes</span>
         )}
 
-        <Button variant="outline" size="sm" onClick={saveSpreadsheet} disabled={saving}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={saveSpreadsheet}
+          disabled={saving}
+        >
           <Save className="h-4 w-4 mr-1" />
           Save
         </Button>
@@ -491,7 +1235,9 @@ export default function TeeemXLPage() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => router.push("/admin/system/teeem-xl/list")}>
+            <DropdownMenuItem
+              onClick={() => router.push("/admin/system/teeem-xl/list")}
+            >
               All Spreadsheets
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -504,8 +1250,11 @@ export default function TeeemXLPage() {
           {selectedCell || ""}
         </span>
         <div className="h-4 w-px bg-border" />
-        <span className="text-xs flex-1">
-          {selectedCell && sheets[activeSheetIndex]?.cells[selectedCell]?.value?.toString()}
+        <span className="text-xs flex-1 font-mono">
+          {selectedCell &&
+            (sheets[activeSheetIndex]?.cells[selectedCell]?.formula ||
+              sheets[activeSheetIndex]?.cells[selectedCell]?.value?.toString() ||
+              "")}
         </span>
       </div>
 
@@ -521,8 +1270,20 @@ export default function TeeemXLPage() {
             {Array.from({ length: DEFAULT_COLS }, (_, col) => (
               <div
                 key={col}
-                className="border-r border-b border-gray-300 dark:border-gray-600 bg-muted flex items-center justify-center text-xs font-medium"
-                style={{ width: CELL_WIDTH, height: CELL_HEIGHT, minWidth: CELL_WIDTH }}
+                className="border-r border-b border-gray-300 dark:border-gray-600 bg-muted flex items-center justify-center text-xs font-medium cursor-pointer hover:bg-muted/80"
+                style={{
+                  width: CELL_WIDTH,
+                  height: CELL_HEIGHT,
+                  minWidth: CELL_WIDTH,
+                }}
+                onClick={() => {
+                  // Select entire column
+                  setSelection({
+                    start: { row: 0, col },
+                    end: { row: DEFAULT_ROWS - 1, col },
+                  });
+                  setSelectedCell(getCellRef(0, col));
+                }}
               >
                 {getColumnLetter(col)}
               </div>
@@ -534,13 +1295,23 @@ export default function TeeemXLPage() {
             <div key={row} className="flex">
               {/* Row header */}
               <div
-                className="border-r border-b border-gray-300 dark:border-gray-600 bg-muted flex items-center justify-center text-xs font-medium sticky left-0 z-10"
+                className="border-r border-b border-gray-300 dark:border-gray-600 bg-muted flex items-center justify-center text-xs font-medium sticky left-0 z-10 cursor-pointer hover:bg-muted/80"
                 style={{ width: ROW_HEADER_WIDTH, height: CELL_HEIGHT }}
+                onClick={() => {
+                  // Select entire row
+                  setSelection({
+                    start: { row, col: 0 },
+                    end: { row, col: DEFAULT_COLS - 1 },
+                  });
+                  setSelectedCell(getCellRef(row, 0));
+                }}
               >
                 {row + 1}
               </div>
               {/* Cells */}
-              {Array.from({ length: DEFAULT_COLS }, (_, col) => renderCell(row, col))}
+              {Array.from({ length: DEFAULT_COLS }, (_, col) =>
+                renderCell(row, col)
+              )}
             </div>
           ))}
         </div>
