@@ -1532,8 +1532,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           if (q.attachments && q.attachments.length > 0) {
             q.attachments.forEach(att => {
               const fileName = att.document?.display_name || att.document?.file_name || 'Document';
-              // Try SharePoint URL first, then ActiveStorage file_url
-              const url = att.document?.file_url;
+              // Use SharePoint share link if available, otherwise fall back to file_url
+              const shareUrl = shareLinksMap[att.id];
+              const fallbackUrl = att.document?.file_url;
+              const url = shareUrl || fallbackUrl;
               body += `<p>&nbsp;&nbsp;&nbsp;📎 See attached: ${formatFileLink(fileName, url)}</p>\n`;
             });
           }
@@ -1606,6 +1608,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       const filesToAttach: File[] = [];
       const shareLinks: Record<number, string> = {};
 
+      // Collect all question attachments that have SharePoint file IDs
+      const questionAttachmentsToLink = questionItems
+        .filter(q => q.include_in_response)
+        .flatMap(q => q.attachments || [])
+        .filter(att => att.document?.sharepoint_file_id);
+
       // Count files to process for progress
       const toAttach = responseAttachments.filter(a => attachmentEmailOptions[a.id] === 'attach');
       const toLink = responseAttachments.filter(a => {
@@ -1613,7 +1621,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         const hasSharePoint = a.document?.sharepoint_file_id;
         return opt === 'link' && hasSharePoint;
       });
-      const totalToProcess = toAttach.length + toLink.length;
+      const totalToProcess = toAttach.length + toLink.length + questionAttachmentsToLink.length;
       let processed = 0;
 
       // Process files to attach
@@ -1641,7 +1649,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         processed++;
       }
 
-      // Process files to create share links
+      // Process files to create share links (response attachments)
       for (const att of toLink) {
         const fileName = att.document?.display_name || att.document?.file_name || 'file';
         setPrepareEmailStatus(`Creating share link for ${fileName}... (${processed + 1}/${totalToProcess})`);
@@ -1654,6 +1662,28 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           }
         } catch (err) {
           console.error(`Failed to create share link for attachment ${att.id}:`, err);
+        }
+        processed++;
+      }
+
+      // Process question attachments to create share links
+      for (const att of questionAttachmentsToLink) {
+        // Skip if we already have a share link for this attachment
+        if (shareLinks[att.id]) {
+          processed++;
+          continue;
+        }
+        const fileName = att.document?.display_name || att.document?.file_name || 'file';
+        setPrepareEmailStatus(`Creating share link for ${fileName}... (${processed + 1}/${totalToProcess})`);
+        try {
+          const response = await api.post<{ success: boolean; share_url: string }>(
+            `/api/v1/sm_tasks/${task.id}/attachments/${att.id}/share_link`
+          );
+          if (response?.success && response?.share_url) {
+            shareLinks[att.id] = response.share_url;
+          }
+        } catch (err) {
+          console.error(`Failed to create share link for question attachment ${att.id}:`, err);
         }
         processed++;
       }
