@@ -546,7 +546,7 @@ function SortableQuestionItem({
 
       {/* Delegated task link or create task button */}
       {item.delegated_task_id ? (
-        <div className="ml-6">
+        <div className="ml-6 flex items-center gap-1">
           <Button
             variant="link"
             size="sm"
@@ -555,6 +555,11 @@ function SortableQuestionItem({
           >
             → Task #{item.delegated_task_id}
           </Button>
+          {item.delegated_task?.assigned_user_name && (
+            <span className="text-xs text-muted-foreground">
+              ({item.delegated_task.assigned_user_name})
+            </span>
+          )}
         </div>
       ) : delegatingQuestionId === item.id ? (
         <div className="ml-6 flex gap-2 items-center">
@@ -2671,7 +2676,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
                   {/* Delegated task link or create task button */}
                   {item.delegated_task_id ? (
-                    <div className="ml-6">
+                    <div className="ml-6 flex items-center gap-1">
                       <Button
                         variant="link"
                         size="sm"
@@ -2680,6 +2685,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       >
                         → Task #{item.delegated_task_id}
                       </Button>
+                      {item.delegated_task?.assigned_user_name && (
+                        <span className="text-xs text-muted-foreground">
+                          ({item.delegated_task.assigned_user_name})
+                        </span>
+                      )}
                     </div>
                   ) : delegatingActionId === item.id ? (
                     <div className="ml-6 flex gap-2 items-center">
