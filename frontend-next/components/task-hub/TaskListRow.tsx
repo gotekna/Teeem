@@ -107,7 +107,7 @@ export function TaskListRow({
           ) : (
             <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
           )}
-          <span className="font-mono text-[10px] text-muted-foreground">#{task.task_number}</span>
+          <span className="font-mono text-xs text-muted-foreground">#{task.task_number}</span>
           {editingTaskId === task.id ? (
             <Input
               value={editingTaskName}
@@ -256,16 +256,16 @@ export function TaskListRow({
           </TooltipProvider>
         </div>
 
-        <div className="text-[11px] text-muted-foreground">{formatDate(task.start_date)}</div>
-        <div className="text-[11px] text-muted-foreground">{formatDate(task.end_date)}</div>
+        <div className="text-xs text-muted-foreground">{formatDate(task.start_date)}</div>
+        <div className="text-xs text-muted-foreground">{formatDate(task.end_date)}</div>
 
-        <div className="text-[11px] text-muted-foreground truncate">
+        <div className="text-xs text-muted-foreground truncate">
           {task.job_name && task.job_name !== 'Personal Task' ? task.job_name : '-'}
         </div>
 
-        <div className="text-[11px]">
+        <div className="text-xs">
           {task.trade ? (
-            <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">{task.trade}</Badge>
+            <Badge variant="outline" className="text-xs px-1 py-0 h-4">{task.trade}</Badge>
           ) : '-'}
         </div>
 
@@ -306,7 +306,7 @@ export function TaskListRow({
 
 export function TaskListHeader() {
   return (
-    <div className="grid grid-cols-[28px_1fr_130px_60px_60px_100px_70px_32px] gap-1 px-2 py-1.5 bg-muted/50 text-[11px] font-medium text-muted-foreground border-b">
+    <div className="grid grid-cols-[28px_1fr_130px_60px_60px_100px_70px_32px] gap-1 px-2 py-1.5 bg-muted/50 text-xs font-medium text-muted-foreground border-b">
       <div></div>
       <div>Task</div>
       <div className="text-center">Progress</div>

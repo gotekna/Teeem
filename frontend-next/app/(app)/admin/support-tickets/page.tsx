@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
+import { TASK_STATUS } from "@/lib/constants/task-status";
 import { TablePage } from "@/components/ui/page-wrappers";
 import {
   Table,
@@ -300,9 +301,9 @@ export default function SupportTicketsPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="not_started">Not Started</SelectItem>
-              <SelectItem value="started">In Progress</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value={TASK_STATUS.NOT_STARTED}>Not Started</SelectItem>
+              <SelectItem value={TASK_STATUS.STARTED}>In Progress</SelectItem>
+              <SelectItem value={TASK_STATUS.COMPLETED}>Completed</SelectItem>
             </SelectContent>
           </Select>
 

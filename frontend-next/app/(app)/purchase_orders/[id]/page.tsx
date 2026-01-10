@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { TASK_STATUS } from "@/lib/constants/task-status";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -1530,7 +1531,7 @@ export default function PurchaseOrderDetailPage() {
                             {task.trade} {task.stage && `• ${task.stage}`}
                           </p>
                         </div>
-                        <Badge variant={task.status === "completed" ? "default" : "outline"}>
+                        <Badge variant={task.status === TASK_STATUS.COMPLETED ? "default" : "outline"}>
                           {task.status}
                         </Badge>
                       </div>

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useUrlState } from "@/hooks/useUrlState";
 import axios from "axios";
+import { TASK_STATUS } from "@/lib/constants/task-status";
 import {
   CalendarDaysIcon,
   ClockIcon,
@@ -100,7 +101,7 @@ const TaskCard = ({
   onClick: (task: Task) => void;
 }) => {
   const isOverdue =
-    task.status !== "completed" && new Date(task.end_date) < new Date();
+    task.status !== TASK_STATUS.COMPLETED && new Date(task.end_date) < new Date();
 
   return (
     <div
@@ -481,9 +482,9 @@ export default function PortalSchedule() {
   const displayTasks =
     filter === "all"
       ? tasks.all_tasks
-      : filter === "not_started"
+      : filter === TASK_STATUS.NOT_STARTED
       ? tasks.upcoming
-      : filter === "started"
+      : filter === TASK_STATUS.STARTED
       ? tasks.in_progress
       : tasks.completed;
 
@@ -538,9 +539,9 @@ export default function PortalSchedule() {
           className="text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
         >
           <option value="all">All Tasks</option>
-          <option value="not_started">Upcoming</option>
-          <option value="started">In Progress</option>
-          <option value="completed">Completed</option>
+          <option value={TASK_STATUS.NOT_STARTED}>Upcoming</option>
+          <option value={TASK_STATUS.STARTED}>In Progress</option>
+          <option value={TASK_STATUS.COMPLETED}>Completed</option>
         </select>
       </div>
 
