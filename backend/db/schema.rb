@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_10_130005) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_10_130006) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1781,6 +1781,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_10_130005) do
     t.string "ocr_method"
     t.decimal "human_confidence", precision: 5, scale: 2
     t.tsvector "searchable"
+    t.bigint "sm_task_id"
     t.index ["asset_id"], name: "index_corporate_company_documents_on_asset_id"
     t.index ["company_code"], name: "index_corporate_company_documents_on_company_code"
     t.index ["company_id", "ai_verification_status"], name: "idx_company_docs_company_ai_status"
@@ -1802,6 +1803,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_10_130005) do
     t.index ["orphaned_at"], name: "index_corporate_company_documents_on_orphaned_at", where: "(orphaned_at IS NOT NULL)"
     t.index ["searchable"], name: "idx_documents_searchable_gin", using: :gin
     t.index ["sharepoint_file_id"], name: "index_corporate_company_documents_on_sharepoint_file_id", unique: true, where: "(sharepoint_file_id IS NOT NULL)"
+    t.index ["sm_task_id"], name: "index_corporate_company_documents_on_sm_task_id"
     t.index ["source", "external_id"], name: "index_corporate_company_documents_on_source_and_external_id", unique: true, where: "(external_id IS NOT NULL)"
     t.index ["source"], name: "index_corporate_company_documents_on_source"
     t.index ["storage_type"], name: "index_corporate_company_documents_on_storage_type"
@@ -10017,6 +10019,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_10_130005) do
   add_foreign_key "corporate_company_documents", "corporate_companies", column: "company_id"
   add_foreign_key "corporate_company_documents", "corporate_company_loans", column: "loan_id"
   add_foreign_key "corporate_company_documents", "document_types"
+  add_foreign_key "corporate_company_documents", "sm_tasks"
   add_foreign_key "corporate_company_loans", "corporate_companies", column: "borrower_company_id"
   add_foreign_key "corporate_company_loans", "corporate_companies", column: "lender_company_id"
   add_foreign_key "corporate_company_minutes", "corporate_companies", column: "company_id"

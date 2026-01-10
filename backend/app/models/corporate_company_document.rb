@@ -233,15 +233,13 @@ class CorporateCompanyDocument < ApplicationRecord
     )
   end
 
-  # Allow skipping owner validation for task attachments
-  attr_accessor :skip_owner_validation
+  # SSoT: Documents can belong to company, contact, job, OR task
+  belongs_to :sm_task, optional: true
 
   def must_have_owner
-    return if skip_owner_validation
-
-    # Documents must belong to a company, contact, OR be attached to a job
-    if company_id.blank? && contact_id.blank? && job_id.blank?
-      errors.add(:base, "Document must belong to a company, contact, or job")
+    # Documents must have at least one owner
+    if company_id.blank? && contact_id.blank? && job_id.blank? && sm_task_id.blank?
+      errors.add(:base, "Document must belong to a company, contact, job, or task")
     end
   end
 

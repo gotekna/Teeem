@@ -852,8 +852,10 @@ module Api
           uploaded_at: Time.current
         }
 
-        # Set owner if available (job > supplier > user's contact)
-        # For task attachments, documents can exist without an owner - they're linked via SmTaskAttachment
+        # SSoT: Task is the primary owner for task attachments
+        doc_attrs[:sm_task_id] = @task.id
+
+        # Also set secondary owner if available (for cross-referencing)
         if @task.job_id.present?
           doc_attrs[:job_id] = @task.job_id
         elsif @task.supplier_id.present?
@@ -861,9 +863,6 @@ module Api
         elsif current_user&.contact_id.present?
           doc_attrs[:contact_id] = current_user.contact_id
         end
-
-        # Skip owner validation for task attachments - the task IS the owner
-        doc_attrs[:skip_owner_validation] = true
 
         doc = CorporateCompanyDocument.create!(doc_attrs)
 
