@@ -137,9 +137,13 @@ export interface SmTask {
   purchase_order_number?: string;
   po_required?: boolean;
 
+  // Required by date (independent due date for overdue tracking)
+  required_by?: string;
+
   // Computed fields
   is_overdue: boolean;
   days_until_due: number;
+  days_overdue?: number;  // Positive number when overdue (days past required_by/end_date)
   predecessor_count?: number;
   successor_count?: number;
 

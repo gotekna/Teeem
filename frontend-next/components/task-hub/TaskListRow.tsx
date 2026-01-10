@@ -150,7 +150,10 @@ export function TaskListRow({
             </div>
           )}
           {task.is_overdue && task.status !== 'completed' && (
-            <AlertTriangle className="h-3 w-3 text-red-500 shrink-0" />
+            <Badge variant="destructive" className="h-4 px-1 text-[10px] gap-0.5 shrink-0">
+              <AlertTriangle className="h-2.5 w-2.5" />
+              {task.days_overdue ? `${task.days_overdue}d` : 'Overdue'}
+            </Badge>
           )}
           {task.locked && (
             <Lock className="h-3 w-3 text-orange-500 shrink-0" />

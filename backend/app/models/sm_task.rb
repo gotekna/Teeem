@@ -407,6 +407,7 @@ class SmTask < ApplicationRecord
   before_validation :snap_end_date_to_working_day, if: -> { end_date_changed? && !start_date_changed? && !duration_days_changed? }
   before_validation :calculate_end_date, if: -> { start_date_changed? || duration_days_changed? }
   before_save :clear_spawn_tasks_if_not_po
+  before_save :set_default_required_by
 
   # Activity logging callbacks
   after_create :log_task_created
@@ -739,6 +740,12 @@ class SmTask < ApplicationRecord
     end
   end
 
+  # Default required_by to end_date if not set
+  # This ensures every task has a due date for overdue tracking
+  def set_default_required_by
+    self.required_by ||= end_date if end_date.present?
+  end
+
   # Snap start_date to the next working day if it falls on a weekend or holiday
   def snap_start_date_to_working_day
     return unless start_date.present?
@@ -837,6 +844,12 @@ class SmTask < ApplicationRecord
     if saved_change_to_supplier_confirm?
       old_confirm, new_confirm = saved_change_to_supplier_confirm
       TaskActivityLog.log_confirm_change(self, updated_by, 'supplier_confirm', old_confirm, new_confirm)
+    end
+
+    # Log required_by date changes
+    if saved_change_to_required_by?
+      old_date, new_date = saved_change_to_required_by
+      TaskActivityLog.log_required_by_change(self, updated_by, old_date, new_date)
     end
   rescue => e
     Rails.logger.error("[SmTask] Failed to log task changes: #{e.message}")

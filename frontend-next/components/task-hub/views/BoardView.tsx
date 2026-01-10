@@ -71,7 +71,10 @@ function TaskCardContent({ task }: { task: TaskItem }) {
       </span>
 
       {task.is_overdue && task.status !== TASK_STATUS.COMPLETED && (
-        <AlertTriangle className="h-3 w-3 text-red-500 shrink-0" />
+        <Badge variant="destructive" className="h-3.5 px-1 text-[9px] gap-0.5 shrink-0">
+          <AlertTriangle className="h-2 w-2" />
+          {task.days_overdue ? `${task.days_overdue}d` : '!'}
+        </Badge>
       )}
       {task.locked && (
         <Lock className="h-3 w-3 text-orange-500 shrink-0" />

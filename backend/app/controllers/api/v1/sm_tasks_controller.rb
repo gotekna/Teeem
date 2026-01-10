@@ -1983,8 +1983,13 @@ module Api
         json[:supplier_name] = task.supplier&.name
         json[:stage] = task.stage
         json[:assigned_role] = task.assigned_role
-        json[:is_overdue] = task.status != "completed" && task.end_date.present? && task.end_date < Date.current
-        json[:days_until_due] = task.end_date.present? ? (task.end_date - Date.current).to_i : nil
+        # Required by date - use this for overdue calculation, fallback to end_date
+        json[:required_by] = task.required_by
+        due_date = task.required_by || task.end_date
+        json[:is_overdue] = task.status != "completed" && due_date.present? && due_date < Date.current
+        json[:days_until_due] = due_date.present? ? (due_date - Date.current).to_i : nil
+        # Days overdue (positive number when overdue, nil otherwise)
+        json[:days_overdue] = (task.status != "completed" && due_date.present? && due_date < Date.current) ? (Date.current - due_date).to_i : nil
         # Performance: Count from jsonb array directly (O(1), no queries)
         # Previously called active_predecessor/successor_dependencies.count which did N+1 queries
         json[:predecessor_count] = task.predecessor_ids.size

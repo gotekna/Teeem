@@ -401,6 +401,12 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   const [taskNameText, setTaskNameText] = useState(task.name);
   const [taskNameSaving, setTaskNameSaving] = useState(false);
 
+  // Required By date state
+  const [requiredByDate, setRequiredByDate] = useState<Date | undefined>(
+    task.required_by ? new Date(task.required_by) : undefined
+  );
+  const [requiredByOpen, setRequiredByOpen] = useState(false);
+
   // Cascade completion dialog state
   const [cascadeDialogOpen, setCascadeDialogOpen] = useState(false);
   const [cascadeDialogLoading, setCascadeDialogLoading] = useState(false);
@@ -669,6 +675,18 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
       } else if (role) {
         await updateTask(task.id, { assigned_role: role, assigned_user_id: undefined });
       }
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  // Handler for Required By date change
+  const handleRequiredByChange = async (date: Date | undefined) => {
+    setRequiredByDate(date);
+    setRequiredByOpen(false);
+    setLoading('required_by');
+    try {
+      await updateTask(task.id, { required_by: date ? format(date, 'yyyy-MM-dd') : undefined });
     } finally {
       setLoading(null);
     }
@@ -1695,6 +1713,53 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
           <span className="text-xs text-muted-foreground">days</span>
           {loading === 'duration' && <Spinner size={12} />}
         </div>
+
+        {/* Required By Date */}
+        <Popover open={requiredByOpen} onOpenChange={setRequiredByOpen}>
+          <PopoverTrigger asChild>
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-muted-foreground">Required By</Label>
+              <Button
+                variant="outline"
+                size="sm"
+                className={cn(
+                  "h-7 text-xs gap-1 min-w-[100px] justify-start font-normal",
+                  !requiredByDate && "text-muted-foreground",
+                  task.is_overdue && task.status !== TASK_STATUS.COMPLETED && "border-red-300 text-red-600"
+                )}
+                disabled={!!loading}
+              >
+                <CalendarIcon className="h-3 w-3" />
+                {requiredByDate ? format(requiredByDate, 'dd MMM yyyy') : 'Not set'}
+              </Button>
+              {loading === 'required_by' && <Spinner size={12} />}
+            </div>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <div className="p-3 border-b">
+              <p className="text-sm font-medium">Required By Date</p>
+              <p className="text-xs text-muted-foreground">When this task should be completed</p>
+            </div>
+            <Calendar
+              mode="single"
+              selected={requiredByDate}
+              onSelect={handleRequiredByChange}
+              initialFocus
+            />
+            {requiredByDate && (
+              <div className="p-2 border-t">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-xs text-muted-foreground"
+                  onClick={() => handleRequiredByChange(undefined)}
+                >
+                  Clear date
+                </Button>
+              </div>
+            )}
+          </PopoverContent>
+        </Popover>
 
         {/* Job Assignment */}
         <div className="flex items-center gap-2 min-w-[200px]">

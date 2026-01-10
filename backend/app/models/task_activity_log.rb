@@ -138,6 +138,21 @@ class TaskActivityLog < ApplicationRecord
     )
   end
 
+  # Create a log entry for required_by date change
+  def self.log_required_by_change(task, user, old_date, new_date)
+    old_str = old_date&.strftime('%d %b %Y') || 'not set'
+    new_str = new_date&.strftime('%d %b %Y') || 'not set'
+    create!(
+      sm_task: task,
+      user: user,
+      activity_type: 'dates_changed',
+      field_name: 'required_by',
+      old_value: old_str,
+      new_value: new_str,
+      description: "#{user&.name || 'System'} changed required by date from #{old_str} to #{new_str}"
+    )
+  end
+
   # Create a log entry for cascade completion (task completed with another task)
   def self.log_cascade_completion(task:, triggered_by:, user:)
     create!(
