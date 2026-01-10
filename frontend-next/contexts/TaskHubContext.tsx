@@ -44,7 +44,7 @@ export interface TaskAttachment {
   sharepoint_url?: string; // For response files uploaded to SharePoint
 }
 
-export type ActionItemType = 'action' | 'question';
+export type ActionItemType = 'action' | 'question' | 'header';
 
 export interface TaskActionItem {
   id: number;
@@ -60,6 +60,9 @@ export interface TaskActionItem {
   responded_by_name?: string;
   responded_at?: string;
   include_in_response?: boolean;
+  // Header/sub-question hierarchy
+  parent_item_id?: number | null;
+  child_count?: number;
   // Delegation fields
   delegated?: boolean;
   delegated_task_id?: number;
@@ -240,7 +243,7 @@ export interface TaskHubContextType extends TaskHubState {
   supplierConfirmTask: (taskId: number, date: string) => Promise<void>;
 
   // Action items
-  addActionItem: (taskId: number, text: string, itemType?: ActionItemType) => Promise<TaskActionItem>;
+  addActionItem: (taskId: number, text: string, itemType?: ActionItemType, parentItemId?: number | null) => Promise<TaskActionItem>;
   bulkAddActionItems: (taskId: number, items: { text: string; item_type: ActionItemType }[], createLinkedActions?: boolean) => Promise<TaskActionItem[]>;
   toggleActionItem: (taskId: number, itemId: number) => Promise<void>;
   answerActionItem: (taskId: number, itemId: number, response: string) => Promise<TaskActionItem>;
@@ -248,6 +251,7 @@ export interface TaskHubContextType extends TaskHubState {
   removeActionItem: (taskId: number, itemId: number) => Promise<void>;
   delegateActionItem: (taskId: number, itemId: number, userId: number) => Promise<TaskActionItem>;
   toggleIncludeInResponse: (taskId: number, itemId: number) => Promise<void>;
+  reorderActionItems: (taskId: number, items: Array<{ id: number; position: number; parent_item_id: number | null }>) => Promise<void>;
 
   // Privacy
   setTaskPrivacy: (taskId: number, isPrivate: boolean) => Promise<void>;
@@ -983,10 +987,15 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
   }, [tasks]);
 
   // Action Items methods
-  const addActionItem = useCallback(async (taskId: number, text: string, itemType: ActionItemType = 'action'): Promise<TaskActionItem> => {
+  const addActionItem = useCallback(async (
+    taskId: number,
+    text: string,
+    itemType: ActionItemType = 'action',
+    parentItemId?: number | null
+  ): Promise<TaskActionItem> => {
     const response = await api.post<{ action_item: TaskActionItem; success: boolean }>(
       `/api/v1/sm_tasks/${taskId}/action_items`,
-      { text, item_type: itemType }
+      { text, item_type: itemType, parent_item_id: parentItemId }
     );
     if (response?.success && response?.action_item) {
       // Update local task state
@@ -1167,6 +1176,32 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
       throw err;
     }
   }, [tasks]);
+
+  const reorderActionItems = useCallback(async (
+    taskId: number,
+    items: Array<{ id: number; position: number; parent_item_id: number | null }>
+  ) => {
+    // Optimistic update
+    setTasks(prev => prev.map(t => {
+      if (t.id !== taskId) return t;
+      const updatedItems = (t.action_items || []).map(item => {
+        const update = items.find(i => i.id === item.id);
+        if (update) {
+          return { ...item, position: update.position, parent_item_id: update.parent_item_id };
+        }
+        return item;
+      }).sort((a, b) => a.position - b.position);
+      return { ...t, action_items: updatedItems };
+    }));
+
+    try {
+      await api.post(`/api/v1/sm_tasks/${taskId}/action_items/reorder`, { items });
+    } catch (err) {
+      console.error('Failed to reorder action items:', err);
+      // Refresh to revert
+      throw err;
+    }
+  }, []);
 
   const setTaskPrivacy = useCallback(async (taskId: number, isPrivate: boolean) => {
     const originalTasks = [...tasks];
@@ -1393,6 +1428,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     removeActionItem,
     delegateActionItem,
     toggleIncludeInResponse,
+    reorderActionItems,
     // Privacy
     setTaskPrivacy,
     // Followers

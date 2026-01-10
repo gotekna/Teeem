@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_10_130003) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_10_130004) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8932,8 +8932,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_10_130003) do
     t.datetime "responded_at"
     t.bigint "delegated_task_id"
     t.boolean "include_in_response", default: false
+    t.bigint "parent_item_id"
     t.index ["checked_by_id"], name: "index_task_action_items_on_checked_by_id"
     t.index ["delegated_task_id"], name: "index_task_action_items_on_delegated_task_id"
+    t.index ["parent_item_id", "position"], name: "index_task_action_items_on_parent_item_id_and_position"
+    t.index ["parent_item_id"], name: "index_task_action_items_on_parent_item_id"
     t.index ["responded_by_id"], name: "index_task_action_items_on_responded_by_id"
     t.index ["sm_task_id", "position"], name: "index_task_action_items_on_sm_task_id_and_position"
     t.index ["sm_task_id"], name: "index_task_action_items_on_sm_task_id"
@@ -10660,6 +10663,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_10_130003) do
   add_foreign_key "table_health_checks", "foundations"
   add_foreign_key "task_action_items", "sm_tasks"
   add_foreign_key "task_action_items", "sm_tasks", column: "delegated_task_id"
+  add_foreign_key "task_action_items", "task_action_items", column: "parent_item_id"
   add_foreign_key "task_action_items", "users", column: "checked_by_id"
   add_foreign_key "task_action_items", "users", column: "responded_by_id"
   add_foreign_key "task_activity_logs", "sm_tasks"

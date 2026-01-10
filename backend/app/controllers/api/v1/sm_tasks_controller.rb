@@ -1037,6 +1037,7 @@ module Api
         item = @task.action_items.create!(
           text: params[:text],
           item_type: params[:item_type] || 'action',
+          parent_item_id: params[:parent_item_id],
           position: params[:position] || @task.action_items.maximum(:position).to_i + 1
         )
 
@@ -1065,6 +1066,7 @@ module Api
           item = @task.action_items.create!(
             text: item_data[:text],
             item_type: item_data[:item_type] || 'action',
+            parent_item_id: item_data[:parent_item_id],
             position: max_position + index + 1
           )
           created_items << action_item_to_json(item)
@@ -1120,6 +1122,8 @@ module Api
         update_attrs[:text] = params[:text] if params.key?(:text)
         update_attrs[:item_type] = params[:item_type] if params.key?(:item_type)
         update_attrs[:include_in_response] = params[:include_in_response] if params.key?(:include_in_response)
+        update_attrs[:parent_item_id] = params[:parent_item_id] if params.key?(:parent_item_id)
+        update_attrs[:position] = params[:position] if params.key?(:position)
 
         item.update!(update_attrs)
 
@@ -1168,6 +1172,31 @@ module Api
         else
           render json: { success: false, error: result[:error] }, status: :unprocessable_entity
         end
+      end
+
+      # POST /api/v1/sm_tasks/:id/action_items/reorder
+      # Reorder action items and update their parent relationships
+      def reorder_action_items
+        @task = SmTask.find(params[:id])
+
+        unless @task.manageable_by?(current_user)
+          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+        end
+
+        items_data = params[:items] || []
+        items_data.each do |item_data|
+          item = @task.action_items.find(item_data[:id])
+          item.update!(
+            position: item_data[:position],
+            parent_item_id: item_data[:parent_item_id]
+          )
+        end
+
+        render json: { success: true }
+      rescue ActiveRecord::RecordNotFound => e
+        render json: { success: false, error: "Item not found" }, status: :not_found
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
       end
 
       # PATCH /api/v1/sm_tasks/:id/privacy
@@ -1625,6 +1654,9 @@ module Api
           responded_by_name: item.responded_by&.name,
           responded_at: item.responded_at,
           include_in_response: item.include_in_response,
+          # Header/sub-question hierarchy
+          parent_item_id: item.parent_item_id,
+          child_count: item.child_items.count,
           # Delegation info
           delegated: item.delegated?,
           delegated_task_id: item.delegated_task_id

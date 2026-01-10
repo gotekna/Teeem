@@ -1,14 +1,18 @@
 # frozen_string_literal: true
 
 class TaskActionItem < ApplicationRecord
-  # Item types
-  ITEM_TYPES = %w[action question].freeze
+  # Item types - includes 'header' for grouping questions
+  ITEM_TYPES = %w[action question header].freeze
 
   belongs_to :sm_task
   belongs_to :checked_by, class_name: 'User', optional: true
   belongs_to :responded_by, class_name: 'User', optional: true
   # Link to delegated sub-task (when question is sent to another user)
   belongs_to :delegated_task, class_name: 'SmTask', optional: true
+  # Parent-child relationship for headers and sub-questions
+  belongs_to :parent_item, class_name: 'TaskActionItem', optional: true
+  has_many :child_items, class_name: 'TaskActionItem',
+           foreign_key: :parent_item_id, dependent: :nullify
 
   validates :text, presence: true
   validates :item_type, inclusion: { in: ITEM_TYPES }
@@ -18,6 +22,9 @@ class TaskActionItem < ApplicationRecord
   # Scopes
   scope :actions, -> { where(item_type: 'action') }
   scope :questions, -> { where(item_type: 'question') }
+  scope :headers, -> { where(item_type: 'header') }
+  scope :root_items, -> { where(parent_item_id: nil) }
+  scope :children_of, ->(parent_id) { where(parent_item_id: parent_id) }
   scope :answered, -> { where.not(response: [nil, '']) }
   scope :unanswered, -> { where(response: [nil, '']) }
   scope :delegated, -> { where.not(delegated_task_id: nil) }
@@ -31,6 +38,14 @@ class TaskActionItem < ApplicationRecord
 
   def question?
     item_type == 'question'
+  end
+
+  def header?
+    item_type == 'header'
+  end
+
+  def has_children?
+    child_items.exists?
   end
 
   def answered?

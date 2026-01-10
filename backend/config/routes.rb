@@ -1478,6 +1478,7 @@ Rails.application.routes.draw do
           post "action_items/:item_id/delegate", action: :delegate_action_item
           patch "action_items/:item_id", action: :update_action_item
           delete "action_items/:item_id", action: :destroy_action_item
+          post "action_items/reorder", action: :reorder_action_items
           # Privacy
           patch :privacy, action: :update_privacy
           # Row-level template sync
