@@ -501,7 +501,7 @@ function SortableQuestionItem({
         <div className="ml-6 space-y-1">
           {item.attachments.map((att) => {
             // Try SharePoint URL first, then ActiveStorage file_url
-            const url = att.sharepoint_url || att.document?.sharepoint_url || att.document?.file_url;
+            const url = att.document?.file_url;
             const fileName = att.document?.display_name || att.document?.file_name || 'Document';
             return (
               <div key={att.id} className="flex items-center gap-2 text-xs">
@@ -790,7 +790,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         newOptions[att.id] = attachmentEmailOptions[att.id];
       } else {
         // Default: use link for SharePoint files, attach for others
-        const hasSharePoint = att.document?.sharepoint_url || att.sharepoint_url;
+        const hasSharePoint = att.document?.sharepoint_file_id;
         newOptions[att.id] = hasSharePoint ? 'link' : 'attach';
       }
     });
@@ -1533,7 +1533,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             q.attachments.forEach(att => {
               const fileName = att.document?.display_name || att.document?.file_name || 'Document';
               // Try SharePoint URL first, then ActiveStorage file_url
-              const url = att.sharepoint_url || att.document?.sharepoint_url || att.document?.file_url;
+              const url = att.document?.file_url;
               body += `<p>&nbsp;&nbsp;&nbsp;📎 See attached: ${formatFileLink(fileName, url)}</p>\n`;
             });
           }
@@ -1588,7 +1588,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         const fileName = att.document?.display_name || att.document?.file_name || 'Document';
         // Use SharePoint share link if available, otherwise fall back to existing URL
         const shareUrl = shareLinksMap[att.id];
-        const fallbackUrl = att.sharepoint_url || att.document?.sharepoint_url || att.document?.file_url;
+        const fallbackUrl = att.document?.file_url;
         const url = shareUrl || fallbackUrl;
         body += `<li>${formatFileLink(fileName, url)}</li>\n`;
       });
@@ -1610,7 +1610,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       const toAttach = responseAttachments.filter(a => attachmentEmailOptions[a.id] === 'attach');
       const toLink = responseAttachments.filter(a => {
         const opt = attachmentEmailOptions[a.id];
-        const hasSharePoint = a.document?.sharepoint_url || a.sharepoint_url;
+        const hasSharePoint = a.document?.sharepoint_file_id;
         return opt === 'link' && hasSharePoint;
       });
       const totalToProcess = toAttach.length + toLink.length;
@@ -2803,8 +2803,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             onDoubleClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              if (att.document?.sharepoint_url) {
-                                window.open(att.document.sharepoint_url, '_blank');
+                              const url = att.document?.sharepoint_download_url || att.document?.file_url;
+                              if (url) {
+                                window.open(url, '_blank');
                               }
                             }}
                           >
@@ -2851,7 +2852,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
               {responseAttachments.length > 0 ? (
                 <div className="border rounded-md divide-y bg-primary/5 dark:bg-primary/10 mb-2">
                   {responseAttachments.map((att) => {
-                    const hasSharePoint = att.document?.sharepoint_url || att.sharepoint_url;
+                    const hasSharePoint = att.document?.sharepoint_file_id;
                     const emailOption = attachmentEmailOptions[att.id] || 'link';
                     return (
                       <div key={att.id} className="p-2 text-xs">

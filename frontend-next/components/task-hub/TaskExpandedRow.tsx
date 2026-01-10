@@ -1827,12 +1827,12 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                             {attachment.document!.document_type || 'Document'} • {format(new Date(attachment.document!.created_at), 'dd MMM yyyy')}
                           </p>
                         </div>
-                        {attachment.document!.sharepoint_url && (
+                        {(attachment.document!.sharepoint_download_url || attachment.document!.file_url) && (
                           <Button
                             variant="ghost"
                             size="sm"
                             className="h-7 text-xs shrink-0"
-                            onClick={() => window.open(attachment.document!.sharepoint_url, '_blank')}
+                            onClick={() => window.open(attachment.document!.sharepoint_download_url || attachment.document!.file_url, '_blank')}
                           >
                             <ExternalLink className="h-3 w-3 mr-1" />
                             Open
