@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { type CalendarEvent, getStatusColorClass } from "@/lib/calendar-atoms";
 import {
@@ -22,6 +23,7 @@ export function CalendarEventBar({
   onClick,
   className,
 }: CalendarEventBarProps) {
+  const router = useRouter();
   const colorClass = getStatusColorClass(event.status, event.is_overdue);
 
   return (
@@ -30,6 +32,7 @@ export function CalendarEventBar({
         <TooltipTrigger asChild>
           <button
             onClick={onClick}
+            onDoubleClick={() => router.push(`/tasks?taskId=${event.id}`)}
             className={cn(
               "w-full text-left text-xs px-1.5 py-0.5 rounded truncate",
               "hover:opacity-80 transition-opacity cursor-pointer",

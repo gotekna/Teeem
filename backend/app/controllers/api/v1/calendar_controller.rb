@@ -24,16 +24,26 @@ module Api
       #   view_mode: 'personal', 'team', 'resource'
       #
       def events
+        # For personal mode, filter to current user's tasks
+        user_ids = params[:user_ids]
+        view_mode = params[:view_mode] || "personal"
+        include_unassigned = params.fetch(:include_unassigned, true)
+
+        if view_mode == "personal" && user_ids.blank?
+          user_ids = [current_user.id]
+          include_unassigned = false  # Personal view shouldn't show unassigned
+        end
+
         service = CalendarService.new(current_organization)
         result = service.events(
           start_date: parse_date(params[:start_date]),
           end_date: parse_date(params[:end_date]),
-          user_ids: params[:user_ids],
+          user_ids: user_ids,
           role_ids: params[:role_ids],
           job_id: params[:job_id],
           statuses: params[:statuses],
-          include_unassigned: params.fetch(:include_unassigned, true),
-          view_mode: params[:view_mode] || "personal"
+          include_unassigned: include_unassigned,
+          view_mode: view_mode
         )
 
         render json: { success: true, **result }

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import { useAtom, useSetAtom } from "jotai";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import {
   BarChart3,
   List,
   RefreshCw,
+  Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -32,7 +34,13 @@ import {
   type CalendarSummary,
 } from "@/lib/calendar-atoms";
 import { MonthView } from "@/components/calendar/MonthView";
+import { DayView } from "@/components/calendar/DayView";
 import { CalendarSidebar } from "@/components/calendar/CalendarSidebar";
+import {
+  CreateMeetingSheet,
+  createMeetingOpenAtom,
+  createMeetingDateAtom,
+} from "@/components/calendar/CreateMeetingSheet";
 
 interface CalendarResponse {
   success: boolean;
@@ -52,6 +60,7 @@ interface SummaryResponse {
 }
 
 export default function CalendarPage() {
+  const searchParams = useSearchParams();
   const [view, setView] = useAtom(calendarViewAtom);
   const [mode, setMode] = useAtom(calendarModeAtom);
   const [selectedDate, setSelectedDate] = useAtom(selectedDateAtom);
@@ -62,6 +71,25 @@ export default function CalendarPage() {
   const [loading, setLoading] = useAtom(calendarLoadingAtom);
   const setSummary = useSetAtom(calendarSummaryAtom);
   const [summary, setSummaryLocal] = React.useState<CalendarSummary | null>(null);
+  const setMeetingOpen = useSetAtom(createMeetingOpenAtom);
+  const setMeetingDate = useSetAtom(createMeetingDateAtom);
+
+  // Handle URL query params for view and date
+  React.useEffect(() => {
+    const viewParam = searchParams.get("view");
+    const dateParam = searchParams.get("date");
+
+    if (viewParam && ["month", "week", "day", "schedule"].includes(viewParam)) {
+      setView(viewParam as "month" | "week" | "day" | "schedule");
+    }
+
+    if (dateParam) {
+      const parsed = new Date(dateParam);
+      if (!isNaN(parsed.getTime())) {
+        setSelectedDate(parsed);
+      }
+    }
+  }, [searchParams, setView, setSelectedDate]);
 
   // Load calendar data
   const loadCalendarData = React.useCallback(async () => {
@@ -229,6 +257,14 @@ export default function CalendarPage() {
               Week
             </Button>
             <Button
+              variant={view === "day" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setView("day")}
+              className="rounded-none border-r"
+            >
+              Day
+            </Button>
+            <Button
               variant={view === "schedule" ? "secondary" : "ghost"}
               size="sm"
               onClick={() => setView("schedule")}
@@ -237,6 +273,19 @@ export default function CalendarPage() {
               <List className="h-4 w-4" />
             </Button>
           </div>
+
+          {/* Add Meeting */}
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => {
+              setMeetingDate(selectedDate);
+              setMeetingOpen(true);
+            }}
+            title="Add Meeting"
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
 
           {/* Refresh */}
           <Button variant="outline" size="icon" onClick={loadCalendarData} disabled={loading}>
@@ -268,6 +317,7 @@ export default function CalendarPage() {
           ) : (
             <>
               {view === "month" && <MonthView />}
+              {view === "day" && <DayView />}
               {view === "week" && (
                 <div className="flex items-center justify-center h-full text-muted-foreground">
                   Week view coming soon...
@@ -285,6 +335,9 @@ export default function CalendarPage() {
         {/* Sidebar */}
         <CalendarSidebar />
       </div>
+
+      {/* Meeting creation sheet */}
+      <CreateMeetingSheet onSuccess={loadCalendarData} />
     </div>
   );
 }

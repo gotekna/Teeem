@@ -2227,6 +2227,8 @@ Rails.application.routes.draw do
       post "organization_onedrive/import_legacy", to: "organization_sharepoint#import_legacy"
       post "organization_onedrive/run_migration", to: "organization_sharepoint#run_migration"
       get "organization_onedrive/job_all_files", to: "organization_sharepoint#job_all_files"
+      get "organization_onedrive/job_document_download", to: "organization_sharepoint#job_document_download"
+      get "organization_onedrive/job_document_url", to: "organization_sharepoint#job_document_url"
       post "organization_onedrive/sync_job_documents", to: "organization_sharepoint#sync_job_documents"
       post "organization_onedrive/upload_signed_version", to: "organization_sharepoint#upload_signed_version"
 

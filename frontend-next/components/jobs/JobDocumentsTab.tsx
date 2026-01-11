@@ -141,6 +141,8 @@ interface LegacyItem {
   type: "file" | "folder";
   child_count?: number;
   folder_path?: string; // Path to the file's parent folder (for recursive listing)
+  // Storage provider routing (SSoT for document access)
+  storage_provider?: "sharepoint" | "s3_compatible";
   // AI analysis fields
   ai_analyzed?: boolean;
   ai_analyzed_at?: string;
@@ -151,7 +153,7 @@ interface LegacyItem {
   ai_reasoning?: string;
   rename_status?: string;
   thumbnail_url?: string; // Graph API thumbnail URL (publicly accessible)
-  download_url?: string; // Pre-authenticated download URL (publicly accessible, expires ~1hr)
+  download_url?: string; // SSoT download URL - works for both SharePoint and S3
   // Version chain fields (Draft/Signed versioning)
   version_status?: "draft" | "signed" | "superseded";
   version_number?: number;

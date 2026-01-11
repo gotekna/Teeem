@@ -208,7 +208,7 @@ function EventDetail({ event }: { event: CalendarEvent }) {
       {/* Actions */}
       <div className="flex gap-2 pt-4">
         <Button asChild className="flex-1">
-          <Link href={`/tasks?task=${event.id}`}>Open Task</Link>
+          <Link href={`/tasks?taskId=${event.id}`}>Open Task</Link>
         </Button>
         {event.job_id && (
           <Button variant="outline" asChild>

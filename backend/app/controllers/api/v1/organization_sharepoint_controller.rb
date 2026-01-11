@@ -1656,6 +1656,10 @@ module Api
               original_name: doc.original_file_name,
               size: doc.file_size,
               web_url: doc.web_url,
+              # Storage provider routing - frontend uses this to determine download method
+              storage_provider: doc.storage_provider || "sharepoint",
+              # SSoT download URL - works for both SharePoint and S3
+              download_url: "/api/v1/organization_onedrive/job_document_download?document_id=#{doc.id}",
               modified: doc.last_modified_at&.iso8601,
               type: "file",
               folder_path: doc.folder_path || "",
@@ -2321,7 +2325,230 @@ module Api
         end
       end
 
+      # GET /api/v1/organization_onedrive/job_document_download
+      # Unified download endpoint for job documents - routes to correct provider
+      #
+      # This is THE SSoT for job document downloads. It checks the document's
+      # storage_provider field and downloads from the appropriate source:
+      # - 's3_compatible': Downloads from Wasabi/S3
+      # - 'sharepoint' or nil: Downloads from SharePoint
+      #
+      # Params:
+      #   document_id: JobDocument ID (required)
+      #   preview: "true" for inline display, omit for attachment download
+      #
+      def job_document_download
+        document_id = params[:document_id]
+        is_preview = params[:preview] == "true"
+
+        unless document_id.present?
+          return render json: { error: "document_id is required" }, status: :bad_request
+        end
+
+        document = JobDocument.find_by(id: document_id)
+
+        unless document
+          return render json: { error: "Document not found" }, status: :not_found
+        end
+
+        begin
+          # Determine which provider to use based on document's storage_provider
+          storage_provider = document.storage_provider || "sharepoint"
+
+          case storage_provider
+          when "s3_compatible"
+            download_from_s3(document, is_preview)
+          else
+            # Default to SharePoint for backwards compatibility
+            download_from_sharepoint(document, is_preview)
+          end
+
+        rescue DocumentProviders::NotFoundError => e
+          render json: { error: "File not found in storage: #{e.message}" }, status: :not_found
+        rescue DocumentProviders::NotConnectedError => e
+          render json: { error: "Storage provider not connected: #{e.message}" }, status: :service_unavailable
+        rescue StandardError => e
+          Rails.logger.error "[JobDocumentDownload] Error downloading document #{document_id}: #{e.message}"
+          Rails.logger.error e.backtrace.first(5).join("\n")
+          render json: { error: "Failed to download: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
+      # GET /api/v1/organization_onedrive/job_document_url
+      # Get a pre-signed URL for direct browser access to a job document
+      #
+      # Returns a URL that can be used directly in browser for 1 hour.
+      # Useful for opening PDFs in new tabs, image previews, etc.
+      #
+      # Params:
+      #   document_id: JobDocument ID (required)
+      #
+      def job_document_url
+        document_id = params[:document_id]
+
+        unless document_id.present?
+          return render json: { success: false, error: "document_id is required" }, status: :bad_request
+        end
+
+        document = JobDocument.find_by(id: document_id)
+
+        unless document
+          return render json: { success: false, error: "Document not found" }, status: :not_found
+        end
+
+        begin
+          storage_provider = document.storage_provider || "sharepoint"
+
+          case storage_provider
+          when "s3_compatible"
+            url = get_s3_presigned_url(document)
+          else
+            url = get_sharepoint_download_url(document)
+          end
+
+          render json: {
+            success: true,
+            download_url: url,
+            storage_provider: storage_provider,
+            file_name: document.file_name,
+            mime_type: document.mime_type,
+            expires_in: 3600
+          }
+
+        rescue DocumentProviders::NotFoundError => e
+          render json: { success: false, error: "File not found in storage" }, status: :not_found
+        rescue DocumentProviders::NotConnectedError => e
+          render json: { success: false, error: "Storage provider not connected" }, status: :service_unavailable
+        rescue StandardError => e
+          Rails.logger.error "[JobDocumentUrl] Error getting URL for document #{document_id}: #{e.message}"
+          render json: { success: false, error: "Failed to get download URL" }, status: :internal_server_error
+        end
+      end
+
       private
+
+      # Download document content from S3
+      def download_from_s3(document, is_preview)
+        organization = Organization.first
+        credential = S3CompatibleCredential.active.connected.first
+
+        unless credential
+          raise DocumentProviders::NotConnectedError, "S3 storage not configured"
+        end
+
+        provider = DocumentProviders::S3Compatible.new(credential)
+        storage_ref = document.storage_reference
+
+        unless storage_ref.present?
+          raise DocumentProviders::NotFoundError, "No storage reference for document"
+        end
+
+        # Download file content
+        content = provider.download_file(storage_ref)
+
+        # Send to browser
+        disposition = is_preview ? "inline" : "attachment"
+        send_data content,
+          filename: document.file_name,
+          type: document.mime_type || "application/octet-stream",
+          disposition: disposition
+      end
+
+      # Download document content from SharePoint
+      def download_from_sharepoint(document, is_preview)
+        credential = MicrosoftCredential.sharepoint_credential
+
+        unless credential&.valid_access_token
+          raise DocumentProviders::NotConnectedError, "SharePoint not connected"
+        end
+
+        file_id = document.storage_reference
+
+        unless file_id.present?
+          raise DocumentProviders::NotFoundError, "No SharePoint file ID for document"
+        end
+
+        # Use app credentials if available
+        is_app_credential = credential.is_a?(MicrosoftCredential) && credential.credential_type == "app"
+
+        if is_app_credential
+          client = MicrosoftAppGraphClient.new(credential)
+          sharepoint_config = CorporateCompanySetting.sharepoint_config
+
+          unless sharepoint_config[:configured]
+            raise DocumentProviders::NotConnectedError, "SharePoint not configured"
+          end
+
+          file_metadata = client.get_drive_item(sharepoint_config[:drive_id], file_id)
+          file_content = client.get_drive_item_content(
+            drive_id: sharepoint_config[:drive_id],
+            item_id: file_id
+          )
+        else
+          client = MicrosoftGraphClient.new(credential)
+          file_metadata = client.get_file(file_id)
+          file_content = client.download_file(file_id)
+        end
+
+        disposition = is_preview ? "inline" : "attachment"
+        mime_type = file_metadata["file"]&.dig("mimeType") || document.mime_type || "application/octet-stream"
+
+        send_data file_content,
+          filename: document.file_name,
+          type: mime_type,
+          disposition: disposition
+      end
+
+      # Get S3 pre-signed URL for direct browser access
+      def get_s3_presigned_url(document)
+        credential = S3CompatibleCredential.active.connected.first
+
+        unless credential
+          raise DocumentProviders::NotConnectedError, "S3 storage not configured"
+        end
+
+        provider = DocumentProviders::S3Compatible.new(credential)
+        storage_ref = document.storage_reference
+
+        unless storage_ref.present?
+          raise DocumentProviders::NotFoundError, "No storage reference for document"
+        end
+
+        provider.download_url(storage_ref, expires_in: 3600)
+      end
+
+      # Get SharePoint download URL
+      def get_sharepoint_download_url(document)
+        credential = MicrosoftCredential.sharepoint_credential
+
+        unless credential&.valid_access_token
+          raise DocumentProviders::NotConnectedError, "SharePoint not connected"
+        end
+
+        file_id = document.storage_reference
+
+        unless file_id.present?
+          raise DocumentProviders::NotFoundError, "No SharePoint file ID for document"
+        end
+
+        is_app_credential = credential.is_a?(MicrosoftCredential) && credential.credential_type == "app"
+
+        if is_app_credential
+          client = MicrosoftAppGraphClient.new(credential)
+          sharepoint_config = CorporateCompanySetting.sharepoint_config
+
+          unless sharepoint_config[:configured]
+            raise DocumentProviders::NotConnectedError, "SharePoint not configured"
+          end
+
+          item_data = client.get_drive_item(sharepoint_config[:drive_id], file_id)
+          item_data[:download_url] || document.web_url
+        else
+          client = MicrosoftGraphClient.new(credential)
+          file_data = client.get_file(file_id)
+          file_data["@microsoft.graph.downloadUrl"] || document.web_url
+        end
+      end
 
       # Change root folder by folder_id (for folder browser selection)
       def change_root_folder_by_id(credential, folder_id)
