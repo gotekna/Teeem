@@ -12,6 +12,14 @@
 class OrgEmailSyncJob < ApplicationJob
   queue_as :low
 
+  # Retry network errors up to 2 times with backoff, then discard
+  # Runs every 15 minutes, so next scheduled run will try again
+  retry_on Net::OpenTimeout, Net::ReadTimeout, SocketError, Errno::ECONNREFUSED, Faraday::TimeoutError,
+           wait: :polynomially_longer, attempts: 2
+
+  # Discard other errors - next scheduled run will try again
+  discard_on StandardError
+
   # Performance: Memoization caches to avoid N+1 queries during sync
   attr_reader :user_cache, :blacklist_cache
 

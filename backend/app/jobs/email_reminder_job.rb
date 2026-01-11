@@ -8,6 +8,10 @@
 class EmailReminderJob < ApplicationJob
   queue_as :default
 
+  # Don't retry on failure - runs every minute, next run will try again
+  # Prevents queue clog from failed jobs piling up
+  discard_on StandardError
+
   def perform
     start_time = Time.current
     processed = 0

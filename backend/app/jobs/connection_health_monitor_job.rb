@@ -21,6 +21,10 @@
 class ConnectionHealthMonitorJob < ApplicationJob
   queue_as :low
 
+  # Don't retry on failure - this is a monitoring job, next scheduled run will try again
+  # Prevents queue clog when connection issues cause this job to fail repeatedly
+  discard_on StandardError
+
   # Alert thresholds
   CONNECTION_WARNING_PERCENT = 70   # Warn at 70% pool usage
   CONNECTION_CRITICAL_PERCENT = 85  # Alert at 85% pool usage

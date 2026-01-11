@@ -1,6 +1,14 @@
 class ImapSyncJob < ApplicationJob
   queue_as :default
 
+  # Retry network errors up to 2 times with backoff, then discard
+  # Runs every 2 minutes, so next scheduled run will try again
+  retry_on Net::OpenTimeout, Net::ReadTimeout, SocketError, Errno::ECONNREFUSED,
+           wait: :polynomially_longer, attempts: 2
+
+  # Discard other errors - next scheduled run will try again
+  discard_on StandardError
+
   # Sync emails for a single IMAP credential
   def perform(credential_id = nil, full_sync: false)
     if credential_id
