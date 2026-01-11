@@ -2948,6 +2948,19 @@ export default function TeeemTableView({
 
     // Create and store the fetch promise
     lookupFetchPromises[cacheKey] = (async () => {
+      // If column has an ID and foundation_id, use the lookup_options endpoint
+      // This endpoint applies lookup_filter (e.g., role-based filtering for users)
+      if (column.id && column.foundation_id) {
+        const response = await api.get(
+          `/api/v1/foundations/${column.foundation_id}/columns/${column.id}/lookup_options`
+        );
+        const resp = response as { success?: boolean; options?: Array<{ id: number; display: string }> };
+        if (resp.success && Array.isArray(resp.options)) {
+          return resp.options;
+        }
+      }
+
+      // Fallback: fetch all records from target foundation (no filtering)
       const response = await api.get(`/api/v1/foundations/${targetFoundation}/records`);
 
       // Handle various response structures
