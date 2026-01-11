@@ -148,7 +148,7 @@ class CalendarService
       assigned_user_name: task.assigned_user&.name,
       assigned_role: task.assigned_role,
       job_id: task.job_id,
-      job_name: task.job&.display_name,
+      job_name: task.job&.name,
       job_code: task.job&.job_code,
       is_overdue: is_overdue,
       days_overdue: days_overdue,
