@@ -15,7 +15,7 @@
 production:
   workers:
     - queues: [default, solid_queue_recurring, xero_bulk, low]
-      threads: 3
+      threads: 5  # Increased from 3 - prevents starvation during bulk migrations
       processes: 1
       polling_interval: 0.1
 

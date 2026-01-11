@@ -19,7 +19,7 @@
 class DocumentMigrationJob < ApplicationJob
   include DocumentProviderAware
 
-  queue_as :low
+  queue_as :default  # Use default queue - :low gets starved by recurring jobs
 
   # Supported document types
   DOCUMENT_TYPES = {
