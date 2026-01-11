@@ -153,7 +153,7 @@ class CalendarService
       is_overdue: is_overdue,
       days_overdue: days_overdue,
       color: status_color(task.status, is_overdue),
-      is_hold: task.is_on_hold?,
+      is_hold: task.hold_active?,
       hold_reason: task.hold_reason&.name,
       lock_type: task.lock_type,
       description: task.description
