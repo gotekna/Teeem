@@ -230,6 +230,10 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   // Files grouped by folder path (for tree view)
   const filesByFolder = useMemo(() => {
     const map = new Map<string, LegacyItem[]>();
+    // DEBUG: Log sample folder_path values
+    if (allFiles.length > 0) {
+      console.log('[FolderView] Sample file folder_paths:', allFiles.slice(0, 5).map(f => ({ name: f.name, folder_path: f.folder_path })));
+    }
     allFiles.forEach(file => {
       const path = file.folder_path?.toLowerCase() || "documents";
       if (!map.has(path)) {
@@ -2583,6 +2587,10 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     const buildTree = (): TreeNode[] => {
       const tree: TreeNode[] = [];
       const usedTabKeys = new Set<string>();
+
+      // DEBUG: Log what we're working with
+      console.log('[FolderView] filesByFolder keys:', Array.from(filesByFolder.keys()));
+      console.log('[FolderView] categories tab_keys:', documentCategories.map(c => c.tab_key || c.name).join(', '));
 
       // Add categories as folders
       documentCategories.forEach((cat: DocumentCategory) => {
