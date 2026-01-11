@@ -326,7 +326,7 @@ module Api
           displayName: doc.title,
           mimeType: doc.mime_type || "application/octet-stream",
           fileSize: doc.file_size || 0,
-          fileUrl: doc.file_url,
+          fileUrl: nil,  # PeopleDocument doesn't have file_url - use download endpoint
           folderPath: nil,
           storageProvider: doc.storage_provider,
           createdAt: doc.created_at&.iso8601,
