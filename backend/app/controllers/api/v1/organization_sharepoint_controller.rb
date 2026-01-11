@@ -1658,6 +1658,8 @@ module Api
               web_url: doc.web_url,
               # Storage provider routing - frontend uses this to determine download method
               storage_provider: doc.storage_provider || "sharepoint",
+              # S3 storage path for display (e.g., "teeem-documents/jobs/49/finance/invoice.pdf")
+              storage_path: doc.storage_path,
               # SSoT download URL - works for both SharePoint and S3
               download_url: "/api/v1/organization_onedrive/job_document_download?document_id=#{doc.id}",
               modified: doc.last_modified_at&.iso8601,

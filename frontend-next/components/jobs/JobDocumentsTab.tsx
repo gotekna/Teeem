@@ -143,6 +143,7 @@ interface LegacyItem {
   folder_path?: string; // Path to the file's parent folder (for recursive listing)
   // Storage provider routing (SSoT for document access)
   storage_provider?: "sharepoint" | "s3_compatible";
+  storage_path?: string; // Full S3 path (e.g., "jobs/49/finance/invoice.pdf")
   // AI analysis fields
   ai_analyzed?: boolean;
   ai_analyzed_at?: string;
@@ -2345,6 +2346,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                     <TableRow>
                       <TableHead>File Name</TableHead>
                       <TableHead>Folder</TableHead>
+                      <TableHead>S3 Path</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>Version</TableHead>
                       <TableHead>AI Status</TableHead>
@@ -2354,7 +2356,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                   <TableBody>
                     {groupedAllFiles.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                           No files found
                         </TableCell>
                       </TableRow>
@@ -2394,6 +2396,20 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                                 <span className="text-sm text-muted-foreground">
                                   {item.folder_path || "-"}
                                 </span>
+                              </TableCell>
+                              <TableCell>
+                                {item.storage_provider === "s3_compatible" && item.storage_path ? (
+                                  <span className="text-xs font-mono text-muted-foreground" title={`teeem-documents/${item.storage_path}`}>
+                                    {item.storage_path.split('/').map((part, i, arr) => (
+                                      <span key={i}>
+                                        {i > 0 && <span className="text-muted-foreground/50"> / </span>}
+                                        <span className={i === arr.length - 1 ? "text-foreground" : ""}>{part}</span>
+                                      </span>
+                                    ))}
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">-</span>
+                                )}
                               </TableCell>
                               <TableCell>
                                 {item.ai_suggested_type_name ? (
