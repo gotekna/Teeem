@@ -1639,7 +1639,8 @@ module Api
         job = Job.find(params[:job_id])
 
         # Check if we have cached documents in the data warehouse
-        cached_docs = job.job_documents.includes(:document_type, :ai_suggested_type, :parent_document, :child_versions, :signed_by).synced
+        # Include entity_tabs through document_type to get entity_tab_key for folder view
+        cached_docs = job.job_documents.includes(document_type: :entity_tabs, ai_suggested_type: {}, parent_document: {}, child_versions: {}, signed_by: {}).synced
 
         if cached_docs.any?
           # Refresh thumbnails if requested (they expire after ~24-48 hours)
@@ -1668,6 +1669,9 @@ module Api
               document_type_id: doc.document_type_id,
               document_type_name: doc.document_type&.name,
               document_type_abbreviation: doc.document_type&.abbreviation,
+              # Entity Tab key for folder view - uses primary_entity_tab (first ordered)
+              entity_tab_key: doc.document_type&.primary_entity_tab&.tab_key,
+              entity_tab_name: doc.document_type&.primary_entity_tab&.display_name,
               suggested_document_types: build_document_type_display(doc),
               # AI analysis fields
               ai_analyzed: doc.ai_analyzed_at.present?,

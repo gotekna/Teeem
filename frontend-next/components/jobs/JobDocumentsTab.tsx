@@ -143,6 +143,9 @@ interface LegacyItem {
   type: "file" | "folder";
   child_count?: number;
   folder_path?: string; // Path to the file's parent folder (for recursive listing)
+  // Entity Tab mapping for folder view (from document_type's primary_entity_tab)
+  entity_tab_key?: string; // e.g., "plans", "site", "sales"
+  entity_tab_name?: string; // e.g., "Plans", "Site", "Sales"
   // Storage provider routing (SSoT for document access)
   storage_provider?: "sharepoint" | "s3_compatible";
   storage_path?: string; // Full S3 path (e.g., "jobs/49/finance/invoice.pdf")
@@ -2580,59 +2583,86 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       color?: string;
     }
 
-    // Build tree from actual folder paths (SharePoint structure)
+    // Build tree from Entity Configurator categories (NOT SharePoint folder structure)
+    // Files are matched to folders via entity_tab_key from their document_type
     const buildTree = (): TreeNode[] => {
-      const root: TreeNode = {
-        id: "root",
-        name: "Root",
+      const folders: TreeNode[] = [];
+
+      // Create a map for quick folder lookup by tab_key
+      const folderByTabKey = new Map<string, TreeNode>();
+
+      // Create folders from documentCategories (Entity Tabs)
+      documentCategories.forEach(cat => {
+        const folder: TreeNode = {
+          id: `folder-${cat.tab_key || cat.id}`,
+          name: cat.display_name || cat.name,
+          type: "folder",
+          children: [],
+          icon: cat.icon,
+          color: cat.color
+        };
+        folders.push(folder);
+
+        if (cat.tab_key) {
+          folderByTabKey.set(cat.tab_key, folder);
+        }
+
+        // Handle subcategories (children)
+        if (cat.children && cat.children.length > 0) {
+          cat.children.forEach(child => {
+            const childFolder: TreeNode = {
+              id: `folder-${child.tab_key || child.id}`,
+              name: child.display_name || child.name,
+              type: "folder",
+              children: [],
+              icon: child.icon,
+              color: child.color
+            };
+            folder.children!.push(childFolder);
+
+            if (child.tab_key) {
+              folderByTabKey.set(child.tab_key, childFolder);
+            }
+          });
+        }
+      });
+
+      // Create "Documents" catch-all folder for uncategorized files
+      const documentsFolder: TreeNode = {
+        id: "folder-documents",
+        name: "Documents",
         type: "folder",
         children: []
       };
 
-      // Helper to find or create folder path in tree
-      const getOrCreateFolder = (pathParts: string[], parent: TreeNode): TreeNode => {
-        if (pathParts.length === 0) return parent;
-
-        const folderName = pathParts[0];
-        // Strip number prefix if present (e.g., "01 Revit" -> "Revit", "03 Contract" -> "Contract")
-        const displayName = folderName.replace(/^\d+\s*/, '');
-        const folderId = `folder-${folderName.toLowerCase().replace(/\s+/g, '-')}`;
-
-        let folder = parent.children?.find(c => c.type === "folder" && c.id === folderId);
-        if (!folder) {
-          folder = {
-            id: folderId,
-            name: displayName || folderName,
-            type: "folder",
-            folderPath: folderName,
-            children: []
-          };
-          parent.children!.push(folder);
-        }
-
-        return getOrCreateFolder(pathParts.slice(1), folder);
-      };
-
-      // Add files to tree based on their folder_path
+      // Match files to folders via entity_tab_key
       allFiles.forEach(file => {
-        const folderPath = file.folder_path || "";
-        const pathParts = folderPath ? folderPath.split('/').filter(p => p) : [];
-
-        // Get or create the target folder
-        const targetFolder = pathParts.length > 0
-          ? getOrCreateFolder(pathParts, root)
-          : root; // Files with no folder_path go in root
-
-        // Add file to folder
-        targetFolder.children!.push({
+        const fileNode: TreeNode = {
           id: `file-${file.document_id || file.id}`,
           name: file.name,
           type: "file",
           file
-        });
+        };
+
+        // Find target folder by entity_tab_key
+        const targetFolder = file.entity_tab_key
+          ? folderByTabKey.get(file.entity_tab_key)
+          : null;
+
+        if (targetFolder) {
+          targetFolder.children!.push(fileNode);
+        } else {
+          // No matching entity tab - goes to Documents catch-all
+          documentsFolder.children!.push(fileNode);
+        }
       });
 
-      // Sort children: folders first (alphabetically), then files (alphabetically)
+      // Add Documents folder if it has files
+      if (documentsFolder.children!.length > 0) {
+        folders.push(documentsFolder);
+      }
+
+      // Sort children within each folder: files alphabetically
       const sortChildren = (node: TreeNode) => {
         if (node.children) {
           node.children.sort((a, b) => {
@@ -2642,21 +2672,15 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
           node.children.filter(c => c.type === "folder").forEach(sortChildren);
         }
       };
-      sortChildren(root);
+      folders.forEach(sortChildren);
 
-      // Return root's children (don't show "Root" folder itself)
-      // If no folder structure, files are directly under root
-      if (root.children!.every(c => c.type === "file")) {
-        // All files are in root, wrap in "Documents" folder
-        return [{
-          id: "documents",
-          name: "Documents",
-          type: "folder",
-          children: root.children
-        }];
-      }
+      // Filter out empty folders (no files or subfolders with files)
+      const hasFiles = (node: TreeNode): boolean => {
+        if (node.type === "file") return true;
+        return node.children?.some(hasFiles) || false;
+      };
 
-      return root.children || [];
+      return folders.filter(hasFiles);
     };
 
     const treeData = buildTree();
