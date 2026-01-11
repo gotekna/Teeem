@@ -37,7 +37,7 @@ export default function Home() {
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-bold tracking-tight font-serif">Brand Guidelines</h1>
-          <p className="text-sm text-[#606060] mt-1">
+          <p className="text-sm text-text-secondary mt-1">
             Comprehensive design system documentation for Teeem.
           </p>
         </div>
@@ -58,7 +58,7 @@ export default function Home() {
       <section className="space-y-6">
         <div>
           <h3 className="text-xl font-medium mb-1">Typography</h3>
-          <p className="text-sm text-[#606060]">Font families, sizes, and usage guidelines.</p>
+          <p className="text-sm text-text-secondary">Font families, sizes, and usage guidelines.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -76,7 +76,7 @@ export default function Home() {
                 <p className="text-[11px]">The quick brown fox jumps over the lazy dog</p>
               </div>
               <div className="pt-4 border-t space-y-1">
-                <p className="text-[11px] text-[#878787]">CSS Variable</p>
+                <p className="text-[11px] text-muted-foreground">CSS Variable</p>
                 <code className="text-xs bg-secondary px-2 py-1">--font-geist-sans</code>
               </div>
             </CardContent>
@@ -96,7 +96,7 @@ export default function Home() {
                 <p className="text-[11px]">const total = subtotal + tax;</p>
               </div>
               <div className="pt-4 border-t space-y-1">
-                <p className="text-[11px] text-[#878787]">CSS Variable</p>
+                <p className="text-[11px] text-muted-foreground">CSS Variable</p>
                 <code className="text-xs bg-secondary px-2 py-1">--font-geist-mono</code>
               </div>
             </CardContent>
@@ -115,7 +115,7 @@ export default function Home() {
                 <p className="text-[14px]">Financial Reports & Analytics</p>
               </div>
               <div className="pt-4 border-t space-y-1">
-                <p className="text-[11px] text-[#878787]">CSS Variable</p>
+                <p className="text-[11px] text-muted-foreground">CSS Variable</p>
                 <code className="text-xs bg-secondary px-2 py-1">--font-hedvig-serif</code>
               </div>
             </CardContent>
@@ -131,27 +131,27 @@ export default function Home() {
               <div className="space-y-3">
                 <div className="flex items-baseline justify-between border-b pb-2">
                   <span className="text-[32px]">32px</span>
-                  <span className="text-[11px] text-[#878787]">Large headings</span>
+                  <span className="text-[11px] text-muted-foreground">Large headings</span>
                 </div>
                 <div className="flex items-baseline justify-between border-b pb-2">
                   <span className="text-[21px]">21px</span>
-                  <span className="text-[11px] text-[#878787]">Document titles, totals</span>
+                  <span className="text-[11px] text-muted-foreground">Document titles, totals</span>
                 </div>
                 <div className="flex items-baseline justify-between border-b pb-2">
                   <span className="text-[14px]">14px</span>
-                  <span className="text-[11px] text-[#878787]">Body text (default)</span>
+                  <span className="text-[11px] text-muted-foreground">Body text (default)</span>
                 </div>
                 <div className="flex items-baseline justify-between border-b pb-2">
                   <span className="text-[12px]">12px</span>
-                  <span className="text-[11px] text-[#878787]">Small text, badges</span>
+                  <span className="text-[11px] text-muted-foreground">Small text, badges</span>
                 </div>
                 <div className="flex items-baseline justify-between border-b pb-2">
                   <span className="text-[11px]">11px</span>
-                  <span className="text-[11px] text-[#878787]">Labels, invoice body</span>
+                  <span className="text-[11px] text-muted-foreground">Labels, invoice body</span>
                 </div>
                 <div className="flex items-baseline justify-between">
                   <span className="text-[10px]">10px</span>
-                  <span className="text-[11px] text-[#878787]">Small pills, tags</span>
+                  <span className="text-[11px] text-muted-foreground">Small pills, tags</span>
                 </div>
               </div>
             </CardContent>
@@ -165,7 +165,7 @@ export default function Home() {
       <section className="space-y-6">
         <div>
           <h3 className="text-xl font-medium mb-1">Color System</h3>
-          <p className="text-sm text-[#606060]">Core palette with light and dark mode support.</p>
+          <p className="text-sm text-text-secondary">Core palette with light and dark mode support.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -180,21 +180,21 @@ export default function Home() {
                   <div className="w-10 h-10 bg-foreground border" />
                   <div>
                     <p className="text-sm font-medium">Foreground</p>
-                    <p className="text-[11px] text-[#878787]">Primary text</p>
+                    <p className="text-[11px] text-muted-foreground">Primary text</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-[#606060] border" />
                   <div>
                     <p className="text-sm font-medium">#606060</p>
-                    <p className="text-[11px] text-[#878787]">Descriptions, secondary</p>
+                    <p className="text-[11px] text-muted-foreground">Descriptions, secondary</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-[#878787] border" />
                   <div>
                     <p className="text-sm font-medium">#878787</p>
-                    <p className="text-[11px] text-[#878787]">Labels, muted text</p>
+                    <p className="text-[11px] text-muted-foreground">Labels, muted text</p>
                   </div>
                 </div>
               </div>
@@ -212,21 +212,21 @@ export default function Home() {
                   <div className="w-10 h-10 bg-background border" />
                   <div>
                     <p className="text-sm font-medium">Background</p>
-                    <p className="text-[11px] text-[#878787]">Light: #fff / Dark: #0d0d0d</p>
+                    <p className="text-[11px] text-muted-foreground">Light: #fff / Dark: #0d0d0d</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-[#F2F1EF] dark:bg-[#1D1D1D] border" />
                   <div>
                     <p className="text-sm font-medium">Secondary</p>
-                    <p className="text-[11px] text-[#878787]">#F2F1EF / #1D1D1D</p>
+                    <p className="text-[11px] text-muted-foreground">#F2F1EF / #1D1D1D</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-card border" />
                   <div>
                     <p className="text-sm font-medium">Card</p>
-                    <p className="text-[11px] text-[#878787]">Elevated surfaces</p>
+                    <p className="text-[11px] text-muted-foreground">Elevated surfaces</p>
                   </div>
                 </div>
               </div>
@@ -244,28 +244,28 @@ export default function Home() {
                   <div className="w-10 h-10 bg-[#DCFCE7] dark:bg-[#14532D] border" />
                   <div>
                     <p className="text-sm font-medium">Success</p>
-                    <p className="text-[11px] text-[#878787]">Completed, active</p>
+                    <p className="text-[11px] text-muted-foreground">Completed, active</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-[#FEF3C7] dark:bg-[#78350F] border" />
                   <div>
                     <p className="text-sm font-medium">Warning</p>
-                    <p className="text-[11px] text-[#878787]">Pending, attention</p>
+                    <p className="text-[11px] text-muted-foreground">Pending, attention</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-[#FEE2E2] dark:bg-[#7F1D1D] border" />
                   <div>
                     <p className="text-sm font-medium">Error</p>
-                    <p className="text-[11px] text-[#878787]">Failed, destructive</p>
+                    <p className="text-[11px] text-muted-foreground">Failed, destructive</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-[#DBEAFE] dark:bg-[#1E3A8A] border" />
                   <div>
                     <p className="text-sm font-medium">Info</p>
-                    <p className="text-[11px] text-[#878787]">Processing, info</p>
+                    <p className="text-[11px] text-muted-foreground">Processing, info</p>
                   </div>
                 </div>
               </div>
@@ -280,7 +280,7 @@ export default function Home() {
       <section className="space-y-6">
         <div>
           <h3 className="text-xl font-medium mb-1">Corner Radius</h3>
-          <p className="text-sm text-[#606060]">All UI elements use square corners for a sharp, professional look.</p>
+          <p className="text-sm text-text-secondary">All UI elements use square corners for a sharp, professional look.</p>
         </div>
 
         <Card>
@@ -290,33 +290,33 @@ export default function Home() {
                 <div className="w-20 h-20 bg-primary mx-auto" />
                 <div>
                   <p className="text-sm font-medium">Buttons</p>
-                  <p className="text-[11px] text-[#878787]">rounded-none</p>
+                  <p className="text-[11px] text-muted-foreground">rounded-none</p>
                 </div>
               </div>
               <div className="text-center space-y-3">
                 <div className="w-20 h-20 border-2 border-border mx-auto" />
                 <div>
                   <p className="text-sm font-medium">Cards</p>
-                  <p className="text-[11px] text-[#878787]">rounded-none</p>
+                  <p className="text-[11px] text-muted-foreground">rounded-none</p>
                 </div>
               </div>
               <div className="text-center space-y-3">
                 <div className="w-20 h-6 bg-[#F2F1EF] dark:bg-[#1D1D1D] mx-auto" />
                 <div>
                   <p className="text-sm font-medium">Pills/Tags</p>
-                  <p className="text-[11px] text-[#878787]">rounded-none</p>
+                  <p className="text-[11px] text-muted-foreground">rounded-none</p>
                 </div>
               </div>
               <div className="text-center space-y-3">
                 <div className="w-20 h-10 border border-border mx-auto" />
                 <div>
                   <p className="text-sm font-medium">Inputs</p>
-                  <p className="text-[11px] text-[#878787]">rounded-none</p>
+                  <p className="text-[11px] text-muted-foreground">rounded-none</p>
                 </div>
               </div>
             </div>
             <div className="mt-6 pt-6 border-t">
-              <p className="text-[11px] text-[#878787]">CSS Variable</p>
+              <p className="text-[11px] text-muted-foreground">CSS Variable</p>
               <code className="text-xs bg-secondary px-2 py-1">--radius: 0rem</code>
             </div>
           </CardContent>
@@ -329,7 +329,7 @@ export default function Home() {
       <section className="space-y-6">
         <div>
           <h3 className="text-xl font-medium mb-1">Spacing System</h3>
-          <p className="text-sm text-[#606060]">Consistent spacing using Tailwind's scale.</p>
+          <p className="text-sm text-text-secondary">Consistent spacing using Tailwind's scale.</p>
         </div>
 
         <Card>
@@ -338,32 +338,32 @@ export default function Home() {
               <div className="flex items-center gap-4">
                 <div className="w-1 h-6 bg-primary" />
                 <span className="text-sm w-16">4px</span>
-                <span className="text-[11px] text-[#878787]">gap-1, p-1, m-1</span>
+                <span className="text-[11px] text-muted-foreground">gap-1, p-1, m-1</span>
               </div>
               <div className="flex items-center gap-4">
                 <div className="w-2 h-6 bg-primary" />
                 <span className="text-sm w-16">8px</span>
-                <span className="text-[11px] text-[#878787]">gap-2, p-2, m-2</span>
+                <span className="text-[11px] text-muted-foreground">gap-2, p-2, m-2</span>
               </div>
               <div className="flex items-center gap-4">
                 <div className="w-3 h-6 bg-primary" />
                 <span className="text-sm w-16">12px</span>
-                <span className="text-[11px] text-[#878787]">gap-3, p-3, m-3</span>
+                <span className="text-[11px] text-muted-foreground">gap-3, p-3, m-3</span>
               </div>
               <div className="flex items-center gap-4">
                 <div className="w-4 h-6 bg-primary" />
                 <span className="text-sm w-16">16px</span>
-                <span className="text-[11px] text-[#878787]">gap-4, p-4, m-4</span>
+                <span className="text-[11px] text-muted-foreground">gap-4, p-4, m-4</span>
               </div>
               <div className="flex items-center gap-4">
                 <div className="w-6 h-6 bg-primary" />
                 <span className="text-sm w-16">24px</span>
-                <span className="text-[11px] text-[#878787]">gap-6, p-6, m-6</span>
+                <span className="text-[11px] text-muted-foreground">gap-6, p-6, m-6</span>
               </div>
               <div className="flex items-center gap-4">
                 <div className="w-8 h-6 bg-primary" />
                 <span className="text-sm w-16">32px</span>
-                <span className="text-[11px] text-[#878787]">gap-8, p-8, m-8</span>
+                <span className="text-[11px] text-muted-foreground">gap-8, p-8, m-8</span>
               </div>
             </div>
           </CardContent>
@@ -376,7 +376,7 @@ export default function Home() {
       <section className="space-y-6">
         <div>
           <h3 className="text-xl font-medium mb-1">Document Templates</h3>
-          <p className="text-sm text-[#606060]">Invoice and Purchase Order specifications.</p>
+          <p className="text-sm text-text-secondary">Invoice and Purchase Order specifications.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -446,7 +446,7 @@ export default function Home() {
             </CardHeader>
             <CardContent>
               <div className="border">
-                <div className="grid grid-cols-[1.5fr_15%_15%_15%] gap-4 p-3 bg-secondary text-[11px] text-[#878787]">
+                <div className="grid grid-cols-[1.5fr_15%_15%_15%] gap-4 p-3 bg-secondary text-[11px] text-muted-foreground">
                   <span>Description (1.5fr)</span>
                   <span className="text-right">Price (15%)</span>
                   <span className="text-right">Qty (15%)</span>
@@ -459,7 +459,7 @@ export default function Home() {
                   <span className="text-right font-mono">$200.00</span>
                 </div>
               </div>
-              <p className="text-[11px] text-[#878787] mt-3">
+              <p className="text-[11px] text-muted-foreground mt-3">
                 Grid template: <code className="bg-secondary px-1">grid-cols-[1.5fr_15%_15%_15%]</code>
               </p>
             </CardContent>
@@ -473,7 +473,7 @@ export default function Home() {
       <section className="space-y-6">
         <div>
           <h3 className="text-xl font-medium mb-1">Component Guidelines</h3>
-          <p className="text-sm text-[#606060]">Key UI components and their usage.</p>
+          <p className="text-sm text-text-secondary">Key UI components and their usage.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -489,7 +489,7 @@ export default function Home() {
                 <Button variant="ghost">Ghost</Button>
                 <Button variant="destructive">Destructive</Button>
               </div>
-              <div className="pt-4 border-t text-[11px] text-[#878787] space-y-1">
+              <div className="pt-4 border-t text-[11px] text-muted-foreground space-y-1">
                 <p>Height: 36px (h-9)</p>
                 <p>Padding: 16px horizontal (px-4)</p>
                 <p>Font: 14px medium</p>
@@ -510,7 +510,7 @@ export default function Home() {
                 <Pill variant="error">Error</Pill>
                 <Pill variant="info">Info</Pill>
               </div>
-              <div className="pt-4 border-t text-[11px] text-[#878787] space-y-1">
+              <div className="pt-4 border-t text-[11px] text-muted-foreground space-y-1">
                 <p>Font: 12px (text-xs)</p>
                 <p>Padding: 10px × 4px</p>
                 <p>Corners: Square (rounded-none)</p>
@@ -530,7 +530,7 @@ export default function Home() {
                 <Badge variant="outline">Outline</Badge>
                 <Badge variant="tag">Tag</Badge>
               </div>
-              <div className="pt-4 border-t text-[11px] text-[#878787] space-y-1">
+              <div className="pt-4 border-t text-[11px] text-muted-foreground space-y-1">
                 <p>Font: 12px semibold</p>
                 <p>Padding: 10px × 2px</p>
                 <p>Tag variant uses #878787 text</p>
@@ -547,7 +547,7 @@ export default function Home() {
                 <p className="text-sm font-medium">Card Title</p>
                 <p className="text-[11px] text-[#606060]">Card description text</p>
               </div>
-              <div className="pt-4 border-t text-[11px] text-[#878787] space-y-1">
+              <div className="pt-4 border-t text-[11px] text-muted-foreground space-y-1">
                 <p>Border: 1px border-border</p>
                 <p>Padding: 24px (p-6)</p>
                 <p>Title: 14px medium</p>
@@ -564,7 +564,7 @@ export default function Home() {
       <section className="space-y-6">
         <div>
           <h3 className="text-xl font-medium mb-1">Tables</h3>
-          <p className="text-sm text-[#606060]">Data table specifications and styling.</p>
+          <p className="text-sm text-text-secondary">Data table specifications and styling.</p>
         </div>
 
         <Card>
@@ -602,7 +602,7 @@ export default function Home() {
                 </TableRow>
               </TableBody>
             </Table>
-            <div className="pt-4 border-t text-[11px] text-[#878787] space-y-2">
+            <div className="pt-4 border-t text-[11px] text-muted-foreground space-y-2">
               <p className="font-medium text-foreground text-xs mb-2">Typography & Sizing</p>
               <p><strong>Table Headers:</strong> 14px, uppercase, font-medium (500), letter-spacing 0.05em</p>
               <p><strong>Cascading Headers:</strong> 13px, bold (700)</p>
@@ -631,35 +631,35 @@ export default function Home() {
       <section className="space-y-6">
         <div>
           <h3 className="text-xl font-medium mb-1">CSS Variables Reference</h3>
-          <p className="text-sm text-[#606060]">Complete list of design tokens.</p>
+          <p className="text-sm text-text-secondary">Complete list of design tokens.</p>
         </div>
 
         <Card>
           <CardContent className="pt-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 text-[11px] font-mono">
               <div className="space-y-2">
-                <p className="text-[#878787] font-sans text-xs font-medium mb-3">Layout</p>
+                <p className="text-muted-foreground font-sans text-xs font-medium mb-3">Layout</p>
                 <p>--radius: 0rem</p>
                 <p>--font-geist-sans</p>
                 <p>--font-geist-mono</p>
                 <p>--font-hedvig-serif</p>
               </div>
               <div className="space-y-2">
-                <p className="text-[#878787] font-sans text-xs font-medium mb-3">Light Mode</p>
+                <p className="text-muted-foreground font-sans text-xs font-medium mb-3">Light Mode</p>
                 <p>--background: 0, 0%, 100%</p>
                 <p>--foreground: 0, 0%, 7%</p>
                 <p>--border: 45, 5%, 85%</p>
                 <p>--muted-foreground: 0, 0%, 38%</p>
               </div>
               <div className="space-y-2 mt-4">
-                <p className="text-[#878787] font-sans text-xs font-medium mb-3">Dark Mode</p>
+                <p className="text-muted-foreground font-sans text-xs font-medium mb-3">Dark Mode</p>
                 <p>--background: 0, 0%, 5%</p>
                 <p>--foreground: 0, 0%, 98%</p>
                 <p>--border: 0, 0%, 11%</p>
                 <p>--muted-foreground: 0, 0%, 38%</p>
               </div>
               <div className="space-y-2 mt-4">
-                <p className="text-[#878787] font-sans text-xs font-medium mb-3">Semantic Colors</p>
+                <p className="text-muted-foreground font-sans text-xs font-medium mb-3">Semantic Colors</p>
                 <p>--primary: 240 5.9% 10%</p>
                 <p>--secondary: 40, 11%, 89%</p>
                 <p>--destructive: 0 84.2% 60.2%</p>
@@ -676,7 +676,7 @@ export default function Home() {
       <section className="space-y-6">
         <div>
           <h3 className="text-xl font-medium mb-1">Features & Components</h3>
-          <p className="text-sm text-[#606060]">Key application features and their design patterns.</p>
+          <p className="text-sm text-text-secondary">Key application features and their design patterns.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -688,7 +688,7 @@ export default function Home() {
             </CardHeader>
             <CardContent className="space-y-3 text-[11px]">
               <div className="space-y-1">
-                <p className="text-[#878787]">Key Elements</p>
+                <p className="text-muted-foreground">Key Elements</p>
                 <ul className="space-y-1 text-foreground">
                   <li>• Invoice number, issue date, due date</li>
                   <li>• From/To address blocks</li>
@@ -698,7 +698,7 @@ export default function Home() {
                 </ul>
               </div>
               <div className="pt-2 border-t space-y-1">
-                <p className="text-[#878787]">Format</p>
+                <p className="text-muted-foreground">Format</p>
                 <p>A4 (595×842px) • 11px body • 21px totals</p>
               </div>
             </CardContent>
@@ -712,7 +712,7 @@ export default function Home() {
             </CardHeader>
             <CardContent className="space-y-3 text-[11px]">
               <div className="space-y-1">
-                <p className="text-[#878787]">Key Elements</p>
+                <p className="text-muted-foreground">Key Elements</p>
                 <ul className="space-y-1 text-foreground">
                   <li>• PO number, issue date, delivery date</li>
                   <li>• From/To vendor blocks</li>
@@ -722,7 +722,7 @@ export default function Home() {
                 </ul>
               </div>
               <div className="pt-2 border-t space-y-1">
-                <p className="text-[#878787]">Format</p>
+                <p className="text-muted-foreground">Format</p>
                 <p>A4 (595×842px) • Mirrors invoice layout</p>
               </div>
             </CardContent>
@@ -736,7 +736,7 @@ export default function Home() {
             </CardHeader>
             <CardContent className="space-y-3 text-[11px]">
               <div className="space-y-1">
-                <p className="text-[#878787]">Key Elements</p>
+                <p className="text-muted-foreground">Key Elements</p>
                 <ul className="space-y-1 text-foreground">
                   <li>• Transaction ID (font-mono)</li>
                   <li>• Date, description, category</li>
@@ -746,7 +746,7 @@ export default function Home() {
                 </ul>
               </div>
               <div className="pt-2 border-t space-y-1">
-                <p className="text-[#878787]">Table Style</p>
+                <p className="text-muted-foreground">Table Style</p>
                 <p>11px cells • font-mono for IDs/amounts</p>
               </div>
             </CardContent>
@@ -760,7 +760,7 @@ export default function Home() {
             </CardHeader>
             <CardContent className="space-y-3 text-[11px]">
               <div className="space-y-1">
-                <p className="text-[#878787]">Key Elements</p>
+                <p className="text-muted-foreground">Key Elements</p>
                 <ul className="space-y-1 text-foreground">
                   <li>• Task list with names</li>
                   <li>• Timeline grid with date headers</li>
@@ -770,7 +770,7 @@ export default function Home() {
                 </ul>
               </div>
               <div className="pt-2 border-t space-y-1">
-                <p className="text-[#878787]">Colors</p>
+                <p className="text-muted-foreground">Colors</p>
                 <p>Primary for bars • Muted for grid</p>
               </div>
             </CardContent>
@@ -784,7 +784,7 @@ export default function Home() {
             </CardHeader>
             <CardContent className="space-y-3 text-[11px]">
               <div className="space-y-1">
-                <p className="text-[#878787]">Key Elements</p>
+                <p className="text-muted-foreground">Key Elements</p>
                 <ul className="space-y-1 text-foreground">
                   <li>• Metric cards with icon, title, value</li>
                   <li>• Charts (bar, line, area)</li>
@@ -794,7 +794,7 @@ export default function Home() {
                 </ul>
               </div>
               <div className="pt-2 border-t space-y-1">
-                <p className="text-[#878787]">Layout</p>
+                <p className="text-muted-foreground">Layout</p>
                 <p>4-column grid • Cards with p-6</p>
               </div>
             </CardContent>
@@ -808,7 +808,7 @@ export default function Home() {
             </CardHeader>
             <CardContent className="space-y-3 text-[11px]">
               <div className="space-y-1">
-                <p className="text-[#878787]">Key Elements</p>
+                <p className="text-muted-foreground">Key Elements</p>
                 <ul className="space-y-1 text-foreground">
                   <li>• Logo with brand mark</li>
                   <li>• Icon + label nav items</li>
@@ -819,7 +819,7 @@ export default function Home() {
                 </ul>
               </div>
               <div className="pt-2 border-t space-y-1">
-                <p className="text-[#878787]">Width</p>
+                <p className="text-muted-foreground">Width</p>
                 <p>Collapsed: 70px • Expanded: 240px</p>
               </div>
             </CardContent>
@@ -833,7 +833,7 @@ export default function Home() {
             </CardHeader>
             <CardContent className="space-y-3 text-[11px]">
               <div className="space-y-1">
-                <p className="text-[#878787]">Key Elements</p>
+                <p className="text-muted-foreground">Key Elements</p>
                 <ul className="space-y-1 text-foreground">
                   <li>• Text inputs (h-9, square corners)</li>
                   <li>• Select dropdowns</li>
@@ -843,7 +843,7 @@ export default function Home() {
                 </ul>
               </div>
               <div className="pt-2 border-t space-y-1">
-                <p className="text-[#878787]">Labels</p>
+                <p className="text-muted-foreground">Labels</p>
                 <p>11px #878787 above inputs</p>
               </div>
             </CardContent>
@@ -857,7 +857,7 @@ export default function Home() {
             </CardHeader>
             <CardContent className="space-y-3 text-[11px]">
               <div className="space-y-1">
-                <p className="text-[#878787]">Key Elements</p>
+                <p className="text-muted-foreground">Key Elements</p>
                 <ul className="space-y-1 text-foreground">
                   <li>• Alert dialogs for confirmations</li>
                   <li>• Sheet panels (left/right slide)</li>
@@ -867,7 +867,7 @@ export default function Home() {
                 </ul>
               </div>
               <div className="pt-2 border-t space-y-1">
-                <p className="text-[#878787]">Animation</p>
+                <p className="text-muted-foreground">Animation</p>
                 <p>Scale 0.97→1 • Fade in/out</p>
               </div>
             </CardContent>
@@ -883,7 +883,7 @@ export default function Home() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Live Demo */}
                 <div className="space-y-3">
-                  <p className="text-[11px] text-[#878787] font-medium">Live Demo</p>
+                  <p className="text-[11px] text-muted-foreground font-medium">Live Demo</p>
                   <Button
                     variant="destructive"
                     onClick={() => setShowDeleteDialog(true)}
@@ -899,7 +899,7 @@ export default function Home() {
 
                 {/* Structure */}
                 <div className="space-y-3">
-                  <p className="text-[11px] text-[#878787] font-medium">Dialog Structure</p>
+                  <p className="text-[11px] text-muted-foreground font-medium">Dialog Structure</p>
                   <div className="border p-4 space-y-3 bg-card">
                     <div className="space-y-1">
                       <p className="text-sm font-medium">AlertDialogTitle</p>
@@ -918,7 +918,7 @@ export default function Home() {
               {/* Specs */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-[11px]">
                 <div className="space-y-2">
-                  <p className="text-[#878787] font-medium">Title</p>
+                  <p className="text-muted-foreground font-medium">Title</p>
                   <ul className="space-y-1">
                     <li>• Use question format: "Delete Item?"</li>
                     <li>• 18px font-medium (text-lg)</li>
@@ -926,7 +926,7 @@ export default function Home() {
                   </ul>
                 </div>
                 <div className="space-y-2">
-                  <p className="text-[#878787] font-medium">Description</p>
+                  <p className="text-muted-foreground font-medium">Description</p>
                   <ul className="space-y-1">
                     <li>• Explain consequences clearly</li>
                     <li>• Include "cannot be undone" if permanent</li>
@@ -934,7 +934,7 @@ export default function Home() {
                   </ul>
                 </div>
                 <div className="space-y-2">
-                  <p className="text-[#878787] font-medium">Buttons</p>
+                  <p className="text-muted-foreground font-medium">Buttons</p>
                   <ul className="space-y-1">
                     <li>• Cancel: variant="outline" (left)</li>
                     <li>• Confirm: variant="destructive" (right)</li>
@@ -947,7 +947,7 @@ export default function Home() {
 
               {/* Code Example */}
               <div className="space-y-2">
-                <p className="text-[11px] text-[#878787] font-medium">Usage Pattern</p>
+                <p className="text-[11px] text-muted-foreground font-medium">Usage Pattern</p>
                 <pre className="text-[10px] bg-secondary p-4 overflow-x-auto font-mono">
 {`<AlertDialog open={showDialog} onOpenChange={setShowDialog}>
   <AlertDialogContent>
@@ -972,7 +972,7 @@ export default function Home() {
                 </pre>
               </div>
 
-              <div className="pt-2 border-t text-[11px] text-[#878787] space-y-1">
+              <div className="pt-2 border-t text-[11px] text-muted-foreground space-y-1">
                 <p><strong>Overlay:</strong> bg-[#f6f6f3]/60 (light) • bg-[#0C0C0C]/80 (dark)</p>
                 <p><strong>Content:</strong> max-w-lg • p-6 • border • bg-background</p>
                 <p><strong>Animation:</strong> fade-in + zoom-in-95 + slide-in-from-top</p>
@@ -988,7 +988,7 @@ export default function Home() {
             </CardHeader>
             <CardContent className="space-y-3 text-[11px]">
               <div className="space-y-1">
-                <p className="text-[#878787]">Status Types</p>
+                <p className="text-muted-foreground">Status Types</p>
                 <div className="flex flex-wrap gap-1 mt-2">
                   <Pill variant="success" size="sm">Active</Pill>
                   <Pill variant="success" size="sm">Completed</Pill>
@@ -999,7 +999,7 @@ export default function Home() {
                 </div>
               </div>
               <div className="pt-2 border-t space-y-1">
-                <p className="text-[#878787]">Usage</p>
+                <p className="text-muted-foreground">Usage</p>
                 <p>Pills for status • Badges for counts</p>
               </div>
             </CardContent>

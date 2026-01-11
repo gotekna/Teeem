@@ -155,7 +155,7 @@ function EmailRow({
       <div
         className={cn(
           "flex items-center gap-2 py-1.5 px-2 -mx-2 transition-colors",
-          isNew ? "bg-blue-50 dark:bg-blue-950/30" : "bg-[#F2F1EF] dark:bg-[#1D1D1D]",
+          isNew ? "bg-blue-50 dark:bg-blue-950/30" : "bg-secondary",
           error && "bg-red-50 dark:bg-red-950/30"
         )}
       >
@@ -245,16 +245,16 @@ function EmailRow({
   return (
     <div
       className={cn(
-        "group flex items-center gap-2 py-1.5 px-2 -mx-2 transition-colors cursor-pointer hover:bg-[#F2F1EF] dark:hover:bg-[#1D1D1D]",
+        "group flex items-center gap-2 py-1.5 px-2 -mx-2 transition-colors cursor-pointer hover:bg-secondary",
         showSuccess && "bg-green-50 dark:bg-green-950/30"
       )}
       onClick={onStartEdit}
     >
       {/* Icon */}
-      <Mail className="h-4 w-4 text-[#878787] shrink-0" />
+      <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
 
       {/* Email address */}
-      <span className="flex-1 text-[14px] text-[#606060] dark:text-gray-300 truncate">{email.email}</span>
+      <span className="flex-1 text-[14px] text-text-secondary truncate">{email.email}</span>
 
       {/* Primary indicator */}
       {email.is_primary && (
@@ -420,12 +420,12 @@ export function EmailPropertyGroup({
     <div className={cn("space-y-1", className)}>
       {/* Header */}
       <div className="flex items-center justify-between">
-        <span className="text-[14px] text-[#878787]">Emails</span>
+        <span className="text-[14px] text-muted-foreground">Emails</span>
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          className="h-7 px-2 text-[#878787] hover:text-[#606060]"
+          className="h-7 px-2 text-muted-foreground hover:text-text-secondary"
           onClick={handleAdd}
           disabled={isAdding}
         >
@@ -437,7 +437,7 @@ export function EmailPropertyGroup({
       {/* Email list */}
       <div className="space-y-0.5">
         {visibleEmails.length === 0 && !isAdding && (
-          <p className="text-[14px] text-[#878787] italic py-2 px-2">
+          <p className="text-[14px] text-muted-foreground italic py-2 px-2">
             No email addresses
           </p>
         )}

@@ -56,8 +56,8 @@ export interface PropertyRowProps {
  *
  * Brand Guidelines Applied:
  * - Square corners (no rounded)
- * - Text: #606060 body, #878787 labels
- * - Hover: bg-[#F2F1EF] dark:bg-[#1D1D1D]
+ * - Text: text-text-secondary body, text-muted-foreground labels
+ * - Hover: hover:bg-secondary (auto dark mode)
  *
  * Behavior:
  * - Read mode: Shows label + value, hover reveals edit icon
@@ -256,14 +256,14 @@ export const PropertyRow = memo(function PropertyRow({
       >
         <span
           className={cn(
-            "shrink-0 text-[14px] text-[#878787]",
+            "shrink-0 text-[14px] text-muted-foreground",
             labelWidth
           )}
         >
           {label}
         </span>
         <div className="flex-1 flex items-center justify-between">
-          <span className="text-[14px] text-[#878787]">
+          <span className="text-[14px] text-muted-foreground">
             {hint}
           </span>
           <div className="flex items-center gap-2">
@@ -289,7 +289,7 @@ export const PropertyRow = memo(function PropertyRow({
       <div
         className={cn(
           "group flex items-start py-2.5 px-3 -mx-3 transition-all cursor-pointer",
-          !readonly && "hover:bg-[#F2F1EF] dark:hover:bg-[#1D1D1D]",
+          !readonly && "hover:bg-secondary",
           showSuccess && "bg-green-50 dark:bg-green-950/30",
           readonly && "cursor-default",
           className
@@ -298,7 +298,7 @@ export const PropertyRow = memo(function PropertyRow({
       >
         <span
           className={cn(
-            "shrink-0 text-[14px] text-[#878787] pt-0.5",
+            "shrink-0 text-[14px] text-muted-foreground pt-0.5",
             labelWidth
           )}
         >
@@ -308,8 +308,8 @@ export const PropertyRow = memo(function PropertyRow({
           <div className="flex items-center gap-2">
             <span
               className={cn(
-                "text-[14px] text-[#606060] dark:text-gray-300 break-words",
-                !displayValue && "text-[#878787] italic"
+                "text-[14px] text-text-secondary break-words",
+                !displayValue && "text-muted-foreground italic"
               )}
             >
               {displayValue || placeholder || "Not set"}
@@ -344,7 +344,7 @@ export const PropertyRow = memo(function PropertyRow({
             )}
           </div>
           {hint && !readonly && (
-            <p className="text-[11px] text-[#878787] mt-0.5">{hint}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">{hint}</p>
           )}
         </div>
         {/* Clear button - shows when clearable and has value */}
@@ -376,14 +376,14 @@ export const PropertyRow = memo(function PropertyRow({
     return (
       <div
         className={cn(
-          "flex items-start py-1.5 px-3 -mx-3 bg-[#F2F1EF] dark:bg-[#1D1D1D] transition-colors",
+          "flex items-start py-1.5 px-3 -mx-3 bg-secondary transition-colors",
           error && "bg-red-50 dark:bg-red-950/30",
           className
         )}
       >
         <span
           className={cn(
-            "shrink-0 text-[14px] text-[#878787] pt-2",
+            "shrink-0 text-[14px] text-muted-foreground pt-2",
             labelWidth
           )}
         >
@@ -431,14 +431,14 @@ export const PropertyRow = memo(function PropertyRow({
     return (
       <div
         className={cn(
-          "flex items-start py-1.5 px-3 -mx-3 bg-[#F2F1EF] dark:bg-[#1D1D1D] transition-colors",
+          "flex items-start py-1.5 px-3 -mx-3 bg-secondary transition-colors",
           error && "bg-red-50 dark:bg-red-950/30",
           className
         )}
       >
         <span
           className={cn(
-            "shrink-0 text-[14px] text-[#878787] pt-2",
+            "shrink-0 text-[14px] text-muted-foreground pt-2",
             labelWidth
           )}
         >
@@ -478,7 +478,7 @@ export const PropertyRow = memo(function PropertyRow({
             </div>
           </div>
           {error && <span className="text-[11px] text-red-500">{error}</span>}
-          <span className="text-[11px] text-[#878787]">
+          <span className="text-[11px] text-muted-foreground">
             Press Escape to cancel, Cmd+Enter to save
           </span>
         </div>
@@ -490,14 +490,14 @@ export const PropertyRow = memo(function PropertyRow({
   return (
     <div
       className={cn(
-        "flex items-start py-1.5 px-3 -mx-3 bg-[#F2F1EF] dark:bg-[#1D1D1D] transition-colors",
+        "flex items-start py-1.5 px-3 -mx-3 bg-secondary transition-colors",
         error && "bg-red-50 dark:bg-red-950/30",
         className
       )}
     >
       <span
         className={cn(
-          "shrink-0 text-[14px] text-[#878787] pt-2",
+          "shrink-0 text-[14px] text-muted-foreground pt-2",
           labelWidth
         )}
       >

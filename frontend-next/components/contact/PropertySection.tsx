@@ -30,7 +30,7 @@ export function PropertySection({
   return (
     <div className={cn("space-y-1", className)}>
       <div className="flex items-center justify-between py-2">
-        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[#878787]">
+        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           {title}
         </h3>
         {action}
