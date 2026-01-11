@@ -126,7 +126,7 @@ function CompanySettingsContent({ subtab, extra, innerTab }: { subtab: string; e
             <WorkflowsTab />
           </TabsContent>
           <TabsContent value="connections">
-            <ConnectionsTab />
+            <ConnectionsTab innerTab={extra} />
           </TabsContent>
           <TabsContent value="job-setup">
             <JobSetupTab />

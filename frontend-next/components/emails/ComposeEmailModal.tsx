@@ -688,7 +688,7 @@ export function ComposeEmailModal({
               <SmartInput
                 placeholder="Add a subject"
                 value={formData.subject}
-                onChange={(value) => setFormData({ ...formData, subject: value })}
+                onChange={(value: string) => setFormData({ ...formData, subject: value })}
                 context="email_subject"
                 className="border-0 shadow-none text-base px-0 h-8 focus-visible:ring-0"
                 indicatorPosition="outside"

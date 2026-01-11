@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useCallback } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1659,12 +1659,10 @@ function DocumentMigration() {
 }
 
 // Main Connections Tab
-export function ConnectionsTab() {
-  const searchParams = useSearchParams();
+export function ConnectionsTab({ innerTab }: { innerTab?: string }) {
   const router = useRouter();
-  // Use connectionTab param to avoid conflict with parent's subtab param
-  const connectionTabFromUrl = searchParams.get("connectionTab");
-  const activeTab = connectionTabFromUrl || "provider";
+  // Use innerTab prop passed from parent route
+  const activeTab = innerTab || "provider";
 
   const handleTabChange = useCallback((tabId: string) => {
     const url = tabId === "provider"
