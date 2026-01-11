@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -21,9 +22,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { X, Users, UserPlus, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 // Atoms for meeting creation
 export const createMeetingOpenAtom = atom<boolean>(false);
@@ -35,6 +51,19 @@ interface MeetingType {
   description: string | null;
   category: string | null;
   default_duration_minutes: number | null;
+}
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+}
+
+interface Contact {
+  id: number;
+  name: string;
+  email: string | null;
+  company_name: string | null;
 }
 
 interface CreateMeetingSheetProps {
@@ -53,34 +82,59 @@ export function CreateMeetingSheet({ onSuccess }: CreateMeetingSheetProps) {
   const [startTime, setStartTime] = React.useState("09:00");
   const [endTime, setEndTime] = React.useState("10:00");
 
+  // Participants
+  const [selectedUsers, setSelectedUsers] = React.useState<User[]>([]);
+  const [selectedContacts, setSelectedContacts] = React.useState<Contact[]>([]);
+  const [userSearchOpen, setUserSearchOpen] = React.useState(false);
+  const [contactSearchOpen, setContactSearchOpen] = React.useState(false);
+
   const [meetingTypes, setMeetingTypes] = React.useState<MeetingType[]>([]);
+  const [users, setUsers] = React.useState<User[]>([]);
+  const [contacts, setContacts] = React.useState<Contact[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
 
-  // Load meeting types
+  // Load meeting types, users, and contacts
   React.useEffect(() => {
-    const loadMeetingTypes = async () => {
+    const loadData = async () => {
       try {
         setLoading(true);
-        const response = await api.get<{ success: boolean; data: MeetingType[] }>(
+
+        // Load meeting types
+        const typesResponse = await api.get<{ success: boolean; data: MeetingType[] }>(
           "/api/v1/meeting_types?active_only=true"
         );
-        if (response.success) {
-          setMeetingTypes(response.data);
-          // Set default meeting type if available
-          if (response.data.length > 0 && !meetingTypeId) {
-            setMeetingTypeId(response.data[0].id.toString());
+        if (typesResponse?.success) {
+          setMeetingTypes(typesResponse.data);
+          if (typesResponse.data.length > 0 && !meetingTypeId) {
+            setMeetingTypeId(typesResponse.data[0].id.toString());
           }
         }
+
+        // Load users
+        const usersResponse = await api.get<{ success: boolean; data: User[] }>(
+          "/api/v1/users?active=true"
+        );
+        if (usersResponse?.success) {
+          setUsers(usersResponse.data);
+        }
+
+        // Load contacts
+        const contactsResponse = await api.get<{ success: boolean; data: Contact[] }>(
+          "/api/v1/contacts?limit=500"
+        );
+        if (contactsResponse?.success) {
+          setContacts(contactsResponse.data);
+        }
       } catch (error) {
-        console.error("Failed to load meeting types:", error);
+        console.error("Failed to load data:", error);
       } finally {
         setLoading(false);
       }
     };
 
     if (open) {
-      loadMeetingTypes();
+      loadData();
     }
   }, [open]);
 
@@ -116,6 +170,8 @@ export function CreateMeetingSheet({ onSuccess }: CreateMeetingSheetProps) {
       setMeetingTypeId("");
       setStartTime("09:00");
       setEndTime("10:00");
+      setSelectedUsers([]);
+      setSelectedContacts([]);
     }
   }, [open]);
 
@@ -144,6 +200,20 @@ export function CreateMeetingSheet({ onSuccess }: CreateMeetingSheetProps) {
       const startDateTime = new Date(`${date}T${startTime}:00`);
       const endDateTime = new Date(`${date}T${endTime}:00`);
 
+      // Build participants array
+      const participants = [
+        ...selectedUsers.map((u, idx) => ({
+          user_id: u.id,
+          is_organizer: idx === 0,
+          is_required: true,
+        })),
+        ...selectedContacts.map(c => ({
+          contact_id: c.id,
+          is_organizer: false,
+          is_required: true,
+        })),
+      ];
+
       const response = await api.post<{ success: boolean; data: any; error?: string }>(
         "/api/v1/meetings",
         {
@@ -156,6 +226,7 @@ export function CreateMeetingSheet({ onSuccess }: CreateMeetingSheetProps) {
             end_time: endDateTime.toISOString(),
             status: "scheduled",
           },
+          participants: participants.length > 0 ? participants : undefined,
         }
       );
 
@@ -174,9 +245,33 @@ export function CreateMeetingSheet({ onSuccess }: CreateMeetingSheetProps) {
     }
   };
 
+  const toggleUser = (user: User) => {
+    setSelectedUsers(prev =>
+      prev.some(u => u.id === user.id)
+        ? prev.filter(u => u.id !== user.id)
+        : [...prev, user]
+    );
+  };
+
+  const toggleContact = (contact: Contact) => {
+    setSelectedContacts(prev =>
+      prev.some(c => c.id === contact.id)
+        ? prev.filter(c => c.id !== contact.id)
+        : [...prev, contact]
+    );
+  };
+
+  const removeUser = (userId: number) => {
+    setSelectedUsers(prev => prev.filter(u => u.id !== userId));
+  };
+
+  const removeContact = (contactId: number) => {
+    setSelectedContacts(prev => prev.filter(c => c.id !== contactId));
+  };
+
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetContent className="sm:max-w-md">
+      <SheetContent className="sm:max-w-md overflow-y-auto">
         <SheetHeader>
           <SheetTitle>New Meeting</SheetTitle>
           <SheetDescription>
@@ -251,6 +346,142 @@ export function CreateMeetingSheet({ onSuccess }: CreateMeetingSheetProps) {
                   onChange={(e) => setEndTime(e.target.value)}
                 />
               </div>
+            </div>
+
+            {/* Internal Participants (Users) */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Internal Participants
+              </Label>
+              <Popover open={userSearchOpen} onOpenChange={setUserSearchOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    className="w-full justify-start text-muted-foreground"
+                  >
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Add team members...
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[300px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search users..." />
+                    <CommandList>
+                      <CommandEmpty>No users found.</CommandEmpty>
+                      <CommandGroup>
+                        {users.map((user) => (
+                          <CommandItem
+                            key={user.id}
+                            onSelect={() => toggleUser(user)}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedUsers.some(u => u.id === user.id)
+                                  ? "opacity-100"
+                                  : "opacity-0"
+                              )}
+                            />
+                            <div className="flex flex-col">
+                              <span>{user.name}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {user.email}
+                              </span>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+              {selectedUsers.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {selectedUsers.map((user) => (
+                    <Badge
+                      key={user.id}
+                      variant="secondary"
+                      className="flex items-center gap-1"
+                    >
+                      {user.name}
+                      <X
+                        className="h-3 w-3 cursor-pointer"
+                        onClick={() => removeUser(user.id)}
+                      />
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* External Participants (Contacts) */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <UserPlus className="h-4 w-4" />
+                External Participants
+              </Label>
+              <Popover open={contactSearchOpen} onOpenChange={setContactSearchOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    className="w-full justify-start text-muted-foreground"
+                  >
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Add contacts...
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[300px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search contacts..." />
+                    <CommandList>
+                      <CommandEmpty>No contacts found.</CommandEmpty>
+                      <CommandGroup>
+                        {contacts.map((contact) => (
+                          <CommandItem
+                            key={contact.id}
+                            onSelect={() => toggleContact(contact)}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedContacts.some(c => c.id === contact.id)
+                                  ? "opacity-100"
+                                  : "opacity-0"
+                              )}
+                            />
+                            <div className="flex flex-col">
+                              <span>{contact.name}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {contact.company_name || contact.email || "No email"}
+                              </span>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+              {selectedContacts.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {selectedContacts.map((contact) => (
+                    <Badge
+                      key={contact.id}
+                      variant="outline"
+                      className="flex items-center gap-1"
+                    >
+                      {contact.name}
+                      <X
+                        className="h-3 w-3 cursor-pointer"
+                        onClick={() => removeContact(contact.id)}
+                      />
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Location */}
