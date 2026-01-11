@@ -36,7 +36,57 @@ git stash list
 
 If backend files were shown in status but NOT in the committed diff, STOP and investigate.
 
-### Step 4 - Auto-Generate Commit Message and Commit
+### Step 4 - Pre-Commit Validation (BEFORE commit!)
+
+**CRITICAL: Run these checks on working directory BEFORE committing to catch errors early.**
+
+```bash
+echo "🔍 Pre-commit validation..."
+
+# Check TypeScript compiles (catches type errors BEFORE they hit Vercel)
+if git status --short | grep -E "frontend-next/.*\.(ts|tsx)$" > /dev/null; then
+  echo "Checking TypeScript..."
+  cd frontend-next && npx tsc --noEmit 2>&1 | head -30
+  TSC_EXIT=$?
+  cd ..
+  if [ $TSC_EXIT -ne 0 ]; then
+    echo "❌ TypeScript errors - fix before committing"
+    exit 1
+  fi
+  echo "✅ TypeScript OK"
+fi
+
+# Check Ruby syntax in changed backend files
+if git status --short | grep -E "backend/.*\.rb$" > /dev/null; then
+  echo "Checking Ruby syntax..."
+  git status --short | grep -E "backend/.*\.rb$" | awk '{print $2}' | while read file; do
+    if [ -f "$file" ]; then
+      ruby -c "$file" > /dev/null 2>&1 || {
+        echo "❌ Syntax error in $file"
+        ruby -c "$file"
+        exit 1
+      }
+    fi
+  done
+  echo "✅ Ruby syntax OK"
+fi
+
+# Check Gemfile.lock updated if Gemfile changed
+if git status --short | grep -E "backend/Gemfile$" > /dev/null; then
+  if ! git status --short | grep -E "backend/Gemfile.lock" > /dev/null; then
+    echo "❌ Gemfile changed but Gemfile.lock not updated"
+    echo "   Run: cd backend && bundle install"
+    exit 1
+  fi
+  echo "✅ Gemfile.lock updated"
+fi
+
+echo "✅ Pre-commit validation passed"
+```
+
+**If any check fails, fix the errors before proceeding.**
+
+### Step 5 - Auto-Generate Commit Message and Commit
 
 **Analyze ALL changes and auto-generate message:**
 
@@ -59,41 +109,28 @@ git commit -m "[auto-generated message]
 Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
 
-### Step 5 - Push to GitHub
+### Step 6 - Push to GitHub
 ```bash
 git push origin Live
 ```
 *Frontend auto-deploys from this push*
 
-### Step 5.5 - Verify Backend Changes Were Committed
+### Step 6.5 - Verify Backend Changes Were Committed
 **CRITICAL: If Step 1 showed backend/ files, verify they're in the commit:**
 ```bash
 git diff --name-only HEAD~1 HEAD | grep backend/
 ```
 **If backend files were in `git status` but NOT in the commit diff, STOP and investigate!**
 
-### Step 6 - Pre-Flight Checks (Fail Fast)
+### Step 7 - Deploy Backend (ONLY if backend changed)
 
-**Run before deploying to Heroku to catch errors early:**
-
+**Check if backend files were in the commit:**
 ```bash
-echo "🔍 Pre-flight checks..."
+git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && echo "BACKEND: Deploy needed" || echo "BACKEND: No changes, skip Heroku"
+```
 
-# Check Ruby syntax in changed backend files
-if git diff --name-only HEAD~1 HEAD | grep "^backend/.*\.rb$" > /dev/null; then
-  echo "Checking Ruby syntax..."
-  git diff --name-only HEAD~1 HEAD | grep "^backend/.*\.rb$" | while read file; do
-    if [ -f "$file" ]; then
-      ruby -c "$file" > /dev/null 2>&1 || {
-        echo "❌ Syntax error in $file"
-        ruby -c "$file"
-        exit 1
-      }
-    fi
-  done
-  echo "✅ Ruby syntax OK"
-fi
-
+**If backend changed**, run additional backend checks then deploy:
+```bash
 # Check migrations can run locally
 if git diff --name-only HEAD~1 HEAD | grep "^backend/db/migrate/" > /dev/null; then
   echo "Checking migrations..."
@@ -106,39 +143,6 @@ if git diff --name-only HEAD~1 HEAD | grep "^backend/db/migrate/" > /dev/null; t
   echo "✅ Migrations OK"
 fi
 
-# Check Gemfile.lock updated if Gemfile changed
-if git diff --name-only HEAD~1 HEAD | grep "^backend/Gemfile$" > /dev/null; then
-  if ! git diff --name-only HEAD~1 HEAD | grep "^backend/Gemfile.lock" > /dev/null; then
-    echo "❌ Gemfile changed but Gemfile.lock not updated"
-    echo "   Run: cd backend && bundle install"
-    exit 1
-  fi
-  echo "✅ Gemfile.lock updated"
-fi
-
-# Check TypeScript compiles (catches Zod schema errors, type mismatches)
-if git diff --name-only HEAD~1 HEAD | grep "^frontend-next/.*\.\(ts\|tsx\)$" > /dev/null; then
-  echo "Checking TypeScript..."
-  cd frontend-next && npx tsc --noEmit 2>&1 | head -20 || {
-    echo "❌ TypeScript errors - fix before deploying"
-    exit 1
-  }
-  cd ..
-  echo "✅ TypeScript OK"
-fi
-
-echo "✅ Pre-flight checks passed"
-```
-
-### Step 7 - Deploy Backend (ONLY if backend changed)
-
-**Check if backend files were in the commit:**
-```bash
-git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && echo "BACKEND: Deploy needed" || echo "BACKEND: No changes, skip Heroku"
-```
-
-**If backend changed**, deploy to Heroku using FAST method (no history processing):
-```bash
 # ULTRA-FAST DEPLOY - direct push from temp directory (~5 seconds total)
 # Avoids slow git subtree split entirely
 cd /Users/robertharder/GitHub/teeem
