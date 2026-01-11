@@ -34,6 +34,7 @@ import {
   type CalendarSummary,
 } from "@/lib/calendar-atoms";
 import { MonthView } from "@/components/calendar/MonthView";
+import { WeekView } from "@/components/calendar/WeekView";
 import { DayView } from "@/components/calendar/DayView";
 import { CalendarSidebar } from "@/components/calendar/CalendarSidebar";
 import {
@@ -317,12 +318,8 @@ export default function CalendarPage() {
           ) : (
             <>
               {view === "month" && <MonthView />}
+              {view === "week" && <WeekView />}
               {view === "day" && <DayView />}
-              {view === "week" && (
-                <div className="flex items-center justify-center h-full text-muted-foreground">
-                  Week view coming soon...
-                </div>
-              )}
               {view === "schedule" && (
                 <div className="flex items-center justify-center h-full text-muted-foreground">
                   Schedule view coming soon...
