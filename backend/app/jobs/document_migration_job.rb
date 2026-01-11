@@ -177,10 +177,14 @@ class DocumentMigrationJob < ApplicationJob
   private
 
   # Find the organization for a document based on its type
+  # Note: Job model doesn't have an organization association directly.
+  # For single-tenant usage (Tekna), Organization.first is the SSoT.
   def find_organization(document)
     case document.class.name
     when 'JobDocument'
-      document.job&.organization || Organization.first
+      # Job doesn't have a direct organization association
+      # Use the primary organization (Tekna) which has S3 configured
+      Organization.first
     when 'CorporateCompanyDocument'
       document.corporate_company&.organization || Organization.first
     when 'PeopleDocument'
