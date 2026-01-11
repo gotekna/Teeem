@@ -199,6 +199,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   const [orgStatus, setOrgStatus] = useState<OrgStatus>({ loading: true, connected: false });
   const [documentProvider, setDocumentProvider] = useState<"sharepoint" | "s3_compatible">("sharepoint");
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(["root"]));
+  const [treeViewDisplayMode, setTreeViewDisplayMode] = useState<"tree" | "gallery">("tree");
   const [jobFolderStatus, setJobFolderStatus] = useState<JobFolderStatus>({ loading: false, exists: false, webUrl: null });
   const [folders, setFolders] = useState<SharePointFolder[]>([]);
   const [creatingFolders, setCreatingFolders] = useState(false);
@@ -2778,20 +2779,45 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                 Folder View
               </CardTitle>
               <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setExpandedFolders(new Set(["root", ...treeData.map(n => n.id)]))}
-                >
-                  Expand All
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setExpandedFolders(new Set())}
-                >
-                  Collapse All
-                </Button>
+                {/* View mode toggle */}
+                <div className="flex items-center rounded-md border border-border bg-muted p-0.5">
+                  <Button
+                    variant={treeViewDisplayMode === "tree" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setTreeViewDisplayMode("tree")}
+                    className="h-7 px-2"
+                  >
+                    <List className="h-4 w-4 mr-1" />
+                    Tree
+                  </Button>
+                  <Button
+                    variant={treeViewDisplayMode === "gallery" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setTreeViewDisplayMode("gallery")}
+                    className="h-7 px-2"
+                  >
+                    <LayoutGrid className="h-4 w-4 mr-1" />
+                    Gallery
+                  </Button>
+                </div>
+                {treeViewDisplayMode === "tree" && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setExpandedFolders(new Set(["root", ...treeData.map(n => n.id)]))}
+                    >
+                      Expand All
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setExpandedFolders(new Set())}
+                    >
+                      Collapse All
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           </CardHeader>
@@ -2811,7 +2837,75 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                 <Folder className="h-12 w-12 mx-auto mb-2 opacity-50" />
                 <p>No categorized folders</p>
               </div>
+            ) : treeViewDisplayMode === "gallery" ? (
+              // Gallery View - show images grouped by folder
+              <div className="space-y-6">
+                {treeData.map(folder => {
+                  // Get all images from this folder and subfolders
+                  const getImagesFromNode = (node: TreeNode): LegacyItem[] => {
+                    const images: LegacyItem[] = [];
+                    if (node.type === "file" && node.file && /\.(jpg|jpeg|png|gif|webp)$/i.test(node.file.name)) {
+                      images.push(node.file);
+                    }
+                    if (node.children) {
+                      node.children.forEach(child => images.push(...getImagesFromNode(child)));
+                    }
+                    return images;
+                  };
+                  const folderImages = getImagesFromNode(folder);
+                  if (folderImages.length === 0) return null;
+
+                  return (
+                    <div key={folder.id} className="space-y-2">
+                      <h3 className="font-medium flex items-center gap-2">
+                        <Folder className="h-4 w-4 text-yellow-500" />
+                        {folder.name}
+                        <Badge variant="secondary" className="text-xs">{folderImages.length} photos</Badge>
+                      </h3>
+                      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
+                        {folderImages.map((img, idx) => (
+                          <div
+                            key={img.id}
+                            className="aspect-square rounded-md overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary transition-all bg-muted"
+                            onClick={() => showDocumentPreview(img)}
+                            onDoubleClick={() => img.download_url && window.open(img.download_url, "_blank")}
+                            title={`Click to preview, double-click to open\n${img.name}`}
+                          >
+                            {img.thumbnail_url ? (
+                              <img
+                                src={img.thumbnail_url}
+                                alt={img.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <Camera className="h-6 w-6 text-muted-foreground" />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+                {/* Check if any images exist */}
+                {treeData.every(folder => {
+                  const getImagesFromNode = (node: TreeNode): number => {
+                    let count = 0;
+                    if (node.type === "file" && node.file && /\.(jpg|jpeg|png|gif|webp)$/i.test(node.file.name)) count++;
+                    if (node.children) node.children.forEach(child => count += getImagesFromNode(child));
+                    return count;
+                  };
+                  return getImagesFromNode(folder) === 0;
+                }) && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Camera className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>No photos found</p>
+                  </div>
+                )}
+              </div>
             ) : (
+              // Tree View
               <div className="space-y-1">
                 {treeData.map(node => renderNode(node, 0))}
               </div>
