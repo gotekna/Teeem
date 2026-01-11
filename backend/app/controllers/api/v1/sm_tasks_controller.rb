@@ -814,7 +814,7 @@ module Api
         begin
           # Always upload to SharePoint (enables sharing links for email)
           # Falls back to ActiveStorage only if SharePoint isn't configured
-          if CorporateCompanySetting.sharepoint_configured?
+          if StorageConfiguration.instance&.connected?
             upload_to_sharepoint(file, category)
           else
             upload_standard_file(file, category)

@@ -142,9 +142,9 @@ class EntityTab < ApplicationRecord
   def full_storage_path
     return nil unless has_storage_folder && storage_folder_path.present?
 
-    # Get base path from settings (SSoT: defaults to drive root, not "/Shared Documents")
-    config = CorporateCompanySetting.sharepoint_config rescue {}
-    base_path = config[:root_path] || ''
+    # Get base path from StorageConfiguration (SSoT)
+    config = StorageConfiguration.instance
+    base_path = config&.root_path || ''
 
     "#{base_path}/#{storage_folder_path}"
   end
@@ -171,11 +171,11 @@ class EntityTab < ApplicationRecord
     end
   end
 
-  # Get the inherited template from CorporateCompanySetting (global config)
+  # Get the inherited template from StorageConfiguration (global config)
   # This is what would be used if uses_custom_path is false
   def inherited_template
     return nil unless has_storage_folder
-    CorporateCompanySetting.sharepoint_template(scope_for_template)
+    StorageConfiguration.instance&.template_for(scope_for_template)
   rescue => e
     Rails.logger.warn "[EntityTab] Failed to get inherited template: #{e.message}"
     nil
@@ -184,7 +184,9 @@ class EntityTab < ApplicationRecord
   # Get the storage base path for this tab (used in UI preview)
   def storage_base_path
     return nil unless has_storage_folder
-    CorporateCompanySetting.sharepoint_full_path(scope_for_template)
+    config = StorageConfiguration.instance
+    return nil unless config
+    File.join(config.root_path, config.path_for(scope_for_template))
   rescue => e
     Rails.logger.warn "[EntityTab] Failed to get base path: #{e.message}"
     nil
@@ -197,7 +199,7 @@ class EntityTab < ApplicationRecord
   # SSoT: Child tabs INHERIT from parent's path, not from global template directly
   #
   # Inheritance chain:
-  #   CorporateCompanySetting.sharepoint_job_template → "{{JobCode}} {{TabName}}"
+  #   StorageConfiguration.template_for(:job) → "{{JobCode}} {{TabName}}"
   #   Photo (root tab) → "{{JobCode}} Photo"
   #   Site Photo (child) → "{{JobCode}} Photo/Site Photo"  ← inherits parent + adds own name
   def effective_storage_path

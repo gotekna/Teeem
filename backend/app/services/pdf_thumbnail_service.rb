@@ -74,11 +74,11 @@ class PdfThumbnailService
     # Use appropriate client based on credential type
     if credential.is_a?(MicrosoftCredential) && credential.credential_type == "app"
       client = MicrosoftAppGraphClient.new(credential)
-      sharepoint_config = CorporateCompanySetting.sharepoint_config
-      raise ThumbnailError, "SharePoint not configured" unless sharepoint_config[:configured]
+      storage_config = StorageConfiguration.instance
+      raise ThumbnailError, "SharePoint not configured" unless storage_config&.connected?
 
       client.get_drive_item_content(
-        drive_id: sharepoint_config[:drive_id],
+        drive_id: storage_config.drive_id,
         item_id: @revision.sharepoint_file_id
       )
     else
@@ -163,17 +163,17 @@ class PdfThumbnailService
     # Use appropriate client based on credential type
     if credential.is_a?(MicrosoftCredential) && credential.credential_type == "app"
       client = MicrosoftAppGraphClient.new(credential)
-      sharepoint_config = CorporateCompanySetting.sharepoint_config
-      raise ThumbnailError, "SharePoint not configured" unless sharepoint_config[:configured]
+      storage_config = StorageConfiguration.instance
+      raise ThumbnailError, "SharePoint not configured" unless storage_config&.connected?
 
       # Get parent folder from original file
-      file_info = client.get_drive_item(sharepoint_config[:drive_id], @revision.sharepoint_file_id)
+      file_info = client.get_drive_item(storage_config.drive_id, @revision.sharepoint_file_id)
       parent_folder_id = file_info[:parent_id]
       raise ThumbnailError, "Could not determine parent folder" unless parent_folder_id
 
       # Upload thumbnail to same folder
       result = client.upload_to_folder(
-        drive_id: sharepoint_config[:drive_id],
+        drive_id: storage_config.drive_id,
         parent_folder_id: parent_folder_id,
         filename: thumbnail_name,
         content: thumbnail_content

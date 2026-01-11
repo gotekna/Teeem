@@ -44,21 +44,21 @@ class SystemSetting < ApplicationRecord
   # DEPRECATED: SharePoint Methods - Use CorporateCompanySetting instead
   # ============================================================================
   # These methods are deprecated and will be removed in a future version.
-  # The SSoT for SharePoint configuration is now CorporateCompanySetting.
+  # The SSoT for storage configuration is now StorageConfiguration.
   # ============================================================================
 
-  # DEPRECATED: Use CorporateCompanySetting.sharepoint_config[:templates] instead
+  # DEPRECATED: Use StorageConfiguration.instance.templates instead
   def self.sharepoint_path_templates
-    Rails.logger.warn "[DEPRECATED] SystemSetting.sharepoint_path_templates is deprecated. Use CorporateCompanySetting.sharepoint_config instead."
-    config = CorporateCompanySetting.sharepoint_config
+    Rails.logger.warn "[DEPRECATED] SystemSetting.sharepoint_path_templates is deprecated. Use StorageConfiguration.instance instead."
+    config = StorageConfiguration.instance
     {
-      company: "#{config[:root_path]}/#{config[:paths][:company]}/#{config[:templates][:company]}".gsub(/\/+/, "/"),
-      job: "#{config[:root_path]}/#{config[:paths][:jobs]}/#{config[:templates][:job]}".gsub(/\/+/, "/"),
-      people: "#{config[:root_path]}/#{config[:paths][:people]}/#{config[:templates][:people]}".gsub(/\/+/, "/")
+      company: "#{config.root_path}/#{config.path_for(:corporate)}/#{config.template_for(:corporate)}".gsub(/\/+/, "/"),
+      job: "#{config.root_path}/#{config.path_for(:job)}/#{config.template_for(:job)}".gsub(/\/+/, "/"),
+      people: "#{config.root_path}/#{config.path_for(:people)}/#{config.template_for(:people)}".gsub(/\/+/, "/")
     }
   end
 
-  # DEPRECATED: Use CorporateCompanySetting.company_path or job_path instead
+  # DEPRECATED: Use StorageConfiguration.instance.corporate_path or job_path instead
   def self.compute_folder_path(folder, scope: :company)
     Rails.logger.warn "[DEPRECATED] SystemSetting.compute_folder_path is deprecated. Use CorporateCompanySetting path methods instead."
     template = sharepoint_path_templates[scope]

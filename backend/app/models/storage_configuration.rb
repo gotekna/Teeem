@@ -132,8 +132,17 @@ class StorageConfiguration < ApplicationRecord
   # @param scope [String, Symbol] The scope name
   # @return [String] The base path for that scope
   #
+  # Note: Handles both singular (job) and plural (jobs) scope names
+  #
   def path_for(scope)
-    paths[scope.to_s] || DEFAULT_PATHS[scope.to_s] || scope.to_s.titleize
+    key = scope.to_s
+    # Try exact match, then plural, then singular
+    paths[key] ||
+      paths["#{key}s"] ||
+      paths[key.chomp("s")] ||
+      DEFAULT_PATHS[key] ||
+      DEFAULT_PATHS["#{key}s"] ||
+      key.titleize
   end
 
   # Get template for a scope

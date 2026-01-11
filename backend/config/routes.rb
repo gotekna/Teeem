@@ -67,6 +67,37 @@ Rails.application.routes.draw do
       # All Documents - unified view across JobDocument, CorporateCompanyDocument, PeopleDocument
       get "documents/all", to: "documents#all"
 
+      # =============================================================
+      # Desktop Sync Client API
+      # For TEEEM Sync desktop app (Electron + native)
+      # =============================================================
+      namespace :sync do
+        # Device code authentication
+        post "auth/device_code", to: "/api/v1/sync#initiate_device_auth"
+        post "auth/verify", to: "/api/v1/sync#verify_device_code"
+        get "auth/poll", to: "/api/v1/sync#poll_device_auth"
+        post "auth/refresh", to: "/api/v1/sync#refresh_token"
+        delete "auth/logout", to: "/api/v1/sync#logout"
+
+        # Folder listing and subscriptions
+        get "folders", to: "/api/v1/sync#folders"
+        get "subscriptions", to: "/api/v1/sync#subscriptions"
+        post "subscriptions", to: "/api/v1/sync#create_subscription"
+        delete "subscriptions/:id", to: "/api/v1/sync#destroy_subscription"
+
+        # File exclusion rules
+        get "exclusions", to: "/api/v1/sync#exclusions"
+        put "exclusions", to: "/api/v1/sync#update_exclusions"
+
+        # Delta sync and file operations
+        get "delta", to: "/api/v1/sync#delta"
+        post "download_url", to: "/api/v1/sync#download_url"
+        post "upload", to: "/api/v1/sync#upload_url"
+        post "upload_complete", to: "/api/v1/sync#upload_complete"
+        post "conflict/resolve", to: "/api/v1/sync#resolve_conflict"
+        post "report_state", to: "/api/v1/sync#report_state"
+      end
+
       # Feature Trackers
       resources :feature_trackers, only: [ :index, :create, :update, :destroy ]
 

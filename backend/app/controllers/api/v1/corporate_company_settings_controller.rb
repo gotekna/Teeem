@@ -89,21 +89,24 @@ module Api
       # ========================================
 
       # GET /api/v1/corporate_company_settings/sharepoint
+      # SSoT: Now uses StorageConfiguration for path/connection config
       def sharepoint
         render json: {
           success: true,
-          data: CorporateCompanySetting.sharepoint_config
+          data: StorageConfiguration.instance&.to_config_hash || {}
         }
       end
 
       # PATCH /api/v1/corporate_company_settings/sharepoint
+      # NOTE: Still updates CorporateCompanySetting for backwards compatibility
+      # TODO: Migrate to updating StorageConfiguration directly
       def update_sharepoint
         settings = CorporateCompanySetting.instance
 
         if settings.update(sharepoint_params)
           render json: {
             success: true,
-            data: CorporateCompanySetting.sharepoint_config
+            data: StorageConfiguration.instance&.to_config_hash || {}
           }
         else
           render json: {
@@ -115,9 +118,9 @@ module Api
 
       # POST /api/v1/corporate_company_settings/sharepoint/test
       def test_sharepoint
-        config = CorporateCompanySetting.sharepoint_config
+        storage_config = StorageConfiguration.instance
 
-        unless config[:configured]
+        unless storage_config&.connected?
           return render json: {
             success: false,
             error: "SharePoint is not configured. Please set site_id and drive_id."
@@ -136,7 +139,7 @@ module Api
           end
 
           client = MicrosoftAppGraphClient.new(credential)
-          site_info = client.get_site(config[:site_id])
+          site_info = client.get_site(storage_config.site_id)
 
           render json: {
             success: true,

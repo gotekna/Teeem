@@ -10,7 +10,7 @@
 # For tasks WITHOUT a job (standalone tasks):
 #   - All files → /Tasks/Task-{id}/{Category}/{filename}
 #
-# SSoT: Paths come from CorporateCompanySetting.job_path() and CorporateCompanySetting.task_path()
+# SSoT: Paths come from StorageConfiguration.job_path() and StorageConfiguration.task_path()
 class TaskResponseUploader
   class UploadError < StandardError; end
 
@@ -100,13 +100,15 @@ class TaskResponseUploader
   end
 
   # Target folder path based on whether task has a job
+  # SSoT: Uses StorageConfiguration for path resolution
   def target_folder_path
+    config = StorageConfiguration.for_organization(organization)
     if job.present?
       # Task has a job - use job folder structure
-      CorporateCompanySetting.job_path(job.code, folder_name)
+      config.job_path(job.code, folder_name)
     else
       # Standalone task - use task folder structure
-      CorporateCompanySetting.task_path(task.id, folder_name)
+      config.task_path(task.id, folder_name)
     end
   end
 

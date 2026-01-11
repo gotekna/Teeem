@@ -363,7 +363,7 @@ class BankStatementReport < ApplicationRecord
 
   # Upload file content to SharePoint using SSoT folder structure from DocumentType system
   # Path: /Shared Documents/00 TEEEM PRIVATE/{CompanyGroup}/{CompanyCode}/BANK/{filename}
-  # SSoT: Uses CorporateCompanySetting.company_path for path resolution
+  # SSoT: Uses EntityTab.storage_folder_path for path resolution (StorageConfiguration for base)
   def upload_to_sharepoint(content, filename)
     # SSoT: Use MicrosoftCredential
     credential = MicrosoftCredential.sharepoint_credential

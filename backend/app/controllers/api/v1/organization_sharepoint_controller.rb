@@ -521,13 +521,13 @@ module Api
           if is_app_credential
             # App credentials use MicrosoftAppGraphClient with explicit site/drive
             client = MicrosoftAppGraphClient.new(credential)
-            sharepoint_config = CorporateCompanySetting.sharepoint_config
+            storage_config = StorageConfiguration.instance
 
-            unless sharepoint_config[:configured]
+            unless storage_config&.connected?
               return render json: { error: "SharePoint not configured" }, status: :unprocessable_entity
             end
 
-            drive_id = sharepoint_config[:drive_id]
+            drive_id = storage_config.drive_id
 
             if folder_id.present?
               # Get current folder info for breadcrumb
@@ -1175,18 +1175,18 @@ module Api
           if is_app_credential
             # App credentials use MicrosoftAppGraphClient with explicit site/drive
             client = MicrosoftAppGraphClient.new(credential)
-            sharepoint_config = CorporateCompanySetting.sharepoint_config
+            storage_config = StorageConfiguration.instance
 
-            unless sharepoint_config[:configured]
+            unless storage_config&.connected?
               return render json: { error: "SharePoint not configured" }, status: :unprocessable_entity
             end
 
             # Get file metadata
-            file_metadata = client.get_drive_item(sharepoint_config[:drive_id], file_id)
+            file_metadata = client.get_drive_item(storage_config.drive_id, file_id)
 
             # Download file content
             file_content = client.get_drive_item_content(
-              drive_id: sharepoint_config[:drive_id],
+              drive_id: storage_config.drive_id,
               item_id: file_id
             )
           else
@@ -1257,14 +1257,14 @@ module Api
 
           if is_app_credential
             client = MicrosoftAppGraphClient.new(credential)
-            sharepoint_config = CorporateCompanySetting.sharepoint_config
+            storage_config = StorageConfiguration.instance
 
-            unless sharepoint_config[:configured]
+            unless storage_config&.connected?
               return render json: { success: false, error: "SharePoint not configured" }, status: :unprocessable_entity
             end
 
             client.delete_drive_item(
-              drive_id: sharepoint_config[:drive_id],
+              drive_id: storage_config.drive_id,
               item_id: file_id
             )
           else
@@ -1321,14 +1321,14 @@ module Api
           if is_app_credential
             # App credentials use MicrosoftAppGraphClient with explicit site/drive
             client = MicrosoftAppGraphClient.new(credential)
-            sharepoint_config = CorporateCompanySetting.sharepoint_config
+            storage_config = StorageConfiguration.instance
 
-            unless sharepoint_config[:configured]
+            unless storage_config&.connected?
               return render json: { error: "SharePoint not configured" }, status: :unprocessable_entity
             end
 
             # Get file metadata with download URL
-            item_data = client.get_drive_item(sharepoint_config[:drive_id], file_id)
+            item_data = client.get_drive_item(storage_config.drive_id, file_id)
             download_url_value = item_data[:download_url]
 
             unless download_url_value.present?
@@ -2494,15 +2494,15 @@ module Api
 
         if is_app_credential
           client = MicrosoftAppGraphClient.new(credential)
-          sharepoint_config = CorporateCompanySetting.sharepoint_config
+          storage_config = StorageConfiguration.instance
 
-          unless sharepoint_config[:configured]
+          unless storage_config&.connected?
             raise DocumentProviders::NotConnectedError, "SharePoint not configured"
           end
 
-          file_metadata = client.get_drive_item(sharepoint_config[:drive_id], file_id)
+          file_metadata = client.get_drive_item(storage_config.drive_id, file_id)
           file_content = client.get_drive_item_content(
-            drive_id: sharepoint_config[:drive_id],
+            drive_id: storage_config.drive_id,
             item_id: file_id
           )
         else
@@ -2556,13 +2556,13 @@ module Api
 
         if is_app_credential
           client = MicrosoftAppGraphClient.new(credential)
-          sharepoint_config = CorporateCompanySetting.sharepoint_config
+          storage_config = StorageConfiguration.instance
 
-          unless sharepoint_config[:configured]
+          unless storage_config&.connected?
             raise DocumentProviders::NotConnectedError, "SharePoint not configured"
           end
 
-          item_data = client.get_drive_item(sharepoint_config[:drive_id], file_id)
+          item_data = client.get_drive_item(storage_config.drive_id, file_id)
           item_data[:download_url] || document.web_url
         else
           client = MicrosoftGraphClient.new(credential)

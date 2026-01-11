@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_12_100000) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_12_100005) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2099,6 +2099,31 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_100000) do
     t.datetime "updated_at", null: false
     t.index ["is_active"], name: "index_designs_on_is_active"
     t.index ["name"], name: "index_designs_on_name", unique: true
+  end
+
+  create_table "desktop_clients", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "organization_id", null: false
+    t.string "device_id", null: false
+    t.string "device_name", null: false
+    t.string "platform"
+    t.string "app_version"
+    t.text "refresh_token"
+    t.datetime "token_expires_at"
+    t.string "device_code"
+    t.datetime "device_code_expires_at"
+    t.boolean "is_active", default: true
+    t.datetime "last_seen_at"
+    t.datetime "last_sync_at"
+    t.string "last_sync_status"
+    t.jsonb "sync_settings", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["device_code"], name: "index_desktop_clients_on_device_code", unique: true
+    t.index ["is_active"], name: "index_desktop_clients_on_is_active"
+    t.index ["organization_id"], name: "index_desktop_clients_on_organization_id"
+    t.index ["user_id", "device_id"], name: "index_desktop_clients_on_user_id_and_device_id", unique: true
+    t.index ["user_id"], name: "index_desktop_clients_on_user_id"
   end
 
   create_table "director_onboarding_requests", force: :cascade do |t|
@@ -8456,7 +8481,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_100000) do
     t.bigint "updated_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-t.bigint "sm_schedule_master_id"
+    t.bigint "sm_schedule_master_id"
     t.boolean "spawn_order_task", default: false
     t.boolean "spawn_call_task", default: false
     t.boolean "is_photo_task", default: false, null: false
@@ -8941,6 +8966,59 @@ t.bigint "sm_schedule_master_id"
     t.string "default_sync_direction", default: "import_only"
     t.index ["accounting_system"], name: "index_sync_configurations_on_accounting_system"
     t.index ["xero_tenant_id"], name: "index_sync_configurations_on_xero_tenant_id", unique: true
+  end
+
+  create_table "sync_exclusion_rules", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+  end
+
+  create_table "sync_file_states", force: :cascade do |t|
+    t.bigint "desktop_client_id", null: false
+    t.bigint "sync_subscription_id", null: false
+    t.string "remote_path", null: false
+    t.string "remote_item_id"
+    t.string "file_name", null: false
+    t.string "remote_etag"
+    t.string "remote_content_hash"
+    t.string "local_content_hash"
+    t.bigint "file_size"
+    t.datetime "remote_modified_at"
+    t.datetime "local_modified_at"
+    t.datetime "last_synced_at"
+    t.string "sync_status", default: "pending_download", null: false
+    t.boolean "is_placeholder", default: true
+    t.boolean "is_pinned", default: false
+    t.boolean "is_deleted", default: false
+    t.integer "error_count", default: 0
+    t.text "last_error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["desktop_client_id", "remote_path"], name: "index_sync_file_states_on_desktop_client_id_and_remote_path", unique: true
+    t.index ["desktop_client_id"], name: "index_sync_file_states_on_desktop_client_id"
+    t.index ["is_deleted"], name: "index_sync_file_states_on_is_deleted"
+    t.index ["is_placeholder"], name: "index_sync_file_states_on_is_placeholder"
+    t.index ["remote_item_id"], name: "index_sync_file_states_on_remote_item_id"
+    t.index ["sync_status"], name: "index_sync_file_states_on_sync_status"
+    t.index ["sync_subscription_id"], name: "index_sync_file_states_on_sync_subscription_id"
+  end
+
+  create_table "sync_subscriptions", force: :cascade do |t|
+    t.bigint "desktop_client_id", null: false
+    t.string "syncable_type", null: false
+    t.bigint "syncable_id", null: false
+    t.boolean "include_subfolders", default: true
+    t.boolean "enabled", default: true
+    t.jsonb "file_type_overrides", default: {}
+    t.string "delta_token"
+    t.datetime "last_sync_at"
+    t.integer "files_synced", default: 0
+    t.bigint "bytes_synced", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["desktop_client_id", "syncable_type", "syncable_id"], name: "idx_sync_subscriptions_unique", unique: true
+    t.index ["desktop_client_id"], name: "index_sync_subscriptions_on_desktop_client_id"
+    t.index ["syncable_type", "syncable_id"], name: "index_sync_subscriptions_on_syncable_type_and_syncable_id"
   end
 
   create_table "system_settings", force: :cascade do |t|
@@ -10091,6 +10169,8 @@ t.bigint "sm_schedule_master_id"
   add_foreign_key "corporate_company_xero_connections", "corporate_companies", column: "company_id"
   add_foreign_key "corporate_company_xero_connections", "xero_credentials"
   add_foreign_key "cost_centres", "cost_centres", column: "parent_id", on_delete: :nullify
+  add_foreign_key "desktop_clients", "organizations"
+  add_foreign_key "desktop_clients", "users"
   add_foreign_key "director_onboarding_requests", "contacts"
   add_foreign_key "director_onboarding_requests", "corporate_companies", column: "company_id"
   add_foreign_key "director_onboarding_requests", "users", column: "invited_by_id"
@@ -10733,6 +10813,9 @@ t.bigint "sm_schedule_master_id"
   add_foreign_key "subcontractor_invoices", "accounting_integrations"
   add_foreign_key "subcontractor_invoices", "contacts"
   add_foreign_key "subcontractor_invoices", "purchase_orders"
+  add_foreign_key "sync_file_states", "desktop_clients"
+  add_foreign_key "sync_file_states", "sync_subscriptions"
+  add_foreign_key "sync_subscriptions", "desktop_clients"
   add_foreign_key "table_health_checks", "foundations"
   add_foreign_key "task_action_items", "sm_tasks"
   add_foreign_key "task_action_items", "sm_tasks", column: "delegated_task_id"

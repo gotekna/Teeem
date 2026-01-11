@@ -201,8 +201,8 @@ module Api
       end
 
       def serve_sharepoint_reference
-        sharepoint_config = CorporateCompanySetting.sharepoint_config
-        unless sharepoint_config[:configured]
+        storage_config = StorageConfiguration.instance
+        unless storage_config&.connected?
           return render json: {
             success: false,
             error: "SharePoint not configured"
@@ -211,7 +211,7 @@ module Api
 
         begin
           client = MicrosoftAppGraphClient.new
-          drive_id = sharepoint_config[:drive_id]
+          drive_id = storage_config.drive_id
 
           item = client.get_item_by_path(drive_id, @template.reference_image_path)
 
