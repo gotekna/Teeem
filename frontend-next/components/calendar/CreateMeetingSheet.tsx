@@ -159,12 +159,12 @@ export function CreateMeetingSheet({ onSuccess }: CreateMeetingSheetProps) {
         }
       );
 
-      if (response.success) {
+      if (response?.success) {
         toast.success("Meeting created successfully");
         setOpen(false);
         onSuccess?.();
       } else {
-        toast.error(response.error || "Failed to create meeting");
+        toast.error(response?.error || "Failed to create meeting");
       }
     } catch (error) {
       console.error("Failed to create meeting:", error);
