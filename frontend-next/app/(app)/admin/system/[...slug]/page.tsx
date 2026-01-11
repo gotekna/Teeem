@@ -44,6 +44,7 @@ import CompanyInfoTab from "../components/CompanyInfoTab";
 
 const COMPANY_TABS = [
   { id: "info", label: "Info" },
+  { id: "brand-colors", label: "Brand Colors" },
   { id: "security", label: "Security" },
   { id: "permissions", label: "Permissions" },
   { id: "corporate", label: "Corporate" },
@@ -111,6 +112,9 @@ function CompanySettingsContent({ subtab, extra, innerTab }: { subtab: string; e
           <TabsContent value="info">
             <CompanyInfoTab />
           </TabsContent>
+          <TabsContent value="brand-colors">
+            <BrandColorsTab />
+          </TabsContent>
           <TabsContent value="security">
             <SecurityTab innertab={extra} />
           </TabsContent>
@@ -172,9 +176,6 @@ export default function SystemAdminCatchAllPage({
 
       case "brand-guidelines":
         return <BrandGuidelinesTab />;
-
-      case "brand-colors":
-        return <BrandColorsTab />;
 
       case "contact-types":
         return <ContactTypesTab />;

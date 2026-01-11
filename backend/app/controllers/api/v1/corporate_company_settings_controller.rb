@@ -165,7 +165,7 @@ module Api
           success: true,
           data: {
             colors: CorporateCompanySetting.brand_colors,
-            website_url: CorporateCompanySetting.instance.website_url,
+            website_url: CorporateCompanySetting.instance.website,
             logo_url: CorporateCompanySetting.instance.logo_url,
             logo_mobile: CorporateCompanySetting.instance.logo_mobile,
             logo_dark: CorporateCompanySetting.instance.logo_dark
@@ -183,7 +183,7 @@ module Api
             success: true,
             data: {
               colors: CorporateCompanySetting.brand_colors,
-              website_url: settings.website_url,
+              website_url: settings.website,
               logo_url: settings.logo_url
             }
           }
@@ -252,7 +252,7 @@ module Api
         CorporateCompanySetting.update_brand_colors_from_hex(result[:colors])
 
         # Apply other brand assets if found
-        updates = { website_url: url }
+        updates = { website: url }
         updates[:logo_url] = result[:logo_url] if result[:logo_url].present?
         updates[:logo_dark] = result[:logo_dark_url] if result[:logo_dark_url].present?
         settings.update!(updates)
@@ -263,7 +263,7 @@ module Api
           data: {
             colors: CorporateCompanySetting.brand_colors,
             logo_url: settings.logo_url,
-            website_url: settings.website_url
+            website_url: settings.website
           }
         }
       end
@@ -376,7 +376,7 @@ module Api
           :brand_color_secondary,
           :brand_color_muted,
           :brand_color_accent,
-          :website_url,
+          :website,
           :logo_url,
           :logo_mobile,
           :logo_dark
