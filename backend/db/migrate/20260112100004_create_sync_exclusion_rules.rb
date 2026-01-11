@@ -18,8 +18,7 @@ class CreateSyncExclusionRules < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :sync_exclusion_rules, :organization_id
-    add_index :sync_exclusion_rules, :user_id
+    # organization_id and user_id indexes already created by t.references
     add_index :sync_exclusion_rules, [:rule_type, :value]
     add_index :sync_exclusion_rules, :is_default
   end
