@@ -69,3 +69,6 @@ tmp/
 # Claude Code local settings
 .claude/settings.local.json
 .env*.local
+
+# User-specific files
+David
