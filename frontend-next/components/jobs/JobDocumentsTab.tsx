@@ -2736,8 +2736,9 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
             )}
             <span
               className="flex-1 truncate cursor-pointer hover:text-primary"
-              onClick={() => file.download_url && window.open(file.download_url, "_blank")}
-              title={file.name}
+              onClick={() => showDocumentPreview(file)}
+              onDoubleClick={() => file.download_url && window.open(file.download_url, "_blank")}
+              title={`Click to preview, double-click to open in new window\n${file.name}`}
             >
               {file.name}
             </span>
