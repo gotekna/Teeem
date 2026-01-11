@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -26,7 +26,17 @@ import {
   Building2,
   Users,
   RefreshCw,
+  X,
+  Maximize2,
+  Download,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -99,6 +109,10 @@ export default function AllDocumentsPage() {
     people: DocumentItem[];
   }>({ jobs: [], corporate: [], people: [] });
   const [counts, setCounts] = useState({ jobs: 0, corporate: 0, people: 0, total: 0 });
+  // Document preview popup state
+  const [previewDocument, setPreviewDocument] = useState<DocumentItem | null>(null);
+  // Click timer for single/double click differentiation
+  const clickTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch all documents
   const fetchDocuments = useCallback(async () => {
@@ -298,11 +312,30 @@ export default function AllDocumentsPage() {
     });
   }, []);
 
-  // Open file
-  const openFile = useCallback((doc: DocumentItem) => {
+  // Open file in new window (for double-click)
+  const openFileInNewWindow = useCallback((doc: DocumentItem) => {
+    // Cancel any pending single-click action
+    if (clickTimerRef.current) {
+      clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+    }
     if (doc.fileUrl) {
       window.open(doc.fileUrl, "_blank");
     }
+  }, []);
+
+  // Open file in popup (for single-click)
+  // Uses a delay to allow double-click to cancel
+  const openFileInPopup = useCallback((doc: DocumentItem) => {
+    // Cancel any existing timer
+    if (clickTimerRef.current) {
+      clearTimeout(clickTimerRef.current);
+    }
+    // Set a new timer - if double-click happens, this will be cancelled
+    clickTimerRef.current = setTimeout(() => {
+      setPreviewDocument(doc);
+      clickTimerRef.current = null;
+    }, 200); // 200ms delay to detect double-click
   }, []);
 
   // Format file size
@@ -326,7 +359,8 @@ export default function AllDocumentsPage() {
           <div
             key={node.id}
             className="relative group cursor-pointer"
-            onClick={() => openFile(file)}
+            onClick={() => openFileInPopup(file)}
+            onDoubleClick={() => openFileInNewWindow(file)}
           >
             <div className="aspect-square bg-muted rounded-lg overflow-hidden border hover:border-primary transition-colors">
               {file.fileUrl ? (
@@ -353,7 +387,8 @@ export default function AllDocumentsPage() {
           key={node.id}
           className="flex items-center gap-2 py-2 px-3 hover:bg-muted/50 rounded-md group cursor-pointer"
           style={{ paddingLeft: `${paddingLeft + 12}px` }}
-          onClick={() => openFile(file)}
+          onClick={() => openFileInPopup(file)}
+          onDoubleClick={() => openFileInNewWindow(file)}
         >
           {file.isImage ? (
             <ImageIcon className="h-4 w-4 text-blue-500" />
@@ -427,7 +462,8 @@ export default function AllDocumentsPage() {
                     <div
                       key={img.id}
                       className="relative group cursor-pointer"
-                      onClick={() => openFile(img)}
+                      onClick={() => openFileInPopup(img)}
+                      onDoubleClick={() => openFileInNewWindow(img)}
                     >
                       <div className="aspect-square bg-muted rounded-lg overflow-hidden border hover:border-primary">
                         {img.fileUrl ? (
@@ -601,7 +637,8 @@ export default function AllDocumentsPage() {
                 <div
                   key={`${doc.source}-${doc.id}`}
                   className="flex items-center gap-3 py-2 px-3 hover:bg-muted/50 rounded-md cursor-pointer group"
-                  onClick={() => openFile(doc)}
+                  onClick={() => openFileInPopup(doc)}
+                  onDoubleClick={() => openFileInNewWindow(doc)}
                 >
                   {doc.isImage ? (
                     <ImageIcon className="h-4 w-4 text-blue-500 shrink-0" />
@@ -640,7 +677,8 @@ export default function AllDocumentsPage() {
                   <div
                     key={`gallery-${doc.source}-${doc.id}`}
                     className="group cursor-pointer"
-                    onClick={() => openFile(doc)}
+                    onClick={() => openFileInPopup(doc)}
+                    onDoubleClick={() => openFileInNewWindow(doc)}
                   >
                     <div className="aspect-square bg-muted rounded-lg overflow-hidden border hover:border-primary transition-colors">
                       {doc.fileUrl ? (
@@ -664,6 +702,101 @@ export default function AllDocumentsPage() {
           </div>
         )}
       </div>
+
+      {/* Document Preview Modal */}
+      <Dialog open={!!previewDocument} onOpenChange={(open) => !open && setPreviewDocument(null)}>
+        <DialogContent className="max-w-5xl h-[85vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="px-6 py-4 border-b shrink-0">
+            <div className="flex items-center justify-between">
+              <DialogTitle className="truncate pr-4">
+                {previewDocument?.displayName || previewDocument?.fileName}
+              </DialogTitle>
+              <div className="flex items-center gap-2">
+                {previewDocument?.fileUrl && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => previewDocument?.fileUrl && window.open(previewDocument.fileUrl, "_blank")}
+                    >
+                      <Maximize2 className="h-4 w-4 mr-1" />
+                      Full Screen
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (previewDocument?.fileUrl) {
+                          const link = document.createElement('a');
+                          link.href = previewDocument.fileUrl;
+                          link.download = previewDocument.displayName || previewDocument.fileName;
+                          link.click();
+                        }
+                      }}
+                    >
+                      <Download className="h-4 w-4 mr-1" />
+                      Download
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+            {/* Document metadata */}
+            <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
+              {previewDocument?.source === "job" && previewDocument?.jobNumber && (
+                <Badge variant="outline" className="text-xs">Job {previewDocument.jobNumber}</Badge>
+              )}
+              {previewDocument?.source === "corporate" && previewDocument?.companyName && (
+                <Badge variant="outline" className="text-xs">{previewDocument.companyName}</Badge>
+              )}
+              {previewDocument?.source === "people" && previewDocument?.contactName && (
+                <Badge variant="outline" className="text-xs">{previewDocument.contactName}</Badge>
+              )}
+              {previewDocument?.storageProvider === "s3_compatible" && (
+                <Badge variant="secondary" className="text-xs">S3</Badge>
+              )}
+              {previewDocument?.fileSize && previewDocument.fileSize > 0 && (
+                <span>{formatFileSize(previewDocument.fileSize)}</span>
+              )}
+            </div>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-auto bg-muted dark:bg-background">
+            {previewDocument?.fileUrl ? (
+              previewDocument.isImage ? (
+                // Image preview
+                <div className="h-full w-full flex items-center justify-center p-4">
+                  <img
+                    src={previewDocument.fileUrl}
+                    alt={previewDocument.displayName}
+                    className="max-h-full max-w-full object-contain"
+                  />
+                </div>
+              ) : previewDocument.mimeType?.includes("pdf") ? (
+                // PDF preview
+                <PDFViewer url={previewDocument.fileUrl} className="h-full" />
+              ) : (
+                // Other file types - show download option
+                <div className="h-full flex flex-col items-center justify-center p-8">
+                  <File className="h-16 w-16 text-muted-foreground mb-4" />
+                  <p className="text-lg font-medium mb-2">{previewDocument.displayName || previewDocument.fileName}</p>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Preview not available for this file type
+                  </p>
+                  <Button onClick={() => window.open(previewDocument.fileUrl!, "_blank")}>
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Open File
+                  </Button>
+                </div>
+              )
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+                <File className="h-16 w-16 mb-4 opacity-50" />
+                <p>No file available</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
