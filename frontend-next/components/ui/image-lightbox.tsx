@@ -82,7 +82,7 @@ function formatDate(dateStr?: string): string {
 // Check if URL needs authenticated fetch (backend proxy URLs)
 function needsAuthenticatedFetch(url: string): boolean {
   // Backend proxy URLs that require authentication
-  return url.includes("/api/v1/organization_onedrive/download") ||
+  return url.includes("/api/v1/documents/download") ||
          url.includes("/api/v1/organization_sharepoint/download");
 }
 

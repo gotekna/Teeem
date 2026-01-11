@@ -146,7 +146,7 @@ function SharePointDelegatedConnection() {
 
   const loadStatus = async () => {
     try {
-      const data = await api.get<typeof status>("/api/v1/organization_onedrive/status");
+      const data = await api.get<typeof status>("/api/v1/documents/status");
       setStatus(data);
     } catch (error) {
       console.error("Failed to load SharePoint status:", error);
@@ -159,7 +159,7 @@ function SharePointDelegatedConnection() {
   const handleConnect = async () => {
     setConnecting(true);
     try {
-      const data = await api.get<{ auth_url: string }>("/api/v1/organization_onedrive/authorize");
+      const data = await api.get<{ auth_url: string }>("/api/v1/documents/authorize");
       window.location.href = data.auth_url;
     } catch (error) {
       console.error("Failed to get auth URL:", error);
@@ -171,7 +171,7 @@ function SharePointDelegatedConnection() {
     if (!confirm("Disconnect SharePoint delegated access?")) return;
     setDisconnecting(true);
     try {
-      await api.delete("/api/v1/organization_onedrive/disconnect");
+      await api.delete("/api/v1/documents/disconnect");
       setStatus({ connected: false });
     } catch (error) {
       console.error("Failed to disconnect:", error);

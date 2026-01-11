@@ -77,7 +77,7 @@ function SharePointConnection() {
 
   const loadStatus = async () => {
     try {
-      const data = await api.get<typeof status>("/api/v1/organization_onedrive/status");
+      const data = await api.get<typeof status>("/api/v1/documents/status");
       setStatus(data);
     } catch (error) {
       console.error("Failed to load SharePoint status:", error);
@@ -90,7 +90,7 @@ function SharePointConnection() {
   const handleConnect = async () => {
     setConnecting(true);
     try {
-      const data = await api.get<{ auth_url: string }>("/api/v1/organization_onedrive/authorize");
+      const data = await api.get<{ auth_url: string }>("/api/v1/documents/authorize");
       window.location.href = data.auth_url;
     } catch (error) {
       console.error("Failed to get auth URL:", error);
@@ -103,7 +103,7 @@ function SharePointConnection() {
     if (!confirm("Are you sure you want to disconnect SharePoint?")) return;
     setDisconnecting(true);
     try {
-      await api.delete("/api/v1/organization_onedrive/disconnect");
+      await api.delete("/api/v1/documents/disconnect");
       toast({ title: "Success", description: "SharePoint disconnected successfully" });
       setStatus({ connected: false });
     } catch (error) {

@@ -369,7 +369,7 @@ export async function isDirectUploadAvailable(): Promise<boolean> {
   try {
     // Quick check - try to get org status
     const response = await api.get<{ connected: boolean }>(
-      "/api/v1/organization_onedrive/status"
+      "/api/v1/documents/status"
     );
     return response?.connected === true;
   } catch {

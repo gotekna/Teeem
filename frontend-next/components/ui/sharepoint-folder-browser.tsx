@@ -199,7 +199,7 @@ export function SharePointFolderBrowser({
 
     setCreatingFolder(true);
     try {
-      await api.post("/api/v1/organization_onedrive/create_root_folder", {
+      await api.post("/api/v1/documents/create_root_folder", {
         folder_name: rootFolder,
       }, { skipAuthRedirect: true });
 
@@ -222,8 +222,8 @@ export function SharePointFolderBrowser({
       // Use Promise.allSettled to prevent one failure from crashing everything
       // skipAuthRedirect prevents 401s from redirecting to login (SharePoint may not be connected)
       const results = await Promise.allSettled([
-        api.get<SharePointSitesResponse>("/api/v1/organization_onedrive/sharepoint_sites", { skipAuthRedirect: true }),
-        api.get<DriveStatusResponse>("/api/v1/organization_onedrive/status", { skipAuthRedirect: true }),
+        api.get<SharePointSitesResponse>("/api/v1/documents/sharepoint_sites", { skipAuthRedirect: true }),
+        api.get<DriveStatusResponse>("/api/v1/documents/status", { skipAuthRedirect: true }),
       ]);
 
       // Check if both succeeded
@@ -257,7 +257,7 @@ export function SharePointFolderBrowser({
         // Switch to SharePoint if not already there
         if (statusResponse.drive_type !== "sharepoint" || statusResponse.site_name !== targetSite.name) {
           try {
-            await api.post("/api/v1/organization_onedrive/use_sharepoint_site", { site_name: targetSite.name }, { skipAuthRedirect: true });
+            await api.post("/api/v1/documents/use_sharepoint_site", { site_name: targetSite.name }, { skipAuthRedirect: true });
           } catch (err) {
             console.error("Failed to auto-switch to SharePoint:", err);
           }
@@ -285,14 +285,14 @@ export function SharePointFolderBrowser({
     try {
       if (rootFolder) {
         // Load all folders first to find the root folder
-        const response = await api.get<BrowseFoldersResponse>("/api/v1/organization_onedrive/browse_folders", { skipAuthRedirect: true });
+        const response = await api.get<BrowseFoldersResponse>("/api/v1/documents/browse_folders", { skipAuthRedirect: true });
         const rootFolderNode = response.folders?.find((f) => f.name === rootFolder);
 
         if (rootFolderNode) {
           // Found the root folder - load its children
           setRootFolderId(rootFolderNode.id);
           const childrenResponse = await api.get<BrowseFoldersResponse>(
-            `/api/v1/organization_onedrive/browse_folders?folder_id=${rootFolderNode.id}`,
+            `/api/v1/documents/browse_folders?folder_id=${rootFolderNode.id}`,
             { skipAuthRedirect: true }
           );
           const nodes: TreeNode[] = (childrenResponse.folders || []).map((f) => ({
@@ -309,7 +309,7 @@ export function SharePointFolderBrowser({
         }
       } else {
         // No restriction - load all root folders
-        const response = await api.get<BrowseFoldersResponse>("/api/v1/organization_onedrive/browse_folders", { skipAuthRedirect: true });
+        const response = await api.get<BrowseFoldersResponse>("/api/v1/documents/browse_folders", { skipAuthRedirect: true });
         const nodes: TreeNode[] = (response.folders || []).map((f) => ({
           ...f,
           path: `/${f.name}`,
@@ -337,7 +337,7 @@ export function SharePointFolderBrowser({
   const loadChildren = React.useCallback(async (parentNode: TreeNode): Promise<TreeNode[]> => {
     try {
       const response = await api.get<BrowseFoldersResponse>(
-        `/api/v1/organization_onedrive/browse_folders?folder_id=${parentNode.id}`,
+        `/api/v1/documents/browse_folders?folder_id=${parentNode.id}`,
         { skipAuthRedirect: true }
       );
       return (response.folders || []).map((f) => ({
@@ -395,12 +395,12 @@ export function SharePointFolderBrowser({
     setError(null);
     try {
       if (driveId === "personal") {
-        await api.post("/api/v1/organization_onedrive/use_personal_drive", undefined, { skipAuthRedirect: true });
+        await api.post("/api/v1/documents/use_personal_drive", undefined, { skipAuthRedirect: true });
         setCurrentDriveName("My SharePoint");
       } else {
         const site = sites.find((s) => s.id === driveId);
         if (!site?.name) throw new Error("Site not found");
-        await api.post("/api/v1/organization_onedrive/use_sharepoint_site", { site_name: site.name }, { skipAuthRedirect: true });
+        await api.post("/api/v1/documents/use_sharepoint_site", { site_name: site.name }, { skipAuthRedirect: true });
         setCurrentDriveName(site.name);
       }
       setCurrentDrive(driveId);

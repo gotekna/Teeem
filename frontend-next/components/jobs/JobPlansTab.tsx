@@ -316,7 +316,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
   // Get PDF preview URL
   const getPdfPreviewUrl = (revision: Revision | null) => {
     if (!revision?.sharepoint_file_id) return null;
-    return `${getApiBaseUrl()}/api/v1/organization_onedrive/download?file_id=${revision.sharepoint_file_id}&preview=true`;
+    return `${getApiBaseUrl()}/api/v1/documents/download?file_id=${revision.sharepoint_file_id}&preview=true`;
   };
 
   // Get thumbnail URL for instant preview (if available)
@@ -328,7 +328,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     }
     // Fall back to file download if no inline thumbnail
     if (!revision?.thumbnail_file_id) return null;
-    return `${getApiBaseUrl()}/api/v1/organization_onedrive/download?file_id=${revision.thumbnail_file_id}&preview=true`;
+    return `${getApiBaseUrl()}/api/v1/documents/download?file_id=${revision.thumbnail_file_id}&preview=true`;
   };
 
   // Open Add Plan dialog
@@ -849,12 +849,12 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
                       const selectedPlansData = plans.filter(p => selectedPlanIds.includes(p.id));
                       selectedPlansData.forEach(plan => {
                         if (plan.current_revision?.sharepoint_file_id) {
-                          window.open(`${getApiBaseUrl()}/api/v1/organization_onedrive/download?file_id=${plan.current_revision.sharepoint_file_id}`, "_blank");
+                          window.open(`${getApiBaseUrl()}/api/v1/documents/download?file_id=${plan.current_revision.sharepoint_file_id}`, "_blank");
                         }
                       });
                     } else if (selectedPlan?.current_revision?.sharepoint_file_id) {
                       // Download single-selected plan
-                      window.open(`${getApiBaseUrl()}/api/v1/organization_onedrive/download?file_id=${selectedPlan.current_revision.sharepoint_file_id}`, "_blank");
+                      window.open(`${getApiBaseUrl()}/api/v1/documents/download?file_id=${selectedPlan.current_revision.sharepoint_file_id}`, "_blank");
                     }
                   }}>
                     <Download className="h-4 w-4 mr-2" />

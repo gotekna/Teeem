@@ -1329,7 +1329,7 @@ export function GanttCanvasView({
           download_url?: string;
           folder_path?: string;
         }>;
-      }>(`/api/v1/organization_onedrive/job_all_files?job_id=${jobId}&refresh_thumbnails=true`);
+      }>(`/api/v1/documents/job_all_files?job_id=${jobId}&refresh_thumbnails=true`);
 
       if (response?.success && response.items) {
         // Filter for image files only (from any photo folder)

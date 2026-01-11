@@ -146,7 +146,7 @@ export function RevitTab({ jobId, jobTitle }: RevitTabProps) {
           subfolders: SharePointItem[];
           found_folders: FolderInfo[];
           job_folder_web_url?: string;
-        }>(`/api/v1/organization_onedrive/folder_contents?${params.toString()}`);
+        }>(`/api/v1/documents/folder_contents?${params.toString()}`);
 
         // Sort items: folders first, then files, both alphabetically
         const sortedSubfolders = [...(response.subfolders || [])].sort((a, b) =>
@@ -303,7 +303,7 @@ export function RevitTab({ jobId, jobTitle }: RevitTabProps) {
         formData.append("job_id", jobId.toString());
         formData.append("folder_id", revitFolderId);
 
-        await api.postFormData("/api/v1/organization_onedrive/upload", formData);
+        await api.postFormData("/api/v1/documents/upload", formData);
         successCount++;
       } catch (err) {
         console.error(`Failed to upload ${file.name}:`, err);

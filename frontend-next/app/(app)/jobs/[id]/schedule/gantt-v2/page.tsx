@@ -350,7 +350,7 @@ export default function GanttV2Page() {
           web_url?: string;
           modified?: string;
         }>;
-      }>(`/api/v1/organization_onedrive/job_all_files?job_id=${jobId}`);
+      }>(`/api/v1/documents/job_all_files?job_id=${jobId}`);
 
       if (response?.items) {
         const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic'];

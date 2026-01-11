@@ -314,7 +314,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
           download_url?: string;
           error?: string;
         }>(
-          "/api/v1/organization_onedrive/job_document_url",
+          "/api/v1/documents/job_document_url",
           { params: { document_id: item.document_id } }
         );
 
@@ -371,7 +371,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   const resolveFullUrl = React.useCallback(async (fileId: string): Promise<string | null> => {
     try {
       const data = await api.get<{ download_url?: string }>(
-        "/api/v1/organization_onedrive/download_url",
+        "/api/v1/documents/download_url",
         { params: { file_id: fileId }, skipAuthRedirect: true }
       );
       return data.download_url || null;
@@ -384,7 +384,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   // Delete a photo from SharePoint
   const handleDeletePhoto = React.useCallback(async (fileId: string): Promise<void> => {
     const response = await api.delete<{ success: boolean; error?: string }>(
-      "/api/v1/organization_onedrive/delete_file",
+      "/api/v1/documents/delete_file",
       { params: { file_id: fileId } }
     );
 
@@ -403,7 +403,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     // fail due to CORS when used in <img> tags. The lightbox fetches via api.getBlob()
     // with proper auth to bypass this.
     const apiBase = getApiBaseUrl();
-    const proxyUrl = `${apiBase}/api/v1/organization_onedrive/download?file_id=${item.id}&preview=true`;
+    const proxyUrl = `${apiBase}/api/v1/documents/download?file_id=${item.id}&preview=true`;
     // Use Graph API thumbnail URL if available (publicly accessible, no auth required)
     const thumbnailUrl = item.thumbnail_url || proxyUrl;
 
@@ -702,7 +702,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       if (result.success) {
         // FALLBACK: Trigger job-specific document sync to ensure warehouse is updated
         // This handles edge cases where upload_complete is skipped (e.g., missing SharePoint item ID)
-        api.post("/api/v1/organization_onedrive/sync_job_documents", { job_id: jobId })
+        api.post("/api/v1/documents/sync_job_documents", { job_id: jobId })
           .catch(err => console.warn("[PhotoUpload] Fallback sync failed:", err));
 
         // Refresh file list in background to get real SharePoint URLs
@@ -847,7 +847,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       }
 
       const response = await api.get<{ connected: boolean; root_folder_path?: string }>(
-        "/api/v1/organization_onedrive/status"
+        "/api/v1/documents/status"
       );
 
       setOrgStatus({
@@ -873,7 +873,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         job_folder_web_url?: string;
         job_folder_id?: string;
         items?: SharePointFolder[];
-      }>(`/api/v1/organization_onedrive/job_folders?job_id=${jobId}`);
+      }>(`/api/v1/documents/job_folders?job_id=${jobId}`);
 
       if (response) {
         setJobFolderStatus({
@@ -1044,7 +1044,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       setMessage(null);
 
       const response = await api.post<{ message?: string }>(
-        `/api/v1/organization_onedrive/create_job_folders?job_id=${jobId}`
+        `/api/v1/documents/create_job_folders?job_id=${jobId}`
       );
 
       setMessage({
@@ -1070,7 +1070,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     try {
       setLoadingContents(true);
       const response = await api.get<{ items: SharePointItem[] }>(
-        `/api/v1/organization_onedrive/folder_contents?folder_id=${folderId}&job_id=${jobId}`
+        `/api/v1/documents/folder_contents?folder_id=${folderId}&job_id=${jobId}`
       );
 
       setFolderContents(response?.items || []);
@@ -1195,7 +1195,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       setLoadingLegacy(true);
       setError(null);
       // Always request recursive=true to get all files from all subfolders
-      const url = `/api/v1/organization_onedrive/legacy_files?job_id=${jobId}&recursive=true`;
+      const url = `/api/v1/documents/legacy_files?job_id=${jobId}&recursive=true`;
       console.log('[Legacy Import] Fetching:', url);
 
       const response = await api.get<{
@@ -1241,7 +1241,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         message: string;
         imported: { file_id: string; name: string; category: string }[];
         errors: { file_id: string; error: string }[];
-      }>("/api/v1/organization_onedrive/import_legacy", {
+      }>("/api/v1/documents/import_legacy", {
         job_id: jobId,
         file_ids: selectedLegacyFiles,
       });
@@ -1299,7 +1299,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     try {
       setLoadingAllFiles(true);
       setError(null);
-      const url = `/api/v1/organization_onedrive/job_all_files?job_id=${jobId}`;
+      const url = `/api/v1/documents/job_all_files?job_id=${jobId}`;
       console.log('[All Files] Fetching:', url);
 
       const response = await api.get<{
@@ -1363,7 +1363,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         message: string;
         queued_count?: number;
         total_unanalyzed?: number;
-      }>(`/api/v1/organization_onedrive/analyze_job_documents`, {
+      }>(`/api/v1/documents/analyze_job_documents`, {
         job_id: jobId,
         limit: 25,
       });
@@ -1391,7 +1391,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         success: boolean;
         message: string;
         new_name?: string;
-      }>(`/api/v1/organization_onedrive/approve_document_rename`, {
+      }>(`/api/v1/documents/approve_document_rename`, {
         document_id: documentId,
         action,
       });
@@ -1434,7 +1434,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         dry_run: boolean;
         stats: { total: number; categorized: number; skipped: number; failed: number; recategorized: number };
         details: Array<{ id: number; file_name: string; folder_path?: string; status: string; document_type?: string; entity_tab?: string; reason?: string; old_type?: string }>;
-      }>(`/api/v1/organization_onedrive/bulk_categorize_job_documents`, {
+      }>(`/api/v1/documents/bulk_categorize_job_documents`, {
         job_id: jobId,
         dry_run: dryRun,
         force: force,

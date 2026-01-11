@@ -70,9 +70,8 @@ export function SharePointFolderPicker({
 
     try {
       const params: Record<string, string> = folderId ? { folder_id: folderId } : {};
-      // API endpoint kept as organization_onedrive for URL backwards compatibility
       const response = await api.get<{ folders: FolderItem[] }>(
-        "/api/v1/organization_onedrive/browse_folders",
+        "/api/v1/documents/browse_folders",
         { params }
       );
       setFolders(response.folders || []);
