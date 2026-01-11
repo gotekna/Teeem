@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_10_205715) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_11_071323) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1782,6 +1782,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_10_205715) do
     t.decimal "human_confidence", precision: 5, scale: 2
     t.tsvector "searchable"
     t.bigint "sm_task_id"
+    t.string "storage_provider", default: "sharepoint"
+    t.string "storage_item_id"
+    t.string "storage_path"
+    t.string "migration_status"
+    t.datetime "migration_started_at"
+    t.datetime "migration_completed_at"
+    t.text "migration_error"
+    t.string "source_provider"
+    t.string "source_item_id"
     t.index ["asset_id"], name: "index_corporate_company_documents_on_asset_id"
     t.index ["company_code"], name: "index_corporate_company_documents_on_company_code"
     t.index ["company_id", "ai_verification_status"], name: "idx_company_docs_company_ai_status"
@@ -1800,12 +1809,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_10_205715) do
     t.index ["is_pdf_eligible"], name: "index_corporate_company_documents_on_is_pdf_eligible", where: "((source)::text = 'xero'::text)"
     t.index ["job_id"], name: "index_corporate_company_documents_on_job_id"
     t.index ["loan_id"], name: "index_corporate_company_documents_on_loan_id"
+    t.index ["migration_status"], name: "index_corporate_company_documents_on_migration_status"
     t.index ["orphaned_at"], name: "index_corporate_company_documents_on_orphaned_at", where: "(orphaned_at IS NOT NULL)"
     t.index ["searchable"], name: "idx_documents_searchable_gin", using: :gin
     t.index ["sharepoint_file_id"], name: "index_corporate_company_documents_on_sharepoint_file_id", unique: true, where: "(sharepoint_file_id IS NOT NULL)"
     t.index ["sm_task_id"], name: "index_corporate_company_documents_on_sm_task_id"
     t.index ["source", "external_id"], name: "index_corporate_company_documents_on_source_and_external_id", unique: true, where: "(external_id IS NOT NULL)"
     t.index ["source"], name: "index_corporate_company_documents_on_source"
+    t.index ["storage_provider", "migration_status"], name: "idx_corp_docs_provider_migration"
+    t.index ["storage_provider"], name: "index_corporate_company_documents_on_storage_provider"
     t.index ["storage_type"], name: "index_corporate_company_documents_on_storage_type"
     t.index ["sync_to_xero", "synced_to_xero_at"], name: "idx_corp_docs_pending_xero_sync"
     t.index ["user_validated_by_id"], name: "index_corporate_company_documents_on_user_validated_by_id"
@@ -6890,6 +6902,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_10_205715) do
     t.bigint "legacy_corporate_document_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "storage_provider", default: "sharepoint"
+    t.string "storage_item_id"
+    t.string "storage_path"
+    t.string "migration_status"
+    t.datetime "migration_started_at"
+    t.datetime "migration_completed_at"
+    t.text "migration_error"
+    t.string "source_provider"
+    t.string "source_item_id"
     t.index ["contact_id"], name: "index_people_documents_on_contact_id"
     t.index ["content_hash"], name: "index_people_documents_on_content_hash"
     t.index ["document_date"], name: "index_people_documents_on_document_date"
@@ -6898,6 +6919,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_10_205715) do
     t.index ["expiry_date"], name: "index_people_documents_on_expiry_date"
     t.index ["external_id"], name: "index_people_documents_on_external_id"
     t.index ["legacy_corporate_document_id"], name: "index_people_documents_on_legacy_corporate_document_id"
+    t.index ["migration_status"], name: "index_people_documents_on_migration_status"
+    t.index ["storage_provider", "migration_status"], name: "idx_people_docs_provider_migration"
+    t.index ["storage_provider"], name: "index_people_documents_on_storage_provider"
   end
 
   create_table "performance_anomalies", force: :cascade do |t|

@@ -9,7 +9,7 @@ module Api
     # - capacity: Resource capacity/utilization data
     # - summary: Quick stats (overdue, today, this week)
     #
-    class CalendarController < BaseController
+    class CalendarController < ApplicationController
       # GET /api/v1/calendar/events
       # Returns tasks formatted as calendar events
       #
