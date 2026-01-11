@@ -174,6 +174,9 @@ module Api
         target_foundation = column.lookup_foundation
         records = target_foundation.dynamic_model.limit(1000).order(:id)
 
+        # Apply lookup_filter if configured (e.g., filter users by role)
+        records = apply_lookup_filter(records, column, target_foundation)
+
         options = records.map do |record|
           option = {
             id: record.id,
@@ -308,6 +311,9 @@ module Api
             ).limit(20).order(:id)
           end
         end
+
+        # Apply lookup_filter if configured (e.g., filter users by role)
+        records = apply_lookup_filter(records, column, target_foundation)
 
         # Performance: Cache text columns query outside the loop (avoids N+1)
         text_columns = target_foundation.columns
@@ -597,6 +603,31 @@ module Api
         raise ActiveRecord::RecordNotFound, "Column not found: #{id_or_name}"
       end
 
+      # Apply lookup_filter to records (e.g., filter users by role)
+      # Supports special handling for role-based filtering on Users
+      def apply_lookup_filter(records, column, target_foundation)
+        return records unless column.respond_to?(:lookup_filter) && column.lookup_filter.present?
+
+        filter = column.lookup_filter
+        return records unless filter.is_a?(Hash) && filter.any?
+
+        # Special handling for role-based filtering on Users
+        if target_foundation.slug == 'user-management' && filter['role'].present?
+          role_name = filter['role']
+          # Join with roles through user_roles and filter by role name
+          records = records.joins(:roles).where(roles: { name: role_name }).distinct
+        else
+          # Generic filtering: apply direct column conditions
+          filter.each do |column_name, value|
+            if records.model.column_names.include?(column_name.to_s)
+              records = records.where(column_name => value)
+            end
+          end
+        end
+
+        records
+      end
+
       def column_params
         permitted = params.require(:column).permit(
           :name,
@@ -621,7 +652,8 @@ module Api
           :header_align,
           :data_align,
           available_choices: [],
-          choice_descriptions: {}  # SSoT: descriptions for each choice value
+          choice_descriptions: {},  # SSoT: descriptions for each choice value
+          lookup_filter: {}  # Filter options for lookup (e.g., { role: 'supervisor' })
         )
 
         # SSoT: If slug is provided, use it as the input for resolution
@@ -654,6 +686,7 @@ module Api
           lookup_foundation_id: column.lookup_foundation_id,
           lookup_foundation_slug: column.lookup_foundation_slug,  # SSoT: Always return slug
           lookup_display_column: column.lookup_display_column,
+          lookup_filter: column.try(:lookup_filter),  # Role-based or other filtering
           is_multiple: column.is_multiple,
           has_cross_table_refs: column.has_cross_table_refs,
           header_align: column.header_align || "left",
