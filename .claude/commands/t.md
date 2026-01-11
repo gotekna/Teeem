@@ -206,16 +206,18 @@ When fixing color violations, use these mappings:
 ```bash
 echo "=== TEEEMTABLEVIEW PATTERN CHECK ==="
 
-# SSoT VIOLATION: columns prop with foundationIdNumeric
+# SSoT VIOLATION: columns prop directly on TeeemTableView with foundationIdNumeric
 # EXCLUDE: GoldStandardTab.tsx (it's the demo/reference for TeeemTableView)
-echo "--- SSoT VIOLATION: columns prop with foundationIdNumeric ---"
+# NOTE: columns= passed to OTHER components (SchemaTab, CreateRecordDialog) is OK
+echo "--- SSoT VIOLATION: TeeemTableView with columns + foundationIdNumeric ---"
 violations=0
 for file in $(grep -rl "TeeemTableView" frontend-next/app --include="*.tsx" 2>/dev/null); do
   # Skip demo/documentation files
   if [[ "$file" == *"GoldStandardTab"* ]] || [[ "$file" == *"design-system"* ]]; then
     continue
   fi
-  if grep -q "foundationIdNumeric" "$file" && grep -q "columns=" "$file"; then
+  # Check for columns prop DIRECTLY on TeeemTableView (not other components)
+  if grep -q "foundationIdNumeric" "$file" && grep -E "TeeemTableView.*columns=|columns=.*TeeemTableView" "$file" > /dev/null 2>&1; then
     echo "  ❌ $file"
     violations=$((violations + 1))
   fi
