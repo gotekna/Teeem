@@ -19,8 +19,13 @@ class PopulateStorageConfigurationFromCorporateSetting < ActiveRecord::Migration
     org = Organization.first
     return unless org
 
+    # Determine provider type - default to sharepoint if not in allowed list
+    allowed_providers = %w[sharepoint s3 wasabi local]
+    provider = org.document_provider
+    provider = "sharepoint" unless allowed_providers.include?(provider)
+
     storage_config = StorageConfiguration.find_or_create_by!(organization: org) do |sc|
-      sc.provider_type = org.document_provider || "sharepoint"
+      sc.provider_type = provider
       sc.status = "disconnected"
       sc.root_path = setting.sharepoint_root_path.presence || "/Shared Documents"
       sc.paths = StorageConfiguration::DEFAULT_PATHS

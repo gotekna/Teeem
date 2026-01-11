@@ -85,7 +85,9 @@ class MicrosoftCredential < ApplicationRecord
   scope :needs_refresh, -> { where("token_expires_at < ?", REFRESH_BUFFER.from_now) }
   scope :alive, -> { where(refresh_token_dead: false) }
   scope :dead, -> { where(refresh_token_dead: true) }
-  scope :with_sharepoint, -> { where.not(sharepoint_site_id: nil).where.not(sharepoint_drive_id: nil) }
+  # REMOVED: with_sharepoint scope - columns removed in Phase 5
+  # Use StorageConfiguration.instance.connected? instead to check if SharePoint is configured
+  # The scope was: where.not(sharepoint_site_id: nil).where.not(sharepoint_drive_id: nil)
 
   # SSoT: Organization-scoped credential lookup - ALWAYS use these instead of .first
   scope :for_org, ->(org) { where(organization: org) }
@@ -365,25 +367,33 @@ class MicrosoftCredential < ApplicationRecord
       app_credentials.connected.first
   end
 
-  # SharePoint configuration helpers (SSoT - previously split across models)
+  # SharePoint configuration helpers
+  # SSoT: Now uses StorageConfiguration for site_id/drive_id
+  # MicrosoftCredential only provides the authentication credential
   def self.teeem_sharepoint_config
-    configured = active.with_sharepoint.first
-    return nil unless configured
+    storage_config = StorageConfiguration.instance
+    return nil unless storage_config&.connected?
 
     {
-      site_id: configured.sharepoint_site_id,
-      drive_id: configured.sharepoint_drive_id,
-      drive_name: configured.sharepoint_drive_name,
-      credential: configured
+      site_id: storage_config.site_id,
+      drive_id: storage_config.drive_id,
+      drive_name: storage_config.drive_name,
+      credential: sharepoint_credential
     }
   end
 
+  # Check if SharePoint is configured (SSoT: StorageConfiguration)
   def self.sharepoint_configured?
-    teeem_sharepoint_config.present?
+    StorageConfiguration.instance&.connected? && sharepoint_credential.present?
   end
 
+  # DEPRECATED: Instance method - use StorageConfiguration.instance.connected? instead
   def sharepoint_configured?
-    sharepoint_site_id.present? && sharepoint_drive_id.present?
+    Rails.deprecator.warn(
+      "MicrosoftCredential#sharepoint_configured? is deprecated. " \
+      "Use StorageConfiguration.instance.connected? instead."
+    )
+    StorageConfiguration.instance&.connected?
   end
 
   # Test the connection by making a simple API call

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_12_100005) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_12_100006) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -6506,11 +6506,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_100005) do
     t.datetime "last_refresh_attempt_at"
     t.datetime "admin_consent_granted_at"
     t.string "admin_consent_granted_by"
-    t.string "sharepoint_site_id"
-    t.string "sharepoint_drive_id"
-    t.string "sharepoint_drive_name"
-    t.string "drive_id"
-    t.string "drive_name"
     t.string "root_folder_id"
     t.string "root_folder_path"
     t.jsonb "sync_config", default: {}
