@@ -5908,8 +5908,8 @@ export default function TeeemTableView({
           {/* Bulk action buttons - reads selection from TableContext */}
           <ToolbarBulkActions
             viewOnly={viewOnly}
-            showBulkUpdate={!!onRowUpdate}
-            showInlineEdit={!!onRowUpdate}
+            showBulkUpdate={!!(onRowUpdate || effectiveFoundationId)}
+            showInlineEdit={!!(onRowUpdate || effectiveFoundationId)}
             showMerge={!!(onBulkMerge || (enableMerge !== false && effectiveFoundationId))}
             showXeroTransfer={!!onXeroTransfer}
             showDelete={!!effectiveBulkDelete}
