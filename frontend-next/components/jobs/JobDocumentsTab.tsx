@@ -271,6 +271,43 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     return imageExtensions.some((ext) => name.endsWith(ext));
   };
 
+  // Open document in new tab - handles both SharePoint and S3 storage providers
+  // For S3 documents, fetches a pre-signed URL first
+  // For SharePoint documents, uses the existing web_url
+  const openDocument = React.useCallback(async (item: LegacyItem) => {
+    try {
+      // If document is on S3, get a pre-signed URL first
+      if (item.storage_provider === "s3_compatible" && item.document_id) {
+        const response = await api.get<{
+          success: boolean;
+          download_url?: string;
+          error?: string;
+        }>(
+          "/api/v1/organization_onedrive/job_document_url",
+          { params: { document_id: item.document_id } }
+        );
+
+        if (response.success && response.download_url) {
+          window.open(response.download_url, "_blank");
+          return;
+        }
+        // Fall through to web_url if S3 URL fetch fails
+        console.warn("Failed to get S3 URL, falling back to web_url:", response.error);
+      }
+
+      // Default: use web_url for SharePoint documents (or as fallback)
+      if (item.web_url) {
+        window.open(item.web_url, "_blank");
+      }
+    } catch (err) {
+      console.error("Error opening document:", err);
+      // Fallback to web_url on error
+      if (item.web_url) {
+        window.open(item.web_url, "_blank");
+      }
+    }
+  }, []);
+
   // Resolve full-size download URL for lightbox viewing
   // This fetches on-demand from Microsoft Graph (returns pre-authenticated URL valid ~1hr)
   const resolveFullUrl = React.useCallback(async (fileId: string): Promise<string | null> => {
@@ -1651,11 +1688,11 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
-                              {doc.web_url && (
+                              {(doc.web_url || doc.document_id) && (
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => window.open(doc.web_url, "_blank")}
+                                  onClick={() => openDocument(doc)}
                                 >
                                   <Eye className="h-4 w-4 mr-1" />
                                   View
@@ -2346,12 +2383,12 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                                 )}
                               </TableCell>
                               <TableCell>
-                                {item.web_url && (
+                                {(item.web_url || item.document_id) && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
                                     className="h-8 w-8"
-                                    onClick={() => window.open(item.web_url, "_blank")}
+                                    onClick={() => openDocument(item)}
                                   >
                                     <ExternalLink className="h-4 w-4" />
                                   </Button>
@@ -2391,12 +2428,12 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                                     <span className="text-sm text-muted-foreground">-</span>
                                   </TableCell>
                                   <TableCell>
-                                    {child.web_url && (
+                                    {(child.web_url || child.document_id) && (
                                       <Button
                                         variant="ghost"
                                         size="icon"
                                         className="h-8 w-8"
-                                        onClick={() => window.open(child.web_url, "_blank")}
+                                        onClick={() => openDocument(child)}
                                       >
                                         <ExternalLink className="h-4 w-4" />
                                       </Button>
@@ -2570,14 +2607,14 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                           {item.modified && ` • Modified ${new Date(item.modified).toLocaleDateString()}`}
                         </p>
                       </div>
-                      {item.web_url && (
+                      {(item.web_url || item.document_id) && (
                         <Button
                           variant="ghost"
                           size="icon"
                           className="flex-shrink-0"
                           onClick={(e) => {
                             e.stopPropagation();
-                            window.open(item.web_url, "_blank");
+                            openDocument(item);
                           }}
                         >
                           <ExternalLink className="h-4 w-4" />
