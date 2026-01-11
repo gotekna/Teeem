@@ -1699,7 +1699,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                     <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
                     <p className="text-muted-foreground">No documents in this folder yet.</p>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Upload files via SharePoint or the All Files tab
+                      Upload files via the All Files tab
                     </p>
                   </div>
                 ) : (
