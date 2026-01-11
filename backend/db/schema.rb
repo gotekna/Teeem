@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_11_073500) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_11_203804) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -6121,8 +6121,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_11_073500) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.integer "purchase_orders_count", default: 0, null: false
-    t.string "site_supervisor_name", default: "Andrew Clement"
-    t.string "site_supervisor_phone", default: "0407 150 081"
     t.string "sharepoint_folder_status", default: "not_requested"
     t.decimal "latitude", precision: 10, scale: 6
     t.decimal "longitude", precision: 10, scale: 6
@@ -6190,12 +6188,20 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_11_073500) do
     t.string "sharepoint_folder_id"
     t.string "level"
     t.string "dwelling_type"
+    t.bigint "supervisor_id"
+    t.bigint "site_coordinator_id"
+    t.bigint "estimator_id"
+    t.bigint "internal_sales_id"
+    t.bigint "client_coordinator_id"
     t.index ["archived_at", "job_status_id"], name: "idx_jobs_archived_status"
     t.index ["archived_at"], name: "index_jobs_on_archived_at"
     t.index ["archived_by_id"], name: "index_jobs_on_archived_by_id"
+    t.index ["client_coordinator_id"], name: "index_jobs_on_client_coordinator_id"
     t.index ["cost_centre_id"], name: "index_jobs_on_cost_centre_id"
     t.index ["council"], name: "index_jobs_on_council"
     t.index ["created_at"], name: "index_jobs_on_created_at"
+    t.index ["estimator_id"], name: "index_jobs_on_estimator_id"
+    t.index ["internal_sales_id"], name: "index_jobs_on_internal_sales_id"
     t.index ["job_stage_id"], name: "index_jobs_on_job_stage_id"
     t.index ["job_status_id"], name: "index_jobs_on_job_status_id"
     t.index ["job_type_id"], name: "index_jobs_on_job_type_id"
@@ -6203,7 +6209,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_11_073500) do
     t.index ["searchable"], name: "idx_jobs_searchable_gin", using: :gin
     t.index ["sharepoint_folder_id"], name: "index_jobs_on_sharepoint_folder_id"
     t.index ["sharepoint_folder_status"], name: "index_jobs_on_sharepoint_folder_status"
+    t.index ["site_coordinator_id"], name: "index_jobs_on_site_coordinator_id"
     t.index ["suburb"], name: "index_jobs_on_suburb"
+    t.index ["supervisor_id"], name: "index_jobs_on_supervisor_id"
     t.index ["xero_tracking_option_id"], name: "index_jobs_on_xero_tracking_option_id"
   end
 
@@ -10449,6 +10457,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_11_073500) do
   add_foreign_key "job_type_statuses", "job_statuses"
   add_foreign_key "job_type_statuses", "job_types"
   add_foreign_key "job_types", "sm_schedule_master_templates"
+  add_foreign_key "jobs", "contacts", column: "client_coordinator_id", on_delete: :nullify
+  add_foreign_key "jobs", "contacts", column: "estimator_id", on_delete: :nullify
+  add_foreign_key "jobs", "contacts", column: "internal_sales_id", on_delete: :nullify
+  add_foreign_key "jobs", "contacts", column: "site_coordinator_id", on_delete: :nullify
+  add_foreign_key "jobs", "contacts", column: "supervisor_id", on_delete: :nullify
   add_foreign_key "jobs", "cost_centres", on_delete: :nullify
   add_foreign_key "jobs", "job_stages", on_delete: :nullify
   add_foreign_key "jobs", "job_statuses", on_delete: :nullify
