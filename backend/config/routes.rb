@@ -26,6 +26,44 @@ Rails.application.routes.draw do
         end
       end
 
+      # =============================================================
+      # Document Storage API (SharePoint, S3, Wasabi)
+      # IMPORTANT: Must be BEFORE `resources :documents` to avoid
+      # /documents/:id matching /documents/status as id="status"
+      # =============================================================
+      get "documents/status", to: "organization_sharepoint#status"
+      get "documents/authorize", to: "organization_sharepoint#authorize"
+      get "documents/callback", to: "organization_sharepoint#callback"
+      delete "documents/disconnect", to: "organization_sharepoint#disconnect"
+      get "documents/browse_folders", to: "organization_sharepoint#browse_folders"
+      post "documents/create_root_folder", to: "organization_sharepoint#create_root_folder"
+      get "documents/validate_folder", to: "organization_sharepoint#validate_folder"
+      patch "documents/change_root_folder", to: "organization_sharepoint#change_root_folder"
+      post "documents/create_job_folders", to: "organization_sharepoint#create_job_folders"
+      post "documents/create_all_job_folders", to: "organization_sharepoint#create_all_job_folders"
+      get "documents/job_folders", to: "organization_sharepoint#list_job_items"
+      post "documents/upload", to: "organization_sharepoint#upload"
+      get "documents/download", to: "organization_sharepoint#download"
+      get "documents/download_url", to: "organization_sharepoint#download_url"
+      delete "documents/delete_file", to: "organization_sharepoint#delete_file"
+      get "documents/folder_contents", to: "organization_sharepoint#folder_contents"
+      get "documents/sharepoint_sites", to: "organization_sharepoint#sharepoint_sites"
+      post "documents/use_sharepoint_site", to: "organization_sharepoint#use_sharepoint_site"
+      post "documents/use_personal_drive", to: "organization_sharepoint#use_personal_drive"
+      post "documents/sync_corporate_documents", to: "organization_sharepoint#sync_corporate_documents"
+      get "documents/search", to: "organization_sharepoint#search"
+      get "documents/preview_private_folders", to: "organization_sharepoint#preview_private_folders"
+      patch "documents/mark_as_preferred", to: "organization_sharepoint#mark_as_preferred"
+      get "documents/legacy_files", to: "organization_sharepoint#legacy_files"
+      post "documents/migrate_job_folder", to: "organization_sharepoint#migrate_job_folder"
+      get "documents/job_all_files", to: "organization_sharepoint#job_all_files"
+      get "documents/job_document_download", to: "organization_sharepoint#job_document_download"
+      get "documents/job_document_url", to: "organization_sharepoint#job_document_url"
+      post "documents/move_file", to: "organization_sharepoint#move_file"
+      post "documents/copy_file", to: "organization_sharepoint#copy_file"
+      post "documents/create_folder", to: "organization_sharepoint#create_folder"
+      get "documents/documents_needing_review", to: "organization_sharepoint#documents_needing_review"
+
       # Feature Trackers
       resources :feature_trackers, only: [ :index, :create, :update, :destroy ]
 
@@ -2198,46 +2236,8 @@ Rails.application.routes.draw do
       # REMOVED: Legacy per-job SharePoint routes (sharepoint_files_controller) - cleaned up Jan 2026
       # Now using organization-wide SharePoint via MicrosoftCredential system
 
-      # Documents API - SSoT for all document storage (SharePoint, S3, Wasabi)
-      get "documents/status", to: "organization_sharepoint#status"
-      get "documents/authorize", to: "organization_sharepoint#authorize"
-      get "documents/callback", to: "organization_sharepoint#callback"
-      delete "documents/disconnect", to: "organization_sharepoint#disconnect"
-      get "documents/browse_folders", to: "organization_sharepoint#browse_folders"
-      post "documents/create_root_folder", to: "organization_sharepoint#create_root_folder"
-      get "documents/validate_folder", to: "organization_sharepoint#validate_folder"
-      patch "documents/change_root_folder", to: "organization_sharepoint#change_root_folder"
-      post "documents/create_job_folders", to: "organization_sharepoint#create_job_folders"
-      post "documents/create_all_job_folders", to: "organization_sharepoint#create_all_job_folders"
-      get "documents/job_folders", to: "organization_sharepoint#list_job_items"
-      post "documents/upload", to: "organization_sharepoint#upload"
-      get "documents/download", to: "organization_sharepoint#download"
-      get "documents/download_url", to: "organization_sharepoint#download_url"
-      delete "documents/delete_file", to: "organization_sharepoint#delete_file"
-      get "documents/folder_contents", to: "organization_sharepoint#folder_contents"
-      get "documents/sharepoint_sites", to: "organization_sharepoint#sharepoint_sites"
-      post "documents/use_sharepoint_site", to: "organization_sharepoint#use_sharepoint_site"
-      post "documents/use_personal_drive", to: "organization_sharepoint#use_personal_drive"
-      post "documents/sync_corporate_documents", to: "organization_sharepoint#sync_corporate_documents"
-      get "documents/search", to: "organization_sharepoint#search"
-      get "documents/preview_private_folders", to: "organization_sharepoint#preview_private_folders"
-      post "documents/create_private_folders", to: "organization_sharepoint#create_private_folders"
-      post "documents/copy_files", to: "organization_sharepoint#copy_files"
-      get "documents/legacy_files", to: "organization_sharepoint#legacy_files"
-      post "documents/import_legacy", to: "organization_sharepoint#import_legacy"
-      post "documents/run_migration", to: "organization_sharepoint#run_migration"
-      get "documents/job_all_files", to: "organization_sharepoint#job_all_files"
-      get "documents/job_document_download", to: "organization_sharepoint#job_document_download"
-      get "documents/job_document_url", to: "organization_sharepoint#job_document_url"
-      post "documents/sync_job_documents", to: "organization_sharepoint#sync_job_documents"
-      post "documents/upload_signed_version", to: "organization_sharepoint#upload_signed_version"
-
-      # AI document analysis endpoints
-      post "documents/analyze_job_documents", to: "organization_sharepoint#analyze_job_documents"
-      post "documents/bulk_categorize_job_documents", to: "organization_sharepoint#bulk_categorize_job_documents"
-      get "documents/documents_needing_review", to: "organization_sharepoint#documents_needing_review"
-      post "documents/approve_document_rename", to: "organization_sharepoint#approve_document_rename"
-      post "documents/bulk_approve_renames", to: "organization_sharepoint#bulk_approve_renames"
+      # NOTE: Documents API routes are defined at TOP of namespace (see "Document Storage API" section)
+      # to avoid route collision with `resources :documents` matching /documents/:id
 
       # ============================================================
       # BACKWARDS COMPATIBILITY: Legacy organization_onedrive routes
