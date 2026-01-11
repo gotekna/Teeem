@@ -4,7 +4,8 @@ module Api
     class OrganizationSharepointController < ApplicationController
       # Skip auth for OAuth callback (comes from Microsoft, not our frontend)
       # Skip auth for download previews (thumbnails) - uses browser caching, file IDs are unguessable
-      skip_before_action :authorize_request, only: [ :callback, :download ]
+      # Skip auth for job_document_download - opened in new browser tab via window.open()
+      skip_before_action :authorize_request, only: [ :callback, :download, :job_document_download ]
 
       # Require admin for sensitive operations
       before_action :require_admin, only: [ :disconnect, :change_root_folder, :sync_corporate_documents ]
