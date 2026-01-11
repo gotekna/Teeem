@@ -258,6 +258,14 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   const [photosToDelete, setPhotosToDelete] = useState<PhotoItem[]>([]);
   const [deleting, setDeleting] = useState(false);
 
+  // Document preview popup state (single-click = popup, double-click = new window)
+  const [previewDocument, setPreviewDocument] = useState<{
+    url: string;
+    name: string;
+    mimeType?: string;
+  } | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+
   // Check if the current category is a photo category
   // SSoT: "Photo Gallery View" checkbox on each tab controls this
   const isPhotoCategory = (category: DocumentCategory | null): boolean => {
@@ -271,10 +279,10 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     return imageExtensions.some((ext) => name.endsWith(ext));
   };
 
-  // Open document in new tab - handles both SharePoint and S3 storage providers
+  // Get document URL - handles both SharePoint and S3 storage providers
   // For S3 documents, fetches a pre-signed URL first
   // For SharePoint documents, uses the existing web_url
-  const openDocument = React.useCallback(async (item: LegacyItem) => {
+  const getDocumentUrl = React.useCallback(async (item: LegacyItem): Promise<string | null> => {
     try {
       // If document is on S3, get a pre-signed URL first
       if (item.storage_provider === "s3_compatible" && item.document_id) {
@@ -288,25 +296,52 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         );
 
         if (response.success && response.download_url) {
-          window.open(response.download_url, "_blank");
-          return;
+          return response.download_url;
         }
-        // Fall through to web_url if S3 URL fetch fails
         console.warn("Failed to get S3 URL, falling back to web_url:", response.error);
       }
 
       // Default: use web_url for SharePoint documents (or as fallback)
-      if (item.web_url) {
-        window.open(item.web_url, "_blank");
-      }
+      return item.web_url || null;
     } catch (err) {
-      console.error("Error opening document:", err);
-      // Fallback to web_url on error
-      if (item.web_url) {
-        window.open(item.web_url, "_blank");
-      }
+      console.error("Error getting document URL:", err);
+      return item.web_url || null;
     }
   }, []);
+
+  // Single-click: Show document in popup/modal
+  const showDocumentPreview = React.useCallback(async (item: LegacyItem) => {
+    setLoadingPreview(true);
+    const url = await getDocumentUrl(item);
+    setLoadingPreview(false);
+
+    if (url) {
+      // Determine mime type from file extension
+      const ext = item.name?.toLowerCase().split('.').pop() || '';
+      const mimeMap: Record<string, string> = {
+        pdf: 'application/pdf',
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        png: 'image/png',
+        gif: 'image/gif',
+        webp: 'image/webp',
+      };
+
+      setPreviewDocument({
+        url,
+        name: item.name || 'Document',
+        mimeType: mimeMap[ext] || 'application/octet-stream',
+      });
+    }
+  }, [getDocumentUrl]);
+
+  // Double-click: Open document in new browser window/tab
+  const openDocumentInNewWindow = React.useCallback(async (item: LegacyItem) => {
+    const url = await getDocumentUrl(item);
+    if (url) {
+      window.open(url, "_blank");
+    }
+  }, [getDocumentUrl]);
 
   // Resolve full-size download URL for lightbox viewing
   // This fetches on-demand from Microsoft Graph (returns pre-authenticated URL valid ~1hr)
@@ -1692,7 +1727,9 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => openDocument(doc)}
+                                  onClick={() => showDocumentPreview(doc)}
+                                  onDoubleClick={() => openDocumentInNewWindow(doc)}
+                                  title="Click to preview, double-click to open in new window"
                                 >
                                   <Eye className="h-4 w-4 mr-1" />
                                   View
@@ -2388,7 +2425,9 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                                     variant="ghost"
                                     size="icon"
                                     className="h-8 w-8"
-                                    onClick={() => openDocument(item)}
+                                    onClick={() => showDocumentPreview(item)}
+                                    onDoubleClick={() => openDocumentInNewWindow(item)}
+                                    title="Click to preview, double-click to open in new window"
                                   >
                                     <ExternalLink className="h-4 w-4" />
                                   </Button>
@@ -2433,7 +2472,9 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                                         variant="ghost"
                                         size="icon"
                                         className="h-8 w-8"
-                                        onClick={() => openDocument(child)}
+                                        onClick={() => showDocumentPreview(child)}
+                                        onDoubleClick={() => openDocumentInNewWindow(child)}
+                                        title="Click to preview, double-click to open in new window"
                                       >
                                         <ExternalLink className="h-4 w-4" />
                                       </Button>
@@ -2614,8 +2655,13 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                           className="flex-shrink-0"
                           onClick={(e) => {
                             e.stopPropagation();
-                            openDocument(item);
+                            showDocumentPreview(item);
                           }}
+                          onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            openDocumentInNewWindow(item);
+                          }}
+                          title="Click to preview, double-click to open in new window"
                         >
                           <ExternalLink className="h-4 w-4" />
                         </Button>
@@ -2715,6 +2761,81 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
               ) : (
                 <>Delete</>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Document Preview Dialog - Single-click opens here, double-click opens new window */}
+      <Dialog open={!!previewDocument} onOpenChange={(open) => !open && setPreviewDocument(null)}>
+        <DialogContent className="max-w-5xl max-h-[90vh] p-0 overflow-hidden">
+          <DialogHeader className="p-4 pb-2 border-b">
+            <DialogTitle className="flex items-center gap-2 text-base font-medium">
+              <FileText className="h-4 w-4" />
+              {previewDocument?.name}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Double-click View button to open in new window
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 h-[calc(90vh-120px)]">
+            {loadingPreview ? (
+              <div className="flex items-center justify-center h-full">
+                <Spinner size={32} />
+              </div>
+            ) : previewDocument?.mimeType?.startsWith('image/') ? (
+              <div className="h-full flex items-center justify-center bg-black/5 dark:bg-black/20 p-4">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={previewDocument.url}
+                  alt={previewDocument.name}
+                  className="max-h-full max-w-full object-contain"
+                />
+              </div>
+            ) : previewDocument?.mimeType === 'application/pdf' ? (
+              <iframe
+                src={previewDocument.url}
+                className="w-full h-full border-0"
+                title={previewDocument.name}
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full gap-4 p-8 text-center">
+                <FileText className="h-16 w-16 text-muted-foreground" />
+                <div>
+                  <p className="font-medium">{previewDocument?.name}</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Preview not available for this file type
+                  </p>
+                </div>
+                <Button
+                  onClick={() => {
+                    if (previewDocument?.url) {
+                      window.open(previewDocument.url, "_blank");
+                    }
+                  }}
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Open in New Window
+                </Button>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="p-4 pt-2 border-t">
+            <Button
+              variant="outline"
+              onClick={() => setPreviewDocument(null)}
+            >
+              Close
+            </Button>
+            <Button
+              onClick={() => {
+                if (previewDocument?.url) {
+                  window.open(previewDocument.url, "_blank");
+                }
+              }}
+            >
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Open in New Window
             </Button>
           </DialogFooter>
         </DialogContent>

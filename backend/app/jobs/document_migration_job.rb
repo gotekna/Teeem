@@ -211,42 +211,67 @@ class DocumentMigrationJob < ApplicationJob
   end
 
   # Build folder path for document based on type
+  # Uses clean, URL-friendly paths: jobs/49/contract/po-49678.pdf
   def build_folder_path(document, document_type)
     case document_type
     when 'JobDocument'
       job = document.job
-      job_folder = "#{job.id.to_s.rjust(3, '0')} - #{sanitize_filename(job.title)}"
-      subfolder = document.folder_path.presence || "Documents"
-      "/Jobs/#{job_folder}/#{subfolder}/#{document.file_name}"
+      subfolder = slugify_path(document.folder_path.presence || "documents")
+      filename = slugify_filename(document.file_name)
+      "jobs/#{job.id}/#{subfolder}/#{filename}"
 
     when 'CorporateCompanyDocument'
       company = document.corporate_company
       if company
-        company_folder = "#{company.code} - #{sanitize_filename(company.name)}"
-        folder = document.folder.presence || "Documents"
-        "/Corporate/#{company_folder}/#{folder}/#{document.file_name}"
+        folder = slugify_path(document.folder.presence || "documents")
+        filename = slugify_filename(document.file_name)
+        "corporate/#{company.id}/#{folder}/#{filename}"
       else
-        "/Corporate/Unassigned/#{document.file_name}"
+        "corporate/unassigned/#{slugify_filename(document.file_name)}"
       end
 
     when 'PeopleDocument'
       contact = document.contact
       if contact
-        contact_folder = sanitize_filename(contact.display_name.presence || "Contact #{contact.id}")
-        folder = document.folder.presence || "Documents"
-        "/People/#{contact_folder}/#{folder}/#{document.file_name}"
+        folder = slugify_path(document.folder.presence || "documents")
+        filename = slugify_filename(document.file_name)
+        "people/#{contact.id}/#{folder}/#{filename}"
       else
-        "/People/Unassigned/#{document.file_name}"
+        "people/unassigned/#{slugify_filename(document.file_name)}"
       end
 
     else
-      "/Documents/#{document.file_name}"
+      "documents/#{slugify_filename(document.file_name)}"
     end
   end
 
-  # Sanitize filename for storage
-  def sanitize_filename(name)
-    return "Untitled" if name.blank?
-    name.gsub(/[<>:"\/\\|?*]/, '_').strip.truncate(100)
+  # Convert path segments to URL-friendly slugs
+  # "03 Contract/Bowen Overruns" -> "contract/bowen-overruns"
+  def slugify_path(path)
+    return "documents" if path.blank?
+    path.split('/').map { |segment| slugify(segment) }.join('/')
+  end
+
+  # Convert filename to URL-friendly format while preserving extension
+  # "PO 49678.pdf" -> "po-49678.pdf"
+  def slugify_filename(filename)
+    return "untitled" if filename.blank?
+    ext = File.extname(filename)
+    base = File.basename(filename, ext)
+    "#{slugify(base)}#{ext.downcase}"
+  end
+
+  # Convert string to URL-friendly slug
+  # "03 Contract" -> "contract", "Bowen Overruns" -> "bowen-overruns"
+  def slugify(text)
+    return "untitled" if text.blank?
+    text.to_s
+        .downcase
+        .gsub(/^\d+\s*[-_]?\s*/, '')  # Remove leading numbers like "03 - " or "03_"
+        .gsub(/[^a-z0-9\s-]/, '')     # Remove special chars except spaces/hyphens
+        .gsub(/\s+/, '-')              # Spaces to hyphens
+        .gsub(/-+/, '-')               # Collapse multiple hyphens
+        .gsub(/^-|-$/, '')             # Trim leading/trailing hyphens
+        .presence || "item"
   end
 end
