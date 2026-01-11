@@ -227,13 +227,10 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   const [allFilesJobFolderUrl, setAllFilesJobFolderUrl] = useState<string | null>(null);
   const [aiStats, setAiStats] = useState<AIStats | null>(null);
 
-  // Files grouped by folder path (for tree view)
+  // Files grouped by folder path (for tree view) - no longer needed with new approach
+  // but keeping for potential future use
   const filesByFolder = useMemo(() => {
     const map = new Map<string, LegacyItem[]>();
-    // DEBUG: Log sample folder_path values
-    if (allFiles.length > 0) {
-      console.log('[FolderView] Sample file folder_paths:', allFiles.slice(0, 5).map(f => ({ name: f.name, folder_path: f.folder_path })));
-    }
     allFiles.forEach(file => {
       const path = file.folder_path?.toLowerCase() || "documents";
       if (!map.has(path)) {
@@ -2583,103 +2580,83 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       color?: string;
     }
 
-    // Build tree from categories
+    // Build tree from actual folder paths (SharePoint structure)
     const buildTree = (): TreeNode[] => {
-      const tree: TreeNode[] = [];
-      const usedTabKeys = new Set<string>();
+      const root: TreeNode = {
+        id: "root",
+        name: "Root",
+        type: "folder",
+        children: []
+      };
 
-      // DEBUG: Log what we're working with
-      console.log('[FolderView] filesByFolder keys:', Array.from(filesByFolder.keys()));
-      console.log('[FolderView] categories tab_keys:', documentCategories.map(c => c.tab_key || c.name).join(', '));
+      // Helper to find or create folder path in tree
+      const getOrCreateFolder = (pathParts: string[], parent: TreeNode): TreeNode => {
+        if (pathParts.length === 0) return parent;
 
-      // Add categories as folders
-      documentCategories.forEach((cat: DocumentCategory) => {
-        // Use tab_key for matching (SSoT from Entity Configurator)
-        const tabKey = cat.tab_key?.toLowerCase() || cat.name.toLowerCase();
-        usedTabKeys.add(tabKey);
+        const folderName = pathParts[0];
+        // Strip number prefix if present (e.g., "01 Revit" -> "Revit", "03 Contract" -> "Contract")
+        const displayName = folderName.replace(/^\d+\s*/, '');
+        const folderId = `folder-${folderName.toLowerCase().replace(/\s+/g, '-')}`;
 
-        const categoryNode: TreeNode = {
-          id: `cat-${cat.id}`,
-          name: cat.display_name || cat.name,
-          type: "folder",
-          folderPath: tabKey,
-          icon: cat.icon,
-          color: cat.color,
-          children: []
-        };
+        let folder = parent.children?.find(c => c.type === "folder" && c.id === folderId);
+        if (!folder) {
+          folder = {
+            id: folderId,
+            name: displayName || folderName,
+            type: "folder",
+            folderPath: folderName,
+            children: []
+          };
+          parent.children!.push(folder);
+        }
 
-        // Add files that match this tab_key
-        const matchingFiles = filesByFolder.get(tabKey) || [];
-        matchingFiles.forEach(file => {
-          categoryNode.children!.push({
-            id: `file-${file.document_id || file.id}`,
-            name: file.name,
-            type: "file",
-            file
-          });
+        return getOrCreateFolder(pathParts.slice(1), folder);
+      };
+
+      // Add files to tree based on their folder_path
+      allFiles.forEach(file => {
+        const folderPath = file.folder_path || "";
+        const pathParts = folderPath ? folderPath.split('/').filter(p => p) : [];
+
+        // Get or create the target folder
+        const targetFolder = pathParts.length > 0
+          ? getOrCreateFolder(pathParts, root)
+          : root; // Files with no folder_path go in root
+
+        // Add file to folder
+        targetFolder.children!.push({
+          id: `file-${file.document_id || file.id}`,
+          name: file.name,
+          type: "file",
+          file
         });
+      });
 
-        // Add subcategories
-        if (cat.children) {
-          cat.children.forEach((sub: DocumentCategory) => {
-            const subTabKey = sub.tab_key?.toLowerCase() || `${tabKey}/${sub.name.toLowerCase()}`;
-            usedTabKeys.add(subTabKey);
-
-            const subNode: TreeNode = {
-              id: `cat-${sub.id}`,
-              name: sub.display_name || sub.name,
-              type: "folder",
-              folderPath: subTabKey,
-              icon: sub.icon,
-              color: sub.color,
-              children: []
-            };
-
-            const subFiles = filesByFolder.get(subTabKey) || [];
-            subFiles.forEach(file => {
-              subNode.children!.push({
-                id: `file-${file.document_id || file.id}`,
-                name: file.name,
-                type: "file",
-                file
-              });
-            });
-
-            if (subNode.children!.length > 0) {
-              categoryNode.children!.push(subNode);
-            }
+      // Sort children: folders first (alphabetically), then files (alphabetically)
+      const sortChildren = (node: TreeNode) => {
+        if (node.children) {
+          node.children.sort((a, b) => {
+            if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
+            return a.name.localeCompare(b.name);
           });
+          node.children.filter(c => c.type === "folder").forEach(sortChildren);
         }
+      };
+      sortChildren(root);
 
-        // Only add category if it has files
-        if (categoryNode.children!.length > 0) {
-          tree.push(categoryNode);
-        }
-      });
-
-      // Add uncategorized files to "Documents" catch-all
-      const uncategorizedFiles: LegacyItem[] = [];
-      filesByFolder.forEach((files, path) => {
-        if (!usedTabKeys.has(path)) {
-          uncategorizedFiles.push(...files);
-        }
-      });
-
-      if (uncategorizedFiles.length > 0) {
-        tree.push({
-          id: "uncategorized",
+      // Return root's children (don't show "Root" folder itself)
+      // If no folder structure, files are directly under root
+      if (root.children!.every(c => c.type === "file")) {
+        // All files are in root, wrap in "Documents" folder
+        return [{
+          id: "documents",
           name: "Documents",
           type: "folder",
-          children: uncategorizedFiles.map(file => ({
-            id: `file-${file.document_id || file.id}`,
-            name: file.name,
-            type: "file",
-            file
-          }))
-        });
+          children: root.children
+        }];
       }
 
-      return tree;
+      return root.children || [];
     };
 
     const treeData = buildTree();
