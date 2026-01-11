@@ -226,6 +226,19 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   const [loadingAllFiles, setLoadingAllFiles] = useState(false);
   const [allFilesJobFolderUrl, setAllFilesJobFolderUrl] = useState<string | null>(null);
   const [aiStats, setAiStats] = useState<AIStats | null>(null);
+
+  // Files grouped by folder path (for tree view)
+  const filesByFolder = useMemo(() => {
+    const map = new Map<string, LegacyItem[]>();
+    allFiles.forEach(file => {
+      const path = file.folder_path?.toLowerCase() || "documents";
+      if (!map.has(path)) {
+        map.set(path, []);
+      }
+      map.get(path)!.push(file);
+    });
+    return map;
+  }, [allFiles]);
   const [analyzingDocs, setAnalyzingDocs] = useState(false);
   const [approvingDoc, setApprovingDoc] = useState<number | null>(null);
 
@@ -2565,19 +2578,6 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       icon?: string;
       color?: string;
     }
-
-    // Map files to their folder paths
-    const filesByFolder = useMemo(() => {
-      const map = new Map<string, LegacyItem[]>();
-      allFiles.forEach(file => {
-        const path = file.folder_path?.toLowerCase() || "documents";
-        if (!map.has(path)) {
-          map.set(path, []);
-        }
-        map.get(path)!.push(file);
-      });
-      return map;
-    }, [allFiles]);
 
     // Build tree from categories
     const buildTree = (): TreeNode[] => {
