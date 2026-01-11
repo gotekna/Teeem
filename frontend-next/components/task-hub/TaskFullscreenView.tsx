@@ -2223,6 +2223,38 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   <span className="text-muted-foreground">{format(new Date(task.end_date), 'dd MMM yyyy')}</span>
                 )}
               </div>
+
+              {/* Required By Date */}
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground w-20">Required By:</span>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button className={cn(
+                      "flex items-center gap-1 hover:text-primary transition-colors",
+                      task.is_overdue && task.status !== TASK_STATUS.COMPLETED && "text-red-600 dark:text-red-400"
+                    )}>
+                      <CalendarIcon className={cn(
+                        "h-3 w-3",
+                        task.is_overdue && task.status !== TASK_STATUS.COMPLETED ? "text-red-500" : "text-muted-foreground"
+                      )} />
+                      <span>{task.required_by ? format(new Date(task.required_by), 'dd MMM yyyy') : 'Not set'}</span>
+                      <Pencil className="h-3 w-3 text-muted-foreground" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={task.required_by ? new Date(task.required_by) : undefined}
+                      onSelect={async (date) => {
+                        await updateTask(task.id, {
+                          required_by: date ? format(date, 'yyyy-MM-dd') : undefined
+                        });
+                      }}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
 
             {/* Quick Links */}
