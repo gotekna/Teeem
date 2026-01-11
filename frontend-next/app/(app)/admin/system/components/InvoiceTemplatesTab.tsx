@@ -182,7 +182,7 @@ export function InvoiceTemplatesTab() {
       case "bold":
         return <Badge className="bg-orange-600 text-white">Bold</Badge>;
       case "minimal":
-        return <Badge className="bg-gray-400 text-white">Minimal</Badge>;
+        return <Badge className="bg-muted-foreground text-white">Minimal</Badge>;
       default:
         return <Badge variant="secondary">{styleKey}</Badge>;
     }

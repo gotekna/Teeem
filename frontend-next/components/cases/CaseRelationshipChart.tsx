@@ -191,10 +191,10 @@ function ContactNode({ data }: { data: ContactNodeData }) {
       style={{ borderColor: alignmentStyle.color }}
       onClick={onClick}
     >
-      <Handle type="target" position={Position.Top} className="!bg-gray-400" />
-      <Handle type="target" position={Position.Left} className="!bg-gray-400" />
-      <Handle type="source" position={Position.Bottom} className="!bg-gray-400" />
-      <Handle type="source" position={Position.Right} className="!bg-gray-400" />
+      <Handle type="target" position={Position.Top} className="!bg-border" />
+      <Handle type="target" position={Position.Left} className="!bg-border" />
+      <Handle type="source" position={Position.Bottom} className="!bg-border" />
+      <Handle type="source" position={Position.Right} className="!bg-border" />
 
       <div
         className="px-4 py-3 rounded-t-md flex items-center gap-3"
@@ -229,7 +229,7 @@ function ContactNode({ data }: { data: ContactNodeData }) {
         </div>
       </div>
 
-      <div className="px-4 py-3 space-y-1 bg-white dark:bg-gray-900">
+      <div className="px-4 py-3 space-y-1 bg-white dark:bg-background">
         {email && (
           <div className="text-sm text-muted-foreground truncate">{email}</div>
         )}
@@ -294,7 +294,7 @@ function CompanyGroupNode({ data }: { data: CompanyGroupNodeData }) {
 
   return (
     <div
-      className="min-w-[280px] max-w-[360px] rounded-lg border-2 shadow-lg text-base bg-white dark:bg-gray-900"
+      className="min-w-[280px] max-w-[360px] rounded-lg border-2 shadow-lg text-base bg-white dark:bg-background"
       style={{ borderColor: alignmentStyle.color }}
     >
       <Handle type="target" position={Position.Top} className="!bg-indigo-400" />
@@ -320,7 +320,7 @@ function CompanyGroupNode({ data }: { data: CompanyGroupNodeData }) {
       </div>
 
       {/* Employee list */}
-      <div className="divide-y divide-gray-100 dark:divide-gray-800">
+      <div className="divide-y divide-border dark:divide-border">
         {employees?.map((employee) => {
           const empStyle = RELATIONSHIP_STYLES[employee.relationship_type || ""] || DEFAULT_STYLE;
           const Icon = empStyle.icon;
@@ -328,7 +328,7 @@ function CompanyGroupNode({ data }: { data: CompanyGroupNodeData }) {
           return (
             <div
               key={employee.id}
-              className="px-4 py-2 hover:bg-muted dark:hover:bg-gray-800 cursor-pointer flex items-center gap-3"
+              className="px-4 py-2 hover:bg-muted dark:hover:bg-muted cursor-pointer flex items-center gap-3"
               onClick={(e) => {
                 e.stopPropagation();
                 onEmployeeClick?.(employee.id);
@@ -700,7 +700,7 @@ export default function CaseRelationshipChart({
 
   if (!data || nodes.length === 0) {
     return (
-      <div className="w-full h-[400px] border rounded-lg bg-muted dark:bg-gray-900 flex items-center justify-center">
+      <div className="w-full h-[400px] border rounded-lg bg-muted dark:bg-background flex items-center justify-center">
         <div className="text-center text-muted-foreground">
           <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
           <p>No relationship data available</p>
@@ -712,7 +712,7 @@ export default function CaseRelationshipChart({
 
   return (
     <div
-      className="w-full border rounded-lg bg-muted dark:bg-gray-900"
+      className="w-full border rounded-lg bg-muted dark:bg-background"
       style={{ height: `${chartHeight}px` }}
     >
       <ReactFlow
@@ -749,7 +749,7 @@ export default function CaseRelationshipChart({
       </ReactFlow>
 
       {/* Legend - showing quadrant layout */}
-      <div className="absolute bottom-4 left-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-3 text-xs">
+      <div className="absolute bottom-4 left-4 bg-card rounded-lg shadow-lg p-3 text-xs">
         <div className="font-medium mb-2">Layout Quadrants</div>
         <div className="grid grid-cols-2 gap-2 mb-3">
           <div className="flex items-center gap-1.5">

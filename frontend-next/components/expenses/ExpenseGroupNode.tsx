@@ -69,9 +69,9 @@ export function ExpenseGroupNode({
         className={cn(
           "flex items-center gap-3 py-2.5 px-3 cursor-pointer",
           "border-b border-border dark:border-border",
-          "hover:bg-muted dark:hover:bg-gray-800/50",
+          "hover:bg-muted dark:hover:bg-muted/50",
           "transition-colors",
-          depth === 0 && "bg-muted/50 dark:bg-gray-800/30"
+          depth === 0 && "bg-muted/50 dark:bg-card/30"
         )}
         style={{ paddingLeft: `${indentPx + 12}px` }}
         onClick={() => onToggle(group.key)}
@@ -117,7 +117,7 @@ export function ExpenseGroupNode({
 
           {/* Progress Bar */}
           <div className="w-[120px]">
-            <div className="relative h-2 overflow-hidden rounded-full bg-muted dark:bg-gray-700">
+            <div className="relative h-2 overflow-hidden rounded-full bg-muted dark:bg-muted">
               <div
                 className={cn(
                   "h-full transition-all duration-300 rounded-full",

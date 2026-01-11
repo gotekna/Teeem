@@ -70,7 +70,7 @@ export function ExpensePORow({ po, depth, className }: ExpensePORowProps) {
       className={cn(
         "flex items-center gap-4 py-2 px-3 text-sm",
         "border-b border-border dark:border-border",
-        "hover:bg-muted dark:hover:bg-gray-800/50",
+        "hover:bg-muted dark:hover:bg-muted/50",
         "transition-colors",
         className
       )}
@@ -117,7 +117,7 @@ export function ExpensePORow({ po, depth, className }: ExpensePORowProps) {
             "gap-1 font-normal",
             paymentStatus === "complete" && "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
             paymentStatus === "part_payment" && "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300",
-            paymentStatus === "pending" && "bg-muted text-muted-foreground dark:bg-gray-800 dark:text-muted-foreground",
+            paymentStatus === "pending" && "bg-muted text-muted-foreground dark:bg-card dark:text-muted-foreground",
             paymentStatus === "manual_review" && "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300"
           )}
         >

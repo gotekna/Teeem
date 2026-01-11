@@ -71,7 +71,7 @@ interface TasksData {
 // Status badge component
 const StatusBadge = ({ status }: { status: string }) => {
   const styles = {
-    not_started: "bg-muted dark:bg-gray-700 text-foreground dark:text-muted-foreground",
+    not_started: "bg-muted dark:bg-muted text-foreground dark:text-muted-foreground",
     started: "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300",
     completed: "bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300",
   };
@@ -106,7 +106,7 @@ const TaskCard = ({
   return (
     <div
       onClick={() => onClick(task)}
-      className="bg-white dark:bg-gray-800 rounded-lg border border-border dark:border-border p-4 hover:shadow-md transition-shadow cursor-pointer"
+      className="bg-card rounded-lg border border-border dark:border-border p-4 hover:shadow-md transition-shadow cursor-pointer"
     >
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0">
@@ -240,13 +240,13 @@ const TaskDetailModal = ({
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
         <div
-          className="fixed inset-0 bg-muted0 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-80 transition-opacity"
+          className="fixed inset-0 bg-muted0 bg-opacity-75 dark:bg-background dark:bg-opacity-80 transition-opacity"
           onClick={onClose}
         />
 
-        <div className="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-2xl">
+        <div className="relative transform overflow-hidden rounded-lg bg-card text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-2xl">
           {/* Header */}
-          <div className="bg-white dark:bg-gray-800 px-4 pb-4 pt-5 sm:p-6">
+          <div className="bg-card px-4 pb-4 pt-5 sm:p-6">
             <div className="flex items-start justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-foreground dark:text-white">{task.name}</h3>
@@ -365,7 +365,7 @@ const TaskDetailModal = ({
                         </p>
                       ) : (
                         detail.comments.map((comment) => (
-                          <div key={comment.id} className="bg-muted dark:bg-gray-700 rounded-lg p-3">
+                          <div key={comment.id} className="bg-muted dark:bg-muted rounded-lg p-3">
                             <div className="flex items-center gap-2 text-sm">
                               <span className="font-medium text-foreground dark:text-white">
                                 {comment.author_name}
@@ -387,7 +387,7 @@ const TaskDetailModal = ({
                         value={newComment}
                         onChange={(e) => setNewComment(e.target.value)}
                         placeholder="Add a comment..."
-                        className="flex-1 text-sm border-border dark:border-border dark:bg-gray-700 dark:text-white rounded-md"
+                        className="flex-1 text-sm border-border dark:border-border dark:bg-muted dark:text-white rounded-md"
                         onKeyDown={(e) => e.key === "Enter" && handleAddComment()}
                       />
                       <button
@@ -507,21 +507,21 @@ export default function PortalSchedule() {
       {/* Summary cards */}
       {summary && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-border dark:border-border p-4">
+          <div className="bg-card rounded-lg border border-border dark:border-border p-4">
             <div className="text-2xl font-bold text-foreground dark:text-white">{summary.total}</div>
             <div className="text-sm text-muted-foreground dark:text-muted-foreground">Total Tasks</div>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-border dark:border-border p-4">
+          <div className="bg-card rounded-lg border border-border dark:border-border p-4">
             <div className="text-2xl font-bold text-foreground dark:text-white">
               {summary.not_started}
             </div>
             <div className="text-sm text-muted-foreground dark:text-muted-foreground">Upcoming</div>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-border dark:border-border p-4">
+          <div className="bg-card rounded-lg border border-border dark:border-border p-4">
             <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{summary.started}</div>
             <div className="text-sm text-muted-foreground dark:text-muted-foreground">In Progress</div>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-border dark:border-border p-4">
+          <div className="bg-card rounded-lg border border-border dark:border-border p-4">
             <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               {summary.completed}
             </div>
@@ -536,7 +536,7 @@ export default function PortalSchedule() {
         <select
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          className="text-sm border-border dark:border-border dark:bg-gray-700 dark:text-white rounded-md"
+          className="text-sm border-border dark:border-border dark:bg-muted dark:text-white rounded-md"
         >
           <option value="all">All Tasks</option>
           <option value={TASK_STATUS.NOT_STARTED}>Upcoming</option>
@@ -547,7 +547,7 @@ export default function PortalSchedule() {
 
       {/* Task list */}
       {displayTasks.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-border dark:border-border p-8 text-center text-muted-foreground dark:text-muted-foreground">
+        <div className="bg-card rounded-lg border border-border dark:border-border p-8 text-center text-muted-foreground dark:text-muted-foreground">
           <CalendarDaysIcon className="w-12 h-12 mx-auto mb-2" />
           No tasks found
         </div>

@@ -51,7 +51,7 @@ function getStatusBadge(status: string, message: string) {
   const variants: Record<string, string> = {
     connected: "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300",
     warning: "bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300",
-    disconnected: "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground",
+    disconnected: "bg-muted text-foreground dark:bg-card dark:text-muted-foreground",
     error: "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300",
   };
 

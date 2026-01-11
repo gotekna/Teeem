@@ -182,7 +182,7 @@ export default function PortalSettings() {
                     ${
                       isActive
                         ? "bg-indigo-50 dark:bg-indigo-900/50 border-indigo-500 text-indigo-700 dark:text-indigo-400"
-                        : "border-transparent text-foreground dark:text-muted-foreground hover:bg-muted dark:hover:bg-gray-700 hover:text-foreground dark:hover:text-white"
+                        : "border-transparent text-foreground dark:text-muted-foreground hover:bg-muted dark:hover:bg-muted hover:text-foreground dark:hover:text-white"
                     }
                     group border-l-4 px-3 py-2 flex items-center text-sm font-medium w-full
                   `}
@@ -208,7 +208,7 @@ export default function PortalSettings() {
         <div className="space-y-6 sm:px-6 lg:col-span-9 lg:px-0">
           {/* Profile Section */}
           {activeSection === "profile" && (
-            <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
+            <div className="bg-card shadow rounded-lg">
               <div className="px-4 py-5 sm:p-6">
                 <h3 className="text-lg font-medium leading-6 text-foreground dark:text-white mb-4">
                   Profile Information
@@ -247,7 +247,7 @@ export default function PortalSettings() {
 
           {/* Company Section */}
           {activeSection === "company" && (
-            <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
+            <div className="bg-card shadow rounded-lg">
               <div className="px-4 py-5 sm:p-6">
                 <h3 className="text-lg font-medium leading-6 text-foreground dark:text-white mb-4">
                   Company Information
@@ -289,7 +289,7 @@ export default function PortalSettings() {
 
           {/* Security Section */}
           {activeSection === "security" && (
-            <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
+            <div className="bg-card shadow rounded-lg">
               <div className="px-4 py-5 sm:p-6">
                 <h3 className="text-lg font-medium leading-6 text-foreground dark:text-white mb-4">
                   Security Settings
@@ -298,7 +298,7 @@ export default function PortalSettings() {
                   <div>
                     <button
                       type="button"
-                      className="inline-flex items-center px-4 py-2 border border-border dark:border-border shadow-sm text-sm font-medium rounded-md text-foreground dark:text-muted-foreground bg-white dark:bg-gray-700 hover:bg-muted dark:hover:bg-gray-600"
+                      className="inline-flex items-center px-4 py-2 border border-border dark:border-border shadow-sm text-sm font-medium rounded-md text-foreground dark:text-muted-foreground bg-white dark:bg-muted hover:bg-muted dark:hover:bg-accent"
                     >
                       Change Password
                     </button>
@@ -321,7 +321,7 @@ export default function PortalSettings() {
           {/* Accounting Section */}
           {activeSection === "accounting" && (
             <div className="space-y-6">
-              <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
+              <div className="bg-card shadow rounded-lg">
                 <div className="px-4 py-5 sm:p-6">
                   <h3 className="text-lg font-medium leading-6 text-foreground dark:text-white mb-4">
                     Accounting Integrations
@@ -340,7 +340,7 @@ export default function PortalSettings() {
                           className="flex items-center justify-between p-4 border border-border dark:border-border rounded-lg"
                         >
                           <div className="flex items-center gap-4">
-                            <div className="h-10 w-10 bg-muted dark:bg-gray-700 rounded-lg flex items-center justify-center text-2xl">
+                            <div className="h-10 w-10 bg-muted dark:bg-muted rounded-lg flex items-center justify-center text-2xl">
                               {accountingSystems.find(
                                 (s) => s.key === integration.system_type
                               )?.logo || "📊"}
@@ -391,7 +391,7 @@ export default function PortalSettings() {
                           className="flex items-center justify-between p-4 border border-border dark:border-border rounded-lg hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors"
                         >
                           <div className="flex items-center gap-4">
-                            <div className="h-10 w-10 bg-muted dark:bg-gray-700 rounded-lg flex items-center justify-center text-2xl">
+                            <div className="h-10 w-10 bg-muted dark:bg-muted rounded-lg flex items-center justify-center text-2xl">
                               {system.logo}
                             </div>
                             <div>

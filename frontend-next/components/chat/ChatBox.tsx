@@ -206,7 +206,7 @@ export function ChatBox({
   };
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-gray-900 rounded-lg shadow-lg">
+    <div className="flex flex-col h-full bg-white dark:bg-background rounded-lg shadow-lg">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border dark:border-border">
         <div>
@@ -312,7 +312,7 @@ export function ChatBox({
 
                   {/* Job selector dropdown */}
                   {showJobSelector === message.id && (
-                    <div className="mt-2 p-3 bg-muted dark:bg-gray-800 rounded-lg border border-border dark:border-border">
+                    <div className="mt-2 p-3 bg-muted dark:bg-card rounded-lg border border-border dark:border-border">
                       <p className="text-xs font-medium text-foreground dark:text-muted-foreground mb-2">
                         Select a job to save this message to:
                       </p>

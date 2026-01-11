@@ -63,7 +63,7 @@ function getStatusBadgeColor(status: string): string {
     case "critical":
       return "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300";
     default:
-      return "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground";
+      return "bg-muted text-foreground dark:bg-card dark:text-muted-foreground";
   }
 }
 

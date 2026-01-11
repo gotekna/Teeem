@@ -65,7 +65,7 @@ const STAGE_TO_KANBAN_COLOR: Record<PipelineStage, "default" | "gray" | "blue" |
 const STAGE_HEADER_CLASSES: Record<PipelineStage, string> = {
   needs_pricing: "bg-yellow-100 dark:bg-yellow-900/30",
   needs_drafting: "bg-pink-100 dark:bg-pink-900/30",
-  priced_up: "bg-muted dark:bg-gray-800/50",
+  priced_up: "bg-muted dark:bg-card/50",
   contacted: "bg-blue-100 dark:bg-blue-900/30",
   qualified: "bg-purple-100 dark:bg-purple-900/30",
   contract_sent: "bg-orange-100 dark:bg-orange-900/30",

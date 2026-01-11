@@ -133,7 +133,7 @@ export function ContextualHelpModal({
         </DialogHeader>
 
         {/* Search Bar */}
-        <div className="p-4 border-b border-border dark:border-border bg-muted dark:bg-gray-900">
+        <div className="p-4 border-b border-border dark:border-border bg-muted dark:bg-background">
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
@@ -161,7 +161,7 @@ export function ContextualHelpModal({
                   <button
                     key={idx}
                     onClick={() => handleSearchResultClick(result.chapter)}
-                    className="w-full text-left p-3 bg-white dark:bg-gray-800 rounded-lg border border-border dark:border-border hover:border-indigo-500 dark:hover:border-indigo-400 transition-colors"
+                    className="w-full text-left p-3 bg-card rounded-lg border border-border dark:border-border hover:border-indigo-500 dark:hover:border-indigo-400 transition-colors"
                   >
                     <p className="text-sm font-medium text-foreground dark:text-white">
                       Chapter {result.chapter}: {result.title}
@@ -192,7 +192,7 @@ export function ContextualHelpModal({
         </ScrollArea>
 
         {/* Footer */}
-        <div className="flex items-center justify-between p-6 border-t border-border dark:border-border bg-muted dark:bg-gray-900">
+        <div className="flex items-center justify-between p-6 border-t border-border dark:border-border bg-muted dark:bg-background">
           <Button
             variant="link"
             onClick={handleOpenFullHelp}

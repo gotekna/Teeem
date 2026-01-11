@@ -107,7 +107,7 @@ const CHECKBOX_CONFIGS: Record<string, CheckboxConfig> = {
     field: 'is_completed',
     label: 'Complete',
     color: {
-      checked: 'bg-gray-700 border-border',
+      checked: 'bg-muted-foreground border-border',
       unchecked: 'border-border',
     },
   },

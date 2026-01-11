@@ -505,7 +505,7 @@ export default function RequestPaymentModal({
                       </button>
                       <button
                         type="button"
-                        className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-foreground shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-muted sm:col-start-1 sm:mt-0"
+                        className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-foreground shadow-sm ring-1 ring-inset ring-border hover:bg-muted sm:col-start-1 sm:mt-0"
                         onClick={onClose}
                       >
                         Cancel

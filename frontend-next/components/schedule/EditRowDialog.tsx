@@ -1417,7 +1417,7 @@ export function EditRowDialog({
               {editRowForm.name} • {editRowForm.claim_percentage}% of contract
             </DialogDescription>
           </DialogHeader>
-          <div className="flex-1 overflow-auto p-6 bg-muted dark:bg-gray-900">
+          <div className="flex-1 overflow-auto p-6 bg-muted dark:bg-background">
             {templatePreviewHtml ? (
               <div className="bg-white rounded-lg shadow-lg mx-auto" style={{ maxWidth: "800px" }}>
                 <div dangerouslySetInnerHTML={{ __html: templatePreviewHtml }} />

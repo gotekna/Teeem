@@ -213,7 +213,7 @@ export default function PortalInvoices() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
-        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+        <div className="bg-card overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
               <div className="flex-shrink-0">
@@ -233,7 +233,7 @@ export default function PortalInvoices() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+        <div className="bg-card overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
               <div className="flex-shrink-0">
@@ -253,7 +253,7 @@ export default function PortalInvoices() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+        <div className="bg-card overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
               <div className="flex-shrink-0">
@@ -301,7 +301,7 @@ export default function PortalInvoices() {
                   ${
                     isActive
                       ? "bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400"
-                      : "bg-muted dark:bg-gray-700 text-muted-foreground dark:text-muted-foreground"
+                      : "bg-muted dark:bg-muted text-muted-foreground dark:text-muted-foreground"
                   }
                 `}
                 >
@@ -315,7 +315,7 @@ export default function PortalInvoices() {
 
       {/* Invoice List */}
       {currentInvoices.length === 0 ? (
-        <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg shadow">
+        <div className="text-center py-12 bg-card rounded-lg shadow">
           <DocumentDuplicateIcon className="mx-auto h-12 w-12 text-muted-foreground dark:text-muted-foreground" />
           <h3 className="mt-2 text-sm font-medium text-foreground dark:text-white">No invoices</h3>
           <p className="mt-1 text-sm text-muted-foreground dark:text-muted-foreground">
@@ -323,10 +323,10 @@ export default function PortalInvoices() {
           </p>
         </div>
       ) : (
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
+        <div className="bg-card shadow rounded-lg overflow-hidden">
           <div className="overflow-x-auto">
             <Table className="min-w-full">
-              <TableHeader className="bg-muted dark:bg-gray-700">
+              <TableHeader className="bg-muted dark:bg-muted">
                 <TableRow>
                   <TableHead className="px-6 py-3 text-left text-xs font-medium text-muted-foreground dark:text-muted-foreground uppercase tracking-wider">
                     PO Number
@@ -351,9 +351,9 @@ export default function PortalInvoices() {
                   </TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+              <TableBody className="bg-card divide-y divide-border dark:divide-border">
                 {currentInvoices.map((invoice) => (
-                  <TableRow key={invoice.id} className="hover:bg-muted dark:hover:bg-gray-700">
+                  <TableRow key={invoice.id} className="hover:bg-muted dark:hover:bg-muted">
                     <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium text-foreground dark:text-white">
                       {invoice.po_number}
                     </TableCell>

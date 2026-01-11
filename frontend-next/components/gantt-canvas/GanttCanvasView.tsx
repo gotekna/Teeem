@@ -3515,7 +3515,7 @@ export function GanttCanvasView({
                                 e.stopPropagation();
                                 handleCompleteTask(task, !isComplete);
                               }}
-                              className="h-3.5 w-3.5 rounded border-border text-foreground focus:ring-gray-500 cursor-pointer"
+                              className="h-3.5 w-3.5 rounded border-border text-foreground focus:ring-border cursor-pointer"
                               title={isComplete ? 'Task is complete - click to uncomplete' : 'Mark task as complete'}
                             />
                           </div>
@@ -3532,7 +3532,7 @@ export function GanttCanvasView({
                     <div
                       key={task.id}
                       className={cn(
-                        "flex items-center border-b text-xs hover:bg-muted dark:hover:bg-gray-700 px-2 cursor-pointer",
+                        "flex items-center border-b text-xs hover:bg-muted dark:hover:bg-muted px-2 cursor-pointer",
                         isSelected
                           ? "bg-blue-600 dark:bg-blue-600"
                           : inSelectedGroup
@@ -4242,7 +4242,7 @@ export function GanttCanvasView({
                             key={task.id}
                             className={`p-1.5 rounded border transition-opacity duration-200 ${
                               isFaded
-                                ? 'opacity-30 bg-muted dark:bg-gray-900/20 border-border dark:border-border'
+                                ? 'opacity-30 bg-muted dark:bg-background/20 border-border dark:border-border'
                                 : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'
                             }`}
                           >
@@ -4254,7 +4254,7 @@ export function GanttCanvasView({
                                 task.supplier_confirm ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'
                                 : task.finance_approved ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
                                 : task.confirm ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
-                                : 'bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground'
+                                : 'bg-muted text-foreground dark:bg-card dark:text-muted-foreground'
                               }`}>
                                 {lockType}
                               </span>
@@ -4282,7 +4282,7 @@ export function GanttCanvasView({
                                   </div>
                                 </label>
 
-                                <label className={`flex items-center gap-1 px-1.5 py-0.5 rounded flex-1 border ${!canUnlock ? 'cursor-not-allowed bg-muted dark:bg-gray-800 border-border dark:border-border opacity-50' : decision === 'cascade' ? 'cursor-pointer bg-green-100 dark:bg-green-900/50 border-green-300 dark:border-green-700' : 'cursor-pointer bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800'}`}>
+                                <label className={`flex items-center gap-1 px-1.5 py-0.5 rounded flex-1 border ${!canUnlock ? 'cursor-not-allowed bg-muted dark:bg-card border-border dark:border-border opacity-50' : decision === 'cascade' ? 'cursor-pointer bg-green-100 dark:bg-green-900/50 border-green-300 dark:border-green-700' : 'cursor-pointer bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800'}`}>
                                   <input
                                     type="checkbox"
                                     checked={decision === 'cascade'}

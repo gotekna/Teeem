@@ -107,8 +107,8 @@ function PersonNode({ data }: { data: PersonNodeData }) {
       onClick={onClick}
     >
       {/* Connection handles */}
-      <Handle type="target" position={Position.Top} className="!bg-gray-400" />
-      <Handle type="source" position={Position.Bottom} className="!bg-gray-400" />
+      <Handle type="target" position={Position.Top} className="!bg-border" />
+      <Handle type="source" position={Position.Bottom} className="!bg-border" />
 
       {/* Header */}
       <div className={cn(
@@ -172,7 +172,7 @@ function EntityNode({ data }: { data: EntityNodeData }) {
       case "person":
         return "bg-amber-50 border-amber-300 dark:bg-amber-950/30 dark:border-amber-700";
       default:
-        return "bg-muted border-border dark:bg-gray-950/30 dark:border-border";
+        return "bg-muted border-border dark:bg-background/30 dark:border-border";
     }
   };
 
@@ -219,8 +219,8 @@ function EntityNode({ data }: { data: EntityNodeData }) {
       onClick={onClick}
     >
       {/* Connection handles */}
-      <Handle type="target" position={Position.Top} className="!bg-gray-400" />
-      <Handle type="source" position={Position.Bottom} className="!bg-gray-400" />
+      <Handle type="target" position={Position.Top} className="!bg-border" />
+      <Handle type="source" position={Position.Bottom} className="!bg-border" />
 
       {/* Header */}
       <div className={cn(
@@ -654,7 +654,7 @@ export default function CorporateStructureChart({
   return (
     <div
       className={cn(
-        "w-full bg-muted dark:bg-gray-900",
+        "w-full bg-muted dark:bg-background",
         fullscreen ? "h-full" : "border rounded-lg"
       )}
       style={{ height: chartHeight }}

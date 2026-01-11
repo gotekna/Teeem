@@ -137,9 +137,9 @@ export default function PortalQuotes() {
       case "accepted":
         return "bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300";
       case "rejected":
-        return "bg-muted dark:bg-gray-700 text-foreground dark:text-muted-foreground";
+        return "bg-muted dark:bg-muted text-foreground dark:text-muted-foreground";
       default:
-        return "bg-muted dark:bg-gray-700 text-foreground dark:text-muted-foreground";
+        return "bg-muted dark:bg-muted text-foreground dark:text-muted-foreground";
     }
   };
 
@@ -201,7 +201,7 @@ export default function PortalQuotes() {
                   ${
                     isActive
                       ? `bg-${tab.color}-100 dark:bg-${tab.color}-900/50 text-${tab.color}-600 dark:text-${tab.color}-400`
-                      : "bg-muted dark:bg-gray-700 text-muted-foreground dark:text-muted-foreground"
+                      : "bg-muted dark:bg-muted text-muted-foreground dark:text-muted-foreground"
                   }
                 `}
                 >
@@ -215,7 +215,7 @@ export default function PortalQuotes() {
 
       {/* Quote List */}
       {currentQuotes.length === 0 ? (
-        <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg shadow">
+        <div className="text-center py-12 bg-card rounded-lg shadow">
           <DocumentTextIcon className="mx-auto h-12 w-12 text-muted-foreground dark:text-muted-foreground" />
           <h3 className="mt-2 text-sm font-medium text-foreground dark:text-white">
             No {activeTab} quotes
@@ -227,10 +227,10 @@ export default function PortalQuotes() {
           </p>
         </div>
       ) : (
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
-          <ul role="list" className="divide-y divide-gray-200 dark:divide-gray-700">
+        <div className="bg-card shadow rounded-lg overflow-hidden">
+          <ul role="list" className="divide-y divide-border dark:divide-border">
             {currentQuotes.map((quote) => (
-              <li key={quote.quote_request.id} className="hover:bg-muted dark:hover:bg-gray-700">
+              <li key={quote.quote_request.id} className="hover:bg-muted dark:hover:bg-muted">
                 <Link
                   href={`/portal/quotes/${quote.quote_request.id}`}
                   className="block px-4 py-4 sm:px-6"

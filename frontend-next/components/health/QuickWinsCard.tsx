@@ -124,7 +124,7 @@ export function QuickWinsCard({ quickWins, onFix, loading }: QuickWinsCardProps)
           <div
             key={quickWin.id}
             className={cn(
-              "flex items-center justify-between p-3 rounded-lg bg-white/60 dark:bg-gray-900/40 border border-orange-100 dark:border-orange-900/50 transition-all",
+              "flex items-center justify-between p-3 rounded-lg bg-white/60 dark:bg-background/40 border border-orange-100 dark:border-orange-900/50 transition-all",
               justFixed === quickWin.id && "opacity-50 scale-95"
             )}
           >

@@ -252,7 +252,7 @@ export default function CorporateStructurePage() {
                     };
                     const colorClass =
                       roleColors[role.type] ||
-                      "bg-muted text-foreground dark:bg-gray-900/30";
+                      "bg-muted text-foreground dark:bg-background/30";
 
                     return (
                       <Badge key={idx} className={colorClass}>

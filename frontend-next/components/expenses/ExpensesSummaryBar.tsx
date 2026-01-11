@@ -133,7 +133,7 @@ export function ExpensesSummaryBar({
       {totalBudget > 0 && (
         <div className="flex items-center gap-3">
           <div className="flex-1">
-            <div className="relative h-3 overflow-hidden rounded-full bg-muted dark:bg-gray-700">
+            <div className="relative h-3 overflow-hidden rounded-full bg-muted dark:bg-muted">
               <div
                 className={cn(
                   "h-full transition-all duration-500 rounded-full",

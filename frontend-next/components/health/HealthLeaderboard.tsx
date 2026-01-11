@@ -168,7 +168,7 @@ export function HealthLeaderboard({
                         "w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium",
                         entry.isCurrentUser
                           ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
-                          : "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground"
+                          : "bg-muted text-foreground dark:bg-card dark:text-muted-foreground"
                       )}>
                         {entry.name.charAt(0).toUpperCase()}
                       </div>

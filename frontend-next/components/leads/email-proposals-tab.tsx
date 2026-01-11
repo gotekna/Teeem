@@ -179,7 +179,7 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
         label: "Rejected",
       },
       error: {
-        className: "bg-muted text-foreground dark:bg-gray-900/30 dark:text-muted-foreground",
+        className: "bg-muted text-foreground dark:bg-background/30 dark:text-muted-foreground",
         icon: AlertTriangle,
         label: "Error",
       },
@@ -198,7 +198,7 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
 
   const getConfidenceBadge = (score: number) => {
     const percentage = Math.round(score * 100);
-    let className = "bg-muted text-foreground dark:bg-gray-900/30 dark:text-muted-foreground";
+    let className = "bg-muted text-foreground dark:bg-background/30 dark:text-muted-foreground";
 
     if (percentage >= 80) {
       className = "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";

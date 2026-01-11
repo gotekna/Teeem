@@ -222,7 +222,7 @@ export default function PermissionsPage() {
             </div>
           </div>
 
-          <div className="divide-y divide-gray-200 max-h-[600px] overflow-y-auto">
+          <div className="divide-y divide-border max-h-[600px] overflow-y-auto">
             {filteredUsers.map((user) => (
               <button
                 key={user.id}
@@ -286,7 +286,7 @@ export default function PermissionsPage() {
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 bg-gray-300 rounded"></div>
+                      <div className="w-4 h-4 bg-muted rounded"></div>
                       <span className="text-foreground">
                         Permission not granted
                       </span>

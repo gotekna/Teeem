@@ -145,7 +145,7 @@ const getRoleBadgeClasses = (color: string) => {
     purple: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
     pink: "bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-400",
     teal: "bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400",
-    gray: "bg-muted text-foreground dark:bg-gray-900/30 dark:text-muted-foreground",
+    gray: "bg-muted text-foreground dark:bg-background/30 dark:text-muted-foreground",
   };
   return colorMap[color] || colorMap.gray;
 };

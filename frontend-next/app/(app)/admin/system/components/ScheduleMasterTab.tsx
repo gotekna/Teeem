@@ -3956,7 +3956,7 @@ export function ScheduleMasterTab() {
               {editRowForm.name} • {editRowForm.claim_percentage}% of contract
             </DialogDescription>
           </DialogHeader>
-          <div className="flex-1 overflow-auto p-6 bg-muted dark:bg-gray-900">
+          <div className="flex-1 overflow-auto p-6 bg-muted dark:bg-background">
             {templatePreviewHtml && (
               <div className="bg-white rounded-lg shadow-lg mx-auto" style={{ maxWidth: "800px" }}>
                 <div dangerouslySetInnerHTML={{ __html: templatePreviewHtml }} />
@@ -4304,14 +4304,14 @@ export function ScheduleMasterTab() {
                   return (
                     <div key={task.id} className={depth > 0 ? 'ml-4 border-l-2 border-orange-200 dark:border-orange-700 pl-2' : ''}>
                       <div
-                        className={`p-1.5 rounded border mb-1 ${disabledByAncestor ? 'opacity-40 bg-muted dark:bg-gray-800 border-border dark:border-border' : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'}`}
+                        className={`p-1.5 rounded border mb-1 ${disabledByAncestor ? 'opacity-40 bg-muted dark:bg-card border-border dark:border-border' : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'}`}
                       >
                         <div className="flex items-center gap-1 text-[10px] mb-1">
                           <span className="font-medium truncate flex-1">#{task.task_number} {task.name}</span>
                           <span className={`px-1 py-0.5 rounded text-[9px] whitespace-nowrap ${
                             task.supplier_confirm ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'
                             : task.confirm ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
-                            : 'bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground'
+                            : 'bg-muted text-foreground dark:bg-card dark:text-muted-foreground'
                           }`}>
                             {lockType}
                           </span>
@@ -4336,7 +4336,7 @@ export function ScheduleMasterTab() {
                             </label>
 
                             <label
-                              className={`flex flex-col px-1.5 py-0.5 rounded flex-1 border ${!canUnlock ? 'cursor-not-allowed bg-muted dark:bg-gray-800 border-border dark:border-border opacity-50' : decision === 'cascade' ? 'cursor-pointer bg-green-100 dark:bg-green-900/50 border-green-300 dark:border-green-700' : 'cursor-pointer bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800'}`}
+                              className={`flex flex-col px-1.5 py-0.5 rounded flex-1 border ${!canUnlock ? 'cursor-not-allowed bg-muted dark:bg-card border-border dark:border-border opacity-50' : decision === 'cascade' ? 'cursor-pointer bg-green-100 dark:bg-green-900/50 border-green-300 dark:border-green-700' : 'cursor-pointer bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800'}`}
                               title={canUnlock ? `Will remove ${lockType.toLowerCase()} confirmation and cascade as per dependencies` : 'Completed tasks cannot be cascaded'}
                             >
                               <div className="flex items-center gap-1">

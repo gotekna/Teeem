@@ -280,9 +280,9 @@ export function PositionedSigningStep({
       </div>
 
       {/* PDF Viewer with overlays */}
-      <div className="flex-1 relative border rounded-lg overflow-hidden bg-muted dark:bg-gray-800">
+      <div className="flex-1 relative border rounded-lg overflow-hidden bg-muted dark:bg-card">
         {/* Controls */}
-        <div className="absolute top-2 left-2 right-2 z-10 flex items-center justify-between bg-white/90 dark:bg-gray-900/90 rounded-lg p-2 shadow-sm">
+        <div className="absolute top-2 left-2 right-2 z-10 flex items-center justify-between bg-white/90 dark:bg-background/90 rounded-lg p-2 shadow-sm">
           <div className="flex items-center gap-1">
             <Button
               variant="ghost"

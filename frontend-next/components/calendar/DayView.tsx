@@ -75,7 +75,7 @@ export function DayView() {
       case "started":
         return "border-blue-500 bg-blue-50 dark:bg-blue-950/20";
       default:
-        return "border-border bg-muted dark:bg-gray-800/50";
+        return "border-border bg-muted dark:bg-card/50";
     }
   };
 
@@ -203,7 +203,7 @@ export function DayView() {
 
                     {/* Progress bar */}
                     <div className="flex items-center gap-2">
-                      <div className="w-16 h-1.5 bg-muted dark:bg-gray-700 rounded-full overflow-hidden">
+                      <div className="w-16 h-1.5 bg-muted dark:bg-muted rounded-full overflow-hidden">
                         <div
                           className={cn(
                             "h-full rounded-full",
@@ -211,7 +211,7 @@ export function DayView() {
                               ? "bg-green-500"
                               : event.status === "started"
                               ? "bg-blue-500"
-                              : "bg-gray-400"
+                              : "bg-muted-foreground"
                           )}
                           style={{ width: `${event.progress_percentage}%` }}
                         />

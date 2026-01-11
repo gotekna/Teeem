@@ -480,7 +480,7 @@ function XeroSyncStatusCard({
     connected: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800",
     warning: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800",
     error: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800",
-    disconnected: "bg-muted dark:bg-gray-900/30 text-foreground dark:text-muted-foreground border-border dark:border-border",
+    disconnected: "bg-muted dark:bg-background/30 text-foreground dark:text-muted-foreground border-border dark:border-border",
   };
 
   const statusIcon = {

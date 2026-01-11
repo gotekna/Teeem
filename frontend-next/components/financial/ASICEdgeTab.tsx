@@ -172,11 +172,11 @@ export default function ASICEdgeTab() {
       case "Annual":
         return "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300";
       case "Notifications":
-        return "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground";
+        return "bg-muted text-foreground dark:bg-card dark:text-muted-foreground";
       case "Deregistration":
         return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300";
       default:
-        return "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground";
+        return "bg-muted text-foreground dark:bg-card dark:text-muted-foreground";
     }
   };
 

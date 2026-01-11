@@ -503,7 +503,7 @@ export function CaseQATab({
               ? "border-l-blue-500"
               : processingStatus.status === "failed"
               ? "border-l-red-500"
-              : "border-l-gray-300"
+              : "border-l-border"
           )}
         >
           <CardContent className="py-4">

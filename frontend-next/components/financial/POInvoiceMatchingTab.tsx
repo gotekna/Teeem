@@ -254,7 +254,7 @@ export default function POInvoiceMatchingTab() {
       );
     }
     return (
-      <Badge className="bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground">
+      <Badge className="bg-muted text-foreground dark:bg-card dark:text-muted-foreground">
         {confidence}%
       </Badge>
     );

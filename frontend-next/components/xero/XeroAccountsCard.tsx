@@ -236,7 +236,7 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
             Active
           </Badge>
         ) : (
-          <Badge variant="outline" className="bg-muted text-muted-foreground dark:bg-gray-900/20 dark:text-muted-foreground">
+          <Badge variant="outline" className="bg-muted text-muted-foreground dark:bg-background/20 dark:text-muted-foreground">
             Inactive
           </Badge>
         );

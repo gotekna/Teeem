@@ -81,7 +81,7 @@ export function ATOSetupCard({ company }: ATOSetupCardProps) {
               variant="outline"
               className={company.gst_registration_status === "registered"
                 ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                : "bg-muted text-muted-foreground dark:bg-gray-800 dark:text-muted-foreground"
+                : "bg-muted text-muted-foreground dark:bg-card dark:text-muted-foreground"
               }
             >
               {company.gst_registration_status === "registered" ? "Registered" : "Not Registered"}

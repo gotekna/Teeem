@@ -605,7 +605,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       case "signed":
         return { label: "Signed", className: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" };
       case "superseded":
-        return { label: "Superseded", className: "bg-muted text-muted-foreground dark:bg-gray-900/30 dark:text-muted-foreground" };
+        return { label: "Superseded", className: "bg-muted text-muted-foreground dark:bg-background/30 dark:text-muted-foreground" };
       default:
         return null;
     }

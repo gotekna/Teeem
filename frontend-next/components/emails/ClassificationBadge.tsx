@@ -83,7 +83,7 @@ const CLASSIFICATION_CONFIG: Record<
     label: "Notification",
     shortLabel: "Notif",
     icon: Mail,
-    className: "bg-muted text-foreground dark:bg-gray-800/50 dark:text-muted-foreground",
+    className: "bg-muted text-foreground dark:bg-card/50 dark:text-muted-foreground",
   },
 };
 

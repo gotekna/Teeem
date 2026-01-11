@@ -136,7 +136,7 @@ export function JobExpensesTab({ jobId }: JobExpensesTabProps) {
         <RadioGroup
           value={groupingMode}
           onValueChange={handleGroupingChange}
-          className="flex items-center gap-4 px-3 py-1.5 border rounded-md bg-white dark:bg-gray-800"
+          className="flex items-center gap-4 px-3 py-1.5 border rounded-md bg-card"
         >
           <div className="flex items-center gap-2">
             <RadioGroupItem value="stage-trade" id="expense-stage-trade" />

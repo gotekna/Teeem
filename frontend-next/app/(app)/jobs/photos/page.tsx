@@ -380,7 +380,7 @@ export default function JobPhotosPage() {
               <PopoverContent className="w-44 p-2" align="start">
                 <div className="space-y-1">
                   {allJobTypes.map(type => (
-                    <label key={type.id} className="flex items-center gap-2 px-2 py-1 hover:bg-muted dark:hover:bg-gray-800 rounded cursor-pointer">
+                    <label key={type.id} className="flex items-center gap-2 px-2 py-1 hover:bg-muted dark:hover:bg-muted rounded cursor-pointer">
                       <Checkbox
                         checked={selectedJobTypeIds.includes(type.id)}
                         onCheckedChange={() => toggleJobType(type.id)}
@@ -403,7 +403,7 @@ export default function JobPhotosPage() {
               <PopoverContent className="w-52 p-2 max-h-64 overflow-y-auto" align="start">
                 <div className="space-y-1">
                   {allSupervisors.map(name => (
-                    <label key={name} className="flex items-center gap-2 px-2 py-1 hover:bg-muted dark:hover:bg-gray-800 rounded cursor-pointer">
+                    <label key={name} className="flex items-center gap-2 px-2 py-1 hover:bg-muted dark:hover:bg-muted rounded cursor-pointer">
                       <Checkbox
                         checked={selectedSupervisors.includes(name)}
                         onCheckedChange={() => toggleSupervisor(name)}
@@ -416,7 +416,7 @@ export default function JobPhotosPage() {
             </Popover>
 
             {/* Divider */}
-            <div className="h-5 w-px bg-gray-300 dark:bg-gray-700 mx-1" />
+            <div className="h-5 w-px bg-muted dark:bg-muted mx-1" />
 
             {/* Status Toggle Buttons */}
             {allStatuses.map(status => {
@@ -429,7 +429,7 @@ export default function JobPhotosPage() {
                     "cursor-pointer transition-colors text-xs px-2 py-0.5",
                     isSelected
                       ? "bg-blue-600 hover:bg-blue-700 text-white"
-                      : "hover:bg-muted dark:hover:bg-gray-800"
+                      : "hover:bg-muted dark:hover:bg-muted"
                   )}
                   onClick={() => toggleStatus(status.id)}
                 >
@@ -479,7 +479,7 @@ export default function JobPhotosPage() {
                 <div key={supervisor}>
                   <button
                     onClick={() => toggleSupervisorExpanded(supervisor)}
-                    className="flex items-center gap-2 w-full py-1.5 px-2 hover:bg-muted dark:hover:bg-gray-800 rounded text-left"
+                    className="flex items-center gap-2 w-full py-1.5 px-2 hover:bg-muted dark:hover:bg-muted rounded text-left"
                   >
                     {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                     <User className="h-4 w-4 text-muted-foreground" />

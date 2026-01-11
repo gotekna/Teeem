@@ -71,7 +71,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   construction: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400",
   board: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
   safety: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-  team: "bg-muted text-foreground dark:bg-gray-700 dark:text-muted-foreground",
+  team: "bg-muted text-foreground dark:bg-muted dark:text-muted-foreground",
 };
 
 export default function MeetingTypesPage() {

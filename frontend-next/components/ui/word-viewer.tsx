@@ -162,7 +162,7 @@ export function WordViewer({
       {/* Document Content */}
       <div
         ref={contentRef}
-        className="flex-1 overflow-auto p-6 bg-white dark:bg-gray-900"
+        className="flex-1 overflow-auto p-6 bg-white dark:bg-background"
       >
         <div className="max-w-3xl mx-auto prose prose-sm dark:prose-invert">
           {data.html ? (

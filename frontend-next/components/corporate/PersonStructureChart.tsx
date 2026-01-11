@@ -60,7 +60,7 @@ function PersonNode({ data }: { data: { label: string; email?: string | null; is
     <div className={`rounded-lg border-2 shadow-lg bg-amber-50 border-amber-300 dark:bg-amber-950/30 dark:border-amber-700 ${
       isFullscreen ? "min-w-[280px] max-w-[350px]" : "min-w-[200px] max-w-[280px]"
     }`}>
-      <Handle type="source" position={Position.Right} className="!bg-gray-400" />
+      <Handle type="source" position={Position.Right} className="!bg-border" />
 
       {/* Header */}
       <div className={`rounded-t-md flex items-center gap-3 bg-amber-100 dark:bg-amber-900/50 ${
@@ -148,8 +148,8 @@ function CompanyNode({ data }: { data: CompanyNodeData }) {
       } ${getBackgroundColor()}`}
       onClick={onClick}
     >
-      <Handle type="target" position={Position.Left} className="!bg-gray-400" />
-      <Handle type="source" position={Position.Right} className="!bg-gray-400" />
+      <Handle type="target" position={Position.Left} className="!bg-border" />
+      <Handle type="source" position={Position.Right} className="!bg-border" />
 
       {/* Header */}
       <div className={`rounded-t-md flex items-center gap-2 ${
@@ -476,14 +476,14 @@ export default function PersonStructureChart({
 
   if (ownershipChain.length === 0 && directorRoles.length === 0) {
     return (
-      <div className={`w-full ${fullscreen ? "h-full" : "h-[200px]"} border rounded-lg bg-muted dark:bg-gray-900 flex items-center justify-center text-muted-foreground`}>
+      <div className={`w-full ${fullscreen ? "h-full" : "h-[200px]"} border rounded-lg bg-muted dark:bg-background flex items-center justify-center text-muted-foreground`}>
         No ownership or director data available
       </div>
     );
   }
 
   return (
-    <div className={`w-full ${fullscreen ? "h-full" : ""} ${fullscreen ? "" : "border rounded-lg"} bg-muted dark:bg-gray-900 overflow-hidden`}>
+    <div className={`w-full ${fullscreen ? "h-full" : ""} ${fullscreen ? "" : "border rounded-lg"} bg-muted dark:bg-background overflow-hidden`}>
       <ReactFlowProvider>
         <ChartWithControls
           nodes={nodes}
@@ -568,7 +568,7 @@ function ChartWithControls({
       <div className="absolute top-2 left-2 right-2 z-10 flex items-center justify-between">
         {/* Left side - Filter checkboxes */}
         {showFilters ? (
-          <div className="flex items-center gap-4 bg-white/90 dark:bg-gray-800/90 rounded-md px-3 py-1.5 shadow-sm">
+          <div className="flex items-center gap-4 bg-white/90 dark:bg-card/90 rounded-md px-3 py-1.5 shadow-sm">
             {hasDirectorRoles && (
               <div className="flex items-center gap-2">
                 <Checkbox

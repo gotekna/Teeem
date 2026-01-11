@@ -275,7 +275,7 @@ export default function BpmnProcessesPage() {
       case "failed":
         return "bg-red-500";
       default:
-        return "bg-gray-400";
+        return "bg-muted-foreground";
     }
   };
 
@@ -318,7 +318,7 @@ export default function BpmnProcessesPage() {
       active: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
       completed: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
       failed: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
-      cancelled: "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground",
+      cancelled: "bg-muted text-foreground dark:bg-card dark:text-muted-foreground",
       suspended: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300",
     };
     return (

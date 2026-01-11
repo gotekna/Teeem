@@ -299,7 +299,7 @@ function GroupsSubTab() {
                       className={cn(
                         group.active !== false
                           ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
-                          : "bg-muted text-foreground dark:bg-gray-900 dark:text-muted-foreground"
+                          : "bg-muted text-foreground dark:bg-background dark:text-muted-foreground"
                       )}
                     >
                       {group.active !== false ? "Active" : "Inactive"}

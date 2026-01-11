@@ -198,9 +198,9 @@ export default function PortalPayNow() {
       approved: "bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300",
       paid: "bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300",
       rejected: "bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300",
-      cancelled: "bg-muted dark:bg-gray-700 text-foreground dark:text-muted-foreground",
+      cancelled: "bg-muted dark:bg-muted text-foreground dark:text-muted-foreground",
     };
-    return classes[status] || "bg-muted dark:bg-gray-700 text-foreground dark:text-muted-foreground";
+    return classes[status] || "bg-muted dark:bg-muted text-foreground dark:text-muted-foreground";
   };
 
   const formatCurrency = (amount: number | string): string => {
@@ -254,7 +254,7 @@ export default function PortalPayNow() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+        <div className="bg-card overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
               <div className="flex-shrink-0">
@@ -274,7 +274,7 @@ export default function PortalPayNow() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+        <div className="bg-card overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
               <div className="flex-shrink-0">
@@ -294,7 +294,7 @@ export default function PortalPayNow() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+        <div className="bg-card overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
               <div className="flex-shrink-0">
@@ -314,7 +314,7 @@ export default function PortalPayNow() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+        <div className="bg-card overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
               <div className="flex-shrink-0">
@@ -423,7 +423,7 @@ export default function PortalPayNow() {
                     ${
                       isActive
                         ? "bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400"
-                        : "bg-muted dark:bg-gray-700 text-foreground dark:text-muted-foreground"
+                        : "bg-muted dark:bg-muted text-foreground dark:text-muted-foreground"
                     }
                     hidden ml-3 py-0.5 px-2.5 rounded-full text-xs font-medium md:inline-block
                   `}
@@ -438,7 +438,7 @@ export default function PortalPayNow() {
       </div>
 
       {/* Requests List */}
-      <div className="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-md">
+      <div className="bg-card shadow overflow-hidden sm:rounded-md">
         {currentRequests.length === 0 ? (
           <div className="text-center py-12">
             <BanknotesIcon className="mx-auto h-12 w-12 text-muted-foreground dark:text-muted-foreground" />
@@ -463,11 +463,11 @@ export default function PortalPayNow() {
             )}
           </div>
         ) : (
-          <ul className="divide-y divide-gray-200 dark:divide-gray-700">
+          <ul className="divide-y divide-border dark:divide-border">
             {currentRequests.map((request) => (
               <li key={request.id}>
                 <div
-                  className="px-4 py-4 sm:px-6 hover:bg-muted dark:hover:bg-gray-700 cursor-pointer"
+                  className="px-4 py-4 sm:px-6 hover:bg-muted dark:hover:bg-muted cursor-pointer"
                   onClick={() => handleViewDetails(request)}
                 >
                   <div className="flex items-center justify-between">

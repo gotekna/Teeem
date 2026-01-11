@@ -1056,7 +1056,7 @@ export default function CorporateDashboardPage() {
       case "trust":
         return "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300";
       default:
-        return "bg-muted text-foreground dark:bg-gray-900/30 dark:text-muted-foreground";
+        return "bg-muted text-foreground dark:bg-background/30 dark:text-muted-foreground";
     }
   };
 
@@ -1070,7 +1070,7 @@ export default function CorporateDashboardPage() {
       case "trust_entity":
         return "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300";
       default:
-        return "bg-muted text-foreground dark:bg-gray-900/30 dark:text-muted-foreground";
+        return "bg-muted text-foreground dark:bg-background/30 dark:text-muted-foreground";
     }
   };
 
@@ -1666,7 +1666,7 @@ export default function CorporateDashboardPage() {
 
           {/* Full Screen Person Structure Overlay */}
           {fullScreenPerson && (
-            <div className="fixed inset-0 z-50 bg-white dark:bg-gray-900 flex flex-col">
+            <div className="fixed inset-0 z-50 bg-white dark:bg-background flex flex-col">
               {/* Floating action buttons in top-right corner */}
               <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
                 <Button

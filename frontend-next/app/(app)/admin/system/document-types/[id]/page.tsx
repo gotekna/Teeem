@@ -1722,7 +1722,7 @@ export default function DocumentTypeDetailPage() {
                       // Text tokens - white/gray draggable badge with editable text
                       <Badge
                         variant="outline"
-                        className="font-mono text-xs px-2 py-1.5 select-none bg-white dark:bg-gray-800 border-border dark:border-border cursor-grab active:cursor-grabbing"
+                        className="font-mono text-xs px-2 py-1.5 select-none bg-card border-border dark:border-border cursor-grab active:cursor-grabbing"
                       >
                         <GripVertical className="h-3 w-3 mr-1 inline text-muted-foreground" />
                         <input
@@ -1906,7 +1906,7 @@ export default function DocumentTypeDetailPage() {
                       // Text tokens - white/gray draggable badge with editable text
                       <Badge
                         variant="outline"
-                        className="font-mono text-xs px-2 py-1.5 select-none bg-white dark:bg-gray-800 border-border dark:border-border cursor-grab active:cursor-grabbing"
+                        className="font-mono text-xs px-2 py-1.5 select-none bg-card border-border dark:border-border cursor-grab active:cursor-grabbing"
                       >
                         <GripVertical className="h-3 w-3 mr-1 inline text-muted-foreground" />
                         <input
@@ -2081,7 +2081,7 @@ export default function DocumentTypeDetailPage() {
                     e.dataTransfer.effectAllowed = "copy";
                   }}
                   onDragEnd={handleDragEnd}
-                  className="cursor-grab active:cursor-grabbing px-2 py-1.5 rounded border bg-white border-border dark:bg-gray-800 dark:border-border mb-2"
+                  className="cursor-grab active:cursor-grabbing px-2 py-1.5 rounded border bg-white border-border dark:bg-card dark:border-border mb-2"
                 >
                   <div className="flex items-center gap-1.5">
                     <Type className="h-3 w-3 text-muted-foreground" />

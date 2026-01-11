@@ -163,7 +163,7 @@ function getMembershipTypeBadgeColor(type: string) {
     case "officer":
       return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300";
     default:
-      return "bg-muted text-foreground dark:bg-gray-900/30 dark:text-muted-foreground";
+      return "bg-muted text-foreground dark:bg-background/30 dark:text-muted-foreground";
   }
 }
 

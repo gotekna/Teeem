@@ -1664,7 +1664,7 @@ export default function PurchaseOrderDetailPage() {
                     "rounded-lg p-4",
                     syncPreview.summary.status === "ready" && "bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800",
                     syncPreview.summary.status === "blocked" && "bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800",
-                    syncPreview.summary.status === "in_sync" && "bg-muted dark:bg-gray-950/30 border border-border dark:border-border"
+                    syncPreview.summary.status === "in_sync" && "bg-muted dark:bg-background/30 border border-border dark:border-border"
                   )}>
                     <p className="text-sm font-medium">{syncPreview.summary.message}</p>
                   </div>

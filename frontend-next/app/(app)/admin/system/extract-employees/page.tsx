@@ -982,7 +982,7 @@ function ExtractEmployeesContent() {
                                     </div>
                                   </div>
 
-                                  <div className="flex items-center gap-3 p-3 rounded-lg bg-white dark:bg-gray-800 border">
+                                  <div className="flex items-center gap-3 p-3 rounded-lg bg-card border">
                                     <User className="h-5 w-5 text-blue-600" />
                                     <div className="flex-1">
                                       <Input
@@ -1033,7 +1033,7 @@ function ExtractEmployeesContent() {
                                         className={`w-full p-3 rounded-lg border-2 text-left transition-all ${
                                           sel?.selectedContactId === contact.id
                                             ? "border-green-500 bg-green-100 dark:bg-green-900/50"
-                                            : "border-transparent bg-white dark:bg-gray-800 hover:border-green-300"
+                                            : "border-transparent bg-card hover:border-green-300"
                                         }`}
                                       >
                                         <div className="flex items-center gap-3">
@@ -1088,7 +1088,7 @@ function ExtractEmployeesContent() {
                                         className={`px-3 py-1.5 font-bold text-sm transition-colors ${
                                           sel?.mergeContacts
                                             ? "bg-amber-500 text-white"
-                                            : "bg-white dark:bg-gray-800 text-muted-foreground"
+                                            : "bg-card text-muted-foreground"
                                         }`}
                                       >
                                         Yes
@@ -1097,8 +1097,8 @@ function ExtractEmployeesContent() {
                                         onClick={() => toggleMergeContacts(idx)}
                                         className={`px-3 py-1.5 font-bold text-sm transition-colors ${
                                           !sel?.mergeContacts
-                                            ? "bg-gray-400 text-white"
-                                            : "bg-white dark:bg-gray-800 text-muted-foreground"
+                                            ? "bg-muted-foreground text-white"
+                                            : "bg-card text-muted-foreground"
                                         }`}
                                       >
                                         No
@@ -1107,7 +1107,7 @@ function ExtractEmployeesContent() {
                                   </div>
                                 </>
                               ) : (
-                                <div className="flex items-center gap-3 p-3 rounded-lg bg-white dark:bg-gray-800 border">
+                                <div className="flex items-center gap-3 p-3 rounded-lg bg-card border">
                                   <User className="h-5 w-5 text-green-600" />
                                   <div className="flex-1">
                                     <div className="flex items-center gap-2 flex-wrap">
@@ -1148,7 +1148,7 @@ function ExtractEmployeesContent() {
                                  selectedContact?.email?.toLowerCase() === item.email.toLowerCase() &&
                                  !item.phones?.mobile &&
                                  selectedContact?.relationship_to_domain_company_exists && (
-                                  <div className="flex items-center gap-2 p-3 rounded-lg bg-muted dark:bg-gray-800/50 border border-border text-muted-foreground">
+                                  <div className="flex items-center gap-2 p-3 rounded-lg bg-muted dark:bg-card/50 border border-border text-muted-foreground">
                                     <CheckCircle2 className="h-4 w-4 text-green-600" />
                                     <span className="text-sm">
                                       Contact is already up to date — no phone found in email signature
@@ -1171,7 +1171,7 @@ function ExtractEmployeesContent() {
                                         className={`px-3 py-1.5 font-bold text-sm transition-colors ${
                                           sel?.addEmail
                                             ? "bg-purple-500 text-white"
-                                            : "bg-white dark:bg-gray-800 text-muted-foreground"
+                                            : "bg-card text-muted-foreground"
                                         }`}
                                       >
                                         Yes
@@ -1180,8 +1180,8 @@ function ExtractEmployeesContent() {
                                         onClick={() => toggleAddEmail(idx)}
                                         className={`px-3 py-1.5 font-bold text-sm transition-colors ${
                                           !sel?.addEmail
-                                            ? "bg-gray-400 text-white"
-                                            : "bg-white dark:bg-gray-800 text-muted-foreground"
+                                            ? "bg-muted-foreground text-white"
+                                            : "bg-card text-muted-foreground"
                                         }`}
                                       >
                                         No
@@ -1212,7 +1212,7 @@ function ExtractEmployeesContent() {
                                           className={`px-3 py-1.5 font-bold text-sm transition-colors ${
                                             sel?.addMobile
                                               ? "bg-green-500 text-white"
-                                              : "bg-white dark:bg-gray-800 text-muted-foreground"
+                                              : "bg-card text-muted-foreground"
                                           }`}
                                         >
                                           Yes
@@ -1221,8 +1221,8 @@ function ExtractEmployeesContent() {
                                           onClick={() => toggleAddMobile(idx)}
                                           className={`px-3 py-1.5 font-bold text-sm transition-colors ${
                                             !sel?.addMobile
-                                              ? "bg-gray-400 text-white"
-                                              : "bg-white dark:bg-gray-800 text-muted-foreground"
+                                              ? "bg-muted-foreground text-white"
+                                              : "bg-card text-muted-foreground"
                                           }`}
                                         >
                                           No
@@ -1253,7 +1253,7 @@ function ExtractEmployeesContent() {
                                           className={`px-3 py-1.5 font-bold text-sm transition-colors ${
                                             sel?.addDirect
                                               ? "bg-blue-500 text-white"
-                                              : "bg-white dark:bg-gray-800 text-muted-foreground"
+                                              : "bg-card text-muted-foreground"
                                           }`}
                                         >
                                           Yes
@@ -1262,8 +1262,8 @@ function ExtractEmployeesContent() {
                                           onClick={() => toggleAddDirect(idx)}
                                           className={`px-3 py-1.5 font-bold text-sm transition-colors ${
                                             !sel?.addDirect
-                                              ? "bg-gray-400 text-white"
-                                              : "bg-white dark:bg-gray-800 text-muted-foreground"
+                                              ? "bg-muted-foreground text-white"
+                                              : "bg-card text-muted-foreground"
                                           }`}
                                         >
                                           No
@@ -1288,7 +1288,7 @@ function ExtractEmployeesContent() {
                                         className={`px-3 py-1.5 font-bold text-sm transition-colors ${
                                           sel?.addOfficeToCompany
                                             ? "bg-orange-500 text-white"
-                                            : "bg-white dark:bg-gray-800 text-muted-foreground"
+                                            : "bg-card text-muted-foreground"
                                         }`}
                                       >
                                         Yes
@@ -1297,8 +1297,8 @@ function ExtractEmployeesContent() {
                                         onClick={() => toggleAddOfficeToCompany(idx)}
                                         className={`px-3 py-1.5 font-bold text-sm transition-colors ${
                                           !sel?.addOfficeToCompany
-                                            ? "bg-gray-400 text-white"
-                                            : "bg-white dark:bg-gray-800 text-muted-foreground"
+                                            ? "bg-muted-foreground text-white"
+                                            : "bg-card text-muted-foreground"
                                         }`}
                                       >
                                         No
@@ -1339,7 +1339,7 @@ function ExtractEmployeesContent() {
                                         className={`px-3 py-1.5 font-bold text-sm transition-colors ${
                                           sel?.linkToDomainCompany
                                             ? "bg-green-500 text-white"
-                                            : "bg-white dark:bg-gray-800 text-muted-foreground"
+                                            : "bg-card text-muted-foreground"
                                         }`}
                                       >
                                         Yes
@@ -1348,8 +1348,8 @@ function ExtractEmployeesContent() {
                                         onClick={() => toggleDomainCompanyLink(idx)}
                                         className={`px-3 py-1.5 font-bold text-sm transition-colors ${
                                           !sel?.linkToDomainCompany
-                                            ? "bg-gray-400 text-white"
-                                            : "bg-white dark:bg-gray-800 text-muted-foreground"
+                                            ? "bg-muted-foreground text-white"
+                                            : "bg-card text-muted-foreground"
                                         }`}
                                       >
                                         No
@@ -1423,7 +1423,7 @@ function ExtractEmployeesContent() {
                                             className={`px-3 py-1.5 font-bold text-sm transition-colors ${
                                               pc.id && sel?.parentCompanyLinks?.[pc.id]
                                                 ? "bg-green-500 text-white"
-                                                : "bg-white dark:bg-gray-800 text-muted-foreground"
+                                                : "bg-card text-muted-foreground"
                                             }`}
                                           >
                                             Yes
@@ -1432,8 +1432,8 @@ function ExtractEmployeesContent() {
                                             onClick={() => pc.id && toggleParentCompanyLink(idx, pc.id)}
                                             className={`px-3 py-1.5 font-bold text-sm transition-colors ${
                                               pc.id && !sel?.parentCompanyLinks?.[pc.id]
-                                                ? "bg-gray-400 text-white"
-                                                : "bg-white dark:bg-gray-800 text-muted-foreground"
+                                                ? "bg-muted-foreground text-white"
+                                                : "bg-card text-muted-foreground"
                                             }`}
                                           >
                                             No

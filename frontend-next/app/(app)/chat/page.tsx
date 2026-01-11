@@ -694,7 +694,7 @@ export default function ChatPage() {
                             "absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background",
                             user.presence_status === "online" && "bg-green-500",
                             user.presence_status === "away" && "bg-yellow-500",
-                            user.presence_status === "offline" && "bg-gray-400"
+                            user.presence_status === "offline" && "bg-muted-foreground"
                           )}
                         />
                       </div>
@@ -761,7 +761,7 @@ export default function ChatPage() {
                             "absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-background",
                             user.presence_status === "online" && "bg-green-500",
                             user.presence_status === "away" && "bg-yellow-500",
-                            user.presence_status === "offline" && "bg-gray-400"
+                            user.presence_status === "offline" && "bg-muted-foreground"
                           )}
                         />
                       </div>

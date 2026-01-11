@@ -512,7 +512,7 @@ export default function GlPage() {
       revenue: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
       expense: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300",
     };
-    return colors[type] || "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground";
+    return colors[type] || "bg-muted text-foreground dark:bg-card dark:text-muted-foreground";
   };
 
   if (loading) {
@@ -1471,7 +1471,7 @@ export default function GlPage() {
                     ? "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800"
                     : step.status === "failed"
                     ? "bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800"
-                    : "bg-muted border-border dark:bg-gray-800/50 dark:border-border"
+                    : "bg-muted border-border dark:bg-card/50 dark:border-border"
                 }`}
               >
                 <div className="flex items-center gap-3">

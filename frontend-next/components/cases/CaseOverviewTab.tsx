@@ -81,7 +81,7 @@ interface CaseOverviewTabProps {
 function getStatusColor(status: string) {
   switch (status) {
     case "draft":
-      return "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground";
+      return "bg-muted text-foreground dark:bg-card dark:text-muted-foreground";
     case "open":
     case "active":
       return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100";
@@ -97,7 +97,7 @@ function getStatusColor(status: string) {
     case "archived":
       return "bg-muted text-foreground dark:bg-slate-800 dark:text-muted-foreground";
     default:
-      return "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground";
+      return "bg-muted text-foreground dark:bg-card dark:text-muted-foreground";
   }
 }
 

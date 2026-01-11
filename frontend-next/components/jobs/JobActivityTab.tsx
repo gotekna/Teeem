@@ -77,7 +77,7 @@ const getIconColorClasses = (color: string) => {
     emerald: "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400",
     cyan: "bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-400",
     sky: "bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400",
-    gray: "bg-muted text-muted-foreground dark:bg-gray-700 dark:text-muted-foreground",
+    gray: "bg-muted text-muted-foreground dark:bg-muted dark:text-muted-foreground",
   };
   return colors[color] || colors.gray;
 };

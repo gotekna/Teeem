@@ -251,7 +251,7 @@ export default function LatePaymentPredictionTab() {
         );
       default:
         return (
-          <Badge variant="outline" className="bg-muted text-muted-foreground border-border dark:bg-gray-800 dark:text-muted-foreground">
+          <Badge variant="outline" className="bg-muted text-muted-foreground border-border dark:bg-card dark:text-muted-foreground">
             Unknown
           </Badge>
         );

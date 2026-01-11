@@ -2033,7 +2033,7 @@ export default function DocumentPreviewModal({
                           </p>
                           <div className="mt-1 space-y-1">
                             {document.ai_split_recommendation.map((rec, idx) => (
-                              <div key={idx} className="text-[10px] bg-white dark:bg-gray-800 rounded px-1.5 py-1 border">
+                              <div key={idx} className="text-[10px] bg-card rounded px-1.5 py-1 border">
                                 <p className="font-medium text-orange-800 dark:text-orange-200">
                                   Pages {rec.pages}: {rec.type}
                                 </p>

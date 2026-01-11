@@ -237,7 +237,7 @@ export function BrandColorsTab() {
                   )}
                   {detectedBrand.logo_dark_url && (
                     <div className="text-center">
-                      <div className="bg-gray-900 p-4 rounded-md border">
+                      <div className="bg-background p-4 rounded-md border">
                         <img
                           src={detectedBrand.logo_dark_url}
                           alt="Detected dark logo"

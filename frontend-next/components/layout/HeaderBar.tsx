@@ -242,7 +242,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
     : user?.email?.[0]?.toUpperCase() || "U";
 
   return (
-    <header className="z-40 flex h-12 shrink-0 items-center gap-x-2 border-b border-border bg-white px-3 shadow-sm sm:gap-x-3 sm:px-4 lg:px-6 dark:border-white/10 dark:bg-gray-900 dark:shadow-none transition-all duration-300">
+    <header className="z-40 flex h-12 shrink-0 items-center gap-x-2 border-b border-border bg-white px-3 shadow-sm sm:gap-x-3 sm:px-4 lg:px-6 dark:border-white/10 dark:bg-background dark:shadow-none transition-all duration-300">
       {/* Logo - always visible */}
       <Link prefetch={false} href="/dashboard" className="flex items-center gap-2 font-bold text-lg shrink-0">
         <div className="w-7 h-7 bg-primary text-primary-foreground flex items-center justify-center text-sm">
@@ -371,7 +371,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
               <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-orange-500 border border-white dark:border-border" />
             )}
             {office365Status === 'disconnected' && (
-              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-gray-400 border border-white dark:border-border" />
+              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-muted-foreground border border-white dark:border-border" />
             )}
             {office365Status === 'error' && (
               <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 border border-white dark:border-border" />

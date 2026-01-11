@@ -210,7 +210,7 @@ export default function CasesPage() {
       case "closed":
         return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300";
       case "archived":
-        return "bg-muted text-foreground dark:bg-gray-900/30 dark:text-muted-foreground";
+        return "bg-muted text-foreground dark:bg-background/30 dark:text-muted-foreground";
       default:
         return "bg-muted text-foreground";
     }
@@ -225,7 +225,7 @@ export default function CasesPage() {
       case "normal":
         return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300";
       case "low":
-        return "bg-muted text-foreground dark:bg-gray-900/30 dark:text-muted-foreground";
+        return "bg-muted text-foreground dark:bg-background/30 dark:text-muted-foreground";
       default:
         return "bg-muted text-foreground";
     }

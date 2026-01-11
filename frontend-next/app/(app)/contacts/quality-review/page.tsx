@@ -100,7 +100,7 @@ function ConfidenceBadge({ score }: { score: number }) {
       ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
       : score >= 50
         ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300"
-        : "bg-muted text-foreground dark:bg-gray-900/30 dark:text-muted-foreground";
+        : "bg-muted text-foreground dark:bg-background/30 dark:text-muted-foreground";
 
   return <Badge className={cn("font-mono", color)}>{score}%</Badge>;
 }

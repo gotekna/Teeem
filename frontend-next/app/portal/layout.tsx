@@ -69,9 +69,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   }
 
   return (
-    <div className="min-h-screen bg-muted dark:bg-gray-900">
+    <div className="min-h-screen bg-muted dark:bg-background">
       {/* Mobile menu button */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 bg-white dark:bg-gray-800 border-b border-border dark:border-border px-4 py-3 z-50">
+      <div className="lg:hidden fixed top-0 left-0 right-0 bg-card border-b border-border dark:border-border px-4 py-3 z-50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
@@ -94,7 +94,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
       {/* Sidebar for desktop */}
       <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
-        <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-border dark:border-border bg-white dark:bg-gray-800 px-6 pb-4">
+        <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-border dark:border-border bg-card px-6 pb-4">
           <div className="flex h-16 shrink-0 items-center">
             <h1 className="text-xl font-bold text-indigo-600 dark:text-indigo-400">TEEEM Portal</h1>
           </div>
@@ -132,7 +132,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                             ${
                               isActive
                                 ? "bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400"
-                                : "text-foreground dark:text-muted-foreground hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-muted dark:hover:bg-gray-700"
+                                : "text-foreground dark:text-muted-foreground hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-muted dark:hover:bg-muted"
                             }
                           `}
                         >
@@ -156,7 +156,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               <li className="mt-auto">
                 <button
                   onClick={handleLogout}
-                  className="group -mx-2 flex w-full gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-foreground dark:text-muted-foreground hover:bg-muted dark:hover:bg-gray-700 hover:text-indigo-600 dark:hover:text-indigo-400"
+                  className="group -mx-2 flex w-full gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-foreground dark:text-muted-foreground hover:bg-muted dark:hover:bg-muted hover:text-indigo-600 dark:hover:text-indigo-400"
                 >
                   <ArrowRightOnRectangleIcon
                     className="h-6 w-6 shrink-0 text-muted-foreground dark:text-muted-foreground group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
@@ -173,11 +173,11 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       {/* Mobile menu */}
       {mobileMenuOpen && (
         <div
-          className="lg:hidden fixed inset-0 z-40 bg-gray-900/80"
+          className="lg:hidden fixed inset-0 z-40 bg-black/80"
           onClick={() => setMobileMenuOpen(false)}
         >
           <div
-            className="fixed inset-y-0 left-0 w-64 bg-white dark:bg-gray-800"
+            className="fixed inset-y-0 left-0 w-64 bg-card"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex grow flex-col gap-y-5 overflow-y-auto px-6 pb-4 pt-20">
@@ -213,7 +213,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                             ${
                               isActive
                                 ? "bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400"
-                                : "text-foreground dark:text-muted-foreground hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-muted dark:hover:bg-gray-700"
+                                : "text-foreground dark:text-muted-foreground hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-muted dark:hover:bg-muted"
                             }
                           `}
                         >
@@ -235,7 +235,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                 {/* Logout button */}
                 <button
                   onClick={handleLogout}
-                  className="group mt-8 -mx-2 flex w-full gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-foreground dark:text-muted-foreground hover:bg-muted dark:hover:bg-gray-700 hover:text-indigo-600 dark:hover:text-indigo-400"
+                  className="group mt-8 -mx-2 flex w-full gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-foreground dark:text-muted-foreground hover:bg-muted dark:hover:bg-muted hover:text-indigo-600 dark:hover:text-indigo-400"
                 >
                   <ArrowRightOnRectangleIcon
                     className="h-6 w-6 shrink-0 text-muted-foreground dark:text-muted-foreground group-hover:text-indigo-600 dark:group-hover:text-indigo-400"

@@ -197,7 +197,7 @@ export default function PortalJobs() {
                   ${
                     isActive
                       ? "bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400"
-                      : "bg-muted dark:bg-gray-700 text-muted-foreground dark:text-muted-foreground"
+                      : "bg-muted dark:bg-muted text-muted-foreground dark:text-muted-foreground"
                   }
                 `}
                 >
@@ -211,7 +211,7 @@ export default function PortalJobs() {
 
       {/* Job List */}
       {currentJobs.length === 0 ? (
-        <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg shadow">
+        <div className="text-center py-12 bg-card rounded-lg shadow">
           <BriefcaseIcon className="mx-auto h-12 w-12 text-muted-foreground dark:text-muted-foreground" />
           <h3 className="mt-2 text-sm font-medium text-foreground dark:text-white">
             No {activeTab.replace("_", " ")} jobs
@@ -228,7 +228,7 @@ export default function PortalJobs() {
             <Link
               key={job.id}
               href={`/portal/jobs/${job.id}`}
-              className="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow overflow-hidden"
+              className="bg-card rounded-lg shadow hover:shadow-md transition-shadow overflow-hidden"
             >
               <div className="p-5">
                 {/* Header */}
@@ -296,7 +296,7 @@ export default function PortalJobs() {
                           ? "bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300"
                           : job.invoice_status === "synced"
                           ? "bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300"
-                          : "bg-muted dark:bg-gray-700 text-foreground dark:text-muted-foreground"
+                          : "bg-muted dark:bg-muted text-foreground dark:text-muted-foreground"
                       }`}
                     >
                       Invoice: {job.invoice_status}

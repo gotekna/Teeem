@@ -270,7 +270,7 @@ export function ScheduledJobsTab() {
                 className={cn(
                   "text-xs",
                   job.queue_name === "default" && "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-                  job.queue_name === "low" && "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground"
+                  job.queue_name === "low" && "bg-muted text-foreground dark:bg-card dark:text-muted-foreground"
                 )}
               >
                 {job.queue_name}
@@ -345,7 +345,7 @@ export function ScheduledJobsTab() {
             <Badge className="bg-blue-600 text-white">1. default</Badge>
             <Badge className="bg-purple-600 text-white">2. solid_queue_recurring</Badge>
             <Badge className="bg-amber-600 text-white">3. xero_bulk</Badge>
-            <Badge className="bg-gray-600 text-white">4. low</Badge>
+            <Badge className="bg-muted-foreground text-white">4. low</Badge>
           </div>
           <p className="text-xs text-muted-foreground mt-3">
             BPMN workflows and user actions go to <code className="bg-muted px-1 py-0.5 rounded">default</code> queue

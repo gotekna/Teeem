@@ -84,7 +84,7 @@ export function CalendarEventBar({
                     ? "bg-green-500"
                     : event.status === "started"
                     ? "bg-blue-500"
-                    : "bg-gray-400"
+                    : "bg-muted-foreground"
                 )}
               >
                 {event.status.replace("_", " ")}

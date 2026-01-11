@@ -63,7 +63,7 @@ const TIER_INFO = {
   },
   silver: {
     name: "Silver",
-    color: "from-gray-300 to-gray-500",
+    color: "from-muted to-muted-foreground",
     icon: ">H",
     min: 200,
     max: 400,
@@ -236,7 +236,7 @@ export default function PortalKudos() {
 
       {/* Statistics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <div className="bg-card rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground dark:text-muted-foreground">
@@ -252,7 +252,7 @@ export default function PortalKudos() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <div className="bg-card rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground dark:text-muted-foreground">
@@ -268,7 +268,7 @@ export default function PortalKudos() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <div className="bg-card rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground dark:text-muted-foreground">
@@ -284,7 +284,7 @@ export default function PortalKudos() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <div className="bg-card rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground dark:text-muted-foreground">
@@ -302,7 +302,7 @@ export default function PortalKudos() {
       </div>
 
       {/* Points Breakdown */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+      <div className="bg-card rounded-lg shadow">
         <div className="px-6 py-4 border-b border-border dark:border-border">
           <h3 className="text-lg font-medium text-foreground dark:text-white">
             Points Breakdown
@@ -313,7 +313,7 @@ export default function PortalKudos() {
         </div>
         <div className="overflow-x-auto">
           <Table className="min-w-full">
-            <TableHeader className="bg-muted dark:bg-gray-700">
+            <TableHeader className="bg-muted dark:bg-muted">
               <TableRow>
                 <TableHead className="px-6 py-3 text-left text-xs font-medium text-muted-foreground dark:text-muted-foreground uppercase tracking-wider">
                   Event Type
@@ -329,10 +329,10 @@ export default function PortalKudos() {
                 </TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            <TableBody className="bg-card divide-y divide-border dark:divide-border">
               {Object.entries(kudosData.breakdown).map(
                 ([eventType, data]) => (
-                  <TableRow key={eventType} className="hover:bg-muted dark:hover:bg-gray-700">
+                  <TableRow key={eventType} className="hover:bg-muted dark:hover:bg-muted">
                     <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium text-foreground dark:text-white">
                       {formatEventType(eventType)}
                     </TableCell>
@@ -354,7 +354,7 @@ export default function PortalKudos() {
       </div>
 
       {/* Recent Events */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+      <div className="bg-card rounded-lg shadow">
         <div className="px-6 py-4 border-b border-border dark:border-border">
           <h3 className="text-lg font-medium text-foreground dark:text-white">Recent Events</h3>
           <p className="mt-1 text-sm text-muted-foreground dark:text-muted-foreground">
@@ -374,13 +374,13 @@ export default function PortalKudos() {
                     <div className="relative pb-8">
                       {eventIdx !== kudosData.recent_events.length - 1 && (
                         <span
-                          className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-muted dark:bg-gray-700"
+                          className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-muted dark:bg-muted"
                           aria-hidden="true"
                         />
                       )}
                       <div className="relative flex space-x-3">
                         <div>
-                          <span className="h-8 w-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center ring-8 ring-white dark:ring-gray-800">
+                          <span className="h-8 w-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center ring-8 ring-white dark:ring-card">
                             <StarIcon className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
                           </span>
                         </div>

@@ -91,7 +91,7 @@ export function JobEstimatorTab({ jobId, job }: JobEstimatorTabProps) {
       case "high":
         return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
       default:
-        return "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground";
+        return "bg-muted text-foreground dark:bg-card dark:text-muted-foreground";
     }
   };
 

@@ -70,7 +70,7 @@ export function BudgetProgressBar({
       <div
         className={cn(
           "relative flex-1 min-w-[60px] overflow-hidden rounded-full",
-          "bg-muted dark:bg-gray-700",
+          "bg-muted dark:bg-muted",
           SIZE_CLASSES[size]
         )}
       >
@@ -127,7 +127,7 @@ export function PaymentProgressBar({
 
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      <div className="relative flex-1 min-w-[40px] h-1.5 overflow-hidden rounded-full bg-muted dark:bg-gray-700">
+      <div className="relative flex-1 min-w-[40px] h-1.5 overflow-hidden rounded-full bg-muted dark:bg-muted">
         <div
           className={cn(
             "h-full transition-all duration-300 rounded-full",

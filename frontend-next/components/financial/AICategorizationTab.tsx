@@ -360,7 +360,7 @@ export default function AICategorizationTab() {
       );
     } else {
       return (
-        <Badge className="bg-muted text-muted-foreground dark:bg-gray-800 dark:text-muted-foreground">
+        <Badge className="bg-muted text-muted-foreground dark:bg-card dark:text-muted-foreground">
           {pct}%
         </Badge>
       );

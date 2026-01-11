@@ -214,7 +214,7 @@ function SharePointDelegatedConnection() {
           </div>
           <Badge className={status?.connected && isDelegated
             ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
-            : "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground"}>
+            : "bg-muted text-foreground dark:bg-card dark:text-muted-foreground"}>
             {status?.connected && isDelegated ? (
               <>
                 <CheckCircle2 className="h-3 w-3 mr-1" />
@@ -232,7 +232,7 @@ function SharePointDelegatedConnection() {
       <CardContent className="pt-0 space-y-4">
         {status?.connected && isDelegated ? (
           <>
-            <div className="p-3 bg-white dark:bg-gray-900 rounded-lg border">
+            <div className="p-3 bg-white dark:bg-background rounded-lg border">
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                 <div>
                   <p className="text-xs text-muted-foreground">Drive</p>
@@ -462,7 +462,7 @@ export default function MicrosoftIntegrationPage() {
                 </CardDescription>
               </div>
             </div>
-            <Badge className={connectedCount > 0 ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300" : "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground"}>
+            <Badge className={connectedCount > 0 ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300" : "bg-muted text-foreground dark:bg-card dark:text-muted-foreground"}>
               {connectedCount}/{AVAILABLE_ORGANIZATIONS.length} Connected
             </Badge>
           </div>
@@ -477,7 +477,7 @@ export default function MicrosoftIntegrationPage() {
             healthData.overall_status === "healthy" ? "border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-950/30" :
             healthData.overall_status === "warning" ? "border-yellow-200 bg-yellow-50/50 dark:border-yellow-800 dark:bg-yellow-950/30" :
             healthData.overall_status === "critical" ? "border-red-200 bg-red-50/50 dark:border-red-800 dark:bg-red-950/30" :
-            "border-border bg-muted/50 dark:border-border dark:bg-gray-950/30"
+            "border-border bg-muted/50 dark:border-border dark:bg-background/30"
           }`}>
             <div className="flex items-center gap-2 mb-2">
               <Heart className={`h-4 w-4 ${
@@ -516,7 +516,7 @@ export default function MicrosoftIntegrationPage() {
           <Card className={`p-4 ${
             healthData.needs_attention_count > 0
               ? "border-red-200 bg-red-50/50 dark:border-red-800 dark:bg-red-950/30"
-              : "border-border bg-muted/50 dark:border-border dark:bg-gray-950/30"
+              : "border-border bg-muted/50 dark:border-border dark:bg-background/30"
           }`}>
             <div className="flex items-center gap-2 mb-2">
               <AlertTriangle className={`h-4 w-4 ${
@@ -604,7 +604,7 @@ export default function MicrosoftIntegrationPage() {
               <CardHeader className="py-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${isThisOneConnecting ? "bg-blue-100 dark:bg-blue-900" : "bg-muted dark:bg-gray-800"}`}>
+                    <div className={`p-2 rounded-lg ${isThisOneConnecting ? "bg-blue-100 dark:bg-blue-900" : "bg-muted dark:bg-card"}`}>
                       {isThisOneConnecting ? (
                         <Spinner size={20} className="text-blue-500" />
                       ) : (
@@ -888,7 +888,7 @@ function OrganizationCard({
 
             {org.status === "connected" && (
               <>
-                <div className="p-4 bg-white dark:bg-gray-900 rounded-lg border">
+                <div className="p-4 bg-white dark:bg-background rounded-lg border">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div>
                       <p className="text-xs text-muted-foreground">Consent Granted By</p>

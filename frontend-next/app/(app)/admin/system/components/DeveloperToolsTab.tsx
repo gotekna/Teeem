@@ -455,7 +455,7 @@ export function DeveloperToolsTab({ subtab }: DeveloperToolsTabProps) {
             {/* Sync Results Panel */}
             {syncResults && (
               <Card className="border-border">
-                <CardHeader className="py-3 bg-muted dark:bg-gray-800">
+                <CardHeader className="py-3 bg-muted dark:bg-card">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <CardTitle className="text-sm">System Tables Sync Results</CardTitle>

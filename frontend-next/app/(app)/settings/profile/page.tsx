@@ -336,7 +336,7 @@ export default function ProfileSettingsPage() {
             <Label>Digital Signature</Label>
             <div className="flex items-start gap-4">
               {/* Signature Preview */}
-              <div className="w-48 h-24 border rounded-md bg-white dark:bg-gray-900 flex items-center justify-center overflow-hidden">
+              <div className="w-48 h-24 border rounded-md bg-white dark:bg-background flex items-center justify-center overflow-hidden">
                 {signaturePreview || signatureUrl ? (
                   <img
                     src={signaturePreview || signatureUrl || ""}

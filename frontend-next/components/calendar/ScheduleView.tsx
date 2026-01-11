@@ -83,7 +83,7 @@ export function ScheduleView() {
       case "started":
         return "border-l-blue-500";
       default:
-        return "border-l-gray-300";
+        return "border-l-border";
     }
   };
 

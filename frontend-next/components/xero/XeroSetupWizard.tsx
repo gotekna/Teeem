@@ -266,7 +266,7 @@ export function XeroSetupWizard({ companyId, companyName, onComplete, onDismiss 
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <Badge variant="outline" className="bg-white dark:bg-gray-900">
+            <Badge variant="outline" className="bg-white dark:bg-background">
               {completedSteps} of {steps.length} complete
             </Badge>
             <Button variant="ghost" size="sm" onClick={handleDismiss}>
@@ -293,7 +293,7 @@ export function XeroSetupWizard({ companyId, companyName, onComplete, onDismiss 
                 key={step.id}
                 className={cn(
                   "flex items-center gap-4 p-4 rounded-lg transition-colors",
-                  isCurrentStep && "bg-white dark:bg-gray-900 shadow-sm border border-blue-200 dark:border-blue-800",
+                  isCurrentStep && "bg-white dark:bg-background shadow-sm border border-blue-200 dark:border-blue-800",
                   isPastStep && !isCurrentStep && "opacity-60",
                   isFutureStep && "opacity-40"
                 )}
@@ -303,7 +303,7 @@ export function XeroSetupWizard({ companyId, companyName, onComplete, onDismiss 
                   "w-10 h-10 rounded-full flex items-center justify-center shrink-0",
                   step.status === "completed" && "bg-green-100 dark:bg-green-900/50",
                   step.status === "pending" && isCurrentStep && "bg-blue-100 dark:bg-blue-900/50",
-                  step.status === "pending" && !isCurrentStep && "bg-muted dark:bg-gray-800",
+                  step.status === "pending" && !isCurrentStep && "bg-muted dark:bg-card",
                   step.status === "in_progress" && "bg-blue-100 dark:bg-blue-900/50"
                 )}>
                   {step.status === "completed" ? (

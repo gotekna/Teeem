@@ -362,7 +362,7 @@ export default function AssetReportsPage() {
       case "active":
         return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">Active</Badge>;
       case "disposed":
-        return <Badge className="bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground">Disposed</Badge>;
+        return <Badge className="bg-muted text-foreground dark:bg-card dark:text-muted-foreground">Disposed</Badge>;
       case "under_repair":
         return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">Under Repair</Badge>;
       default:

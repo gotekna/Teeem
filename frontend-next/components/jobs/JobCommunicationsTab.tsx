@@ -353,7 +353,7 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
             {suggestedEmails.slice(0, 10).map((suggestion) => (
               <div
                 key={suggestion.email.id}
-                className={`p-2 bg-white dark:bg-gray-800 rounded border ${
+                className={`p-2 bg-card rounded border ${
                   suggestion.suggested_job
                     ? "border-orange-300 dark:border-orange-700"
                     : "border-yellow-200 dark:border-yellow-800"

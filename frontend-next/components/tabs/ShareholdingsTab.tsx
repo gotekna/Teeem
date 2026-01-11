@@ -120,7 +120,7 @@ export function ShareholdingsTab({ company, companyId }: ShareholdingsTabProps) 
                 <TableRow key={sh.id} className="hover:bg-muted/30 opacity-60">
                   <TableCell className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-muted dark:bg-gray-800 flex items-center justify-center text-muted-foreground text-xs font-medium">
+                      <div className="w-8 h-8 rounded-full bg-muted dark:bg-card flex items-center justify-center text-muted-foreground text-xs font-medium">
                         {sh.shareholder_name?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
                       </div>
                       <div>

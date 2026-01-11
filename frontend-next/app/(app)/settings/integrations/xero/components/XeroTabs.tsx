@@ -907,7 +907,7 @@ function SyncStatusCell({ syncStatus, hasError }: { syncStatus: SyncStatusPerCon
   const pdfs = formatRelativeTime(syncStatus.pdfs_synced_at);
 
   const getDotColor = (info: { text: string; isRecent: boolean; isOld: boolean }) => {
-    if (info.text === "-") return "bg-gray-300";
+    if (info.text === "-") return "bg-muted";
     if (info.isRecent) return "bg-green-500";
     if (info.isOld) return "bg-amber-500";
     return "bg-green-400";

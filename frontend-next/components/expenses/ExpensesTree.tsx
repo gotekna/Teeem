@@ -83,7 +83,7 @@ export function ExpensesTree({ data, className }: ExpensesTreeProps) {
   return (
     <Card className={cn("overflow-hidden", className)}>
       {/* Header with expand/collapse controls */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border dark:border-border bg-muted dark:bg-gray-800/50">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border dark:border-border bg-muted dark:bg-card/50">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <span>
             {data.length} {data.length === 1 ? "Stage" : "Stages"}
@@ -112,7 +112,7 @@ export function ExpensesTree({ data, className }: ExpensesTreeProps) {
       </div>
 
       {/* Tree Content */}
-      <div className="divide-y divide-gray-100 dark:divide-gray-800">
+      <div className="divide-y divide-border dark:divide-border">
         {data.map((group) => (
           <ExpenseGroupNode
             key={group.key}

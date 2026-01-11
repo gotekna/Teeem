@@ -172,7 +172,7 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div
-        className="relative w-full max-w-3xl max-h-[85vh] flex flex-col rounded-lg bg-white shadow-xl dark:bg-gray-800"
+        className="relative w-full max-w-3xl max-h-[85vh] flex flex-col rounded-lg bg-white shadow-xl dark:bg-card"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -187,7 +187,7 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1 hover:bg-muted dark:hover:bg-gray-700"
+            className="rounded-lg p-1 hover:bg-muted dark:hover:bg-muted"
           >
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
@@ -211,10 +211,10 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
               {organizations.map((org) => (
                 <div
                   key={org.tenant_id}
-                  className="rounded-lg border border-border bg-muted dark:border-border dark:bg-gray-900"
+                  className="rounded-lg border border-border bg-muted dark:border-border dark:bg-background"
                 >
                   {/* Xero Organization Header */}
-                  <div className="flex items-center justify-between border-b border-border bg-white p-3 dark:border-border dark:bg-gray-800">
+                  <div className="flex items-center justify-between border-b border-border bg-white p-3 dark:border-border dark:bg-card">
                     <div className="flex items-center space-x-3">
                       {/* Organization Status - SSoT: Uses display_status from backend */}
                       <div className="relative">
@@ -243,7 +243,7 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                             {org.tenant_name}
                           </span>
                           {org.companies.length === 0 && (
-                            <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground dark:bg-gray-700 dark:text-muted-foreground">
+                            <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground dark:bg-muted dark:text-muted-foreground">
                               Not linked
                             </span>
                           )}
@@ -288,7 +288,7 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                       org.companies.map((connection) => (
                         <div
                           key={connection.id}
-                          className="flex items-center justify-between rounded-md bg-white p-3 dark:bg-gray-800"
+                          className="flex items-center justify-between rounded-md bg-white p-3 dark:bg-card"
                         >
                           <div className="flex items-center space-x-3 flex-1">
                             {/* Company Status - SSoT: Uses display_status from backend */}
@@ -331,7 +331,7 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                                 window.location.href = `/corporate/companies/${connection.company_id}/xero`;
                                 onClose();
                               }}
-                              className="whitespace-nowrap rounded-md border border-border bg-white px-3 py-1 text-xs font-medium text-foreground hover:bg-muted dark:border-border dark:bg-gray-700 dark:text-muted-foreground dark:hover:bg-gray-600"
+                              className="whitespace-nowrap rounded-md border border-border bg-white px-3 py-1 text-xs font-medium text-foreground hover:bg-muted dark:border-border dark:bg-muted dark:text-muted-foreground dark:hover:bg-accent"
                             >
                               View
                             </button>
@@ -339,7 +339,7 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                         </div>
                       ))
                     ) : (
-                      <div className="rounded-md bg-white p-4 dark:bg-gray-800">
+                      <div className="rounded-md bg-white p-4 dark:bg-card">
                         <p className="mb-3 text-sm text-muted-foreground dark:text-muted-foreground">
                           No TEEEM companies linked to this organization yet.
                         </p>
@@ -355,10 +355,10 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                               }}
                               onFocus={() => setOpenDropdownTenantId(org.tenant_id)}
                               disabled={linkingTenantId === org.tenant_id}
-                              className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-border dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-border dark:bg-muted dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
                             />
                             {openDropdownTenantId === org.tenant_id && (
-                              <div className="absolute z-[100] mt-1 w-full max-h-60 overflow-auto rounded-md border border-border bg-white shadow-lg dark:border-border dark:bg-gray-700">
+                              <div className="absolute z-[100] mt-1 w-full max-h-60 overflow-auto rounded-md border border-border bg-white shadow-lg dark:border-border dark:bg-muted">
                                 {availableCompanies
                                   .filter(company =>
                                     company.name.toLowerCase().includes((searchTerms[org.tenant_id] || "").toLowerCase())
@@ -371,7 +371,7 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                                         setOpenDropdownTenantId(null);
                                         setSearchTerms({ ...searchTerms, [org.tenant_id]: "" });
                                       }}
-                                      className="w-full px-3 py-2 text-left text-sm hover:bg-blue-50 dark:hover:bg-gray-600 text-foreground dark:text-white"
+                                      className="w-full px-3 py-2 text-left text-sm hover:bg-blue-50 dark:hover:bg-accent text-foreground dark:text-white"
                                     >
                                       {company.name}
                                     </button>
@@ -417,7 +417,7 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
             </button>
             <button
               onClick={loadConnections}
-              className="flex items-center justify-center rounded-lg border border-border bg-white px-4 py-2 text-sm font-medium text-foreground hover:bg-muted dark:border-border dark:bg-gray-700 dark:text-muted-foreground dark:hover:bg-gray-600"
+              className="flex items-center justify-center rounded-lg border border-border bg-white px-4 py-2 text-sm font-medium text-foreground hover:bg-muted dark:border-border dark:bg-muted dark:text-muted-foreground dark:hover:bg-accent"
               title="Refresh connection data"
             >
               <RefreshCw className="h-4 w-4" />

@@ -207,7 +207,7 @@ export function ToolbarSecondRow({
             className={cn(
               "h-7 px-2",
               validationErrorCount > 0
-                ? "bg-gray-400 hover:bg-gray-400 cursor-not-allowed"
+                ? "bg-muted-foreground hover:bg-muted-foreground cursor-not-allowed"
                 : "bg-green-600 hover:bg-green-700"
             )}
             disabled={validationErrorCount > 0}

@@ -394,7 +394,7 @@ ${formattedLogs || "(No console logs captured)"}
     return (
       <button
         onClick={() => setIsVisible(true)}
-        className="fixed bottom-1 right-1 bg-gray-800 text-white p-1 rounded-full shadow-lg hover:bg-gray-700 transition-all z-[9999]"
+        className="fixed bottom-1 right-1 bg-foreground text-background p-1 rounded-full shadow-lg hover:bg-muted-foreground transition-all z-[9999]"
         title="Show Console Tools"
       >
         <ClipboardCopy className="h-3 w-3" />
@@ -403,14 +403,14 @@ ${formattedLogs || "(No console logs captured)"}
   }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-border dark:border-border z-[9999] py-1">
+    <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border dark:border-border z-[9999] py-1">
       <div className="flex items-center justify-between gap-1.5 max-w-screen-2xl mx-auto px-2">
         {/* Left side - Info */}
         <div className="flex items-center gap-1.5">
           <span className="text-[10px] font-medium text-foreground dark:text-muted-foreground">
             Console
           </span>
-          <span className="text-[10px] px-1.5 py-0 rounded-full bg-muted dark:bg-gray-700 text-muted-foreground dark:text-muted-foreground">
+          <span className="text-[10px] px-1.5 py-0 rounded-full bg-muted dark:bg-muted text-muted-foreground dark:text-muted-foreground">
             {logCount}
           </span>
         </div>
@@ -424,7 +424,7 @@ ${formattedLogs || "(No console logs captured)"}
               copiedButton === "console"
                 ? "bg-green-600 text-white"
                 : logCount === 0
-                  ? "bg-muted dark:bg-gray-700 text-muted-foreground cursor-not-allowed"
+                  ? "bg-muted dark:bg-muted text-muted-foreground cursor-not-allowed"
                   : "bg-indigo-600 text-white hover:bg-indigo-700"
             }`}
           >
@@ -537,7 +537,7 @@ ${formattedLogs || "(No console logs captured)"}
             className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium transition-all ${
               copiedButton === "complete"
                 ? "bg-green-600 text-white"
-                : "bg-muted dark:bg-gray-700 text-foreground dark:text-muted-foreground hover:bg-muted"
+                : "bg-muted dark:bg-muted text-foreground dark:text-muted-foreground hover:bg-muted"
             }`}
             title="Get ALL console logs + page HTML"
           >
@@ -550,7 +550,7 @@ ${formattedLogs || "(No console logs captured)"}
               <>
                 Con/Screen
                 {logCount > 0 && (
-                  <span className="ml-0.5 px-1 py-0 rounded-full bg-gray-400 dark:bg-gray-600 text-white text-[9px] font-bold">
+                  <span className="ml-0.5 px-1 py-0 rounded-full bg-muted-foreground dark:bg-muted text-white text-[9px] font-bold">
                     {logCount}
                   </span>
                 )}

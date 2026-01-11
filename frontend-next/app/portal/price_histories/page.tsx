@@ -112,10 +112,10 @@ export default function PriceHistoriesPage() {
         </p>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+      <div className="bg-card rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
           <Table className="min-w-full">
-            <TableHeader className="bg-muted dark:bg-gray-700">
+            <TableHeader className="bg-muted dark:bg-muted">
               <TableRow>
                 <TableHead className="px-6 py-3 text-left text-xs font-medium text-muted-foreground dark:text-muted-foreground uppercase tracking-wider">
                   Item
@@ -146,9 +146,9 @@ export default function PriceHistoriesPage() {
                 </TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            <TableBody className="bg-card divide-y divide-border dark:divide-border">
               {histories.map((history) => (
-                <TableRow key={history.id} className="hover:bg-muted dark:hover:bg-gray-700">
+                <TableRow key={history.id} className="hover:bg-muted dark:hover:bg-muted">
                   <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium text-foreground dark:text-white">
                     {history.pricebook_item_name || 'N/A'}
                   </TableCell>

@@ -58,7 +58,7 @@ function formatCurrency(value: number): string {
 }
 
 const STATUS_VARIANTS: Record<string, { variant: string; label: string }> = {
-  pending: { variant: "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground", label: "Pending" },
+  pending: { variant: "bg-muted text-foreground dark:bg-card dark:text-muted-foreground", label: "Pending" },
   part_payment: { variant: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400", label: "Part Payment" },
   complete: { variant: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400", label: "Complete" },
   manual_review: { variant: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400", label: "Needs Review" },

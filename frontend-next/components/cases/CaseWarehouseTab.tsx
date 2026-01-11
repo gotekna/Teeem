@@ -287,7 +287,7 @@ export function CaseWarehouseTab({ caseId }: CaseWarehouseTabProps) {
                       ? "border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950"
                       : issue.severity === "medium"
                       ? "border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950"
-                      : "border-border bg-muted dark:border-border dark:bg-gray-900"
+                      : "border-border bg-muted dark:border-border dark:bg-background"
                   )}
                 >
                   <div className="flex items-start justify-between">
@@ -299,7 +299,7 @@ export function CaseWarehouseTab({ caseId }: CaseWarehouseTabProps) {
                               ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
                               : issue.severity === "medium"
                               ? "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300"
-                              : "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground"
+                              : "bg-muted text-foreground dark:bg-card dark:text-muted-foreground"
                           )}
                         >
                           {issue.severity}

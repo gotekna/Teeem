@@ -199,7 +199,7 @@ const RELATIONSHIP_TYPES = [
 
 const ALIGNMENTS = [
   { value: "friendly", label: "Friendly", icon: UserCheck, color: "bg-green-500", textColor: "text-green-700" },
-  { value: "neutral", label: "Neutral", icon: UserMinus, color: "bg-gray-400", textColor: "text-muted-foreground" },
+  { value: "neutral", label: "Neutral", icon: UserMinus, color: "bg-muted-foreground", textColor: "text-muted-foreground" },
   { value: "opposing", label: "Opposing", icon: UserX, color: "bg-red-500", textColor: "text-red-700" },
 ];
 

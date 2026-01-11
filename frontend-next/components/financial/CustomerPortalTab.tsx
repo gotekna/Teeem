@@ -369,7 +369,7 @@ export default function CustomerPortalTab() {
       return <Badge variant="outline" className="bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400">Revoked</Badge>;
     }
     if (expires < now) {
-      return <Badge variant="outline" className="bg-muted text-muted-foreground dark:bg-gray-800 dark:text-muted-foreground">Expired</Badge>;
+      return <Badge variant="outline" className="bg-muted text-muted-foreground dark:bg-card dark:text-muted-foreground">Expired</Badge>;
     }
     return <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400">Active</Badge>;
   };

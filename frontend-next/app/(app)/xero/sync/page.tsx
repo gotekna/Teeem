@@ -161,7 +161,7 @@ export default function XeroSyncPage() {
         text: "Failed",
       },
       pending: {
-        className: "bg-muted text-foreground dark:bg-gray-700 dark:text-muted-foreground",
+        className: "bg-muted text-foreground dark:bg-muted dark:text-muted-foreground",
         icon: ClockIcon,
         text: "Pending",
       },

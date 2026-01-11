@@ -367,7 +367,7 @@ export default function ProgressBillingTab() {
   // Get status badge
   const getStatusBadge = (status: string) => {
     const config: Record<string, { className: string; icon: React.ReactNode }> = {
-      draft: { className: "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground", icon: <FileText className="h-3 w-3 mr-1" /> },
+      draft: { className: "bg-muted text-foreground dark:bg-card dark:text-muted-foreground", icon: <FileText className="h-3 w-3 mr-1" /> },
       submitted: { className: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400", icon: <Send className="h-3 w-3 mr-1" /> },
       approved: { className: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400", icon: <CheckCircle className="h-3 w-3 mr-1" /> },
       certified: { className: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400", icon: <CheckSquare className="h-3 w-3 mr-1" /> },

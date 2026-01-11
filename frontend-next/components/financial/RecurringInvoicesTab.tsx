@@ -369,7 +369,7 @@ export default function RecurringInvoicesTab() {
         );
       case "completed":
         return (
-          <Badge className="bg-muted text-foreground dark:bg-gray-900/30 dark:text-muted-foreground">
+          <Badge className="bg-muted text-foreground dark:bg-background/30 dark:text-muted-foreground">
             <CheckCircle className="h-3 w-3 mr-1" />
             Completed
           </Badge>

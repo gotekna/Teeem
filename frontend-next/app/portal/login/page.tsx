@@ -50,7 +50,7 @@ export default function PortalLogin() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-100 via-white to-purple-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-100 via-white to-purple-100 dark:from-background dark:via-card dark:to-background py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
           <h1 className="text-center text-4xl font-extrabold text-foreground dark:text-white">
@@ -61,7 +61,7 @@ export default function PortalLogin() {
           </p>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8">
+        <div className="bg-card rounded-lg shadow-xl p-8">
           <form className="space-y-6" onSubmit={handleLogin}>
             {error && (
               <Alert variant="destructive">
@@ -116,7 +116,7 @@ export default function PortalLogin() {
                 <div className="w-full border-t border-border dark:border-border" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white dark:bg-gray-800 text-muted-foreground dark:text-muted-foreground">
+                <span className="px-2 bg-card text-muted-foreground dark:text-muted-foreground">
                   Need help? Contact your builder
                 </span>
               </div>

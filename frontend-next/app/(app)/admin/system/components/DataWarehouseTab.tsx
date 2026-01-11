@@ -875,7 +875,7 @@ export function DataWarehouseTab() {
                   <div className="flex items-center gap-3">
                     <div className={cn(
                       "p-2 rounded-lg",
-                      org.connected ? "bg-green-100 dark:bg-green-900/30" : "bg-muted dark:bg-gray-800"
+                      org.connected ? "bg-green-100 dark:bg-green-900/30" : "bg-muted dark:bg-card"
                     )}>
                       <Building2 className={cn(
                         "h-5 w-5",
@@ -1019,7 +1019,7 @@ export function DataWarehouseTab() {
                           <p className="text-sm font-bold text-green-600">{(org.stats.ai_classification?.business || 0).toLocaleString()}</p>
                           <p className="text-xs text-muted-foreground">Business</p>
                         </div>
-                        <div className="text-center p-2 bg-muted dark:bg-gray-800 rounded-lg">
+                        <div className="text-center p-2 bg-muted dark:bg-card rounded-lg">
                           <p className="text-sm font-bold text-muted-foreground">{(org.stats.ai_classification?.unclassified || 0).toLocaleString()}</p>
                           <p className="text-xs text-muted-foreground">Unclassified</p>
                         </div>
@@ -1310,7 +1310,7 @@ export function DataWarehouseTab() {
                 <p className="text-xl font-bold text-red-600">{warehouseStatus.health.error}</p>
                 <p className="text-xs text-muted-foreground">Error</p>
               </div>
-              <div className="text-center p-2 bg-muted dark:bg-gray-800 rounded-lg">
+              <div className="text-center p-2 bg-muted dark:bg-card rounded-lg">
                 <p className="text-xl font-bold text-muted-foreground">{warehouseStatus.health.unknown}</p>
                 <p className="text-xs text-muted-foreground">Unknown</p>
               </div>
@@ -1438,7 +1438,7 @@ export function DataWarehouseTab() {
                 <p className="text-lg font-bold text-green-600">{(stats.emails.ai_classification?.business || 0).toLocaleString()}</p>
                 <p className="text-xs text-muted-foreground">Business</p>
               </div>
-              <div className="text-center p-2 bg-muted dark:bg-gray-800 rounded-lg">
+              <div className="text-center p-2 bg-muted dark:bg-card rounded-lg">
                 <p className="text-lg font-bold text-muted-foreground">{(stats.emails.ai_classification?.unclassified || 0).toLocaleString()}</p>
                 <p className="text-xs text-muted-foreground">Unclassified</p>
               </div>
@@ -1553,7 +1553,7 @@ export function DataWarehouseTab() {
                 <p className="text-xl font-bold text-orange-600">{stats.corporate.missing_acn}</p>
                 <p className="text-xs text-muted-foreground">Missing ACN</p>
               </div>
-              <div className="text-center p-3 bg-muted dark:bg-gray-800 rounded-lg">
+              <div className="text-center p-3 bg-muted dark:bg-card rounded-lg">
                 <p className="text-xl font-bold text-muted-foreground">{stats.corporate.missing_review_date}</p>
                 <p className="text-xs text-muted-foreground">No Review Date</p>
               </div>
@@ -1602,7 +1602,7 @@ export function DataWarehouseTab() {
                 verified: { color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400", icon: CheckCircle },
                 mismatch: { color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400", icon: XCircle },
                 needs_review: { color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400", icon: AlertTriangle },
-                pending: { color: "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground", icon: Clock },
+                pending: { color: "bg-muted text-foreground dark:bg-card dark:text-muted-foreground", icon: Clock },
               };
               const { color, icon: Icon } = config[status] || { color: "bg-muted text-muted-foreground", icon: FileText };
               return (

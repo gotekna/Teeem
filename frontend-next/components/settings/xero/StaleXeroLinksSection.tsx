@@ -124,7 +124,7 @@ function StaleXeroLinkCard({ link }: { link: StaleXeroLink }) {
                 <FileText className="h-4 w-4 inline mr-1" />
                 {link.invoice_count} invoice{link.invoice_count !== 1 ? "s" : ""} referencing this contact:
               </div>
-              <div className="bg-white dark:bg-gray-900 rounded-lg border">
+              <div className="bg-white dark:bg-background rounded-lg border">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b">

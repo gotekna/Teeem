@@ -187,7 +187,7 @@ export interface BillDetail {
 // ============================================================================
 
 const statusColors: Record<string, string> = {
-  pending: "bg-muted text-foreground dark:bg-gray-400/10 dark:text-muted-foreground",
+  pending: "bg-muted text-foreground dark:bg-muted/50 dark:text-muted-foreground",
   extracting: "bg-blue-100 text-blue-700 dark:bg-blue-400/10 dark:text-blue-400",
   extracted: "bg-cyan-100 text-cyan-700 dark:bg-cyan-400/10 dark:text-cyan-400",
   matching: "bg-indigo-100 text-indigo-700 dark:bg-indigo-400/10 dark:text-indigo-400",
@@ -453,7 +453,7 @@ export function BillsInvoiceViewer({
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <div className="px-2 py-1 bg-gray-700 text-white rounded min-w-[80px]">
+            <div className="px-2 py-1 bg-muted-foreground text-white rounded min-w-[80px]">
               <div className="text-[10px] uppercase tracking-wide opacity-80">Invoice #</div>
               <div className="font-bold text-sm font-mono">{bill.invoice_number || "-"}</div>
             </div>
@@ -752,7 +752,7 @@ export function BillsInvoiceViewer({
               {bill.matched_purchase_order ? (
                 <>
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="p-1.5 bg-muted dark:bg-gray-800 rounded">
+                    <div className="p-1.5 bg-muted dark:bg-card rounded">
                       <p className="text-[10px] text-muted-foreground uppercase">PO Number</p>
                       <Link
                         href={`/purchase_orders/${bill.matched_purchase_order.id}`}
@@ -762,18 +762,18 @@ export function BillsInvoiceViewer({
                         <ExternalLink className="h-3 w-3" />
                       </Link>
                     </div>
-                    <div className="p-1.5 bg-muted dark:bg-gray-800 rounded">
+                    <div className="p-1.5 bg-muted dark:bg-card rounded">
                       <p className="text-[10px] text-muted-foreground uppercase">Payment Terms</p>
                       <p className="font-medium text-sm text-blue-600">{bill.matched_purchase_order.payment_terms || bill.supplier?.payment_terms || "-"}</p>
                     </div>
                   </div>
                   <Separator className="my-2" />
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="p-1.5 bg-muted dark:bg-gray-800 rounded">
+                    <div className="p-1.5 bg-muted dark:bg-card rounded">
                       <p className="text-[10px] text-muted-foreground uppercase">PO Total</p>
                       <p className="font-mono font-bold text-sm">{formatCurrency(bill.matched_purchase_order.total)}</p>
                     </div>
-                    <div className="p-1.5 bg-muted dark:bg-gray-800 rounded">
+                    <div className="p-1.5 bg-muted dark:bg-card rounded">
                       <p className="text-[10px] text-muted-foreground uppercase">Invoice Total</p>
                       <p className="font-mono font-bold text-sm">{formatCurrency(bill.total_amount)}</p>
                     </div>

@@ -1040,7 +1040,7 @@ export function PdfFieldsTab() {
 
       {/* PDF Preview - takes remaining width, full height, scrollable */}
       <div
-        className="flex-1 bg-muted dark:bg-gray-900 overflow-auto min-h-0"
+        className="flex-1 bg-muted dark:bg-background overflow-auto min-h-0"
       >
         {loadingPdf ? (
           <div className="flex items-center justify-center h-full">

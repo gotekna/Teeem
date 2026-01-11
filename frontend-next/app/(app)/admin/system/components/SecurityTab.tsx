@@ -235,7 +235,7 @@ function UsersManagementTab() {
                       "h-2 w-2 rounded-full",
                       user.presence_status === 'online' && "bg-green-500",
                       user.presence_status === 'away' && "bg-yellow-500",
-                      user.presence_status === 'offline' && "bg-gray-300"
+                      user.presence_status === 'offline' && "bg-muted"
                     )} />
                     {user.name}
                   </div>

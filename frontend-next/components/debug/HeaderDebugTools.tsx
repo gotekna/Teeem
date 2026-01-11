@@ -227,7 +227,7 @@ ${formattedLogs || "(No logs)"}
             ? "bg-green-600 text-white"
             : errorCount > 0
               ? "bg-yellow-500 text-black hover:bg-yellow-600"
-              : "bg-muted text-muted-foreground hover:bg-gray-300 dark:bg-gray-700 dark:text-muted-foreground"
+              : "bg-muted text-muted-foreground hover:bg-muted dark:bg-muted dark:text-muted-foreground"
         }`}
         title="Copy errors & warnings"
       >

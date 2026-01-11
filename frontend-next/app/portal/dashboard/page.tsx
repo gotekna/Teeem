@@ -140,7 +140,7 @@ export default function PortalDashboard() {
           <Link
             key={stat.name}
             href={stat.link}
-            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg hover:shadow-md transition-shadow"
+            className="bg-card overflow-hidden shadow rounded-lg hover:shadow-md transition-shadow"
           >
             <div className="p-5">
               <div className="flex items-center">
@@ -165,7 +165,7 @@ export default function PortalDashboard() {
 
       {/* Pending Quotes */}
       {pendingQuotes.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
+        <div className="bg-card shadow rounded-lg">
           <div className="px-4 py-5 sm:px-6 border-b border-border dark:border-border">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-medium text-foreground dark:text-white">
@@ -179,9 +179,9 @@ export default function PortalDashboard() {
               </Link>
             </div>
           </div>
-          <ul role="list" className="divide-y divide-gray-200 dark:divide-gray-700">
+          <ul role="list" className="divide-y divide-border dark:divide-border">
             {pendingQuotes.map((quote) => (
-              <li key={quote.id} className="px-4 py-4 sm:px-6 hover:bg-muted dark:hover:bg-gray-700">
+              <li key={quote.id} className="px-4 py-4 sm:px-6 hover:bg-muted dark:hover:bg-muted">
                 <Link href={`/portal/quotes/${quote.id}`} className="block">
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
@@ -210,7 +210,7 @@ export default function PortalDashboard() {
 
       {/* Jobs */}
       {recentJobs.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
+        <div className="bg-card shadow rounded-lg">
           <div className="px-4 py-5 sm:px-6 border-b border-border dark:border-border">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-medium text-foreground dark:text-white">Jobs</h2>
@@ -222,9 +222,9 @@ export default function PortalDashboard() {
               </Link>
             </div>
           </div>
-          <ul role="list" className="divide-y divide-gray-200 dark:divide-gray-700">
+          <ul role="list" className="divide-y divide-border dark:divide-border">
             {recentJobs.map((job) => (
-              <li key={job.id} className="px-4 py-4 sm:px-6 hover:bg-muted dark:hover:bg-gray-700">
+              <li key={job.id} className="px-4 py-4 sm:px-6 hover:bg-muted dark:hover:bg-muted">
                 <Link href={`/portal/jobs/${job.id}`} className="block">
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
@@ -241,7 +241,7 @@ export default function PortalDashboard() {
                         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                           job.is_arrived
                             ? "bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300"
-                            : "bg-muted dark:bg-gray-700 text-foreground dark:text-muted-foreground"
+                            : "bg-muted dark:bg-muted text-foreground dark:text-muted-foreground"
                         }`}
                       >
                         {job.is_arrived ? "In Progress" : "Scheduled"}

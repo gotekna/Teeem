@@ -105,7 +105,7 @@ export function OnlineUsersSidebar({
                           "absolute -bottom-0.5 -right-0.5 h-1.5 w-1.5 rounded-full border border-background",
                           user.presence_status === "online" && "bg-green-500",
                           user.presence_status === "away" && "bg-yellow-500",
-                          user.presence_status === "offline" && "bg-gray-400"
+                          user.presence_status === "offline" && "bg-muted-foreground"
                         )}
                       />
                     </div>
@@ -162,7 +162,7 @@ export function OnlineUsersSidebar({
                         "absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-background",
                         user.presence_status === "online" && "bg-green-500",
                         user.presence_status === "away" && "bg-yellow-500",
-                        user.presence_status === "offline" && "bg-gray-400"
+                        user.presence_status === "offline" && "bg-muted-foreground"
                       )}
                     />
                   </div>

@@ -290,7 +290,7 @@ export default function FinancialTransactionsPage() {
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 px-4 shrink-0">
             {/* Total Income */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-border dark:border-border">
+            <div className="bg-card rounded-lg shadow p-6 border border-border dark:border-border">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground dark:text-muted-foreground">Total Income</p>
@@ -309,7 +309,7 @@ export default function FinancialTransactionsPage() {
             </div>
 
             {/* Total Expenses */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-border dark:border-border">
+            <div className="bg-card rounded-lg shadow p-6 border border-border dark:border-border">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground dark:text-muted-foreground">Total Expenses</p>
@@ -328,7 +328,7 @@ export default function FinancialTransactionsPage() {
             </div>
 
             {/* Net Profit */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-border dark:border-border">
+            <div className="bg-card rounded-lg shadow p-6 border border-border dark:border-border">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground dark:text-muted-foreground">Net Profit</p>

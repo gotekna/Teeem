@@ -167,7 +167,7 @@ const FEATURES: Feature[] = [
 const STATUS_CONFIG = {
   done: { label: "Done", icon: CheckCircle2, color: "bg-green-500" },
   "in-progress": { label: "In Progress", icon: Clock, color: "bg-yellow-500" },
-  planned: { label: "Planned", icon: Circle, color: "bg-gray-400" },
+  planned: { label: "Planned", icon: Circle, color: "bg-muted-foreground" },
 };
 
 const CATEGORY_CONFIG = {
@@ -245,7 +245,7 @@ export function UnrealEngineTab() {
               ) : (
                 <div className={`h-2 w-2 rounded-full mr-2 ${
                   serverStatus === "running" ? "bg-green-500" :
-                  serverStatus === "stopped" ? "bg-red-500" : "bg-gray-400"
+                  serverStatus === "stopped" ? "bg-red-500" : "bg-muted-foreground"
                 }`} />
               )}
               MCP Server: {serverStatus === "running" ? "Connected" : serverStatus === "stopped" ? "Disconnected" : "Unknown"}
