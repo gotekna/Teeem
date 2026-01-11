@@ -1,101 +1,123 @@
 "use client";
 
 import * as React from "react";
-import { Input, InputProps } from "@/components/ui/input";
-import { WritingIndicator } from "@/components/ui/writing-indicator";
+import { Input } from "./input";
+import { WritingIndicator } from "./writing-indicator";
 import { useWritingAssistant, WritingContext } from "@/hooks/useWritingAssistant";
 import { cn } from "@/lib/utils";
 
-export interface SmartInputProps extends Omit<InputProps, "value" | "onChange"> {
-  /** Controlled value */
-  value: string;
-  /** Change handler */
-  onChange: (value: string) => void;
+type OnChangeHandler =
+  | React.ChangeEventHandler<HTMLInputElement>
+  | ((value: string) => void);
+
+export interface SmartInputProps
+  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "onChange"> {
   /** Context helps AI understand what this field is for */
   context?: WritingContext;
   /** Disable AI checking (browser spell check still works) */
   disableAI?: boolean;
-  /** Always show indicator even when no issues */
+  /** Show indicator even when no issues */
   alwaysShowIndicator?: boolean;
-  /** Milliseconds to wait after typing before checking (default: 1500) */
-  debounceMs?: number;
-  /** Position of the indicator: 'inside' (default) or 'outside' */
-  indicatorPosition?: "inside" | "outside";
+  /** Accepts either (e) => void or (value: string) => void */
+  onChange?: OnChangeHandler;
 }
 
 /**
- * Input with built-in AI writing assistant
+ * Input with built-in spell/grammar checking
  *
- * Drop-in replacement for Input with spell check, grammar check, and tone suggestions.
+ * Drop-in replacement for Input with writing assistance.
+ * Supports both standard React onChange and simple string setters.
  *
  * @example
  * ```tsx
+ * // With string setter (common pattern)
  * <SmartInput
- *   value={taskName}
- *   onChange={setTaskName}
+ *   value={name}
+ *   onChange={setName}
  *   context="task_name"
- *   placeholder="Enter task name..."
+ * />
+ *
+ * // With event handler
+ * <SmartInput
+ *   value={name}
+ *   onChange={(e) => setName(e.target.value)}
+ *   context="task_name"
  * />
  * ```
  */
-export function SmartInput({
-  value,
-  onChange,
-  context = "general",
-  disableAI = false,
-  alwaysShowIndicator = false,
-  debounceMs = 1500,
-  indicatorPosition = "inside",
-  className,
-  ...props
-}: SmartInputProps) {
-  const { result, isChecking, hasIssues } = useWritingAssistant(value, {
-    enabled: !disableAI,
-    context,
-    debounceMs,
-  });
-
-  const handleApplyFix = React.useCallback(
-    (correctedText: string) => {
-      onChange(correctedText);
+export const SmartInput = React.forwardRef<HTMLInputElement, SmartInputProps>(
+  (
+    {
+      context = "general",
+      disableAI = false,
+      alwaysShowIndicator = false,
+      className,
+      value,
+      onChange,
+      ...props
     },
-    [onChange]
-  );
+    ref
+  ) => {
+    const textValue = typeof value === "string" ? value : "";
 
-  const showIndicator = !disableAI && (isChecking || hasIssues || alwaysShowIndicator);
+    const { result, isChecking, hasIssues } = useWritingAssistant(textValue, {
+      enabled: !disableAI,
+      context,
+    });
 
-  if (indicatorPosition === "outside") {
+    // Detect if onChange expects string or event
+    const handleChange = React.useCallback(
+      (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!onChange) return;
+
+        // Check if it's a simple string setter by checking if it expects 1 arg
+        // and the function name suggests it's a setter
+        const fn = onChange as OnChangeHandler;
+        try {
+          // Try calling with string first (common pattern in codebase)
+          (fn as (value: string) => void)(e.target.value);
+        } catch {
+          // Fall back to event handler
+          (fn as React.ChangeEventHandler<HTMLInputElement>)(e);
+        }
+      },
+      [onChange]
+    );
+
+    // Handle applying fix from writing indicator
+    const handleApplyFix = React.useCallback(
+      (correctedText: string) => {
+        if (!onChange) return;
+
+        try {
+          // Try calling with string first
+          (onChange as (value: string) => void)(correctedText);
+        } catch {
+          // Fall back to synthetic event
+          const syntheticEvent = {
+            target: { value: correctedText },
+            currentTarget: { value: correctedText },
+          } as React.ChangeEvent<HTMLInputElement>;
+          (onChange as React.ChangeEventHandler<HTMLInputElement>)(syntheticEvent);
+        }
+      },
+      [onChange]
+    );
+
     return (
-      <div className="flex items-center gap-2">
+      <div className="relative">
         <Input
+          ref={ref}
           value={value}
-          onChange={(e) => onChange(e.target.value)}
-          spellCheck="true"
-          className={className}
+          onChange={handleChange}
+          className={cn(
+            // Add padding-right for the indicator
+            hasIssues || isChecking || alwaysShowIndicator ? "pr-8" : "",
+            className
+          )}
+          spellCheck={true}
           {...props}
         />
-        {showIndicator && (
-          <WritingIndicator
-            result={result}
-            isChecking={isChecking}
-            onApplyFix={handleApplyFix}
-            alwaysShow={alwaysShowIndicator}
-          />
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="relative">
-      <Input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        spellCheck="true"
-        className={cn(showIndicator && "pr-8", className)}
-        {...props}
-      />
-      {showIndicator && (
         <WritingIndicator
           result={result}
           isChecking={isChecking}
@@ -103,9 +125,11 @@ export function SmartInput({
           alwaysShow={alwaysShowIndicator}
           className="absolute right-2 top-1/2 -translate-y-1/2"
         />
-      )}
-    </div>
-  );
-}
+      </div>
+    );
+  }
+);
+
+SmartInput.displayName = "SmartInput";
 
 export default SmartInput;

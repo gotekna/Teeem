@@ -729,6 +729,8 @@ export function ComposeEmailModal({
                   placeholder="Type / to insert files and more"
                   minHeight={400}
                   onSlashCommand={handleSlashCommand}
+                  enableWritingChecker={true}
+                  writingContext="email_body"
                 />
 
                 {/* Signature Preview - rendered separately to preserve HTML formatting */}

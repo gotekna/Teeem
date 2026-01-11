@@ -526,3 +526,28 @@ a.bg-primary svg {
 [data-radix-popper-content-wrapper] {
   z-index: 1200 !important;
 }
+
+/* ========================================
+   WRITING CHECKER - Spell/Grammar/Tone
+   ======================================== */
+
+/* Spelling errors - red wavy underline */
+.writing-error-spelling {
+  text-decoration: underline wavy #ef4444;
+  text-decoration-skip-ink: none;
+  cursor: pointer;
+}
+
+/* Grammar errors - yellow wavy underline */
+.writing-error-grammar {
+  text-decoration: underline wavy #eab308;
+  text-decoration-skip-ink: none;
+  cursor: pointer;
+}
+
+/* Tone suggestions - blue wavy underline */
+.writing-error-tone {
+  text-decoration: underline wavy #3b82f6;
+  text-decoration-skip-ink: none;
+  cursor: pointer;
+}

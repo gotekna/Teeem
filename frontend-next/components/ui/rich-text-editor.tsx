@@ -25,6 +25,8 @@ import {
   Undo,
   Redo,
   ImageIcon,
+  SpellCheck,
+  Loader2,
 } from "lucide-react";
 import {
   Popover,
@@ -33,6 +35,7 @@ import {
 } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { WritingChecker, useWritingCheckerState, WritingIssue } from "./tiptap-writing-checker";
 
 // Slash command types
 export type SlashCommand = "template";
@@ -48,6 +51,14 @@ interface RichTextEditorProps {
    * The editor will delete the slash command text when this is called.
    */
   onSlashCommand?: (command: SlashCommand) => void;
+  /**
+   * Enable spell/grammar/tone checking with inline underlines
+   */
+  enableWritingChecker?: boolean;
+  /**
+   * Context for writing checker (helps AI understand what type of content)
+   */
+  writingContext?: "email_body" | "notes" | "general";
 }
 
 // Slash command extension - detects /template or /t and triggers callback
@@ -126,10 +137,11 @@ function ToolbarButton({
   );
 }
 
-function Toolbar({ editor }: { editor: Editor | null }) {
+function Toolbar({ editor, showWritingChecker }: { editor: Editor | null; showWritingChecker?: boolean }) {
   const [linkUrl, setLinkUrl] = React.useState("");
   const [linkOpen, setLinkOpen] = React.useState(false);
   const imageInputRef = React.useRef<HTMLInputElement>(null);
+  const { issues, isChecking } = useWritingCheckerState(editor);
 
   if (!editor) return null;
 
@@ -301,6 +313,31 @@ function Toolbar({ editor }: { editor: Editor | null }) {
       >
         <Redo className="h-4 w-4" />
       </ToolbarButton>
+
+      {/* Writing Checker Status */}
+      {showWritingChecker && (
+        <>
+          <div className="w-px h-5 bg-border mx-1" />
+          <div className="flex items-center gap-1 px-1">
+            {isChecking ? (
+              <div className="flex items-center gap-1 text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                <span className="text-xs">Checking...</span>
+              </div>
+            ) : issues.length > 0 ? (
+              <div className="flex items-center gap-1 text-yellow-600 dark:text-yellow-500">
+                <SpellCheck className="h-4 w-4" />
+                <span className="text-xs font-medium">{issues.length} {issues.length === 1 ? 'issue' : 'issues'}</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1 text-green-600 dark:text-green-500">
+                <SpellCheck className="h-4 w-4" />
+                <span className="text-xs">Good</span>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -312,50 +349,67 @@ export function RichTextEditor({
   className,
   minHeight = 200,
   onSlashCommand,
+  enableWritingChecker = false,
+  writingContext = "email_body",
 }: RichTextEditorProps) {
   // Memoize all extensions to prevent tiptap duplicate extension warnings
   const extensions = React.useMemo(
-    () => [
-      StarterKit.configure({
-        // Disable heading since we don't need it for emails
-        heading: false,
-      }),
-      Placeholder.configure({
-        placeholder: onSlashCommand
-          ? `${placeholder} (Type /template or /t for templates)`
-          : placeholder,
-        emptyEditorClass: "is-editor-empty",
-      }),
-      Underline,
-      Link.configure({
-        openOnClick: false,
-        HTMLAttributes: {
-          class: "text-blue-600 underline hover:text-blue-800",
-        },
-      }),
-      Image.configure({
-        inline: true,
-        allowBase64: true,
-        HTMLAttributes: {
-          class: "max-w-full max-h-[300px] w-auto h-auto rounded object-contain cursor-pointer",
-          style: "display: inline-block;",
-        },
-      }),
-      // Table support for email signatures
-      Table.configure({
-        resizable: false,
-        HTMLAttributes: {
-          class: "email-signature-table",
-        },
-      }),
-      TableRow,
-      TableCell,
-      TableHeader,
-      createSlashCommandExtension(onSlashCommand),
-    ],
+    () => {
+      const baseExtensions = [
+        StarterKit.configure({
+          // Disable heading since we don't need it for emails
+          heading: false,
+        }),
+        Placeholder.configure({
+          placeholder: onSlashCommand
+            ? `${placeholder} (Type /template or /t for templates)`
+            : placeholder,
+          emptyEditorClass: "is-editor-empty",
+        }),
+        Underline,
+        Link.configure({
+          openOnClick: false,
+          HTMLAttributes: {
+            class: "text-blue-600 underline hover:text-blue-800",
+          },
+        }),
+        Image.configure({
+          inline: true,
+          allowBase64: true,
+          HTMLAttributes: {
+            class: "max-w-full max-h-[300px] w-auto h-auto rounded object-contain cursor-pointer",
+            style: "display: inline-block;",
+          },
+        }),
+        // Table support for email signatures
+        Table.configure({
+          resizable: false,
+          HTMLAttributes: {
+            class: "email-signature-table",
+          },
+        }),
+        TableRow,
+        TableCell,
+        TableHeader,
+        createSlashCommandExtension(onSlashCommand),
+      ];
+
+      // Add WritingChecker extension if enabled
+      if (enableWritingChecker) {
+        baseExtensions.push(
+          WritingChecker.configure({
+            enabled: true,
+            debounceMs: 1000,
+            context: writingContext,
+          })
+        );
+      }
+
+      return baseExtensions;
+    },
     // Only recreate extensions when these dependencies change
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [placeholder, onSlashCommand]
+    [placeholder, onSlashCommand, enableWritingChecker, writingContext]
   );
 
   const editor = useEditor({
@@ -392,7 +446,7 @@ export function RichTextEditor({
         className
       )}
     >
-      <Toolbar editor={editor} />
+      <Toolbar editor={editor} showWritingChecker={enableWritingChecker} />
       <div style={{ minHeight }} className="overflow-y-auto">
         <EditorContent
           editor={editor}

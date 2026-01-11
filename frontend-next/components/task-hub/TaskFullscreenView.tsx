@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SmartInput } from '@/components/ui/smart-input';
+import { SmartTextField } from '@/components/ui/smart-text-field';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -430,18 +431,18 @@ function SortableQuestionItem({
       {item.response ? (
         editingAnswerId === item.id ? (
           <div className="ml-6 space-y-2">
-            <Textarea
+            <SmartTextField
               value={editingAnswerText}
-              onChange={(e) => setEditingAnswerText?.(e.target.value)}
+              onChange={(value) => setEditingAnswerText?.(value)}
               onKeyDown={(e) => {
                 if (e.key === 'Escape') {
                   setEditingAnswerId?.(null);
                   setEditingAnswerText?.('');
                 }
               }}
-              className="min-h-[60px] text-sm resize-y"
+              className="min-h-[60px] text-sm"
+              context="answer"
               autoFocus
-              spellCheck={true}
             />
             <div className="flex gap-2 justify-end">
               <Button
@@ -475,11 +476,12 @@ function SortableQuestionItem({
         )
       ) : answeringItemId === item.id ? (
         <div className="ml-6 space-y-2">
-          <Textarea
+          <SmartTextField
             value={answerText}
-            onChange={(e) => setAnswerText?.(e.target.value)}
+            onChange={(value) => setAnswerText?.(value)}
             placeholder="Type answer..."
-            className="min-h-[60px] text-sm resize-y"
+            className="min-h-[60px] text-sm"
+            context="answer"
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
                 setAnsweringItemId?.(null);
@@ -487,7 +489,6 @@ function SortableQuestionItem({
               }
             }}
             autoFocus
-            spellCheck={true}
           />
           <div className="flex gap-2 justify-end">
             <Button
@@ -1854,7 +1855,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
           {/* Editable task name */}
           {isEditingName ? (
-            <SmartInput
+            <SmartTextField
               value={editedName}
               onChange={setEditedName}
               context="task_name"
@@ -1867,6 +1868,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 }
               }}
               className="text-lg font-semibold flex-1"
+              singleLine
               autoFocus
             />
           ) : (
@@ -2083,11 +2085,13 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
               <>
                 <div>
                   {isEditingDescription ? (
-                    <Textarea
+                    <SmartTextField
                       value={editedDescription}
-                      onChange={(e) => setEditedDescription(e.target.value)}
+                      onChange={setEditedDescription}
                       onBlur={handleSaveDescription}
                       className="min-h-[150px]"
+                      context="notes"
+                      minHeight={150}
                       autoFocus
                     />
                   ) : (

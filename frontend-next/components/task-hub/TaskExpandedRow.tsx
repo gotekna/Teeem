@@ -6,6 +6,7 @@ import { TASK_STATUS } from '@/lib/constants/task-status';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SmartTextField } from '@/components/ui/smart-text-field';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -1253,9 +1254,11 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                     className="h-4 w-4"
                   />
                   {editingItemId === item.id ? (
-                    <Input
+                    <SmartTextField
                       value={editingItemText}
-                      onChange={(e) => setEditingItemText(e.target.value)}
+                      onChange={setEditingItemText}
+                      context={item.item_type === 'question' ? 'question' : 'action'}
+                      singleLine
                       onKeyDown={async (e) => {
                         if (e.key === 'Enter' && editingItemText.trim()) {
                           setActionItemLoading(item.id);
@@ -1576,10 +1579,12 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
               ) : (
                 <HelpCircle className="h-4 w-4 text-blue-500 opacity-50" />
               )}
-              <Input
+              <SmartTextField
                 placeholder={newActionItemType === 'action' ? "Add action item..." : "Add question..."}
                 value={newActionItemText}
-                onChange={(e) => setNewActionItemText(e.target.value)}
+                onChange={setNewActionItemText}
+                context={newActionItemType === 'action' ? 'action' : 'question'}
+                singleLine
                 onKeyDown={async (e) => {
                   if (e.key === 'Enter' && newActionItemText.trim()) {
                     setActionItemLoading('new');
