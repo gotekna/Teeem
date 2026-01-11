@@ -209,7 +209,7 @@ module Api
             available_providers: Organization::DOCUMENT_PROVIDERS,
             s3_credentials: s3_credentials,
             sharepoint_configured: sharepoint_configured,
-            can_switch: s3_credentials.any?(&:connected) || sharepoint_configured
+            can_switch: s3_credentials.any? { |c| c[:connected] } || sharepoint_configured
           }
         }
       end
