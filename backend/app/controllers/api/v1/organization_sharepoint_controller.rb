@@ -1662,7 +1662,8 @@ module Api
               # S3 storage path for display (e.g., "teeem-documents/jobs/49/finance/invoice.pdf")
               storage_path: doc.storage_path,
               # SSoT download URL - works for both SharePoint and S3
-              download_url: "/api/v1/organization_onedrive/job_document_download?document_id=#{doc.id}",
+              # Must be absolute URL since frontend opens in new tab via window.open()
+              download_url: "#{request.base_url}/api/v1/organization_onedrive/job_document_download?document_id=#{doc.id}",
               modified: doc.last_modified_at&.iso8601,
               type: "file",
               folder_path: doc.folder_path || "",
