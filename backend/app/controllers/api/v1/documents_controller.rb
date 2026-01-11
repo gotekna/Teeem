@@ -268,7 +268,7 @@ module Api
           id: doc.id,
           source: "job",
           fileName: doc.file_name,
-          displayName: doc.display_name || doc.file_name,
+          displayName: doc.file_name,  # JobDocument doesn't have display_name
           mimeType: doc.mime_type || "application/octet-stream",
           fileSize: doc.file_size || 0,
           fileUrl: doc.file_url,

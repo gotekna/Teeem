@@ -9,7 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { refreshBrandColors } from "@/components/providers/company-colors-provider";
-import { Globe, Palette, Check, AlertCircle } from "lucide-react";
+import { Globe, Palette, Check, AlertCircle, Image } from "lucide-react";
 
 interface BrandColors {
   primary: string;
@@ -23,11 +23,15 @@ interface BrandData {
   colors: BrandColors;
   website_url: string | null;
   logo_url: string | null;
+  logo_mobile: string | null;
+  logo_dark: string | null;
 }
 
 interface DetectedBrand {
   company_name: string;
   logo_url: string | null;
+  logo_dark_url: string | null;
+  favicon_url: string | null;
   colors: {
     hex: Record<string, string>;
     hsl: Record<string, string>;
@@ -180,13 +184,43 @@ export function BrandColorsTab() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium">{detectedBrand.company_name}</p>
-                  <p className="text-sm text-muted-foreground">Detected brand colors</p>
+                  <p className="text-sm text-muted-foreground">Detected brand assets</p>
                 </div>
                 <Button onClick={applyDetectedBrand} disabled={saving}>
                   {saving ? <Spinner className="h-4 w-4 mr-2" /> : null}
                   Apply Brand
                 </Button>
               </div>
+
+              {/* Logo Preview */}
+              {(detectedBrand.logo_url || detectedBrand.logo_dark_url) && (
+                <div className="flex gap-4">
+                  {detectedBrand.logo_url && (
+                    <div className="text-center">
+                      <div className="bg-white p-4 rounded-md border">
+                        <img
+                          src={detectedBrand.logo_url}
+                          alt="Detected logo"
+                          className="h-12 max-w-[200px] object-contain"
+                        />
+                      </div>
+                      <p className="text-xs mt-1 text-muted-foreground">Logo (Light)</p>
+                    </div>
+                  )}
+                  {detectedBrand.logo_dark_url && (
+                    <div className="text-center">
+                      <div className="bg-gray-900 p-4 rounded-md border">
+                        <img
+                          src={detectedBrand.logo_dark_url}
+                          alt="Detected dark logo"
+                          className="h-12 max-w-[200px] object-contain"
+                        />
+                      </div>
+                      <p className="text-xs mt-1 text-muted-foreground">Logo (Dark)</p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Color Preview */}
               <div className="grid grid-cols-5 gap-2">
@@ -234,6 +268,73 @@ export function BrandColorsTab() {
               ))}
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Current Logos */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Image className="h-5 w-5" />
+            Current Logos
+          </CardTitle>
+          <CardDescription>
+            Company logos for different contexts. These are auto-detected from your website or can be set manually.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 gap-6">
+            {/* Main Logo */}
+            <div className="text-center">
+              <div className="bg-white p-4 rounded-md border min-h-[80px] flex items-center justify-center">
+                {brand?.logo_url ? (
+                  <img
+                    src={brand.logo_url}
+                    alt="Company logo"
+                    className="h-12 max-w-full object-contain"
+                  />
+                ) : (
+                  <span className="text-muted-foreground text-sm">No logo set</span>
+                )}
+              </div>
+              <p className="text-sm mt-2 font-medium">Main Logo</p>
+              <p className="text-xs text-muted-foreground">Used on light backgrounds</p>
+            </div>
+
+            {/* Dark Logo */}
+            <div className="text-center">
+              <div className="bg-gray-900 p-4 rounded-md border min-h-[80px] flex items-center justify-center">
+                {brand?.logo_dark ? (
+                  <img
+                    src={brand.logo_dark}
+                    alt="Dark mode logo"
+                    className="h-12 max-w-full object-contain"
+                  />
+                ) : (
+                  <span className="text-gray-500 text-sm">No dark logo set</span>
+                )}
+              </div>
+              <p className="text-sm mt-2 font-medium">Dark Mode Logo</p>
+              <p className="text-xs text-muted-foreground">Used on dark backgrounds</p>
+            </div>
+
+            {/* Mobile Logo */}
+            <div className="text-center">
+              <div className="bg-white p-4 rounded-md border min-h-[80px] flex items-center justify-center">
+                {brand?.logo_mobile ? (
+                  <img
+                    src={brand.logo_mobile}
+                    alt="Mobile logo"
+                    className="h-8 max-w-full object-contain"
+                  />
+                ) : (
+                  <span className="text-muted-foreground text-sm">No mobile logo set</span>
+                )}
+              </div>
+              <p className="text-sm mt-2 font-medium">Mobile Logo</p>
+              <p className="text-xs text-muted-foreground">Compact version for mobile</p>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

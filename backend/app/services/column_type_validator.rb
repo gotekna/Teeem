@@ -99,11 +99,10 @@ class ColumnTypeValidator
         end
 
       when "percentage"
+        # Percentage can be any value (including negative for losses, over 100 for growth)
+        # Just validate it's a valid number
         begin
-          num = Float(str_value)
-          if num < 0 || num > 100
-            return "must be between 0 and 100"
-          end
+          Float(str_value)
         rescue ArgumentError
           return "must be a number"
         end
