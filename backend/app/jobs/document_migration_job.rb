@@ -36,11 +36,12 @@ class DocumentMigrationJob < ApplicationJob
 
     Rails.logger.error "[DocumentMigration] #{document_type} #{document_id} failed permanently: #{error.message}"
 
-    # Mark document as failed
+    # Mark document as failed (skip validations - just updating migration status)
     klass = DOCUMENT_TYPES[document_type] || JobDocument
-    klass.find_by(id: document_id)&.update(
+    doc = klass.find_by(id: document_id)
+    doc&.update_columns(
       migration_status: 'failed',
-      migration_error: error.message
+      migration_error: error.message[0..500]
     )
   end
 
@@ -85,8 +86,8 @@ class DocumentMigrationJob < ApplicationJob
       return { status: 'skipped', reason: 'same_provider' }
     end
 
-    # Mark as in progress
-    document.update!(
+    # Mark as in progress (skip validations - we're only updating migration fields)
+    document.update_columns(
       migration_status: 'in_progress',
       migration_started_at: Time.current,
       migration_error: nil,
@@ -135,7 +136,7 @@ class DocumentMigrationJob < ApplicationJob
 
       Rails.logger.info "[DocumentMigration] Uploaded successfully, new ID: #{result[:id]}"
 
-      # Step 6: Update document record
+      # Step 6: Update document record (skip validations - we're only updating migration fields)
       # Mark as synced so it appears in API queries (job_all_files uses .synced scope)
       update_attrs = {
         storage_provider: dest_provider_type,
@@ -147,7 +148,7 @@ class DocumentMigrationJob < ApplicationJob
       }
       # sync_status only exists on JobDocument, not CorporateCompanyDocument
       update_attrs[:sync_status] = 'synced' if document.respond_to?(:sync_status)
-      document.update!(update_attrs)
+      document.update_columns(update_attrs)
 
       # Step 7: Optionally delete from source
       if delete_source
@@ -175,9 +176,9 @@ class DocumentMigrationJob < ApplicationJob
       Rails.logger.error "[DocumentMigration] Failed: #{e.message}"
       Rails.logger.error e.backtrace.first(10).join("\n")
 
-      document.update!(
+      document.update_columns(
         migration_status: 'failed',
-        migration_error: e.message
+        migration_error: e.message[0..500] # Truncate long errors
       )
 
       raise # Re-raise to trigger discard_on handler
