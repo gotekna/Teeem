@@ -41,6 +41,8 @@ import {
   ImagePlus,
   LayoutGrid,
   List,
+  FolderTree,
+  ChevronDown,
 } from "lucide-react";
 import { PhotoGallery, type PhotoItem } from "@/components/ui/photo-gallery";
 import { ImageLightbox } from "@/components/ui/image-lightbox";
@@ -188,11 +190,12 @@ interface JobDocumentsTabProps {
 }
 
 export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: propCategories }: JobDocumentsTabProps) {
-  const [viewMode, setViewMode] = useState<"tasks" | "sharepoint" | "allfiles">("tasks");
+  const [viewMode, setViewMode] = useState<"tasks" | "sharepoint" | "allfiles" | "treeview">("tasks");
   const [selectMode, setSelectMode] = useState(false);
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
   const [orgStatus, setOrgStatus] = useState<OrgStatus>({ loading: true, connected: false });
   const [documentProvider, setDocumentProvider] = useState<"sharepoint" | "s3_compatible">("sharepoint");
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(["root"]));
   const [jobFolderStatus, setJobFolderStatus] = useState<JobFolderStatus>({ loading: false, exists: false, webUrl: null });
   const [folders, setFolders] = useState<SharePointFolder[]>([]);
   const [creatingFolders, setCreatingFolders] = useState(false);
@@ -1446,7 +1449,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
 
   useEffect(() => {
     // Load files for: All Files tab, Document Tasks view (any category)
-    const needsFiles = viewMode === "allfiles" || viewMode === "tasks";
+    const needsFiles = viewMode === "allfiles" || viewMode === "tasks" || viewMode === "treeview";
 
     if (orgStatus.connected && needsFiles) {
       // Prevent duplicate requests if one is already in flight
@@ -2537,6 +2540,277 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     );
   };
 
+  // Tree View - collapsible folder structure based on Entity Configurator categories
+  const renderTreeView = () => {
+    const toggleFolder = (folderId: string) => {
+      setExpandedFolders(prev => {
+        const next = new Set(prev);
+        if (next.has(folderId)) {
+          next.delete(folderId);
+        } else {
+          next.add(folderId);
+        }
+        return next;
+      });
+    };
+
+    // Build tree structure from categories and files
+    interface TreeNode {
+      id: string;
+      name: string;
+      type: "folder" | "file";
+      children?: TreeNode[];
+      file?: LegacyItem;
+      folderPath?: string;
+      icon?: string;
+      color?: string;
+    }
+
+    // Map files to their folder paths
+    const filesByFolder = useMemo(() => {
+      const map = new Map<string, LegacyItem[]>();
+      allFiles.forEach(file => {
+        const path = file.folder_path?.toLowerCase() || "documents";
+        if (!map.has(path)) {
+          map.set(path, []);
+        }
+        map.get(path)!.push(file);
+      });
+      return map;
+    }, [allFiles]);
+
+    // Build tree from categories
+    const buildTree = (): TreeNode[] => {
+      const tree: TreeNode[] = [];
+      const usedFolderPaths = new Set<string>();
+
+      // Add categories as folders
+      documentCategories.forEach((cat: DocumentCategory) => {
+        const folderPath = cat.folder_path?.toLowerCase() || cat.name.toLowerCase();
+        usedFolderPaths.add(folderPath);
+
+        const categoryNode: TreeNode = {
+          id: `cat-${cat.id}`,
+          name: cat.display_name || cat.name,
+          type: "folder",
+          folderPath,
+          icon: cat.icon,
+          color: cat.color,
+          children: []
+        };
+
+        // Add files that match this folder path
+        const matchingFiles = filesByFolder.get(folderPath) || [];
+        matchingFiles.forEach(file => {
+          categoryNode.children!.push({
+            id: `file-${file.document_id || file.id}`,
+            name: file.name,
+            type: "file",
+            file
+          });
+        });
+
+        // Add subcategories
+        if (cat.children) {
+          cat.children.forEach((sub: DocumentCategory) => {
+            const subPath = sub.folder_path?.toLowerCase() || `${folderPath}/${sub.name.toLowerCase()}`;
+            usedFolderPaths.add(subPath);
+
+            const subNode: TreeNode = {
+              id: `cat-${sub.id}`,
+              name: sub.display_name || sub.name,
+              type: "folder",
+              folderPath: subPath,
+              icon: sub.icon,
+              color: sub.color,
+              children: []
+            };
+
+            const subFiles = filesByFolder.get(subPath) || [];
+            subFiles.forEach(file => {
+              subNode.children!.push({
+                id: `file-${file.document_id || file.id}`,
+                name: file.name,
+                type: "file",
+                file
+              });
+            });
+
+            if (subNode.children!.length > 0) {
+              categoryNode.children!.push(subNode);
+            }
+          });
+        }
+
+        // Only add category if it has files
+        if (categoryNode.children!.length > 0) {
+          tree.push(categoryNode);
+        }
+      });
+
+      // Add uncategorized files to "Documents" catch-all
+      const uncategorizedFiles: LegacyItem[] = [];
+      filesByFolder.forEach((files, path) => {
+        if (!usedFolderPaths.has(path)) {
+          uncategorizedFiles.push(...files);
+        }
+      });
+
+      if (uncategorizedFiles.length > 0) {
+        tree.push({
+          id: "uncategorized",
+          name: "Documents",
+          type: "folder",
+          children: uncategorizedFiles.map(file => ({
+            id: `file-${file.document_id || file.id}`,
+            name: file.name,
+            type: "file",
+            file
+          }))
+        });
+      }
+
+      return tree;
+    };
+
+    const treeData = buildTree();
+
+    // Render a tree node recursively
+    const renderNode = (node: TreeNode, depth: number = 0) => {
+      const isExpanded = expandedFolders.has(node.id);
+      const paddingLeft = depth * 20;
+
+      if (node.type === "folder") {
+        const fileCount = node.children?.filter(c => c.type === "file").length || 0;
+        const folderCount = node.children?.filter(c => c.type === "folder").length || 0;
+
+        return (
+          <div key={node.id}>
+            <div
+              className="flex items-center gap-2 py-2 px-3 hover:bg-muted/50 cursor-pointer rounded-md"
+              style={{ paddingLeft: `${paddingLeft + 12}px` }}
+              onClick={() => toggleFolder(node.id)}
+            >
+              <ChevronRight
+                className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? "rotate-90" : ""}`}
+              />
+              <Folder className={`h-4 w-4 ${node.color ? "" : "text-yellow-500"}`} style={node.color ? { color: node.color } : {}} />
+              <span className="font-medium">{node.name}</span>
+              <Badge variant="secondary" className="ml-2 text-xs">
+                {fileCount} {fileCount === 1 ? "file" : "files"}
+                {folderCount > 0 && `, ${folderCount} folders`}
+              </Badge>
+            </div>
+            {isExpanded && node.children && (
+              <div className="border-l border-muted ml-6">
+                {node.children.map(child => renderNode(child, depth + 1))}
+              </div>
+            )}
+          </div>
+        );
+      } else {
+        // File node
+        const file = node.file!;
+        const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
+
+        return (
+          <div
+            key={node.id}
+            className="flex items-center gap-2 py-2 px-3 hover:bg-muted/50 rounded-md group"
+            style={{ paddingLeft: `${paddingLeft + 12}px` }}
+          >
+            {isImage && file.thumbnail_url ? (
+              <img src={file.thumbnail_url} alt="" className="h-5 w-5 rounded object-cover" />
+            ) : (
+              <File className="h-4 w-4 text-muted-foreground" />
+            )}
+            <span
+              className="flex-1 truncate cursor-pointer hover:text-primary"
+              onClick={() => file.download_url && window.open(file.download_url, "_blank")}
+              title={file.name}
+            >
+              {file.name}
+            </span>
+            {file.storage_provider === "s3_compatible" && (
+              <Badge variant="outline" className="text-xs">S3</Badge>
+            )}
+            {file.size && (
+              <span className="text-xs text-muted-foreground">
+                {(file.size / 1024).toFixed(0)} KB
+              </span>
+            )}
+            <div className="opacity-0 group-hover:opacity-100 flex gap-1">
+              {file.download_url && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  onClick={() => window.open(file.download_url, "_blank")}
+                  title="Open file"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
+          </div>
+        );
+      }
+    };
+
+    return (
+      <div className="space-y-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <FolderTree className="h-5 w-5" />
+                Folder View
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setExpandedFolders(new Set(["root", ...treeData.map(n => n.id)]))}
+                >
+                  Expand All
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setExpandedFolders(new Set())}
+                >
+                  Collapse All
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {loadingAllFiles ? (
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+                <span className="ml-2 text-muted-foreground">Loading files...</span>
+              </div>
+            ) : allFiles.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Folder className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                <p>No files found</p>
+              </div>
+            ) : treeData.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Folder className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                <p>No categorized folders</p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {treeData.map(node => renderNode(node, 0))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Messages */}
@@ -2597,6 +2871,14 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
             <Folder className="h-4 w-4 mr-2" />
             All Files
           </Button>
+          <Button
+            variant={viewMode === "treeview" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setViewMode("treeview")}
+          >
+            <FolderTree className="h-4 w-4 mr-2" />
+            Folder View
+          </Button>
         </div>
       )}
 
@@ -2608,6 +2890,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
           {viewMode === "tasks" && renderTasksView()}
           {viewMode === "sharepoint" && renderSharePointView()}
           {viewMode === "allfiles" && renderAllFilesView()}
+          {viewMode === "treeview" && renderTreeView()}
         </>
       )}
 
