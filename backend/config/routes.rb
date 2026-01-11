@@ -64,6 +64,9 @@ Rails.application.routes.draw do
       post "documents/create_folder", to: "organization_sharepoint#create_folder"
       get "documents/documents_needing_review", to: "organization_sharepoint#documents_needing_review"
 
+      # All Documents - unified view across JobDocument, CorporateCompanyDocument, PeopleDocument
+      get "documents/all", to: "documents#all"
+
       # Feature Trackers
       resources :feature_trackers, only: [ :index, :create, :update, :destroy ]
 

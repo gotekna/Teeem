@@ -1,176 +1,669 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
-import { useRouter, usePathname } from "next/navigation";
-import { Card, CardContent } from "@/components/ui/card";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import TeeemTableView from "@/components/table/TeeemTableView";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Upload,
-  FolderOpen,
-  Cloud,
-  Building2,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  ChevronRight,
+  Folder,
+  File,
+  Image as ImageIcon,
+  Search,
+  List,
+  LayoutGrid,
+  FolderTree,
+  ExternalLink,
   Briefcase,
+  Building2,
   Users,
+  RefreshCw,
 } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
+import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
-// Foundation slugs for the three document types
-const DOCUMENT_TYPES = {
-  company: "company_documents",
-  job: "job_documents",
-  people: "people_documents"
-} as const;
-
-type DocumentType = keyof typeof DOCUMENT_TYPES;
-
-interface Folder {
-  id: string;
-  name: string;
-  path: string;
-  documents_count: number;
+// Types for API response
+interface DocumentItem {
+  id: number;
+  source: "job" | "corporate" | "people";
+  fileName: string;
+  displayName: string;
+  mimeType: string;
+  fileSize: number;
+  fileUrl: string | null;
+  folderPath: string | null;
+  storageProvider: string | null;
+  createdAt: string;
+  // Job-specific
+  jobId?: number;
+  jobNumber?: string;
+  jobTitle?: string;
+  // Corporate-specific
+  companyId?: number;
+  companyName?: string;
+  // People-specific
+  contactId?: number;
+  contactName?: string;
+  // Metadata
+  documentTypeName?: string;
+  isImage: boolean;
 }
 
-export default function DocumentsPage() {
-  const router = useRouter();
-  const pathname = usePathname();
+interface AllDocumentsResponse {
+  success: boolean;
+  data: {
+    job_documents: DocumentItem[];
+    corporate_documents: DocumentItem[];
+    people_documents: DocumentItem[];
+  };
+  counts: {
+    jobs: number;
+    corporate: number;
+    people: number;
+    total: number;
+  };
+}
 
-  // Parse tab from path: /documents/job → "job", /documents → "company"
-  const activeTab = useMemo(() => {
-    const parts = pathname.replace("/documents", "").split("/").filter(Boolean);
-    const tab = parts[0];
-    if (tab && Object.keys(DOCUMENT_TYPES).includes(tab)) {
-      return tab as DocumentType;
+// Tree node structure
+interface TreeNode {
+  id: string;
+  name: string;
+  type: "category" | "parent" | "folder" | "file";
+  children?: TreeNode[];
+  file?: DocumentItem;
+  icon?: React.ReactNode;
+  fileCount?: number;
+}
+
+type ViewMode = "tree" | "list" | "gallery";
+type TreeDisplayMode = "list" | "gallery";
+
+export default function AllDocumentsPage() {
+  const [viewMode, setViewMode] = useState<ViewMode>("tree");
+  const [treeDisplayMode, setTreeDisplayMode] = useState<TreeDisplayMode>("list");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(["jobs", "corporate", "people"]));
+  const [loading, setLoading] = useState(true);
+  const [documents, setDocuments] = useState<{
+    jobs: DocumentItem[];
+    corporate: DocumentItem[];
+    people: DocumentItem[];
+  }>({ jobs: [], corporate: [], people: [] });
+  const [counts, setCounts] = useState({ jobs: 0, corporate: 0, people: 0, total: 0 });
+
+  // Fetch all documents
+  const fetchDocuments = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await api.get<AllDocumentsResponse>("/api/v1/documents/all");
+      if (response.success && response.data) {
+        setDocuments({
+          jobs: response.data.job_documents || [],
+          corporate: response.data.corporate_documents || [],
+          people: response.data.people_documents || [],
+        });
+        setCounts(response.counts || { jobs: 0, corporate: 0, people: 0, total: 0 });
+      }
+    } catch (error) {
+      console.error("Failed to fetch documents:", error);
+    } finally {
+      setLoading(false);
     }
-    return "company";
-  }, [pathname]) as DocumentType;
+  }, []);
 
-  const [folders] = useState<Folder[]>([
-    { id: "1", name: "Contracts", path: "/contracts", documents_count: 12 },
-    { id: "2", name: "Financial", path: "/financial", documents_count: 8 },
-    { id: "3", name: "Compliance", path: "/compliance", documents_count: 5 },
-    { id: "4", name: "Plans", path: "/plans", documents_count: 0 },
-  ]);
-  const [sharePointConnected] = useState(false);
+  useEffect(() => {
+    fetchDocuments();
+  }, [fetchDocuments]);
 
-  // Handle tab change - path-based navigation
-  const handleTabChange = useCallback((value: string) => {
-    const url = value === "company" ? "/documents" : `/documents/${value}`;
-    router.push(url);
-  }, [router]);
+  // Filter documents by search query
+  const filteredDocuments = useMemo(() => {
+    if (!searchQuery) return documents;
+    const query = searchQuery.toLowerCase();
+    return {
+      jobs: documents.jobs.filter(d =>
+        d.fileName?.toLowerCase().includes(query) ||
+        d.displayName?.toLowerCase().includes(query) ||
+        d.jobTitle?.toLowerCase().includes(query)
+      ),
+      corporate: documents.corporate.filter(d =>
+        d.fileName?.toLowerCase().includes(query) ||
+        d.displayName?.toLowerCase().includes(query) ||
+        d.companyName?.toLowerCase().includes(query)
+      ),
+      people: documents.people.filter(d =>
+        d.fileName?.toLowerCase().includes(query) ||
+        d.displayName?.toLowerCase().includes(query) ||
+        d.contactName?.toLowerCase().includes(query)
+      ),
+    };
+  }, [documents, searchQuery]);
 
-  // Left actions with SharePoint + Upload buttons
-  const documentsLeftActions = (
-    <div className="flex items-center gap-2">
-      <BackButton fallbackHref="/dashboard" />
-      {!sharePointConnected && (
-        <Button
-          variant="outline"
-          onClick={() => router.push("/settings/integrations/microsoft")}
+  // Build tree structure from documents
+  const treeData = useMemo((): TreeNode[] => {
+    // Jobs category
+    const jobsByParent = new Map<string, DocumentItem[]>();
+    filteredDocuments.jobs.forEach(doc => {
+      const key = `${doc.jobId}-${doc.jobNumber || "unknown"}`;
+      if (!jobsByParent.has(key)) {
+        jobsByParent.set(key, []);
+      }
+      jobsByParent.get(key)!.push(doc);
+    });
+
+    const jobsNode: TreeNode = {
+      id: "jobs",
+      name: "Jobs",
+      type: "category",
+      icon: <Briefcase className="h-4 w-4" />,
+      fileCount: filteredDocuments.jobs.length,
+      children: Array.from(jobsByParent.entries()).map(([key, docs]) => {
+        const firstDoc = docs[0];
+        // Group by folder path within each job
+        const byFolder = new Map<string, DocumentItem[]>();
+        docs.forEach(doc => {
+          const folder = doc.folderPath || "Documents";
+          if (!byFolder.has(folder)) {
+            byFolder.set(folder, []);
+          }
+          byFolder.get(folder)!.push(doc);
+        });
+
+        return {
+          id: `job-${key}`,
+          name: firstDoc.jobNumber
+            ? `Job ${firstDoc.jobNumber}${firstDoc.jobTitle ? ` - ${firstDoc.jobTitle}` : ""}`
+            : `Job ${firstDoc.jobId}`,
+          type: "parent" as const,
+          fileCount: docs.length,
+          children: Array.from(byFolder.entries()).map(([folder, files]) => ({
+            id: `job-${key}-folder-${folder}`,
+            name: folder,
+            type: "folder" as const,
+            fileCount: files.length,
+            children: files.map(file => ({
+              id: `job-file-${file.id}`,
+              name: file.displayName || file.fileName,
+              type: "file" as const,
+              file,
+            })),
+          })),
+        };
+      }).sort((a, b) => a.name.localeCompare(b.name)),
+    };
+
+    // Corporate category
+    const corpByParent = new Map<string, DocumentItem[]>();
+    filteredDocuments.corporate.forEach(doc => {
+      const key = doc.companyId?.toString() || "unknown";
+      if (!corpByParent.has(key)) {
+        corpByParent.set(key, []);
+      }
+      corpByParent.get(key)!.push(doc);
+    });
+
+    const corporateNode: TreeNode = {
+      id: "corporate",
+      name: "Corporate",
+      type: "category",
+      icon: <Building2 className="h-4 w-4" />,
+      fileCount: filteredDocuments.corporate.length,
+      children: Array.from(corpByParent.entries()).map(([key, docs]) => {
+        const firstDoc = docs[0];
+        // Group by folder
+        const byFolder = new Map<string, DocumentItem[]>();
+        docs.forEach(doc => {
+          const folder = doc.folderPath || "Documents";
+          if (!byFolder.has(folder)) {
+            byFolder.set(folder, []);
+          }
+          byFolder.get(folder)!.push(doc);
+        });
+
+        return {
+          id: `corp-${key}`,
+          name: firstDoc.companyName || `Company ${key}`,
+          type: "parent" as const,
+          fileCount: docs.length,
+          children: Array.from(byFolder.entries()).map(([folder, files]) => ({
+            id: `corp-${key}-folder-${folder}`,
+            name: folder,
+            type: "folder" as const,
+            fileCount: files.length,
+            children: files.map(file => ({
+              id: `corp-file-${file.id}`,
+              name: file.displayName || file.fileName,
+              type: "file" as const,
+              file,
+            })),
+          })),
+        };
+      }).sort((a, b) => a.name.localeCompare(b.name)),
+    };
+
+    // People category
+    const peopleByParent = new Map<string, DocumentItem[]>();
+    filteredDocuments.people.forEach(doc => {
+      const key = doc.contactId?.toString() || "unknown";
+      if (!peopleByParent.has(key)) {
+        peopleByParent.set(key, []);
+      }
+      peopleByParent.get(key)!.push(doc);
+    });
+
+    const peopleNode: TreeNode = {
+      id: "people",
+      name: "People",
+      type: "category",
+      icon: <Users className="h-4 w-4" />,
+      fileCount: filteredDocuments.people.length,
+      children: Array.from(peopleByParent.entries()).map(([key, docs]) => {
+        const firstDoc = docs[0];
+        return {
+          id: `person-${key}`,
+          name: firstDoc.contactName || `Contact ${key}`,
+          type: "parent" as const,
+          fileCount: docs.length,
+          children: docs.map(file => ({
+            id: `people-file-${file.id}`,
+            name: file.displayName || file.fileName,
+            type: "file" as const,
+            file,
+          })),
+        };
+      }).sort((a, b) => a.name.localeCompare(b.name)),
+    };
+
+    return [jobsNode, corporateNode, peopleNode];
+  }, [filteredDocuments]);
+
+  // Toggle folder expansion
+  const toggleFolder = useCallback((folderId: string) => {
+    setExpandedFolders(prev => {
+      const next = new Set(prev);
+      if (next.has(folderId)) {
+        next.delete(folderId);
+      } else {
+        next.add(folderId);
+      }
+      return next;
+    });
+  }, []);
+
+  // Open file
+  const openFile = useCallback((doc: DocumentItem) => {
+    if (doc.fileUrl) {
+      window.open(doc.fileUrl, "_blank");
+    }
+  }, []);
+
+  // Format file size
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  };
+
+  // Render tree node recursively
+  const renderTreeNode = (node: TreeNode, depth: number = 0): React.ReactNode => {
+    const isExpanded = expandedFolders.has(node.id);
+    const paddingLeft = depth * 20;
+
+    if (node.type === "file") {
+      const file = node.file!;
+
+      // Gallery mode for images within tree
+      if (treeDisplayMode === "gallery" && file.isImage) {
+        return (
+          <div
+            key={node.id}
+            className="relative group cursor-pointer"
+            onClick={() => openFile(file)}
+          >
+            <div className="aspect-square bg-muted rounded-lg overflow-hidden border hover:border-primary transition-colors">
+              {file.fileUrl ? (
+                <img
+                  src={file.fileUrl}
+                  alt={file.displayName}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                </div>
+              )}
+            </div>
+            <p className="mt-1 text-xs truncate text-center">{file.displayName}</p>
+          </div>
+        );
+      }
+
+      // List mode file
+      return (
+        <div
+          key={node.id}
+          className="flex items-center gap-2 py-2 px-3 hover:bg-muted/50 rounded-md group cursor-pointer"
+          style={{ paddingLeft: `${paddingLeft + 12}px` }}
+          onClick={() => openFile(file)}
         >
-          <Cloud className="h-4 w-4 mr-2" />
-          Connect SharePoint
-        </Button>
-      )}
-      <Button>
-        <Upload className="h-4 w-4 mr-2" />
-        Upload
-      </Button>
-    </div>
-  );
+          {file.isImage ? (
+            <ImageIcon className="h-4 w-4 text-blue-500" />
+          ) : (
+            <File className="h-4 w-4 text-muted-foreground" />
+          )}
+          <span className="flex-1 truncate">{node.name}</span>
+          {file.storageProvider === "s3_compatible" && (
+            <Badge variant="outline" className="text-xs">S3</Badge>
+          )}
+          {file.fileSize > 0 && (
+            <span className="text-xs text-muted-foreground">
+              {formatFileSize(file.fileSize)}
+            </span>
+          )}
+          <div className="opacity-0 group-hover:opacity-100">
+            <ExternalLink className="h-3 w-3 text-muted-foreground" />
+          </div>
+        </div>
+      );
+    }
+
+    // Folder/category/parent node
+    const fileCount = node.fileCount || 0;
+    const hasChildren = node.children && node.children.length > 0;
+
+    // Get images for gallery mode
+    const getImagesFromNode = (n: TreeNode): DocumentItem[] => {
+      if (n.type === "file" && n.file?.isImage) return [n.file];
+      if (!n.children) return [];
+      return n.children.flatMap(getImagesFromNode);
+    };
+
+    const images = treeDisplayMode === "gallery" ? getImagesFromNode(node) : [];
+
+    return (
+      <div key={node.id}>
+        <div
+          className={cn(
+            "flex items-center gap-2 py-2 px-3 hover:bg-muted/50 cursor-pointer rounded-md",
+            node.type === "category" && "font-semibold"
+          )}
+          style={{ paddingLeft: `${paddingLeft + 12}px` }}
+          onClick={() => toggleFolder(node.id)}
+        >
+          {hasChildren && (
+            <ChevronRight
+              className={cn(
+                "h-4 w-4 text-muted-foreground transition-transform",
+                isExpanded && "rotate-90"
+              )}
+            />
+          )}
+          {node.type === "category" && node.icon}
+          {node.type !== "category" && (
+            <Folder className="h-4 w-4 text-yellow-500" />
+          )}
+          <span className="flex-1">{node.name}</span>
+          <Badge variant="secondary" className="text-xs">
+            {fileCount} {fileCount === 1 ? "file" : "files"}
+          </Badge>
+        </div>
+
+        {isExpanded && hasChildren && (
+          <div className={cn(depth > 0 && "border-l border-muted ml-6")}>
+            {treeDisplayMode === "gallery" && images.length > 0 ? (
+              // Gallery view within folder
+              <div className="p-4" style={{ paddingLeft: `${paddingLeft + 32}px` }}>
+                <div className="grid grid-cols-6 gap-2 mb-4">
+                  {images.slice(0, 12).map(img => (
+                    <div
+                      key={img.id}
+                      className="relative group cursor-pointer"
+                      onClick={() => openFile(img)}
+                    >
+                      <div className="aspect-square bg-muted rounded-lg overflow-hidden border hover:border-primary">
+                        {img.fileUrl ? (
+                          <img
+                            src={img.fileUrl}
+                            alt={img.displayName}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {images.length > 12 && (
+                    <div className="aspect-square bg-muted rounded-lg flex items-center justify-center text-sm text-muted-foreground">
+                      +{images.length - 12} more
+                    </div>
+                  )}
+                </div>
+                {/* Render non-image files in list mode */}
+                {node.children
+                  ?.filter(c => c.type === "file" && !c.file?.isImage)
+                  .map(child => renderTreeNode(child, depth + 1))}
+                {/* Render subfolders */}
+                {node.children
+                  ?.filter(c => c.type !== "file")
+                  .map(child => renderTreeNode(child, depth + 1))}
+              </div>
+            ) : (
+              // Standard list view
+              node.children?.map(child => renderTreeNode(child, depth + 1))
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // All documents flat list
+  const allDocumentsFlat = useMemo(() => {
+    return [
+      ...filteredDocuments.jobs,
+      ...filteredDocuments.corporate,
+      ...filteredDocuments.people,
+    ];
+  }, [filteredDocuments]);
+
+  // All images for gallery view
+  const allImages = useMemo(() => {
+    return allDocumentsFlat.filter(d => d.isImage);
+  }, [allDocumentsFlat]);
 
   return (
     <div className="flex flex-col h-full -mx-4">
-      {/* Document Type Tabs */}
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex flex-col h-full">
-        <div className="px-4 shrink-0">
-          <TabsList className="grid w-full grid-cols-3 max-w-md">
-            <TabsTrigger value="company" className="gap-2">
-              <Building2 className="h-4 w-4" />
-              Company
-            </TabsTrigger>
-            <TabsTrigger value="job" className="gap-2">
-              <Briefcase className="h-4 w-4" />
-              Job
-            </TabsTrigger>
-            <TabsTrigger value="people" className="gap-2">
-              <Users className="h-4 w-4" />
-              People
-            </TabsTrigger>
-          </TabsList>
-        </div>
-
-        <TabsContent value={activeTab} className="flex-1 min-h-0 mt-6 px-4">
-          {/* SharePoint Status */}
-          {sharePointConnected && (
-            <Card className="bg-blue-50 border-blue-200">
-              <CardContent className="pt-4 pb-4">
-                <div className="flex items-center gap-3">
-                  <Cloud className="h-5 w-5 text-blue-600" />
-                  <div className="flex-1">
-                    <p className="font-medium text-blue-900">SharePoint Connected</p>
-                    <p className="text-sm text-blue-700">
-                      Documents are synced with your Microsoft SharePoint
-                    </p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => router.push("/settings/integrations/microsoft")}
-                  >
-                    Manage
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Folders Sidebar */}
-        <Card className="lg:col-span-1">
-          <div className="p-6 pb-3">
-            <h3 className="text-base font-semibold">Folders</h3>
-          </div>
-          <CardContent className="space-y-1">
-            {folders.length > 0 ? (
-              folders.map((folder) => (
-                <Button
-                  key={folder.id}
-                  variant="ghost"
-                  className="w-full justify-start"
-                >
-                  <FolderOpen className="h-4 w-4 mr-2 text-blue-500" />
-                  <span className="flex-1 text-left truncate">{folder.name}</span>
-                  <Badge variant="secondary" className="ml-auto">
-                    {folder.documents_count}
-                  </Badge>
-                </Button>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                No folders yet
+      {/* Header */}
+      <div className="px-4 py-4 border-b shrink-0">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <BackButton fallbackHref="/dashboard" />
+            <div>
+              <h1 className="text-2xl font-bold">All Documents</h1>
+              <p className="text-sm text-muted-foreground">
+                {counts.total.toLocaleString()} documents across all sources
               </p>
-            )}
-          </CardContent>
-        </Card>
+            </div>
+          </div>
 
-        {/* Documents Table */}
-        <div className="lg:col-span-3 h-full">
-          <TeeemTableView
-            key={activeTab} // Force remount when tab changes
-            foundationId={DOCUMENT_TYPES[activeTab]}
-            autoFetchRecords={true}
-            tableName={`${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Documents`}
-            enableExport={true}
-            leftActions={documentsLeftActions}
-            hideFooter={true}
-          />
+          <div className="flex items-center gap-2">
+            {/* Search */}
+            <div className="relative w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search documents..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+
+            {/* View Mode Toggle */}
+            <div className="flex items-center border rounded-md">
+              <Button
+                variant={viewMode === "tree" ? "secondary" : "ghost"}
+                size="sm"
+                className="rounded-r-none"
+                onClick={() => setViewMode("tree")}
+              >
+                <FolderTree className="h-4 w-4 mr-1" />
+                Tree
+              </Button>
+              <Button
+                variant={viewMode === "list" ? "secondary" : "ghost"}
+                size="sm"
+                className="rounded-none border-x"
+                onClick={() => setViewMode("list")}
+              >
+                <List className="h-4 w-4 mr-1" />
+                List
+              </Button>
+              <Button
+                variant={viewMode === "gallery" ? "secondary" : "ghost"}
+                size="sm"
+                className="rounded-l-none"
+                onClick={() => setViewMode("gallery")}
+              >
+                <LayoutGrid className="h-4 w-4 mr-1" />
+                Gallery
+              </Button>
+            </div>
+
+            {/* Tree Sub-Toggle (only in tree mode) */}
+            {viewMode === "tree" && (
+              <Select
+                value={treeDisplayMode}
+                onValueChange={(v) => setTreeDisplayMode(v as TreeDisplayMode)}
+              >
+                <SelectTrigger className="w-28">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="list">
+                    <div className="flex items-center gap-2">
+                      <List className="h-3 w-3" />
+                      List
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="gallery">
+                    <div className="flex items-center gap-2">
+                      <LayoutGrid className="h-3 w-3" />
+                      Gallery
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* Refresh */}
+            <Button variant="outline" size="icon" onClick={fetchDocuments} disabled={loading}>
+              <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+            </Button>
+          </div>
         </div>
       </div>
-        </TabsContent>
-      </Tabs>
+
+      {/* Content */}
+      <div className="flex-1 overflow-auto px-4 py-4">
+        {loading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <Skeleton key={i} className="h-10 w-full" />
+            ))}
+          </div>
+        ) : viewMode === "tree" ? (
+          // Tree View
+          <div className="space-y-1">
+            {treeData.map(node => renderTreeNode(node, 0))}
+          </div>
+        ) : viewMode === "list" ? (
+          // Flat List View
+          <div className="space-y-1">
+            {allDocumentsFlat.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                No documents found
+              </div>
+            ) : (
+              allDocumentsFlat.map(doc => (
+                <div
+                  key={`${doc.source}-${doc.id}`}
+                  className="flex items-center gap-3 py-2 px-3 hover:bg-muted/50 rounded-md cursor-pointer group"
+                  onClick={() => openFile(doc)}
+                >
+                  {doc.isImage ? (
+                    <ImageIcon className="h-4 w-4 text-blue-500 shrink-0" />
+                  ) : (
+                    <File className="h-4 w-4 text-muted-foreground shrink-0" />
+                  )}
+                  <span className="flex-1 truncate">{doc.displayName || doc.fileName}</span>
+                  <Badge variant="outline" className="text-xs shrink-0">
+                    {doc.source === "job" && doc.jobNumber && `Job ${doc.jobNumber}`}
+                    {doc.source === "corporate" && doc.companyName}
+                    {doc.source === "people" && doc.contactName}
+                  </Badge>
+                  {doc.storageProvider === "s3_compatible" && (
+                    <Badge variant="secondary" className="text-xs shrink-0">S3</Badge>
+                  )}
+                  {doc.fileSize > 0 && (
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {formatFileSize(doc.fileSize)}
+                    </span>
+                  )}
+                  <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0" />
+                </div>
+              ))
+            )}
+          </div>
+        ) : (
+          // Gallery View (images only)
+          <div>
+            {allImages.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                No images found
+              </div>
+            ) : (
+              <div className="grid grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-3">
+                {allImages.map(doc => (
+                  <div
+                    key={`gallery-${doc.source}-${doc.id}`}
+                    className="group cursor-pointer"
+                    onClick={() => openFile(doc)}
+                  >
+                    <div className="aspect-square bg-muted rounded-lg overflow-hidden border hover:border-primary transition-colors">
+                      {doc.fileUrl ? (
+                        <img
+                          src={doc.fileUrl}
+                          alt={doc.displayName}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                        </div>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs truncate text-center">{doc.displayName}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -5,6 +5,42 @@ module Api
     class DocumentsController < ApplicationController
       before_action :set_document, only: [ :show, :update, :destroy, :preview ]
 
+      # GET /api/v1/documents/all
+      # Returns all documents across JobDocument, CorporateCompanyDocument, and PeopleDocument
+      # Used by the unified "All Documents" page
+      def all
+        # Fetch from all three document sources with eager loading
+        job_docs = JobDocument.includes(:job, :document_type, :contact, :company)
+                              .where.not(file_name: nil)
+                              .order(created_at: :desc)
+                              .limit(5000)
+
+        corp_docs = CorporateCompanyDocument.includes(:corporate_company, :document_type_record, :contact)
+                                            .where.not(file_name: nil)
+                                            .order(created_at: :desc)
+                                            .limit(5000)
+
+        people_docs = PeopleDocument.includes(:contact, :document_type_record)
+                                    .where.not(title: nil)
+                                    .order(created_at: :desc)
+                                    .limit(1000)
+
+        render json: {
+          success: true,
+          data: {
+            job_documents: job_docs.map { |d| serialize_job_doc(d) },
+            corporate_documents: corp_docs.map { |d| serialize_corp_doc(d) },
+            people_documents: people_docs.map { |d| serialize_people_doc(d) }
+          },
+          counts: {
+            jobs: job_docs.size,
+            corporate: corp_docs.size,
+            people: people_docs.size,
+            total: job_docs.size + corp_docs.size + people_docs.size
+          }
+        }
+      end
+
       # GET /api/v1/documents
       # Returns documents with folder structure for the documents page
       # Params:
@@ -224,6 +260,93 @@ module Api
           verified_at: doc.user_validated_at&.iso8601,
           verified_by: doc.user_validated_by&.name
         }
+      end
+
+      # Serializers for all documents endpoint
+      def serialize_job_doc(doc)
+        {
+          id: doc.id,
+          source: "job",
+          fileName: doc.file_name,
+          displayName: doc.display_name || doc.file_name,
+          mimeType: doc.mime_type || "application/octet-stream",
+          fileSize: doc.file_size || 0,
+          fileUrl: doc.file_url,
+          folderPath: doc.folder_path,
+          storageProvider: doc.storage_provider,
+          createdAt: doc.created_at&.iso8601,
+          # Parent info
+          jobId: doc.job_id,
+          jobNumber: doc.job&.job_number,
+          jobTitle: doc.job&.title,
+          # Optional links
+          contactId: doc.contact_id,
+          contactName: doc.contact&.name,
+          companyId: doc.company_id,
+          companyName: doc.company&.name,
+          # Document type
+          documentTypeId: doc.document_type_id,
+          documentTypeName: doc.document_type&.name,
+          # Metadata
+          isImage: doc.file_type == "image"
+        }
+      end
+
+      def serialize_corp_doc(doc)
+        {
+          id: doc.id,
+          source: "corporate",
+          fileName: doc.file_name,
+          displayName: doc.display_name || doc.file_name,
+          mimeType: doc.mime_type || "application/octet-stream",
+          fileSize: doc.file_size || 0,
+          fileUrl: doc.file_url,
+          folderPath: doc.folder,
+          storageProvider: doc.storage_provider,
+          createdAt: doc.created_at&.iso8601,
+          # Parent info
+          companyId: doc.company_id,
+          companyName: doc.corporate_company&.name,
+          # Optional links
+          contactId: doc.contact_id,
+          contactName: doc.contact&.name,
+          # Document type
+          documentTypeId: doc.document_type_id,
+          documentTypeName: doc.document_type_record&.name,
+          # Metadata
+          isImage: image_file?(doc.file_name)
+        }
+      end
+
+      def serialize_people_doc(doc)
+        {
+          id: doc.id,
+          source: "people",
+          fileName: doc.file_name || doc.title,
+          displayName: doc.title,
+          mimeType: doc.mime_type || "application/octet-stream",
+          fileSize: doc.file_size || 0,
+          fileUrl: doc.file_url,
+          folderPath: nil,
+          storageProvider: doc.storage_provider,
+          createdAt: doc.created_at&.iso8601,
+          # Parent info
+          contactId: doc.contact_id,
+          contactName: doc.contact&.name,
+          # Document type
+          documentType: doc.document_type,
+          documentTypeId: doc.document_type_id,
+          documentTypeName: doc.document_type_record&.name || doc.formatted_document_type,
+          # Metadata
+          expiryDate: doc.expiry_date&.iso8601,
+          isExpired: doc.expired?,
+          isImage: image_file?(doc.file_name)
+        }
+      end
+
+      def image_file?(filename)
+        return false unless filename.present?
+        %w[.jpg .jpeg .png .gif .webp .heic .tiff .bmp].any? { |ext| filename.downcase.end_with?(ext) }
       end
     end
   end
