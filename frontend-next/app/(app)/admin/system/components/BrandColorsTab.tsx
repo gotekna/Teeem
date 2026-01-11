@@ -120,6 +120,34 @@ export function BrandColorsTab() {
     }
   }
 
+  async function saveLogos() {
+    setSaving(true);
+    setMessage(null);
+
+    try {
+      const response = await api.patch<{ success: boolean; data: BrandData; error?: string }>(
+        "/api/v1/corporate_company_settings/brand",
+        {
+          brand: {
+            logo_url: brand?.logo_url,
+            logo_mobile: brand?.logo_mobile,
+            logo_dark: brand?.logo_dark,
+          }
+        }
+      );
+
+      if (response?.success) {
+        setMessage({ type: "success", text: "Logos saved successfully" });
+      } else {
+        setMessage({ type: "error", text: response?.error || "Failed to save logos" });
+      }
+    } catch (error) {
+      setMessage({ type: "error", text: "Failed to save logos" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -271,69 +299,165 @@ export function BrandColorsTab() {
         </CardContent>
       </Card>
 
-      {/* Current Logos */}
+      {/* Company Logos */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Image className="h-5 w-5" />
-            Current Logos
+            Company Logos
           </CardTitle>
           <CardDescription>
-            Company logos for different contexts. These are auto-detected from your website or can be set manually.
+            Upload different logo variants for various uses. Recommended: PNG with transparent background.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-3 gap-6">
-            {/* Main Logo */}
-            <div className="text-center">
-              <div className="bg-white p-4 rounded-md border min-h-[80px] flex items-center justify-center">
+        <CardContent className="space-y-6">
+          {/* Primary Logo */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">Primary Logo (Documents & Letterhead)</Label>
+            <div className="flex items-start gap-4">
+              <div className="border rounded-lg p-3 bg-white dark:bg-white min-w-[180px] min-h-[80px] flex items-center justify-center">
                 {brand?.logo_url ? (
-                  <img
-                    src={brand.logo_url}
-                    alt="Company logo"
-                    className="h-12 max-w-full object-contain"
-                  />
+                  <img src={brand.logo_url} alt="Primary Logo" className="max-w-[150px] max-h-[60px] object-contain" />
                 ) : (
-                  <span className="text-muted-foreground text-sm">No logo set</span>
+                  <span className="text-xs text-muted-foreground">No logo</span>
                 )}
               </div>
-              <p className="text-sm mt-2 font-medium">Main Logo</p>
-              <p className="text-xs text-muted-foreground">Used on light backgrounds</p>
-            </div>
-
-            {/* Dark Logo */}
-            <div className="text-center">
-              <div className="bg-gray-900 p-4 rounded-md border min-h-[80px] flex items-center justify-center">
-                {brand?.logo_dark ? (
-                  <img
-                    src={brand.logo_dark}
-                    alt="Dark mode logo"
-                    className="h-12 max-w-full object-contain"
+              <div className="flex-1 space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    type="file"
+                    id="logo_upload"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = (event) => {
+                        setBrand(prev => prev ? { ...prev, logo_url: event.target?.result as string } : null);
+                      };
+                      reader.readAsDataURL(file);
+                    }}
                   />
-                ) : (
-                  <span className="text-gray-500 text-sm">No dark logo set</span>
-                )}
+                  <Button type="button" variant="outline" size="sm" onClick={() => document.getElementById("logo_upload")?.click()}>
+                    Choose File
+                  </Button>
+                  {brand?.logo_url && (
+                    <Button type="button" variant="ghost" size="sm" className="text-red-600" onClick={() => setBrand(prev => prev ? { ...prev, logo_url: null } : null)}>
+                      Remove
+                    </Button>
+                  )}
+                </div>
+                <Input
+                  value={brand?.logo_url?.startsWith("data:") ? "" : brand?.logo_url || ""}
+                  onChange={(e) => setBrand(prev => prev ? { ...prev, logo_url: e.target.value } : null)}
+                  placeholder="Or enter URL..."
+                  className="text-xs"
+                />
               </div>
-              <p className="text-sm mt-2 font-medium">Dark Mode Logo</p>
-              <p className="text-xs text-muted-foreground">Used on dark backgrounds</p>
             </div>
+          </div>
 
-            {/* Mobile Logo */}
-            <div className="text-center">
-              <div className="bg-white p-4 rounded-md border min-h-[80px] flex items-center justify-center">
+          {/* Mobile Logo */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">Mobile Logo (Icon/Mark Only)</Label>
+            <div className="flex items-start gap-4">
+              <div className="border rounded-lg p-3 bg-white dark:bg-white min-w-[80px] min-h-[80px] flex items-center justify-center">
                 {brand?.logo_mobile ? (
-                  <img
-                    src={brand.logo_mobile}
-                    alt="Mobile logo"
-                    className="h-8 max-w-full object-contain"
-                  />
+                  <img src={brand.logo_mobile} alt="Mobile Logo" className="max-w-[50px] max-h-[50px] object-contain" />
                 ) : (
-                  <span className="text-muted-foreground text-sm">No mobile logo set</span>
+                  <span className="text-xs text-muted-foreground">No logo</span>
                 )}
               </div>
-              <p className="text-sm mt-2 font-medium">Mobile Logo</p>
-              <p className="text-xs text-muted-foreground">Compact version for mobile</p>
+              <div className="flex-1 space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    type="file"
+                    id="logo_mobile_upload"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = (event) => {
+                        setBrand(prev => prev ? { ...prev, logo_mobile: event.target?.result as string } : null);
+                      };
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                  <Button type="button" variant="outline" size="sm" onClick={() => document.getElementById("logo_mobile_upload")?.click()}>
+                    Choose File
+                  </Button>
+                  {brand?.logo_mobile && (
+                    <Button type="button" variant="ghost" size="sm" className="text-red-600" onClick={() => setBrand(prev => prev ? { ...prev, logo_mobile: null } : null)}>
+                      Remove
+                    </Button>
+                  )}
+                </div>
+                <Input
+                  value={brand?.logo_mobile?.startsWith("data:") ? "" : brand?.logo_mobile || ""}
+                  onChange={(e) => setBrand(prev => prev ? { ...prev, logo_mobile: e.target.value } : null)}
+                  placeholder="Or enter URL..."
+                  className="text-xs"
+                />
+              </div>
             </div>
+          </div>
+
+          {/* Dark Mode Logo */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">Dark Mode Logo (Light/White Version)</Label>
+            <div className="flex items-start gap-4">
+              <div className="border rounded-lg p-3 bg-slate-800 min-w-[180px] min-h-[80px] flex items-center justify-center">
+                {brand?.logo_dark ? (
+                  <img src={brand.logo_dark} alt="Dark Mode Logo" className="max-w-[150px] max-h-[60px] object-contain" />
+                ) : (
+                  <span className="text-xs text-slate-400">No logo</span>
+                )}
+              </div>
+              <div className="flex-1 space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    type="file"
+                    id="logo_dark_upload"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = (event) => {
+                        setBrand(prev => prev ? { ...prev, logo_dark: event.target?.result as string } : null);
+                      };
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                  <Button type="button" variant="outline" size="sm" onClick={() => document.getElementById("logo_dark_upload")?.click()}>
+                    Choose File
+                  </Button>
+                  {brand?.logo_dark && (
+                    <Button type="button" variant="ghost" size="sm" className="text-red-600" onClick={() => setBrand(prev => prev ? { ...prev, logo_dark: null } : null)}>
+                      Remove
+                    </Button>
+                  )}
+                </div>
+                <Input
+                  value={brand?.logo_dark?.startsWith("data:") ? "" : brand?.logo_dark || ""}
+                  onChange={(e) => setBrand(prev => prev ? { ...prev, logo_dark: e.target.value } : null)}
+                  placeholder="Or enter URL..."
+                  className="text-xs"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Save Logos Button */}
+          <div className="pt-4 border-t">
+            <Button onClick={saveLogos} disabled={saving}>
+              {saving ? <Spinner className="h-4 w-4 mr-2" /> : null}
+              Save Logos
+            </Button>
           </div>
         </CardContent>
       </Card>

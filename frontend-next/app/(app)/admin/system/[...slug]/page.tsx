@@ -45,6 +45,7 @@ import CompanyInfoTab from "../components/CompanyInfoTab";
 const COMPANY_TABS = [
   { id: "info", label: "Info" },
   { id: "brand-colors", label: "Brand Colors" },
+  { id: "doc-templates", label: "Doc Templates" },  // Next to brand so users can preview docs with their brand
   { id: "security", label: "Security" },
   { id: "permissions", label: "Permissions" },
   { id: "corporate", label: "Corporate" },
@@ -53,7 +54,6 @@ const COMPANY_TABS = [
   { id: "connections", label: "Connections" },
   { id: "job-setup", label: "Job Setup" },
   { id: "workflow-config", label: "Workflow Config" },
-  { id: "doc-templates", label: "Doc Templates" },
 ];
 
 // SSoT: Tabs that need full-height table layout (overflow-hidden)

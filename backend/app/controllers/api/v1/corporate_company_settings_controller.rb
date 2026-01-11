@@ -247,19 +247,51 @@ module Api
         end
 
         settings = CorporateCompanySetting.instance
+        applied = []
+        skipped = []
 
-        # Apply colors
-        CorporateCompanySetting.update_brand_colors_from_hex(result[:colors])
+        # Only apply colors if not already set (enhance, don't overwrite)
+        if settings.brand_color_primary.blank?
+          CorporateCompanySetting.update_brand_colors_from_hex(result[:colors])
+          applied << "colors"
+        else
+          skipped << "colors (already set)"
+        end
 
-        # Apply other brand assets if found
-        updates = { website: url }
-        updates[:logo_url] = result[:logo_url] if result[:logo_url].present?
-        updates[:logo_dark] = result[:logo_dark_url] if result[:logo_dark_url].present?
-        settings.update!(updates)
+        # Only fill in missing brand assets (enhance, don't overwrite)
+        updates = {}
+
+        if settings.website.blank?
+          updates[:website] = url
+          applied << "website"
+        else
+          skipped << "website (already set)"
+        end
+
+        if settings.logo_url.blank? && result[:logo_url].present?
+          updates[:logo_url] = result[:logo_url]
+          applied << "logo"
+        elsif settings.logo_url.present?
+          skipped << "logo (already set)"
+        end
+
+        if settings.logo_dark.blank? && result[:logo_dark_url].present?
+          updates[:logo_dark] = result[:logo_dark_url]
+          applied << "dark logo"
+        elsif settings.logo_dark.present?
+          skipped << "dark logo (already set)"
+        end
+
+        settings.update!(updates) if updates.any?
+
+        # Build message
+        message_parts = []
+        message_parts << "Applied: #{applied.join(', ')}" if applied.any?
+        message_parts << "Skipped: #{skipped.join(', ')}" if skipped.any?
 
         render json: {
           success: true,
-          message: "Brand applied from #{url}",
+          message: message_parts.join(". "),
           data: {
             colors: CorporateCompanySetting.brand_colors,
             logo_url: settings.logo_url,
