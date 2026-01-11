@@ -149,7 +149,7 @@ class CalendarService
       assigned_role: task.assigned_role,
       job_id: task.job_id,
       job_name: task.job&.name,
-      job_code: task.job&.job_code,
+      job_code: task.job&.job_number,
       is_overdue: is_overdue,
       days_overdue: days_overdue,
       color: status_color(task.status, is_overdue),
