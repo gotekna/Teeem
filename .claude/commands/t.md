@@ -149,10 +149,11 @@ fi
 echo "=== COLOR SSoT CHECK ==="
 
 # Hardcoded hex colors (should use CSS variables)
+# EXCLUDE: BrandGuidelinesTab.tsx and brand-guidelines (they show color swatches as examples)
 echo "--- Hardcoded hex colors (use var(--*) instead) ---"
-hex_count=$(grep -rn "bg-\[#\|text-\[#\|border-\[#" frontend-next/components frontend-next/app --include="*.tsx" 2>/dev/null | wc -l | tr -d ' ')
+hex_count=$(grep -rn "bg-\[#\|text-\[#\|border-\[#" frontend-next/components frontend-next/app --include="*.tsx" 2>/dev/null | grep -v "BrandGuidelines\|brand-guidelines" | wc -l | tr -d ' ')
 echo "Found: $hex_count instances"
-[ "$hex_count" -gt 0 ] && grep -rn "bg-\[#\|text-\[#\|border-\[#" frontend-next/components frontend-next/app --include="*.tsx" 2>/dev/null | head -5
+[ "$hex_count" -gt 0 ] && grep -rn "bg-\[#\|text-\[#\|border-\[#" frontend-next/components frontend-next/app --include="*.tsx" 2>/dev/null | grep -v "BrandGuidelines\|brand-guidelines" | head -5
 
 # Hardcoded Tailwind colors (should use semantic tokens)
 echo ""
@@ -206,9 +207,14 @@ When fixing color violations, use these mappings:
 echo "=== TEEEMTABLEVIEW PATTERN CHECK ==="
 
 # SSoT VIOLATION: columns prop with foundationIdNumeric
+# EXCLUDE: GoldStandardTab.tsx (it's the demo/reference for TeeemTableView)
 echo "--- SSoT VIOLATION: columns prop with foundationIdNumeric ---"
 violations=0
 for file in $(grep -rl "TeeemTableView" frontend-next/app --include="*.tsx" 2>/dev/null); do
+  # Skip demo/documentation files
+  if [[ "$file" == *"GoldStandardTab"* ]] || [[ "$file" == *"design-system"* ]]; then
+    continue
+  fi
   if grep -q "foundationIdNumeric" "$file" && grep -q "columns=" "$file"; then
     echo "  ❌ $file"
     violations=$((violations + 1))

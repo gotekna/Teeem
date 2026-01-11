@@ -271,7 +271,7 @@ module Api
           displayName: doc.file_name,  # JobDocument doesn't have display_name
           mimeType: doc.mime_type || "application/octet-stream",
           fileSize: doc.file_size || 0,
-          fileUrl: doc.file_url,
+          fileUrl: doc.web_url,  # JobDocument uses web_url, not file_url
           folderPath: doc.folder_path,
           storageProvider: doc.storage_provider,
           createdAt: doc.created_at&.iso8601,
@@ -300,7 +300,7 @@ module Api
           displayName: doc.display_name || doc.file_name,
           mimeType: doc.mime_type || "application/octet-stream",
           fileSize: doc.file_size || 0,
-          fileUrl: doc.file_url,
+          fileUrl: doc.file_url,  # CorporateCompanyDocument has file_url column
           folderPath: doc.folder,
           storageProvider: doc.storage_provider,
           createdAt: doc.created_at&.iso8601,
