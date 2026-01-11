@@ -131,15 +131,17 @@ class DocumentMigrationJob < ApplicationJob
 
       # Step 6: Update document record
       # Mark as synced so it appears in API queries (job_all_files uses .synced scope)
-      document.update!(
+      update_attrs = {
         storage_provider: dest_provider_type,
         storage_item_id: result[:id],
         storage_path: result[:path] || folder_path,
         migration_status: 'completed',
         migration_completed_at: Time.current,
-        migration_error: nil,
-        sync_status: 'synced'
-      )
+        migration_error: nil
+      }
+      # sync_status only exists on JobDocument, not CorporateCompanyDocument
+      update_attrs[:sync_status] = 'synced' if document.respond_to?(:sync_status)
+      document.update!(update_attrs)
 
       # Step 7: Optionally delete from source
       if delete_source
