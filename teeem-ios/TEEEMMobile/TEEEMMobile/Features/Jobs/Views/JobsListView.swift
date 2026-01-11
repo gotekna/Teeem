@@ -608,7 +608,7 @@ struct JobPhotosTab: View {
 
     func fetchFolders(folderId: String?) async throws -> SharePointFolderResponse {
         let baseURL = "https://teeemlive-ce8e2660a615.herokuapp.com/api/v1"
-        var urlString = "\(baseURL)/organization_onedrive/browse_folders"
+        var urlString = "\(baseURL)/documents/browse_folders"
         if let folderId = folderId {
             urlString += "?folder_id=\(folderId)"
         }
@@ -713,7 +713,7 @@ struct PhotoFolderView: View {
     func loadFiles() async {
         do {
             let baseURL = "https://teeemlive-ce8e2660a615.herokuapp.com/api/v1"
-            let urlString = "\(baseURL)/organization_onedrive/browse_folders?folder_id=\(folder.id)"
+            let urlString = "\(baseURL)/documents/browse_folders?folder_id=\(folder.id)"
 
             guard let url = URL(string: urlString) else { return }
 
@@ -783,7 +783,7 @@ struct PhotoDetailView: View {
     func loadImage() async {
         do {
             let baseURL = "https://teeemlive-ce8e2660a615.herokuapp.com/api/v1"
-            let urlString = "\(baseURL)/organization_onedrive/download?file_id=\(photo.id)"
+            let urlString = "\(baseURL)/documents/download?file_id=\(photo.id)"
 
             guard let url = URL(string: urlString) else { return }
 

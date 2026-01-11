@@ -59,7 +59,7 @@ struct PDFViewerView: View {
 
     private func downloadPDF() async throws -> Data {
         let baseURL = "https://teeemlive-ce8e2660a615.herokuapp.com/api/v1"
-        let urlString = "\(baseURL)/organization_onedrive/download?file_id=\(fileId)"
+        let urlString = "\(baseURL)/documents/download?file_id=\(fileId)"
 
         guard let url = URL(string: urlString) else {
             throw URLError(.badURL)

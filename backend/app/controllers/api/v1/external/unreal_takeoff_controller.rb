@@ -96,7 +96,7 @@ module Api
           end
 
           # Redirect to the SharePoint download endpoint
-          redirect_to api_v1_organization_onedrive_download_path(file_id: revision.sharepoint_file_id)
+          redirect_to api_v1_documents_download_path(file_id: revision.sharepoint_file_id)
         end
 
         # GET /api/v1/external/unreal_takeoff/plans/:id/image

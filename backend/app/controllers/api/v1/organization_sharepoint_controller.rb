@@ -21,7 +21,7 @@ module Api
         }, status: :unauthorized
       end
 
-      # GET /api/v1/organization_onedrive/status
+      # GET /api/v1/documents/status
       # Check if organization has OneDrive connected
       # Will attempt to refresh expired tokens automatically
       # Falls back to user's Microsoft token if org credential not set up
@@ -110,10 +110,10 @@ module Api
         end
       end
 
-      # GET /api/v1/organization_onedrive/authorize
+      # GET /api/v1/documents/authorize
       # Start OAuth flow - returns authorization URL
       def authorize
-        redirect_uri = "#{request.base_url}/api/v1/organization_onedrive/callback"
+        redirect_uri = "#{request.base_url}/api/v1/documents/callback"
 
         auth_url = MicrosoftGraphClient.authorization_url(
           client_id: ENV["ONEDRIVE_CLIENT_ID"],
@@ -124,7 +124,7 @@ module Api
         render json: { auth_url: auth_url }
       end
 
-      # GET /api/v1/organization_onedrive/callback
+      # GET /api/v1/documents/callback
       # OAuth callback - exchange code for tokens
       def callback
         code = params[:code]
@@ -136,7 +136,7 @@ module Api
         begin
           Rails.logger.info "=== OneDrive OAuth Callback Started ==="
 
-          redirect_uri = "#{request.base_url}/api/v1/organization_onedrive/callback"
+          redirect_uri = "#{request.base_url}/api/v1/documents/callback"
 
           # Exchange authorization code for tokens
           token_data = MicrosoftGraphClient.exchange_code_for_tokens(
@@ -239,7 +239,7 @@ module Api
         end
       end
 
-      # DELETE /api/v1/organization_onedrive/disconnect
+      # DELETE /api/v1/documents/disconnect
       # Disconnect OneDrive for organization
       def disconnect
         credential = MicrosoftCredential.sharepoint_credential
@@ -252,7 +252,7 @@ module Api
         end
       end
 
-      # PATCH /api/v1/organization_onedrive/change_root_folder
+      # PATCH /api/v1/documents/change_root_folder
       # Change the root folder for organization OneDrive
       # Accepts either folder_id (for browsed selection) or folder_name (for typed path)
       def change_root_folder
@@ -361,7 +361,7 @@ module Api
         end
       end
 
-      # GET /api/v1/organization_onedrive/sharepoint_sites
+      # GET /api/v1/documents/sharepoint_sites
       # List available SharePoint sites
       def sharepoint_sites
         credential = MicrosoftCredential.sharepoint_credential
@@ -390,7 +390,7 @@ module Api
         end
       end
 
-      # POST /api/v1/organization_onedrive/use_personal_drive
+      # POST /api/v1/documents/use_personal_drive
       # Switch to using personal OneDrive instead of SharePoint
       def use_personal_drive
         credential = MicrosoftCredential.sharepoint_credential
@@ -438,7 +438,7 @@ module Api
         end
       end
 
-      # POST /api/v1/organization_onedrive/use_sharepoint_site
+      # POST /api/v1/documents/use_sharepoint_site
       # Switch to using a SharePoint site instead of personal OneDrive
       def use_sharepoint_site
         credential = MicrosoftCredential.sharepoint_credential
@@ -487,7 +487,7 @@ module Api
         end
       end
 
-      # GET /api/v1/organization_onedrive/browse_folders
+      # GET /api/v1/documents/browse_folders
       # Browse OneDrive folders - optionally within a specific folder
       # Returns folders and breadcrumb path for navigation
       # Performance: Cached for 2 minutes to reduce SharePoint API calls
@@ -641,7 +641,7 @@ module Api
         end
       end
 
-      # POST /api/v1/organization_onedrive/create_root_folder
+      # POST /api/v1/documents/create_root_folder
       # Create a root folder in the current drive (e.g., "Teeem" folder)
       # Used to auto-create the Teeem folder if it doesn't exist
       def create_root_folder
@@ -693,7 +693,7 @@ module Api
         end
       end
 
-      # GET /api/v1/organization_onedrive/validate_folder
+      # GET /api/v1/documents/validate_folder
       # Validate the root folder exists and hasn't been renamed or moved
       # Returns folder validation status and auto-updates metadata if folder was renamed
       def validate_folder
@@ -733,7 +733,7 @@ module Api
         end
       end
 
-      # POST /api/v1/organization_onedrive/create_all_job_folders
+      # POST /api/v1/documents/create_all_job_folders
       # Create folder structure for ALL jobs that don't have folders yet
       def create_all_job_folders
         credential = MicrosoftCredential.sharepoint_credential
@@ -800,7 +800,7 @@ module Api
         end
       end
 
-      # POST /api/v1/organization_onedrive/create_job_folders
+      # POST /api/v1/documents/create_job_folders
       # Create folder structure for a specific job
       def create_job_folders
         job = Job.find(params[:job_id])
@@ -853,7 +853,7 @@ module Api
         end
       end
 
-      # GET /api/v1/organization_onedrive/job_folders
+      # GET /api/v1/documents/job_folders
       # List folders and files for a specific job
       # Performance: Cached for 5 minutes to reduce SharePoint API calls
       def list_job_items
@@ -917,7 +917,7 @@ module Api
         end
       end
 
-      # POST /api/v1/organization_onedrive/upload
+      # POST /api/v1/documents/upload
       # Upload file to OneDrive
       def upload
         job = Job.find(params[:job_id])
@@ -975,7 +975,7 @@ module Api
         end
       end
 
-      # GET /api/v1/organization_onedrive/folder_contents
+      # GET /api/v1/documents/folder_contents
       # Get contents of a specific folder by name within a job's folder
       # Supports fetching from multiple folders (e.g., "Photo" and "Client Photo")
       # Performance: Cached for 5 minutes to reduce SharePoint API calls
@@ -1088,7 +1088,7 @@ module Api
         end
       end
 
-      # GET /api/v1/organization_onedrive/search
+      # GET /api/v1/documents/search
       # Search for files across the entire SharePoint/OneDrive drive
       def search
         credential = MicrosoftCredential.sharepoint_credential
@@ -1143,7 +1143,7 @@ module Api
         end
       end
 
-      # GET /api/v1/organization_onedrive/download
+      # GET /api/v1/documents/download
       # Download file from OneDrive
       # For preview=true (thumbnails): Public access with browser caching (7 days)
       # For downloads (attachment): Requires user authentication
@@ -1235,7 +1235,7 @@ module Api
         end
       end
 
-      # DELETE /api/v1/organization_onedrive/delete_file
+      # DELETE /api/v1/documents/delete_file
       # Delete a file from SharePoint/OneDrive
       def delete_file
         credential = MicrosoftCredential.sharepoint_credential
@@ -1284,7 +1284,7 @@ module Api
         end
       end
 
-      # GET /api/v1/organization_onedrive/download_url
+      # GET /api/v1/documents/download_url
       # Get a pre-authenticated download URL for a file (valid ~1 hour)
       # Used for lightbox full-size image viewing - URL works directly in <img> tags
       def download_url
@@ -1376,7 +1376,7 @@ module Api
         end
       end
 
-      # GET /api/v1/organization_onedrive/preview_private_folders
+      # GET /api/v1/documents/preview_private_folders
       # Preview the folder structure that would be created in 00 TEEEM PRIVATE
       def preview_private_folders
         credential = MicrosoftCredential.sharepoint_credential
@@ -1400,7 +1400,7 @@ module Api
         end
       end
 
-      # POST /api/v1/organization_onedrive/copy_files
+      # POST /api/v1/documents/copy_files
       # Copy files from selected records to a SharePoint/OneDrive folder
       # Params:
       #   - foundation_id: The foundation/table name to get records from
@@ -1551,7 +1551,7 @@ module Api
         end
       end
 
-      # POST /api/v1/organization_onedrive/create_private_folders
+      # POST /api/v1/documents/create_private_folders
       # Create the folder structure in 00 TEEEM PRIVATE for all company groups
       def create_private_folders
         credential = MicrosoftCredential.sharepoint_credential
@@ -1577,7 +1577,7 @@ module Api
         end
       end
 
-      # POST /api/v1/organization_onedrive/sync_corporate_documents
+      # POST /api/v1/documents/sync_corporate_documents
       # Sync corporate documents from OneDrive to company records
       def sync_corporate_documents
         credential = MicrosoftCredential.sharepoint_credential
@@ -1629,7 +1629,7 @@ module Api
         end
       end
 
-      # GET /api/v1/organization_onedrive/job_all_files
+      # GET /api/v1/documents/job_all_files
       # List ALL files from the job's OneDrive folder
       # Uses Data Warehouse pattern: reads from JobDocument table for instant results
       # Falls back to live API if no cached data, and triggers background sync
@@ -1664,7 +1664,7 @@ module Api
               storage_path: doc.storage_path,
               # SSoT download URL - works for both SharePoint and S3
               # Must be absolute URL since frontend opens in new tab via window.open()
-              download_url: "#{request.base_url}/api/v1/organization_onedrive/job_document_download?document_id=#{doc.id}",
+              download_url: "#{request.base_url}/api/v1/documents/job_document_download?document_id=#{doc.id}",
               modified: doc.last_modified_at&.iso8601,
               type: "file",
               folder_path: doc.folder_path || "",
@@ -1808,7 +1808,7 @@ module Api
         suggestions || []
       end
 
-      # POST /api/v1/organization_onedrive/sync_job_documents
+      # POST /api/v1/documents/sync_job_documents
       # Manually trigger sync of job documents to data warehouse
       # Can sync a single job or all jobs with OneDrive folders
       def sync_job_documents
@@ -1837,7 +1837,7 @@ module Api
         render json: { error: "Job not found" }, status: :not_found
       end
 
-      # POST /api/v1/organization_onedrive/upload_signed_version
+      # POST /api/v1/documents/upload_signed_version
       # Upload a signed version of an existing draft document
       # Creates a new JobDocument record linked to the original as parent_document
       # Params:
@@ -1952,7 +1952,7 @@ module Api
         end
       end
 
-      # GET /api/v1/organization_onedrive/legacy_files
+      # GET /api/v1/documents/legacy_files
       # List files from the legacy "Old House Data/00 Active" folder that match a job
       # Used for importing legacy job documents into the new job folder structure
       # Supports folder navigation with optional folder_id parameter
@@ -1990,7 +1990,7 @@ module Api
         end
       end
 
-      # POST /api/v1/organization_onedrive/import_legacy
+      # POST /api/v1/documents/import_legacy
       # Import selected files from legacy location to a job's OneDrive folder
       # Params:
       #   - job_id: Target job ID
@@ -2030,7 +2030,7 @@ module Api
         end
       end
 
-      # POST /api/v1/organization_onedrive/analyze_job_documents
+      # POST /api/v1/documents/analyze_job_documents
       # Trigger AI analysis for a job's documents
       # Analyzes unanalyzed documents and suggests document types and filenames
       def analyze_job_documents
@@ -2070,7 +2070,7 @@ module Api
         render json: { error: "Job not found" }, status: :not_found
       end
 
-      # POST /api/v1/organization_onedrive/bulk_categorize_job_documents
+      # POST /api/v1/documents/bulk_categorize_job_documents
       # Bulk categorize documents for a job based on folder paths matching EntityTabs
       # Used for client onboarding to automatically assign document types
       # Params:
@@ -2109,7 +2109,7 @@ module Api
         render json: { success: false, error: e.message }, status: :internal_server_error
       end
 
-      # GET /api/v1/organization_onedrive/documents_needing_review
+      # GET /api/v1/documents/documents_needing_review
       # List documents with AI suggestions pending review
       # Params:
       #   - job_id: Optional - filter by job
@@ -2151,7 +2151,7 @@ module Api
         }
       end
 
-      # POST /api/v1/organization_onedrive/approve_document_rename
+      # POST /api/v1/documents/approve_document_rename
       # Approve or reject AI rename suggestion for a document
       # Params:
       #   - document_id: The JobDocument ID
@@ -2239,7 +2239,7 @@ module Api
         render json: { error: "Document not found" }, status: :not_found
       end
 
-      # POST /api/v1/organization_onedrive/bulk_approve_renames
+      # POST /api/v1/documents/bulk_approve_renames
       # Bulk approve multiple document renames
       # Params:
       #   - document_ids: Array of JobDocument IDs to approve
@@ -2298,7 +2298,7 @@ module Api
         }
       end
 
-      # POST /api/v1/organization_onedrive/run_migration
+      # POST /api/v1/documents/run_migration
       # Run the bulk job document migration (dry_run by default)
       # Admin only - migrates all documents from legacy folder to job folders
       def run_migration
@@ -2333,7 +2333,7 @@ module Api
         end
       end
 
-      # GET /api/v1/organization_onedrive/job_document_download
+      # GET /api/v1/documents/job_document_download
       # Unified download endpoint for job documents - routes to correct provider
       #
       # This is THE SSoT for job document downloads. It checks the document's
@@ -2382,7 +2382,7 @@ module Api
         end
       end
 
-      # GET /api/v1/organization_onedrive/job_document_url
+      # GET /api/v1/documents/job_document_url
       # Get a pre-signed URL for direct browser access to a job document
       #
       # Returns a URL that can be used directly in browser for 1 hour.
