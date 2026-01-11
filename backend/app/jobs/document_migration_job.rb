@@ -130,13 +130,15 @@ class DocumentMigrationJob < ApplicationJob
       Rails.logger.info "[DocumentMigration] Uploaded successfully, new ID: #{result[:id]}"
 
       # Step 6: Update document record
+      # Mark as synced so it appears in API queries (job_all_files uses .synced scope)
       document.update!(
         storage_provider: dest_provider_type,
         storage_item_id: result[:id],
         storage_path: result[:path] || folder_path,
         migration_status: 'completed',
         migration_completed_at: Time.current,
-        migration_error: nil
+        migration_error: nil,
+        sync_status: 'synced'
       )
 
       # Step 7: Optionally delete from source
