@@ -36,6 +36,7 @@ import {
 import { MonthView } from "@/components/calendar/MonthView";
 import { WeekView } from "@/components/calendar/WeekView";
 import { DayView } from "@/components/calendar/DayView";
+import { ScheduleView } from "@/components/calendar/ScheduleView";
 import { CalendarSidebar } from "@/components/calendar/CalendarSidebar";
 import {
   CreateEventDialog,
@@ -320,11 +321,7 @@ export default function CalendarPage() {
               {view === "month" && <MonthView />}
               {view === "week" && <WeekView />}
               {view === "day" && <DayView />}
-              {view === "schedule" && (
-                <div className="flex items-center justify-center h-full text-muted-foreground">
-                  Schedule view coming soon...
-                </div>
-              )}
+              {view === "schedule" && <ScheduleView />}
             </>
           )}
         </div>
