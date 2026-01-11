@@ -7,6 +7,9 @@ import Placeholder from "@tiptap/extension-placeholder";
 import Link from "@tiptap/extension-link";
 import Underline from "@tiptap/extension-underline";
 import Image from "@tiptap/extension-image";
+import TaskList from "@tiptap/extension-task-list";
+import TaskItem from "@tiptap/extension-task-item";
+import { TextStyle } from "@tiptap/extension-text-style";
 import { Table } from "@tiptap/extension-table";
 import { TableRow } from "@tiptap/extension-table-row";
 import { TableCell } from "@tiptap/extension-table-cell";
@@ -25,17 +28,86 @@ import {
   Undo,
   Redo,
   ImageIcon,
-  SpellCheck,
+SpellCheck,
   Loader2,
+  ListTodo,
+  ChevronDown,
 } from "lucide-react";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { WritingChecker, useWritingCheckerState, WritingIssue } from "./tiptap-writing-checker";
+
+// Custom extension for font size
+declare module "@tiptap/core" {
+  interface Commands<ReturnType> {
+    fontSize: {
+      setFontSize: (size: string) => ReturnType;
+      unsetFontSize: () => ReturnType;
+    };
+  }
+}
+
+const FontSize = Extension.create({
+  name: "fontSize",
+
+  addOptions() {
+    return {
+      types: ["textStyle"],
+    };
+  },
+
+  addGlobalAttributes() {
+    return [
+      {
+        types: this.options.types,
+        attributes: {
+          fontSize: {
+            default: null,
+            parseHTML: (element) =>
+              element.style.fontSize.replace(/['"]+/g, ""),
+            renderHTML: (attributes) => {
+              if (!attributes.fontSize) {
+                return {};
+              }
+              return {
+                style: `font-size: ${attributes.fontSize}`,
+              };
+            },
+          },
+        },
+      },
+    ];
+  },
+
+  addCommands() {
+    return {
+      setFontSize:
+        (fontSize) =>
+        ({ chain }) => {
+          return chain().setMark("textStyle", { fontSize }).run();
+        },
+      unsetFontSize:
+        () =>
+        ({ chain }) => {
+          return chain()
+            .setMark("textStyle", { fontSize: null })
+            .removeEmptyTextStyle()
+            .run();
+        },
+    };
+  },
+});
 
 // Slash command types
 export type SlashCommand = "template";
@@ -185,8 +257,38 @@ function Toolbar({ editor, showWritingChecker }: { editor: Editor | null; showWr
     editor.chain().focus().unsetLink().run();
   };
 
+  const fontSizes = ["12px", "14px", "16px", "18px", "20px", "24px", "28px", "32px", "36px"];
+
   return (
     <div className="flex items-center gap-0.5 p-1 border-b bg-muted/30 rounded-t-md flex-wrap">
+      {/* Font Size */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            title="Font size"
+            className="h-7 px-2 text-xs"
+          >
+            Size <ChevronDown className="h-3 w-3 ml-1" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          {fontSizes.map((size) => (
+            <DropdownMenuItem
+              key={size}
+              onClick={() => editor.chain().focus().setFontSize(size).run()}
+              className="text-sm"
+            >
+              {size}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <div className="w-px h-5 bg-border mx-1" />
+
       {/* Text formatting */}
       <ToolbarButton
         onClick={() => editor.chain().focus().toggleBold().run()}
@@ -233,6 +335,13 @@ function Toolbar({ editor, showWritingChecker }: { editor: Editor | null; showWr
         title="Numbered list"
       >
         <ListOrdered className="h-4 w-4" />
+      </ToolbarButton>
+      <ToolbarButton
+        onClick={() => editor.chain().focus().toggleTaskList().run()}
+        isActive={editor.isActive("taskList")}
+        title="Checklist"
+      >
+        <ListTodo className="h-4 w-4" />
       </ToolbarButton>
 
       <div className="w-px h-5 bg-border mx-1" />
@@ -354,7 +463,7 @@ export function RichTextEditor({
 }: RichTextEditorProps) {
   // Memoize all extensions to prevent tiptap duplicate extension warnings
   const extensions = React.useMemo(
-    () => {
+() => {
       const baseExtensions = [
         StarterKit.configure({
           // Disable heading since we don't need it for emails
@@ -367,6 +476,8 @@ export function RichTextEditor({
           emptyEditorClass: "is-editor-empty",
         }),
         Underline,
+        TextStyle,
+        FontSize,
         Link.configure({
           openOnClick: false,
           HTMLAttributes: {
@@ -380,6 +491,17 @@ export function RichTextEditor({
             class: "max-w-full max-h-[300px] w-auto h-auto rounded object-contain cursor-pointer",
             style: "display: inline-block;",
           },
+        }),
+        TaskList.configure({
+          HTMLAttributes: {
+            class: "task-list",
+          },
+        }),
+        TaskItem.configure({
+          HTMLAttributes: {
+            class: "task-item",
+          },
+          nested: true,
         }),
         // Table support for email signatures
         Table.configure({
@@ -450,7 +572,7 @@ export function RichTextEditor({
       <div style={{ minHeight }} className="overflow-y-auto">
         <EditorContent
           editor={editor}
-          className="[&_.is-editor-empty]:before:content-[attr(data-placeholder)] [&_.is-editor-empty]:before:text-muted-foreground [&_.is-editor-empty]:before:float-left [&_.is-editor-empty]:before:h-0 [&_.is-editor-empty]:before:pointer-events-none [&_ol]:list-decimal [&_ol]:pl-6 [&_ol_ol]:list-[lower-alpha] [&_ol_ol_ol]:list-[lower-roman] [&_ul]:list-disc [&_ul]:pl-6 [&_ul_ul]:list-[circle] [&_ul_ul_ul]:list-[square] [&_li]:my-1"
+          className="[&_.is-editor-empty]:before:content-[attr(data-placeholder)] [&_.is-editor-empty]:before:text-muted-foreground [&_.is-editor-empty]:before:float-left [&_.is-editor-empty]:before:h-0 [&_.is-editor-empty]:before:pointer-events-none [&_ol]:list-decimal [&_ol]:pl-6 [&_ol_ol]:list-[lower-alpha] [&_ol_ol_ol]:list-[lower-roman] [&_ul]:list-disc [&_ul]:pl-6 [&_ul_ul]:list-[circle] [&_ul_ul_ul]:list-[square] [&_li]:my-1 [&_ul.task-list]:list-none [&_ul.task-list]:pl-0 [&_.task-item]:flex [&_.task-item]:items-start [&_.task-item>label]:flex [&_.task-item>label]:items-center [&_.task-item>label>input]:mr-2 [&_.task-item>label>input]:mt-1 [&_.task-item>label>div]:flex-1"
         />
       </div>
     </div>

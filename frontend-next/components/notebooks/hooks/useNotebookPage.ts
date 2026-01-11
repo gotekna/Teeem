@@ -45,7 +45,7 @@ interface PagesResponse {
 }
 
 // Hook to get a single page with content
-export function useNotebookPage(pageId: number | null) {
+export function useNotebookPage(pageId: number | null, notebookId: number | null = null) {
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -63,9 +63,10 @@ export function useNotebookPage(pageId: number | null) {
       return response;
     },
     enabled: !!pageId,
+    staleTime: 0, // Always fetch fresh data to ensure we have notebook ID
   });
 
-  // Debounced save function
+  // Debounced save function (300ms for faster sidebar updates)
   const debouncedSave = useRef(
     debounce(async (id: number, changes: { title?: string; content?: string }) => {
       try {
@@ -77,9 +78,10 @@ export function useNotebookPage(pageId: number | null) {
           pendingChangesRef.current = null;
           // Update the page cache
           queryClient.setQueryData(["notebook-page", id], response);
-          // If title changed, also invalidate the notebook cache so sidebar updates
-          if (changes.title && response.page.notebook?.id) {
-            queryClient.invalidateQueries({ queryKey: ["notebook", response.page.notebook.id] });
+// Invalidate the notebook cache to refresh the sidebar
+          const notebookId = response.page.notebook?.id;
+          if (notebookId) {
+            queryClient.invalidateQueries({ queryKey: ["notebook", notebookId] });
           }
         }
       } catch (err) {
@@ -87,7 +89,7 @@ export function useNotebookPage(pageId: number | null) {
       } finally {
         setIsSaving(false);
       }
-    }, 1000)
+    }, 300)
   ).current;
 
   // Update page content with debounced auto-save
@@ -107,9 +109,38 @@ export function useNotebookPage(pageId: number | null) {
       if (!pageId) return;
       setHasUnsavedChanges(true);
       pendingChangesRef.current = { ...pendingChangesRef.current, title };
+
+      // Optimistically update the sidebar immediately using the passed notebookId
+      console.log("🔄 Optimistic update:", { pageId, notebookId, title });
+      if (notebookId) {
+        queryClient.setQueryData(["notebook", notebookId], (oldData: any) => {
+          console.log("📦 Current notebook data:", oldData);
+          if (!oldData?.notebook) {
+            console.log("❌ No notebook in oldData");
+            return oldData;
+          }
+          const newData = {
+            ...oldData,
+            notebook: {
+              ...oldData.notebook,
+              sections: oldData.notebook.sections?.map((section: any) => ({
+                ...section,
+                pages: section.pages?.map((page: any) =>
+                  page.id === pageId ? { ...page, title } : page
+                ),
+              })),
+            },
+          };
+          console.log("✅ Updated notebook data:", newData);
+          return newData;
+        });
+      } else {
+        console.log("❌ No notebookId available");
+      }
+
       debouncedSave(pageId, pendingChangesRef.current);
     },
-    [pageId, debouncedSave]
+    [pageId, notebookId, debouncedSave, queryClient]
   );
 
   // Force save immediately

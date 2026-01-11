@@ -1,3 +1,4 @@
+
 # Claude Code Instructions for TEEEM Project
 
 ## 🔴 CRITICAL: Git Commit, Push, and Deploy Rules

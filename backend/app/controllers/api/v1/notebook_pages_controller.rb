@@ -30,7 +30,7 @@ module Api
 
         render json: {
           success: true,
-          page: page_json(@page, include_content: true)
+          page: page_json(@page, include_content: true, include_notebook: true)
         }
       end
 

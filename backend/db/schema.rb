@@ -8456,7 +8456,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.bigint "updated_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "sm_schedule_master_id"
+t.bigint "sm_schedule_master_id"
     t.boolean "spawn_order_task", default: false
     t.boolean "spawn_call_task", default: false
     t.boolean "is_photo_task", default: false, null: false
