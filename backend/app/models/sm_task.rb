@@ -303,6 +303,14 @@ class SmTask < ApplicationRecord
   scope :past_due, -> { where("start_date < ?", Date.current).active }
   scope :for_role, ->(role) { where(assigned_role: role) }
 
+  # Calendar scopes - for calendar view queries
+  scope :for_date_range, ->(start_date, end_date) {
+    where("sm_tasks.start_date <= ? AND sm_tasks.end_date >= ?", end_date, start_date)
+  }
+  scope :for_users, ->(user_ids) { where(assigned_user_id: user_ids) }
+  scope :for_calendar, -> { includes(:job, :assigned_user, :sm_schedule_master, :hold_reason) }
+  scope :overdue, -> { where("sm_tasks.end_date < ? AND sm_tasks.status != ?", Date.current, "completed") }
+
   # Show tasks the user can work on based on role assignment rules:
   # 1. Direct assignment (assigned_user_id = user)
   # 2. Job-specific roles: user is in Internal Team for that job+role (via JobContact)

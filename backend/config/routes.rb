@@ -29,6 +29,16 @@ Rails.application.routes.draw do
       # Feature Trackers
       resources :feature_trackers, only: [ :index, :create, :update, :destroy ]
 
+      # Calendar - Task calendar views
+      # GET /api/v1/calendar/events - Calendar events (tasks)
+      # GET /api/v1/calendar/capacity - Resource capacity data
+      # GET /api/v1/calendar/summary - Quick stats
+      resource :calendar, only: [], controller: "calendar" do
+        get :events
+        get :capacity
+        get :summary
+      end
+
       # TeeemXL Spreadsheets - user-created spreadsheets
       resources :teeem_spreadsheets, only: [ :index, :show, :create, :update, :destroy ] do
         member do
