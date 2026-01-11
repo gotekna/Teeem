@@ -30,10 +30,18 @@ class PeopleDocument < ApplicationRecord
     work_permit
   ].freeze
 
+  # Storage providers (SSoT: Organization.document_provider)
+  STORAGE_PROVIDERS = %w[sharepoint s3_compatible].freeze
+
+  # Migration statuses for tracking provider-to-provider migration
+  MIGRATION_STATUSES = %w[pending in_progress completed failed].freeze
+
   # Validations
   validates :title, presence: true
   validates :document_type, presence: true
   validates :contact_id, presence: true
+  validates :storage_provider, inclusion: { in: STORAGE_PROVIDERS }, allow_nil: true
+  validates :migration_status, inclusion: { in: MIGRATION_STATUSES }, allow_nil: true
   validate :must_be_identity_document
 
   # Scopes
@@ -45,6 +53,13 @@ class PeopleDocument < ApplicationRecord
     where("expiry_date IS NOT NULL AND expiry_date BETWEEN ? AND ?", Date.today, Date.today + days.days)
   }
   scope :expired, -> { where("expiry_date < ?", Date.today) }
+  # Migration scopes
+  scope :migration_pending, -> { where(migration_status: 'pending') }
+  scope :migration_in_progress, -> { where(migration_status: 'in_progress') }
+  scope :migration_completed, -> { where(migration_status: 'completed') }
+  scope :migration_failed, -> { where(migration_status: 'failed') }
+  scope :needs_migration, -> { where(migration_status: [nil, 'failed']) }
+  scope :on_provider, ->(provider) { where(storage_provider: provider) }
 
   # Callbacks
   before_save :standardize_document_type
@@ -97,6 +112,42 @@ class PeopleDocument < ApplicationRecord
 
   def has_duplicates?
     find_duplicates.exists?
+  end
+
+  # Provider-agnostic storage helpers
+  # Returns true if stored in S3-compatible storage
+  def s3_stored?
+    storage_provider == 's3_compatible'
+  end
+
+  # Migration helpers
+  def migration_in_progress?
+    migration_status == 'in_progress'
+  end
+
+  def migration_completed?
+    migration_status == 'completed'
+  end
+
+  def migration_failed?
+    migration_status == 'failed'
+  end
+
+  def can_migrate?
+    !migration_in_progress? && storage_reference.present?
+  end
+
+  # Returns the provider-agnostic storage reference
+  # Falls back to external_id for backwards compatibility
+  def storage_reference
+    storage_item_id.presence || external_id
+  end
+
+  # Sets both provider-agnostic fields
+  def set_storage_reference(item_id, provider: 'sharepoint', path: nil)
+    self.storage_item_id = item_id
+    self.storage_provider = provider
+    self.storage_path = path
   end
 
   private

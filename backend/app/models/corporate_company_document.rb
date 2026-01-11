@@ -65,6 +65,12 @@ class CorporateCompanyDocument < ApplicationRecord
   # AI verification statuses
   AI_VERIFICATION_STATUSES = %w[pending verified mismatch needs_review].freeze
 
+  # Storage providers (SSoT: Organization.document_provider)
+  STORAGE_PROVIDERS = %w[sharepoint s3_compatible].freeze
+
+  # Migration statuses for tracking provider-to-provider migration
+  MIGRATION_STATUSES = %w[pending in_progress completed failed].freeze
+
   # Focus types - three main categories for organizing documents
   FOCUS_TYPES = %w[company people job].freeze
 
@@ -126,6 +132,8 @@ class CorporateCompanyDocument < ApplicationRecord
   }, allow_blank: true
   validates :storage_type, inclusion: { in: STORAGE_TYPES }, allow_blank: true
   validates :focus, inclusion: { in: FOCUS_TYPES }, presence: true
+  validates :storage_provider, inclusion: { in: STORAGE_PROVIDERS }, allow_nil: true
+  validates :migration_status, inclusion: { in: MIGRATION_STATUSES }, allow_nil: true
 
   # Validations for ownership
   validate :must_have_owner
@@ -163,6 +171,13 @@ class CorporateCompanyDocument < ApplicationRecord
   scope :company_focus, -> { where(focus: "company") }
   scope :people_focus, -> { where(focus: "people") }
   scope :job_focus, -> { where(focus: "job") }
+  # Migration scopes
+  scope :migration_pending, -> { where(migration_status: 'pending') }
+  scope :migration_in_progress, -> { where(migration_status: 'in_progress') }
+  scope :migration_completed, -> { where(migration_status: 'completed') }
+  scope :migration_failed, -> { where(migration_status: 'failed') }
+  scope :needs_migration, -> { where(migration_status: [nil, 'failed']) }
+  scope :on_provider, ->(provider) { where(storage_provider: provider) }
 
   # Callbacks
   after_create :create_activity
@@ -200,6 +215,48 @@ class CorporateCompanyDocument < ApplicationRecord
 
   def has_duplicates?
     find_duplicates.exists?
+  end
+
+  # Provider-agnostic storage helpers
+  # Returns true if stored in S3-compatible storage
+  def s3_stored?
+    storage_provider == 's3_compatible'
+  end
+
+  # Migration helpers
+  def migration_in_progress?
+    migration_status == 'in_progress'
+  end
+
+  def migration_completed?
+    migration_status == 'completed'
+  end
+
+  def migration_failed?
+    migration_status == 'failed'
+  end
+
+  def can_migrate?
+    !migration_in_progress? && storage_reference.present?
+  end
+
+  # Returns the provider-agnostic storage reference
+  # Falls back to sharepoint_file_id for backwards compatibility
+  def storage_reference
+    storage_item_id.presence || sharepoint_file_id
+  end
+
+  # Sets both provider-agnostic and SharePoint-specific fields
+  # for backwards compatibility during migration
+  def set_storage_reference(item_id, provider: 'sharepoint', path: nil)
+    self.storage_item_id = item_id
+    self.storage_provider = provider
+    self.storage_path = path
+
+    # Maintain backwards compatibility with SharePoint fields
+    if provider == 'sharepoint'
+      self.sharepoint_file_id = item_id
+    end
   end
 
   private

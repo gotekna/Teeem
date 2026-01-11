@@ -3,7 +3,10 @@
 # DocumentMigrationService - Manages bulk document migration between storage providers
 #
 # This service orchestrates migration of documents from one provider to another.
-# It handles batch enqueueing, progress tracking, and reporting.
+# It handles batch enqueueing, progress tracking, and reporting for all document types:
+# - JobDocument
+# - CorporateCompanyDocument
+# - PeopleDocument
 #
 # Usage:
 #   # Start migration for all SharePoint documents to S3
@@ -13,6 +16,13 @@
 #     delete_source: false
 #   )
 #
+#   # Start migration for specific document type
+#   result = DocumentMigrationService.start_migration(
+#     from: 'sharepoint',
+#     to: 's3_compatible',
+#     document_types: ['CorporateCompanyDocument']
+#   )
+#
 #   # Get migration status
 #   status = DocumentMigrationService.migration_status
 #
@@ -20,6 +30,13 @@
 #   DocumentMigrationService.cancel_migration
 #
 class DocumentMigrationService
+  # All supported document types for migration
+  DOCUMENT_TYPES = {
+    'JobDocument' => JobDocument,
+    'CorporateCompanyDocument' => CorporateCompanyDocument,
+    'PeopleDocument' => PeopleDocument
+  }.freeze
+
   class << self
     # Start migrating documents from one provider to another
     #
@@ -28,7 +45,8 @@ class DocumentMigrationService
     # @param options [Hash] Migration options
     #   - delete_source: [Boolean] Delete from source after migration (default: false)
     #   - batch_size: [Integer] Number of documents per batch (default: 100)
-    #   - job_id: [Integer] Only migrate documents from this job (optional)
+    #   - document_types: [Array<String>] Specific document types to migrate (default: all)
+    #   - job_id: [Integer] Only migrate JobDocuments from this job (optional)
     #
     # @return [Hash] Migration start result with job count
     #
@@ -36,6 +54,7 @@ class DocumentMigrationService
       delete_source = options.fetch(:delete_source, false)
       batch_size = options.fetch(:batch_size, 100)
       job_id = options[:job_id]
+      requested_types = options[:document_types] || DOCUMENT_TYPES.keys
 
       # Validate providers
       unless JobDocument::STORAGE_PROVIDERS.include?(from) && JobDocument::STORAGE_PROVIDERS.include?(to)
@@ -46,175 +65,253 @@ class DocumentMigrationService
         return { success: false, error: "Source and destination providers are the same" }
       end
 
-      # Find documents to migrate
-      documents = JobDocument.where(storage_provider: from)
-                             .where(migration_status: [nil, 'failed']) # Skip completed/in_progress
-                             .where.not(sharepoint_item_id: nil)       # Must have a storage reference
-
-      documents = documents.where(job_id: job_id) if job_id.present?
-
-      total_count = documents.count
-
-      if total_count == 0
-        return {
-          success: true,
-          message: "No documents found to migrate from #{from}",
-          total_documents: 0,
-          jobs_enqueued: 0
-        }
+      # Validate document types
+      invalid_types = requested_types - DOCUMENT_TYPES.keys
+      if invalid_types.any?
+        return { success: false, error: "Invalid document types: #{invalid_types.join(', ')}" }
       end
 
-      Rails.logger.info "[DocumentMigration] Starting migration of #{total_count} documents from #{from} to #{to}"
+      Rails.logger.info "[DocumentMigration] Starting migration from #{from} to #{to} for types: #{requested_types.join(', ')}"
 
-      # Reset any previously failed migrations
+      results = {}
+      total_documents = 0
+      total_jobs_enqueued = 0
+
+      requested_types.each do |type_name|
+        klass = DOCUMENT_TYPES[type_name]
+        result = migrate_document_type(klass, type_name, from, to, delete_source, batch_size, job_id)
+        results[type_name] = result
+        total_documents += result[:document_count]
+        total_jobs_enqueued += result[:jobs_enqueued]
+      end
+
+      Rails.logger.info "[DocumentMigration] Total: #{total_documents} documents, #{total_jobs_enqueued} jobs enqueued"
+
+      {
+        success: true,
+        message: "Migration started",
+        total_documents: total_documents,
+        jobs_enqueued: total_jobs_enqueued,
+        source_provider: from,
+        dest_provider: to,
+        delete_source: delete_source,
+        by_type: results
+      }
+    end
+
+    # Migrate a single document type
+    def migrate_document_type(klass, type_name, from, to, delete_source, batch_size, job_id = nil)
+      # Build query based on document type
+      documents = klass.where(storage_provider: [from, nil])
+                       .where(migration_status: [nil, 'failed'])
+
+      # Add type-specific filters
+      case type_name
+      when 'JobDocument'
+        documents = documents.where.not(sharepoint_item_id: nil)
+        documents = documents.where(job_id: job_id) if job_id.present?
+      when 'CorporateCompanyDocument'
+        documents = documents.where.not(sharepoint_file_id: nil)
+      when 'PeopleDocument'
+        documents = documents.where.not(external_id: nil)
+      end
+
+      count = documents.count
+
+      if count == 0
+        return { document_count: 0, jobs_enqueued: 0, message: "No #{type_name} documents to migrate" }
+      end
+
+      Rails.logger.info "[DocumentMigration] Migrating #{count} #{type_name} documents"
+
+      # Reset failed and mark as pending
       documents.where(migration_status: 'failed').update_all(
         migration_status: 'pending',
         migration_error: nil
       )
+      documents.where(migration_status: nil).update_all(migration_status: 'pending')
 
-      # Mark all as pending
-      documents.update_all(migration_status: 'pending')
-
-      # Enqueue migration jobs in batches
+      # Enqueue jobs
       jobs_enqueued = 0
       documents.find_each(batch_size: batch_size) do |document|
         DocumentMigrationJob.perform_later(
           document.id,
+          document_type: type_name,
           delete_source: delete_source
         )
         jobs_enqueued += 1
       end
 
-      Rails.logger.info "[DocumentMigration] Enqueued #{jobs_enqueued} migration jobs"
-
-      {
-        success: true,
-        message: "Migration started",
-        total_documents: total_count,
-        jobs_enqueued: jobs_enqueued,
-        source_provider: from,
-        dest_provider: to,
-        delete_source: delete_source
-      }
+      { document_count: count, jobs_enqueued: jobs_enqueued }
     end
 
-    # Get current migration status
+    # Get current migration status for all document types
     #
     # @return [Hash] Status with counts by migration_status
     #
     def migration_status
-      # Get counts by status
-      status_counts = JobDocument.group(:migration_status).count
-      total_with_status = JobDocument.where.not(migration_status: nil).count
+      status_by_type = {}
+      total_counts = { pending: 0, in_progress: 0, completed: 0, failed: 0, not_migrated: 0 }
+      total_documents = 0
+      all_failures = []
+      provider_breakdown = {}
 
-      # Calculate progress
-      completed = status_counts['completed'] || 0
-      failed = status_counts['failed'] || 0
-      in_progress = status_counts['in_progress'] || 0
-      pending = status_counts['pending'] || 0
+      DOCUMENT_TYPES.each do |type_name, klass|
+        counts = klass.group(:migration_status).count
+        providers = klass.group(:storage_provider).count
 
-      # Get recent failures for debugging
-      recent_failures = JobDocument.where(migration_status: 'failed')
-                                   .order(updated_at: :desc)
-                                   .limit(5)
-                                   .pluck(:id, :file_name, :migration_error)
-                                   .map { |id, name, error| { id: id, file_name: name, error: error } }
+        type_status = {
+          total: klass.count,
+          pending: counts['pending'] || 0,
+          in_progress: counts['in_progress'] || 0,
+          completed: counts['completed'] || 0,
+          failed: counts['failed'] || 0,
+          not_migrated: counts[nil] || 0,
+          provider_breakdown: providers
+        }
 
-      # Provider breakdown
-      provider_breakdown = JobDocument.group(:storage_provider).count
+        status_by_type[type_name] = type_status
+        total_documents += type_status[:total]
+        total_counts[:pending] += type_status[:pending]
+        total_counts[:in_progress] += type_status[:in_progress]
+        total_counts[:completed] += type_status[:completed]
+        total_counts[:failed] += type_status[:failed]
+        total_counts[:not_migrated] += type_status[:not_migrated]
+
+        # Collect failures
+        failures = klass.where(migration_status: 'failed')
+                        .order(updated_at: :desc)
+                        .limit(3)
+                        .pluck(:id, :file_name, :migration_error)
+                        .map { |id, name, error| { type: type_name, id: id, file_name: name, error: error } }
+        all_failures.concat(failures)
+
+        # Merge provider breakdown
+        providers.each do |provider, count|
+          provider_breakdown[provider] ||= 0
+          provider_breakdown[provider] += count
+        end
+      end
+
+      total_with_status = total_counts.values.sum - total_counts[:not_migrated]
 
       {
-        total_documents: JobDocument.count,
-        migration_in_progress: in_progress > 0 || pending > 0,
-        status_counts: {
-          pending: pending,
-          in_progress: in_progress,
-          completed: completed,
-          failed: failed,
-          not_migrated: JobDocument.where(migration_status: nil).count
-        },
+        total_documents: total_documents,
+        migration_in_progress: total_counts[:in_progress] > 0 || total_counts[:pending] > 0,
+        status_counts: total_counts,
         provider_breakdown: provider_breakdown,
-        progress_percent: total_with_status > 0 ? ((completed.to_f / total_with_status) * 100).round(1) : 0,
-        recent_failures: recent_failures
+        progress_percent: total_with_status > 0 ? ((total_counts[:completed].to_f / total_with_status) * 100).round(1) : 0,
+        by_type: status_by_type,
+        recent_failures: all_failures.first(10)
       }
     end
 
-    # Cancel ongoing migration (marks pending as cancelled)
+    # Cancel ongoing migration (marks pending as cancelled) for all types
     #
     # @return [Hash] Result with count of cancelled jobs
     #
     def cancel_migration
-      cancelled_count = JobDocument.where(migration_status: 'pending')
-                                   .update_all(migration_status: nil)
+      total_cancelled = 0
 
-      Rails.logger.info "[DocumentMigration] Cancelled #{cancelled_count} pending migrations"
+      DOCUMENT_TYPES.each do |type_name, klass|
+        cancelled = klass.where(migration_status: 'pending').update_all(migration_status: nil)
+        total_cancelled += cancelled
+        Rails.logger.info "[DocumentMigration] Cancelled #{cancelled} pending #{type_name} migrations"
+      end
 
       {
         success: true,
         message: "Migration cancelled",
-        cancelled_count: cancelled_count
+        cancelled_count: total_cancelled
       }
     end
 
-    # Retry failed migrations
+    # Retry failed migrations for all document types
     #
     # @param options [Hash] Options for retry
     #   - delete_source: [Boolean] Delete from source after migration
+    #   - document_types: [Array<String>] Specific types to retry (default: all)
     #
     # @return [Hash] Result with count of retried jobs
     #
     def retry_failed(**options)
       delete_source = options.fetch(:delete_source, false)
+      requested_types = options[:document_types] || DOCUMENT_TYPES.keys
 
-      failed_documents = JobDocument.where(migration_status: 'failed')
-      count = failed_documents.count
+      total_retried = 0
+      results = {}
 
-      if count == 0
-        return { success: true, message: "No failed migrations to retry", retried_count: 0 }
+      requested_types.each do |type_name|
+        klass = DOCUMENT_TYPES[type_name]
+        next unless klass
+
+        failed_documents = klass.where(migration_status: 'failed')
+        count = failed_documents.count
+
+        if count > 0
+          # Reset status and re-enqueue
+          failed_documents.update_all(
+            migration_status: 'pending',
+            migration_error: nil
+          )
+
+          failed_documents.find_each do |document|
+            DocumentMigrationJob.perform_later(
+              document.id,
+              document_type: type_name,
+              delete_source: delete_source
+            )
+          end
+
+          Rails.logger.info "[DocumentMigration] Retrying #{count} failed #{type_name} migrations"
+        end
+
+        results[type_name] = count
+        total_retried += count
       end
-
-      # Reset status and re-enqueue
-      failed_documents.update_all(
-        migration_status: 'pending',
-        migration_error: nil
-      )
-
-      failed_documents.find_each do |document|
-        DocumentMigrationJob.perform_later(document.id, delete_source: delete_source)
-      end
-
-      Rails.logger.info "[DocumentMigration] Retrying #{count} failed migrations"
 
       {
         success: true,
-        message: "Retrying #{count} failed migrations",
-        retried_count: count
+        message: "Retrying #{total_retried} failed migrations",
+        retried_count: total_retried,
+        by_type: results
       }
     end
 
-    # Estimate migration time based on document count and sizes
+    # Estimate migration time based on document count and sizes for all types
     #
     # @param from [String] Source provider
     # @return [Hash] Estimation with document count and estimated time
     #
     def estimate_migration(from:)
-      documents = JobDocument.where(storage_provider: from)
-                             .where(migration_status: [nil, 'failed'])
+      estimates = {}
+      total_count = 0
+      total_size = 0
 
-      count = documents.count
-      total_size = documents.sum(:file_size) || 0
+      DOCUMENT_TYPES.each do |type_name, klass|
+        documents = klass.where(storage_provider: [from, nil])
+                         .where(migration_status: [nil, 'failed'])
+
+        count = documents.count
+        size = documents.sum(:file_size) || 0
+
+        estimates[type_name] = { count: count, size_bytes: size, size_formatted: format_size(size) }
+        total_count += count
+        total_size += size
+      end
 
       # Rough estimate: 5 seconds per document (download + upload + db update)
       # Add time for large files
-      estimated_seconds = count * 5
+      estimated_seconds = total_count * 5
       estimated_seconds += (total_size / (10.megabytes)) * 10 # Extra 10s per 10MB
 
       {
-        document_count: count,
+        document_count: total_count,
         total_size_bytes: total_size,
         total_size_formatted: format_size(total_size),
         estimated_minutes: (estimated_seconds / 60.0).ceil,
-        estimated_time_formatted: format_duration(estimated_seconds)
+        estimated_time_formatted: format_duration(estimated_seconds),
+        by_type: estimates
       }
     end
 
