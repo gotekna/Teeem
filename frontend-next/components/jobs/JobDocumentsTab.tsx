@@ -191,6 +191,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   const [selectMode, setSelectMode] = useState(false);
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
   const [orgStatus, setOrgStatus] = useState<OrgStatus>({ loading: true, connected: false });
+  const [documentProvider, setDocumentProvider] = useState<"sharepoint" | "s3_compatible">("sharepoint");
   const [jobFolderStatus, setJobFolderStatus] = useState<JobFolderStatus>({ loading: false, exists: false, webUrl: null });
   const [folders, setFolders] = useState<SharePointFolder[]>([]);
   const [creatingFolders, setCreatingFolders] = useState(false);
@@ -810,6 +811,18 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     try {
       setOrgStatus({ loading: true, connected: false });
       setError(null);
+
+      // Fetch document provider setting (SSoT for storage backend)
+      try {
+        const providerResponse = await api.get<{ success: boolean; data: { document_provider: string } }>(
+          "/api/v1/organization/document_provider"
+        );
+        if (providerResponse?.data?.document_provider) {
+          setDocumentProvider(providerResponse.data.document_provider as "sharepoint" | "s3_compatible");
+        }
+      } catch {
+        // Default to sharepoint if fetch fails
+      }
 
       const response = await api.get<{ connected: boolean; root_folder_path?: string }>(
         "/api/v1/organization_onedrive/status"
@@ -2549,14 +2562,17 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
             <FileText className="h-4 w-4 mr-2" />
             Document Tasks
           </Button>
-          <Button
-            variant={viewMode === "sharepoint" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setViewMode("sharepoint")}
-          >
-            <Cloud className="h-4 w-4 mr-2" />
-            SharePoint Folders
-          </Button>
+          {/* Only show SharePoint Folders tab when using SharePoint (hide for Wasabi/S3) */}
+          {documentProvider === "sharepoint" && (
+            <Button
+              variant={viewMode === "sharepoint" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("sharepoint")}
+            >
+              <Cloud className="h-4 w-4 mr-2" />
+              SharePoint Folders
+            </Button>
+          )}
           <Button
             variant={viewMode === "allfiles" ? "default" : "ghost"}
             size="sm"

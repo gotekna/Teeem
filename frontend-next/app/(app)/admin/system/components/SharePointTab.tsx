@@ -20,6 +20,8 @@ import {
   Building2,
   Users,
   ClipboardList,
+  Folder,
+  Settings,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -367,15 +369,178 @@ export function SharePointTab() {
         </CardContent>
       </Card>
 
-      {/* Document Paths */}
+      {/* Document Paths - Two Column Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* LEFT COLUMN: Full List of All Paths */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <FolderTree className="h-4 w-4" />
+              All Paths (Full List)
+            </CardTitle>
+            <CardDescription>
+              Quick reference of all configured storage paths
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3 font-mono text-sm">
+              {/* Root */}
+              <div className="p-2 bg-muted/50 rounded border">
+                <div className="text-xs text-muted-foreground mb-1">Root Path</div>
+                <div className="text-foreground">{formData.sharepoint_root_path || "(drive root)"}</div>
+              </div>
+
+              {/* Jobs */}
+              <div className="flex items-start gap-2 p-2 rounded hover:bg-muted/30">
+                <Briefcase className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs text-muted-foreground">Jobs</div>
+                  <div className="text-foreground truncate">{getFullPath(formData.sharepoint_jobs_path)}</div>
+                </div>
+              </div>
+
+              {/* Tasks */}
+              <div className="flex items-start gap-2 p-2 rounded hover:bg-muted/30">
+                <ClipboardList className="h-4 w-4 text-cyan-500 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs text-muted-foreground">Tasks</div>
+                  <div className="text-foreground truncate">{getFullPath(formData.sharepoint_tasks_path)}</div>
+                </div>
+              </div>
+
+              {/* Company */}
+              <div className="flex items-start gap-2 p-2 rounded hover:bg-muted/30">
+                <Building2 className="h-4 w-4 text-purple-500 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs text-muted-foreground">Corporate</div>
+                  <div className="text-foreground truncate">{getFullPath(formData.sharepoint_company_path)}</div>
+                </div>
+              </div>
+
+              {/* People */}
+              <div className="flex items-start gap-2 p-2 rounded hover:bg-muted/30">
+                <Users className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs text-muted-foreground">Corporate People</div>
+                  <div className="text-foreground truncate">{getFullPath(formData.sharepoint_people_path)}</div>
+                </div>
+              </div>
+
+              {/* Contacts */}
+              <div className="flex items-start gap-2 p-2 rounded hover:bg-muted/30">
+                <Users className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs text-muted-foreground">Contacts</div>
+                  <div className="text-foreground truncate">{getFullPath(formData.sharepoint_contacts_path)}</div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* RIGHT COLUMN: Folder Structure Tree */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <FolderTree className="h-4 w-4" />
+              Folder Structure (Tree View)
+            </CardTitle>
+            <CardDescription>
+              Visual representation of folder hierarchy
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="font-mono text-sm space-y-1">
+              {/* Root */}
+              <div className="flex items-center gap-1">
+                <Folder className="h-4 w-4 text-yellow-600" />
+                <span className="font-medium">{formData.sharepoint_root_path || "/"}</span>
+              </div>
+
+              {/* Jobs branch */}
+              <div className="ml-4 border-l border-muted pl-3 space-y-1">
+                <div className="flex items-center gap-1 text-orange-600 dark:text-orange-400">
+                  <span className="text-muted-foreground">├─</span>
+                  <Briefcase className="h-3.5 w-3.5" />
+                  <span>{formData.sharepoint_jobs_path}</span>
+                </div>
+                <div className="ml-4 text-xs text-muted-foreground">
+                  <span className="text-muted-foreground/50">│  └─</span> {"{{JobCode}}/{{Category}}"}
+                </div>
+              </div>
+
+              {/* Tasks branch */}
+              <div className="ml-4 border-l border-muted pl-3 space-y-1">
+                <div className="flex items-center gap-1 text-cyan-600 dark:text-cyan-400">
+                  <span className="text-muted-foreground">├─</span>
+                  <ClipboardList className="h-3.5 w-3.5" />
+                  <span>{formData.sharepoint_tasks_path}</span>
+                </div>
+                <div className="ml-4 text-xs text-muted-foreground">
+                  <span className="text-muted-foreground/50">│  └─</span> Task-{"{{TaskId}}"}/{"{{Category}}"}
+                </div>
+              </div>
+
+              {/* Corporate branch */}
+              <div className="ml-4 border-l border-muted pl-3 space-y-1">
+                <div className="flex items-center gap-1 text-purple-600 dark:text-purple-400">
+                  <span className="text-muted-foreground">├─</span>
+                  <Building2 className="h-3.5 w-3.5" />
+                  <span>{formData.sharepoint_company_path}</span>
+                </div>
+                <div className="ml-4 text-xs text-muted-foreground">
+                  <span className="text-muted-foreground/50">│  └─</span> {"{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}"}
+                </div>
+
+                {/* People sub-branch (under Corporate) */}
+                {formData.sharepoint_people_path.startsWith(formData.sharepoint_company_path) && (
+                  <div className="ml-4 flex items-center gap-1 text-green-600 dark:text-green-400">
+                    <span className="text-muted-foreground/50">│  ├─</span>
+                    <Users className="h-3.5 w-3.5" />
+                    <span>People</span>
+                  </div>
+                )}
+              </div>
+
+              {/* People branch (if not under Corporate) */}
+              {!formData.sharepoint_people_path.startsWith(formData.sharepoint_company_path) && (
+                <div className="ml-4 border-l border-muted pl-3 space-y-1">
+                  <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                    <span className="text-muted-foreground">├─</span>
+                    <Users className="h-3.5 w-3.5" />
+                    <span>{formData.sharepoint_people_path}</span>
+                  </div>
+                  <div className="ml-4 text-xs text-muted-foreground">
+                    <span className="text-muted-foreground/50">│  └─</span> {"{{ContactName}}/{{Category}}"}
+                  </div>
+                </div>
+              )}
+
+              {/* Contacts branch */}
+              <div className="ml-4 border-l border-muted pl-3 space-y-1">
+                <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                  <span className="text-muted-foreground">└─</span>
+                  <Users className="h-3.5 w-3.5" />
+                  <span>{formData.sharepoint_contacts_path}</span>
+                </div>
+                <div className="ml-4 text-xs text-muted-foreground">
+                  <span className="text-muted-foreground/50">   └─</span> {"{{ContactName}}/{{Category}}"}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Path Configuration (Editable) */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <FolderTree className="h-4 w-4" />
-            Folder Structure (SSoT)
+            <Settings className="h-4 w-4" />
+            Edit Paths
           </CardTitle>
           <CardDescription>
-            Base folders for each document type. All paths are relative to the root.
+            Configure base folders for each document type. All paths are relative to the root.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -421,9 +586,6 @@ export function SharePointTab() {
                   <Search className="h-4 w-4" />
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground font-mono">
-                {getFullPath(formData.sharepoint_jobs_path)}
-              </p>
             </div>
 
             <div className="space-y-2">
@@ -443,12 +605,6 @@ export function SharePointTab() {
                   <Search className="h-4 w-4" />
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground font-mono">
-                {getFullPath(formData.sharepoint_tasks_path)}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                For standalone tasks (tasks without a job)
-              </p>
             </div>
 
             <div className="space-y-2">
@@ -468,15 +624,12 @@ export function SharePointTab() {
                   <Search className="h-4 w-4" />
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground font-mono">
-                {getFullPath(formData.sharepoint_company_path)}
-              </p>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="people_path" className="flex items-center gap-1">
                 <Users className="h-3 w-3 text-green-500" />
-                Corporate People Documents
+                Corporate People
               </Label>
               <div className="flex gap-2">
                 <Input
@@ -490,18 +643,12 @@ export function SharePointTab() {
                   <Search className="h-4 w-4" />
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground font-mono">
-                {getFullPath(formData.sharepoint_people_path)}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                For contacts using Corporate SharePoint path
-              </p>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="contacts_path" className="flex items-center gap-1">
                 <Users className="h-3 w-3 text-blue-500" />
-                Contacts Documents
+                Contacts
               </Label>
               <div className="flex gap-2">
                 <Input
@@ -515,12 +662,6 @@ export function SharePointTab() {
                   <Search className="h-4 w-4" />
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground font-mono">
-                {getFullPath(formData.sharepoint_contacts_path)}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                For contacts using Contacts SharePoint path
-              </p>
             </div>
           </div>
         </CardContent>
