@@ -263,7 +263,7 @@ export default function CalendarPage() {
         <div className="flex-1 overflow-auto">
           {loading ? (
             <div className="flex items-center justify-center h-full">
-              <Spinner size="lg" />
+              <Spinner size={32} />
             </div>
           ) : (
             <>
