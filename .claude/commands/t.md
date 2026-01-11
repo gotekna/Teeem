@@ -4,6 +4,45 @@
 
 A focused code review aligned with CLAUDE.md philosophy. 7 essential checks that catch what matters.
 
+## 🔴 FRC-First: Find Root Cause Before Fixing
+
+**When /t finds issues, DON'T just fix the symptom. Ask WHY it exists.**
+
+### The FRC Process for Each Issue
+
+1. **STOP** - Don't immediately fix the violation
+2. **ASK WHY** - Why does this violation exist?
+   - Is there a missing guardrail (lint rule, type, CI check)?
+   - Did the dev not know the pattern?
+   - Is the SSoT documented but not discoverable?
+3. **FIX THE GAP** - Add prevention, not just correction
+   - Add lint rule? Update CLAUDE.md? Add CI check?
+4. **THEN FIX** - Now fix all instances
+
+### Example: Color Violation Found
+
+```
+❌ BANDAID: Just replace text-[#878787] with text-muted-foreground
+✅ FRC:
+   Why? → Dev didn't know the mapping
+   Gap? → No reference table in CLAUDE.md
+   Fix? → Add color mapping table to /t command AND CLAUDE.md
+   Then? → Fix all 44 instances
+```
+
+### Example: TeeemTableView columns prop
+
+```
+❌ BANDAID: Just remove columns prop
+✅ FRC:
+   Why? → Dev copied from old pattern
+   Gap? → No lint rule for columns+foundationId combo
+   Fix? → Consider adding ESLint rule
+   Then? → Fix all violations
+```
+
+---
+
 ## What This Checks (7 Core Categories)
 
 | # | Category | Why It Matters |
@@ -141,7 +180,23 @@ fi
 **Expected:** Zero hardcoded colors. All colors should come from:
 - CSS variables (`var(--primary)`, `hsl(var(--muted))`)
 - Tailwind semantic tokens (`bg-primary`, `text-muted-foreground`)
-- Company brand colors (set in Admin → Brand Colors)
+- Company brand colors (set in Admin → Company → Brand Colors)
+
+### Color Mapping Reference (SSoT)
+
+When fixing color violations, use these mappings:
+
+| Hardcoded | Semantic Class | Notes |
+|-----------|---------------|-------|
+| `text-[#878787]` | `text-muted-foreground` | Labels, muted text |
+| `text-[#606060]` | `text-text-secondary` | Descriptions, secondary text |
+| `bg-[#F2F1EF]` | `bg-secondary` | Light mode background |
+| `dark:bg-[#1D1D1D]` | (remove - auto) | `bg-secondary` handles dark mode |
+| `hover:bg-[#F2F1EF] dark:hover:bg-[#1D1D1D]` | `hover:bg-secondary` | Hover states (auto dark) |
+| `text-gray-*` / `text-zinc-*` | `text-muted-foreground` | Use semantic tokens |
+| `bg-gray-*` / `bg-zinc-*` | `bg-muted` or `bg-secondary` | Use semantic tokens |
+
+**Key insight:** Using semantic classes like `bg-secondary` automatically handles dark mode - no need for separate `dark:` variants.
 
 ### Step 4: TeeemTableView Pattern
 
@@ -421,7 +476,18 @@ Current Status (as of 2025-12-29):
 
 ## Philosophy
 
-This command embodies **"Simplify ruthlessly."**
+This command embodies **"Find Root Cause, then Simplify ruthlessly."**
+
+### FRC-First Mindset
+
+**Every issue found by /t is a gift - it reveals a gap in the system.**
+
+| Issue Type | Bandaid (❌) | FRC Fix (✅) |
+|------------|-------------|--------------|
+| Hardcoded color | Replace with class | Add mapping table + lint rule idea |
+| Wrong component | Swap component | Update docs, grep for similar |
+| SSoT violation | Delete duplicate | Ask why it was created, add guard |
+| Security issue | Fix single file | Search for pattern, fix all |
 
 **7 quick checks that catch 90% of issues:**
 1. SSoT violations break the architecture
@@ -431,6 +497,11 @@ This command embodies **"Simplify ruthlessly."**
 5. Invalid column types break data
 6. Security issues risk the business
 7. Code quality catches bugs early
+
+**After fixing issues:**
+- ✅ All instances fixed (not just the first one)
+- ✅ Root cause documented (commit message or CLAUDE.md update)
+- ✅ Prevention added if pattern will recur (lint rule, CI check, docs)
 
 **Performance and deep analysis are OPTIONAL** - run when needed, not every review.
 
@@ -443,4 +514,5 @@ If user types these keywords, Claude should immediately respond:
 | `ssot` | Duplicate found | Search for both locations, ask which is SSoT |
 | `ultra` | Lazy solution | Present 3 approaches, pick simplest |
 | `gold` | Wrong component | Check CLAUDE.md component table |
+| `frc` | Bandaid fix | STOP, investigate root cause, fix the gap not symptom |
 | `slow` | Wasting tokens | Stop reading logs, use Sentry |
