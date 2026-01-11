@@ -6,7 +6,7 @@ class AddInternalTeamFoundationColumns < ActiveRecord::Migration[8.0]
     return unless jobs_foundation && contacts_foundation
 
     # Get the lookup column type definition
-    lookup_type = ColumnTypeDefinition.find_by(name: 'lookup')
+    lookup_type = ColumnTypeDefinition.find_by(type_key: 'lookup')
 
     # Get position for new columns (after existing columns)
     max_position = Column.where(foundation_id: jobs_foundation.id).maximum(:position) || 0
@@ -50,8 +50,8 @@ class AddInternalTeamFoundationColumns < ActiveRecord::Migration[8.0]
     ).destroy_all
 
     # Re-add legacy columns (basic recreation - positions may differ)
-    text_type = ColumnTypeDefinition.find_by(name: 'single_line_text')
-    phone_type = ColumnTypeDefinition.find_by(name: 'phone')
+    text_type = ColumnTypeDefinition.find_by(type_key: 'single_line_text')
+    phone_type = ColumnTypeDefinition.find_by(type_key: 'phone')
 
     Column.create!(
       foundation_id: jobs_foundation.id,
