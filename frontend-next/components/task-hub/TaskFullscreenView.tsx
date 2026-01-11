@@ -432,7 +432,7 @@ function SortableQuestionItem({
         editingAnswerId === item.id ? (
           <div className="ml-6 space-y-2">
             <SmartTextField
-              value={editingAnswerText}
+              value={editingAnswerText ?? ''}
               onChange={(value) => setEditingAnswerText?.(value)}
               onKeyDown={(e) => {
                 if (e.key === 'Escape') {
@@ -477,7 +477,7 @@ function SortableQuestionItem({
       ) : answeringItemId === item.id ? (
         <div className="ml-6 space-y-2">
           <SmartTextField
-            value={answerText}
+            value={answerText ?? ''}
             onChange={(value) => setAnswerText?.(value)}
             placeholder="Type answer..."
             className="min-h-[60px] text-sm"
