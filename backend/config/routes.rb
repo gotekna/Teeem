@@ -2239,6 +2239,48 @@ Rails.application.routes.draw do
       post "documents/approve_document_rename", to: "organization_sharepoint#approve_document_rename"
       post "documents/bulk_approve_renames", to: "organization_sharepoint#bulk_approve_renames"
 
+      # ============================================================
+      # BACKWARDS COMPATIBILITY: Legacy organization_onedrive routes
+      # Remove after all clients updated (frontend, iOS app)
+      # ============================================================
+      get "organization_onedrive/status", to: "organization_sharepoint#status"
+      get "organization_onedrive/authorize", to: "organization_sharepoint#authorize"
+      get "organization_onedrive/callback", to: "organization_sharepoint#callback"
+      delete "organization_onedrive/disconnect", to: "organization_sharepoint#disconnect"
+      get "organization_onedrive/browse_folders", to: "organization_sharepoint#browse_folders"
+      post "organization_onedrive/create_root_folder", to: "organization_sharepoint#create_root_folder"
+      get "organization_onedrive/validate_folder", to: "organization_sharepoint#validate_folder"
+      patch "organization_onedrive/change_root_folder", to: "organization_sharepoint#change_root_folder"
+      post "organization_onedrive/create_job_folders", to: "organization_sharepoint#create_job_folders"
+      post "organization_onedrive/create_all_job_folders", to: "organization_sharepoint#create_all_job_folders"
+      get "organization_onedrive/job_folders", to: "organization_sharepoint#list_job_items"
+      post "organization_onedrive/upload", to: "organization_sharepoint#upload"
+      get "organization_onedrive/download", to: "organization_sharepoint#download"
+      get "organization_onedrive/download_url", to: "organization_sharepoint#download_url"
+      delete "organization_onedrive/delete_file", to: "organization_sharepoint#delete_file"
+      get "organization_onedrive/folder_contents", to: "organization_sharepoint#folder_contents"
+      get "organization_onedrive/sharepoint_sites", to: "organization_sharepoint#sharepoint_sites"
+      post "organization_onedrive/use_sharepoint_site", to: "organization_sharepoint#use_sharepoint_site"
+      post "organization_onedrive/use_personal_drive", to: "organization_sharepoint#use_personal_drive"
+      post "organization_onedrive/sync_corporate_documents", to: "organization_sharepoint#sync_corporate_documents"
+      get "organization_onedrive/search", to: "organization_sharepoint#search"
+      get "organization_onedrive/preview_private_folders", to: "organization_sharepoint#preview_private_folders"
+      post "organization_onedrive/create_private_folders", to: "organization_sharepoint#create_private_folders"
+      post "organization_onedrive/copy_files", to: "organization_sharepoint#copy_files"
+      get "organization_onedrive/legacy_files", to: "organization_sharepoint#legacy_files"
+      post "organization_onedrive/import_legacy", to: "organization_sharepoint#import_legacy"
+      post "organization_onedrive/run_migration", to: "organization_sharepoint#run_migration"
+      get "organization_onedrive/job_all_files", to: "organization_sharepoint#job_all_files"
+      get "organization_onedrive/job_document_download", to: "organization_sharepoint#job_document_download"
+      get "organization_onedrive/job_document_url", to: "organization_sharepoint#job_document_url"
+      post "organization_onedrive/sync_job_documents", to: "organization_sharepoint#sync_job_documents"
+      post "organization_onedrive/upload_signed_version", to: "organization_sharepoint#upload_signed_version"
+      post "organization_onedrive/analyze_job_documents", to: "organization_sharepoint#analyze_job_documents"
+      post "organization_onedrive/bulk_categorize_job_documents", to: "organization_sharepoint#bulk_categorize_job_documents"
+      get "organization_onedrive/documents_needing_review", to: "organization_sharepoint#documents_needing_review"
+      post "organization_onedrive/approve_document_rename", to: "organization_sharepoint#approve_document_rename"
+      post "organization_onedrive/bulk_approve_renames", to: "organization_sharepoint#bulk_approve_renames"
+
       # ULTRA: Direct browser-to-SharePoint uploads (50% faster, skips backend proxy)
       # POST /api/v1/sharepoint/upload_session - Get pre-authenticated upload URL
       # POST /api/v1/sharepoint/upload_complete - Notify completion for activity logging + indexing
