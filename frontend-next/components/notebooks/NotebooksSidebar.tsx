@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useState, useMemo, useImperativeHandle, forwardRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,8 +77,9 @@ export const NotebooksSidebar = forwardRef<NotebooksSidebarRef, NotebooksSidebar
   onCreateNotebook,
   className,
 }: NotebooksSidebarProps, ref) {
+  const queryClient = useQueryClient();
   const { notebooks, isLoading, error, mutate: mutateNotebooks } = useNotebooks({ global: true });
-  const { notebook: selectedNotebook, mutate: mutateNotebook } = useNotebook(selectedNotebookId);
+  const { notebook: selectedNotebook } = useNotebook(selectedNotebookId);
   const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set());
   const [editingSection, setEditingSection] = useState<number | null>(null);
   const [newSectionName, setNewSectionName] = useState("");
@@ -119,7 +121,7 @@ export const NotebooksSidebar = forwardRef<NotebooksSidebarRef, NotebooksSidebar
   const handleCreateSection = async (notebookId: number) => {
     try {
       await sectionActions.create(notebookId, { name: "New Section" });
-      mutateNotebook();
+      await queryClient.invalidateQueries({ queryKey: ["notebook", notebookId] });
     } catch (err) {
       console.error("Failed to create section:", err);
     }
@@ -132,7 +134,7 @@ export const NotebooksSidebar = forwardRef<NotebooksSidebarRef, NotebooksSidebar
     }
     try {
       await sectionActions.update(notebookId, sectionId, { name: newSectionName });
-      mutateNotebook();
+      await queryClient.invalidateQueries({ queryKey: ["notebook", notebookId] });
     } catch (err) {
       console.error("Failed to rename section:", err);
     }
@@ -144,19 +146,44 @@ export const NotebooksSidebar = forwardRef<NotebooksSidebarRef, NotebooksSidebar
     if (!confirm("Are you sure you want to delete this section and all its pages?")) return;
     try {
       await sectionActions.delete(notebookId, sectionId);
-      mutateNotebook();
+      await queryClient.invalidateQueries({ queryKey: ["notebook", notebookId] });
     } catch (err) {
       console.error("Failed to delete section:", err);
     }
   };
 
+  const handleDeleteNotebook = async (notebookId: number) => {
+    if (!confirm("Are you sure you want to delete this notebook and all its contents?")) return;
+    try {
+      await notebookActions.delete(notebookId);
+      mutateNotebooks();
+      // If we deleted the selected notebook, clear selection
+      if (selectedNotebookId === notebookId) {
+        onSelectNotebook(notebooks[0]?.id ?? 0);
+      }
+    } catch (err) {
+      console.error("Failed to delete notebook:", err);
+    }
+  };
+
   const handleCreatePage = async (notebookId: number, sectionId: number) => {
+    console.log("📝 Creating page:", { notebookId, sectionId });
     try {
       const page = await pageActions.create(notebookId, sectionId, { title: "Untitled" });
-      mutateNotebook();
+      console.log("✓ Page created successfully:", page);
+      // Ensure the section is expanded so the new page is visible
+      setExpandedSections((prev) => new Set(prev).add(sectionId));
+      // Invalidate React Query cache to force refresh the sidebar
+      await queryClient.invalidateQueries({ queryKey: ["notebook", notebookId] });
+      console.log("✓ Sidebar refreshed");
+      // Log the updated notebook data
+      console.log("📊 Notebook data after refresh:", selectedNotebook);
+      const section = selectedNotebook?.sections?.find(s => s.id === sectionId);
+      console.log("📊 Section pages after refresh:", section?.pages);
       onSelectPage(page.id, notebookId);
     } catch (err) {
-      console.error("Failed to create page:", err);
+      console.error("✗ Failed to create page:", err);
+      alert(`Failed to create page: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
 
@@ -164,7 +191,7 @@ export const NotebooksSidebar = forwardRef<NotebooksSidebarRef, NotebooksSidebar
     if (!confirm("Are you sure you want to delete this page?")) return;
     try {
       await pageActions.delete(pageId);
-      mutateNotebook();
+      await queryClient.invalidateQueries({ queryKey: ["notebook", selectedNotebookId] });
     } catch (err) {
       console.error("Failed to delete page:", err);
     }
@@ -173,7 +200,7 @@ export const NotebooksSidebar = forwardRef<NotebooksSidebarRef, NotebooksSidebar
   const handleTogglePin = async (pageId: number) => {
     try {
       await pageActions.togglePin(pageId);
-      mutateNotebook();
+      await queryClient.invalidateQueries({ queryKey: ["notebook", selectedNotebookId] });
     } catch (err) {
       console.error("Failed to toggle pin:", err);
     }
@@ -182,7 +209,7 @@ export const NotebooksSidebar = forwardRef<NotebooksSidebarRef, NotebooksSidebar
   const handleReorderSection = async (notebookId: number, sectionId: number, newPosition: number) => {
     try {
       await sectionActions.reorder(notebookId, sectionId, newPosition);
-      mutateNotebook();
+      await queryClient.invalidateQueries({ queryKey: ["notebook", notebookId] });
     } catch (err) {
       console.error("Failed to reorder section:", err);
     }
@@ -191,7 +218,7 @@ export const NotebooksSidebar = forwardRef<NotebooksSidebarRef, NotebooksSidebar
   const handleReorderPage = async (pageId: number, newPosition: number) => {
     try {
       await pageActions.move(pageId, { position: newPosition });
-      mutateNotebook();
+      await queryClient.invalidateQueries({ queryKey: ["notebook", selectedNotebookId] });
     } catch (err) {
       console.error("Failed to reorder page:", err);
     }
@@ -333,6 +360,7 @@ export const NotebooksSidebar = forwardRef<NotebooksSidebarRef, NotebooksSidebar
               onTogglePin={handleTogglePin}
               onReorderSection={(sectionId, newPosition) => handleReorderSection(notebook.id, sectionId, newPosition)}
               onReorderPage={handleReorderPage}
+              onDeleteNotebook={() => handleDeleteNotebook(notebook.id)}
             />
           ))}
 
@@ -378,6 +406,7 @@ interface NotebookItemProps {
   onTogglePin: (pageId: number) => void;
   onReorderSection: (sectionId: number, newPosition: number) => void;
   onReorderPage: (pageId: number, newPosition: number) => void;
+  onDeleteNotebook: () => void;
 }
 
 function NotebookItem({
@@ -401,6 +430,7 @@ function NotebookItem({
   onTogglePin,
   onReorderSection,
   onReorderPage,
+  onDeleteNotebook,
 }: NotebookItemProps) {
   const sections = selectedNotebook?.sections ?? [];
   const sensors = createDndSensors();
@@ -429,7 +459,7 @@ function NotebookItem({
       {/* Notebook Header */}
       <div
         className={cn(
-          "flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-muted/50 rounded-sm mx-1",
+          "flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-muted/50 rounded-sm mx-1 group",
           isSelected && "bg-muted"
         )}
         onClick={onSelect}
@@ -440,17 +470,43 @@ function NotebookItem({
         />
         <span className="text-sm font-medium truncate flex-1">{notebook.name}</span>
         {isSelected && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 opacity-0 group-hover:opacity-100"
-            onClick={(e) => {
-              e.stopPropagation();
-              onCreateSection();
-            }}
-          >
-            <FolderPlus className="h-3.5 w-3.5" />
-          </Button>
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 opacity-0 group-hover:opacity-100"
+              onClick={(e) => {
+                e.stopPropagation();
+                onCreateSection();
+              }}
+            >
+              <FolderPlus className="h-3.5 w-3.5" />
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteNotebook();
+                  }}
+                  className="text-destructive"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Notebook
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
         )}
       </div>
 

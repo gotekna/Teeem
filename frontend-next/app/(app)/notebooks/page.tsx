@@ -108,7 +108,7 @@ export default function NotebooksPage() {
         {/* Editor or Recent Notes */}
         <Card className="col-span-9 flex flex-col min-h-0">
           {selectedPageId ? (
-            <NotebookEditor pageId={selectedPageId} className="h-full" />
+            <NotebookEditor pageId={selectedPageId} notebookId={selectedNotebookId} className="h-full" />
           ) : (
             <div className="p-6 h-full overflow-auto">
               <RecentNotesWidget onSelectPage={handleSelectPage} />

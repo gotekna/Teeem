@@ -209,8 +209,20 @@ module Api
           position: section.position,
           color: section.color,
           page_count: section.page_count,
+          pages: section.pages.active.ordered.map { |p| page_summary_json(p) },
           created_at: section.created_at,
           updated_at: section.updated_at
+        }
+      end
+
+      def page_summary_json(page)
+        {
+          id: page.id,
+          title: page.title,
+          position: page.position,
+          is_pinned: page.is_pinned,
+          preview: page.preview(50),
+          updated_at: page.updated_at
         }
       end
 
