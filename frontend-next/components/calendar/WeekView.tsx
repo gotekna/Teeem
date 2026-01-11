@@ -15,9 +15,9 @@ import {
 } from "@/lib/calendar-atoms";
 import { CalendarEventBar } from "./CalendarEventBar";
 import {
-  createMeetingOpenAtom,
-  createMeetingDateAtom,
-} from "./CreateMeetingSheet";
+  createEventOpenAtom,
+  createEventDateAtom,
+} from "./CreateEventDialog";
 
 const DAYS_OF_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -27,8 +27,8 @@ export function WeekView() {
   const [eventsByDate] = useAtom(eventsByDateAtom);
   const setSelectedEvent = useSetAtom(selectedEventAtom);
   const setEventDetailOpen = useSetAtom(eventDetailOpenAtom);
-  const setMeetingOpen = useSetAtom(createMeetingOpenAtom);
-  const setMeetingDate = useSetAtom(createMeetingDateAtom);
+  const setEventOpen = useSetAtom(createEventOpenAtom);
+  const setEventDate = useSetAtom(createEventDateAtom);
 
   // Generate week days starting from Sunday of selected week
   const weekDays = React.useMemo(() => {
@@ -56,10 +56,10 @@ export function WeekView() {
     router.push(`/calendar?view=day&date=${dateStr}`);
   };
 
-  // Create meeting for date
-  const handleCreateMeeting = (date: Date) => {
-    setMeetingDate(date);
-    setMeetingOpen(true);
+  // Create event for date
+  const handleCreateEvent = (date: Date) => {
+    setEventDate(date);
+    setEventOpen(true);
   };
 
   // Get events for a specific date
@@ -124,11 +124,11 @@ export function WeekView() {
                 isTodayDate && "bg-blue-50/50 dark:bg-blue-950/10"
               )}
             >
-              {/* Add meeting button */}
+              {/* Add event button */}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleCreateMeeting(date);
+                  handleCreateEvent(date);
                 }}
                 className="opacity-0 group-hover:opacity-100 transition-opacity w-full mb-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted rounded flex items-center justify-center gap-1"
               >

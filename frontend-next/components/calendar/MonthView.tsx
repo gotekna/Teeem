@@ -16,9 +16,9 @@ import {
 } from "@/lib/calendar-atoms";
 import { CalendarEventBar } from "./CalendarEventBar";
 import {
-  createMeetingOpenAtom,
-  createMeetingDateAtom,
-} from "./CreateMeetingSheet";
+  createEventOpenAtom,
+  createEventDateAtom,
+} from "./CreateEventDialog";
 
 const DAYS_OF_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -28,8 +28,8 @@ export function MonthView() {
   const [eventsByDate] = useAtom(eventsByDateAtom);
   const setSelectedEvent = useSetAtom(selectedEventAtom);
   const setEventDetailOpen = useSetAtom(eventDetailOpenAtom);
-  const setMeetingOpen = useSetAtom(createMeetingOpenAtom);
-  const setMeetingDate = useSetAtom(createMeetingDateAtom);
+  const setEventOpen = useSetAtom(createEventOpenAtom);
+  const setEventDate = useSetAtom(createEventDateAtom);
 
   // Double-click day to navigate to day view
   const handleDayDoubleClick = (date: Date) => {
@@ -37,10 +37,10 @@ export function MonthView() {
     router.push(`/calendar?view=day&date=${dateStr}`);
   };
 
-  // Double-click on empty space to create meeting
-  const handleCreateMeeting = (date: Date) => {
-    setMeetingDate(date);
-    setMeetingOpen(true);
+  // Create event for date
+  const handleCreateEvent = (date: Date) => {
+    setEventDate(date);
+    setEventOpen(true);
   };
 
   // Generate calendar grid
@@ -127,14 +127,14 @@ export function MonthView() {
                 >
                   {date.getDate()}
                 </span>
-                {/* Add meeting button - shows on hover */}
+                {/* Add event button - shows on hover */}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleCreateMeeting(date);
+                    handleCreateEvent(date);
                   }}
                   className="opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground"
-                  title="Add meeting"
+                  title="Add event"
                 >
                   <Plus className="h-3.5 w-3.5" />
                 </button>

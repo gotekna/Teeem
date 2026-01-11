@@ -51,9 +51,9 @@ export function DayView() {
     setEventDetailOpen(true);
   };
 
-  // Handle event double-click (go to full page)
+  // Handle event double-click (open in new tab)
   const handleEventDoubleClick = (event: CalendarEvent) => {
-    router.push(`/tasks?taskId=${event.id}`);
+    window.open(`/tasks?taskId=${event.id}`, '_blank');
   };
 
   // Format date for header

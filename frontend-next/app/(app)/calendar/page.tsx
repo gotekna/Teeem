@@ -38,10 +38,10 @@ import { WeekView } from "@/components/calendar/WeekView";
 import { DayView } from "@/components/calendar/DayView";
 import { CalendarSidebar } from "@/components/calendar/CalendarSidebar";
 import {
-  CreateMeetingSheet,
-  createMeetingOpenAtom,
-  createMeetingDateAtom,
-} from "@/components/calendar/CreateMeetingSheet";
+  CreateEventDialog,
+  createEventOpenAtom,
+  createEventDateAtom,
+} from "@/components/calendar/CreateEventDialog";
 
 interface CalendarResponse {
   success: boolean;
@@ -72,8 +72,8 @@ export default function CalendarPage() {
   const [loading, setLoading] = useAtom(calendarLoadingAtom);
   const setSummary = useSetAtom(calendarSummaryAtom);
   const [summary, setSummaryLocal] = React.useState<CalendarSummary | null>(null);
-  const setMeetingOpen = useSetAtom(createMeetingOpenAtom);
-  const setMeetingDate = useSetAtom(createMeetingDateAtom);
+  const setEventOpen = useSetAtom(createEventOpenAtom);
+  const setEventDate = useSetAtom(createEventDateAtom);
 
   // Handle URL query params for view and date
   React.useEffect(() => {
@@ -275,15 +275,15 @@ export default function CalendarPage() {
             </Button>
           </div>
 
-          {/* Add Meeting */}
+          {/* Add Event */}
           <Button
             variant="outline"
             size="icon"
             onClick={() => {
-              setMeetingDate(selectedDate);
-              setMeetingOpen(true);
+              setEventDate(selectedDate);
+              setEventOpen(true);
             }}
-            title="Add Meeting"
+            title="Add Event"
           >
             <Plus className="h-4 w-4" />
           </Button>
@@ -333,8 +333,8 @@ export default function CalendarPage() {
         <CalendarSidebar />
       </div>
 
-      {/* Meeting creation sheet */}
-      <CreateMeetingSheet onSuccess={loadCalendarData} />
+      {/* Event creation dialog */}
+      <CreateEventDialog onSuccess={loadCalendarData} />
     </div>
   );
 }

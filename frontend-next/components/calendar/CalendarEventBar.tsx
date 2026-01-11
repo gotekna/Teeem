@@ -32,7 +32,7 @@ export function CalendarEventBar({
         <TooltipTrigger asChild>
           <button
             onClick={onClick}
-            onDoubleClick={() => router.push(`/tasks?taskId=${event.id}`)}
+            onDoubleClick={() => window.open(`/tasks?taskId=${event.id}`, '_blank')}
             className={cn(
               "w-full text-left text-xs px-1.5 py-0.5 rounded truncate",
               "hover:opacity-80 transition-opacity cursor-pointer",
