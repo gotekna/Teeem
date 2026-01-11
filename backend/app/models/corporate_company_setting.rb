@@ -353,6 +353,73 @@ class CorporateCompanySetting < ApplicationRecord
     }
   end
 
+  # ========================================
+  # Brand Colors (SSoT for UI Theming)
+  # ========================================
+
+  # Default brand colors (Tekna's colors as fallback)
+  # These are HSL values to match CSS variable format
+  DEFAULT_BRAND_COLORS = {
+    primary: "161 63% 13%",           # #0c352d - Tekna dark teal
+    primary_foreground: "0 0% 100%",  # #ffffff - White
+    secondary: "0 0% 97%",            # #f8f8f8 - Light gray
+    muted: "0 0% 38%",                # #616161 - Gray
+    accent: "40 11% 77%"              # #cbc9c0 - Beige/tan
+  }.freeze
+
+  # Get brand colors for API responses and CSS injection
+  # Returns HSL values ready for CSS variables
+  def self.brand_colors
+    setting = instance
+    {
+      primary: setting.brand_color_primary.presence || DEFAULT_BRAND_COLORS[:primary],
+      primaryForeground: setting.brand_color_primary_foreground.presence || DEFAULT_BRAND_COLORS[:primary_foreground],
+      secondary: setting.brand_color_secondary.presence || DEFAULT_BRAND_COLORS[:secondary],
+      muted: setting.brand_color_muted.presence || DEFAULT_BRAND_COLORS[:muted],
+      accent: setting.brand_color_accent.presence || DEFAULT_BRAND_COLORS[:accent]
+    }
+  end
+
+  # Convert hex color to HSL string for CSS variables
+  # Input: "#0c352d" or "0c352d"
+  # Output: "161 63% 13%"
+  def self.hex_to_hsl(hex)
+    hex = hex.gsub("#", "")
+    r = hex[0..1].to_i(16) / 255.0
+    g = hex[2..3].to_i(16) / 255.0
+    b = hex[4..5].to_i(16) / 255.0
+
+    max = [r, g, b].max
+    min = [r, g, b].min
+    l = (max + min) / 2.0
+
+    if max == min
+      h = s = 0.0
+    else
+      d = max - min
+      s = l > 0.5 ? d / (2.0 - max - min) : d / (max + min)
+      h = case max
+          when r then ((g - b) / d + (g < b ? 6 : 0)) / 6.0
+          when g then ((b - r) / d + 2) / 6.0
+          when b then ((r - g) / d + 4) / 6.0
+          end
+    end
+
+    "#{(h * 360).round} #{(s * 100).round}% #{(l * 100).round}%"
+  end
+
+  # Update brand colors from hex values (for API convenience)
+  def self.update_brand_colors_from_hex(colors)
+    updates = {}
+    updates[:brand_color_primary] = hex_to_hsl(colors[:primary]) if colors[:primary].present?
+    updates[:brand_color_primary_foreground] = hex_to_hsl(colors[:primaryForeground]) if colors[:primaryForeground].present?
+    updates[:brand_color_secondary] = hex_to_hsl(colors[:secondary]) if colors[:secondary].present?
+    updates[:brand_color_muted] = hex_to_hsl(colors[:muted]) if colors[:muted].present?
+    updates[:brand_color_accent] = hex_to_hsl(colors[:accent]) if colors[:accent].present?
+
+    instance.update!(updates) if updates.any?
+  end
+
   private
 
   def self.default_working_days

@@ -26,6 +26,7 @@ import { InspiringQuotesTab } from "../components/InspiringQuotesTab";
 import { DocumentTypesTab } from "../components/DocumentTypesTab";
 import { ContactTypesTab } from "../components/ContactTypesTab";
 import { BrandGuidelinesTab } from "../components/BrandGuidelinesTab";
+import { BrandColorsTab } from "../components/BrandColorsTab";
 import { DocumentTemplatesTab } from "../components/DocumentTemplatesTab";
 import { EmailAccountsTab } from "../components/EmailAccountsTab";
 import { ScheduledJobsTab } from "../components/ScheduledJobsTab";
@@ -171,6 +172,9 @@ export default function SystemAdminCatchAllPage({
 
       case "brand-guidelines":
         return <BrandGuidelinesTab />;
+
+      case "brand-colors":
+        return <BrandColorsTab />;
 
       case "contact-types":
         return <ContactTypesTab />;

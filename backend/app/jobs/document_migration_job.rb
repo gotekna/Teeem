@@ -64,6 +64,12 @@ class DocumentMigrationJob < ApplicationJob
     document = klass.find(document_id)
     organization = find_organization(document)
 
+    # Skip orphaned documents (file deleted from source provider)
+    if document.respond_to?(:sync_status) && document.sync_status == 'missing'
+      Rails.logger.info "[DocumentMigration] #{document_type} #{document_id} is orphaned (sync_status: missing), skipping"
+      return { status: 'skipped', reason: 'orphaned_document' }
+    end
+
     # Skip if already migrated (unless force)
     if document.migration_status == 'completed' && !force
       Rails.logger.info "[DocumentMigration] #{document_type} #{document_id} already migrated, skipping"

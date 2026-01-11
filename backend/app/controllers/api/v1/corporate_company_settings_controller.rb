@@ -2,7 +2,7 @@ module Api
   module V1
     class CorporateCompanySettingsController < ApplicationController
       # Security: Require admin for all mutating actions
-      before_action :require_admin, only: %i[update update_sharepoint test_twilio test_sharepoint]
+      before_action :require_admin, only: %i[update update_sharepoint test_twilio test_sharepoint update_brand apply_brand]
 
       # GET /api/v1/company_settings
       def show
@@ -155,6 +155,120 @@ module Api
       end
 
       # ========================================
+      # Brand Colors (SSoT for UI Theming)
+      # ========================================
+
+      # GET /api/v1/corporate_company_settings/brand
+      # Returns current brand colors and settings
+      def brand
+        render json: {
+          success: true,
+          data: {
+            colors: CorporateCompanySetting.brand_colors,
+            website_url: CorporateCompanySetting.instance.website_url,
+            logo_url: CorporateCompanySetting.instance.logo_url,
+            logo_mobile: CorporateCompanySetting.instance.logo_mobile,
+            logo_dark: CorporateCompanySetting.instance.logo_dark
+          }
+        }
+      end
+
+      # PATCH /api/v1/corporate_company_settings/brand
+      # Update brand colors (accepts either HSL or hex values)
+      def update_brand
+        settings = CorporateCompanySetting.instance
+
+        if settings.update(brand_params)
+          render json: {
+            success: true,
+            data: {
+              colors: CorporateCompanySetting.brand_colors,
+              website_url: settings.website_url,
+              logo_url: settings.logo_url
+            }
+          }
+        else
+          render json: {
+            success: false,
+            errors: settings.errors.full_messages
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/corporate_company_settings/brand/detect
+      # Auto-detect brand colors from a website URL
+      def detect_brand
+        url = params[:url]
+        return render json: { success: false, error: "URL is required" }, status: :bad_request if url.blank?
+
+        result = BrandExtractorService.extract(url)
+
+        if result[:success]
+          # Convert hex colors to HSL for storage
+          hsl_colors = {}
+          result[:colors].each do |key, hex|
+            hsl_colors[key] = CorporateCompanySetting.hex_to_hsl(hex) if hex.present?
+          end
+
+          render json: {
+            success: true,
+            data: {
+              company_name: result[:company_name],
+              logo_url: result[:logo_url],
+              logo_dark_url: result[:logo_dark_url],
+              favicon_url: result[:favicon_url],
+              colors: {
+                hex: result[:colors],
+                hsl: hsl_colors
+              }
+            }
+          }
+        else
+          render json: {
+            success: false,
+            error: result[:error] || "Could not extract brand from website"
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/corporate_company_settings/brand/apply
+      # Apply detected brand colors from a URL
+      def apply_brand
+        url = params[:url]
+        return render json: { success: false, error: "URL is required" }, status: :bad_request if url.blank?
+
+        result = BrandExtractorService.extract(url)
+
+        unless result[:success]
+          return render json: {
+            success: false,
+            error: result[:error] || "Could not extract brand from website"
+          }, status: :unprocessable_entity
+        end
+
+        settings = CorporateCompanySetting.instance
+
+        # Apply colors
+        CorporateCompanySetting.update_brand_colors_from_hex(result[:colors])
+
+        # Apply other brand assets if found
+        updates = { website_url: url }
+        updates[:logo_url] = result[:logo_url] if result[:logo_url].present?
+        updates[:logo_dark] = result[:logo_dark_url] if result[:logo_dark_url].present?
+        settings.update!(updates)
+
+        render json: {
+          success: true,
+          message: "Brand applied from #{url}",
+          data: {
+            colors: CorporateCompanySetting.brand_colors,
+            logo_url: settings.logo_url,
+            website_url: settings.website_url
+          }
+        }
+      end
+
+      # ========================================
       # Email Configuration (SSoT)
       # ========================================
 
@@ -252,6 +366,20 @@ module Api
           :monitored_mailbox_newtask,
           :monitored_mailbox_newjob,
           :monitored_mailbox_newcase
+        )
+      end
+
+      def brand_params
+        params.require(:brand).permit(
+          :brand_color_primary,
+          :brand_color_primary_foreground,
+          :brand_color_secondary,
+          :brand_color_muted,
+          :brand_color_accent,
+          :website_url,
+          :logo_url,
+          :logo_mobile,
+          :logo_dark
         )
       end
     end

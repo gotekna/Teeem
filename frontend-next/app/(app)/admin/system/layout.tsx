@@ -37,6 +37,7 @@ import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 const MAIN_TABS = [
   { id: "company", label: "Company", icon: Building2 },
   { id: "brand-guidelines", label: "Brand Guidelines", icon: Palette },
+  { id: "brand-colors", label: "Brand Colors", icon: Palette },
   { id: "contact-types", label: "Contacts", icon: Tag },
   { id: "components", label: "Components", icon: Star },
   { id: "developer-tools", label: "Developer Tools", icon: Wrench },

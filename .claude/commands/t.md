@@ -2,18 +2,19 @@
 
 **Shortcut:** `/t`
 
-A focused code review aligned with CLAUDE.md philosophy. 6 essential checks that catch what matters.
+A focused code review aligned with CLAUDE.md philosophy. 7 essential checks that catch what matters.
 
-## What This Checks (6 Core Categories)
+## What This Checks (7 Core Categories)
 
 | # | Category | Why It Matters |
 |---|----------|----------------|
 | 1 | **SSoT & Sync Risk** | Find duplicates and manual lists that will drift |
 | 2 | **Standard Components** | THE ONE component per CLAUDE.md |
-| 3 | **TeeemTableView Pattern** | Foundation SSoT, no columns prop, proper layout |
-| 4 | **Gold Standard** | 34 valid column types, searchable not NULL |
-| 5 | **Security** | Brakeman scan |
-| 6 | **Code Quality** | Bug patterns, dead code |
+| 3 | **Color SSoT** | No hardcoded colors - use CSS variables |
+| 4 | **TeeemTableView Pattern** | Foundation SSoT, no columns prop, proper layout |
+| 5 | **Gold Standard** | 34 valid column types, searchable not NULL |
+| 6 | **Security** | Brakeman scan |
+| 7 | **Code Quality** | Bug patterns, dead code |
 
 ## Automated Protection
 
@@ -101,7 +102,48 @@ fi
 | Side Panel | `Sheet` | `drawer.tsx` |
 | Collapsible | `Accordion` | `collapsible.tsx` |
 
-### Step 3: TeeemTableView Pattern
+### Step 3: Color SSoT Check
+
+**Colors must use CSS variables, not hardcoded values.**
+
+```bash
+echo "=== COLOR SSoT CHECK ==="
+
+# Hardcoded hex colors (should use CSS variables)
+echo "--- Hardcoded hex colors (use var(--*) instead) ---"
+hex_count=$(grep -rn "bg-\[#\|text-\[#\|border-\[#" frontend-next/components frontend-next/app --include="*.tsx" 2>/dev/null | wc -l | tr -d ' ')
+echo "Found: $hex_count instances"
+[ "$hex_count" -gt 0 ] && grep -rn "bg-\[#\|text-\[#\|border-\[#" frontend-next/components frontend-next/app --include="*.tsx" 2>/dev/null | head -5
+
+# Hardcoded Tailwind colors (should use semantic tokens)
+echo ""
+echo "--- Hardcoded Tailwind colors (use primary/secondary/muted) ---"
+tailwind_count=$(grep -rn "bg-gray-\|text-gray-\|bg-zinc-\|text-zinc-\|bg-slate-\|text-slate-" frontend-next/components frontend-next/app --include="*.tsx" 2>/dev/null | grep -v "dark:" | wc -l | tr -d ' ')
+echo "Found: $tailwind_count instances (excluding dark: variants)"
+[ "$tailwind_count" -gt 0 ] && grep -rn "bg-gray-\|text-gray-\|bg-zinc-\|text-zinc-" frontend-next/components frontend-next/app --include="*.tsx" 2>/dev/null | grep -v "dark:" | head -5
+
+# Inline style colors
+echo ""
+echo "--- Inline style colors ---"
+inline_count=$(grep -rn "style={{.*color:\|style={{.*background" frontend-next/components frontend-next/app --include="*.tsx" 2>/dev/null | grep -v "hsl(var\|var(--" | wc -l | tr -d ' ')
+echo "Found: $inline_count instances (excluding CSS variable usage)"
+[ "$inline_count" -gt 0 ] && grep -rn "style={{.*color:\|style={{.*background" frontend-next/components frontend-next/app --include="*.tsx" 2>/dev/null | grep -v "hsl(var\|var(--" | head -5
+
+echo ""
+total=$((hex_count + tailwind_count + inline_count))
+if [ "$total" -eq 0 ]; then
+  echo "✅ All colors use CSS variables"
+else
+  echo "❌ Found $total color SSoT violations"
+fi
+```
+
+**Expected:** Zero hardcoded colors. All colors should come from:
+- CSS variables (`var(--primary)`, `hsl(var(--muted))`)
+- Tailwind semantic tokens (`bg-primary`, `text-muted-foreground`)
+- Company brand colors (set in Admin → Brand Colors)
+
+### Step 4: TeeemTableView Pattern
 
 **CRITICAL: Foundation API is THE ONE source for columns.**
 
@@ -159,7 +201,7 @@ grep -rn "<TabsContent" frontend-next/app --include="*.tsx" | grep -v "overflow-
 - Zero pages with both `<h1>` AND `TeeemTableView`
 - All table pages have `-mx-4` for edge-to-edge layout
 
-### Step 4: Gold Standard Column Types
+### Step 5: Gold Standard Column Types
 
 **Validate column types and searchable values:**
 
@@ -187,14 +229,14 @@ end
 " 2>/dev/null || echo "(Backend check skipped)"
 ```
 
-### Step 5: Security Scan
+### Step 6: Security Scan
 
 ```bash
 echo "=== SECURITY SCAN ==="
 cd backend && bundle exec brakeman -q --no-pager -w2 2>/dev/null | head -20 || echo "Brakeman not available"
 ```
 
-### Step 6: Code Quality
+### Step 7: Code Quality
 
 **Bug patterns and dead code:**
 
@@ -227,10 +269,11 @@ find backend/app -name "*.rb" -exec wc -l {} \; 2>/dev/null | awk '$1 > 500 {pri
 
 1. SSoT & Sync Risk:     [PASS/X issues]
 2. Standard Components:  [PASS/X issues]
-3. TeeemTableView:       [PASS/X issues]
-4. Gold Standard:        [PASS/X issues]
-5. Security:             [PASS/X issues]
-6. Code Quality:         [PASS/X issues]
+3. Color SSoT:           [PASS/X issues]
+4. TeeemTableView:       [PASS/X issues]
+5. Gold Standard:        [PASS/X issues]
+6. Security:             [PASS/X issues]
+7. Code Quality:         [PASS/X issues]
 
 ────────────────────────────────────────
 Total: X issues to fix
@@ -243,9 +286,10 @@ Total: X issues to fix
 
 | Command | Scope | Time |
 |---------|-------|------|
-| `/t` | Full review (6 checks) | ~2-3 min |
+| `/t` | Full review (7 checks) | ~2-3 min |
 | `/t ssot` | SSoT & Sync Risk only | ~15 sec |
 | `/t comp` | Standard components only | ~10 sec |
+| `/t colors` | Color SSoT check only | ~10 sec |
 | `/t ttv` | TeeemTableView pattern only | ~15 sec |
 | `/t gold` | Gold Standard column types | ~10 sec |
 | `/t sec` | Security only | ~10 sec |
@@ -379,13 +423,14 @@ Current Status (as of 2025-12-29):
 
 This command embodies **"Simplify ruthlessly."**
 
-**6 quick checks that catch 90% of issues:**
+**7 quick checks that catch 90% of issues:**
 1. SSoT violations break the architecture
 2. Wrong components create debt
-3. TeeemTableView pattern ensures UX consistency
-4. Invalid column types break data
-5. Security issues risk the business
-6. Code quality catches bugs early
+3. Hardcoded colors break brand customization
+4. TeeemTableView pattern ensures UX consistency
+5. Invalid column types break data
+6. Security issues risk the business
+7. Code quality catches bugs early
 
 **Performance and deep analysis are OPTIONAL** - run when needed, not every review.
 

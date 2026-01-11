@@ -10,6 +10,7 @@ import { JotaiProvider } from "@/components/providers/jotai-provider";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "sonner";
 import { DynamicTitle } from "@/components/dynamic-title";
+import { CompanyColorsProvider } from "@/components/providers/company-colors-provider";
 
 const hedvigSerif = Hedvig_Letters_Serif({
   weight: "400",
@@ -46,10 +47,12 @@ export default function RootLayout({
           <JotaiProvider>
             <QueryProvider>
               <AuthProvider>
-                <DynamicTitle />
-                {children}
-                <Toaster />
-                <SonnerToaster />
+                <CompanyColorsProvider>
+                  <DynamicTitle />
+                  {children}
+                  <Toaster />
+                  <SonnerToaster />
+                </CompanyColorsProvider>
               </AuthProvider>
             </QueryProvider>
           </JotaiProvider>

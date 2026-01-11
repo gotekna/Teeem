@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_11_203804) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_12_072500) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1220,6 +1220,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_11_203804) do
     t.datetime "last_compliance_check"
     t.string "lookup_foundation_slug"
     t.jsonb "choice_descriptions", default: {}
+    t.jsonb "lookup_filter", default: {}
     t.index ["column_type_definition_id"], name: "index_columns_on_column_type_definition_id"
     t.index ["foundation_id", "column_name"], name: "index_columns_on_foundation_id_and_column_name", unique: true
     t.index ["foundation_id"], name: "index_columns_on_foundation_id"
@@ -1932,6 +1933,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_11_203804) do
     t.string "monitored_mailbox_newtask", default: "newtask@tekna.com.au", comment: "Mailbox for creating new tasks from emails"
     t.string "monitored_mailbox_newjob", default: "newjob@tekna.com.au", comment: "Mailbox for creating new jobs from emails"
     t.string "monitored_mailbox_newcase", default: "newcase@tekna.com.au", comment: "Mailbox for creating new cases from emails"
+    t.string "brand_color_primary"
+    t.string "brand_color_primary_foreground"
+    t.string "brand_color_secondary"
+    t.string "brand_color_muted"
+    t.string "brand_color_accent"
+    t.string "website_url"
   end
 
   create_table "corporate_company_shareholdings", force: :cascade do |t|
@@ -10457,16 +10464,16 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_11_203804) do
   add_foreign_key "job_type_statuses", "job_statuses"
   add_foreign_key "job_type_statuses", "job_types"
   add_foreign_key "job_types", "sm_schedule_master_templates"
-  add_foreign_key "jobs", "contacts", column: "client_coordinator_id", on_delete: :nullify
-  add_foreign_key "jobs", "contacts", column: "estimator_id", on_delete: :nullify
-  add_foreign_key "jobs", "contacts", column: "internal_sales_id", on_delete: :nullify
-  add_foreign_key "jobs", "contacts", column: "site_coordinator_id", on_delete: :nullify
-  add_foreign_key "jobs", "contacts", column: "supervisor_id", on_delete: :nullify
   add_foreign_key "jobs", "cost_centres", on_delete: :nullify
   add_foreign_key "jobs", "job_stages", on_delete: :nullify
   add_foreign_key "jobs", "job_statuses", on_delete: :nullify
   add_foreign_key "jobs", "job_types", on_delete: :nullify
   add_foreign_key "jobs", "users", column: "archived_by_id", on_delete: :nullify
+  add_foreign_key "jobs", "users", column: "client_coordinator_id", on_delete: :nullify
+  add_foreign_key "jobs", "users", column: "estimator_id", on_delete: :nullify
+  add_foreign_key "jobs", "users", column: "internal_sales_id", on_delete: :nullify
+  add_foreign_key "jobs", "users", column: "site_coordinator_id", on_delete: :nullify
+  add_foreign_key "jobs", "users", column: "supervisor_id", on_delete: :nullify
   add_foreign_key "known_parties", "contacts"
   add_foreign_key "kudos_events", "purchase_orders"
   add_foreign_key "kudos_events", "quote_responses"

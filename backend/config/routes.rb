@@ -1347,6 +1347,12 @@ Rails.application.routes.draw do
         # Email SSoT Configuration
         get :email_config, on: :collection
         patch :email_config, on: :collection, action: :update_email_config
+
+        # Brand Colors SSoT Configuration
+        get :brand, on: :collection
+        patch :brand, on: :collection, action: :update_brand
+        post "brand/detect", on: :collection, action: :detect_brand
+        post "brand/apply", on: :collection, action: :apply_brand
       end
 
       # NOTE: folder_templates routes removed - SSoT: EntityTab is now the source of truth for folder structure

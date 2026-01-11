@@ -1272,6 +1272,19 @@ module Api
             client.delete_file(file_id)
           end
 
+          # SSoT: Update database to reflect deletion
+          # Find and remove any JobDocument records pointing to this file
+          deleted_docs = JobDocument.where(sharepoint_item_id: file_id)
+          deleted_count = deleted_docs.count
+          deleted_docs.destroy_all if deleted_count > 0
+
+          # Also check CorporateCompanyDocument
+          deleted_corp_docs = CorporateCompanyDocument.where(sharepoint_file_id: file_id)
+          deleted_corp_count = deleted_corp_docs.count
+          deleted_corp_docs.destroy_all if deleted_corp_count > 0
+
+          Rails.logger.info "[SharePoint] Deleted file #{file_id}, removed #{deleted_count} JobDocument(s), #{deleted_corp_count} CorporateCompanyDocument(s)"
+
           render json: { success: true, message: "File deleted successfully" }
 
         rescue MicrosoftGraphClient::AuthenticationError, MicrosoftAppGraphClient::NotConnectedError => e
