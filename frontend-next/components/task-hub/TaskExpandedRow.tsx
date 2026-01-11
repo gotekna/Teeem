@@ -1257,7 +1257,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                     <SmartTextField
                       value={editingItemText}
                       onChange={setEditingItemText}
-                      context={item.item_type === 'question' ? 'question' : 'action'}
+                      context="action"
                       singleLine
                       onKeyDown={async (e) => {
                         if (e.key === 'Enter' && editingItemText.trim()) {
