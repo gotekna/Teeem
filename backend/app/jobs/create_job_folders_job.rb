@@ -7,7 +7,7 @@
 # - Uses the organization-wide SharePoint credential
 # - Creates a job-specific folder (e.g., "001 - Project Name")
 # - Creates subfolders based on the folder template
-# - Updates the construction's sharepoint_folder_status
+# - Updates the construction's storage_folder_status
 # - Is idempotent (won't recreate folders if they already exist)
 #
 # @param construction_id [Integer] The ID of the construction to create folders for
@@ -23,13 +23,13 @@ class CreateJobFoldersJob < ApplicationJob
     construction = Job.find(construction_id)
 
     # Mark as processing
-    construction.update!(sharepoint_folder_status: "processing")
+    construction.update!(storage_folder_status: "processing")
 
     # Get organization SharePoint credential
     credential = MicrosoftCredential.sharepoint_credential
 
     unless credential&.valid_credential?
-      construction.update!(sharepoint_folder_status: "failed")
+      construction.update!(storage_folder_status: "failed")
       Rails.logger.error "CreateJobFoldersJob failed: SharePoint not connected"
       return
     end
@@ -45,7 +45,7 @@ class CreateJobFoldersJob < ApplicationJob
 
       if existing_folder
         # Folders already exist, mark as completed
-        construction.update!(sharepoint_folder_status: "completed")
+        construction.update!(storage_folder_status: "completed")
         Rails.logger.info "CreateJobFoldersJob: Folders already exist for Construction ##{construction_id}"
         return
       end
@@ -57,22 +57,22 @@ class CreateJobFoldersJob < ApplicationJob
       credential.mark_synced!
 
       # Mark construction as completed
-      construction.update!(sharepoint_folder_status: "completed")
+      construction.update!(storage_folder_status: "completed")
 
       Rails.logger.info "CreateJobFoldersJob succeeded: Created folders for Construction ##{construction_id}"
 
     rescue MicrosoftGraphClient::AuthenticationError => e
-      construction.update!(sharepoint_folder_status: "failed")
+      construction.update!(storage_folder_status: "failed")
       Rails.logger.error "CreateJobFoldersJob authentication failed for Construction ##{construction_id}: #{e.message}"
       raise # Re-raise to trigger retry
 
     rescue MicrosoftGraphClient::APIError => e
-      construction.update!(sharepoint_folder_status: "failed")
+      construction.update!(storage_folder_status: "failed")
       Rails.logger.error "CreateJobFoldersJob API error for Construction ##{construction_id}: #{e.message}"
       raise # Re-raise to trigger retry
 
     rescue StandardError => e
-      construction.update!(sharepoint_folder_status: "failed")
+      construction.update!(storage_folder_status: "failed")
       Rails.logger.error "CreateJobFoldersJob failed for Construction ##{construction_id}: #{e.message}"
       Rails.logger.error e.backtrace.join("\n")
       # Don't re-raise for unexpected errors - just mark as failed

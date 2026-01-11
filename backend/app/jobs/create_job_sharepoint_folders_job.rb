@@ -22,7 +22,7 @@ class CreateJobSharepointFoldersJob < ApplicationJob
     Rails.logger.info "[DocumentProvider] Creating folders for job #{job_id}: #{job.title}"
 
     # Update status to processing
-    job.update_column(:sharepoint_folder_status, "processing")
+    job.update_column(:storage_folder_status, "processing")
 
     begin
       # Setup the document provider for this organization
@@ -48,8 +48,8 @@ class CreateJobSharepointFoldersJob < ApplicationJob
         # Store folder ID if not already stored (backfill existing jobs)
         folder_id = existing_folder["id"] || existing_folder[:id]
         job.update_columns(
-          sharepoint_folder_status: "completed",
-          sharepoint_folder_id: folder_id
+          storage_folder_status: "completed",
+          storage_folder_id: folder_id
         )
         return
       end
@@ -62,8 +62,8 @@ class CreateJobSharepointFoldersJob < ApplicationJob
       folder_id = job_folder["id"] || job_folder[:id]
       Rails.logger.info "[DocumentProvider] Successfully created folders for job #{job_id}: #{job_folder[:path] || job_folder['webUrl']} (ID: #{folder_id})"
       job.update_columns(
-        sharepoint_folder_status: "completed",
-        sharepoint_folder_id: folder_id
+        storage_folder_status: "completed",
+        storage_folder_id: folder_id
       )
 
       # Mark credential as synced (if applicable)
@@ -71,16 +71,16 @@ class CreateJobSharepointFoldersJob < ApplicationJob
 
     rescue DocumentProviders::NotConnectedError => e
       Rails.logger.warn "[DocumentProvider] No provider configured for job #{job_id}: #{e.message}"
-      job.update_column(:sharepoint_folder_status, "not_configured")
+      job.update_column(:storage_folder_status, "not_configured")
       # Don't retry - needs configuration
     rescue DocumentProviders::AuthenticationError => e
       Rails.logger.error "[DocumentProvider] Authentication failed for job #{job_id}: #{e.message}"
-      job.update_column(:sharepoint_folder_status, "failed")
+      job.update_column(:storage_folder_status, "failed")
       raise # Re-raise to trigger retry
     rescue DocumentProviders::ProviderError, StandardError => e
       Rails.logger.error "[DocumentProvider] Failed to create folders for job #{job_id}: #{e.message}"
       Rails.logger.error e.backtrace.join("\n")
-      job.update_column(:sharepoint_folder_status, "failed")
+      job.update_column(:storage_folder_status, "failed")
       raise # Re-raise to trigger retry
     end
   end
@@ -93,19 +93,19 @@ class CreateJobSharepointFoldersJob < ApplicationJob
 
     case validation[:error_type]
     when "not_found"
-      job.update_column(:sharepoint_folder_status, "folder_not_found")
+      job.update_column(:storage_folder_status, "folder_not_found")
       Rails.logger.error "[DocumentProvider] Storage location has been deleted or moved. Please reconfigure in Settings."
       # Don't retry - needs admin intervention
     when "not_configured"
-      job.update_column(:sharepoint_folder_status, "not_configured")
+      job.update_column(:storage_folder_status, "not_configured")
       Rails.logger.warn "[DocumentProvider] No storage location configured. Please configure in Settings."
       # Don't retry - needs configuration
     when "permission_denied"
-      job.update_column(:sharepoint_folder_status, "failed")
+      job.update_column(:storage_folder_status, "failed")
       Rails.logger.error "[DocumentProvider] Permission denied. Please check credentials."
       # Don't retry - needs admin intervention
     else
-      job.update_column(:sharepoint_folder_status, "failed")
+      job.update_column(:storage_folder_status, "failed")
       raise StandardError, validation[:error] # Retry for transient errors
     end
   end

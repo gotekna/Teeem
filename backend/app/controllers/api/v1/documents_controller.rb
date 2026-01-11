@@ -271,7 +271,7 @@ module Api
           displayName: doc.file_name,  # JobDocument doesn't have display_name
           mimeType: doc.mime_type || "application/octet-stream",
           fileSize: doc.file_size || 0,
-          fileUrl: doc.web_url,  # JobDocument uses web_url, not file_url
+          fileUrl: generate_download_url(doc),  # S3: presigned URL, SharePoint: web_url
           folderPath: doc.folder_path,
           storageProvider: doc.storage_provider,
           createdAt: doc.created_at&.iso8601,
@@ -300,7 +300,7 @@ module Api
           displayName: doc.display_name || doc.file_name,
           mimeType: doc.mime_type || "application/octet-stream",
           fileSize: doc.file_size || 0,
-          fileUrl: doc.file_url,  # CorporateCompanyDocument has file_url column
+          fileUrl: generate_download_url(doc),  # S3: presigned URL, SharePoint: file_url
           folderPath: doc.folder,
           storageProvider: doc.storage_provider,
           createdAt: doc.created_at&.iso8601,
@@ -347,6 +347,29 @@ module Api
       def image_file?(filename)
         return false unless filename.present?
         %w[.jpg .jpeg .png .gif .webp .heic .tiff .bmp].any? { |ext| filename.downcase.end_with?(ext) }
+      end
+
+      # Generate a download URL for a document based on its storage provider
+      # For S3 documents, generates a presigned URL
+      # For SharePoint documents, returns the web_url column
+      def generate_download_url(doc)
+        return nil unless doc.present?
+
+        if doc.storage_provider == 's3_compatible' && doc.storage_item_id.present?
+          # Generate presigned S3 URL (1 hour expiry)
+          begin
+            organization = Organization.first # Single-tenant
+            provider = DocumentProviders::S3Compatible.for_organization(organization)
+            provider.download_url(doc.storage_item_id, expires_in: 3600)
+          rescue => e
+            Rails.logger.warn "[Documents] Failed to generate S3 URL for #{doc.class.name}##{doc.id}: #{e.message}"
+            nil
+          end
+        else
+          # SharePoint - use stored URL column
+          # JobDocument uses web_url, CorporateCompanyDocument uses file_url
+          doc.respond_to?(:web_url) ? doc.web_url : doc.file_url
+        end
       end
     end
   end

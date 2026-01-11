@@ -14,6 +14,9 @@ class Organization < ApplicationRecord
   has_many :organization_microsoft_app_credentials, dependent: :destroy
   belongs_to :document_provider_credential, class_name: 'S3CompatibleCredential', optional: true
 
+  # SSoT: Storage configuration for document paths and provider settings
+  has_one :storage_configuration, dependent: :destroy
+
   # Validations
   validates :name, presence: true, uniqueness: true
   validates :slug, presence: true, uniqueness: true
@@ -23,6 +26,11 @@ class Organization < ApplicationRecord
   # Uses factory pattern to return SharePoint or S3Compatible based on config
   def document_storage
     @document_storage ||= DocumentProviders.for_organization(self)
+  end
+
+  # SSoT: Get or create storage configuration for this organization
+  def storage_config
+    storage_configuration || StorageConfiguration.for_organization(self)
   end
 
   # Check if S3-compatible storage is enabled

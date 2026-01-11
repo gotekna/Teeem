@@ -327,9 +327,9 @@ class BulkDocumentCategorizationService
 
     if tab_path.present?
       tab_path
-    elsif tab.sharepoint_folder_path.present?
-      # Fallback to sharepoint_folder_path
-      tab.sharepoint_folder_path.gsub(/\{\{JobCode\}\}\s*\/?/, "").gsub(/^\/+/, "")
+    elsif tab.storage_folder_path.present?
+      # Fallback to storage_folder_path
+      tab.storage_folder_path.gsub(/\{\{JobCode\}\}\s*\/?/, "").gsub(/^\/+/, "")
     elsif parent_path.present?
       # Build from parent path + display_name
       "#{parent_path}/#{tab.display_name}"

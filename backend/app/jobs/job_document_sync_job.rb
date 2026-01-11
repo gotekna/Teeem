@@ -59,7 +59,7 @@ class JobDocumentSyncJob < ApplicationJob
 
   def sync_all_jobs
     # Only sync jobs that have SharePoint folders
-    jobs_with_folders = Job.where(sharepoint_folder_status: "completed")
+    jobs_with_folders = Job.where(storage_folder_status: "completed")
     Rails.logger.info("[JobDocumentSync] Syncing #{jobs_with_folders.count} jobs with SharePoint folders")
 
     jobs_with_folders.find_each do |job|
@@ -73,7 +73,7 @@ class JobDocumentSyncJob < ApplicationJob
     # SSoT: Use stored folder ID if available (stable, survives renames)
     # Fall back to name search if no ID stored (legacy jobs)
     job_folder = nil
-    folder_id = job.sharepoint_folder_id
+    folder_id = job.storage_folder_id
 
     if folder_id.present?
       # Use stored folder ID for direct lookup (faster, more reliable)
@@ -83,7 +83,7 @@ class JobDocumentSyncJob < ApplicationJob
       rescue MicrosoftGraphClient::APIError => e
         if e.message.include?("itemNotFound")
           Rails.logger.warn("[JobDocumentSync] Stored folder ID invalid for job #{job.id}, falling back to search")
-          job.update_column(:sharepoint_folder_id, nil)  # Clear invalid ID
+          job.update_column(:storage_folder_id, nil)  # Clear invalid ID
           folder_id = nil
         else
           raise
@@ -99,8 +99,8 @@ class JobDocumentSyncJob < ApplicationJob
         return
       end
       # Backfill: Store the folder ID for next time
-      if job_folder["id"].present? && job.sharepoint_folder_id.blank?
-        job.update_column(:sharepoint_folder_id, job_folder["id"])
+      if job_folder["id"].present? && job.storage_folder_id.blank?
+        job.update_column(:storage_folder_id, job_folder["id"])
         Rails.logger.info("[JobDocumentSync] Backfilled folder ID for job #{job.id}")
       end
     end

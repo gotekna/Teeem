@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # Stores generated bank statement PDF reports for ATO compliance.
-# SSoT: DocumentType (ID 22: "X Bank Statement") → EntityTab (xero-bank-statement) → sharepoint_folder_path
+# SSoT: DocumentType (ID 22: "X Bank Statement") → EntityTab (xero-bank-statement) → storage_folder_path
 # Path template from EntityTab: Corporate/{CompanyGroup}/{CompanyCode}/XERO/Bank
 # Example: Corporate/Tekna/THS/XERO/Bank/THS XB NAB 083-052 305422840 Dec24.pdf
 # PDFs can be regenerated on demand from the underlying bank transaction data.
@@ -374,14 +374,14 @@ class BankStatementReport < ApplicationRecord
 
     graph_client = MicrosoftGraphClient.new(credential)
 
-    # SSoT: EntityTab (xero-bank-statement) → sharepoint_folder_path is THE ONE source
+    # SSoT: EntityTab (xero-bank-statement) → storage_folder_path is THE ONE source
     # Path defined in Admin > Entity Tabs > Bank Statement tab
     entity_tab = EntityTab.find_by(tab_key: 'xero-bank-statement')
-    unless entity_tab&.sharepoint_folder_path.present?
-      Rails.logger.error("[BankStatementReport] SSoT missing: EntityTab 'xero-bank-statement' has no sharepoint_folder_path")
+    unless entity_tab&.storage_folder_path.present?
+      Rails.logger.error("[BankStatementReport] SSoT missing: EntityTab 'xero-bank-statement' has no storage_folder_path")
       return nil
     end
-    path_template = entity_tab.sharepoint_folder_path
+    path_template = entity_tab.storage_folder_path
 
     # SSoT: Resolve placeholders in path template
     company_group = corporate_company&.group_name || "Other"

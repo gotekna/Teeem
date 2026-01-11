@@ -1005,7 +1005,7 @@ module Api
           client = MicrosoftGraphClient.new(credential)
 
           # SSoT: Use stored sharepoint_folder_id first, fall back to find_job_folder
-          job_folder_id = job.sharepoint_folder_id
+          job_folder_id = job.storage_folder_id
           job_folder_url = nil
 
           if job_folder_id.present?
@@ -1839,7 +1839,7 @@ module Api
         else
           # Sync all jobs with SharePoint folders
           JobDocumentSyncJob.perform_later
-          jobs_count = Job.where(sharepoint_folder_status: "completed").count
+          jobs_count = Job.where(storage_folder_status: "completed").count
           render json: {
             success: true,
             message: "Sync triggered for #{jobs_count} jobs with SharePoint folders",

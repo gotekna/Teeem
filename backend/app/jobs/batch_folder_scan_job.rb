@@ -26,7 +26,7 @@ class BatchFolderScanJob < ApplicationJob
     Rails.logger.info "[BatchFolderScanJob] Starting folder scan"
 
     # Get jobs that have SharePoint folders configured
-    jobs = Job.where.not(sharepoint_folder_id: nil).order(:name)
+    jobs = Job.where.not(storage_folder_id: nil).order(:name)
 
     @operation.start_processing!(total: jobs.count)
 
@@ -60,7 +60,7 @@ class BatchFolderScanJob < ApplicationJob
     client = MicrosoftGraphClient.new(credential)
 
     # Look for plans folder within job folder
-    plans_folder_path = "#{job.sharepoint_folder_id}/Plans"
+    plans_folder_path = "#{job.storage_folder_id}/Plans"
 
     begin
       # List files in the plans folder

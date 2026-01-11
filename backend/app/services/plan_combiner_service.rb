@@ -142,8 +142,8 @@ class PlanCombinerService
   end
 
   def get_plans_folder_id(client)
-    # Get job's SharePoint folder
-    job_folder = client.get_folder_by_path(@job.sharepoint_folder_id)
+    # Get job's storage folder
+    job_folder = client.get_folder_by_path(@job.storage_folder_id)
     raise CombineError, "Job folder not found" unless job_folder
 
     # Look for "04 Plans" subfolder

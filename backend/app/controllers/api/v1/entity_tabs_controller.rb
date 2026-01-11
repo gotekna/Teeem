@@ -117,7 +117,8 @@ module Api
                 display_code: tab.display_code,
                 hierarchy_path: tab.hierarchy_path,
                 tab_group: tab.tab_group,
-                has_sharepoint_folder: tab.has_sharepoint_folder
+                has_storage_folder: tab.has_storage_folder,
+                has_sharepoint_folder: tab.has_storage_folder  # Backwards compat
               }
             end
           }
@@ -175,9 +176,9 @@ module Api
       # Reset all tabs to use inherited SSoT paths (sets uses_custom_path = false and clears custom path)
       def reset_paths
         updated_count = EntityTab
-          .where(has_sharepoint_folder: true)
-          .where("uses_custom_path = true OR sharepoint_folder_path IS NOT NULL AND sharepoint_folder_path != ''")
-          .update_all(uses_custom_path: false, sharepoint_folder_path: nil)
+          .where(has_storage_folder: true)
+          .where("uses_custom_path = true OR storage_folder_path IS NOT NULL AND storage_folder_path != ''")
+          .update_all(uses_custom_path: false, storage_folder_path: nil)
 
         render json: {
           success: true,
@@ -256,7 +257,8 @@ module Api
       end
 
       def entity_tab_params
-        params.require(:entity_tab).permit(
+        # Accept both old and new param names for backwards compatibility
+        permitted = params.require(:entity_tab).permit(
           :scope,
           :tab_key,
           :display_name,
@@ -269,10 +271,13 @@ module Api
           :enabled,
           :icon_name,
           :component_name,
-          :has_sharepoint_folder,
-          :sharepoint_folder_path,
+          :has_storage_folder,
+          :has_sharepoint_folder,  # Backwards compat
+          :storage_folder_path,
+          :sharepoint_folder_path,  # Backwards compat
           :uses_custom_path,  # SSoT: Template inheritance flag
-          :sharepoint_path_type,  # SSoT: "corporate" or "contacts" for contact tabs
+          :storage_path_type,
+          :sharepoint_path_type,  # Backwards compat
           :is_photo_category,  # SSoT: Explicit photo gallery flag
           :is_cad_category,  # SSoT: Explicit CAD/Revit file viewer flag
           :display_mode,  # SSoT: How tab renders (icon_only, text_only, both)
@@ -280,6 +285,13 @@ module Api
           entity_filters: [],
           document_type_ids: []  # SSoT: Link document types to this tab
         )
+
+        # Map old param names to new ones
+        permitted[:has_storage_folder] ||= permitted.delete(:has_sharepoint_folder)
+        permitted[:storage_folder_path] ||= permitted.delete(:sharepoint_folder_path)
+        permitted[:storage_path_type] ||= permitted.delete(:sharepoint_path_type)
+
+        permitted
       end
     end
   end

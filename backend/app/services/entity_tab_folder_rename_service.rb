@@ -27,7 +27,7 @@ class EntityTabFolderRenameService
 
   def execute
     return error_result("Not a job-scope tab") unless @entity_tab.scope == 'job'
-    return error_result("No SharePoint folder configured") unless @entity_tab.has_sharepoint_folder
+    return error_result("No storage folder configured") unless @entity_tab.has_storage_folder
 
     # Compute old and new folder paths
     @old_path = compute_old_folder_path
@@ -41,8 +41,8 @@ class EntityTabFolderRenameService
 
     @client = MicrosoftGraphClient.new(@credential)
 
-    # Step 1: Rename SharePoint folders for all jobs
-    rename_sharepoint_folders
+    # Step 1: Rename storage folders for all jobs
+    rename_storage_folders
 
     # Step 2: Bulk update job_documents.folder_path
     update_job_document_paths
@@ -66,7 +66,7 @@ class EntityTabFolderRenameService
   # Compute what the folder path WAS before the rename
   # Logic mirrors EntityTab#upload_folder_path but with old_display_name
   def compute_old_folder_path
-    if @entity_tab.parent&.has_sharepoint_folder
+    if @entity_tab.parent&.has_storage_folder
       # Child tab: parent_path + "/" + old_display_name
       parent_path = @entity_tab.parent.upload_folder_path
       "#{parent_path}/#{@old_display_name}"
@@ -76,11 +76,11 @@ class EntityTabFolderRenameService
     end
   end
 
-  # Rename the SharePoint folder for each job that has SharePoint folders
-  def rename_sharepoint_folders
-    jobs_with_folders = Job.where(sharepoint_folder_status: 'completed')
+  # Rename the storage folder for each job that has storage folders
+  def rename_storage_folders
+    jobs_with_folders = Job.where(storage_folder_status: 'completed')
     total_jobs = jobs_with_folders.count
-    Rails.logger.info "[EntityTabFolderRename] Processing #{total_jobs} jobs with SharePoint folders"
+    Rails.logger.info "[EntityTabFolderRename] Processing #{total_jobs} jobs with storage folders"
 
     jobs_with_folders.find_each.with_index do |job, index|
       rename_folder_for_job(job)
@@ -156,7 +156,7 @@ class EntityTabFolderRenameService
   # The physical child folders don't need renaming (parent folder was renamed)
   # But any job_documents in child folders need path updates
   def cascade_to_child_tabs
-    child_tabs = @entity_tab.children.where(has_sharepoint_folder: true)
+    child_tabs = @entity_tab.children.where(has_storage_folder: true)
     return if child_tabs.empty?
 
     Rails.logger.info "[EntityTabFolderRename] Cascading to #{child_tabs.count} child tabs"
@@ -177,7 +177,7 @@ class EntityTabFolderRenameService
       @stats[:documents_updated] += child_affected
 
       # Recurse for grandchildren
-      if child.children.where(has_sharepoint_folder: true).exists?
+      if child.children.where(has_storage_folder: true).exists?
         cascade_child_documents(child, old_child_path, new_child_path)
       end
     end
@@ -185,7 +185,7 @@ class EntityTabFolderRenameService
 
   # Recursively update document paths for nested children
   def cascade_child_documents(parent_tab, old_parent_path, new_parent_path)
-    parent_tab.children.where(has_sharepoint_folder: true).each do |child|
+    parent_tab.children.where(has_storage_folder: true).each do |child|
       old_child_path = "#{old_parent_path}/#{child.display_name}"
       new_child_path = "#{new_parent_path}/#{child.display_name}"
 
@@ -198,7 +198,7 @@ class EntityTabFolderRenameService
       @stats[:documents_updated] += affected
 
       # Continue recursion if this child has children
-      if child.children.where(has_sharepoint_folder: true).exists?
+      if child.children.where(has_storage_folder: true).exists?
         cascade_child_documents(child, old_child_path, new_child_path)
       end
     end

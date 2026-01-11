@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_12_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1066,8 +1066,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.string "file_action", default: "copy"
     t.string "document_processing_status", default: "pending"
     t.integer "unanswered_questions_count", default: 0
-    t.string "sharepoint_folder_id"
-    t.string "sharepoint_folder_path"
+    t.string "storage_folder_id"
+    t.string "storage_folder_path"
     t.index ["assigned_to_id"], name: "index_cases_on_assigned_to_id"
     t.index ["case_number"], name: "index_cases_on_case_number", unique: true
     t.index ["case_type"], name: "index_cases_on_case_type"
@@ -1079,8 +1079,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.index ["parent_case_id", "status"], name: "index_cases_on_parent_and_status"
     t.index ["parent_case_id"], name: "index_cases_on_parent_case_id"
     t.index ["priority"], name: "index_cases_on_priority"
-    t.index ["sharepoint_folder_id"], name: "index_cases_on_sharepoint_folder_id"
     t.index ["status"], name: "index_cases_on_status"
+    t.index ["storage_folder_id"], name: "index_cases_on_storage_folder_id"
   end
 
   create_table "chat_messages", force: :cascade do |t|
@@ -1623,11 +1623,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.string "health_status"
     t.boolean "has_loans", default: false
     t.boolean "loan_documents_in_place", default: false
-    t.string "sharepoint_folder_id"
-    t.string "sharepoint_folder_path"
+    t.string "storage_folder_id"
+    t.string "storage_folder_path"
     t.string "code"
-    t.string "sharepoint_folder_url"
-    t.string "sharepoint_folder_name"
+    t.string "storage_folder_url"
+    t.string "storage_folder_name"
     t.string "entity_type", default: "company"
     t.bigint "parent_company_id"
     t.integer "hierarchy_level", default: 0
@@ -1655,9 +1655,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.index ["name"], name: "index_corporate_companies_on_name"
     t.index ["parent_company_id"], name: "index_corporate_companies_on_parent_company_id"
     t.index ["review_date"], name: "index_corporate_companies_on_review_date"
-    t.index ["sharepoint_folder_id"], name: "index_corporate_companies_on_sharepoint_folder_id"
     t.index ["slug"], name: "index_corporate_companies_on_slug", unique: true
     t.index ["status"], name: "index_corporate_companies_on_status"
+    t.index ["storage_folder_id"], name: "index_corporate_companies_on_storage_folder_id"
   end
 
   create_table "corporate_company_activities", force: :cascade do |t|
@@ -2825,17 +2825,17 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.string "icon_name"
     t.string "component_name"
     t.boolean "is_system_tab", default: false
-    t.boolean "has_sharepoint_folder", default: false
-    t.string "sharepoint_folder_path"
+    t.boolean "has_storage_folder", default: false
+    t.string "storage_folder_path"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "display_code", limit: 3
     t.boolean "uses_custom_path", default: false, null: false
-    t.string "sharepoint_path_type", default: "corporate"
+    t.string "storage_path_type", default: "corporate"
     t.boolean "is_photo_category", default: false, null: false
     t.string "display_mode", default: "both", null: false
     t.boolean "hidden_by_default", default: false, null: false
-    t.string "sharepoint_folder_id"
+    t.string "storage_folder_id"
     t.boolean "is_cad_category"
     t.index ["enabled"], name: "index_entity_tabs_on_enabled"
     t.index ["entity_filters"], name: "index_entity_tabs_on_entity_filters", using: :gin
@@ -2845,7 +2845,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.index ["scope", "tab_group"], name: "index_entity_tabs_on_scope_and_tab_group"
     t.index ["scope", "tab_key", "job_id", "parent_id"], name: "idx_entity_tabs_unique_key", unique: true
     t.index ["scope"], name: "index_entity_tabs_on_scope"
-    t.index ["sharepoint_folder_id"], name: "index_entity_tabs_on_sharepoint_folder_id"
+    t.index ["storage_folder_id"], name: "index_entity_tabs_on_storage_folder_id"
   end
 
   create_table "estimate_line_items", force: :cascade do |t|
@@ -6127,7 +6127,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.integer "purchase_orders_count", default: 0, null: false
-    t.string "sharepoint_folder_status", default: "not_requested"
+    t.string "storage_folder_status", default: "not_requested"
     t.decimal "latitude", precision: 10, scale: 6
     t.decimal "longitude", precision: 10, scale: 6
     t.string "location"
@@ -6191,7 +6191,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.integer "plans_count", default: 0, null: false
     t.integer "on_issue_plans_count", default: 0, null: false
     t.datetime "template_applied_at"
-    t.string "sharepoint_folder_id"
+    t.string "storage_folder_id"
     t.string "level"
     t.string "dwelling_type"
     t.bigint "supervisor_id"
@@ -6213,9 +6213,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.index ["job_type_id"], name: "index_jobs_on_job_type_id"
     t.index ["postcode"], name: "index_jobs_on_postcode"
     t.index ["searchable"], name: "idx_jobs_searchable_gin", using: :gin
-    t.index ["sharepoint_folder_id"], name: "index_jobs_on_sharepoint_folder_id"
-    t.index ["sharepoint_folder_status"], name: "index_jobs_on_sharepoint_folder_status"
     t.index ["site_coordinator_id"], name: "index_jobs_on_site_coordinator_id"
+    t.index ["storage_folder_id"], name: "index_jobs_on_storage_folder_id"
+    t.index ["storage_folder_status"], name: "index_jobs_on_storage_folder_status"
     t.index ["suburb"], name: "index_jobs_on_suburb"
     t.index ["supervisor_id"], name: "index_jobs_on_supervisor_id"
     t.index ["xero_tracking_option_id"], name: "index_jobs_on_xero_tracking_option_id"
@@ -8788,6 +8788,22 @@ t.bigint "sm_schedule_master_id"
     t.index ["job_type_id"], name: "index_specification_templates_on_job_type_id"
   end
 
+  create_table "storage_configurations", force: :cascade do |t|
+    t.bigint "organization_id", null: false
+    t.string "provider_type", default: "sharepoint", null: false
+    t.string "status", default: "disconnected", null: false
+    t.jsonb "connection_config", default: {}, null: false
+    t.string "root_path", default: "/Shared Documents", null: false
+    t.jsonb "paths", default: {"jobs"=>"Jobs", "tasks"=>"Tasks", "emails"=>"Emails", "people"=>"People", "accounts"=>"Accounts", "contacts"=>"Contacts", "corporate"=>"Corporate"}, null: false
+    t.jsonb "templates", default: {"job"=>"{{JobCode}}/{{Category}}", "task"=>"Task-{{TaskId}}/{{Category}}", "people"=>"{{ContactName}}/{{Category}}", "account"=>"{{Source}}/{{ContactName}}/{{Category}}", "contacts"=>"{{ContactName}}/{{Category}}", "corporate"=>"{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}"}, null: false
+    t.string "credential_type"
+    t.bigint "credential_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["credential_type", "credential_id"], name: "index_storage_configurations_on_credential"
+    t.index ["organization_id"], name: "index_storage_configurations_on_organization_id", unique: true
+  end
+
   create_table "stripe_configurations", force: :cascade do |t|
     t.bigint "organization_id"
     t.boolean "enabled", default: false, null: false
@@ -10707,6 +10723,7 @@ t.bigint "sm_schedule_master_id"
   add_foreign_key "solid_queue_recurring_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "specification_templates", "job_types"
+  add_foreign_key "storage_configurations", "organizations"
   add_foreign_key "stripe_configurations", "organizations"
   add_foreign_key "stripe_payments", "contacts"
   add_foreign_key "stripe_payments", "external_invoices", column: "invoice_id"

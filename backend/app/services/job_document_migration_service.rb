@@ -540,7 +540,7 @@ class JobDocumentMigrationService
     })
 
     # Mark job as having folders created
-    job.update(sharepoint_folder_status: "completed")
+    job.update(storage_folder_status: "completed")
 
     folder["id"]
   rescue MicrosoftGraphClient::APIError => e

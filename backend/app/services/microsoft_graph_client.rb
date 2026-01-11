@@ -1054,7 +1054,7 @@ class MicrosoftGraphClient
 
     # Get all job-scope EntityTabs with SharePoint folders
     root_tabs = EntityTab.for_jobs
-                         .where(has_sharepoint_folder: true)
+                         .where(has_storage_folder: true)
                          .enabled
                          .root_tabs
                          .ordered
@@ -1079,7 +1079,7 @@ class MicrosoftGraphClient
     Rails.logger.info "[EntityTab SSoT] Created folder: #{folder_name} (#{created_folder['id']})"
 
     # Process children recursively
-    tab.children.where(has_sharepoint_folder: true).enabled.ordered.each do |child|
+    tab.children.where(has_storage_folder: true).enabled.ordered.each do |child|
       create_entity_tab_folder_recursive(child, created_folder["id"], folder_id_map)
     end
   end

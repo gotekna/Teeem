@@ -74,11 +74,11 @@ class CorporateSharePointProvisionerService
         end
       end
 
-      # Update company with SharePoint folder info
+      # Update company with storage folder info
       company.update(
-        sharepoint_folder_id: company_folder_id,
-        sharepoint_folder_path: folder_name
-      ) if company.respond_to?(:sharepoint_folder_id)
+        storage_folder_id: company_folder_id,
+        storage_folder_path: folder_name
+      ) if company.respond_to?(:storage_folder_id)
 
       {
         success: true,
@@ -223,10 +223,10 @@ class CorporateSharePointProvisionerService
           subfolders_created << { name: folder_name, id: subfolder["id"] }
         end
 
-        # Update company with SharePoint folder info
+        # Update company with storage folder info
         company.update_columns(
-          sharepoint_folder_id: company_folder_id,
-          sharepoint_folder_path: "#{base_path}/#{group.name}/#{company_folder_name}"
+          storage_folder_id: company_folder_id,
+          storage_folder_path: "#{base_path}/#{group.name}/#{company_folder_name}"
         )
 
         group_result[:entities] << {
@@ -250,10 +250,10 @@ class CorporateSharePointProvisionerService
 
   # Scan company folder and categorise documents
   def scan_company_documents(company)
-    return { success: false, error: "Company has no SharePoint folder" } unless company.sharepoint_folder_id.present?
+    return { success: false, error: "Company has no storage folder" } unless company.storage_folder_id.present?
 
     documents = []
-    scan_folder_recursive(company.sharepoint_folder_id, documents)
+    scan_folder_recursive(company.storage_folder_id, documents)
 
     # Categorise documents by type
     categorised = categorise_documents(documents)
@@ -307,7 +307,7 @@ class CorporateSharePointProvisionerService
 
   # Auto-organise documents in a company folder
   def organise_company_documents(company, dry_run: true)
-    return { success: false, error: "Company has no SharePoint folder" } unless company.sharepoint_folder_id.present?
+    return { success: false, error: "Company has no storage folder" } unless company.storage_folder_id.present?
 
     scan_result = scan_company_documents(company)
     return scan_result unless scan_result[:success]
@@ -323,7 +323,7 @@ class CorporateSharePointProvisionerService
       next unless detected_type
 
       # Find target folder
-      target_folder = find_folder_for_type(company.sharepoint_folder_id, detected_type)
+      target_folder = find_folder_for_type(company.storage_folder_id, detected_type)
       next unless target_folder
 
       # Check if already in correct folder

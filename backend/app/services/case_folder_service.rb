@@ -28,11 +28,11 @@ class CaseFolderService
         # Save the folder ID and path to the case
         full_path = "#{CASE_INFO_PATH}/#{folder_name}"
         @case.update!(
-          sharepoint_folder_id: result["id"],
-          sharepoint_folder_path: full_path
+          storage_folder_id: result["id"],
+          storage_folder_path: full_path
         )
 
-        Rails.logger.info "[CaseFolderService] Created SharePoint folder: #{full_path}"
+        Rails.logger.info "[CaseFolderService] Created storage folder: #{full_path}"
         result
       else
         Rails.logger.error "[CaseFolderService] Failed to create folder: #{result}"
@@ -46,10 +46,10 @@ class CaseFolderService
 
   # Get or verify the existing case folder
   def get_case_folder
-    return nil unless @case.sharepoint_folder_id.present?
+    return nil unless @case.storage_folder_id.present?
 
     begin
-      graph_client.get_item(@case.sharepoint_folder_id)
+      graph_client.get_item(@case.storage_folder_id)
     rescue MicrosoftGraphClient::APIError => e
       Rails.logger.warn "[CaseFolderService] Case folder not found: #{e.message}"
       nil
@@ -58,7 +58,7 @@ class CaseFolderService
 
   # Ensure the case has a folder (create if missing)
   def ensure_folder_exists
-    return get_case_folder if @case.sharepoint_folder_id.present?
+    return get_case_folder if @case.storage_folder_id.present?
 
     create_case_folder
   end

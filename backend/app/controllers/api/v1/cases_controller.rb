@@ -667,7 +667,7 @@ module Api
             data: {
               folder_id: folder["id"],
               folder_name: folder["name"],
-              folder_path: @case.sharepoint_folder_path,
+              folder_path: @case.storage_folder_path,
               web_url: folder["webUrl"]
             },
             message: "Case folder created successfully"
@@ -681,9 +681,9 @@ module Api
       end
 
       # GET /api/v1/cases/:id/folder_info
-      # Get information about the case's SharePoint folder
+      # Get information about the case's storage folder
       def folder_info
-        if @case.sharepoint_folder_id.blank?
+        if @case.storage_folder_id.blank?
           render json: {
             success: true,
             data: { has_folder: false }
@@ -701,7 +701,7 @@ module Api
               has_folder: true,
               folder_id: folder["id"],
               folder_name: folder["name"],
-              folder_path: @case.sharepoint_folder_path,
+              folder_path: @case.storage_folder_path,
               web_url: folder["webUrl"]
             }
           }
@@ -712,7 +712,7 @@ module Api
             data: {
               has_folder: false,
               folder_missing: true,
-              message: "Folder was deleted from SharePoint"
+              message: "Folder was deleted from storage"
             }
           }
         end
