@@ -382,7 +382,7 @@ export function XeroFieldMapping() {
                             Enabled
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
+                          <Badge variant="outline" className="bg-muted text-foreground border-border">
                             <X className="h-3 w-3 mr-1" />
                             Disabled
                           </Badge>

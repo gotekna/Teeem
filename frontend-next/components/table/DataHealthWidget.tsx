@@ -339,7 +339,7 @@ export function DataHealthWidget({
                           color === "orange" && "bg-orange-500",
                           color === "red" && "bg-red-500",
                           color === "blue" && "bg-blue-500",
-                          color === "gray" && "bg-gray-500"
+                          color === "gray" && "bg-muted0"
                         )}
                       />
                       <div className="min-w-0">

@@ -12,7 +12,7 @@ export const ParallelGatewayNode = memo(({ data, selected }: NodeProps<Node<Bpmn
       <Handle
         type="target"
         position={Position.Left}
-        className="!h-2 !w-2 !border !border-slate-400 !bg-white dark:!bg-slate-900"
+        className="!h-2 !w-2 !border !border-border !bg-white dark:!bg-slate-900"
       />
 
       {/* Diamond shape */}
@@ -31,7 +31,7 @@ export const ParallelGatewayNode = memo(({ data, selected }: NodeProps<Node<Bpmn
       </div>
 
       {/* Label to the right */}
-      <div className="ml-2 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
+      <div className="ml-2 whitespace-nowrap text-sm text-foreground dark:text-muted-foreground">
         {data.name || "Parallel"}
       </div>
 
@@ -39,7 +39,7 @@ export const ParallelGatewayNode = memo(({ data, selected }: NodeProps<Node<Bpmn
       <Handle
         type="source"
         position={Position.Right}
-        className="!h-2 !w-2 !border !border-slate-400 !bg-white dark:!bg-slate-900"
+        className="!h-2 !w-2 !border !border-border !bg-white dark:!bg-slate-900"
       />
     </div>
   );

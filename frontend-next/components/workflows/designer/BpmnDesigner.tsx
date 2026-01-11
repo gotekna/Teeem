@@ -504,7 +504,7 @@ function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
           panOnDrag={toolMode === "pan"}
           selectionOnDrag={toolMode === "select"}
           selectionMode={SelectionMode.Partial}
-          className="bg-slate-100 dark:bg-slate-950"
+          className="bg-muted dark:bg-slate-950"
         >
           <Background gap={20} size={1} />
 
@@ -586,7 +586,7 @@ function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
                 placeholder="Process name..."
               />
 
-              <div className="h-6 w-px bg-slate-200 dark:bg-slate-700" />
+              <div className="h-6 w-px bg-muted dark:bg-slate-700" />
 
               {/* Hidden file input for BPMN import */}
               <input
@@ -617,7 +617,7 @@ function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
                 Layout
               </Button>
 
-              <div className="h-6 w-px bg-slate-200 dark:bg-slate-700" />
+              <div className="h-6 w-px bg-muted dark:bg-slate-700" />
 
               {/* Zoom controls */}
               <div className="flex items-center gap-1">
@@ -650,7 +650,7 @@ function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
                 </Button>
               </div>
 
-              <div className="h-6 w-px bg-slate-200 dark:bg-slate-700" />
+              <div className="h-6 w-px bg-muted dark:bg-slate-700" />
 
               <Button
                 variant="outline"

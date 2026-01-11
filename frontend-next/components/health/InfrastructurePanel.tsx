@@ -50,7 +50,7 @@ function getStatusIcon(status: string) {
     case "critical":
       return <XCircle className="h-4 w-4 text-red-600" />;
     default:
-      return <AlertTriangle className="h-4 w-4 text-gray-400" />;
+      return <AlertTriangle className="h-4 w-4 text-muted-foreground" />;
   }
 }
 
@@ -63,7 +63,7 @@ function getStatusBadgeColor(status: string): string {
     case "critical":
       return "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300";
     default:
-      return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
+      return "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground";
   }
 }
 

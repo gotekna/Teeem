@@ -14,7 +14,7 @@ export const AnnotationNode = memo(
         <Handle
           type="target"
           position={Position.Left}
-          className="!h-3 !w-3 !border-2 !border-slate-400 !bg-white dark:!bg-slate-900"
+          className="!h-3 !w-3 !border-2 !border-border !bg-white dark:!bg-slate-900"
         />
 
         {/* Annotation box with left bracket styling */}
@@ -32,7 +32,7 @@ export const AnnotationNode = memo(
               Note
             </span>
           </div>
-          <p className="text-sm text-slate-700 dark:text-slate-300">
+          <p className="text-sm text-foreground dark:text-muted-foreground">
             {data.name || data.description || "Add annotation text..."}
           </p>
         </div>
@@ -41,7 +41,7 @@ export const AnnotationNode = memo(
         <Handle
           type="source"
           position={Position.Right}
-          className="!h-3 !w-3 !border-2 !border-slate-400 !bg-white dark:!bg-slate-900"
+          className="!h-3 !w-3 !border-2 !border-border !bg-white dark:!bg-slate-900"
         />
       </div>
     );

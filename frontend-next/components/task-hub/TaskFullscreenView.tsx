@@ -91,7 +91,7 @@ const statusColors = {
   hold: 'data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500',
   confirm: 'data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500',
   supplier_confirm: 'data-[state=checked]:bg-purple-500 data-[state=checked]:border-purple-500',
-  completed: 'data-[state=checked]:bg-gray-500 data-[state=checked]:border-gray-500',
+  completed: 'data-[state=checked]:bg-muted0 data-[state=checked]:border-border',
 };
 
 interface User {
@@ -3035,7 +3035,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       <div className="flex items-center gap-2 p-2 bg-muted/30 text-xs border-b">
                         <input
                           type="checkbox"
-                          className="h-3 w-3 rounded border-gray-300"
+                          className="h-3 w-3 rounded border-border"
                           checked={infoAttachments.length > 0 && infoAttachments.every(a => selectedDocIds.has(a.id))}
                           onChange={(e) => {
                             if (e.target.checked) {
@@ -3059,7 +3059,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                         >
                           <input
                             type="checkbox"
-                            className="h-3 w-3 rounded border-gray-300"
+                            className="h-3 w-3 rounded border-border"
                             checked={selectedDocIds.has(att.id)}
                             onChange={() => toggleDocSelection(att.id)}
                             onClick={(e) => e.stopPropagation()}

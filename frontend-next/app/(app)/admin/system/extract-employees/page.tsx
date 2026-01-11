@@ -1088,7 +1088,7 @@ function ExtractEmployeesContent() {
                                         className={`px-3 py-1.5 font-bold text-sm transition-colors ${
                                           sel?.mergeContacts
                                             ? "bg-amber-500 text-white"
-                                            : "bg-white dark:bg-gray-800 text-gray-400"
+                                            : "bg-white dark:bg-gray-800 text-muted-foreground"
                                         }`}
                                       >
                                         Yes
@@ -1098,7 +1098,7 @@ function ExtractEmployeesContent() {
                                         className={`px-3 py-1.5 font-bold text-sm transition-colors ${
                                           !sel?.mergeContacts
                                             ? "bg-gray-400 text-white"
-                                            : "bg-white dark:bg-gray-800 text-gray-400"
+                                            : "bg-white dark:bg-gray-800 text-muted-foreground"
                                         }`}
                                       >
                                         No
@@ -1148,7 +1148,7 @@ function ExtractEmployeesContent() {
                                  selectedContact?.email?.toLowerCase() === item.email.toLowerCase() &&
                                  !item.phones?.mobile &&
                                  selectedContact?.relationship_to_domain_company_exists && (
-                                  <div className="flex items-center gap-2 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 text-muted-foreground">
+                                  <div className="flex items-center gap-2 p-3 rounded-lg bg-muted dark:bg-gray-800/50 border border-border text-muted-foreground">
                                     <CheckCircle2 className="h-4 w-4 text-green-600" />
                                     <span className="text-sm">
                                       Contact is already up to date — no phone found in email signature
@@ -1171,7 +1171,7 @@ function ExtractEmployeesContent() {
                                         className={`px-3 py-1.5 font-bold text-sm transition-colors ${
                                           sel?.addEmail
                                             ? "bg-purple-500 text-white"
-                                            : "bg-white dark:bg-gray-800 text-gray-400"
+                                            : "bg-white dark:bg-gray-800 text-muted-foreground"
                                         }`}
                                       >
                                         Yes
@@ -1181,7 +1181,7 @@ function ExtractEmployeesContent() {
                                         className={`px-3 py-1.5 font-bold text-sm transition-colors ${
                                           !sel?.addEmail
                                             ? "bg-gray-400 text-white"
-                                            : "bg-white dark:bg-gray-800 text-gray-400"
+                                            : "bg-white dark:bg-gray-800 text-muted-foreground"
                                         }`}
                                       >
                                         No
@@ -1212,7 +1212,7 @@ function ExtractEmployeesContent() {
                                           className={`px-3 py-1.5 font-bold text-sm transition-colors ${
                                             sel?.addMobile
                                               ? "bg-green-500 text-white"
-                                              : "bg-white dark:bg-gray-800 text-gray-400"
+                                              : "bg-white dark:bg-gray-800 text-muted-foreground"
                                           }`}
                                         >
                                           Yes
@@ -1222,7 +1222,7 @@ function ExtractEmployeesContent() {
                                           className={`px-3 py-1.5 font-bold text-sm transition-colors ${
                                             !sel?.addMobile
                                               ? "bg-gray-400 text-white"
-                                              : "bg-white dark:bg-gray-800 text-gray-400"
+                                              : "bg-white dark:bg-gray-800 text-muted-foreground"
                                           }`}
                                         >
                                           No
@@ -1253,7 +1253,7 @@ function ExtractEmployeesContent() {
                                           className={`px-3 py-1.5 font-bold text-sm transition-colors ${
                                             sel?.addDirect
                                               ? "bg-blue-500 text-white"
-                                              : "bg-white dark:bg-gray-800 text-gray-400"
+                                              : "bg-white dark:bg-gray-800 text-muted-foreground"
                                           }`}
                                         >
                                           Yes
@@ -1263,7 +1263,7 @@ function ExtractEmployeesContent() {
                                           className={`px-3 py-1.5 font-bold text-sm transition-colors ${
                                             !sel?.addDirect
                                               ? "bg-gray-400 text-white"
-                                              : "bg-white dark:bg-gray-800 text-gray-400"
+                                              : "bg-white dark:bg-gray-800 text-muted-foreground"
                                           }`}
                                         >
                                           No
@@ -1288,7 +1288,7 @@ function ExtractEmployeesContent() {
                                         className={`px-3 py-1.5 font-bold text-sm transition-colors ${
                                           sel?.addOfficeToCompany
                                             ? "bg-orange-500 text-white"
-                                            : "bg-white dark:bg-gray-800 text-gray-400"
+                                            : "bg-white dark:bg-gray-800 text-muted-foreground"
                                         }`}
                                       >
                                         Yes
@@ -1298,7 +1298,7 @@ function ExtractEmployeesContent() {
                                         className={`px-3 py-1.5 font-bold text-sm transition-colors ${
                                           !sel?.addOfficeToCompany
                                             ? "bg-gray-400 text-white"
-                                            : "bg-white dark:bg-gray-800 text-gray-400"
+                                            : "bg-white dark:bg-gray-800 text-muted-foreground"
                                         }`}
                                       >
                                         No
@@ -1339,7 +1339,7 @@ function ExtractEmployeesContent() {
                                         className={`px-3 py-1.5 font-bold text-sm transition-colors ${
                                           sel?.linkToDomainCompany
                                             ? "bg-green-500 text-white"
-                                            : "bg-white dark:bg-gray-800 text-gray-400"
+                                            : "bg-white dark:bg-gray-800 text-muted-foreground"
                                         }`}
                                       >
                                         Yes
@@ -1349,7 +1349,7 @@ function ExtractEmployeesContent() {
                                         className={`px-3 py-1.5 font-bold text-sm transition-colors ${
                                           !sel?.linkToDomainCompany
                                             ? "bg-gray-400 text-white"
-                                            : "bg-white dark:bg-gray-800 text-gray-400"
+                                            : "bg-white dark:bg-gray-800 text-muted-foreground"
                                         }`}
                                       >
                                         No
@@ -1423,7 +1423,7 @@ function ExtractEmployeesContent() {
                                             className={`px-3 py-1.5 font-bold text-sm transition-colors ${
                                               pc.id && sel?.parentCompanyLinks?.[pc.id]
                                                 ? "bg-green-500 text-white"
-                                                : "bg-white dark:bg-gray-800 text-gray-400"
+                                                : "bg-white dark:bg-gray-800 text-muted-foreground"
                                             }`}
                                           >
                                             Yes
@@ -1433,7 +1433,7 @@ function ExtractEmployeesContent() {
                                             className={`px-3 py-1.5 font-bold text-sm transition-colors ${
                                               pc.id && !sel?.parentCompanyLinks?.[pc.id]
                                                 ? "bg-gray-400 text-white"
-                                                : "bg-white dark:bg-gray-800 text-gray-400"
+                                                : "bg-white dark:bg-gray-800 text-muted-foreground"
                                             }`}
                                           >
                                             No

@@ -77,7 +77,7 @@ function getTimelineColor(eventType: string) {
     case "filing":
       return "bg-red-500";
     default:
-      return "bg-gray-500";
+      return "bg-muted0";
   }
 }
 

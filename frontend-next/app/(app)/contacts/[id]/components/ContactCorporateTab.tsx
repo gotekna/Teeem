@@ -400,7 +400,7 @@ function DirectorshipsTable({
               if (columnKey === "status") {
                 const status = entry.status as string;
                 return (
-                  <Badge className={status === "Current" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}>
+                  <Badge className={status === "Current" ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}>
                     {status}
                   </Badge>
                 );
@@ -461,7 +461,7 @@ function ShareholdingsTable({
               if (columnKey === "status") {
                 const status = entry.status as string;
                 return (
-                  <Badge className={status === "Current" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"}>
+                  <Badge className={status === "Current" ? "bg-blue-100 text-blue-700" : "bg-muted text-muted-foreground"}>
                     {status}
                   </Badge>
                 );
@@ -604,7 +604,7 @@ function TrustRolesTable({
             if (columnKey === "status") {
               const status = entry.status as string;
               return (
-                <Badge className={status === "Active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}>
+                <Badge className={status === "Active" ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}>
                   {status}
                 </Badge>
               );
@@ -660,13 +660,13 @@ function CompanyGroupsTable({
                   ? "bg-purple-100 text-purple-700"
                   : type === "shareholder"
                     ? "bg-amber-100 text-amber-700"
-                    : "bg-gray-100 text-gray-600";
+                    : "bg-muted text-muted-foreground";
                 return <Badge className={colorClass}>{type}</Badge>;
               }
               if (columnKey === "status") {
                 const status = entry.status as string;
                 return (
-                  <Badge className={status === "Active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}>
+                  <Badge className={status === "Active" ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}>
                     {status}
                   </Badge>
                 );

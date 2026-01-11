@@ -178,7 +178,7 @@ export default function RecipeDetailPage() {
   const statusColors: Record<string, string> = {
     draft: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
     active: "bg-green-500/10 text-green-500 border-green-500/20",
-    archived: "bg-gray-500/10 text-gray-500 border-gray-500/20",
+    archived: "bg-muted0/10 text-muted-foreground border-border/20",
   };
 
   const typeLabels: Record<string, string> = {

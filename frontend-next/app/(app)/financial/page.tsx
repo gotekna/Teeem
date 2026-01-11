@@ -480,14 +480,14 @@ function XeroSyncStatusCard({
     connected: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800",
     warning: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800",
     error: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800",
-    disconnected: "bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800",
+    disconnected: "bg-muted dark:bg-gray-900/30 text-foreground dark:text-muted-foreground border-border dark:border-border",
   };
 
   const statusIcon = {
     connected: <CheckCircle2 className="h-5 w-5 text-green-600" />,
     warning: <AlertTriangle className="h-5 w-5 text-yellow-600" />,
     error: <AlertCircle className="h-5 w-5 text-red-600" />,
-    disconnected: <AlertCircle className="h-5 w-5 text-gray-500" />,
+    disconnected: <AlertCircle className="h-5 w-5 text-muted-foreground" />,
   };
 
   return (
@@ -513,7 +513,7 @@ function XeroSyncStatusCard({
                     status.display_status === "connected" && "border-green-500 text-green-700",
                     status.display_status === "warning" && "border-yellow-500 text-yellow-700",
                     status.display_status === "error" && "border-red-500 text-red-700",
-                    status.display_status === "disconnected" && "border-gray-400 text-gray-600"
+                    status.display_status === "disconnected" && "border-border text-muted-foreground"
                   )}
                 >
                   {status.connected ? "Connected" : "Disconnected"}

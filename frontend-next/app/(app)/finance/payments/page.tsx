@@ -95,7 +95,7 @@ interface CorporateCompany {
 }
 
 const statusColors: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-700 dark:bg-gray-400/10 dark:text-gray-400",
+  draft: "bg-muted text-foreground dark:bg-gray-400/10 dark:text-muted-foreground",
   pending_approval: "bg-yellow-100 text-yellow-700 dark:bg-yellow-400/10 dark:text-yellow-500",
   approved: "bg-green-100 text-green-700 dark:bg-green-400/10 dark:text-green-400",
   submitted: "bg-blue-100 text-blue-700 dark:bg-blue-400/10 dark:text-blue-400",

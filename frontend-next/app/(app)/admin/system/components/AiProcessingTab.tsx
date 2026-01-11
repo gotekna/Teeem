@@ -461,7 +461,7 @@ export function AiProcessingTab() {
               logs.map((log) => {
                 const method = METHOD_LABELS[log.decision_method] || {
                   label: log.decision_method,
-                  color: "bg-gray-500/10 text-gray-700 dark:text-gray-400",
+                  color: "bg-muted0/10 text-foreground dark:text-muted-foreground",
                 };
 
                 return (

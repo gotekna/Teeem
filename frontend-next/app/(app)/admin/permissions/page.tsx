@@ -197,11 +197,11 @@ export default function PermissionsPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+        <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
           <ShieldCheckIcon className="h-8 w-8 text-blue-600" />
           User Permissions
         </h1>
-        <p className="text-gray-600 mt-2">
+        <p className="text-muted-foreground mt-2">
           Manage user permissions and access control
         </p>
       </div>
@@ -209,15 +209,15 @@ export default function PermissionsPage() {
       <div className="grid grid-cols-12 gap-6">
         {/* User List */}
         <div className="col-span-4 bg-white rounded-lg shadow">
-          <div className="p-4 border-b border-gray-200">
+          <div className="p-4 border-b border-border">
             <div className="relative">
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
               <input
                 type="text"
                 placeholder="Search users..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -227,7 +227,7 @@ export default function PermissionsPage() {
               <button
                 key={user.id}
                 onClick={() => setSelectedUser(user)}
-                className={`w-full p-4 text-left hover:bg-gray-50 transition-colors ${
+                className={`w-full p-4 text-left hover:bg-muted transition-colors ${
                   selectedUser?.id === user.id
                     ? "bg-blue-50 border-l-4 border-blue-600"
                     : ""
@@ -235,9 +235,9 @@ export default function PermissionsPage() {
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900">{user.name}</h3>
-                    <p className="text-sm text-gray-600">{user.email}</p>
-                    <span className="inline-block mt-2 px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded">
+                    <h3 className="font-semibold text-foreground">{user.name}</h3>
+                    <p className="text-sm text-muted-foreground">{user.email}</p>
+                    <span className="inline-block mt-2 px-2 py-1 text-xs font-medium bg-muted text-foreground rounded">
                       {user.role}
                     </span>
                   </div>
@@ -253,17 +253,17 @@ export default function PermissionsPage() {
         {/* Permissions Panel */}
         <div className="col-span-8 bg-white rounded-lg shadow">
           {!selectedUser ? (
-            <div className="p-12 text-center text-gray-500">
-              <UserGroupIcon className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+            <div className="p-12 text-center text-muted-foreground">
+              <UserGroupIcon className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
               <p className="text-lg">Select a user to manage their permissions</p>
             </div>
           ) : (
             <div>
-              <div className="p-6 border-b border-gray-200 bg-gray-50">
-                <h2 className="text-xl font-bold text-gray-900">
+              <div className="p-6 border-b border-border bg-muted">
+                <h2 className="text-xl font-bold text-foreground">
                   {selectedUser.name}
                 </h2>
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="text-sm text-muted-foreground mt-1">
                   {selectedUser.email}
                 </p>
                 <div className="mt-3">
@@ -281,19 +281,19 @@ export default function PermissionsPage() {
                   <div className="space-y-1 text-sm">
                     <div className="flex items-center gap-2">
                       <div className="w-4 h-4 bg-green-500 rounded"></div>
-                      <span className="text-gray-700">
+                      <span className="text-foreground">
                         Permission granted (from role or user override)
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-4 h-4 bg-gray-300 rounded"></div>
-                      <span className="text-gray-700">
+                      <span className="text-foreground">
                         Permission not granted
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-4 h-4 bg-blue-500 rounded"></div>
-                      <span className="text-gray-700">
+                      <span className="text-foreground">
                         User override (custom permission)
                       </span>
                     </div>
@@ -302,7 +302,7 @@ export default function PermissionsPage() {
 
                 {Object.entries(permissions).map(([category, perms]) => (
                   <div key={category} className="mb-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-3 pb-2 border-b border-gray-200">
+                    <h3 className="text-lg font-semibold text-foreground mb-3 pb-2 border-b border-border">
                       {categories[category] || category}
                     </h3>
                     <div className="space-y-2">
@@ -317,7 +317,7 @@ export default function PermissionsPage() {
                             className={`flex items-start gap-3 p-3 rounded-lg border ${
                               granted
                                 ? "bg-green-50 border-green-200"
-                                : "bg-gray-50 border-gray-200"
+                                : "bg-muted border-border"
                             } ${isOverride ? "ring-2 ring-blue-400" : ""}`}
                           >
                             <button
@@ -330,7 +330,7 @@ export default function PermissionsPage() {
                                   ? isOverride
                                     ? "bg-blue-600 border-blue-600"
                                     : "bg-green-600 border-green-600"
-                                  : "bg-white border-gray-300 hover:border-gray-400"
+                                  : "bg-white border-border hover:border-border"
                               } ${
                                 updatingPermission === perm.name
                                   ? "opacity-50 cursor-wait"
@@ -344,11 +344,11 @@ export default function PermissionsPage() {
 
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
-                                <h4 className="font-medium text-gray-900">
+                                <h4 className="font-medium text-foreground">
                                   {perm.name}
                                 </h4>
                                 {fromRole && !isOverride && (
-                                  <span className="text-xs px-2 py-0.5 bg-gray-200 text-gray-700 rounded">
+                                  <span className="text-xs px-2 py-0.5 bg-muted text-foreground rounded">
                                     from role
                                   </span>
                                 )}
@@ -358,7 +358,7 @@ export default function PermissionsPage() {
                                   </span>
                                 )}
                               </div>
-                              <p className="text-sm text-gray-600 mt-1">
+                              <p className="text-sm text-muted-foreground mt-1">
                                 {perm.description}
                               </p>
                             </div>

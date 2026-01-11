@@ -115,7 +115,7 @@ interface ScheduleTemplate {
 }
 
 const taskStatusColors: Record<string, string> = {
-  pending: "bg-gray-100 text-gray-700 dark:bg-gray-400/10 dark:text-gray-400",
+  pending: "bg-muted text-foreground dark:bg-gray-400/10 dark:text-muted-foreground",
   in_progress: "bg-blue-100 text-blue-700 dark:bg-blue-400/10 dark:text-blue-400",
   completed: "bg-green-100 text-green-700 dark:bg-green-400/10 dark:text-green-400",
   blocked: "bg-red-100 text-red-700 dark:bg-red-400/10 dark:text-red-400",
@@ -630,7 +630,7 @@ export default function ScheduleMasterPage() {
                       </div>
                     </div>
 
-                    <Badge className="bg-gray-100 text-gray-700 dark:bg-gray-400/10 dark:text-gray-400">
+                    <Badge className="bg-muted text-foreground dark:bg-gray-400/10 dark:text-muted-foreground">
                       {template.job_type}
                     </Badge>
 

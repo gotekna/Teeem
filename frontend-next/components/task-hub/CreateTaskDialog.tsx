@@ -605,7 +605,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
               {/* Right Column - Attachments */}
               <div className="space-y-2">
                 <Label>Attachments</Label>
-                <div className="border rounded-lg p-4 dark:border-gray-700">
+                <div className="border rounded-lg p-4 dark:border-border">
                   <AttachmentPicker
                     attachments={pendingAttachments}
                     onAdd={(attachment) => setPendingAttachments([...pendingAttachments, attachment])}

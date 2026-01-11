@@ -284,7 +284,7 @@ export function TriggersPanel({ processId }: TriggersPanelProps) {
 
   if (!processId) {
     return (
-      <div className="text-center text-sm text-slate-500">
+      <div className="text-center text-sm text-muted-foreground">
         Save the workflow first to add triggers
       </div>
     );
@@ -294,7 +294,7 @@ export function TriggersPanel({ processId }: TriggersPanelProps) {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">
+        <h3 className="text-sm font-medium text-foreground dark:text-muted-foreground">
           Triggers
         </h3>
         <Button size="sm" onClick={handleAddTrigger}>
@@ -306,16 +306,16 @@ export function TriggersPanel({ processId }: TriggersPanelProps) {
       {/* Loading state */}
       {loading && (
         <div className="flex items-center justify-center py-8">
-          <Spinner size={24} className="text-slate-400" />
+          <Spinner size={24} className="text-muted-foreground" />
         </div>
       )}
 
       {/* Empty state */}
       {!loading && triggers.length === 0 && (
-        <div className="rounded-lg border border-dashed border-slate-300 p-6 text-center dark:border-slate-700">
-          <Zap className="mx-auto mb-2 h-8 w-8 text-slate-400" />
-          <p className="text-sm text-slate-500">No triggers configured</p>
-          <p className="mt-1 text-xs text-slate-400">
+        <div className="rounded-lg border border-dashed border-border p-6 text-center dark:border-border">
+          <Zap className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">No triggers configured</p>
+          <p className="mt-1 text-xs text-muted-foreground">
             Add a trigger to start this workflow automatically
           </p>
         </div>
@@ -332,8 +332,8 @@ export function TriggersPanel({ processId }: TriggersPanelProps) {
                 className={cn(
                   "flex items-center gap-3 rounded-lg border p-3 transition-colors",
                   trigger.is_active
-                    ? "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800"
-                    : "border-slate-200 bg-slate-50 opacity-60 dark:border-slate-700 dark:bg-slate-900"
+                    ? "border-border bg-white dark:border-border dark:bg-slate-800"
+                    : "border-border bg-muted opacity-60 dark:border-border dark:bg-slate-900"
                 )}
               >
                 <div
@@ -341,17 +341,17 @@ export function TriggersPanel({ processId }: TriggersPanelProps) {
                     "flex h-8 w-8 items-center justify-center rounded-full",
                     trigger.is_active
                       ? "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
-                      : "bg-slate-100 text-slate-400 dark:bg-slate-800"
+                      : "bg-muted text-muted-foreground dark:bg-slate-800"
                   )}
                 >
                   <Icon className="h-4 w-4" />
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-slate-700 dark:text-slate-200">
+                  <p className="truncate text-sm font-medium text-foreground dark:text-muted-foreground">
                     {trigger.name}
                   </p>
-                  <p className="truncate text-xs text-slate-500">
+                  <p className="truncate text-xs text-muted-foreground">
                     {trigger.description || trigger.trigger_type}
                   </p>
                 </div>
@@ -440,7 +440,7 @@ export function TriggersPanel({ processId }: TriggersPanelProps) {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted-foreground">
                 {TRIGGER_TYPES.find((t) => t.value === formData.trigger_type)?.description}
               </p>
             </div>
@@ -481,7 +481,7 @@ export function TriggersPanel({ processId }: TriggersPanelProps) {
                     onChange={(e) => updateConfig("to_values", e.target.value.split(",").map(s => s.trim()))}
                     placeholder="e.g., approved, confirmed"
                   />
-                  <p className="text-xs text-slate-500">Comma-separated values</p>
+                  <p className="text-xs text-muted-foreground">Comma-separated values</p>
                 </div>
               </>
             )}
@@ -526,7 +526,7 @@ export function TriggersPanel({ processId }: TriggersPanelProps) {
                     onChange={(e) => updateConfig("cron", e.target.value)}
                     placeholder="e.g., 0 9 * * 1-5"
                   />
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-muted-foreground">
                     Example: 0 9 * * 1-5 = 9am weekdays
                   </p>
                 </div>

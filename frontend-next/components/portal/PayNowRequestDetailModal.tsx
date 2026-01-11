@@ -67,7 +67,7 @@ export default function PayNowRequestDetailModal({
       case "cancelled":
         return <XCircleIcon className="h-6 w-6 text-red-500" />;
       default:
-        return <ClockIcon className="h-6 w-6 text-gray-500" />;
+        return <ClockIcon className="h-6 w-6 text-muted-foreground" />;
     }
   };
 
@@ -77,9 +77,9 @@ export default function PayNowRequestDetailModal({
       approved: "bg-green-100 text-green-800",
       paid: "bg-blue-100 text-blue-800",
       rejected: "bg-red-100 text-red-800",
-      cancelled: "bg-gray-100 text-gray-800",
+      cancelled: "bg-muted text-foreground",
     };
-    return classes[status] || "bg-gray-100 text-gray-800";
+    return classes[status] || "bg-muted text-foreground";
   };
 
   const formatDate = (dateString: string): string => {
@@ -118,7 +118,7 @@ export default function PayNowRequestDetailModal({
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
+          <div className="fixed inset-0 bg-muted0 bg-opacity-75 transition-opacity" />
         </Transition.Child>
 
         <div className="fixed inset-0 z-10 overflow-y-auto">
@@ -137,7 +137,7 @@ export default function PayNowRequestDetailModal({
                 <div className="absolute right-0 top-0 pr-4 pt-4">
                   <button
                     type="button"
-                    className="rounded-md bg-white text-gray-400 hover:text-gray-500"
+                    className="rounded-md bg-white text-muted-foreground hover:text-muted-foreground"
                     onClick={onClose}
                   >
                     <XMarkIcon className="h-6 w-6" />
@@ -152,7 +152,7 @@ export default function PayNowRequestDetailModal({
                   <div className="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left flex-1">
                     <Dialog.Title
                       as="h3"
-                      className="text-lg font-semibold leading-6 text-gray-900"
+                      className="text-lg font-semibold leading-6 text-foreground"
                     >
                       Payment Request Details
                     </Dialog.Title>
@@ -171,21 +171,21 @@ export default function PayNowRequestDetailModal({
                 {/* Content */}
                 <div className="mt-6 space-y-6">
                   {/* Purchase Order Info */}
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <h4 className="text-sm font-medium text-gray-900 mb-3">
+                  <div className="bg-muted rounded-lg p-4">
+                    <h4 className="text-sm font-medium text-foreground mb-3">
                       Purchase Order
                     </h4>
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
-                        <span className="text-gray-600">PO Number:</span>
-                        <span className="font-medium text-gray-900">
+                        <span className="text-muted-foreground">PO Number:</span>
+                        <span className="font-medium text-foreground">
                           {request.purchase_order_number}
                         </span>
                       </div>
                       {request.purchase_order?.construction_name && (
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Job:</span>
-                          <span className="font-medium text-gray-900">
+                          <span className="text-muted-foreground">Job:</span>
+                          <span className="font-medium text-foreground">
                             {request.purchase_order.construction_name}
                           </span>
                         </div>
@@ -202,7 +202,7 @@ export default function PayNowRequestDetailModal({
                     <div className="grid grid-cols-3 gap-4">
                       <div>
                         <p className="text-xs text-indigo-600">Original Amount</p>
-                        <p className="text-lg font-semibold text-gray-900">
+                        <p className="text-lg font-semibold text-foreground">
                           {request.original_amount}
                         </p>
                       </div>
@@ -231,7 +231,7 @@ export default function PayNowRequestDetailModal({
 
                   {/* Timeline */}
                   <div>
-                    <h4 className="text-sm font-medium text-gray-900 mb-3 flex items-center">
+                    <h4 className="text-sm font-medium text-foreground mb-3 flex items-center">
                       <CalendarIcon className="h-5 w-5 mr-2" />
                       Timeline
                     </h4>
@@ -241,7 +241,7 @@ export default function PayNowRequestDetailModal({
                         <li>
                           <div className="relative pb-8">
                             <span
-                              className="absolute left-4 top-4 -ml-px h-full w-0.5 bg-gray-200"
+                              className="absolute left-4 top-4 -ml-px h-full w-0.5 bg-muted"
                               aria-hidden="true"
                             />
                             <div className="relative flex space-x-3">
@@ -252,11 +252,11 @@ export default function PayNowRequestDetailModal({
                               </div>
                               <div className="flex min-w-0 flex-1 justify-between space-x-4 pt-1.5">
                                 <div>
-                                  <p className="text-sm text-gray-500">
+                                  <p className="text-sm text-muted-foreground">
                                     Request Submitted
                                   </p>
                                 </div>
-                                <div className="whitespace-nowrap text-right text-sm text-gray-500">
+                                <div className="whitespace-nowrap text-right text-sm text-muted-foreground">
                                   {formatDate(request.requested_at)}
                                 </div>
                               </div>
@@ -269,7 +269,7 @@ export default function PayNowRequestDetailModal({
                           <li>
                             <div className="relative pb-8">
                               <span
-                                className="absolute left-4 top-4 -ml-px h-full w-0.5 bg-gray-200"
+                                className="absolute left-4 top-4 -ml-px h-full w-0.5 bg-muted"
                                 aria-hidden="true"
                               />
                               <div className="relative flex space-x-3">
@@ -290,19 +290,19 @@ export default function PayNowRequestDetailModal({
                                 </div>
                                 <div className="flex min-w-0 flex-1 justify-between space-x-4 pt-1.5">
                                   <div>
-                                    <p className="text-sm text-gray-500">
+                                    <p className="text-sm text-muted-foreground">
                                       {request.status === "rejected"
                                         ? "Rejected"
                                         : "Approved"}{" "}
                                       by {request.reviewed_by || "Supervisor"}
                                     </p>
                                     {request.supervisor_notes && (
-                                      <p className="mt-1 text-sm text-gray-700">
+                                      <p className="mt-1 text-sm text-foreground">
                                         {request.supervisor_notes}
                                       </p>
                                     )}
                                   </div>
-                                  <div className="whitespace-nowrap text-right text-sm text-gray-500">
+                                  <div className="whitespace-nowrap text-right text-sm text-muted-foreground">
                                     {formatDate(request.reviewed_at)}
                                   </div>
                                 </div>
@@ -323,16 +323,16 @@ export default function PayNowRequestDetailModal({
                                 </div>
                                 <div className="flex min-w-0 flex-1 justify-between space-x-4 pt-1.5">
                                   <div>
-                                    <p className="text-sm text-gray-500">
+                                    <p className="text-sm text-muted-foreground">
                                       Payment Processed
                                     </p>
                                     {request.payment?.reference_number && (
-                                      <p className="mt-1 text-xs text-gray-600">
+                                      <p className="mt-1 text-xs text-muted-foreground">
                                         Ref: {request.payment.reference_number}
                                       </p>
                                     )}
                                   </div>
-                                  <div className="whitespace-nowrap text-right text-sm text-gray-500">
+                                  <div className="whitespace-nowrap text-right text-sm text-muted-foreground">
                                     {formatDate(request.paid_at)}
                                   </div>
                                 </div>
@@ -358,12 +358,12 @@ export default function PayNowRequestDetailModal({
 
                   {/* Supplier Notes */}
                   {request.supplier_notes && (
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <h4 className="text-sm font-medium text-gray-900 mb-2 flex items-center">
+                    <div className="bg-muted rounded-lg p-4">
+                      <h4 className="text-sm font-medium text-foreground mb-2 flex items-center">
                         <DocumentTextIcon className="h-5 w-5 mr-2" />
                         Your Notes
                       </h4>
-                      <p className="text-sm text-gray-700">
+                      <p className="text-sm text-foreground">
                         {request.supplier_notes}
                       </p>
                     </div>
@@ -373,14 +373,14 @@ export default function PayNowRequestDetailModal({
                   {(request.invoice_file_url ||
                     (request.proof_photos && request.proof_photos.length > 0)) && (
                     <div>
-                      <h4 className="text-sm font-medium text-gray-900 mb-3 flex items-center">
+                      <h4 className="text-sm font-medium text-foreground mb-3 flex items-center">
                         <PhotoIcon className="h-5 w-5 mr-2" />
                         Attachments
                       </h4>
 
                       {request.invoice_file_url && (
                         <div className="mb-3">
-                          <p className="text-xs text-gray-500 mb-1">Invoice File</p>
+                          <p className="text-xs text-muted-foreground mb-1">Invoice File</p>
                           <a
                             href={request.invoice_file_url}
                             target="_blank"
@@ -395,7 +395,7 @@ export default function PayNowRequestDetailModal({
 
                       {request.proof_photos && request.proof_photos.length > 0 && (
                         <div>
-                          <p className="text-xs text-gray-500 mb-2">
+                          <p className="text-xs text-muted-foreground mb-2">
                             Proof of Completion ({request.proof_photos.length} photos)
                           </p>
                           <div className="grid grid-cols-4 gap-2">
@@ -405,7 +405,7 @@ export default function PayNowRequestDetailModal({
                                 href={photo}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="aspect-square rounded-lg overflow-hidden bg-gray-100 hover:opacity-75 transition"
+                                className="aspect-square rounded-lg overflow-hidden bg-muted hover:opacity-75 transition"
                               >
                                 <img
                                   src={photo}

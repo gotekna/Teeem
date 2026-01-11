@@ -1202,11 +1202,11 @@ export default function ScheduleTemplateDetailPage() {
                   </p>
                   <p className="text-xs text-amber-700 dark:text-amber-300">Will Skip</p>
                 </div>
-                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-2 text-center">
-                  <p className="text-xl font-bold text-gray-600 dark:text-gray-400">
+                <div className="bg-muted dark:bg-gray-900 rounded-lg p-2 text-center">
+                  <p className="text-xl font-bold text-muted-foreground dark:text-muted-foreground">
                     {compareResult.summary.unchanged}
                   </p>
-                  <p className="text-xs text-gray-700 dark:text-gray-300">Unchanged</p>
+                  <p className="text-xs text-foreground dark:text-muted-foreground">Unchanged</p>
                 </div>
               </div>
 
@@ -1264,7 +1264,7 @@ export default function ScheduleTemplateDetailPage() {
                               comp.status === "will_create" ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" :
                               comp.status === "will_update" ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300" :
                               comp.status === "will_skip" ? "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300" :
-                              "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                              "bg-muted text-muted-foreground dark:bg-gray-800 dark:text-muted-foreground"
                             }
                           >
                             {comp.status === "will_create" && "Create"}
@@ -1351,11 +1351,11 @@ export default function ScheduleTemplateDetailPage() {
                     </p>
                     <p className="text-xs text-amber-700 dark:text-amber-300">Skipped</p>
                   </div>
-                  <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 text-center">
-                    <p className="text-2xl font-bold text-gray-600 dark:text-gray-400">
+                  <div className="bg-muted dark:bg-gray-900 rounded-lg p-3 text-center">
+                    <p className="text-2xl font-bold text-muted-foreground dark:text-muted-foreground">
                       {syncResult.summary.unchanged}
                     </p>
-                    <p className="text-xs text-gray-700 dark:text-gray-300">Unchanged</p>
+                    <p className="text-xs text-foreground dark:text-muted-foreground">Unchanged</p>
                   </div>
                 </div>
 

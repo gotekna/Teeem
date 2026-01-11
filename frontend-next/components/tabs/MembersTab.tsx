@@ -113,7 +113,7 @@ export function MembersTab({ company, companyId }: MembersTabProps) {
                   <TableCell className="px-4 py-3">
                     <Badge className={member.status === "active"
                       ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                      : "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300"
+                      : "bg-muted text-foreground dark:bg-gray-900/30 dark:text-muted-foreground"
                     }>
                       {member.status || "Active"}
                     </Badge>

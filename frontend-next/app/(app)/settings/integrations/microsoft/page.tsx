@@ -214,7 +214,7 @@ function SharePointDelegatedConnection() {
           </div>
           <Badge className={status?.connected && isDelegated
             ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
-            : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300"}>
+            : "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground"}>
             {status?.connected && isDelegated ? (
               <>
                 <CheckCircle2 className="h-3 w-3 mr-1" />
@@ -462,7 +462,7 @@ export default function MicrosoftIntegrationPage() {
                 </CardDescription>
               </div>
             </div>
-            <Badge className={connectedCount > 0 ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300" : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300"}>
+            <Badge className={connectedCount > 0 ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300" : "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground"}>
               {connectedCount}/{AVAILABLE_ORGANIZATIONS.length} Connected
             </Badge>
           </div>
@@ -477,14 +477,14 @@ export default function MicrosoftIntegrationPage() {
             healthData.overall_status === "healthy" ? "border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-950/30" :
             healthData.overall_status === "warning" ? "border-yellow-200 bg-yellow-50/50 dark:border-yellow-800 dark:bg-yellow-950/30" :
             healthData.overall_status === "critical" ? "border-red-200 bg-red-50/50 dark:border-red-800 dark:bg-red-950/30" :
-            "border-gray-200 bg-gray-50/50 dark:border-gray-800 dark:bg-gray-950/30"
+            "border-border bg-muted/50 dark:border-border dark:bg-gray-950/30"
           }`}>
             <div className="flex items-center gap-2 mb-2">
               <Heart className={`h-4 w-4 ${
                 healthData.overall_status === "healthy" ? "text-green-600 dark:text-green-400" :
                 healthData.overall_status === "warning" ? "text-yellow-600 dark:text-yellow-400" :
                 healthData.overall_status === "critical" ? "text-red-600 dark:text-red-400" :
-                "text-gray-400"
+                "text-muted-foreground"
               }`} />
               <span className="text-xs text-muted-foreground font-medium">Overall Status</span>
             </div>
@@ -492,7 +492,7 @@ export default function MicrosoftIntegrationPage() {
               healthData.overall_status === "healthy" ? "text-green-700 dark:text-green-300" :
               healthData.overall_status === "warning" ? "text-yellow-700 dark:text-yellow-300" :
               healthData.overall_status === "critical" ? "text-red-700 dark:text-red-300" :
-              "text-gray-600 dark:text-gray-400"
+              "text-muted-foreground dark:text-muted-foreground"
             }`}>
               {healthData.overall_status === "healthy" ? "Healthy" :
                healthData.overall_status === "warning" ? "Warning" :
@@ -516,20 +516,20 @@ export default function MicrosoftIntegrationPage() {
           <Card className={`p-4 ${
             healthData.needs_attention_count > 0
               ? "border-red-200 bg-red-50/50 dark:border-red-800 dark:bg-red-950/30"
-              : "border-gray-200 bg-gray-50/50 dark:border-gray-800 dark:bg-gray-950/30"
+              : "border-border bg-muted/50 dark:border-border dark:bg-gray-950/30"
           }`}>
             <div className="flex items-center gap-2 mb-2">
               <AlertTriangle className={`h-4 w-4 ${
                 healthData.needs_attention_count > 0
                   ? "text-red-600 dark:text-red-400"
-                  : "text-gray-400"
+                  : "text-muted-foreground"
               }`} />
               <span className="text-xs text-muted-foreground font-medium">Needs Attention</span>
             </div>
             <div className={`text-lg font-semibold ${
               healthData.needs_attention_count > 0
                 ? "text-red-700 dark:text-red-300"
-                : "text-gray-600 dark:text-gray-400"
+                : "text-muted-foreground dark:text-muted-foreground"
             }`}>
               {healthData.needs_attention_count} credential{healthData.needs_attention_count !== 1 ? "s" : ""}
             </div>
@@ -604,11 +604,11 @@ export default function MicrosoftIntegrationPage() {
               <CardHeader className="py-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${isThisOneConnecting ? "bg-blue-100 dark:bg-blue-900" : "bg-gray-100 dark:bg-gray-800"}`}>
+                    <div className={`p-2 rounded-lg ${isThisOneConnecting ? "bg-blue-100 dark:bg-blue-900" : "bg-muted dark:bg-gray-800"}`}>
                       {isThisOneConnecting ? (
                         <Spinner size={20} className="text-blue-500" />
                       ) : (
-                        <Building2 className="h-5 w-5 text-gray-400" />
+                        <Building2 className="h-5 w-5 text-muted-foreground" />
                       )}
                     </div>
                     <div>
@@ -944,7 +944,7 @@ function OrganizationCard({
                     <div className="mt-3 pt-3 border-t flex items-center justify-between text-xs">
                       <div className="flex items-center gap-4">
                         <span className="text-muted-foreground">
-                          Self-Healing: <span className={healthInfo.self_healing_available ? "text-green-600 dark:text-green-400" : "text-gray-400"}>
+                          Self-Healing: <span className={healthInfo.self_healing_available ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}>
                             {healthInfo.self_healing_available ? "Enabled" : "Disabled"}
                           </span>
                         </span>

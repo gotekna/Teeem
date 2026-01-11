@@ -476,14 +476,14 @@ export default function PersonStructureChart({
 
   if (ownershipChain.length === 0 && directorRoles.length === 0) {
     return (
-      <div className={`w-full ${fullscreen ? "h-full" : "h-[200px]"} border rounded-lg bg-gray-50 dark:bg-gray-900 flex items-center justify-center text-muted-foreground`}>
+      <div className={`w-full ${fullscreen ? "h-full" : "h-[200px]"} border rounded-lg bg-muted dark:bg-gray-900 flex items-center justify-center text-muted-foreground`}>
         No ownership or director data available
       </div>
     );
   }
 
   return (
-    <div className={`w-full ${fullscreen ? "h-full" : ""} ${fullscreen ? "" : "border rounded-lg"} bg-gray-50 dark:bg-gray-900 overflow-hidden`}>
+    <div className={`w-full ${fullscreen ? "h-full" : ""} ${fullscreen ? "" : "border rounded-lg"} bg-muted dark:bg-gray-900 overflow-hidden`}>
       <ReactFlowProvider>
         <ChartWithControls
           nodes={nodes}

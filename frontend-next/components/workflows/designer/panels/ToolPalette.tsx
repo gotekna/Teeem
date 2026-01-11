@@ -58,7 +58,7 @@ export function ToolPalette({
 
   return (
     <div className="mb-4 border-b pb-4">
-      <h3 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-300">
+      <h3 className="mb-3 text-sm font-semibold text-foreground dark:text-muted-foreground">
         Tools
       </h3>
       <div className="flex flex-wrap gap-1">
@@ -86,7 +86,7 @@ export function ToolPalette({
           </Tooltip>
         ))}
 
-        <div className="mx-1 h-9 w-px bg-slate-200 dark:bg-slate-700" />
+        <div className="mx-1 h-9 w-px bg-muted dark:bg-slate-700" />
 
         <Tooltip>
           <TooltipTrigger asChild>
@@ -123,7 +123,7 @@ export function ToolPalette({
         </Tooltip>
       </div>
       {selectedNodeIds.length > 0 && (
-        <p className="mt-2 text-xs text-slate-500">
+        <p className="mt-2 text-xs text-muted-foreground">
           {selectedNodeIds.length} node{selectedNodeIds.length !== 1 ? "s" : ""}{" "}
           selected
         </p>

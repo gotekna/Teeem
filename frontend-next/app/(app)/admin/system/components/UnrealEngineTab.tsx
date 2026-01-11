@@ -270,7 +270,7 @@ export function UnrealEngineTab() {
               <span>{inProgressCount} In Progress</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <Circle className="h-4 w-4 text-gray-400" />
+              <Circle className="h-4 w-4 text-muted-foreground" />
               <span>{plannedCount} Planned</span>
             </div>
           </div>
@@ -308,7 +308,7 @@ export function UnrealEngineTab() {
                               ? "text-green-500"
                               : feature.status === "in-progress"
                               ? "text-yellow-500"
-                              : "text-gray-400"
+                              : "text-muted-foreground"
                           }`}
                         />
                         <div className="flex-1 min-w-0">
@@ -324,7 +324,7 @@ export function UnrealEngineTab() {
                               ? "border-green-500 text-green-600"
                               : feature.status === "in-progress"
                               ? "border-yellow-500 text-yellow-600"
-                              : "border-gray-400 text-gray-500"
+                              : "border-border text-muted-foreground"
                           }`}
                         >
                           {STATUS_CONFIG[feature.status].label}

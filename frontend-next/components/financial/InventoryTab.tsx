@@ -366,7 +366,7 @@ export default function InventoryTab() {
     switch (status) {
       case "draft":
         return (
-          <Badge variant="outline" className="text-gray-600">
+          <Badge variant="outline" className="text-muted-foreground">
             <Clock className="h-3 w-3 mr-1" />
             Draft
           </Badge>

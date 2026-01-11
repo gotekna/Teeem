@@ -226,9 +226,9 @@ export function XeroHealthTab() {
       case "error":
         return <XCircle className="h-5 w-5 text-red-500" />;
       case "disconnected":
-        return <XCircle className="h-5 w-5 text-gray-500" />;
+        return <XCircle className="h-5 w-5 text-muted-foreground" />;
       default:
-        return <Activity className="h-5 w-5 text-gray-500" />;
+        return <Activity className="h-5 w-5 text-muted-foreground" />;
     }
   };
 
@@ -305,7 +305,7 @@ export function XeroHealthTab() {
                 dashboard?.overall_status === "connected" && "text-green-500",
                 dashboard?.overall_status === "warning" && "text-orange-500",
                 dashboard?.overall_status === "error" && "text-red-500",
-                dashboard?.overall_status === "disconnected" && "text-gray-400"
+                dashboard?.overall_status === "disconnected" && "text-muted-foreground"
               )} />
             </div>
           </CardContent>
@@ -332,7 +332,7 @@ export function XeroHealthTab() {
               </div>
               <AlertTriangle className={cn(
                 "h-10 w-10",
-                (dashboard?.needs_attention_count || 0) > 0 ? "text-orange-500" : "text-gray-300"
+                (dashboard?.needs_attention_count || 0) > 0 ? "text-orange-500" : "text-muted-foreground"
               )} />
             </div>
           </CardContent>
@@ -414,7 +414,7 @@ export function XeroHealthTab() {
                   <div>
                     <p className="font-medium">{cred.tenant_name}</p>
                     <div className="flex items-center gap-2 mt-1">
-                      <div className="w-32 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                      <div className="w-32 h-2 bg-muted dark:bg-gray-700 rounded-full overflow-hidden">
                         <div
                           className={cn(
                             "h-full rounded-full transition-all",
@@ -580,7 +580,7 @@ export function XeroHealthTab() {
             <div className="p-4 rounded-lg bg-muted">
               <p className="text-sm text-muted-foreground">Progress</p>
               <div className="flex items-center gap-2">
-                <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div className="flex-1 h-2 bg-muted dark:bg-gray-700 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-blue-500 rounded-full transition-all"
                     style={{ width: `${bankStatementProgress?.overall.percent || 0}%` }}
@@ -636,7 +636,7 @@ export function XeroHealthTab() {
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="flex items-center gap-2">
-                        <div className="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                        <div className="w-24 h-2 bg-muted dark:bg-gray-700 rounded-full overflow-hidden">
                           <div
                             className={cn(
                               "h-full rounded-full transition-all",

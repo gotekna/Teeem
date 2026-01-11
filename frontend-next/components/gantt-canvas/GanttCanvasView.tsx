@@ -2938,35 +2938,35 @@ export function GanttCanvasView({
                 <div className="grid gap-2 text-sm">
                   {/* Checkbox-based colors in priority order */}
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-3 rounded border border-gray-300" style={{ backgroundColor: 'rgba(31, 41, 55, 0.3)' }} />
+                    <div className="w-4 h-3 rounded border border-border" style={{ backgroundColor: 'rgba(31, 41, 55, 0.3)' }} />
                     <div className="flex items-center gap-1.5">
                       <Check className="h-3 w-3 text-muted-foreground" />
                       <span className="text-muted-foreground">Done checked</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-3 rounded border border-gray-300" style={{ backgroundColor: 'rgba(168, 85, 247, 0.2)' }} />
+                    <div className="w-4 h-3 rounded border border-border" style={{ backgroundColor: 'rgba(168, 85, 247, 0.2)' }} />
                     <div className="flex items-center gap-1.5">
                       <Check className="h-3 w-3 text-muted-foreground" />
                       <span className="text-muted-foreground">S✓ (Supplier Confirm) checked</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-3 rounded border border-gray-300" style={{ backgroundColor: 'rgba(249, 115, 22, 0.25)' }} />
+                    <div className="w-4 h-3 rounded border border-border" style={{ backgroundColor: 'rgba(249, 115, 22, 0.25)' }} />
                     <div className="flex items-center gap-1.5">
                       <Check className="h-3 w-3 text-muted-foreground" />
                       <span className="text-muted-foreground">✓ (Confirm) checked - orange</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-3 rounded border border-gray-300" style={{ backgroundColor: 'rgba(212, 165, 116, 0.3)' }} />
+                    <div className="w-4 h-3 rounded border border-border" style={{ backgroundColor: 'rgba(212, 165, 116, 0.3)' }} />
                     <div className="flex items-center gap-1.5">
                       <Check className="h-3 w-3 text-muted-foreground" />
                       <span className="text-muted-foreground">Hold checked (tan)</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-3 rounded border border-gray-300" style={{ backgroundColor: 'rgba(16, 185, 129, 0.25)' }} />
+                    <div className="w-4 h-3 rounded border border-border" style={{ backgroundColor: 'rgba(16, 185, 129, 0.25)' }} />
                     <div className="flex items-center gap-1.5">
                       <Check className="h-3 w-3 text-muted-foreground" />
                       <span className="text-muted-foreground">▶ Started checked - green</span>
@@ -3361,7 +3361,7 @@ export function GanttCanvasView({
                                 e.stopPropagation();
                                 handleConfirmToggle(task, !isConfirmed);
                               }}
-                              className="h-3.5 w-3.5 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer"
+                              className="h-3.5 w-3.5 rounded border-border text-green-600 focus:ring-green-500 cursor-pointer"
                               title={isConfirmed ? 'Supervisor check required - click to disable' : 'Click to require supervisor check'}
                             />
                           </div>
@@ -3381,7 +3381,7 @@ export function GanttCanvasView({
                                 e.stopPropagation();
                                 handleSupplierConfirmToggle(task, !isSupplierConfirmed);
                               }}
-                              className="h-3.5 w-3.5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                              className="h-3.5 w-3.5 rounded border-border text-purple-600 focus:ring-purple-500 cursor-pointer"
                               title={isSupplierConfirmed ? 'Supplier confirm required - click to disable' : 'Click to require supplier confirm'}
                             />
                           </div>
@@ -3470,7 +3470,7 @@ export function GanttCanvasView({
                                 // TODO: Add started toggle handler
                                 console.log('Started checkbox toggled:', !isStarted, 'for task:', task.id);
                               }}
-                              className="h-3.5 w-3.5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                              className="h-3.5 w-3.5 rounded border-border text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                               title={isStarted ? 'Task started - click to mark not started' : 'Click to mark task as started'}
                             />
                           </div>
@@ -3494,7 +3494,7 @@ export function GanttCanvasView({
                                 }
                                 // Note: Checking happens automatically when you drag
                               }}
-                              className="h-3.5 w-3.5 rounded border-gray-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                              className="h-3.5 w-3.5 rounded border-border text-amber-600 focus:ring-amber-500 cursor-pointer"
                               title={isHeld ? 'Task is pinned - click to unpin' : 'Drag task to pin it'}
                               disabled={!isHeld} // Can only uncheck, checking happens on drag
                             />
@@ -3515,7 +3515,7 @@ export function GanttCanvasView({
                                 e.stopPropagation();
                                 handleCompleteTask(task, !isComplete);
                               }}
-                              className="h-3.5 w-3.5 rounded border-gray-300 text-gray-900 focus:ring-gray-500 cursor-pointer"
+                              className="h-3.5 w-3.5 rounded border-border text-foreground focus:ring-gray-500 cursor-pointer"
                               title={isComplete ? 'Task is complete - click to uncomplete' : 'Mark task as complete'}
                             />
                           </div>
@@ -3532,7 +3532,7 @@ export function GanttCanvasView({
                     <div
                       key={task.id}
                       className={cn(
-                        "flex items-center border-b text-xs hover:bg-gray-100 dark:hover:bg-gray-700 px-2 cursor-pointer",
+                        "flex items-center border-b text-xs hover:bg-muted dark:hover:bg-gray-700 px-2 cursor-pointer",
                         isSelected
                           ? "bg-blue-600 dark:bg-blue-600"
                           : inSelectedGroup
@@ -3806,8 +3806,8 @@ export function GanttCanvasView({
                     <div className="w-8 h-[3px]" style={{ background: 'repeating-linear-gradient(90deg, #000 0px, #000 3px, #60a5fa 3px, #60a5fa 6px)' }} />
                     <div className="w-0 h-0 border-t-[4px] border-t-transparent border-b-[4px] border-b-transparent border-l-[6px] border-l-blue-400" />
                     <div className="flex items-center">
-                      <div className="w-1.5 h-1.5 bg-gray-500 rounded-full -mr-0.5 ring-1 ring-white z-10" />
-                      <div className="bg-gray-500 text-white text-[10px] px-2 py-1 rounded font-medium">C</div>
+                      <div className="w-1.5 h-1.5 bg-muted0 rounded-full -mr-0.5 ring-1 ring-white z-10" />
+                      <div className="bg-muted0 text-white text-[10px] px-2 py-1 rounded font-medium">C</div>
                     </div>
                     <span className="text-[9px] text-muted-foreground ml-1">successor</span>
                   </div>
@@ -4242,7 +4242,7 @@ export function GanttCanvasView({
                             key={task.id}
                             className={`p-1.5 rounded border transition-opacity duration-200 ${
                               isFaded
-                                ? 'opacity-30 bg-gray-50 dark:bg-gray-900/20 border-gray-200 dark:border-gray-700'
+                                ? 'opacity-30 bg-muted dark:bg-gray-900/20 border-border dark:border-border'
                                 : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'
                             }`}
                           >
@@ -4254,7 +4254,7 @@ export function GanttCanvasView({
                                 task.supplier_confirm ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'
                                 : task.finance_approved ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
                                 : task.confirm ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
-                                : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                                : 'bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground'
                               }`}>
                                 {lockType}
                               </span>
@@ -4269,7 +4269,7 @@ export function GanttCanvasView({
                                   <input
                                     type="checkbox"
                                     checked={decision === 'break'}
-                                    className="h-3 w-3 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                                    className="h-3 w-3 rounded border-border text-red-600 focus:ring-red-500"
                                     onChange={(e) => {
                                       if (e.target.checked) {
                                         setLockedTaskDecisions(prev => ({ ...prev, [task.id]: 'break' }));
@@ -4282,12 +4282,12 @@ export function GanttCanvasView({
                                   </div>
                                 </label>
 
-                                <label className={`flex items-center gap-1 px-1.5 py-0.5 rounded flex-1 border ${!canUnlock ? 'cursor-not-allowed bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 opacity-50' : decision === 'cascade' ? 'cursor-pointer bg-green-100 dark:bg-green-900/50 border-green-300 dark:border-green-700' : 'cursor-pointer bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800'}`}>
+                                <label className={`flex items-center gap-1 px-1.5 py-0.5 rounded flex-1 border ${!canUnlock ? 'cursor-not-allowed bg-muted dark:bg-gray-800 border-border dark:border-border opacity-50' : decision === 'cascade' ? 'cursor-pointer bg-green-100 dark:bg-green-900/50 border-green-300 dark:border-green-700' : 'cursor-pointer bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800'}`}>
                                   <input
                                     type="checkbox"
                                     checked={decision === 'cascade'}
                                     disabled={!canUnlock}
-                                    className="h-3 w-3 rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-50"
+                                    className="h-3 w-3 rounded border-border text-green-600 focus:ring-green-500 disabled:opacity-50"
                                     onChange={(e) => {
                                       if (e.target.checked && canUnlock) {
                                         setLockedTaskDecisions(prev => ({ ...prev, [task.id]: 'cascade' }));
@@ -4295,8 +4295,8 @@ export function GanttCanvasView({
                                     }}
                                   />
                                   <div className="flex-1">
-                                    <span className={`text-[9px] font-medium ${canUnlock ? 'text-green-700 dark:text-green-300' : 'text-gray-500'}`}>Clear & Cascade</span>
-                                    <p className={`text-[8px] leading-tight ${canUnlock ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
+                                    <span className={`text-[9px] font-medium ${canUnlock ? 'text-green-700 dark:text-green-300' : 'text-muted-foreground'}`}>Clear & Cascade</span>
+                                    <p className={`text-[8px] leading-tight ${canUnlock ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>
                                       {canUnlock ? 'Unlocks, moves with flow' : 'Completed - locked'}
                                     </p>
                                   </div>

@@ -158,7 +158,7 @@ export function DocumentViewerStep({
 
       {/* PDF Viewer */}
       <div
-        className="flex-1 overflow-auto bg-slate-100 dark:bg-slate-800 rounded-lg mb-4 min-h-[400px]"
+        className="flex-1 overflow-auto bg-muted dark:bg-slate-800 rounded-lg mb-4 min-h-[400px]"
         onScroll={handleScroll}
       >
         {pdfUrl ? (

@@ -127,7 +127,7 @@ export function ScheduleView() {
                           <Pause className="h-4 w-4 text-yellow-600 flex-shrink-0" />
                         )}
                         {event.lock_type && (
-                          <Lock className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                          <Lock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                         )}
                         {event.is_overdue && (
                           <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />

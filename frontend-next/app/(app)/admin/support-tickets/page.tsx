@@ -286,7 +286,7 @@ export default function SupportTicketsPage() {
                   <span className="text-red-600 dark:text-red-400">U:{dashboard.by_priority.urgent}</span>
                   <span className="text-orange-600 dark:text-orange-400">H:{dashboard.by_priority.high}</span>
                   <span className="text-yellow-600 dark:text-yellow-400">M:{dashboard.by_priority.medium}</span>
-                  <span className="text-gray-600 dark:text-gray-400">L:{dashboard.by_priority.low}</span>
+                  <span className="text-muted-foreground dark:text-muted-foreground">L:{dashboard.by_priority.low}</span>
                 </div>
               </CardContent>
             </Card>

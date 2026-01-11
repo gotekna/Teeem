@@ -172,7 +172,7 @@ function EntityNode({ data }: { data: EntityNodeData }) {
       case "person":
         return "bg-amber-50 border-amber-300 dark:bg-amber-950/30 dark:border-amber-700";
       default:
-        return "bg-gray-50 border-gray-300 dark:bg-gray-950/30 dark:border-gray-700";
+        return "bg-muted border-border dark:bg-gray-950/30 dark:border-border";
     }
   };
 
@@ -654,7 +654,7 @@ export default function CorporateStructureChart({
   return (
     <div
       className={cn(
-        "w-full bg-gray-50 dark:bg-gray-900",
+        "w-full bg-muted dark:bg-gray-900",
         fullscreen ? "h-full" : "border rounded-lg"
       )}
       style={{ height: chartHeight }}

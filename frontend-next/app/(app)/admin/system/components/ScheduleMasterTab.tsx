@@ -3956,7 +3956,7 @@ export function ScheduleMasterTab() {
               {editRowForm.name} • {editRowForm.claim_percentage}% of contract
             </DialogDescription>
           </DialogHeader>
-          <div className="flex-1 overflow-auto p-6 bg-gray-100 dark:bg-gray-900">
+          <div className="flex-1 overflow-auto p-6 bg-muted dark:bg-gray-900">
             {templatePreviewHtml && (
               <div className="bg-white rounded-lg shadow-lg mx-auto" style={{ maxWidth: "800px" }}>
                 <div dangerouslySetInnerHTML={{ __html: templatePreviewHtml }} />
@@ -4304,28 +4304,28 @@ export function ScheduleMasterTab() {
                   return (
                     <div key={task.id} className={depth > 0 ? 'ml-4 border-l-2 border-orange-200 dark:border-orange-700 pl-2' : ''}>
                       <div
-                        className={`p-1.5 rounded border mb-1 ${disabledByAncestor ? 'opacity-40 bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600' : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'}`}
+                        className={`p-1.5 rounded border mb-1 ${disabledByAncestor ? 'opacity-40 bg-muted dark:bg-gray-800 border-border dark:border-border' : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'}`}
                       >
                         <div className="flex items-center gap-1 text-[10px] mb-1">
                           <span className="font-medium truncate flex-1">#{task.task_number} {task.name}</span>
                           <span className={`px-1 py-0.5 rounded text-[9px] whitespace-nowrap ${
                             task.supplier_confirm ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'
                             : task.confirm ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
-                            : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                            : 'bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground'
                           }`}>
                             {lockType}
                           </span>
                         </div>
 
                         {disabledByAncestor ? (
-                          <div className="text-[9px] text-gray-500 italic">Parent task set to break - won&apos;t be affected</div>
+                          <div className="text-[9px] text-muted-foreground italic">Parent task set to break - won&apos;t be affected</div>
                         ) : (
                           <div className="flex gap-1">
                             <label className={`flex items-center gap-1 cursor-pointer px-1.5 py-0.5 rounded flex-1 border ${decision === 'break' ? 'bg-red-100 dark:bg-red-900/50 border-red-300 dark:border-red-700' : 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800'}`}>
                               <input
                                 type="checkbox"
                                 checked={decision === 'break'}
-                                className="h-3 w-3 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                                className="h-3 w-3 rounded border-border text-red-600 focus:ring-red-500"
                                 onChange={(e) => {
                                   if (e.target.checked) {
                                     setLockedTaskDecisions(prev => ({ ...prev, [task.id]: 'break' }));
@@ -4336,7 +4336,7 @@ export function ScheduleMasterTab() {
                             </label>
 
                             <label
-                              className={`flex flex-col px-1.5 py-0.5 rounded flex-1 border ${!canUnlock ? 'cursor-not-allowed bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 opacity-50' : decision === 'cascade' ? 'cursor-pointer bg-green-100 dark:bg-green-900/50 border-green-300 dark:border-green-700' : 'cursor-pointer bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800'}`}
+                              className={`flex flex-col px-1.5 py-0.5 rounded flex-1 border ${!canUnlock ? 'cursor-not-allowed bg-muted dark:bg-gray-800 border-border dark:border-border opacity-50' : decision === 'cascade' ? 'cursor-pointer bg-green-100 dark:bg-green-900/50 border-green-300 dark:border-green-700' : 'cursor-pointer bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800'}`}
                               title={canUnlock ? `Will remove ${lockType.toLowerCase()} confirmation and cascade as per dependencies` : 'Completed tasks cannot be cascaded'}
                             >
                               <div className="flex items-center gap-1">
@@ -4344,14 +4344,14 @@ export function ScheduleMasterTab() {
                                   type="checkbox"
                                   checked={decision === 'cascade'}
                                   disabled={!canUnlock}
-                                  className="h-3 w-3 rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-50"
+                                  className="h-3 w-3 rounded border-border text-green-600 focus:ring-green-500 disabled:opacity-50"
                                   onChange={(e) => {
                                     if (e.target.checked && canUnlock) {
                                       setLockedTaskDecisions(prev => ({ ...prev, [task.id]: 'cascade' }));
                                     }
                                   }}
                                 />
-                                <span className={`text-[9px] font-medium ${canUnlock ? 'text-green-700 dark:text-green-300' : 'text-gray-500'}`}>
+                                <span className={`text-[9px] font-medium ${canUnlock ? 'text-green-700 dark:text-green-300' : 'text-muted-foreground'}`}>
                                   {lockType === 'Supplier' ? 'Un-Supplier Confirm' : lockType === 'Confirmed' ? 'Un-Confirm' : 'Cascade'}
                                 </span>
                               </div>

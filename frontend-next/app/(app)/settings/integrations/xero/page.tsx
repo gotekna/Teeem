@@ -490,12 +490,12 @@ export default function XeroIntegrationPage() {
                             ? "bg-cyan-100"
                             : isExpired(tenant)
                             ? "bg-red-100"
-                            : "bg-gray-100"
+                            : "bg-muted"
                         }`}>
                           {tenant.is_primary ? (
                             <Star className="h-4 w-4 text-cyan-600" />
                           ) : (
-                            <CreditCard className={`h-4 w-4 ${isExpired(tenant) ? "text-red-600" : "text-gray-600"}`} />
+                            <CreditCard className={`h-4 w-4 ${isExpired(tenant) ? "text-red-600" : "text-muted-foreground"}`} />
                           )}
                         </div>
                         <div>
@@ -640,7 +640,7 @@ export default function XeroIntegrationPage() {
                       ? "border-green-500 bg-green-50"
                       : (pdfSyncHealth?.stage1_percentage ?? 0) >= 50
                       ? "border-amber-500 bg-amber-50"
-                      : "border-gray-300 bg-gray-50"
+                      : "border-border bg-muted"
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -675,7 +675,7 @@ export default function XeroIntegrationPage() {
                       ? "border-green-500 bg-green-50"
                       : (pdfSyncHealth?.stage2_percentage ?? 0) >= 50
                       ? "border-amber-500 bg-amber-50"
-                      : "border-gray-300 bg-gray-50"
+                      : "border-border bg-muted"
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -710,7 +710,7 @@ export default function XeroIntegrationPage() {
                       ? "border-green-500 bg-green-50"
                       : (pdfSyncHealth?.stage3_percentage ?? 0) >= 50
                       ? "border-amber-500 bg-amber-50"
-                      : "border-gray-300 bg-gray-50"
+                      : "border-border bg-muted"
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -750,7 +750,7 @@ export default function XeroIntegrationPage() {
                       ? "bg-blue-100 text-blue-800"
                       : pdfSyncHealth?.overall_status === "warning"
                       ? "bg-amber-100 text-amber-800"
-                      : "bg-gray-100 text-gray-800"
+                      : "bg-muted text-foreground"
                   }>
                     {pdfSyncHealth?.overall_status === "healthy" && <CheckCircle2 className="h-3 w-3 mr-1" />}
                     {pdfSyncHealth?.overall_status === "in_progress" && <RefreshCw className="h-3 w-3 mr-1 animate-spin" />}

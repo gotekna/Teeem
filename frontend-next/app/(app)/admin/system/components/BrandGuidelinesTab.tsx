@@ -725,7 +725,7 @@ export function BrandGuidelinesTab() {
               <p><strong>Variant:</strong> ghost (no border, no background)</p>
               <p><strong>Size:</strong> h-6 w-6 (24px square)</p>
               <p><strong>Icons:</strong> h-4 w-4 (16px), Edit (Pencil) + Delete (Trash) only</p>
-              <p><strong>Hover:</strong> bg-gray-100, delete shows red text</p>
+              <p><strong>Hover:</strong> bg-muted, delete shows red text</p>
             </div>
           </CardContent>
         </Card>

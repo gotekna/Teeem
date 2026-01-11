@@ -60,13 +60,13 @@ interface ESignatureResponse {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  draft: { label: "Draft", color: "bg-gray-100 text-gray-700", icon: <FileText className="h-3 w-3" /> },
+  draft: { label: "Draft", color: "bg-muted text-foreground", icon: <FileText className="h-3 w-3" /> },
   sent: { label: "Sent", color: "bg-blue-100 text-blue-700", icon: <Send className="h-3 w-3" /> },
   in_progress: { label: "In Progress", color: "bg-amber-100 text-amber-700", icon: <Clock className="h-3 w-3" /> },
   completed: { label: "Completed", color: "bg-green-100 text-green-700", icon: <CheckCircle2 className="h-3 w-3" /> },
   declined: { label: "Declined", color: "bg-red-100 text-red-700", icon: <XCircle className="h-3 w-3" /> },
-  expired: { label: "Expired", color: "bg-gray-100 text-gray-500", icon: <AlertCircle className="h-3 w-3" /> },
-  cancelled: { label: "Cancelled", color: "bg-gray-100 text-gray-500", icon: <XCircle className="h-3 w-3" /> },
+  expired: { label: "Expired", color: "bg-muted text-muted-foreground", icon: <AlertCircle className="h-3 w-3" /> },
+  cancelled: { label: "Cancelled", color: "bg-muted text-muted-foreground", icon: <XCircle className="h-3 w-3" /> },
 };
 
 export default function ESignaturePage() {
@@ -137,7 +137,7 @@ export default function ESignaturePage() {
             <div className="text-sm text-muted-foreground">Completed</div>
           </Card>
           <Card className="p-4">
-            <div className="text-2xl font-bold text-gray-600">{stats.draft}</div>
+            <div className="text-2xl font-bold text-muted-foreground">{stats.draft}</div>
             <div className="text-sm text-muted-foreground">Drafts</div>
           </Card>
         </div>

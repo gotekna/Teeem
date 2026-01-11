@@ -172,11 +172,11 @@ export default function ASICEdgeTab() {
       case "Annual":
         return "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300";
       case "Notifications":
-        return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300";
+        return "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground";
       case "Deregistration":
         return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300";
       default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300";
+        return "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground";
     }
   };
 
@@ -427,7 +427,7 @@ export default function ASICEdgeTab() {
                         Available
                       </Badge>
                     ) : (
-                      <Badge variant="outline" className="text-gray-400 border-gray-400">
+                      <Badge variant="outline" className="text-muted-foreground border-border">
                         Coming Soon
                       </Badge>
                     )}

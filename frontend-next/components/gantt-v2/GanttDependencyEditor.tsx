@@ -447,8 +447,8 @@ export function GanttDependencyEditor({
                   <div className="w-8 h-[3px]" style={{ background: 'repeating-linear-gradient(90deg, #000 0px, #000 3px, #60a5fa 3px, #60a5fa 6px)' }} />
                   <div className="w-0 h-0 border-t-[4px] border-t-transparent border-b-[4px] border-b-transparent border-l-[6px] border-l-blue-400" />
                   <div className="flex items-center">
-                    <div className="w-1.5 h-1.5 bg-gray-500 rounded-full -mr-0.5 ring-1 ring-white z-10" />
-                    <div className="bg-gray-500 text-white text-[10px] px-2 py-1 rounded font-medium">C</div>
+                    <div className="w-1.5 h-1.5 bg-muted0 rounded-full -mr-0.5 ring-1 ring-white z-10" />
+                    <div className="bg-muted0 text-white text-[10px] px-2 py-1 rounded font-medium">C</div>
                   </div>
                   <span className="text-[9px] text-muted-foreground ml-1">successor</span>
                 </div>

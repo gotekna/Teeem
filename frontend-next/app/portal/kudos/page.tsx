@@ -186,8 +186,8 @@ export default function PortalKudos() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Kudos Score</h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+        <h1 className="text-2xl font-bold text-foreground dark:text-white">Kudos Score</h1>
+        <p className="mt-1 text-sm text-muted-foreground dark:text-muted-foreground">
           Track your performance and earn points for great work
         </p>
       </div>
@@ -239,10 +239,10 @@ export default function PortalKudos() {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+              <p className="text-sm font-medium text-muted-foreground dark:text-muted-foreground">
                 Jobs Completed
               </p>
-              <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
+              <p className="mt-2 text-3xl font-bold text-foreground dark:text-white">
                 {kudosData.statistics.total_jobs_completed}
               </p>
             </div>
@@ -255,10 +255,10 @@ export default function PortalKudos() {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+              <p className="text-sm font-medium text-muted-foreground dark:text-muted-foreground">
                 On-Time Arrivals
               </p>
-              <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
+              <p className="mt-2 text-3xl font-bold text-foreground dark:text-white">
                 {kudosData.statistics.on_time_arrivals}
               </p>
             </div>
@@ -271,10 +271,10 @@ export default function PortalKudos() {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+              <p className="text-sm font-medium text-muted-foreground dark:text-muted-foreground">
                 On-Time Completions
               </p>
-              <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
+              <p className="mt-2 text-3xl font-bold text-foreground dark:text-white">
                 {kudosData.statistics.on_time_completions}
               </p>
             </div>
@@ -287,10 +287,10 @@ export default function PortalKudos() {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+              <p className="text-sm font-medium text-muted-foreground dark:text-muted-foreground">
                 Fast Quote Responses
               </p>
-              <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
+              <p className="mt-2 text-3xl font-bold text-foreground dark:text-white">
                 {kudosData.statistics.fast_quote_responses}
               </p>
             </div>
@@ -303,28 +303,28 @@ export default function PortalKudos() {
 
       {/* Points Breakdown */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+        <div className="px-6 py-4 border-b border-border dark:border-border">
+          <h3 className="text-lg font-medium text-foreground dark:text-white">
             Points Breakdown
           </h3>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          <p className="mt-1 text-sm text-muted-foreground dark:text-muted-foreground">
             How you've earned your kudos points
           </p>
         </div>
         <div className="overflow-x-auto">
           <Table className="min-w-full">
-            <TableHeader className="bg-gray-50 dark:bg-gray-700">
+            <TableHeader className="bg-muted dark:bg-gray-700">
               <TableRow>
-                <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <TableHead className="px-6 py-3 text-left text-xs font-medium text-muted-foreground dark:text-muted-foreground uppercase tracking-wider">
                   Event Type
                 </TableHead>
-                <TableHead className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <TableHead className="px-6 py-3 text-center text-xs font-medium text-muted-foreground dark:text-muted-foreground uppercase tracking-wider">
                   Points/Event
                 </TableHead>
-                <TableHead className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <TableHead className="px-6 py-3 text-center text-xs font-medium text-muted-foreground dark:text-muted-foreground uppercase tracking-wider">
                   Count
                 </TableHead>
-                <TableHead className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <TableHead className="px-6 py-3 text-right text-xs font-medium text-muted-foreground dark:text-muted-foreground uppercase tracking-wider">
                   Total Points
                 </TableHead>
               </TableRow>
@@ -332,17 +332,17 @@ export default function PortalKudos() {
             <TableBody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {Object.entries(kudosData.breakdown).map(
                 ([eventType, data]) => (
-                  <TableRow key={eventType} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                  <TableRow key={eventType} className="hover:bg-muted dark:hover:bg-gray-700">
+                    <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium text-foreground dark:text-white">
                       {formatEventType(eventType)}
                     </TableCell>
-                    <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center">
+                    <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground dark:text-muted-foreground text-center">
                       {data.points_per_event}
                     </TableCell>
-                    <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center">
+                    <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground dark:text-muted-foreground text-center">
                       {data.event_count}
                     </TableCell>
-                    <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white text-right">
+                    <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-foreground dark:text-white text-right">
                       {data.total_points}
                     </TableCell>
                   </TableRow>
@@ -355,15 +355,15 @@ export default function PortalKudos() {
 
       {/* Recent Events */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white">Recent Events</h3>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+        <div className="px-6 py-4 border-b border-border dark:border-border">
+          <h3 className="text-lg font-medium text-foreground dark:text-white">Recent Events</h3>
+          <p className="mt-1 text-sm text-muted-foreground dark:text-muted-foreground">
             Your latest kudos-earning activities
           </p>
         </div>
         <div className="px-6 py-4">
           {kudosData.recent_events.length === 0 ? (
-            <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+            <p className="text-center text-muted-foreground dark:text-muted-foreground py-8">
               No recent events yet. Complete jobs to start earning kudos!
             </p>
           ) : (
@@ -374,7 +374,7 @@ export default function PortalKudos() {
                     <div className="relative pb-8">
                       {eventIdx !== kudosData.recent_events.length - 1 && (
                         <span
-                          className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200 dark:bg-gray-700"
+                          className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-muted dark:bg-gray-700"
                           aria-hidden="true"
                         />
                       )}
@@ -386,19 +386,19 @@ export default function PortalKudos() {
                         </div>
                         <div className="flex min-w-0 flex-1 justify-between space-x-4 pt-1.5">
                           <div>
-                            <p className="text-sm text-gray-900 dark:text-white">
+                            <p className="text-sm text-foreground dark:text-white">
                               {formatEventType(event.event_type)}
                               <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300">
                                 +{event.points} points
                               </span>
                             </p>
                             {event.description && (
-                              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                              <p className="mt-1 text-sm text-muted-foreground dark:text-muted-foreground">
                                 {event.description}
                               </p>
                             )}
                           </div>
-                          <div className="whitespace-nowrap text-right text-sm text-gray-500 dark:text-gray-400">
+                          <div className="whitespace-nowrap text-right text-sm text-muted-foreground dark:text-muted-foreground">
                             <time dateTime={event.created_at}>
                               {formatDate(event.created_at)}
                             </time>

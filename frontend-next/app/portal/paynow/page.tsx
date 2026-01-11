@@ -198,9 +198,9 @@ export default function PortalPayNow() {
       approved: "bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300",
       paid: "bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300",
       rejected: "bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300",
-      cancelled: "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300",
+      cancelled: "bg-muted dark:bg-gray-700 text-foreground dark:text-muted-foreground",
     };
-    return classes[status] || "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300";
+    return classes[status] || "bg-muted dark:bg-gray-700 text-foreground dark:text-muted-foreground";
   };
 
   const formatCurrency = (amount: number | string): string => {
@@ -238,8 +238,8 @@ export default function PortalPayNow() {
       {/* Header */}
       <div className="sm:flex sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Pay Now</h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          <h1 className="text-2xl font-bold text-foreground dark:text-white">Pay Now</h1>
+          <p className="mt-1 text-sm text-muted-foreground dark:text-muted-foreground">
             Request early payment with a 5% discount
           </p>
         </div>
@@ -258,14 +258,14 @@ export default function PortalPayNow() {
           <div className="p-5">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <BanknotesIcon className="h-6 w-6 text-gray-400 dark:text-gray-500" />
+                <BanknotesIcon className="h-6 w-6 text-muted-foreground dark:text-muted-foreground" />
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
+                  <dt className="text-sm font-medium text-muted-foreground dark:text-muted-foreground truncate">
                     Total Requests
                   </dt>
-                  <dd className="text-lg font-medium text-gray-900 dark:text-white">
+                  <dd className="text-lg font-medium text-foreground dark:text-white">
                     {stats.total_requests || 0}
                   </dd>
                 </dl>
@@ -282,10 +282,10 @@ export default function PortalPayNow() {
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
+                  <dt className="text-sm font-medium text-muted-foreground dark:text-muted-foreground truncate">
                     Total Paid
                   </dt>
-                  <dd className="text-lg font-medium text-gray-900 dark:text-white">
+                  <dd className="text-lg font-medium text-foreground dark:text-white">
                     {formatCurrency(stats.total_paid || 0)}
                   </dd>
                 </dl>
@@ -302,10 +302,10 @@ export default function PortalPayNow() {
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
+                  <dt className="text-sm font-medium text-muted-foreground dark:text-muted-foreground truncate">
                     Total Savings
                   </dt>
-                  <dd className="text-lg font-medium text-gray-900 dark:text-white">
+                  <dd className="text-lg font-medium text-foreground dark:text-white">
                     {formatCurrency(stats.total_savings || 0)}
                   </dd>
                 </dl>
@@ -322,10 +322,10 @@ export default function PortalPayNow() {
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
+                  <dt className="text-sm font-medium text-muted-foreground dark:text-muted-foreground truncate">
                     This Week
                   </dt>
-                  <dd className="text-lg font-medium text-gray-900 dark:text-white">
+                  <dd className="text-lg font-medium text-foreground dark:text-white">
                     {stats.this_week_requests || 0} requests
                   </dd>
                 </dl>
@@ -388,7 +388,7 @@ export default function PortalPayNow() {
       )}
 
       {/* Tabs */}
-      <div className="border-b border-gray-200 dark:border-gray-700">
+      <div className="border-b border-border dark:border-border">
         <nav className="-mb-px flex space-x-8" aria-label="Tabs">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.key;
@@ -401,7 +401,7 @@ export default function PortalPayNow() {
                   ${
                     isActive
                       ? "border-indigo-500 dark:border-indigo-400 text-indigo-600 dark:text-indigo-400"
-                      : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
+                      : "border-transparent text-muted-foreground dark:text-muted-foreground hover:text-foreground dark:hover:text-muted-foreground hover:border-border dark:hover:border-border"
                   }
                   group inline-flex items-center py-4 px-1 border-b-2 font-medium text-sm
                 `}
@@ -411,7 +411,7 @@ export default function PortalPayNow() {
                     ${
                       isActive
                         ? "text-indigo-500 dark:text-indigo-400"
-                        : "text-gray-400 dark:text-gray-500 group-hover:text-gray-500 dark:group-hover:text-gray-400"
+                        : "text-muted-foreground dark:text-muted-foreground group-hover:text-muted-foreground dark:group-hover:text-muted-foreground"
                     }
                     -ml-0.5 mr-2 h-5 w-5
                   `}
@@ -423,7 +423,7 @@ export default function PortalPayNow() {
                     ${
                       isActive
                         ? "bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400"
-                        : "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-300"
+                        : "bg-muted dark:bg-gray-700 text-foreground dark:text-muted-foreground"
                     }
                     hidden ml-3 py-0.5 px-2.5 rounded-full text-xs font-medium md:inline-block
                   `}
@@ -441,11 +441,11 @@ export default function PortalPayNow() {
       <div className="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-md">
         {currentRequests.length === 0 ? (
           <div className="text-center py-12">
-            <BanknotesIcon className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
+            <BanknotesIcon className="mx-auto h-12 w-12 text-muted-foreground dark:text-muted-foreground" />
+            <h3 className="mt-2 text-sm font-medium text-foreground dark:text-white">
               No requests
             </h3>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            <p className="mt-1 text-sm text-muted-foreground dark:text-muted-foreground">
               {activeTab === "pending"
                 ? "You have no pending payment requests."
                 : `No ${activeTab} payment requests found.`}
@@ -467,7 +467,7 @@ export default function PortalPayNow() {
             {currentRequests.map((request) => (
               <li key={request.id}>
                 <div
-                  className="px-4 py-4 sm:px-6 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                  className="px-4 py-4 sm:px-6 hover:bg-muted dark:hover:bg-gray-700 cursor-pointer"
                   onClick={() => handleViewDetails(request)}
                 >
                   <div className="flex items-center justify-between">
@@ -487,17 +487,17 @@ export default function PortalPayNow() {
                         </div>
                       </div>
                       <div className="mt-2 flex justify-between">
-                        <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                          <BanknotesIcon className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400 dark:text-gray-500" />
-                          <span className="font-medium text-gray-900 dark:text-white">
+                        <div className="flex items-center text-sm text-muted-foreground dark:text-muted-foreground">
+                          <BanknotesIcon className="flex-shrink-0 mr-1.5 h-5 w-5 text-muted-foreground dark:text-muted-foreground" />
+                          <span className="font-medium text-foreground dark:text-white">
                             {request.discounted_amount}
                           </span>
                           <span className="ml-1">
                             (saved {request.discount_amount})
                           </span>
                         </div>
-                        <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                          <CalendarIcon className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400 dark:text-gray-500" />
+                        <div className="flex items-center text-sm text-muted-foreground dark:text-muted-foreground">
+                          <CalendarIcon className="flex-shrink-0 mr-1.5 h-5 w-5 text-muted-foreground dark:text-muted-foreground" />
                           {formatDate(request.requested_at)}
                         </div>
                       </div>

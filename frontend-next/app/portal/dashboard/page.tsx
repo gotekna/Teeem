@@ -128,8 +128,8 @@ export default function PortalDashboard() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+        <h1 className="text-2xl font-bold text-foreground dark:text-white">Dashboard</h1>
+        <p className="mt-1 text-sm text-muted-foreground dark:text-muted-foreground">
           Welcome back! Here's what's happening with your jobs and quotes.
         </p>
       </div>
@@ -149,10 +149,10 @@ export default function PortalDashboard() {
                 </div>
                 <div className="ml-5 w-0 flex-1">
                   <dl>
-                    <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
+                    <dt className="text-sm font-medium text-muted-foreground dark:text-muted-foreground truncate">
                       {stat.name}
                     </dt>
-                    <dd className="text-2xl font-semibold text-gray-900 dark:text-white">
+                    <dd className="text-2xl font-semibold text-foreground dark:text-white">
                       {stat.value}
                     </dd>
                   </dl>
@@ -166,9 +166,9 @@ export default function PortalDashboard() {
       {/* Pending Quotes */}
       {pendingQuotes.length > 0 && (
         <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
-          <div className="px-4 py-5 sm:px-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="px-4 py-5 sm:px-6 border-b border-border dark:border-border">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-medium text-gray-900 dark:text-white">
+              <h2 className="text-lg font-medium text-foreground dark:text-white">
                 Pending Quote Requests
               </h2>
               <Link
@@ -181,17 +181,17 @@ export default function PortalDashboard() {
           </div>
           <ul role="list" className="divide-y divide-gray-200 dark:divide-gray-700">
             {pendingQuotes.map((quote) => (
-              <li key={quote.id} className="px-4 py-4 sm:px-6 hover:bg-gray-50 dark:hover:bg-gray-700">
+              <li key={quote.id} className="px-4 py-4 sm:px-6 hover:bg-muted dark:hover:bg-gray-700">
                 <Link href={`/portal/quotes/${quote.id}`} className="block">
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                      <p className="text-sm font-medium text-foreground dark:text-white truncate">
                         {quote.title}
                       </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                      <p className="text-sm text-muted-foreground dark:text-muted-foreground">
                         {quote.construction.name}
                       </p>
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      <p className="text-xs text-muted-foreground dark:text-muted-foreground mt-1">
                         Waiting {quote.days_waiting} days
                       </p>
                     </div>
@@ -211,9 +211,9 @@ export default function PortalDashboard() {
       {/* Jobs */}
       {recentJobs.length > 0 && (
         <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
-          <div className="px-4 py-5 sm:px-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="px-4 py-5 sm:px-6 border-b border-border dark:border-border">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-medium text-gray-900 dark:text-white">Jobs</h2>
+              <h2 className="text-lg font-medium text-foreground dark:text-white">Jobs</h2>
               <Link
                 href="/portal/jobs"
                 className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300"
@@ -224,15 +224,15 @@ export default function PortalDashboard() {
           </div>
           <ul role="list" className="divide-y divide-gray-200 dark:divide-gray-700">
             {recentJobs.map((job) => (
-              <li key={job.id} className="px-4 py-4 sm:px-6 hover:bg-gray-50 dark:hover:bg-gray-700">
+              <li key={job.id} className="px-4 py-4 sm:px-6 hover:bg-muted dark:hover:bg-gray-700">
                 <Link href={`/portal/jobs/${job.id}`} className="block">
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                      <p className="text-sm font-medium text-foreground dark:text-white truncate">
                         {job.construction.name}
                       </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">PO: {job.po_number}</p>
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      <p className="text-sm text-muted-foreground dark:text-muted-foreground">PO: {job.po_number}</p>
+                      <p className="text-xs text-muted-foreground dark:text-muted-foreground mt-1">
                         {job.construction.address}
                       </p>
                     </div>
@@ -241,7 +241,7 @@ export default function PortalDashboard() {
                         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                           job.is_arrived
                             ? "bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300"
-                            : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300"
+                            : "bg-muted dark:bg-gray-700 text-foreground dark:text-muted-foreground"
                         }`}
                       >
                         {job.is_arrived ? "In Progress" : "Scheduled"}
@@ -281,7 +281,7 @@ export default function PortalDashboard() {
               <div className="ml-5 flex-shrink-0">
                 <Link
                   href="/portal/kudos"
-                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-600 bg-white hover:bg-gray-50"
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-600 bg-white hover:bg-muted"
                 >
                   View Details
                 </Link>

@@ -413,7 +413,7 @@ export function BrandColorsTab() {
                 {brand?.logo_dark ? (
                   <img src={brand.logo_dark} alt="Dark Mode Logo" className="max-w-[150px] max-h-[60px] object-contain" />
                 ) : (
-                  <span className="text-xs text-slate-400">No logo</span>
+                  <span className="text-xs text-muted-foreground">No logo</span>
                 )}
               </div>
               <div className="flex-1 space-y-2">

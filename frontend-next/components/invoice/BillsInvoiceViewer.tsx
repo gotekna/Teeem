@@ -187,7 +187,7 @@ export interface BillDetail {
 // ============================================================================
 
 const statusColors: Record<string, string> = {
-  pending: "bg-gray-100 text-gray-700 dark:bg-gray-400/10 dark:text-gray-400",
+  pending: "bg-muted text-foreground dark:bg-gray-400/10 dark:text-muted-foreground",
   extracting: "bg-blue-100 text-blue-700 dark:bg-blue-400/10 dark:text-blue-400",
   extracted: "bg-cyan-100 text-cyan-700 dark:bg-cyan-400/10 dark:text-cyan-400",
   matching: "bg-indigo-100 text-indigo-700 dark:bg-indigo-400/10 dark:text-indigo-400",
@@ -446,7 +446,7 @@ export function BillsInvoiceViewer({
               <div className="text-[10px] uppercase tracking-wide opacity-80">Pay From</div>
               <div className="font-bold text-sm truncate">{bill.corporate_company?.name || bill.xero_tenant_name || "Company"}</div>
             </div>
-            <ArrowLeft className="h-5 w-5 text-gray-500 rotate-180" />
+            <ArrowLeft className="h-5 w-5 text-muted-foreground rotate-180" />
             <div className="px-3 py-1 bg-green-600 text-white rounded min-w-[140px]">
               <div className="text-[10px] uppercase tracking-wide opacity-80">Pay To</div>
               <div className="font-bold text-sm truncate">{bill.supplier?.display_name || bill.supplier_name_raw || "Supplier"}</div>
@@ -505,7 +505,7 @@ export function BillsInvoiceViewer({
                 )}
                 <span className="text-muted-foreground">|</span>
                 <span>{formatDate(bill.due_date)}</span>
-                <Badge className={cn("text-[10px] px-1.5 py-0", statusColors[bill.status] || "bg-gray-100")}>{bill.status.replace("_", " ")}</Badge>
+                <Badge className={cn("text-[10px] px-1.5 py-0", statusColors[bill.status] || "bg-muted")}>{bill.status.replace("_", " ")}</Badge>
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 {onAmend && <Button variant="outline" size="sm" className="h-6 px-2 text-xs" onClick={onAmend} disabled={actionLoading}>Amend</Button>}
@@ -612,7 +612,7 @@ export function BillsInvoiceViewer({
                 <div
                   className={cn(
                     "p-1.5 rounded cursor-pointer transition-all hover:scale-[1.02]",
-                    bill.ai_extraction_result?.invoice_number ? "bg-green-100 dark:bg-green-900/40 border-2 border-green-400" : "bg-gray-50 border border-gray-200",
+                    bill.ai_extraction_result?.invoice_number ? "bg-green-100 dark:bg-green-900/40 border-2 border-green-400" : "bg-muted border border-border",
                     highlightedField === "invoice_number" && "ring-4 ring-yellow-400"
                   )}
                   onClick={() => setHighlightedField(highlightedField === "invoice_number" ? null : "invoice_number")}
@@ -625,7 +625,7 @@ export function BillsInvoiceViewer({
                 <div
                   className={cn(
                     "p-1.5 rounded cursor-pointer transition-all hover:scale-[1.02]",
-                    bill.ai_extraction_result?.invoice_date ? "bg-green-100 dark:bg-green-900/40 border-2 border-green-400" : "bg-gray-50 border border-gray-200",
+                    bill.ai_extraction_result?.invoice_date ? "bg-green-100 dark:bg-green-900/40 border-2 border-green-400" : "bg-muted border border-border",
                     highlightedField === "invoice_date" && "ring-4 ring-yellow-400"
                   )}
                   onClick={() => setHighlightedField(highlightedField === "invoice_date" ? null : "invoice_date")}
@@ -643,7 +643,7 @@ export function BillsInvoiceViewer({
                   className={cn(
                     "p-1.5 rounded cursor-pointer transition-all hover:scale-[1.02]",
                     isOverdue ? "bg-red-100 border-2 border-red-400" :
-                    bill.ai_extraction_result?.due_date ? "bg-green-100 dark:bg-green-900/40 border-2 border-green-400" : "bg-gray-50 border border-gray-200",
+                    bill.ai_extraction_result?.due_date ? "bg-green-100 dark:bg-green-900/40 border-2 border-green-400" : "bg-muted border border-border",
                     highlightedField === "due_date" && "ring-4 ring-yellow-400"
                   )}
                   onClick={() => setHighlightedField(highlightedField === "due_date" ? null : "due_date")}
@@ -659,7 +659,7 @@ export function BillsInvoiceViewer({
                 <div
                   className={cn(
                     "p-1.5 rounded cursor-pointer transition-all hover:scale-[1.02]",
-                    bill.ai_extraction_result?.supplier_abn ? "bg-green-100 dark:bg-green-900/40 border-2 border-green-400" : "bg-gray-50 border border-gray-200",
+                    bill.ai_extraction_result?.supplier_abn ? "bg-green-100 dark:bg-green-900/40 border-2 border-green-400" : "bg-muted border border-border",
                     highlightedField === "supplier_abn" && "ring-4 ring-yellow-400"
                   )}
                   onClick={() => setHighlightedField(highlightedField === "supplier_abn" ? null : "supplier_abn")}
@@ -678,7 +678,7 @@ export function BillsInvoiceViewer({
                 <div
                   className={cn(
                     "flex justify-between p-1.5 rounded cursor-pointer transition-all hover:scale-[1.02]",
-                    bill.ai_extraction_result?.subtotal ? "bg-green-100 dark:bg-green-900/40 border-2 border-green-400" : "bg-gray-50 border border-gray-200",
+                    bill.ai_extraction_result?.subtotal ? "bg-green-100 dark:bg-green-900/40 border-2 border-green-400" : "bg-muted border border-border",
                     highlightedField === "subtotal" && "ring-4 ring-yellow-400"
                   )}
                   onClick={() => setHighlightedField(highlightedField === "subtotal" ? null : "subtotal")}
@@ -689,7 +689,7 @@ export function BillsInvoiceViewer({
                 <div
                   className={cn(
                     "flex justify-between p-1.5 rounded cursor-pointer transition-all hover:scale-[1.02]",
-                    bill.ai_extraction_result?.tax_amount ? "bg-green-100 dark:bg-green-900/40 border-2 border-green-400" : "bg-gray-50 border border-gray-200",
+                    bill.ai_extraction_result?.tax_amount ? "bg-green-100 dark:bg-green-900/40 border-2 border-green-400" : "bg-muted border border-border",
                     highlightedField === "tax_amount" && "ring-4 ring-yellow-400"
                   )}
                   onClick={() => setHighlightedField(highlightedField === "tax_amount" ? null : "tax_amount")}
@@ -701,7 +701,7 @@ export function BillsInvoiceViewer({
                 <div
                   className={cn(
                     "flex justify-between p-2 font-bold text-sm rounded cursor-pointer transition-all hover:scale-[1.02]",
-                    bill.ai_extraction_result?.total_amount ? "bg-green-200 dark:bg-green-900/50 border-2 border-green-500" : "bg-gray-100 border border-gray-200",
+                    bill.ai_extraction_result?.total_amount ? "bg-green-200 dark:bg-green-900/50 border-2 border-green-500" : "bg-muted border border-border",
                     highlightedField === "total_amount" && "ring-4 ring-yellow-400"
                   )}
                   onClick={() => setHighlightedField(highlightedField === "total_amount" ? null : "total_amount")}
@@ -752,7 +752,7 @@ export function BillsInvoiceViewer({
               {bill.matched_purchase_order ? (
                 <>
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="p-1.5 bg-gray-50 dark:bg-gray-800 rounded">
+                    <div className="p-1.5 bg-muted dark:bg-gray-800 rounded">
                       <p className="text-[10px] text-muted-foreground uppercase">PO Number</p>
                       <Link
                         href={`/purchase_orders/${bill.matched_purchase_order.id}`}
@@ -762,18 +762,18 @@ export function BillsInvoiceViewer({
                         <ExternalLink className="h-3 w-3" />
                       </Link>
                     </div>
-                    <div className="p-1.5 bg-gray-50 dark:bg-gray-800 rounded">
+                    <div className="p-1.5 bg-muted dark:bg-gray-800 rounded">
                       <p className="text-[10px] text-muted-foreground uppercase">Payment Terms</p>
                       <p className="font-medium text-sm text-blue-600">{bill.matched_purchase_order.payment_terms || bill.supplier?.payment_terms || "-"}</p>
                     </div>
                   </div>
                   <Separator className="my-2" />
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="p-1.5 bg-gray-50 dark:bg-gray-800 rounded">
+                    <div className="p-1.5 bg-muted dark:bg-gray-800 rounded">
                       <p className="text-[10px] text-muted-foreground uppercase">PO Total</p>
                       <p className="font-mono font-bold text-sm">{formatCurrency(bill.matched_purchase_order.total)}</p>
                     </div>
-                    <div className="p-1.5 bg-gray-50 dark:bg-gray-800 rounded">
+                    <div className="p-1.5 bg-muted dark:bg-gray-800 rounded">
                       <p className="text-[10px] text-muted-foreground uppercase">Invoice Total</p>
                       <p className="font-mono font-bold text-sm">{formatCurrency(bill.total_amount)}</p>
                     </div>

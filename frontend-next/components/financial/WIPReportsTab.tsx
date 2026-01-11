@@ -259,7 +259,7 @@ export default function WIPReportsTab() {
         );
       case "archived":
         return (
-          <Badge variant="outline" className="text-gray-400">
+          <Badge variant="outline" className="text-muted-foreground">
             <Archive className="h-3 w-3 mr-1" />
             Archived
           </Badge>
@@ -293,7 +293,7 @@ export default function WIPReportsTab() {
         );
       case "on_hold":
         return (
-          <Badge variant="outline" className="text-gray-600">
+          <Badge variant="outline" className="text-muted-foreground">
             <Clock className="h-3 w-3 mr-1" />
             On Hold
           </Badge>

@@ -111,13 +111,13 @@ export function JobWorkflowsCard({ jobId }: JobWorkflowsCardProps) {
       case 'completed':
         return <CheckCircle className="h-4 w-4 text-green-500" />;
       case 'cancelled':
-        return <XCircle className="h-4 w-4 text-gray-500" />;
+        return <XCircle className="h-4 w-4 text-muted-foreground" />;
       case 'error':
         return <AlertCircle className="h-4 w-4 text-red-500" />;
       case 'suspended':
         return <Pause className="h-4 w-4 text-orange-500" />;
       default:
-        return <Workflow className="h-4 w-4 text-gray-500" />;
+        return <Workflow className="h-4 w-4 text-muted-foreground" />;
     }
   };
 

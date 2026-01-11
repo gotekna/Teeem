@@ -1650,7 +1650,7 @@ export default function NewJobPage() {
                 {proposal.extracted_data.attachments_summary && (
                   <div className="space-y-2">
                     <h3 className="text-sm font-semibold flex items-center gap-2">
-                      <Paperclip className="h-4 w-4 text-gray-500" />
+                      <Paperclip className="h-4 w-4 text-muted-foreground" />
                       Attachments
                     </h3>
                     <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-background/50 p-3 rounded-md border">

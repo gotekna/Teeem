@@ -71,7 +71,7 @@ interface TasksData {
 // Status badge component
 const StatusBadge = ({ status }: { status: string }) => {
   const styles = {
-    not_started: "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300",
+    not_started: "bg-muted dark:bg-gray-700 text-foreground dark:text-muted-foreground",
     started: "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300",
     completed: "bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300",
   };
@@ -106,17 +106,17 @@ const TaskCard = ({
   return (
     <div
       onClick={() => onClick(task)}
-      className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition-shadow cursor-pointer"
+      className="bg-white dark:bg-gray-800 rounded-lg border border-border dark:border-border p-4 hover:shadow-md transition-shadow cursor-pointer"
     >
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0">
-          <h3 className="font-medium text-gray-900 dark:text-white truncate">{task.name}</h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{task.trade}</p>
+          <h3 className="font-medium text-foreground dark:text-white truncate">{task.name}</h3>
+          <p className="text-sm text-muted-foreground dark:text-muted-foreground mt-1">{task.trade}</p>
         </div>
         <StatusBadge status={task.status} />
       </div>
 
-      <div className="mt-3 flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+      <div className="mt-3 flex items-center gap-4 text-sm text-muted-foreground dark:text-muted-foreground">
         <div className="flex items-center gap-1">
           <CalendarIcon className="w-4 h-4" />
           {new Date(task.start_date).toLocaleDateString()}
@@ -130,20 +130,20 @@ const TaskCard = ({
       </div>
 
       {/* Construction info */}
-      <div className="mt-2 text-xs text-gray-400 dark:text-gray-500">
+      <div className="mt-2 text-xs text-muted-foreground dark:text-muted-foreground">
         {task.construction?.name}
       </div>
 
       {/* Stats row */}
       <div className="mt-3 flex items-center gap-3 text-xs">
         {task.photos_count !== undefined && task.photos_count > 0 && (
-          <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
+          <div className="flex items-center gap-1 text-muted-foreground dark:text-muted-foreground">
             <CameraIcon className="w-3 h-3" />
             {task.photos_count}
           </div>
         )}
         {task.comments_count !== undefined && task.comments_count > 0 && (
-          <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
+          <div className="flex items-center gap-1 text-muted-foreground dark:text-muted-foreground">
             <ChatBubbleLeftIcon className="w-3 h-3" />
             {task.comments_count}
           </div>
@@ -240,7 +240,7 @@ const TaskDetailModal = ({
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
         <div
-          className="fixed inset-0 bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-80 transition-opacity"
+          className="fixed inset-0 bg-muted0 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-80 transition-opacity"
           onClick={onClose}
         />
 
@@ -249,17 +249,17 @@ const TaskDetailModal = ({
           <div className="bg-white dark:bg-gray-800 px-4 pb-4 pt-5 sm:p-6">
             <div className="flex items-start justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{task.name}</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{task.trade}</p>
+                <h3 className="text-lg font-semibold text-foreground dark:text-white">{task.name}</h3>
+                <p className="text-sm text-muted-foreground dark:text-muted-foreground">{task.trade}</p>
               </div>
-              <button onClick={onClose} className="text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400">
+              <button onClick={onClose} className="text-muted-foreground hover:text-muted-foreground dark:text-muted-foreground dark:hover:text-muted-foreground">
                 <span className="sr-only">Close</span>
                 &times;
               </button>
             </div>
 
             {/* Tabs */}
-            <div className="mt-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="mt-4 border-b border-border dark:border-border">
               <nav className="-mb-px flex space-x-8">
                 {["details", "comments", "photos"].map((tab) => (
                   <button
@@ -268,7 +268,7 @@ const TaskDetailModal = ({
                     className={`pb-3 text-sm font-medium capitalize ${
                       activeTab === tab
                         ? "border-b-2 border-indigo-600 dark:border-indigo-400 text-indigo-600 dark:text-indigo-400"
-                        : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                        : "text-muted-foreground dark:text-muted-foreground hover:text-foreground dark:hover:text-muted-foreground"
                     }`}
                   >
                     {tab}
@@ -282,7 +282,7 @@ const TaskDetailModal = ({
           <div className="px-4 pb-4 sm:px-6 sm:pb-6 max-h-96 overflow-y-auto">
             {loading ? (
               <div className="flex justify-center py-8">
-                <ArrowPathIcon className="w-6 h-6 animate-spin text-gray-400" />
+                <ArrowPathIcon className="w-6 h-6 animate-spin text-muted-foreground" />
               </div>
             ) : (
               <>
@@ -290,33 +290,33 @@ const TaskDetailModal = ({
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="text-xs text-gray-500 dark:text-gray-400">Start Date</label>
+                        <label className="text-xs text-muted-foreground dark:text-muted-foreground">Start Date</label>
                         <p className="font-medium dark:text-white">
                           {new Date(detail.start_date).toLocaleDateString()}
                         </p>
                       </div>
                       <div>
-                        <label className="text-xs text-gray-500 dark:text-gray-400">End Date</label>
+                        <label className="text-xs text-muted-foreground dark:text-muted-foreground">End Date</label>
                         <p className="font-medium dark:text-white">
                           {new Date(detail.end_date).toLocaleDateString()}
                         </p>
                       </div>
                       <div>
-                        <label className="text-xs text-gray-500 dark:text-gray-400">Status</label>
+                        <label className="text-xs text-muted-foreground dark:text-muted-foreground">Status</label>
                         <p>
                           <StatusBadge status={detail.status} />
                         </p>
                       </div>
                       <div>
-                        <label className="text-xs text-gray-500 dark:text-gray-400">Duration</label>
+                        <label className="text-xs text-muted-foreground dark:text-muted-foreground">Duration</label>
                         <p className="font-medium dark:text-white">{detail.duration_days} days</p>
                       </div>
                     </div>
 
                     {detail.description && (
                       <div>
-                        <label className="text-xs text-gray-500 dark:text-gray-400">Description</label>
-                        <p className="text-sm text-gray-700 dark:text-gray-300">{detail.description}</p>
+                        <label className="text-xs text-muted-foreground dark:text-muted-foreground">Description</label>
+                        <p className="text-sm text-foreground dark:text-muted-foreground">{detail.description}</p>
                       </div>
                     )}
 
@@ -341,7 +341,7 @@ const TaskDetailModal = ({
                     {/* Dependencies */}
                     {detail.predecessors && detail.predecessors.length > 0 && (
                       <div>
-                        <label className="text-xs text-gray-500 dark:text-gray-400">Waiting on</label>
+                        <label className="text-xs text-muted-foreground dark:text-muted-foreground">Waiting on</label>
                         <div className="mt-1 space-y-1">
                           {detail.predecessors.map((p) => (
                             <div key={p.id} className="flex items-center gap-2 text-sm dark:text-white">
@@ -360,21 +360,21 @@ const TaskDetailModal = ({
                     {/* Comment list */}
                     <div className="space-y-3">
                       {!detail.comments || detail.comments.length === 0 ? (
-                        <p className="text-gray-400 dark:text-gray-500 text-sm text-center py-4">
+                        <p className="text-muted-foreground dark:text-muted-foreground text-sm text-center py-4">
                           No comments yet
                         </p>
                       ) : (
                         detail.comments.map((comment) => (
-                          <div key={comment.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
+                          <div key={comment.id} className="bg-muted dark:bg-gray-700 rounded-lg p-3">
                             <div className="flex items-center gap-2 text-sm">
-                              <span className="font-medium text-gray-900 dark:text-white">
+                              <span className="font-medium text-foreground dark:text-white">
                                 {comment.author_name}
                               </span>
-                              <span className="text-gray-400 dark:text-gray-500">
+                              <span className="text-muted-foreground dark:text-muted-foreground">
                                 {new Date(comment.created_at).toLocaleDateString()}
                               </span>
                             </div>
-                            <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{comment.body}</p>
+                            <p className="mt-1 text-sm text-foreground dark:text-muted-foreground">{comment.body}</p>
                           </div>
                         ))
                       )}
@@ -387,7 +387,7 @@ const TaskDetailModal = ({
                         value={newComment}
                         onChange={(e) => setNewComment(e.target.value)}
                         placeholder="Add a comment..."
-                        className="flex-1 text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
+                        className="flex-1 text-sm border-border dark:border-border dark:bg-gray-700 dark:text-white rounded-md"
                         onKeyDown={(e) => e.key === "Enter" && handleAddComment()}
                       />
                       <button
@@ -404,7 +404,7 @@ const TaskDetailModal = ({
                 {activeTab === "photos" && detail && (
                   <div>
                     {!detail.photos || detail.photos.length === 0 ? (
-                      <p className="text-gray-400 dark:text-gray-500 text-sm text-center py-4">
+                      <p className="text-muted-foreground dark:text-muted-foreground text-sm text-center py-4">
                         No photos yet
                       </p>
                     ) : (
@@ -491,7 +491,7 @@ export default function PortalSchedule() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <ArrowPathIcon className="w-8 h-8 animate-spin text-gray-400" />
+        <ArrowPathIcon className="w-8 h-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -500,43 +500,43 @@ export default function PortalSchedule() {
     <div>
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Schedule</h1>
-        <p className="text-gray-500 dark:text-gray-400">Your assigned tasks and schedule</p>
+        <h1 className="text-2xl font-bold text-foreground dark:text-white">Schedule</h1>
+        <p className="text-muted-foreground dark:text-muted-foreground">Your assigned tasks and schedule</p>
       </div>
 
       {/* Summary cards */}
       {summary && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">{summary.total}</div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">Total Tasks</div>
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-border dark:border-border p-4">
+            <div className="text-2xl font-bold text-foreground dark:text-white">{summary.total}</div>
+            <div className="text-sm text-muted-foreground dark:text-muted-foreground">Total Tasks</div>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-border dark:border-border p-4">
+            <div className="text-2xl font-bold text-foreground dark:text-white">
               {summary.not_started}
             </div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">Upcoming</div>
+            <div className="text-sm text-muted-foreground dark:text-muted-foreground">Upcoming</div>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-border dark:border-border p-4">
             <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{summary.started}</div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">In Progress</div>
+            <div className="text-sm text-muted-foreground dark:text-muted-foreground">In Progress</div>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-border dark:border-border p-4">
             <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               {summary.completed}
             </div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">Completed</div>
+            <div className="text-sm text-muted-foreground dark:text-muted-foreground">Completed</div>
           </div>
         </div>
       )}
 
       {/* Filter */}
       <div className="mb-4 flex items-center gap-2">
-        <FunnelIcon className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+        <FunnelIcon className="w-5 h-5 text-muted-foreground dark:text-muted-foreground" />
         <select
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          className="text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
+          className="text-sm border-border dark:border-border dark:bg-gray-700 dark:text-white rounded-md"
         >
           <option value="all">All Tasks</option>
           <option value={TASK_STATUS.NOT_STARTED}>Upcoming</option>
@@ -547,7 +547,7 @@ export default function PortalSchedule() {
 
       {/* Task list */}
       {displayTasks.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center text-gray-400 dark:text-gray-500">
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-border dark:border-border p-8 text-center text-muted-foreground dark:text-muted-foreground">
           <CalendarDaysIcon className="w-12 h-12 mx-auto mb-2" />
           No tasks found
         </div>

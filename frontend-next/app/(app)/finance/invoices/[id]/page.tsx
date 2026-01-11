@@ -101,7 +101,7 @@ const statusColors: Record<string, string> = {
   PAID: "bg-emerald-600 text-white",
   AUTHORISED: "bg-blue-600 text-white",
   APPROVED: "bg-green-600 text-white",
-  DRAFT: "bg-gray-500 text-white",
+  DRAFT: "bg-muted0 text-white",
   SUBMITTED: "bg-yellow-500 text-white",
   DELETED: "bg-red-600 text-white",
   VOIDED: "bg-red-600 text-white",
@@ -339,7 +339,7 @@ export default function InvoiceDetailPage() {
               </div>
             </div>
             {/* Arrow */}
-            <ArrowLeft className="h-5 w-5 text-gray-500 rotate-180" />
+            <ArrowLeft className="h-5 w-5 text-muted-foreground rotate-180" />
             {/* Supplier/Customer Box - Pay To / Invoice To */}
             <div className={`px-3 py-1 ${isBill ? "bg-green-600" : "bg-teal-600"} text-white rounded min-w-[200px]`}>
               <div className="text-[10px] uppercase tracking-wide opacity-80">
@@ -484,7 +484,7 @@ export default function InvoiceDetailPage() {
                 <div className={`p-1.5 rounded ${
                   invoice.reference
                     ? 'bg-green-100 dark:bg-green-900/40 border-2 border-green-400 shadow-sm'
-                    : 'bg-gray-50 dark:bg-gray-800 border border-gray-200'
+                    : 'bg-muted dark:bg-gray-800 border border-border'
                 }`}>
                   <p className="text-[10px] text-muted-foreground uppercase">Reference</p>
                   <p className="font-mono font-bold">{invoice.reference || "-"}</p>
@@ -523,11 +523,11 @@ export default function InvoiceDetailPage() {
 
               {/* Amounts */}
               <div className="space-y-1">
-                <div className="flex justify-between p-1.5 rounded bg-gray-50 dark:bg-gray-800 border border-gray-200">
+                <div className="flex justify-between p-1.5 rounded bg-muted dark:bg-gray-800 border border-border">
                   <span className="text-muted-foreground">Subtotal</span>
                   <span className="font-mono font-bold">{formatCurrency(invoice.subtotal, invoice.currency_code)}</span>
                 </div>
-                <div className="flex justify-between p-1.5 rounded bg-gray-50 dark:bg-gray-800 border border-gray-200">
+                <div className="flex justify-between p-1.5 rounded bg-muted dark:bg-gray-800 border border-border">
                   <span className="text-muted-foreground">GST</span>
                   <span className="font-mono font-bold">{formatCurrency(invoice.total_tax, invoice.currency_code)}</span>
                 </div>
@@ -580,7 +580,7 @@ export default function InvoiceDetailPage() {
                   <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-2">Line Items ({invoice.line_items.length})</p>
                   <div className="space-y-1">
                     {invoice.line_items.map((item, index) => (
-                      <div key={index} className="p-2 rounded border bg-gray-50 dark:bg-gray-800">
+                      <div key={index} className="p-2 rounded border bg-muted dark:bg-gray-800">
                         <div className="flex justify-between items-start">
                           <div className="flex-1 min-w-0 pr-2">
                             <p className="font-medium truncate">{item.Description || "No description"}</p>

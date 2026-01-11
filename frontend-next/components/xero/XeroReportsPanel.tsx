@@ -212,7 +212,7 @@ function XeroPdfReportsCard({
       case "failed":
         return <Badge className="bg-red-100 text-red-800">Failed</Badge>;
       default:
-        return <Badge className="bg-gray-100 text-gray-800">Pending</Badge>;
+        return <Badge className="bg-muted text-foreground">Pending</Badge>;
     }
   };
 

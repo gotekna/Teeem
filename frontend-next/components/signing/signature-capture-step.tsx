@@ -337,7 +337,7 @@ export function SignatureCaptureStep({
                   className={`p-4 border rounded-lg text-left transition-colors ${
                     selectedFont.name === font.name
                       ? "border-primary bg-primary/5"
-                      : "border-slate-200 hover:border-slate-300"
+                      : "border-border hover:border-border"
                   }`}
                 >
                   <span
@@ -386,7 +386,7 @@ export function SignatureCaptureStep({
               </Button>
             </div>
           ) : (
-            <label className="flex flex-col items-center justify-center h-[150px] border-2 border-dashed rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+            <label className="flex flex-col items-center justify-center h-[150px] border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted transition-colors">
               <Upload className="h-8 w-8 text-muted-foreground mb-2" />
               <span className="text-muted-foreground">Click to upload signature image</span>
               <span className="text-xs text-muted-foreground mt-1">PNG, JPG up to 5MB</span>

@@ -94,7 +94,7 @@ const getStatusBadgeClass = (color: string) => {
     green: "bg-green-100 text-green-700",
     yellow: "bg-yellow-100 text-yellow-800",
     red: "bg-red-100 text-red-700",
-    gray: "bg-gray-100 text-gray-600",
+    gray: "bg-muted text-muted-foreground",
   };
   return colorClasses[color] || colorClasses.gray;
 };

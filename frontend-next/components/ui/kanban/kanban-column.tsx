@@ -32,7 +32,7 @@ import type { KanbanItem, KanbanColumnProps, KanbanColumnColor } from "./types";
 // Color classes for column headers
 const columnColorClasses: Record<KanbanColumnColor, string> = {
   default: "border-border",
-  gray: "border-gray-300 dark:border-gray-600",
+  gray: "border-border dark:border-border",
   blue: "border-blue-400 dark:border-blue-600",
   green: "border-green-400 dark:border-green-600",
   orange: "border-orange-400 dark:border-orange-600",
@@ -42,7 +42,7 @@ const columnColorClasses: Record<KanbanColumnColor, string> = {
 
 const columnHeaderColorClasses: Record<KanbanColumnColor, string> = {
   default: "text-foreground",
-  gray: "text-gray-700 dark:text-gray-300",
+  gray: "text-foreground dark:text-muted-foreground",
   blue: "text-blue-700 dark:text-blue-300",
   green: "text-green-700 dark:text-green-300",
   orange: "text-orange-700 dark:text-orange-300",

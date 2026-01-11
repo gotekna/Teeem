@@ -42,7 +42,7 @@ function getRankIcon(rank: number) {
     case 1:
       return <Crown className="h-4 w-4 text-yellow-500" />;
     case 2:
-      return <Medal className="h-4 w-4 text-gray-400" />;
+      return <Medal className="h-4 w-4 text-muted-foreground" />;
     case 3:
       return <Award className="h-4 w-4 text-amber-600" />;
     default:
@@ -57,7 +57,7 @@ function getTrendIcon(trend?: string) {
     case "down":
       return <TrendingDown className="h-3 w-3 text-red-500" />;
     default:
-      return <Minus className="h-3 w-3 text-gray-400" />;
+      return <Minus className="h-3 w-3 text-muted-foreground" />;
   }
 }
 
@@ -100,12 +100,12 @@ export function HealthLeaderboard({
                 <div className="flex items-center gap-2">
                   <Bot className={cn(
                     "h-5 w-5",
-                    systemWinning ? "text-purple-600" : "text-gray-400"
+                    systemWinning ? "text-purple-600" : "text-muted-foreground"
                   )} />
                   <span className="font-medium text-sm">System</span>
                   <span className={cn(
                     "font-mono font-bold",
-                    systemWinning ? "text-purple-600" : "text-gray-600"
+                    systemWinning ? "text-purple-600" : "text-muted-foreground"
                   )}>
                     {systemPoints} pts
                   </span>
@@ -113,14 +113,14 @@ export function HealthLeaderboard({
                 <div className="flex items-center gap-2">
                   <span className={cn(
                     "font-mono font-bold",
-                    !systemWinning ? "text-blue-600" : "text-gray-600"
+                    !systemWinning ? "text-blue-600" : "text-muted-foreground"
                   )}>
                     {humansPoints} pts
                   </span>
                   <span className="font-medium text-sm">Humans</span>
                   <Users className={cn(
                     "h-5 w-5",
-                    !systemWinning ? "text-blue-600" : "text-gray-400"
+                    !systemWinning ? "text-blue-600" : "text-muted-foreground"
                   )} />
                 </div>
               </div>
@@ -168,7 +168,7 @@ export function HealthLeaderboard({
                         "w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium",
                         entry.isCurrentUser
                           ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
-                          : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                          : "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground"
                       )}>
                         {entry.name.charAt(0).toUpperCase()}
                       </div>

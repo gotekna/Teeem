@@ -13,7 +13,7 @@ export const EndEventNode = memo(({ data, selected }: NodeProps<Node<BpmnNodeDat
       <Handle
         type="target"
         position={Position.Left}
-        className="!h-2 !w-2 !border !border-slate-400 !bg-white dark:!bg-slate-900"
+        className="!h-2 !w-2 !border !border-border !bg-white dark:!bg-slate-900"
       />
 
       {/* Circle node with thick border */}
@@ -29,7 +29,7 @@ export const EndEventNode = memo(({ data, selected }: NodeProps<Node<BpmnNodeDat
       </div>
 
       {/* Label to the right */}
-      <div className="ml-2 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
+      <div className="ml-2 whitespace-nowrap text-sm text-foreground dark:text-muted-foreground">
         {data.name || "End"}
       </div>
     </div>

@@ -179,11 +179,11 @@ const RELATIONSHIP_TYPES = [
   { value: "client", label: "Client", icon: User, color: "bg-blue-500" },
   { value: "accountant", label: "Accountant", icon: Calculator, color: "bg-green-500" },
   { value: "lawyer", label: "Lawyer", icon: Scale, color: "bg-purple-500" },
-  { value: "previous_accountant", label: "Previous Accountant", icon: Calculator, color: "bg-gray-500" },
+  { value: "previous_accountant", label: "Previous Accountant", icon: Calculator, color: "bg-muted0" },
   { value: "advisor", label: "Advisor", icon: Users, color: "bg-teal-500" },
   { value: "opposing_party", label: "Opposing Party", icon: AlertTriangle, color: "bg-orange-500" },
   { value: "witness", label: "Witness", icon: User, color: "bg-yellow-500" },
-  { value: "related_party", label: "Related Party", icon: Users, color: "bg-slate-500" },
+  { value: "related_party", label: "Related Party", icon: Users, color: "bg-muted0" },
   { value: "ato_officer", label: "ATO Officer", icon: Building2, color: "bg-red-500" },
   { value: "afsa_officer", label: "AFSA Officer", icon: Building2, color: "bg-red-600" },
   { value: "inspector_general", label: "Inspector-General", icon: Building2, color: "bg-red-700" },
@@ -199,7 +199,7 @@ const RELATIONSHIP_TYPES = [
 
 const ALIGNMENTS = [
   { value: "friendly", label: "Friendly", icon: UserCheck, color: "bg-green-500", textColor: "text-green-700" },
-  { value: "neutral", label: "Neutral", icon: UserMinus, color: "bg-gray-400", textColor: "text-gray-600" },
+  { value: "neutral", label: "Neutral", icon: UserMinus, color: "bg-gray-400", textColor: "text-muted-foreground" },
   { value: "opposing", label: "Opposing", icon: UserX, color: "bg-red-500", textColor: "text-red-700" },
 ];
 

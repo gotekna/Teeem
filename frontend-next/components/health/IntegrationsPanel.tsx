@@ -43,7 +43,7 @@ function getStatusIcon(status: string) {
     case "error":
       return <XCircle className="h-4 w-4 text-red-600" />;
     default:
-      return <AlertTriangle className="h-4 w-4 text-gray-400" />;
+      return <AlertTriangle className="h-4 w-4 text-muted-foreground" />;
   }
 }
 
@@ -51,7 +51,7 @@ function getStatusBadge(status: string, message: string) {
   const variants: Record<string, string> = {
     connected: "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300",
     warning: "bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300",
-    disconnected: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
+    disconnected: "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground",
     error: "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300",
   };
 

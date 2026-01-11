@@ -163,7 +163,7 @@ export default function PaymentLinksTab() {
       case "paid":
         return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Paid</Badge>;
       case "expired":
-        return <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">Expired</Badge>;
+        return <Badge variant="outline" className="bg-muted text-foreground border-border">Expired</Badge>;
       case "cancelled":
         return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Cancelled</Badge>;
       default:
@@ -220,7 +220,7 @@ export default function PaymentLinksTab() {
           </Card>
           <Card>
             <CardContent className="pt-4">
-              <div className="text-2xl font-bold text-gray-500">{stats.expired_links}</div>
+              <div className="text-2xl font-bold text-muted-foreground">{stats.expired_links}</div>
               <p className="text-xs text-muted-foreground">Expired</p>
             </CardContent>
           </Card>

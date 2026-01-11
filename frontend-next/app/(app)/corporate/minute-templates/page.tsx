@@ -58,7 +58,7 @@ const TEMPLATE_TYPES = ["company", "trust", "general"];
 const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
   company: { bg: "bg-blue-100 dark:bg-blue-900/30", text: "text-blue-800 dark:text-blue-300" },
   trust: { bg: "bg-purple-100 dark:bg-purple-900/30", text: "text-purple-800 dark:text-purple-300" },
-  general: { bg: "bg-gray-100 dark:bg-gray-700", text: "text-gray-800 dark:text-gray-200" },
+  general: { bg: "bg-muted dark:bg-gray-700", text: "text-foreground dark:text-muted-foreground" },
 };
 
 export default function MinuteTemplatesPage() {

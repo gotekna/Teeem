@@ -76,7 +76,7 @@ const CHECKBOX_CONFIGS: Record<string, CheckboxConfig> = {
     label: 'Started',
     color: {
       checked: 'bg-emerald-500 border-emerald-500',
-      unchecked: 'border-gray-300',
+      unchecked: 'border-border',
     },
   },
   hold: {
@@ -84,7 +84,7 @@ const CHECKBOX_CONFIGS: Record<string, CheckboxConfig> = {
     label: 'Hold',
     color: {
       checked: 'bg-amber-500 border-amber-500',
-      unchecked: 'border-gray-300',
+      unchecked: 'border-border',
     },
   },
   confirm: {
@@ -92,7 +92,7 @@ const CHECKBOX_CONFIGS: Record<string, CheckboxConfig> = {
     label: 'Confirm',
     color: {
       checked: 'bg-orange-500 border-orange-500',
-      unchecked: 'border-gray-300',
+      unchecked: 'border-border',
     },
   },
   supplier_confirm: {
@@ -100,15 +100,15 @@ const CHECKBOX_CONFIGS: Record<string, CheckboxConfig> = {
     label: 'Supplier Confirm',
     color: {
       checked: 'bg-purple-500 border-purple-500',
-      unchecked: 'border-gray-300',
+      unchecked: 'border-border',
     },
   },
   is_completed: {
     field: 'is_completed',
     label: 'Complete',
     color: {
-      checked: 'bg-gray-700 border-gray-700',
-      unchecked: 'border-gray-300',
+      checked: 'bg-gray-700 border-border',
+      unchecked: 'border-border',
     },
   },
 };
@@ -230,7 +230,7 @@ function CheckboxOverlay({
         className={cn(
           'w-[14px] h-[14px] rounded-sm pointer-events-auto',
           checked && config?.color.checked,
-          !checked && 'border-gray-300 bg-transparent'
+          !checked && 'border-border bg-transparent'
         )}
         style={checked ? {
           backgroundColor: config?.color.checked.includes('emerald') ? '#10b981' :
@@ -350,7 +350,7 @@ export function DependencyPopup({
         top: y,
       }}
     >
-      <div className="text-xs font-medium mb-2 text-gray-600">
+      <div className="text-xs font-medium mb-2 text-muted-foreground">
         Link from task
       </div>
       <div className="flex gap-1">
@@ -385,7 +385,7 @@ export function DependencyPopup({
       </div>
       <button
         onClick={onCancel}
-        className="mt-2 w-full text-xs text-gray-500 hover:text-gray-700"
+        className="mt-2 w-full text-xs text-muted-foreground hover:text-foreground"
       >
         Cancel
       </button>

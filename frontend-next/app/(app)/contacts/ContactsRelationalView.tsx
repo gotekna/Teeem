@@ -136,7 +136,7 @@ export default function ContactsRelationalView({ contacts }: ContactsRelationalV
             label: (
               <div className="text-xs">
                 <div className="font-semibold">{contact.display_name}</div>
-                <div className="text-[10px] text-gray-500">{contact.entity_type}</div>
+                <div className="text-[10px] text-muted-foreground">{contact.entity_type}</div>
               </div>
             ),
           },

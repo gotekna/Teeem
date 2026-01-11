@@ -13,21 +13,21 @@ export const DataStoreReferenceNode = memo(({ data, selected }: NodeProps<Node<B
         "w-[180px] rounded border bg-white px-3 py-2 shadow-sm transition-all dark:bg-slate-900",
         selected
           ? "border-blue-500 ring-2 ring-blue-300"
-          : "border-slate-300 dark:border-slate-600"
+          : "border-border dark:border-border"
       )}
     >
       {/* Left handle for incoming */}
       <Handle
         type="target"
         position={Position.Left}
-        className="!h-2 !w-2 !border !border-slate-400 !bg-white dark:!bg-slate-900"
+        className="!h-2 !w-2 !border !border-border !bg-white dark:!bg-slate-900"
       />
 
       {/* Simple content */}
       <div className="flex items-center gap-2">
-        <Database className="h-4 w-4 flex-shrink-0 text-slate-500" />
+        <Database className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
         <div className="min-w-0">
-          <p className="truncate text-sm text-slate-700 dark:text-slate-200">
+          <p className="truncate text-sm text-foreground dark:text-muted-foreground">
             {data.name || "Data Store"}
           </p>
         </div>
@@ -37,7 +37,7 @@ export const DataStoreReferenceNode = memo(({ data, selected }: NodeProps<Node<B
       <Handle
         type="source"
         position={Position.Right}
-        className="!h-2 !w-2 !border !border-slate-400 !bg-white dark:!bg-slate-900"
+        className="!h-2 !w-2 !border !border-border !bg-white dark:!bg-slate-900"
       />
     </div>
   );

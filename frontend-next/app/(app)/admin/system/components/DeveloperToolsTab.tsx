@@ -454,8 +454,8 @@ export function DeveloperToolsTab({ subtab }: DeveloperToolsTabProps) {
 
             {/* Sync Results Panel */}
             {syncResults && (
-              <Card className="border-gray-200">
-                <CardHeader className="py-3 bg-gray-50 dark:bg-gray-800">
+              <Card className="border-border">
+                <CardHeader className="py-3 bg-muted dark:bg-gray-800">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <CardTitle className="text-sm">System Tables Sync Results</CardTitle>
@@ -822,7 +822,7 @@ export function DeveloperToolsTab({ subtab }: DeveloperToolsTabProps) {
                             variant="secondary"
                             className={cn(
                               agent.status === "active" && "bg-green-100 text-green-800",
-                              agent.status === "inactive" && "bg-gray-100 text-gray-800",
+                              agent.status === "inactive" && "bg-muted text-foreground",
                               agent.status === "error" && "bg-red-100 text-red-800"
                             )}
                           >

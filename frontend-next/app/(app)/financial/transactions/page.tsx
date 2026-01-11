@@ -264,7 +264,7 @@ export default function FinancialTransactionsPage() {
       <div className="p-6 flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading transactions...</p>
+          <p className="mt-4 text-muted-foreground">Loading transactions...</p>
         </div>
       </div>
     );
@@ -290,10 +290,10 @@ export default function FinancialTransactionsPage() {
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 px-4 shrink-0">
             {/* Total Income */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-border dark:border-border">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Income</p>
+                  <p className="text-sm font-medium text-muted-foreground dark:text-muted-foreground">Total Income</p>
                   <p className="mt-2 text-3xl font-bold text-green-600">
                     $
                     {summary.total_income?.toLocaleString("en-AU", {
@@ -309,10 +309,10 @@ export default function FinancialTransactionsPage() {
             </div>
 
             {/* Total Expenses */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-border dark:border-border">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Expenses</p>
+                  <p className="text-sm font-medium text-muted-foreground dark:text-muted-foreground">Total Expenses</p>
                   <p className="mt-2 text-3xl font-bold text-red-600">
                     $
                     {summary.total_expenses?.toLocaleString("en-AU", {
@@ -328,10 +328,10 @@ export default function FinancialTransactionsPage() {
             </div>
 
             {/* Net Profit */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-border dark:border-border">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Net Profit</p>
+                  <p className="text-sm font-medium text-muted-foreground dark:text-muted-foreground">Net Profit</p>
                   <p
                     className={`mt-2 text-3xl font-bold ${
                       (summary.net_profit || 0) >= 0

@@ -122,14 +122,14 @@ export function WorkflowProgress({ instanceId, compact = false }: WorkflowProgre
     // Type-based icon for pending
     switch (node.node_type) {
       case 'start_event':
-        return <Play className={cn(iconClass, 'text-gray-400')} />;
+        return <Play className={cn(iconClass, 'text-muted-foreground')} />;
       case 'end_event':
-        return <Square className={cn(iconClass, 'text-gray-400')} />;
+        return <Square className={cn(iconClass, 'text-muted-foreground')} />;
       case 'exclusive_gateway':
       case 'parallel_gateway':
-        return <Diamond className={cn(iconClass, 'text-gray-400')} />;
+        return <Diamond className={cn(iconClass, 'text-muted-foreground')} />;
       default:
-        return <Circle className={cn(iconClass, 'text-gray-400')} />;
+        return <Circle className={cn(iconClass, 'text-muted-foreground')} />;
     }
   };
 
@@ -168,7 +168,7 @@ export function WorkflowProgress({ instanceId, compact = false }: WorkflowProgre
                 node.status === 'completed' && 'bg-green-100 text-green-700',
                 node.status === 'active' && 'bg-blue-100 text-blue-700',
                 node.status === 'waiting' && 'bg-orange-100 text-orange-700',
-                node.status === 'pending' && 'bg-gray-100 text-gray-500'
+                node.status === 'pending' && 'bg-muted text-muted-foreground'
               )}
             >
               {getNodeIcon(node)}
@@ -177,7 +177,7 @@ export function WorkflowProgress({ instanceId, compact = false }: WorkflowProgre
             {index < nodes.length - 1 && (
               <div className={cn(
                 'w-4 h-0.5 mx-0.5',
-                node.status === 'completed' ? 'bg-green-300' : 'bg-gray-200'
+                node.status === 'completed' ? 'bg-green-300' : 'bg-muted'
               )} />
             )}
           </div>
@@ -199,7 +199,7 @@ export function WorkflowProgress({ instanceId, compact = false }: WorkflowProgre
                 node.status === 'completed' && 'border-green-500 bg-green-50',
                 node.status === 'active' && 'border-blue-500 bg-blue-50',
                 node.status === 'waiting' && 'border-orange-500 bg-orange-50',
-                node.status === 'pending' && 'border-gray-300 bg-gray-50'
+                node.status === 'pending' && 'border-border bg-muted'
               )}
             >
               {getNodeIcon(node)}
@@ -208,7 +208,7 @@ export function WorkflowProgress({ instanceId, compact = false }: WorkflowProgre
               <div
                 className={cn(
                   'w-0.5 h-8',
-                  node.status === 'completed' ? 'bg-green-300' : 'bg-gray-200'
+                  node.status === 'completed' ? 'bg-green-300' : 'bg-muted'
                 )}
               />
             )}
@@ -222,7 +222,7 @@ export function WorkflowProgress({ instanceId, compact = false }: WorkflowProgre
                 node.status === 'completed' && 'text-green-700',
                 node.status === 'active' && 'text-blue-700',
                 node.status === 'waiting' && 'text-orange-700',
-                node.status === 'pending' && 'text-gray-500'
+                node.status === 'pending' && 'text-muted-foreground'
               )}
             >
               {getNodeLabel(node)}

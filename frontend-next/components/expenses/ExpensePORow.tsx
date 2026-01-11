@@ -33,7 +33,7 @@ const PAYMENT_STATUS_CONFIG: Record<
   pending: {
     label: "Pending",
     icon: AlertCircle,
-    color: "text-gray-500 dark:text-gray-400",
+    color: "text-muted-foreground dark:text-muted-foreground",
   },
   manual_review: {
     label: "Review",
@@ -69,8 +69,8 @@ export function ExpensePORow({ po, depth, className }: ExpensePORowProps) {
     <div
       className={cn(
         "flex items-center gap-4 py-2 px-3 text-sm",
-        "border-b border-gray-100 dark:border-gray-800",
-        "hover:bg-gray-50 dark:hover:bg-gray-800/50",
+        "border-b border-border dark:border-border",
+        "hover:bg-muted dark:hover:bg-gray-800/50",
         "transition-colors",
         className
       )}
@@ -78,20 +78,20 @@ export function ExpensePORow({ po, depth, className }: ExpensePORowProps) {
     >
       {/* Tree connector line */}
       <div className="flex items-center gap-2 text-muted-foreground">
-        <span className="text-gray-300 dark:text-gray-600">│</span>
-        <FileText className="h-4 w-4 text-gray-400" />
+        <span className="text-muted-foreground dark:text-muted-foreground">│</span>
+        <FileText className="h-4 w-4 text-muted-foreground" />
       </div>
 
       {/* PO Number */}
       <div className="min-w-[90px]">
-        <span className="font-mono text-xs font-medium text-gray-700 dark:text-gray-300">
+        <span className="font-mono text-xs font-medium text-foreground dark:text-muted-foreground">
           {poNumber}
         </span>
       </div>
 
       {/* Supplier */}
       <div className="flex-1 min-w-[150px] truncate">
-        <span className="text-gray-600 dark:text-gray-400">{supplier}</span>
+        <span className="text-muted-foreground dark:text-muted-foreground">{supplier}</span>
       </div>
 
       {/* Total Amount */}
@@ -117,7 +117,7 @@ export function ExpensePORow({ po, depth, className }: ExpensePORowProps) {
             "gap-1 font-normal",
             paymentStatus === "complete" && "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
             paymentStatus === "part_payment" && "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300",
-            paymentStatus === "pending" && "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
+            paymentStatus === "pending" && "bg-muted text-muted-foreground dark:bg-gray-800 dark:text-muted-foreground",
             paymentStatus === "manual_review" && "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300"
           )}
         >

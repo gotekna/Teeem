@@ -66,7 +66,7 @@ const statusColors = {
   hold: 'data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500',
   confirm: 'data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500',
   supplier_confirm: 'data-[state=checked]:bg-purple-500 data-[state=checked]:border-purple-500',
-  completed: 'data-[state=checked]:bg-gray-500 data-[state=checked]:border-gray-500',
+  completed: 'data-[state=checked]:bg-muted0 data-[state=checked]:border-border',
 };
 
 interface User {

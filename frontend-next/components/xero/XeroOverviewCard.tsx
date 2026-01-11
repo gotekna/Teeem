@@ -111,7 +111,7 @@ export function XeroOverviewCard({ companyId }: XeroOverviewCardProps) {
       case 'connected': return 'bg-green-500';
       case 'warning': return 'bg-orange-500';
       case 'error': return 'bg-red-500';
-      default: return 'bg-gray-500';
+      default: return 'bg-muted0';
     }
   };
 

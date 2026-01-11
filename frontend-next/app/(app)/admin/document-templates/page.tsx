@@ -275,7 +275,7 @@ export default function DocumentTemplatesPage() {
   if (loading) {
     return (
       <div className="flex h-96 items-center justify-center">
-        <Spinner size={32} className="text-slate-400" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }
@@ -284,7 +284,7 @@ export default function DocumentTemplatesPage() {
     <div className="container mx-auto p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold">Document Templates</h1>
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-muted-foreground">
           Manage Word templates for automated document generation
         </p>
       </div>
@@ -296,7 +296,7 @@ export default function DocumentTemplatesPage() {
           className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
             activeTab === "templates"
               ? "border-blue-600 text-blue-600"
-              : "border-transparent text-slate-500 hover:text-slate-700"
+              : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
           <FileText className="h-4 w-4" />
@@ -307,7 +307,7 @@ export default function DocumentTemplatesPage() {
           className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
             activeTab === "fields"
               ? "border-blue-600 text-blue-600"
-              : "border-transparent text-slate-500 hover:text-slate-700"
+              : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
           <BookOpen className="h-4 w-4" />
@@ -318,7 +318,7 @@ export default function DocumentTemplatesPage() {
           className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
             activeTab === "preview"
               ? "border-blue-600 text-blue-600"
-              : "border-transparent text-slate-500 hover:text-slate-700"
+              : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
           <TestTube className="h-4 w-4" />
@@ -425,14 +425,14 @@ export default function DocumentTemplatesPage() {
                     value={group.name}
                     className="border-none"
                   >
-                    <AccordionTrigger className="flex w-full items-center justify-between rounded-lg bg-slate-100 p-3 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 hover:no-underline [&>svg]:hidden">
+                    <AccordionTrigger className="flex w-full items-center justify-between rounded-lg bg-muted p-3 hover:bg-muted dark:bg-slate-800 dark:hover:bg-slate-700 hover:no-underline [&>svg]:hidden">
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{group.name}</span>
                         {group.isLoop && (
                           <Badge variant="outline" className="text-xs">Loop</Badge>
                         )}
                       </div>
-                      <span className="text-sm text-slate-500">{group.description}</span>
+                      <span className="text-sm text-muted-foreground">{group.description}</span>
                     </AccordionTrigger>
                     <AccordionContent>
                       <div className="mt-2 rounded-lg border">
@@ -478,14 +478,14 @@ export default function DocumentTemplatesPage() {
                               return (
                                 <TableRow key={field.path}>
                                   <TableCell>
-                                    <code className="rounded bg-slate-100 px-2 py-1 text-sm dark:bg-slate-800">
+                                    <code className="rounded bg-muted px-2 py-1 text-sm dark:bg-slate-800">
                                       {fullPath}
                                     </code>
                                   </TableCell>
-                                  <TableCell className="text-sm text-slate-600 dark:text-slate-400">
+                                  <TableCell className="text-sm text-muted-foreground dark:text-muted-foreground">
                                     {field.description}
                                   </TableCell>
-                                  <TableCell className="text-sm text-slate-500">
+                                  <TableCell className="text-sm text-muted-foreground">
                                     {field.example}
                                   </TableCell>
                                   <TableCell>
@@ -526,7 +526,7 @@ export default function DocumentTemplatesPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <pre className="rounded-lg bg-slate-900 p-4 text-sm text-slate-100 overflow-x-auto whitespace-pre-wrap">
+                <pre className="rounded-lg bg-slate-900 p-4 text-sm text-muted-foreground overflow-x-auto whitespace-pre-wrap">
 {`{{dear}}
 
 Re: {{job.full_address}}
@@ -543,7 +543,7 @@ Emails: {{client_emails}}
 Kind regards,
 {{builder.display_name}}`}
                 </pre>
-                <p className="mt-3 text-xs text-slate-500">
+                <p className="mt-3 text-xs text-muted-foreground">
                   Output for company with owner: &quot;Dear Keith, ... To: ABC Pty Ltd (Keith Miller)&quot;
                 </p>
               </CardContent>
@@ -559,7 +559,7 @@ Kind regards,
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <pre className="rounded-lg bg-slate-900 p-4 text-sm text-slate-100 overflow-x-auto whitespace-pre-wrap">
+                <pre className="rounded-lg bg-slate-900 p-4 text-sm text-muted-foreground overflow-x-auto whitespace-pre-wrap">
 {`BUILDING CONTRACT
 
 Between:
@@ -578,7 +578,7 @@ Contract Price: {{job.contract_price}}
 
 This contract is made on {{job.contract_date}}.`}
                 </pre>
-                <p className="mt-3 text-xs text-slate-500">
+                <p className="mt-3 text-xs text-muted-foreground">
                   Output for company: &quot;ABC Pty Ltd ABN 12 345 678 901&quot; (no owner name)
                 </p>
               </CardContent>
@@ -633,9 +633,9 @@ This contract is made on {{job.contract_date}}.`}
             </div>
 
             {selectedTemplate && (
-              <div className="mt-4 rounded-lg bg-slate-50 p-4 dark:bg-slate-800">
+              <div className="mt-4 rounded-lg bg-muted p-4 dark:bg-slate-800">
                 <h4 className="font-medium">{selectedTemplate.name}</h4>
-                <p className="text-sm text-slate-500">{selectedTemplate.description}</p>
+                <p className="text-sm text-muted-foreground">{selectedTemplate.description}</p>
                 <div className="mt-2 flex gap-2">
                   <Badge variant="secondary">{selectedTemplate.category}</Badge>
                   <Badge variant="outline">{selectedTemplate.output_format.toUpperCase()}</Badge>
@@ -646,7 +646,7 @@ This contract is made on {{job.contract_date}}.`}
                   )}
                 </div>
                 {selectedTemplate.sharepoint_path && (
-                  <p className="mt-2 text-xs text-slate-500">
+                  <p className="mt-2 text-xs text-muted-foreground">
                     Path: {selectedTemplate.sharepoint_path}
                   </p>
                 )}

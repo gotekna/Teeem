@@ -525,27 +525,27 @@ export function PerformanceTab() {
           <CardContent>
             {/* Summary Stats */}
             <div className="grid grid-cols-4 gap-4 mb-4">
-              <div className="text-center p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+              <div className="text-center p-3 bg-muted dark:bg-gray-800/50 rounded-lg">
                 <div className="text-2xl font-bold text-green-600 dark:text-green-400">{budgets.passing}</div>
                 <div className="text-xs text-muted-foreground">Passing</div>
               </div>
-              <div className="text-center p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+              <div className="text-center p-3 bg-muted dark:bg-gray-800/50 rounded-lg">
                 <div className="text-2xl font-bold text-red-600 dark:text-red-400">{budgets.failing}</div>
                 <div className="text-xs text-muted-foreground">Failing</div>
               </div>
-              <div className="text-center p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+              <div className="text-center p-3 bg-muted dark:bg-gray-800/50 rounded-lg">
                 <div className="text-2xl font-bold text-red-700 dark:text-red-300">{budgets.critical_violations}</div>
                 <div className="text-xs text-muted-foreground">Critical</div>
               </div>
-              <div className="text-center p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                <div className="text-2xl font-bold text-gray-500">{budgets.no_data}</div>
+              <div className="text-center p-3 bg-muted dark:bg-gray-800/50 rounded-lg">
+                <div className="text-2xl font-bold text-muted-foreground">{budgets.no_data}</div>
                 <div className="text-xs text-muted-foreground">No Data</div>
               </div>
             </div>
 
             {/* Compliance Bar */}
             <div className="mb-4">
-              <div className="h-3 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700">
+              <div className="h-3 rounded-full overflow-hidden bg-muted dark:bg-gray-700">
                 <div
                   className={cn(
                     "h-full rounded-full transition-all",
@@ -657,7 +657,7 @@ export function PerformanceTab() {
                     <p className="text-xs text-muted-foreground">P75 ({vital.count} samples)</p>
 
                     {/* Distribution bar */}
-                    <div className="mt-3 h-2 rounded-full overflow-hidden flex bg-gray-200 dark:bg-gray-700">
+                    <div className="mt-3 h-2 rounded-full overflow-hidden flex bg-muted dark:bg-gray-700">
                       <div
                         className="bg-green-500"
                         style={{ width: `${vital.good_percent}%` }}
@@ -807,7 +807,7 @@ export function PerformanceTab() {
                 return (
                   <div key={index} className="flex items-center gap-3">
                     <span className="text-xs text-muted-foreground w-16">{hour}</span>
-                    <div className="flex-1 h-6 bg-gray-100 dark:bg-gray-800 rounded overflow-hidden">
+                    <div className="flex-1 h-6 bg-muted dark:bg-gray-800 rounded overflow-hidden">
                       <div
                         className={cn(
                           "h-full rounded transition-all",
@@ -876,7 +876,7 @@ export function PerformanceTab() {
                       "p-4 rounded-lg border",
                       slo.status === "met" && "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20",
                       slo.status === "violated" && "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20",
-                      slo.status === "no_data" && "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50"
+                      slo.status === "no_data" && "border-border dark:border-border bg-muted dark:bg-gray-800/50"
                     )}
                   >
                     <div className="flex items-start justify-between mb-2">
@@ -890,7 +890,7 @@ export function PerformanceTab() {
                           "text-xs",
                           slo.status === "met" && "bg-green-100 text-green-800",
                           slo.status === "violated" && "bg-red-100 text-red-800",
-                          slo.status === "no_data" && "bg-gray-100 text-gray-600"
+                          slo.status === "no_data" && "bg-muted text-muted-foreground"
                         )}
                       >
                         {slo.status === "met" ? "Met" : slo.status === "violated" ? "Violated" : "No Data"}
@@ -915,7 +915,7 @@ export function PerformanceTab() {
                           {budgetPercent.toFixed(1)}% remaining
                         </span>
                       </div>
-                      <div className="h-2 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700">
+                      <div className="h-2 rounded-full overflow-hidden bg-muted dark:bg-gray-700">
                         <div
                           className={cn(
                             "h-full rounded-full transition-all",
@@ -941,7 +941,7 @@ export function PerformanceTab() {
       )}
 
       {/* Performance Tips */}
-      <Card className="bg-gray-50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-800">
+      <Card className="bg-muted dark:bg-gray-900/50 border-border dark:border-border">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Performance Guidelines</CardTitle>
         </CardHeader>

@@ -1294,7 +1294,7 @@ export default function TeeemXLPage() {
       <div
         key={ref}
         className={cn(
-          "border-r border-b border-gray-200 dark:border-gray-700 px-1 flex items-center overflow-hidden relative",
+          "border-r border-b border-border dark:border-border px-1 flex items-center overflow-hidden relative",
           isSelected && "ring-2 ring-blue-500 ring-inset z-10",
           inSelection && !isSelected && "bg-blue-100 dark:bg-blue-900/30",
           inFillPreview && "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700 border-dashed",
@@ -1489,13 +1489,13 @@ export default function TeeemXLPage() {
           {/* Column headers */}
           <div className="flex sticky top-0 z-20 bg-muted">
             <div
-              className="border-r border-b border-gray-300 dark:border-gray-600 bg-muted"
+              className="border-r border-b border-border dark:border-border bg-muted"
               style={{ width: ROW_HEADER_WIDTH, height: CELL_HEIGHT }}
             />
             {Array.from({ length: DEFAULT_COLS }, (_, col) => (
               <div
                 key={col}
-                className="border-r border-b border-gray-300 dark:border-gray-600 bg-muted flex items-center justify-center text-xs font-medium cursor-pointer hover:bg-muted/80"
+                className="border-r border-b border-border dark:border-border bg-muted flex items-center justify-center text-xs font-medium cursor-pointer hover:bg-muted/80"
                 style={{
                   width: CELL_WIDTH,
                   height: CELL_HEIGHT,
@@ -1520,7 +1520,7 @@ export default function TeeemXLPage() {
             <div key={row} className="flex">
               {/* Row header */}
               <div
-                className="border-r border-b border-gray-300 dark:border-gray-600 bg-muted flex items-center justify-center text-xs font-medium sticky left-0 z-10 cursor-pointer hover:bg-muted/80"
+                className="border-r border-b border-border dark:border-border bg-muted flex items-center justify-center text-xs font-medium sticky left-0 z-10 cursor-pointer hover:bg-muted/80"
                 style={{ width: ROW_HEADER_WIDTH, height: CELL_HEIGHT }}
                 onClick={() => {
                   // Select entire row
@@ -1551,7 +1551,7 @@ export default function TeeemXLPage() {
             className={cn(
               "px-3 py-1 text-xs rounded-t border-t border-l border-r",
               idx === activeSheetIndex
-                ? "bg-background border-gray-300 dark:border-gray-600"
+                ? "bg-background border-border dark:border-border"
                 : "bg-muted/50 border-transparent hover:bg-muted"
             )}
           >

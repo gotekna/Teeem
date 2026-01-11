@@ -250,7 +250,7 @@ export function TaskListRow({
                       if (checked) completeTask(task.id);
                       else updateTask(task.id, { status: 'started' });
                     }}
-                    className="h-3.5 w-3.5 data-[state=checked]:bg-gray-500 data-[state=checked]:border-gray-500"
+                    className="h-3.5 w-3.5 data-[state=checked]:bg-muted0 data-[state=checked]:border-border"
                   />
                 </div>
               </TooltipTrigger>

@@ -49,7 +49,7 @@ export function PropertiesPanel({
 }: PropertiesPanelProps) {
   if (!selectedNode && !selectedEdge) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-slate-500">
+      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
         Select a node or edge to edit properties
       </div>
     );
@@ -97,7 +97,7 @@ function NodeProperties({
         className={`rounded-lg bg-${meta.color}-50 dark:bg-${meta.color}-950/30 p-3`}
       >
         <p className="text-sm font-medium">{meta.label}</p>
-        <p className="text-xs text-slate-500">{meta.description}</p>
+        <p className="text-xs text-muted-foreground">{meta.description}</p>
       </div>
 
       <Tabs defaultValue="element" className="w-full">
@@ -161,26 +161,26 @@ function NodeProperties({
 
         <TabsContent value="data" className="space-y-4 pt-4">
           <div className="rounded-md border border-dashed p-4 text-center">
-            <Database className="mx-auto mb-2 h-8 w-8 text-slate-400" />
-            <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
+            <Database className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
+            <p className="text-sm font-medium text-muted-foreground dark:text-muted-foreground">
               Data Bindings
             </p>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-muted-foreground">
               Configure input/output variables and data mappings for this element.
             </p>
-            <p className="mt-3 text-xs text-slate-400">
+            <p className="mt-3 text-xs text-muted-foreground">
               Coming soon...
             </p>
           </div>
         </TabsContent>
 
         <TabsContent value="docs" className="space-y-4 pt-4">
-          <div className="rounded-md border bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800">
+          <div className="rounded-md border bg-muted p-4 dark:border-border dark:bg-slate-800">
             <h4 className="mb-2 flex items-center gap-2 text-sm font-medium">
               <FileQuestion className="h-4 w-4 text-blue-500" />
               {meta.label}
             </h4>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
+            <p className="text-sm text-muted-foreground dark:text-muted-foreground">
               {getNodeDocumentation(data.nodeType)}
             </p>
           </div>
@@ -341,12 +341,12 @@ function ServiceTaskProperties({
           <div>
             <Label>Document Template</Label>
             {loadingTemplates ? (
-              <div className="flex items-center gap-2 py-2 text-sm text-slate-500">
+              <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
                 <Spinner size={16} />
                 Loading templates...
               </div>
             ) : templates.length === 0 ? (
-              <div className="rounded-md border border-dashed p-3 text-center text-sm text-slate-500">
+              <div className="rounded-md border border-dashed p-3 text-center text-sm text-muted-foreground">
                 <FileText className="mx-auto mb-1 h-5 w-5" />
                 No document templates found.
                 <br />
@@ -379,13 +379,13 @@ function ServiceTaskProperties({
           </div>
 
           {selectedTemplate && (
-            <div className="rounded-md bg-slate-50 p-3 text-sm dark:bg-slate-800">
+            <div className="rounded-md bg-muted p-3 text-sm dark:bg-slate-800">
               <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4 text-slate-500" />
+                <FileText className="h-4 w-4 text-muted-foreground" />
                 <span className="font-medium">{selectedTemplate.name}</span>
               </div>
               {selectedTemplate.description && (
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-xs text-muted-foreground">
                   {selectedTemplate.description}
                 </p>
               )}
@@ -520,7 +520,7 @@ function TimerEventProperties({
           onChange={(e) => onChange("duration", e.target.value)}
           placeholder="e.g., PT1H (1 hour), P1D (1 day)"
         />
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-muted-foreground">
           PT1H = 1 hour, PT30M = 30 minutes, P1D = 1 day
         </p>
       </div>
@@ -569,7 +569,7 @@ function IntermediateEventProperties({
           Throwing (sends event)
         </Label>
       </div>
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-muted-foreground">
         Catching events wait for triggers. Throwing events send signals.
       </p>
     </div>
@@ -590,9 +590,9 @@ function EdgeProperties({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
+      <div className="rounded-lg bg-muted p-3 dark:bg-slate-800">
         <p className="text-sm font-medium">Sequence Flow</p>
-        <p className="text-xs text-slate-500">Connection between nodes</p>
+        <p className="text-xs text-muted-foreground">Connection between nodes</p>
       </div>
 
       <div className="space-y-3">
@@ -621,7 +621,7 @@ function EdgeProperties({
             rows={3}
             className="font-mono text-xs"
           />
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-muted-foreground">
             Leave empty for unconditional flow
           </p>
         </div>

@@ -68,7 +68,7 @@ function getAvatarColor(entityType: string | null): string {
     case "sole trader":
       return "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300";
     case "price only":
-      return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
+      return "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground";
     default:
       return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300";
   }

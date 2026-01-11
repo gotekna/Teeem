@@ -445,7 +445,7 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
                   type="checkbox"
                   checked={showAllInThread}
                   onChange={(e) => setShowAllInThread(e.target.checked)}
-                  className="rounded border-gray-300"
+                  className="rounded border-border"
                 />
                 Show all in thread
               </label>

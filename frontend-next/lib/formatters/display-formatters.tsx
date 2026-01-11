@@ -208,7 +208,7 @@ const FORMATTERS: Record<string, FormatterFn> = {
         {boolValue ? (
           <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
         ) : (
-          <Circle className="h-3.5 w-3.5 text-gray-300 dark:text-gray-600" />
+          <Circle className="h-3.5 w-3.5 text-muted-foreground dark:text-muted-foreground" />
         )}
         <span className="text-[11px] text-muted-foreground">{boolValue ? "Yes" : "No"}</span>
       </span>
@@ -380,7 +380,7 @@ const FORMATTERS: Record<string, FormatterFn> = {
     return (
       <div className="flex items-center gap-2">
         <div
-          className="w-4 h-4 rounded border border-gray-300 dark:border-gray-600"
+          className="w-4 h-4 rounded border border-border dark:border-border"
           style={{ backgroundColor: color }}
         />
         <span className="text-[11px] font-mono">{color}</span>

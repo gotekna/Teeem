@@ -107,7 +107,7 @@ const RELATIONSHIP_STYLES: Record<string, { color: string; bgColor: string; icon
   client: { color: "#3b82f6", bgColor: "bg-blue-500", icon: User },
   accountant: { color: "#22c55e", bgColor: "bg-green-500", icon: Calculator },
   lawyer: { color: "#a855f7", bgColor: "bg-purple-500", icon: Scale },
-  previous_accountant: { color: "#6b7280", bgColor: "bg-gray-500", icon: Calculator },
+  previous_accountant: { color: "#6b7280", bgColor: "bg-muted0", icon: Calculator },
   advisor: { color: "#14b8a6", bgColor: "bg-teal-500", icon: Users },
   opposing_party: { color: "#f97316", bgColor: "bg-orange-500", icon: AlertTriangle },
   witness: { color: "#eab308", bgColor: "bg-yellow-500", icon: User },
@@ -120,16 +120,16 @@ const RELATIONSHIP_STYLES: Record<string, { color: string; bgColor: string; icon
   related_party: { color: "#78716c", bgColor: "bg-stone-500", icon: UserCog },
 };
 
-const DEFAULT_STYLE = { color: "#6b7280", bgColor: "bg-gray-500", icon: User };
+const DEFAULT_STYLE = { color: "#6b7280", bgColor: "bg-muted0", icon: User };
 
 // Alignment styles - which side the contact is on
 const ALIGNMENT_STYLES: Record<string, { color: string; borderColor: string; label: string }> = {
   friendly: { color: "#22c55e", borderColor: "border-green-500", label: "Friendly" },
-  neutral: { color: "#6b7280", borderColor: "border-gray-400", label: "Neutral" },
+  neutral: { color: "#6b7280", borderColor: "border-border", label: "Neutral" },
   opposing: { color: "#ef4444", borderColor: "border-red-500", label: "Opposing" },
 };
 
-const DEFAULT_ALIGNMENT = { color: "#6b7280", borderColor: "border-gray-400", label: "Neutral" };
+const DEFAULT_ALIGNMENT = { color: "#6b7280", borderColor: "border-border", label: "Neutral" };
 
 // Custom node component for case (central node)
 function CaseNode({ data }: { data: CaseNodeData }) {
@@ -137,7 +137,7 @@ function CaseNode({ data }: { data: CaseNodeData }) {
 
   return (
     <div
-      className="min-w-[300px] max-w-[400px] rounded-lg border-2 shadow-lg cursor-pointer hover:shadow-xl transition-shadow text-base bg-slate-50 border-slate-400 dark:bg-slate-900 dark:border-slate-600"
+      className="min-w-[300px] max-w-[400px] rounded-lg border-2 shadow-lg cursor-pointer hover:shadow-xl transition-shadow text-base bg-muted border-border dark:bg-slate-900 dark:border-border"
       onClick={onClick}
     >
       <Handle type="source" position={Position.Top} className="!bg-slate-400" />
@@ -145,8 +145,8 @@ function CaseNode({ data }: { data: CaseNodeData }) {
       <Handle type="source" position={Position.Bottom} className="!bg-slate-400" />
       <Handle type="source" position={Position.Left} className="!bg-slate-400" />
 
-      <div className="px-5 py-4 rounded-t-md flex items-center gap-3 bg-slate-200 dark:bg-slate-800">
-        <FileText className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+      <div className="px-5 py-4 rounded-t-md flex items-center gap-3 bg-muted dark:bg-slate-800">
+        <FileText className="h-5 w-5 text-muted-foreground dark:text-muted-foreground" />
         <div>
           <span className="font-bold text-lg">{label}</span>
           {caseNumber && (
@@ -328,7 +328,7 @@ function CompanyGroupNode({ data }: { data: CompanyGroupNodeData }) {
           return (
             <div
               key={employee.id}
-              className="px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer flex items-center gap-3"
+              className="px-4 py-2 hover:bg-muted dark:hover:bg-gray-800 cursor-pointer flex items-center gap-3"
               onClick={(e) => {
                 e.stopPropagation();
                 onEmployeeClick?.(employee.id);
@@ -431,7 +431,7 @@ function ParentCaseNode({ data }: { data: ParentCaseNodeData }) {
           status === "open" ? "bg-blue-100 text-blue-700" :
           status === "in_progress" ? "bg-amber-100 text-amber-700" :
           status === "closed" ? "bg-green-100 text-green-700" :
-          "bg-gray-100 text-gray-700"
+          "bg-muted text-foreground"
         )}>
           {status?.replace(/_/g, " ")}
         </span>
@@ -469,7 +469,7 @@ function ChildCaseNode({ data }: { data: ChildCaseNodeData }) {
     <div
       className={cn(
         "min-w-[240px] max-w-[320px] rounded-lg border-2 shadow-lg cursor-pointer hover:shadow-xl transition-shadow text-base",
-        overdue ? "border-red-400 bg-red-50 dark:bg-red-950/30" : "border-slate-300 bg-white dark:bg-slate-900"
+        overdue ? "border-red-400 bg-red-50 dark:bg-red-950/30" : "border-border bg-white dark:bg-slate-900"
       )}
       onClick={onClick}
     >
@@ -480,9 +480,9 @@ function ChildCaseNode({ data }: { data: ChildCaseNodeData }) {
 
       <div className={cn(
         "px-4 py-3 rounded-t-md flex items-center gap-3",
-        overdue ? "bg-red-100 dark:bg-red-900/50" : "bg-slate-100 dark:bg-slate-800"
+        overdue ? "bg-red-100 dark:bg-red-900/50" : "bg-muted dark:bg-slate-800"
       )}>
-        <ChevronDown className="h-4 w-4 text-slate-500" />
+        <ChevronDown className="h-4 w-4 text-muted-foreground" />
         <div className="flex-1 min-w-0">
           <div className="font-semibold truncate text-sm">{label}</div>
           <div className="text-xs text-muted-foreground">#{caseNumber}</div>
@@ -497,7 +497,7 @@ function ChildCaseNode({ data }: { data: ChildCaseNodeData }) {
           status === "in_progress" ? "bg-amber-100 text-amber-700" :
           status === "review" ? "bg-purple-100 text-purple-700" :
           status === "closed" ? "bg-green-100 text-green-700" :
-          "bg-gray-100 text-gray-700"
+          "bg-muted text-foreground"
         )}>
           {getStatusIcon()}
           {status?.replace(/_/g, " ")}
@@ -506,7 +506,7 @@ function ChildCaseNode({ data }: { data: ChildCaseNodeData }) {
           "px-2 py-0.5 rounded font-medium",
           priority === "urgent" ? "bg-red-100 text-red-700" :
           priority === "high" ? "bg-orange-100 text-orange-700" :
-          "bg-gray-100 text-gray-700"
+          "bg-muted text-foreground"
         )}>
           {priority}
         </span>
@@ -700,7 +700,7 @@ export default function CaseRelationshipChart({
 
   if (!data || nodes.length === 0) {
     return (
-      <div className="w-full h-[400px] border rounded-lg bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+      <div className="w-full h-[400px] border rounded-lg bg-muted dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center text-muted-foreground">
           <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
           <p>No relationship data available</p>
@@ -712,7 +712,7 @@ export default function CaseRelationshipChart({
 
   return (
     <div
-      className="w-full border rounded-lg bg-gray-50 dark:bg-gray-900"
+      className="w-full border rounded-lg bg-muted dark:bg-gray-900"
       style={{ height: `${chartHeight}px` }}
     >
       <ReactFlow
@@ -761,7 +761,7 @@ export default function CaseRelationshipChart({
             <span className="text-muted-foreground">Advisors (top-right)</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-full bg-gray-500" />
+            <div className="w-3 h-3 rounded-full bg-muted0" />
             <span className="text-muted-foreground">Neutral (bottom-left)</span>
           </div>
           <div className="flex items-center gap-1.5">

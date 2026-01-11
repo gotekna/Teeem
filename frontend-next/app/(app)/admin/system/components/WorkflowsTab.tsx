@@ -279,7 +279,7 @@ export function WorkflowsTab() {
                         "p-2 rounded-lg",
                         workflow.active
                           ? "bg-green-100 dark:bg-green-900"
-                          : "bg-gray-100 dark:bg-gray-800"
+                          : "bg-muted dark:bg-gray-800"
                       )}
                     >
                       <Workflow
@@ -287,7 +287,7 @@ export function WorkflowsTab() {
                           "h-5 w-5",
                           workflow.active
                             ? "text-green-600 dark:text-green-400"
-                            : "text-gray-500"
+                            : "text-muted-foreground"
                         )}
                       />
                     </div>

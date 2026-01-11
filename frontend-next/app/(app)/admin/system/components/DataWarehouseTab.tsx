@@ -875,11 +875,11 @@ export function DataWarehouseTab() {
                   <div className="flex items-center gap-3">
                     <div className={cn(
                       "p-2 rounded-lg",
-                      org.connected ? "bg-green-100 dark:bg-green-900/30" : "bg-gray-100 dark:bg-gray-800"
+                      org.connected ? "bg-green-100 dark:bg-green-900/30" : "bg-muted dark:bg-gray-800"
                     )}>
                       <Building2 className={cn(
                         "h-5 w-5",
-                        org.connected ? "text-green-600 dark:text-green-400" : "text-gray-400"
+                        org.connected ? "text-green-600 dark:text-green-400" : "text-muted-foreground"
                       )} />
                     </div>
                     <div>
@@ -1019,8 +1019,8 @@ export function DataWarehouseTab() {
                           <p className="text-sm font-bold text-green-600">{(org.stats.ai_classification?.business || 0).toLocaleString()}</p>
                           <p className="text-xs text-muted-foreground">Business</p>
                         </div>
-                        <div className="text-center p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                          <p className="text-sm font-bold text-gray-600">{(org.stats.ai_classification?.unclassified || 0).toLocaleString()}</p>
+                        <div className="text-center p-2 bg-muted dark:bg-gray-800 rounded-lg">
+                          <p className="text-sm font-bold text-muted-foreground">{(org.stats.ai_classification?.unclassified || 0).toLocaleString()}</p>
                           <p className="text-xs text-muted-foreground">Unclassified</p>
                         </div>
                       </div>
@@ -1310,8 +1310,8 @@ export function DataWarehouseTab() {
                 <p className="text-xl font-bold text-red-600">{warehouseStatus.health.error}</p>
                 <p className="text-xs text-muted-foreground">Error</p>
               </div>
-              <div className="text-center p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                <p className="text-xl font-bold text-gray-600">{warehouseStatus.health.unknown}</p>
+              <div className="text-center p-2 bg-muted dark:bg-gray-800 rounded-lg">
+                <p className="text-xl font-bold text-muted-foreground">{warehouseStatus.health.unknown}</p>
                 <p className="text-xs text-muted-foreground">Unknown</p>
               </div>
             </div>
@@ -1438,8 +1438,8 @@ export function DataWarehouseTab() {
                 <p className="text-lg font-bold text-green-600">{(stats.emails.ai_classification?.business || 0).toLocaleString()}</p>
                 <p className="text-xs text-muted-foreground">Business</p>
               </div>
-              <div className="text-center p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                <p className="text-lg font-bold text-gray-600">{(stats.emails.ai_classification?.unclassified || 0).toLocaleString()}</p>
+              <div className="text-center p-2 bg-muted dark:bg-gray-800 rounded-lg">
+                <p className="text-lg font-bold text-muted-foreground">{(stats.emails.ai_classification?.unclassified || 0).toLocaleString()}</p>
                 <p className="text-xs text-muted-foreground">Unclassified</p>
               </div>
             </div>
@@ -1553,8 +1553,8 @@ export function DataWarehouseTab() {
                 <p className="text-xl font-bold text-orange-600">{stats.corporate.missing_acn}</p>
                 <p className="text-xs text-muted-foreground">Missing ACN</p>
               </div>
-              <div className="text-center p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                <p className="text-xl font-bold text-gray-600">{stats.corporate.missing_review_date}</p>
+              <div className="text-center p-3 bg-muted dark:bg-gray-800 rounded-lg">
+                <p className="text-xl font-bold text-muted-foreground">{stats.corporate.missing_review_date}</p>
                 <p className="text-xs text-muted-foreground">No Review Date</p>
               </div>
               <div className="text-center p-3 bg-red-100 dark:bg-red-900/30 rounded-lg">
@@ -1602,9 +1602,9 @@ export function DataWarehouseTab() {
                 verified: { color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400", icon: CheckCircle },
                 mismatch: { color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400", icon: XCircle },
                 needs_review: { color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400", icon: AlertTriangle },
-                pending: { color: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300", icon: Clock },
+                pending: { color: "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground", icon: Clock },
               };
-              const { color, icon: Icon } = config[status] || { color: "bg-gray-100 text-gray-600", icon: FileText };
+              const { color, icon: Icon } = config[status] || { color: "bg-muted text-muted-foreground", icon: FileText };
               return (
                 <Badge key={status} variant="outline" className={cn("text-sm py-1 px-3", color)}>
                   <Icon className="h-3 w-3 mr-1" />

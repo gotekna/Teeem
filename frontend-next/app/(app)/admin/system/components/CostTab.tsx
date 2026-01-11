@@ -330,10 +330,10 @@ export function CostTab() {
           </Card>
 
           {/* TEEEM Card */}
-          <Card className="border-slate-200 dark:border-slate-700">
+          <Card className="border-border dark:border-border">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
-                <Building2 className="h-8 w-8 text-slate-500" />
+                <Building2 className="h-8 w-8 text-muted-foreground" />
                 <Badge variant="secondary">60%</Badge>
               </div>
               <CardTitle className="text-lg">TEEEM</CardTitle>

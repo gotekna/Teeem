@@ -349,7 +349,7 @@ function FileUploadPanel({ onSelect }: { onSelect: (att: PendingAttachment) => v
       className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
         isDragging
           ? 'border-primary bg-primary/10 dark:bg-primary/20'
-          : 'dark:border-gray-700'
+          : 'dark:border-border'
       }`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}

@@ -224,7 +224,7 @@ export function MergeModal({
                               ? "text-blue-600 border-blue-200 bg-blue-50 dark:bg-blue-950 dark:border-blue-800"
                               : isTrust(record.entity_type)
                               ? "text-amber-600 border-amber-200 bg-amber-50 dark:bg-amber-950 dark:border-amber-800"
-                              : "text-gray-600 border-gray-200"
+                              : "text-muted-foreground border-border"
                           }
                         >
                           {isPerson(record.entity_type) && <User className="h-3 w-3 mr-1" />}

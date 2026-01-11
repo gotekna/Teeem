@@ -81,7 +81,7 @@ interface CaseOverviewTabProps {
 function getStatusColor(status: string) {
   switch (status) {
     case "draft":
-      return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100";
+      return "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground";
     case "open":
     case "active":
       return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100";
@@ -95,9 +95,9 @@ function getStatusColor(status: string) {
     case "resolved":
       return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100";
     case "archived":
-      return "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100";
+      return "bg-muted text-foreground dark:bg-slate-800 dark:text-muted-foreground";
     default:
-      return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100";
+      return "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground";
   }
 }
 
@@ -154,25 +154,25 @@ export function CaseOverviewTab({ caseData, onCreateSubCase, onViewAllMatters }:
               "border",
               caseData.child_cases_summary.overdue > 0
                 ? "bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950/50 dark:to-red-900/30 border-red-200"
-                : "bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950/50 dark:to-slate-900/30 border-slate-200"
+                : "bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950/50 dark:to-slate-900/30 border-border"
             )}>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className={cn(
                       "text-sm font-medium",
-                      caseData.child_cases_summary.overdue > 0 ? "text-red-600 dark:text-red-400" : "text-slate-600 dark:text-slate-400"
+                      caseData.child_cases_summary.overdue > 0 ? "text-red-600 dark:text-red-400" : "text-muted-foreground dark:text-muted-foreground"
                     )}>Overdue</p>
                     <p className={cn(
                       "text-3xl font-bold",
-                      caseData.child_cases_summary.overdue > 0 ? "text-red-700 dark:text-red-300" : "text-slate-700 dark:text-slate-300"
+                      caseData.child_cases_summary.overdue > 0 ? "text-red-700 dark:text-red-300" : "text-foreground dark:text-muted-foreground"
                     )}>
                       {caseData.child_cases_summary.overdue}
                     </p>
                   </div>
                   <AlertTriangle className={cn(
                     "h-8 w-8 opacity-50",
-                    caseData.child_cases_summary.overdue > 0 ? "text-red-500" : "text-slate-400"
+                    caseData.child_cases_summary.overdue > 0 ? "text-red-500" : "text-muted-foreground"
                   )} />
                 </div>
               </CardContent>

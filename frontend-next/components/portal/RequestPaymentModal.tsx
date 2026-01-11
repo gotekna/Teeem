@@ -234,7 +234,7 @@ export default function RequestPaymentModal({
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
+          <div className="fixed inset-0 bg-muted0 bg-opacity-75 transition-opacity" />
         </Transition.Child>
 
         <div className="fixed inset-0 z-10 overflow-y-auto">
@@ -253,7 +253,7 @@ export default function RequestPaymentModal({
                 <div className="absolute right-0 top-0 pr-4 pt-4">
                   <button
                     type="button"
-                    className="rounded-md bg-white text-gray-400 hover:text-gray-500"
+                    className="rounded-md bg-white text-muted-foreground hover:text-muted-foreground"
                     onClick={onClose}
                   >
                     <XMarkIcon className="h-6 w-6" />
@@ -265,11 +265,11 @@ export default function RequestPaymentModal({
                   <div className="mt-3 text-center sm:mt-0 sm:text-left w-full">
                     <Dialog.Title
                       as="h3"
-                      className="text-lg font-semibold leading-6 text-gray-900"
+                      className="text-lg font-semibold leading-6 text-foreground"
                     >
                       Request Early Payment
                     </Dialog.Title>
-                    <p className="mt-1 text-sm text-gray-500">
+                    <p className="mt-1 text-sm text-muted-foreground">
                       Get paid early with a 5% discount
                     </p>
                   </div>
@@ -281,10 +281,10 @@ export default function RequestPaymentModal({
                   </div>
                 ) : eligiblePOs.length === 0 ? (
                   <div className="mt-6 text-center py-12">
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-muted-foreground">
                       No eligible purchase orders found.
                     </p>
-                    <p className="mt-2 text-xs text-gray-400">
+                    <p className="mt-2 text-xs text-muted-foreground">
                       Purchase orders must be completed and not fully paid to be
                       eligible.
                     </p>
@@ -293,19 +293,19 @@ export default function RequestPaymentModal({
                   <form onSubmit={handleSubmit} className="mt-6 space-y-6">
                     {/* Purchase Order Selection */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">
+                      <label className="block text-sm font-medium text-foreground">
                         Purchase Order
                       </label>
                       <Listbox value={selectedPO} onChange={setSelectedPO}>
                         <div className="relative mt-1">
-                          <Listbox.Button className="relative w-full cursor-default rounded-md border border-gray-300 bg-white py-2 pl-3 pr-10 text-left shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm">
+                          <Listbox.Button className="relative w-full cursor-default rounded-md border border-border bg-white py-2 pl-3 pr-10 text-left shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm">
                             <span className="block truncate">
                               {selectedPO
                                 ? `PO #${selectedPO.purchase_order_number} - ${selectedPO.construction_name} (${formatCurrency(selectedPO.remaining_amount)} remaining)`
                                 : "Select a purchase order"}
                             </span>
                             <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                              <ChevronUpDownIcon className="h-5 w-5 text-gray-400" />
+                              <ChevronUpDownIcon className="h-5 w-5 text-muted-foreground" />
                             </span>
                           </Listbox.Button>
                           <Transition
@@ -323,7 +323,7 @@ export default function RequestPaymentModal({
                                     `relative cursor-default select-none py-2 pl-10 pr-4 ${
                                       active
                                         ? "bg-indigo-100 text-indigo-900"
-                                        : "text-gray-900"
+                                        : "text-foreground"
                                     }`
                                   }
                                 >
@@ -337,7 +337,7 @@ export default function RequestPaymentModal({
                                         PO #{po.purchase_order_number} -{" "}
                                         {po.construction_name}
                                       </span>
-                                      <span className="block text-xs text-gray-500">
+                                      <span className="block text-xs text-muted-foreground">
                                         Remaining: {formatCurrency(po.remaining_amount)}
                                       </span>
                                       {selected && (
@@ -357,12 +357,12 @@ export default function RequestPaymentModal({
 
                     {/* Amount */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">
+                      <label className="block text-sm font-medium text-foreground">
                         Request Amount
                       </label>
                       <div className="mt-1 relative rounded-md shadow-sm">
                         <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                          <span className="text-gray-500 sm:text-sm">$</span>
+                          <span className="text-muted-foreground sm:text-sm">$</span>
                         </div>
                         <input
                           type="number"
@@ -371,13 +371,13 @@ export default function RequestPaymentModal({
                           onChange={(e) =>
                             setFormData({ ...formData, amount: e.target.value })
                           }
-                          className="block w-full rounded-md border-gray-300 pl-7 pr-12 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                          className="block w-full rounded-md border-border pl-7 pr-12 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                           placeholder="0.00"
                           required
                         />
                       </div>
                       {selectedPO && (
-                        <p className="mt-1 text-xs text-gray-500">
+                        <p className="mt-1 text-xs text-muted-foreground">
                           Maximum available:{" "}
                           {formatCurrency(selectedPO.remaining_amount)}
                         </p>
@@ -388,19 +388,19 @@ export default function RequestPaymentModal({
                     <div className="bg-indigo-50 border border-indigo-200 rounded-md p-4">
                       <div className="grid grid-cols-3 gap-4 text-sm">
                         <div>
-                          <p className="text-gray-600">Original Amount</p>
-                          <p className="text-lg font-semibold text-gray-900">
+                          <p className="text-muted-foreground">Original Amount</p>
+                          <p className="text-lg font-semibold text-foreground">
                             {formatCurrency(parseFloat(formData.amount) || 0)}
                           </p>
                         </div>
                         <div>
-                          <p className="text-gray-600">Discount (5%)</p>
+                          <p className="text-muted-foreground">Discount (5%)</p>
                           <p className="text-lg font-semibold text-red-600">
                             -{formatCurrency(parseFloat(calculateDiscountAmount()))}
                           </p>
                         </div>
                         <div>
-                          <p className="text-gray-600">You'll Receive</p>
+                          <p className="text-muted-foreground">You'll Receive</p>
                           <p className="text-lg font-semibold text-green-600">
                             {formatCurrency(parseFloat(calculateDiscountedAmount()))}
                           </p>
@@ -410,14 +410,14 @@ export default function RequestPaymentModal({
 
                     {/* Proof Photos */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">
+                      <label className="block text-sm font-medium text-foreground">
                         Proof of Completion Photos{" "}
                         <span className="text-red-500">*</span>
                       </label>
-                      <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md hover:border-indigo-500">
+                      <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-border border-dashed rounded-md hover:border-indigo-500">
                         <div className="space-y-1 text-center">
-                          <PhotoIcon className="mx-auto h-12 w-12 text-gray-400" />
-                          <div className="flex text-sm text-gray-600">
+                          <PhotoIcon className="mx-auto h-12 w-12 text-muted-foreground" />
+                          <div className="flex text-sm text-muted-foreground">
                             <label className="relative cursor-pointer rounded-md bg-white font-medium text-indigo-600 focus-within:outline-none focus-within:ring-2 focus-within:ring-indigo-500 focus-within:ring-offset-2 hover:text-indigo-500">
                               <span>Upload photos</span>
                               <input
@@ -431,7 +431,7 @@ export default function RequestPaymentModal({
                             </label>
                             <p className="pl-1">or drag and drop</p>
                           </div>
-                          <p className="text-xs text-gray-500">
+                          <p className="text-xs text-muted-foreground">
                             PNG, JPG, GIF up to 10MB each (max 10 photos)
                           </p>
                           {proofPhotos.length > 0 && (
@@ -450,14 +450,14 @@ export default function RequestPaymentModal({
 
                     {/* Invoice File (Optional) */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">
+                      <label className="block text-sm font-medium text-foreground">
                         Invoice (Optional)
                       </label>
                       <input
                         type="file"
                         accept=".pdf,.jpg,.jpeg,.png"
                         onChange={handleInvoiceFileChange}
-                        className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                        className="mt-1 block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
                       />
                       {invoiceFile && (
                         <p className="mt-1 text-sm text-green-600">
@@ -473,7 +473,7 @@ export default function RequestPaymentModal({
 
                     {/* Notes */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">
+                      <label className="block text-sm font-medium text-foreground">
                         Notes (Optional)
                       </label>
                       <textarea
@@ -482,7 +482,7 @@ export default function RequestPaymentModal({
                         onChange={(e) =>
                           setFormData({ ...formData, notes: e.target.value })
                         }
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                        className="mt-1 block w-full rounded-md border-border shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                         placeholder="Any additional information..."
                       />
                     </div>
@@ -505,7 +505,7 @@ export default function RequestPaymentModal({
                       </button>
                       <button
                         type="button"
-                        className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:col-start-1 sm:mt-0"
+                        className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-foreground shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-muted sm:col-start-1 sm:mt-0"
                         onClick={onClose}
                       >
                         Cancel

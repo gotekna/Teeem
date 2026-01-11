@@ -280,7 +280,7 @@ export default function SigningCeremonyPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+    <div className="min-h-screen bg-muted dark:bg-slate-900">
       {/* Header */}
       <header className="bg-white dark:bg-slate-800 border-b shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -329,7 +329,7 @@ export default function SigningCeremonyPage() {
                     <span className={`px-2 py-0.5 rounded text-xs ${
                       s.status === "signed"
                         ? "bg-green-100 text-green-700"
-                        : "bg-slate-100 text-slate-600"
+                        : "bg-muted text-muted-foreground"
                     }`}>
                       {s.status === "signed" ? "Signed" : "Pending"}
                     </span>

@@ -296,7 +296,7 @@ export default function ReferrersPage() {
                   >
                     <div className={`text-2xl font-bold ${
                       index === 0 ? "text-yellow-500" :
-                      index === 1 ? "text-gray-400" :
+                      index === 1 ? "text-muted-foreground" :
                       index === 2 ? "text-amber-600" : "text-muted-foreground"
                     }`}>
                       #{index + 1}

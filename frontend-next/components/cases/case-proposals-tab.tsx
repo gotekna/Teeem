@@ -244,7 +244,7 @@ export function CaseProposalsTab({ onPendingCountChange }: CaseProposalsTabProps
         label: "Rejected",
       },
       error: {
-        className: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400",
+        className: "bg-muted text-foreground dark:bg-gray-900/30 dark:text-muted-foreground",
         icon: AlertTriangle,
         label: "Error",
       },
@@ -263,7 +263,7 @@ export function CaseProposalsTab({ onPendingCountChange }: CaseProposalsTabProps
 
   const getConfidenceBadge = (score: number) => {
     const percentage = Math.round(score * 100);
-    let className = "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400";
+    let className = "bg-muted text-foreground dark:bg-gray-900/30 dark:text-muted-foreground";
 
     if (percentage >= 80) {
       className = "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";

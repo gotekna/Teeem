@@ -362,7 +362,7 @@ export default function AssetReportsPage() {
       case "active":
         return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">Active</Badge>;
       case "disposed":
-        return <Badge className="bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300">Disposed</Badge>;
+        return <Badge className="bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground">Disposed</Badge>;
       case "under_repair":
         return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">Under Repair</Badge>;
       default:
@@ -661,7 +661,7 @@ export default function AssetReportsPage() {
                   <p className="text-sm text-muted-foreground">Insured</p>
                 </div>
                 <div className="text-center p-4 bg-muted rounded-lg">
-                  <p className="text-2xl font-bold text-gray-500">{summary.insurance.uninsured_count}</p>
+                  <p className="text-2xl font-bold text-muted-foreground">{summary.insurance.uninsured_count}</p>
                   <p className="text-sm text-muted-foreground">Uninsured</p>
                 </div>
                 <div className="text-center p-4 bg-muted rounded-lg">

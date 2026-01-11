@@ -324,7 +324,7 @@ export function TableHeaderSection({
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <span className="truncate cursor-help border-b border-dashed border-gray-400 dark:border-gray-500">
+                          <span className="truncate cursor-help border-b border-dashed border-border dark:border-border">
                             {column.label}
                           </span>
                         </TooltipTrigger>

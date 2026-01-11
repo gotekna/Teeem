@@ -1651,9 +1651,9 @@ export default function SchedulePage() {
                       <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{analyzeResult.summary.will_create_count}</p>
                       <p className="text-xs text-blue-700 dark:text-blue-300">Create New</p>
                     </div>
-                    <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-2 text-center">
-                      <p className="text-lg font-bold text-gray-600 dark:text-gray-400">{analyzeResult.summary.already_linked_count}</p>
-                      <p className="text-xs text-gray-700 dark:text-gray-300">Linked</p>
+                    <div className="bg-muted dark:bg-gray-900 rounded-lg p-2 text-center">
+                      <p className="text-lg font-bold text-muted-foreground dark:text-muted-foreground">{analyzeResult.summary.already_linked_count}</p>
+                      <p className="text-xs text-foreground dark:text-muted-foreground">Linked</p>
                     </div>
                     <div className="bg-red-50 dark:bg-red-950 rounded-lg p-2 text-center">
                       <p className="text-lg font-bold text-red-600 dark:text-red-400">{analyzeResult.summary.orphan_count}</p>
@@ -1857,13 +1857,13 @@ export default function SchedulePage() {
                     <div
                       className={`rounded-lg p-2 text-center cursor-pointer transition-all ${
                         compareFilter === "unchanged"
-                          ? "bg-gray-200 dark:bg-gray-700 ring-2 ring-gray-500"
-                          : "bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800"
+                          ? "bg-muted dark:bg-gray-700 ring-2 ring-gray-500"
+                          : "bg-muted dark:bg-gray-900 hover:bg-muted dark:hover:bg-gray-800"
                       }`}
                       onClick={() => setCompareFilter(compareFilter === "unchanged" ? "all" : "unchanged")}
                     >
-                      <p className="text-xl font-bold text-gray-600 dark:text-gray-400">{compareResult.summary.unchanged}</p>
-                      <p className="text-xs text-gray-700 dark:text-gray-300">Unchanged</p>
+                      <p className="text-xl font-bold text-muted-foreground dark:text-muted-foreground">{compareResult.summary.unchanged}</p>
+                      <p className="text-xs text-foreground dark:text-muted-foreground">Unchanged</p>
                     </div>
                     <div
                       className={`rounded-lg p-2 text-center cursor-pointer transition-all ${
@@ -1983,7 +1983,7 @@ export default function SchedulePage() {
                                   comp.status === "will_create" ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" :
                                   comp.status === "will_update" ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300" :
                                   comp.status === "will_skip" ? "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300" :
-                                  "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                                  "bg-muted text-muted-foreground dark:bg-gray-800 dark:text-muted-foreground"
                                 }
                               >
                                 {comp.status === "will_create" && "Create"}
@@ -2059,9 +2059,9 @@ export default function SchedulePage() {
                     <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{syncResult.summary.skipped}</p>
                     <p className="text-xs text-amber-700 dark:text-amber-300">Skipped</p>
                   </div>
-                  <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 text-center">
-                    <p className="text-2xl font-bold text-gray-600 dark:text-gray-400">{syncResult.summary.unchanged}</p>
-                    <p className="text-xs text-gray-700 dark:text-gray-300">Unchanged</p>
+                  <div className="bg-muted dark:bg-gray-900 rounded-lg p-3 text-center">
+                    <p className="text-2xl font-bold text-muted-foreground dark:text-muted-foreground">{syncResult.summary.unchanged}</p>
+                    <p className="text-xs text-foreground dark:text-muted-foreground">Unchanged</p>
                   </div>
                 </div>
 

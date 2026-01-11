@@ -252,7 +252,7 @@ export default function DepositsTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-gray-600">
+            <div className="text-2xl font-bold text-muted-foreground">
               {formatCurrency(summary?.refunded_amount || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">returned to customers</p>

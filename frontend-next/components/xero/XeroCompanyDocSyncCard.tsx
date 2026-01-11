@@ -226,7 +226,7 @@ export function XeroCompanyDocSyncCard({ companyId }: XeroCompanyDocSyncCardProp
     schedule?: string;
     color: string;
   }) => (
-    <div className="p-3 border rounded-lg space-y-2 dark:border-gray-700">
+    <div className="p-3 border rounded-lg space-y-2 dark:border-border">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className={`p-1.5 rounded ${color}`}>
@@ -382,7 +382,7 @@ export function XeroCompanyDocSyncCard({ companyId }: XeroCompanyDocSyncCardProp
         <div className="space-y-2">
           <div className="text-sm font-medium text-muted-foreground">PDF Progress by Type</div>
           <div className="grid grid-cols-4 gap-2">
-            <div className="p-2 border rounded-lg dark:border-gray-700">
+            <div className="p-2 border rounded-lg dark:border-border">
               <div className="text-xs text-muted-foreground">Bills</div>
               <div className="flex items-baseline gap-1">
                 <span className="text-sm font-semibold">{data.breakdown.bills.synced}</span>
@@ -393,7 +393,7 @@ export function XeroCompanyDocSyncCard({ companyId }: XeroCompanyDocSyncCardProp
                 className="h-1 mt-1"
               />
             </div>
-            <div className="p-2 border rounded-lg dark:border-gray-700">
+            <div className="p-2 border rounded-lg dark:border-border">
               <div className="text-xs text-muted-foreground">Invoices</div>
               <div className="flex items-baseline gap-1">
                 <span className="text-sm font-semibold">{data.breakdown.sales_invoices.synced}</span>
@@ -404,7 +404,7 @@ export function XeroCompanyDocSyncCard({ companyId }: XeroCompanyDocSyncCardProp
                 className="h-1 mt-1"
               />
             </div>
-            <div className="p-2 border rounded-lg dark:border-gray-700">
+            <div className="p-2 border rounded-lg dark:border-border">
               <div className="text-xs text-muted-foreground">Credit Notes</div>
               <div className="flex items-baseline gap-1">
                 <span className="text-sm font-semibold">{data.breakdown.credit_notes?.synced || 0}</span>
@@ -415,7 +415,7 @@ export function XeroCompanyDocSyncCard({ companyId }: XeroCompanyDocSyncCardProp
                 className="h-1 mt-1"
               />
             </div>
-            <div className="p-2 border rounded-lg dark:border-gray-700">
+            <div className="p-2 border rounded-lg dark:border-border">
               <div className="text-xs text-muted-foreground">Quotes</div>
               <div className="flex items-baseline gap-1">
                 <span className="text-sm font-semibold">{data.breakdown.quotes.synced}</span>

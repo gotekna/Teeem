@@ -490,7 +490,7 @@ export default function AssetDetailPage() {
       case "active":
         return <Badge className="bg-green-100 text-green-800">Active</Badge>;
       case "disposed":
-        return <Badge className="bg-gray-100 text-gray-800">Disposed</Badge>;
+        return <Badge className="bg-muted text-foreground">Disposed</Badge>;
       case "under_repair":
         return <Badge className="bg-yellow-100 text-yellow-800">Under Repair</Badge>;
       default:

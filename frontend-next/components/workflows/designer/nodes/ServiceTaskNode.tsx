@@ -37,18 +37,18 @@ export const ServiceTaskNode = memo(({ data, selected }: NodeProps<Node<BpmnNode
       <Handle
         type="target"
         position={Position.Left}
-        className="!h-2 !w-2 !border !border-slate-400 !bg-white dark:!bg-slate-900"
+        className="!h-2 !w-2 !border !border-border !bg-white dark:!bg-slate-900"
       />
 
       {/* Simple content like Rapid Platform */}
       <div className="flex items-center gap-2">
-        <Cog className="h-4 w-4 flex-shrink-0 text-slate-500" />
+        <Cog className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
         <div className="min-w-0 flex-1">
-          <p className="text-sm text-slate-700 dark:text-slate-200 break-words leading-tight">
+          <p className="text-sm text-foreground dark:text-muted-foreground break-words leading-tight">
             {data.name || "Service Task"}
           </p>
           {taskType !== "default" && (
-            <p className="text-xs text-slate-400 break-words leading-tight mt-1">
+            <p className="text-xs text-muted-foreground break-words leading-tight mt-1">
               {taskType.replace(/_/g, " ")}
             </p>
           )}
@@ -59,7 +59,7 @@ export const ServiceTaskNode = memo(({ data, selected }: NodeProps<Node<BpmnNode
       <Handle
         type="source"
         position={Position.Right}
-        className="!h-2 !w-2 !border !border-slate-400 !bg-white dark:!bg-slate-900"
+        className="!h-2 !w-2 !border !border-border !bg-white dark:!bg-slate-900"
       />
     </div>
   );

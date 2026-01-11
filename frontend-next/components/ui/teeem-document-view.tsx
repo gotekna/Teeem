@@ -501,7 +501,7 @@ export function TeeemDocumentView<T extends DocumentItem>({
     return (
       <Badge
         variant="secondary"
-        className="bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300 whitespace-nowrap"
+        className="bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground whitespace-nowrap"
       >
         {statusLabels.draft}
       </Badge>
@@ -660,7 +660,7 @@ export function TeeemDocumentView<T extends DocumentItem>({
         {hasThumbnail ? (
           // Show instant thumbnail preview
           <div
-            className="h-full w-full flex items-center justify-center bg-gray-50 dark:bg-gray-900 cursor-pointer group"
+            className="h-full w-full flex items-center justify-center bg-muted dark:bg-gray-900 cursor-pointer group"
             onClick={() => {
               setShowFullPdf(true);
               setIsFullscreen(true);

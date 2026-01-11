@@ -137,9 +137,9 @@ export default function PortalQuotes() {
       case "accepted":
         return "bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300";
       case "rejected":
-        return "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300";
+        return "bg-muted dark:bg-gray-700 text-foreground dark:text-muted-foreground";
       default:
-        return "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300";
+        return "bg-muted dark:bg-gray-700 text-foreground dark:text-muted-foreground";
     }
   };
 
@@ -157,30 +157,30 @@ export default function PortalQuotes() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Quote Requests</h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+        <h1 className="text-2xl font-bold text-foreground dark:text-white">Quote Requests</h1>
+        <p className="mt-1 text-sm text-muted-foreground dark:text-muted-foreground">
           View and respond to quote requests from builders
         </p>
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200 dark:border-gray-700">
+      <div className="border-b border-border dark:border-border">
         <nav className="-mb-px flex space-x-8" aria-label="Tabs">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.key;
             const colorClasses: Record<string, string> = {
               yellow: isActive
                 ? "border-yellow-500 text-yellow-600 dark:text-yellow-400"
-                : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600",
+                : "border-transparent text-muted-foreground dark:text-muted-foreground hover:text-foreground dark:hover:text-muted-foreground hover:border-border dark:hover:border-border",
               blue: isActive
                 ? "border-blue-500 text-blue-600 dark:text-blue-400"
-                : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600",
+                : "border-transparent text-muted-foreground dark:text-muted-foreground hover:text-foreground dark:hover:text-muted-foreground hover:border-border dark:hover:border-border",
               green: isActive
                 ? "border-green-500 text-green-600 dark:text-green-400"
-                : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600",
+                : "border-transparent text-muted-foreground dark:text-muted-foreground hover:text-foreground dark:hover:text-muted-foreground hover:border-border dark:hover:border-border",
               gray: isActive
-                ? "border-gray-500 text-gray-600 dark:text-gray-400"
-                : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600",
+                ? "border-border text-muted-foreground dark:text-muted-foreground"
+                : "border-transparent text-muted-foreground dark:text-muted-foreground hover:text-foreground dark:hover:text-muted-foreground hover:border-border dark:hover:border-border",
             };
 
             return (
@@ -201,7 +201,7 @@ export default function PortalQuotes() {
                   ${
                     isActive
                       ? `bg-${tab.color}-100 dark:bg-${tab.color}-900/50 text-${tab.color}-600 dark:text-${tab.color}-400`
-                      : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
+                      : "bg-muted dark:bg-gray-700 text-muted-foreground dark:text-muted-foreground"
                   }
                 `}
                 >
@@ -216,11 +216,11 @@ export default function PortalQuotes() {
       {/* Quote List */}
       {currentQuotes.length === 0 ? (
         <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg shadow">
-          <DocumentTextIcon className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
+          <DocumentTextIcon className="mx-auto h-12 w-12 text-muted-foreground dark:text-muted-foreground" />
+          <h3 className="mt-2 text-sm font-medium text-foreground dark:text-white">
             No {activeTab} quotes
           </h3>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          <p className="mt-1 text-sm text-muted-foreground dark:text-muted-foreground">
             {activeTab === "pending"
               ? "You don't have any pending quote requests at the moment."
               : `No quotes in ${activeTab} status.`}
@@ -230,7 +230,7 @@ export default function PortalQuotes() {
         <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
           <ul role="list" className="divide-y divide-gray-200 dark:divide-gray-700">
             {currentQuotes.map((quote) => (
-              <li key={quote.quote_request.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+              <li key={quote.quote_request.id} className="hover:bg-muted dark:hover:bg-gray-700">
                 <Link
                   href={`/portal/quotes/${quote.quote_request.id}`}
                   className="block px-4 py-4 sm:px-6"
@@ -238,7 +238,7 @@ export default function PortalQuotes() {
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3">
-                        <p className="text-base font-medium text-gray-900 dark:text-white truncate">
+                        <p className="text-base font-medium text-foreground dark:text-white truncate">
                           {quote.quote_request.title}
                         </p>
                         {quote.my_response && (
@@ -253,9 +253,9 @@ export default function PortalQuotes() {
                       </div>
 
                       <div className="mt-2 flex flex-col sm:flex-row sm:flex-wrap sm:space-x-6">
-                        <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                        <div className="flex items-center text-sm text-muted-foreground dark:text-muted-foreground">
                           <svg
-                            className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400 dark:text-gray-500"
+                            className="flex-shrink-0 mr-1.5 h-5 w-5 text-muted-foreground dark:text-muted-foreground"
                             fill="none"
                             viewBox="0 0 24 24"
                             strokeWidth="1.5"
@@ -271,9 +271,9 @@ export default function PortalQuotes() {
                         </div>
 
                         {quote.quote_request.trade_category && (
-                          <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                          <div className="flex items-center text-sm text-muted-foreground dark:text-muted-foreground">
                             <svg
-                              className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400 dark:text-gray-500"
+                              className="flex-shrink-0 mr-1.5 h-5 w-5 text-muted-foreground dark:text-muted-foreground"
                               fill="none"
                               viewBox="0 0 24 24"
                               strokeWidth="1.5"
@@ -291,9 +291,9 @@ export default function PortalQuotes() {
 
                         {quote.quote_request.budget_min &&
                           quote.quote_request.budget_max && (
-                            <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                            <div className="flex items-center text-sm text-muted-foreground dark:text-muted-foreground">
                               <svg
-                                className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400 dark:text-gray-500"
+                                className="flex-shrink-0 mr-1.5 h-5 w-5 text-muted-foreground dark:text-muted-foreground"
                                 fill="none"
                                 viewBox="0 0 24 24"
                                 strokeWidth="1.5"
@@ -312,11 +312,11 @@ export default function PortalQuotes() {
                       </div>
 
                       {quote.my_response && (
-                        <div className="mt-2 text-sm text-gray-900 dark:text-white">
+                        <div className="mt-2 text-sm text-foreground dark:text-white">
                           <span className="font-medium">Your quote:</span> $
                           {quote.my_response.price?.toLocaleString()}
                           {quote.my_response.timeframe && (
-                            <span className="ml-3 text-gray-500 dark:text-gray-400">
+                            <span className="ml-3 text-muted-foreground dark:text-muted-foreground">
                               • Timeframe: {quote.my_response.timeframe}
                             </span>
                           )}
@@ -327,15 +327,15 @@ export default function PortalQuotes() {
                     <div className="ml-5 flex-shrink-0 flex items-center gap-4">
                       {activeTab === "pending" && (
                         <div className="flex flex-col items-end">
-                          <span className="text-xs text-gray-500 dark:text-gray-400">Waiting</span>
-                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                          <span className="text-xs text-muted-foreground dark:text-muted-foreground">Waiting</span>
+                          <span className="text-sm font-medium text-foreground dark:text-white">
                             {quote.days_waiting} days
                           </span>
                         </div>
                       )}
 
                       <svg
-                        className="h-5 w-5 text-gray-400 dark:text-gray-500"
+                        className="h-5 w-5 text-muted-foreground dark:text-muted-foreground"
                         fill="none"
                         viewBox="0 0 24 24"
                         strokeWidth="1.5"

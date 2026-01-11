@@ -53,7 +53,7 @@ import {
 
 // Sample Kanban data
 const PIPELINE_COLUMNS = [
-  { status: "new", label: "New", color: "text-gray-700", bgColor: "bg-gray-100", borderColor: "#6b7280" },
+  { status: "new", label: "New", color: "text-foreground", bgColor: "bg-muted", borderColor: "#6b7280" },
   { status: "contacted", label: "Contacted", color: "text-blue-700", bgColor: "bg-blue-100", borderColor: "#3b82f6" },
   { status: "qualified", label: "Qualified", color: "text-purple-700", bgColor: "bg-purple-100", borderColor: "#a855f7" },
   { status: "proposal", label: "Proposal", color: "text-yellow-700", bgColor: "bg-yellow-100", borderColor: "#eab308" },
@@ -507,7 +507,7 @@ export default function DesignSystemPage() {
                 <Badge variant="destructive">Destructive</Badge>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Badge className="bg-gray-100 text-gray-800">New</Badge>
+                <Badge className="bg-muted text-foreground">New</Badge>
                 <Badge className="bg-blue-100 text-blue-800">Contacted</Badge>
                 <Badge className="bg-purple-100 text-purple-800">Qualified</Badge>
                 <Badge className="bg-yellow-100 text-yellow-800">Proposal</Badge>

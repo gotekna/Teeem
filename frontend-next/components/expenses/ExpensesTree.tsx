@@ -72,7 +72,7 @@ export function ExpensesTree({ data, className }: ExpensesTreeProps) {
     return (
       <Card className={cn("p-8 text-center", className)}>
         <div className="flex flex-col items-center gap-2 text-muted-foreground">
-          <Folder className="h-12 w-12 text-gray-300 dark:text-gray-600" />
+          <Folder className="h-12 w-12 text-muted-foreground dark:text-muted-foreground" />
           <p className="text-lg font-medium">No Purchase Orders</p>
           <p className="text-sm">This job has no purchase orders to display.</p>
         </div>
@@ -83,7 +83,7 @@ export function ExpensesTree({ data, className }: ExpensesTreeProps) {
   return (
     <Card className={cn("overflow-hidden", className)}>
       {/* Header with expand/collapse controls */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border dark:border-border bg-muted dark:bg-gray-800/50">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <span>
             {data.length} {data.length === 1 ? "Stage" : "Stages"}

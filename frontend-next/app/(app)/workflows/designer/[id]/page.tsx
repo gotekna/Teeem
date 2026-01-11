@@ -78,7 +78,7 @@ export default function WorkflowDesignerPage() {
   if (isLoading && !isNew) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <Spinner size={32} className="text-slate-400" />
+        <Spinner size={32} className="text-muted-foreground" />
       </div>
     );
   }

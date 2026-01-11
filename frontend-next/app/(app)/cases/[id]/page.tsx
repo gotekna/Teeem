@@ -560,9 +560,9 @@ export default function CaseDetailPage() {
       case "closed":
         return "bg-green-100 text-green-700";
       case "archived":
-        return "bg-gray-100 text-gray-700";
+        return "bg-muted text-foreground";
       default:
-        return "bg-gray-100 text-gray-700";
+        return "bg-muted text-foreground";
     }
   };
 
@@ -575,9 +575,9 @@ export default function CaseDetailPage() {
       case "normal":
         return "bg-blue-100 text-blue-700";
       case "low":
-        return "bg-gray-100 text-gray-700";
+        return "bg-muted text-foreground";
       default:
-        return "bg-gray-100 text-gray-700";
+        return "bg-muted text-foreground";
     }
   };
 
@@ -590,7 +590,7 @@ export default function CaseDetailPage() {
       case "failed":
         return "bg-red-100 text-red-700";
       default:
-        return "bg-gray-100 text-gray-700";
+        return "bg-muted text-foreground";
     }
   };
 
@@ -601,7 +601,7 @@ export default function CaseDetailPage() {
       case "supporting":
         return "bg-amber-100 text-amber-700";
       case "background":
-        return "bg-gray-100 text-gray-700";
+        return "bg-muted text-foreground";
       default:
         return "bg-blue-100 text-blue-700";
     }
@@ -1035,11 +1035,11 @@ export default function CaseDetailPage() {
                   </Card>
 
                   {/* Column 3: Neutral Contacts */}
-                  <Card className="border-2 border-gray-200">
-                    <CardHeader className="bg-gray-50">
+                  <Card className="border-2 border-border">
+                    <CardHeader className="bg-muted">
                       <CardTitle className="text-lg flex items-center gap-2">
-                        <User className="h-5 w-5 text-gray-600" />
-                        <span className="text-gray-600">Neutral</span>
+                        <User className="h-5 w-5 text-muted-foreground" />
+                        <span className="text-muted-foreground">Neutral</span>
                       </CardTitle>
                       <p className="text-sm text-muted-foreground mt-1">
                         {contacts.filter(c => !c.alignment || c.alignment === 'neutral').length} contact{contacts.filter(c => !c.alignment || c.alignment === 'neutral').length !== 1 ? 's' : ''}
@@ -1050,18 +1050,18 @@ export default function CaseDetailPage() {
                         {contacts.filter(c => !c.alignment || c.alignment === 'neutral').map((contact) => (
                           <div
                             key={contact.id}
-                            className="p-3 border-2 border-gray-200 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                            className="p-3 border-2 border-border bg-muted rounded-lg cursor-pointer hover:bg-muted transition-colors"
                             onClick={() => {
                               setEditContactId(contact.contact_id);
                               setShowEditCaseContact(true);
                             }}
                           >
                             <div className="flex items-start gap-2">
-                              <User className="h-4 w-4 text-gray-600 mt-1 flex-shrink-0" />
+                              <User className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
                               <div className="flex-1 min-w-0">
                                 <p className="font-semibold text-sm truncate">{contact.contact_name}</p>
                                 {contact.formatted_relationship_type && (
-                                  <p className="text-xs font-medium text-gray-700 mt-1">
+                                  <p className="text-xs font-medium text-foreground mt-1">
                                     {contact.formatted_relationship_type}
                                   </p>
                                 )}

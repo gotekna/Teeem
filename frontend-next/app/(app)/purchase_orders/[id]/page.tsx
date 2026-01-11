@@ -255,7 +255,7 @@ const STATUS_OPTIONS = [
 ];
 
 const STATUS_BADGE_VARIANTS: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-700 border-gray-300",
+  draft: "bg-muted text-foreground border-border",
   pending: "bg-yellow-100 text-yellow-800 border-yellow-300",
   approved: "bg-blue-100 text-blue-800 border-blue-300",
   sent: "bg-purple-100 text-purple-800 border-purple-300",
@@ -1664,7 +1664,7 @@ export default function PurchaseOrderDetailPage() {
                     "rounded-lg p-4",
                     syncPreview.summary.status === "ready" && "bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800",
                     syncPreview.summary.status === "blocked" && "bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800",
-                    syncPreview.summary.status === "in_sync" && "bg-gray-50 dark:bg-gray-950/30 border border-gray-200 dark:border-gray-800"
+                    syncPreview.summary.status === "in_sync" && "bg-muted dark:bg-gray-950/30 border border-border dark:border-border"
                   )}>
                     <p className="text-sm font-medium">{syncPreview.summary.message}</p>
                   </div>

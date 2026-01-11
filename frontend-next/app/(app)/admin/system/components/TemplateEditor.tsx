@@ -318,7 +318,7 @@ export function TemplateEditor({ templateKey, onClose }: TemplateEditorProps) {
                 <textarea
                   value={templateContent}
                   onChange={(e) => handleTemplateChange(e.target.value)}
-                  className="w-full h-[500px] font-mono text-sm p-4 border rounded-md bg-slate-950 text-slate-100 resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full h-[500px] font-mono text-sm p-4 border rounded-md bg-slate-950 text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary"
                   spellCheck={false}
                 />
               </div>
@@ -394,7 +394,7 @@ export function TemplateEditor({ templateKey, onClose }: TemplateEditorProps) {
                     <textarea
                       value={layoutContent}
                       onChange={(e) => handleLayoutChange(e.target.value)}
-                      className="w-full h-[500px] font-mono text-sm p-4 border rounded-md bg-slate-950 text-slate-100 resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                      className="w-full h-[500px] font-mono text-sm p-4 border rounded-md bg-slate-950 text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary"
                       spellCheck={false}
                     />
                   ) : (

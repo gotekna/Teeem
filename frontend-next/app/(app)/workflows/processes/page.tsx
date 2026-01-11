@@ -290,9 +290,9 @@ export default function BpmnProcessesPage() {
       case "failed":
         return "text-red-600 dark:text-red-400";
       case "cancelled":
-        return "text-gray-500 dark:text-gray-400";
+        return "text-muted-foreground dark:text-muted-foreground";
       default:
-        return "text-gray-500";
+        return "text-muted-foreground";
     }
   };
 
@@ -305,11 +305,11 @@ export default function BpmnProcessesPage() {
       case "failed":
         return <AlertCircle className="h-4 w-4 text-red-500" />;
       case "cancelled":
-        return <StopCircle className="h-4 w-4 text-gray-500" />;
+        return <StopCircle className="h-4 w-4 text-muted-foreground" />;
       case "suspended":
         return <Pause className="h-4 w-4 text-yellow-500" />;
       default:
-        return <Clock className="h-4 w-4 text-gray-500" />;
+        return <Clock className="h-4 w-4 text-muted-foreground" />;
     }
   };
 
@@ -318,7 +318,7 @@ export default function BpmnProcessesPage() {
       active: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
       completed: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
       failed: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
-      cancelled: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
+      cancelled: "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground",
       suspended: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300",
     };
     return (
@@ -443,7 +443,7 @@ export default function BpmnProcessesPage() {
   if (loading) {
     return (
       <div className="flex h-96 items-center justify-center">
-        <div className="text-slate-500">Loading workflows...</div>
+        <div className="text-muted-foreground">Loading workflows...</div>
       </div>
     );
   }
@@ -453,7 +453,7 @@ export default function BpmnProcessesPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">BPMN Workflows</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <p className="text-sm text-muted-foreground dark:text-muted-foreground">
             Design and manage automated business processes
           </p>
         </div>
@@ -499,9 +499,9 @@ export default function BpmnProcessesPage() {
           {processes.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-16">
-                <Workflow className="mb-4 h-12 w-12 text-slate-400" />
+                <Workflow className="mb-4 h-12 w-12 text-muted-foreground" />
                 <h3 className="mb-2 text-lg font-medium">No workflows yet</h3>
-                <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+                <p className="mb-4 text-sm text-muted-foreground dark:text-muted-foreground">
                   Create your first workflow to automate business processes
                 </p>
                 <Button onClick={handleCreate}>
@@ -597,23 +597,23 @@ export default function BpmnProcessesPage() {
                 </div>
 
                 <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
-                  <div className="rounded-md bg-slate-100 p-2 dark:bg-slate-800">
+                  <div className="rounded-md bg-muted p-2 dark:bg-slate-800">
                     <div className="font-semibold">{process.nodeCount}</div>
-                    <div className="text-slate-500">Nodes</div>
+                    <div className="text-muted-foreground">Nodes</div>
                   </div>
-                  <div className="rounded-md bg-slate-100 p-2 dark:bg-slate-800">
+                  <div className="rounded-md bg-muted p-2 dark:bg-slate-800">
                     <div className="font-semibold">{process.instanceCount}</div>
-                    <div className="text-slate-500">Runs</div>
+                    <div className="text-muted-foreground">Runs</div>
                   </div>
-                  <div className="rounded-md bg-slate-100 p-2 dark:bg-slate-800">
+                  <div className="rounded-md bg-muted p-2 dark:bg-slate-800">
                     <div className="font-semibold">
                       {process.activeInstanceCount}
                     </div>
-                    <div className="text-slate-500">Active</div>
+                    <div className="text-muted-foreground">Active</div>
                   </div>
                 </div>
 
-                <div className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                <div className="mt-3 text-xs text-muted-foreground dark:text-muted-foreground">
                   Updated{" "}
                   {new Date(process.updatedAt).toLocaleDateString("en-AU", {
                     day: "numeric",
@@ -660,13 +660,13 @@ export default function BpmnProcessesPage() {
             <CardContent>
               {instancesLoading && instances.length === 0 ? (
                 <div className="flex items-center justify-center py-12">
-                  <div className="text-slate-500 dark:text-slate-400">Loading instances...</div>
+                  <div className="text-muted-foreground dark:text-muted-foreground">Loading instances...</div>
                 </div>
               ) : instances.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <Play className="mb-4 h-12 w-12 text-slate-400" />
+                  <Play className="mb-4 h-12 w-12 text-muted-foreground" />
                   <h3 className="mb-2 text-lg font-medium">No workflow instances</h3>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                  <p className="text-sm text-muted-foreground dark:text-muted-foreground">
                     Run a workflow from the designer or from a job page
                   </p>
                 </div>
@@ -675,7 +675,7 @@ export default function BpmnProcessesPage() {
                   {instances.map((instance) => (
                     <div
                       key={instance.id}
-                      className="border rounded-lg dark:border-slate-700 overflow-hidden"
+                      className="border rounded-lg dark:border-border overflow-hidden"
                     >
                       {/* Instance Header - Clickable */}
                       <div
@@ -683,19 +683,19 @@ export default function BpmnProcessesPage() {
                         onClick={() => toggleInstanceExpansion(instance.id)}
                       >
                         <div className="flex items-center gap-4">
-                          <div className="p-2 rounded-full bg-slate-100 dark:bg-slate-800">
+                          <div className="p-2 rounded-full bg-muted dark:bg-slate-800">
                             {getStatusIcon(instance.status)}
                           </div>
                           <div>
                             <div className="flex items-center gap-2">
                               <p className="font-medium">{instance.process_name}</p>
-                              <span className="text-xs text-slate-500 dark:text-slate-400">#{instance.id}</span>
+                              <span className="text-xs text-muted-foreground dark:text-muted-foreground">#{instance.id}</span>
                             </div>
-                            <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground dark:text-muted-foreground">
                               <Building className="h-3 w-3" />
                               <span>{instance.subject_name || `${instance.subject_type} #${instance.subject_id}`}</span>
                             </div>
-                            <div className="flex items-center gap-3 mt-1 text-xs text-slate-500 dark:text-slate-400">
+                            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground dark:text-muted-foreground">
                               <span>Started {formatDistanceToNow(new Date(instance.started_at), { addSuffix: true })}</span>
                               {instance.current_node && (
                                 <>
@@ -744,19 +744,19 @@ export default function BpmnProcessesPage() {
                             </DropdownMenuContent>
                           </DropdownMenu>
                           {expandedInstanceId === instance.id ? (
-                            <ChevronDown className="h-5 w-5 text-slate-400" />
+                            <ChevronDown className="h-5 w-5 text-muted-foreground" />
                           ) : (
-                            <ChevronRight className="h-5 w-5 text-slate-400" />
+                            <ChevronRight className="h-5 w-5 text-muted-foreground" />
                           )}
                         </div>
                       </div>
 
                       {/* Expanded Step Details */}
                       {expandedInstanceId === instance.id && (
-                        <div className="border-t dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-4">
+                        <div className="border-t dark:border-border bg-muted dark:bg-slate-900/50 p-4">
                           {detailLoading ? (
                             <div className="flex items-center justify-center py-8">
-                              <Spinner size={24} className="text-slate-400" />
+                              <Spinner size={24} className="text-muted-foreground" />
                             </div>
                           ) : instanceDetail ? (
                             <div className="space-y-4">
@@ -767,7 +767,7 @@ export default function BpmnProcessesPage() {
                                   Workflow Steps
                                 </h4>
                                 {instanceDetail.tokens.length === 0 ? (
-                                  <p className="text-sm text-slate-500 dark:text-slate-400">No steps recorded yet</p>
+                                  <p className="text-sm text-muted-foreground dark:text-muted-foreground">No steps recorded yet</p>
                                 ) : (
                                   <div className="space-y-2">
                                     {instanceDetail.tokens.map((token, idx) => (
@@ -779,14 +779,14 @@ export default function BpmnProcessesPage() {
                                         <div className="flex flex-col items-center">
                                           <div className={`w-3 h-3 rounded-full ${getTokenStatusColor(token.status)}`} />
                                           {idx < instanceDetail.tokens.length - 1 && (
-                                            <div className="w-0.5 h-6 bg-slate-200 dark:bg-slate-700 mt-1" />
+                                            <div className="w-0.5 h-6 bg-muted dark:bg-slate-700 mt-1" />
                                           )}
                                         </div>
                                         {/* Step info */}
                                         <div className="flex-1 flex items-center justify-between py-1">
                                           <div>
                                             <span className="text-sm font-medium">{token.node_name}</span>
-                                            <span className="text-xs text-slate-500 dark:text-slate-400 ml-2">
+                                            <span className="text-xs text-muted-foreground dark:text-muted-foreground ml-2">
                                               ({token.node_type})
                                             </span>
                                           </div>
@@ -803,7 +803,7 @@ export default function BpmnProcessesPage() {
                                               {token.status}
                                             </Badge>
                                             {token.completed_at && (
-                                              <span className="text-xs text-slate-500 dark:text-slate-400">
+                                              <span className="text-xs text-muted-foreground dark:text-muted-foreground">
                                                 {formatDistanceToNow(new Date(token.completed_at), { addSuffix: true })}
                                               </span>
                                             )}
@@ -817,7 +817,7 @@ export default function BpmnProcessesPage() {
 
                               {/* Tasks */}
                               {instanceDetail.tasks.length > 0 && (
-                                <div className="pt-2 border-t dark:border-slate-700">
+                                <div className="pt-2 border-t dark:border-border">
                                   <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
                                     <Clock className="h-4 w-4" />
                                     Tasks
@@ -826,12 +826,12 @@ export default function BpmnProcessesPage() {
                                     {instanceDetail.tasks.map((task) => (
                                       <div
                                         key={task.id}
-                                        className="flex items-center justify-between p-2 bg-white dark:bg-slate-800 rounded border dark:border-slate-700"
+                                        className="flex items-center justify-between p-2 bg-white dark:bg-slate-800 rounded border dark:border-border"
                                       >
                                         <div>
                                           <span className="text-sm font-medium">{task.node_name}</span>
                                           {task.assigned_to_name && (
-                                            <span className="text-xs text-slate-500 dark:text-slate-400 ml-2">
+                                            <span className="text-xs text-muted-foreground dark:text-muted-foreground ml-2">
                                               → {task.assigned_to_name}
                                             </span>
                                           )}
@@ -857,7 +857,7 @@ export default function BpmnProcessesPage() {
                               )}
                             </div>
                           ) : (
-                            <p className="text-sm text-slate-500 dark:text-slate-400">Failed to load details</p>
+                            <p className="text-sm text-muted-foreground dark:text-muted-foreground">Failed to load details</p>
                           )}
                         </div>
                       )}

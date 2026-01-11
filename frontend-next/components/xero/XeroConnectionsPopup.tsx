@@ -176,20 +176,20 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
+        <div className="flex items-center justify-between border-b border-border p-4 dark:border-border">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+            <h2 className="text-lg font-semibold text-foreground dark:text-white">
               Xero Connections
             </h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-muted-foreground dark:text-muted-foreground">
               {connectedOrgs} of {totalOrgs} Xero organizations • {connectedCompanies} of {totalCompanies} companies connected
             </p>
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1 hover:bg-gray-100 dark:hover:bg-gray-700"
+            className="rounded-lg p-1 hover:bg-muted dark:hover:bg-gray-700"
           >
-            <X className="h-5 w-5 text-gray-500" />
+            <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
 
@@ -201,8 +201,8 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
             </div>
           ) : organizations.length === 0 ? (
             <div className="py-12 text-center">
-              <Building2 className="mx-auto h-12 w-12 text-gray-400" />
-              <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+              <Building2 className="mx-auto h-12 w-12 text-muted-foreground" />
+              <p className="mt-4 text-sm text-muted-foreground dark:text-muted-foreground">
                 No Xero connections found
               </p>
             </div>
@@ -211,27 +211,27 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
               {organizations.map((org) => (
                 <div
                   key={org.tenant_id}
-                  className="rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900"
+                  className="rounded-lg border border-border bg-muted dark:border-border dark:bg-gray-900"
                 >
                   {/* Xero Organization Header */}
-                  <div className="flex items-center justify-between border-b border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+                  <div className="flex items-center justify-between border-b border-border bg-white p-3 dark:border-border dark:bg-gray-800">
                     <div className="flex items-center space-x-3">
                       {/* Organization Status - SSoT: Uses display_status from backend */}
                       <div className="relative">
                         {(org.display_status === 'connected' || (!org.display_status && org.connected)) ? (
                           <>
                             <CheckCircle className="h-6 w-6 text-green-500" />
-                            <div className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-green-500 border-2 border-white dark:border-gray-800" />
+                            <div className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-green-500 border-2 border-white dark:border-border" />
                           </>
                         ) : (org.display_status === 'warning' || org.degraded || org.status === 'degraded') ? (
                           <>
                             <AlertTriangle className="h-6 w-6 text-orange-500" />
-                            <div className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-orange-500 border-2 border-white dark:border-gray-800" />
+                            <div className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-orange-500 border-2 border-white dark:border-border" />
                           </>
                         ) : (
                           <>
                             <XCircle className="h-6 w-6 text-red-500" />
-                            <div className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-red-500 border-2 border-white dark:border-gray-800" />
+                            <div className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-red-500 border-2 border-white dark:border-border" />
                           </>
                         )}
                       </div>
@@ -239,16 +239,16 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                       {/* Organization Name */}
                       <div>
                         <div className="flex items-center space-x-2">
-                          <span className="font-semibold text-gray-900 dark:text-white">
+                          <span className="font-semibold text-foreground dark:text-white">
                             {org.tenant_name}
                           </span>
                           {org.companies.length === 0 && (
-                            <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                            <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground dark:bg-gray-700 dark:text-muted-foreground">
                               Not linked
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                        <p className="text-xs text-muted-foreground dark:text-muted-foreground">
                           Xero Organization {org.companies.length > 0 && `• ${org.companies.length} ${org.companies.length === 1 ? 'company' : 'companies'}`}
                         </p>
                       </div>
@@ -265,7 +265,7 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                           }`}>
                             {org.companies.filter(c => c.display_status === 'connected' || (!c.display_status && c.connected)).length} / {org.companies.length}
                           </span>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">linked</p>
+                          <p className="text-xs text-muted-foreground dark:text-muted-foreground">linked</p>
                         </>
                       ) : (
                         /* SSoT: Use display_status from backend */
@@ -303,18 +303,18 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                             </div>
 
                             {/* Arrow */}
-                            <ArrowRight className="h-4 w-4 text-gray-400" />
+                            <ArrowRight className="h-4 w-4 text-muted-foreground" />
 
                             {/* TEEEM Company Name */}
                             <div className="flex-1">
                               <div className="flex items-center space-x-2">
-                                <Building2 className="h-4 w-4 text-gray-400" />
-                                <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                <Building2 className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-sm font-medium text-foreground dark:text-white">
                                   {connection.company.name}
                                 </span>
                               </div>
                               {connection.last_sync_at && (
-                                <div className="mt-0.5 flex items-center space-x-1 text-xs text-gray-500 dark:text-gray-400">
+                                <div className="mt-0.5 flex items-center space-x-1 text-xs text-muted-foreground dark:text-muted-foreground">
                                   <Calendar className="h-3 w-3" />
                                   <span>
                                     Last sync: {new Date(connection.last_sync_at).toLocaleDateString()}
@@ -331,7 +331,7 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                                 window.location.href = `/corporate/companies/${connection.company_id}/xero`;
                                 onClose();
                               }}
-                              className="whitespace-nowrap rounded-md border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                              className="whitespace-nowrap rounded-md border border-border bg-white px-3 py-1 text-xs font-medium text-foreground hover:bg-muted dark:border-border dark:bg-gray-700 dark:text-muted-foreground dark:hover:bg-gray-600"
                             >
                               View
                             </button>
@@ -340,7 +340,7 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                       ))
                     ) : (
                       <div className="rounded-md bg-white p-4 dark:bg-gray-800">
-                        <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+                        <p className="mb-3 text-sm text-muted-foreground dark:text-muted-foreground">
                           No TEEEM companies linked to this organization yet.
                         </p>
                         {availableCompanies.length > 0 ? (
@@ -355,10 +355,10 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                               }}
                               onFocus={() => setOpenDropdownTenantId(org.tenant_id)}
                               disabled={linkingTenantId === org.tenant_id}
-                              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-border dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
                             />
                             {openDropdownTenantId === org.tenant_id && (
-                              <div className="absolute z-[100] mt-1 w-full max-h-60 overflow-auto rounded-md border border-gray-300 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-700">
+                              <div className="absolute z-[100] mt-1 w-full max-h-60 overflow-auto rounded-md border border-border bg-white shadow-lg dark:border-border dark:bg-gray-700">
                                 {availableCompanies
                                   .filter(company =>
                                     company.name.toLowerCase().includes((searchTerms[org.tenant_id] || "").toLowerCase())
@@ -371,7 +371,7 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                                         setOpenDropdownTenantId(null);
                                         setSearchTerms({ ...searchTerms, [org.tenant_id]: "" });
                                       }}
-                                      className="w-full px-3 py-2 text-left text-sm hover:bg-blue-50 dark:hover:bg-gray-600 text-gray-900 dark:text-white"
+                                      className="w-full px-3 py-2 text-left text-sm hover:bg-blue-50 dark:hover:bg-gray-600 text-foreground dark:text-white"
                                     >
                                       {company.name}
                                     </button>
@@ -379,7 +379,7 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                                 {availableCompanies.filter(company =>
                                   company.name.toLowerCase().includes((searchTerms[org.tenant_id] || "").toLowerCase())
                                 ).length === 0 && (
-                                  <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                                  <div className="px-3 py-2 text-sm text-muted-foreground dark:text-muted-foreground">
                                     No companies found
                                   </div>
                                 )}
@@ -392,7 +392,7 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                             )}
                           </div>
                         ) : (
-                          <p className="text-xs text-gray-400 dark:text-gray-500">
+                          <p className="text-xs text-muted-foreground dark:text-muted-foreground">
                             All companies already have Xero connections.
                           </p>
                         )}
@@ -406,7 +406,7 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
         </div>
 
         {/* Footer */}
-        <div className="border-t border-gray-200 p-4 dark:border-gray-700">
+        <div className="border-t border-border p-4 dark:border-border">
           <div className="flex gap-3">
             <button
               onClick={handleConnectToXero}
@@ -417,7 +417,7 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
             </button>
             <button
               onClick={loadConnections}
-              className="flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+              className="flex items-center justify-center rounded-lg border border-border bg-white px-4 py-2 text-sm font-medium text-foreground hover:bg-muted dark:border-border dark:bg-gray-700 dark:text-muted-foreground dark:hover:bg-gray-600"
               title="Refresh connection data"
             >
               <RefreshCw className="h-4 w-4" />

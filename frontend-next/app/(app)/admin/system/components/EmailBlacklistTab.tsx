@@ -362,7 +362,7 @@ export function EmailBlacklistTab() {
             <CardTitle className="text-sm font-medium">Inactive Patterns</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-gray-400">
+            <div className="text-2xl font-bold text-muted-foreground">
               {items.filter((i) => !i.active).length}
             </div>
           </CardContent>

@@ -468,9 +468,9 @@ export default function GlPage() {
       case "running":
         return <RefreshCw className="h-5 w-5 text-blue-500 animate-spin" />;
       case "skipped":
-        return <Clock className="h-5 w-5 text-gray-400" />;
+        return <Clock className="h-5 w-5 text-muted-foreground" />;
       default:
-        return <Clock className="h-5 w-5 text-gray-300" />;
+        return <Clock className="h-5 w-5 text-muted-foreground" />;
     }
   };
 
@@ -500,7 +500,7 @@ export default function GlPage() {
       case "running":
         return <RefreshCw className="h-4 w-4 text-blue-500 animate-spin" />;
       default:
-        return <Clock className="h-4 w-4 text-gray-500" />;
+        return <Clock className="h-4 w-4 text-muted-foreground" />;
     }
   };
 
@@ -512,7 +512,7 @@ export default function GlPage() {
       revenue: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
       expense: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300",
     };
-    return colors[type] || "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300";
+    return colors[type] || "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground";
   };
 
   if (loading) {
@@ -1035,7 +1035,7 @@ export default function GlPage() {
                           {account.active ? (
                             <Badge variant="outline" className="text-green-600">Active</Badge>
                           ) : (
-                            <Badge variant="outline" className="text-gray-400">Inactive</Badge>
+                            <Badge variant="outline" className="text-muted-foreground">Inactive</Badge>
                           )}
                         </TableCell>
                       </TableRow>
@@ -1471,11 +1471,11 @@ export default function GlPage() {
                     ? "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800"
                     : step.status === "failed"
                     ? "bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800"
-                    : "bg-gray-50 border-gray-200 dark:bg-gray-800/50 dark:border-gray-700"
+                    : "bg-muted border-border dark:bg-gray-800/50 dark:border-border"
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <div className="text-gray-500 dark:text-gray-400">
+                  <div className="text-muted-foreground dark:text-muted-foreground">
                     {step.icon}
                   </div>
                   <div>

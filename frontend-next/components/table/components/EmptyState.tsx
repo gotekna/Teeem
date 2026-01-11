@@ -120,8 +120,8 @@ export function EmptyState({
       default:
         return {
           icon: Database,
-          iconBg: "bg-gray-50 dark:bg-gray-800",
-          iconColor: "text-gray-400 dark:text-gray-500",
+          iconBg: "bg-muted dark:bg-gray-800",
+          iconColor: "text-muted-foreground dark:text-muted-foreground",
           defaultTitle: "No records yet",
           defaultDescription: "Get started by adding your first record",
           actions: onAddRecord ? (

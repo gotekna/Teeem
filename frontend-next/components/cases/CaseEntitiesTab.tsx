@@ -501,7 +501,7 @@ export function CaseEntitiesTab({ caseId, caseData }: CaseEntitiesTabProps) {
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg flex items-center gap-2">
               <User className="h-4 w-4" />
-              <span className="text-gray-600">Neutral</span> Contacts
+              <span className="text-muted-foreground">Neutral</span> Contacts
               <span className="text-muted-foreground text-sm">
                 ({neutralContacts.length})
               </span>
@@ -515,7 +515,7 @@ export function CaseEntitiesTab({ caseId, caseData }: CaseEntitiesTabProps) {
             ) : (
               <div className="divide-y">
                 {neutralContacts.map((contact) =>
-                  renderContactCard(contact, "text-gray-600", "bg-gray-100")
+                  renderContactCard(contact, "text-muted-foreground", "bg-muted")
                 )}
               </div>
             )}
@@ -767,7 +767,7 @@ export function CaseEntitiesTab({ caseId, caseData }: CaseEntitiesTabProps) {
                         <div className="text-sm text-muted-foreground">
                           {contact.email || "No email"}
                           {contact.company_name && (
-                            <span className="ml-2 text-xs bg-slate-100 px-2 py-0.5 rounded">
+                            <span className="ml-2 text-xs bg-muted px-2 py-0.5 rounded">
                               {contact.company_name}
                             </span>
                           )}

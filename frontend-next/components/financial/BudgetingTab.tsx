@@ -322,7 +322,7 @@ export default function BudgetingTab() {
       optimistic: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
       pessimistic: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
       stretch: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
-      custom: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
+      custom: "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground",
     };
     return <Badge className={colors[type] || colors.custom}>{type}</Badge>;
   };
@@ -338,14 +338,14 @@ export default function BudgetingTab() {
         );
       case "draft":
         return (
-          <Badge variant="outline" className="text-gray-600">
+          <Badge variant="outline" className="text-muted-foreground">
             <Clock className="h-3 w-3 mr-1" />
             Draft
           </Badge>
         );
       case "archived":
         return (
-          <Badge variant="outline" className="text-gray-400">
+          <Badge variant="outline" className="text-muted-foreground">
             <Archive className="h-3 w-3 mr-1" />
             Archived
           </Badge>

@@ -990,7 +990,7 @@ export function PdfFieldsTab() {
           const field = positions.find(p => p.id === draggingFieldId);
           if (!field) return null;
           return (
-            <div className="flex items-center gap-2 px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded border">
+            <div className="flex items-center gap-2 px-3 py-1 bg-muted dark:bg-slate-800 rounded border">
               <span className="text-xs font-mono">
                 x:<span className="font-bold text-green-600">{dropPreview.x}</span>
               </span>
@@ -1020,7 +1020,7 @@ export function PdfFieldsTab() {
                     setPreviewHeight(field.box_height || 0);
                   }}
                   className={cn(
-                    "text-left px-2 py-1 rounded text-xs hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors",
+                    "text-left px-2 py-1 rounded text-xs hover:bg-muted dark:hover:bg-slate-800 transition-colors",
                     selectedFieldId === field.id && "bg-blue-100 dark:bg-blue-900 ring-1 ring-blue-500"
                   )}
                 >
@@ -1040,7 +1040,7 @@ export function PdfFieldsTab() {
 
       {/* PDF Preview - takes remaining width, full height, scrollable */}
       <div
-        className="flex-1 bg-gray-100 dark:bg-gray-900 overflow-auto min-h-0"
+        className="flex-1 bg-muted dark:bg-gray-900 overflow-auto min-h-0"
       >
         {loadingPdf ? (
           <div className="flex items-center justify-center h-full">

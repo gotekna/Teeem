@@ -208,10 +208,10 @@ export function ChatBox({
   return (
     <div className="flex flex-col h-full bg-white dark:bg-gray-900 rounded-lg shadow-lg">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border dark:border-border">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h3>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
+          <h3 className="text-lg font-semibold text-foreground dark:text-white">{title}</h3>
+          <p className="text-xs text-muted-foreground dark:text-muted-foreground">
             {projectId ? "Project Chat" : userId ? "Direct Message" : "Channel"}
           </p>
         </div>
@@ -238,7 +238,7 @@ export function ChatBox({
       {/* Conversation Job Selector Dropdown */}
       {showConversationJobSelector && (
         <div className="mx-4 mt-3 p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg border border-indigo-200 dark:border-indigo-800">
-          <p className="text-sm font-medium text-gray-900 dark:text-white mb-2">
+          <p className="text-sm font-medium text-foreground dark:text-white mb-2">
             Save all {messages.length} messages in this conversation to:
           </p>
           <div className="space-y-1 max-h-48 overflow-y-auto">
@@ -247,7 +247,7 @@ export function ChatBox({
                 key={construction.id}
                 onClick={() => handleSaveConversationToJob(construction.id)}
                 disabled={savingConversation}
-                className="w-full text-left px-3 py-2 text-sm rounded hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-gray-900 dark:text-white disabled:opacity-50"
+                className="w-full text-left px-3 py-2 text-sm rounded hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-foreground dark:text-white disabled:opacity-50"
               >
                 {construction.title}
               </button>
@@ -255,7 +255,7 @@ export function ChatBox({
           </div>
           <button
             onClick={() => setShowConversationJobSelector(false)}
-            className="mt-2 text-xs text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+            className="mt-2 text-xs text-muted-foreground hover:text-foreground dark:text-muted-foreground dark:hover:text-muted-foreground"
           >
             Cancel
           </button>
@@ -266,12 +266,12 @@ export function ChatBox({
       <ScrollArea className="flex-1 p-4">
         {loading ? (
           <div className="flex items-center justify-center h-full">
-            <Spinner size={24} className="text-gray-500" />
+            <Spinner size={24} className="text-muted-foreground" />
           </div>
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <p className="text-gray-500 dark:text-gray-400 mb-2">No messages yet</p>
-            <p className="text-sm text-gray-400 dark:text-gray-500">Start the conversation!</p>
+            <p className="text-muted-foreground dark:text-muted-foreground mb-2">No messages yet</p>
+            <p className="text-sm text-muted-foreground dark:text-muted-foreground">Start the conversation!</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -285,10 +285,10 @@ export function ChatBox({
               return (
                 <div key={message.id} className="flex flex-col space-y-1 group">
                   <div className="flex items-baseline space-x-2">
-                    <span className="font-semibold text-sm text-gray-900 dark:text-white">
+                    <span className="font-semibold text-sm text-foreground dark:text-white">
                       {userName}
                     </span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">{timestamp}</span>
+                    <span className="text-xs text-muted-foreground dark:text-muted-foreground">{timestamp}</span>
                     {isSaved && (
                       <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
                         <Bookmark className="h-3 w-3 fill-current" />
@@ -306,14 +306,14 @@ export function ChatBox({
                       </button>
                     )}
                   </div>
-                  <div className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words">
+                  <div className="text-sm text-foreground dark:text-muted-foreground whitespace-pre-wrap break-words">
                     {message.content}
                   </div>
 
                   {/* Job selector dropdown */}
                   {showJobSelector === message.id && (
-                    <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                      <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <div className="mt-2 p-3 bg-muted dark:bg-gray-800 rounded-lg border border-border dark:border-border">
+                      <p className="text-xs font-medium text-foreground dark:text-muted-foreground mb-2">
                         Select a job to save this message to:
                       </p>
                       <div className="space-y-1 max-h-48 overflow-y-auto">
@@ -322,7 +322,7 @@ export function ChatBox({
                             key={construction.id}
                             onClick={() => handleSaveToJob(message.id, construction.id)}
                             disabled={savingMessageId === message.id}
-                            className="w-full text-left px-3 py-2 text-sm rounded hover:bg-indigo-100 dark:hover:bg-indigo-900/30 text-gray-900 dark:text-white disabled:opacity-50"
+                            className="w-full text-left px-3 py-2 text-sm rounded hover:bg-indigo-100 dark:hover:bg-indigo-900/30 text-foreground dark:text-white disabled:opacity-50"
                           >
                             {construction.title}
                           </button>
@@ -330,7 +330,7 @@ export function ChatBox({
                       </div>
                       <button
                         onClick={() => setShowJobSelector(null)}
-                        className="mt-2 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                        className="mt-2 text-xs text-muted-foreground hover:text-foreground dark:hover:text-muted-foreground"
                       >
                         Cancel
                       </button>
@@ -345,7 +345,7 @@ export function ChatBox({
       </ScrollArea>
 
       {/* Input Area */}
-      <div className="border-t border-gray-200 dark:border-gray-700 p-4">
+      <div className="border-t border-border dark:border-border p-4">
         <form onSubmit={handleSendMessage} className="flex space-x-2">
           <Textarea
             value={newMessage}
@@ -364,7 +364,7 @@ export function ChatBox({
             )}
           </Button>
         </form>
-        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+        <p className="mt-2 text-xs text-muted-foreground dark:text-muted-foreground">
           Press Enter to send, Shift+Enter for new line
         </p>
       </div>

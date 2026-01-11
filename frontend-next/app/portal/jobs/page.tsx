@@ -164,14 +164,14 @@ export default function PortalJobs() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Jobs</h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+        <h1 className="text-2xl font-bold text-foreground dark:text-white">Jobs</h1>
+        <p className="mt-1 text-sm text-muted-foreground dark:text-muted-foreground">
           Track your active and completed jobs
         </p>
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200 dark:border-gray-700">
+      <div className="border-b border-border dark:border-border">
         <nav className="-mb-px flex space-x-8" aria-label="Tabs">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.key;
@@ -183,7 +183,7 @@ export default function PortalJobs() {
                   ${
                     isActive
                       ? "border-indigo-500 dark:border-indigo-400 text-indigo-600 dark:text-indigo-400"
-                      : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
+                      : "border-transparent text-muted-foreground dark:text-muted-foreground hover:text-foreground dark:hover:text-muted-foreground hover:border-border dark:hover:border-border"
                   }
                   whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
                   flex items-center gap-2
@@ -197,7 +197,7 @@ export default function PortalJobs() {
                   ${
                     isActive
                       ? "bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400"
-                      : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
+                      : "bg-muted dark:bg-gray-700 text-muted-foreground dark:text-muted-foreground"
                   }
                 `}
                 >
@@ -212,11 +212,11 @@ export default function PortalJobs() {
       {/* Job List */}
       {currentJobs.length === 0 ? (
         <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg shadow">
-          <BriefcaseIcon className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
+          <BriefcaseIcon className="mx-auto h-12 w-12 text-muted-foreground dark:text-muted-foreground" />
+          <h3 className="mt-2 text-sm font-medium text-foreground dark:text-white">
             No {activeTab.replace("_", " ")} jobs
           </h3>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          <p className="mt-1 text-sm text-muted-foreground dark:text-muted-foreground">
             {activeTab === "upcoming"
               ? "You don't have any upcoming jobs scheduled."
               : `No jobs in ${activeTab.replace("_", " ")} status.`}
@@ -234,10 +234,10 @@ export default function PortalJobs() {
                 {/* Header */}
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-lg font-medium text-gray-900 dark:text-white truncate">
+                    <h3 className="text-lg font-medium text-foreground dark:text-white truncate">
                       {job.construction.name}
                     </h3>
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 truncate">
+                    <p className="mt-1 text-sm text-muted-foreground dark:text-muted-foreground truncate">
                       PO: {job.po_number}
                     </p>
                   </div>
@@ -247,15 +247,15 @@ export default function PortalJobs() {
                 {/* Amount */}
                 <div className="mt-4">
                   <div className="flex items-baseline">
-                    <span className="text-2xl font-bold text-gray-900 dark:text-white">
+                    <span className="text-2xl font-bold text-foreground dark:text-white">
                       ${job.total?.toLocaleString()}
                     </span>
                   </div>
                 </div>
 
                 {/* Location */}
-                <div className="mt-4 flex items-start text-sm text-gray-500 dark:text-gray-400">
-                  <MapPinIcon className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400 dark:text-gray-500" />
+                <div className="mt-4 flex items-start text-sm text-muted-foreground dark:text-muted-foreground">
+                  <MapPinIcon className="flex-shrink-0 mr-1.5 h-5 w-5 text-muted-foreground dark:text-muted-foreground" />
                   <div className="flex-1">
                     <p>{job.construction.address}</p>
                     <p>
@@ -266,22 +266,22 @@ export default function PortalJobs() {
                 </div>
 
                 {/* Timestamps */}
-                <div className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4 space-y-2">
+                <div className="mt-4 border-t border-border dark:border-border pt-4 space-y-2">
                   {job.arrived_at && (
-                    <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
-                      <ClockIcon className="h-4 w-4 mr-1 text-gray-400 dark:text-gray-500" />
+                    <div className="flex items-center text-xs text-muted-foreground dark:text-muted-foreground">
+                      <ClockIcon className="h-4 w-4 mr-1 text-muted-foreground dark:text-muted-foreground" />
                       Arrived: {formatDate(job.arrived_at)}
                     </div>
                   )}
                   {job.completed_at && (
-                    <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
+                    <div className="flex items-center text-xs text-muted-foreground dark:text-muted-foreground">
                       <CheckCircleIcon className="h-4 w-4 mr-1 text-green-500 dark:text-green-400" />
                       Completed: {formatDate(job.completed_at)}
                     </div>
                   )}
                   {job.days_on_site !== null && job.days_on_site !== undefined && (
-                    <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
-                      <CalendarIcon className="h-4 w-4 mr-1 text-gray-400 dark:text-gray-500" />
+                    <div className="flex items-center text-xs text-muted-foreground dark:text-muted-foreground">
+                      <CalendarIcon className="h-4 w-4 mr-1 text-muted-foreground dark:text-muted-foreground" />
                       Time on site: {job.days_on_site.toFixed(1)} days
                     </div>
                   )}
@@ -296,7 +296,7 @@ export default function PortalJobs() {
                           ? "bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300"
                           : job.invoice_status === "synced"
                           ? "bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300"
-                          : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300"
+                          : "bg-muted dark:bg-gray-700 text-foreground dark:text-muted-foreground"
                       }`}
                     >
                       Invoice: {job.invoice_status}
@@ -306,7 +306,7 @@ export default function PortalJobs() {
 
                 {/* Action needed for upcoming jobs */}
                 {activeTab === "upcoming" && !job.is_arrived && (
-                  <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <div className="mt-4 pt-4 border-t border-border dark:border-border">
                     <span className="text-xs font-medium text-indigo-600 dark:text-indigo-400">
                       → Mark arrival when on site
                     </span>
@@ -315,7 +315,7 @@ export default function PortalJobs() {
 
                 {/* Action needed for in progress jobs */}
                 {activeTab === "in_progress" && job.is_arrived && !job.is_completed && (
-                  <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <div className="mt-4 pt-4 border-t border-border dark:border-border">
                     <span className="text-xs font-medium text-indigo-600 dark:text-indigo-400">
                       → Mark complete when finished
                     </span>

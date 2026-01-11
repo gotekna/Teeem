@@ -482,7 +482,7 @@ export function XeroContactsTable({
       </div>
 
       {/* Table */}
-      <div className="rounded-md border dark:border-gray-800">
+      <div className="rounded-md border dark:border-border">
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50 dark:bg-muted/20">

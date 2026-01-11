@@ -1647,7 +1647,7 @@ function GoldDocumentTypeEditor() {
                               : getPlaceholderColor(token.value) === "orange"
                                 ? "bg-orange-100 text-orange-700 border-orange-300"
                                 : "bg-purple-100 text-purple-700 border-purple-300"
-                            : "bg-gray-100 text-gray-700 border-gray-300"
+                            : "bg-muted text-foreground border-border"
                         )}
                       >
                         <GripVertical className="h-3 w-3 mr-1 inline" />
@@ -1708,7 +1708,7 @@ function GoldDocumentTypeEditor() {
                               : getPlaceholderColor(token.value) === "orange"
                                 ? "bg-orange-100 text-orange-700 border-orange-300"
                                 : "bg-purple-100 text-purple-700 border-purple-300"
-                            : "bg-gray-100 text-gray-700 border-gray-300"
+                            : "bg-muted text-foreground border-border"
                         )}
                       >
                         <GripVertical className="h-3 w-3 mr-1 inline" />
@@ -1941,7 +1941,7 @@ function SyncCheckTab() {
               <span className="text-muted-foreground">Sources do not match</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-gray-100 border border-gray-300 rounded" />
+              <div className="w-4 h-4 bg-muted border border-border rounded" />
               <span className="text-muted-foreground">No type defined (expected for relationships)</span>
             </div>
           </div>

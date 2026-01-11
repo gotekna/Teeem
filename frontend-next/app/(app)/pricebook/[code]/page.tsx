@@ -670,7 +670,7 @@ export default function PriceBookItemDetailPage() {
       green: "bg-green-100 text-green-700",
       yellow: "bg-yellow-100 text-yellow-800",
       red: "bg-red-100 text-red-700",
-      gray: "bg-gray-100 text-gray-600",
+      gray: "bg-muted text-muted-foreground",
     };
     return colorClasses[color] || colorClasses.gray;
   };
@@ -713,7 +713,7 @@ export default function PriceBookItemDetailPage() {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="text-center">
-          <AlertTriangle className="mx-auto h-12 w-12 text-gray-400" />
+          <AlertTriangle className="mx-auto h-12 w-12 text-muted-foreground" />
           <h3 className="mt-2 text-sm font-semibold">Error loading item</h3>
           <p className="mt-1 text-sm text-muted-foreground">{error}</p>
           <div className="mt-6">
@@ -972,7 +972,7 @@ export default function PriceBookItemDetailPage() {
                               />
                             ) : (
                               <div
-                                className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-100 px-2 py-1 rounded"
+                                className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted px-2 py-1 rounded"
                                 onClick={() => handleStartEdit(history.id, history)}
                               >
                                 {formatDate(history.date_effective || history.created_at)}
@@ -997,7 +997,7 @@ export default function PriceBookItemDetailPage() {
                               />
                             ) : (
                               <span
-                                className="cursor-pointer hover:bg-gray-100 px-2 py-1 rounded block"
+                                className="cursor-pointer hover:bg-muted px-2 py-1 rounded block"
                                 onClick={() => handleStartEdit(history.id, history)}
                               >
                                 {formatCurrency(history.new_price)}
@@ -1020,7 +1020,7 @@ export default function PriceBookItemDetailPage() {
                               </select>
                             ) : (
                               <span
-                                className="cursor-pointer hover:bg-gray-100 px-2 py-1 rounded block"
+                                className="cursor-pointer hover:bg-muted px-2 py-1 rounded block"
                                 onClick={() => handleStartEdit(history.id, history)}
                               >
                                 {history.lga || '-'}
@@ -1078,7 +1078,7 @@ export default function PriceBookItemDetailPage() {
                               </Popover>
                             ) : (
                               <span
-                                className="cursor-pointer hover:bg-gray-100 px-2 py-1 rounded block"
+                                className="cursor-pointer hover:bg-muted px-2 py-1 rounded block"
                                 onClick={() => handleStartEdit(history.id, history)}
                               >
                                 {history.supplier ? (

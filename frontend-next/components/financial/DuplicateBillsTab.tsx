@@ -697,7 +697,7 @@ export default function DuplicateBillsTab() {
                   className={`p-4 rounded-lg border-2 text-left transition-all ${
                     keepBillId === selectedPair.bill1.id
                       ? "border-green-500 bg-green-50"
-                      : "border-gray-200 hover:border-gray-300"
+                      : "border-border hover:border-border"
                   }`}
                 >
                   <p className="font-mono font-medium">{selectedPair.bill1.invoice_number}</p>
@@ -713,7 +713,7 @@ export default function DuplicateBillsTab() {
                   className={`p-4 rounded-lg border-2 text-left transition-all ${
                     keepBillId === selectedPair.bill2.id
                       ? "border-green-500 bg-green-50"
-                      : "border-gray-200 hover:border-gray-300"
+                      : "border-border hover:border-border"
                   }`}
                 >
                   <p className="font-mono font-medium">{selectedPair.bill2.invoice_number}</p>

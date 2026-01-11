@@ -356,7 +356,7 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
                     <span className="text-orange-600">Outstanding</span>
                     <span>{formatCurrency(totalOutstanding)}</span>
                   </div>
-                  <div className="h-2 bg-gray-200 rounded-full mt-2 overflow-hidden">
+                  <div className="h-2 bg-muted rounded-full mt-2 overflow-hidden">
                     <div
                       className="h-full bg-green-500 rounded-full"
                       style={{ width: `${netRevenueGross > 0 ? (totalPaid / netRevenueGross) * 100 : 0}%` }}

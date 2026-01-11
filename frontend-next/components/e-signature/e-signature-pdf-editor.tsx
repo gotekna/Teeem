@@ -344,7 +344,7 @@ export function ESignaturePdfEditor({
         {/* PDF Viewer */}
         <div
           ref={containerRef}
-          className="flex-1 overflow-auto bg-gray-100 dark:bg-gray-800 p-4"
+          className="flex-1 overflow-auto bg-muted dark:bg-gray-800 p-4"
         >
           <div className="flex justify-center">
             <div

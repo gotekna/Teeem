@@ -224,7 +224,7 @@ export default function BankRulesLearningTab() {
       );
     }
     return (
-      <Badge className="bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400">
+      <Badge className="bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground">
         {pct}%
       </Badge>
     );

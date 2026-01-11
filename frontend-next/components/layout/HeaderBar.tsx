@@ -223,7 +223,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
       case 'error':
         return "text-red-500 hover:text-red-600";
       default:
-        return "text-gray-300 hover:text-gray-400 dark:text-gray-600 dark:hover:text-gray-500";
+        return "text-muted-foreground hover:text-muted-foreground dark:text-muted-foreground dark:hover:text-muted-foreground";
     }
   };
 
@@ -242,7 +242,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
     : user?.email?.[0]?.toUpperCase() || "U";
 
   return (
-    <header className="z-40 flex h-12 shrink-0 items-center gap-x-2 border-b border-gray-200 bg-white px-3 shadow-sm sm:gap-x-3 sm:px-4 lg:px-6 dark:border-white/10 dark:bg-gray-900 dark:shadow-none transition-all duration-300">
+    <header className="z-40 flex h-12 shrink-0 items-center gap-x-2 border-b border-border bg-white px-3 shadow-sm sm:gap-x-3 sm:px-4 lg:px-6 dark:border-white/10 dark:bg-gray-900 dark:shadow-none transition-all duration-300">
       {/* Logo - always visible */}
       <Link prefetch={false} href="/dashboard" className="flex items-center gap-2 font-bold text-lg shrink-0">
         <div className="w-7 h-7 bg-primary text-primary-foreground flex items-center justify-center text-sm">
@@ -254,14 +254,14 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
       {/* Separator */}
       <div
         aria-hidden="true"
-        className="h-5 w-px bg-gray-200 dark:bg-white/10"
+        className="h-5 w-px bg-muted dark:bg-white/10"
       />
 
       {/* Mobile menu button */}
       <button
         type="button"
         onClick={onMenuClick}
-        className="-m-1.5 p-1.5 text-gray-700 hover:text-gray-900 lg:hidden dark:text-gray-400 dark:hover:text-white"
+        className="-m-1.5 p-1.5 text-foreground hover:text-foreground lg:hidden dark:text-muted-foreground dark:hover:text-white"
       >
         <span className="sr-only">Open sidebar</span>
         <Menu className="h-5 w-5" />
@@ -272,7 +272,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           {/* Quick Create Task */}
           <button
             onClick={() => setShowCreateTask(true)}
-            className="p-1.5 text-gray-400 hover:text-indigo-500 dark:hover:text-indigo-400 rounded-md"
+            className="p-1.5 text-muted-foreground hover:text-indigo-500 dark:hover:text-indigo-400 rounded-md"
             title="Create Task"
           >
             <Plus className="h-5 w-5" />
@@ -281,7 +281,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           {/* Chat Icon */}
           <Link prefetch={false}
             href="/chat"
-            className="relative p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md"
+            className="relative p-1.5 text-muted-foreground hover:text-muted-foreground dark:hover:text-white rounded-md"
           >
             <span className="sr-only">Chat</span>
             <MessageSquare className="h-4 w-4" />
@@ -298,7 +298,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           {/* Training Icon */}
           <Link prefetch={false}
             href="/training"
-            className="p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md"
+            className="p-1.5 text-muted-foreground hover:text-muted-foreground dark:hover:text-white rounded-md"
             title="Training Sessions"
           >
             <span className="sr-only">Training Sessions</span>
@@ -308,7 +308,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           {/* Notes Icon */}
           <Link prefetch={false}
             href="/notebooks"
-            className="p-1.5 text-gray-400 hover:text-amber-500 dark:hover:text-amber-400 rounded-md"
+            className="p-1.5 text-muted-foreground hover:text-amber-500 dark:hover:text-amber-400 rounded-md"
             title="Notes"
           >
             <span className="sr-only">Notes</span>
@@ -322,7 +322,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             href="/admin/system/teeem-xl"
             target="_blank"
             rel="noopener noreferrer"
-            className="p-1.5 text-gray-400 hover:text-green-500 dark:hover:text-green-400 rounded-md"
+            className="p-1.5 text-muted-foreground hover:text-green-500 dark:hover:text-green-400 rounded-md"
             title="TeeemXL - New Spreadsheet (opens in new tab)"
           >
             <span className="sr-only">TeeemXL</span>
@@ -334,7 +334,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           {/* Workflow Tasks */}
           <Link prefetch={false}
             href="/tasks/workflow"
-            className="relative p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md"
+            className="relative p-1.5 text-muted-foreground hover:text-muted-foreground dark:hover:text-white rounded-md"
             title={workflowTaskCount > 0 ? `${workflowTaskCount} pending workflow task${workflowTaskCount !== 1 ? 's' : ''}` : 'Workflow Tasks'}
           >
             <span className="sr-only">Workflow Tasks</span>
@@ -365,16 +365,16 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             <Microsoft365Icon className="h-4 w-4" />
             {/* Status indicator dot - shows actual connection status */}
             {office365Status === 'connected' && (
-              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-green-500 border border-white dark:border-gray-900" />
+              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-green-500 border border-white dark:border-border" />
             )}
             {office365Status === 'degraded' && (
-              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-orange-500 border border-white dark:border-gray-900" />
+              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-orange-500 border border-white dark:border-border" />
             )}
             {office365Status === 'disconnected' && (
-              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-gray-400 border border-white dark:border-gray-900" />
+              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-gray-400 border border-white dark:border-border" />
             )}
             {office365Status === 'error' && (
-              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 border border-white dark:border-gray-900" />
+              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 border border-white dark:border-border" />
             )}
           </Link>
 
@@ -391,13 +391,13 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             <XeroIcon className="h-4 w-4" />
             {/* Status indicator dot */}
             {xeroStatus === 'connected' && (
-              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-green-500 border border-white dark:border-gray-900" />
+              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-green-500 border border-white dark:border-border" />
             )}
             {xeroStatus === 'degraded' && (
-              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-orange-500 border border-white dark:border-gray-900" />
+              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-orange-500 border border-white dark:border-border" />
             )}
             {xeroStatus === 'error' && (
-              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 border border-white dark:border-gray-900" />
+              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 border border-white dark:border-border" />
             )}
           </Link>
 
@@ -414,7 +414,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           {/* System Health - link to full page */}
           <Link prefetch={false}
             href="/system-health"
-            className="p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md transition-colors"
+            className="p-1.5 text-muted-foreground hover:text-muted-foreground dark:hover:text-white rounded-md transition-colors"
             title="System Health"
           >
             <HeartPulse className="h-4 w-4 text-red-500" />
@@ -434,7 +434,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           {/* Separator */}
           <div
             aria-hidden="true"
-            className="hidden lg:block lg:h-5 lg:w-px lg:bg-gray-200 dark:lg:bg-white/10"
+            className="hidden lg:block lg:h-5 lg:w-px lg:bg-muted dark:lg:bg-white/10"
           />
 
           {/* Profile dropdown */}
@@ -445,7 +445,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
                   <AvatarFallback className="text-xs">{userInitials}</AvatarFallback>
                 </Avatar>
                 <span className="hidden lg:flex lg:items-center">
-                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                  <span className="text-sm font-medium text-foreground dark:text-white">
                     {user?.name || user?.email || "Guest"}
                   </span>
                   {(() => {
@@ -456,7 +456,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
                       </Badge>
                     ) : null;
                   })()}
-                  <ChevronDown className="ml-1 h-4 w-4 text-gray-400" />
+                  <ChevronDown className="ml-1 h-4 w-4 text-muted-foreground" />
                 </span>
               </button>
             </DropdownMenuTrigger>
@@ -464,10 +464,10 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
               {user && (
                 <>
                   <div className="px-4 py-3">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                    <p className="text-sm font-medium text-foreground dark:text-white">
                       {user.name || "User"}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                    <p className="text-xs text-muted-foreground dark:text-muted-foreground truncate">
                       {user.email}
                     </p>
                   </div>

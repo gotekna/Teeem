@@ -142,7 +142,7 @@ export default function PlansPage() {
       case "processed":
         return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200"><CheckCircle className="h-3 w-3 mr-1" />Processed</Badge>;
       case "skipped":
-        return <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200"><SkipForward className="h-3 w-3 mr-1" />Skipped</Badge>;
+        return <Badge variant="outline" className="bg-muted text-foreground border-border"><SkipForward className="h-3 w-3 mr-1" />Skipped</Badge>;
       case "error":
         return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200"><AlertCircle className="h-3 w-3 mr-1" />Error</Badge>;
       default:

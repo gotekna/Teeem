@@ -13,7 +13,7 @@ export const TimerEventNode = memo(({ data, selected }: NodeProps<Node<BpmnNodeD
       <Handle
         type="target"
         position={Position.Left}
-        className="!h-2 !w-2 !border !border-slate-400 !bg-white dark:!bg-slate-900"
+        className="!h-2 !w-2 !border !border-border !bg-white dark:!bg-slate-900"
       />
 
       {/* Circle with clock */}
@@ -30,11 +30,11 @@ export const TimerEventNode = memo(({ data, selected }: NodeProps<Node<BpmnNodeD
 
       {/* Label to the right */}
       <div className="ml-2 min-w-0">
-        <p className="whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
+        <p className="whitespace-nowrap text-sm text-foreground dark:text-muted-foreground">
           {data.name || "Timer"}
         </p>
         {data.config?.duration && (
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-muted-foreground">
             {data.config.duration}
           </p>
         )}
@@ -44,7 +44,7 @@ export const TimerEventNode = memo(({ data, selected }: NodeProps<Node<BpmnNodeD
       <Handle
         type="source"
         position={Position.Right}
-        className="!h-2 !w-2 !border !border-slate-400 !bg-white dark:!bg-slate-900"
+        className="!h-2 !w-2 !border !border-border !bg-white dark:!bg-slate-900"
       />
     </div>
   );

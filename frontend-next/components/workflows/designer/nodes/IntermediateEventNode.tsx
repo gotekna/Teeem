@@ -25,7 +25,7 @@ export const IntermediateEventNode = memo(
         <Handle
           type="target"
           position={Position.Left}
-          className="!h-2 !w-2 !border !border-slate-400 !bg-white dark:!bg-slate-900"
+          className="!h-2 !w-2 !border !border-border !bg-white dark:!bg-slate-900"
         />
 
         {/* Double-ring circle (characteristic of intermediate events) */}
@@ -58,10 +58,10 @@ export const IntermediateEventNode = memo(
 
         {/* Label to the right */}
         <div className="ml-2 min-w-0">
-          <p className="whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
+          <p className="whitespace-nowrap text-sm text-foreground dark:text-muted-foreground">
             {data.name || "Intermediate Event"}
           </p>
-          <p className="text-xs capitalize text-slate-400">
+          <p className="text-xs capitalize text-muted-foreground">
             {isThrowing ? "Throw" : "Catch"} {eventType}
           </p>
         </div>
@@ -70,7 +70,7 @@ export const IntermediateEventNode = memo(
         <Handle
           type="source"
           position={Position.Right}
-          className="!h-2 !w-2 !border !border-slate-400 !bg-white dark:!bg-slate-900"
+          className="!h-2 !w-2 !border !border-border !bg-white dark:!bg-slate-900"
         />
       </div>
     );

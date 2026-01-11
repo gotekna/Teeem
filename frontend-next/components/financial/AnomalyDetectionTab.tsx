@@ -287,7 +287,7 @@ export default function AnomalyDetectionTab() {
         );
       default:
         return (
-          <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400">
+          <Badge variant="outline" className="bg-muted text-muted-foreground border-border dark:bg-gray-800 dark:text-muted-foreground">
             Low
           </Badge>
         );
@@ -299,7 +299,7 @@ export default function AnomalyDetectionTab() {
       ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
       : score >= 50
       ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
-      : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400";
+      : "bg-muted text-muted-foreground dark:bg-gray-800 dark:text-muted-foreground";
 
     return (
       <Badge className={colorClass}>

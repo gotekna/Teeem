@@ -123,7 +123,7 @@ function ActivityCard({ activity }: ActivityCardProps) {
       sms_sent: { label: "SMS Sent", color: "bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-300" },
       sms_received: { label: "SMS Received", color: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-300" },
     };
-    return typeMap[type] || { label: type.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase()), color: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300" };
+    return typeMap[type] || { label: type.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase()), color: "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground" };
   };
 
   const typeDisplay = getActivityTypeDisplay(activity.activity_type);

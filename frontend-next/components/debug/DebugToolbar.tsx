@@ -403,14 +403,14 @@ ${formattedLogs || "(No console logs captured)"}
   }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-[9999] py-1">
+    <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-border dark:border-border z-[9999] py-1">
       <div className="flex items-center justify-between gap-1.5 max-w-screen-2xl mx-auto px-2">
         {/* Left side - Info */}
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-medium text-gray-700 dark:text-gray-300">
+          <span className="text-[10px] font-medium text-foreground dark:text-muted-foreground">
             Console
           </span>
-          <span className="text-[10px] px-1.5 py-0 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
+          <span className="text-[10px] px-1.5 py-0 rounded-full bg-muted dark:bg-gray-700 text-muted-foreground dark:text-muted-foreground">
             {logCount}
           </span>
         </div>
@@ -424,7 +424,7 @@ ${formattedLogs || "(No console logs captured)"}
               copiedButton === "console"
                 ? "bg-green-600 text-white"
                 : logCount === 0
-                  ? "bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed"
+                  ? "bg-muted dark:bg-gray-700 text-muted-foreground cursor-not-allowed"
                   : "bg-indigo-600 text-white hover:bg-indigo-700"
             }`}
           >
@@ -537,7 +537,7 @@ ${formattedLogs || "(No console logs captured)"}
             className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium transition-all ${
               copiedButton === "complete"
                 ? "bg-green-600 text-white"
-                : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200"
+                : "bg-muted dark:bg-gray-700 text-foreground dark:text-muted-foreground hover:bg-muted"
             }`}
             title="Get ALL console logs + page HTML"
           >
@@ -588,7 +588,7 @@ ${formattedLogs || "(No console logs captured)"}
         {/* Right side - Close */}
         <button
           onClick={() => setIsVisible(false)}
-          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-0.5 transition-colors"
+          className="text-muted-foreground hover:text-muted-foreground dark:hover:text-muted-foreground p-0.5 transition-colors"
           title="Hide console tools"
         >
           <X className="h-3 w-3" />

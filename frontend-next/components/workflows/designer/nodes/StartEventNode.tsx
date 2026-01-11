@@ -22,7 +22,7 @@ export const StartEventNode = memo(({ data, selected }: NodeProps<Node<BpmnNodeD
       </div>
 
       {/* Label to the right */}
-      <div className="ml-2 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
+      <div className="ml-2 whitespace-nowrap text-sm text-foreground dark:text-muted-foreground">
         {data.name || "Start"}
       </div>
 
@@ -30,7 +30,7 @@ export const StartEventNode = memo(({ data, selected }: NodeProps<Node<BpmnNodeD
       <Handle
         type="source"
         position={Position.Right}
-        className="!h-2 !w-2 !border !border-slate-400 !bg-white dark:!bg-slate-900"
+        className="!h-2 !w-2 !border !border-border !bg-white dark:!bg-slate-900"
       />
     </div>
   );

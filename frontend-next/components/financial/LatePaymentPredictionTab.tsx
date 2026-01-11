@@ -132,7 +132,7 @@ const TREND_CONFIG: Record<string, { label: string; icon: React.ReactNode; class
   unknown: {
     label: "Unknown",
     icon: <Minus className="h-3 w-3" />,
-    className: "text-gray-500",
+    className: "text-muted-foreground",
   },
 };
 
@@ -251,7 +251,7 @@ export default function LatePaymentPredictionTab() {
         );
       default:
         return (
-          <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400">
+          <Badge variant="outline" className="bg-muted text-muted-foreground border-border dark:bg-gray-800 dark:text-muted-foreground">
             Unknown
           </Badge>
         );

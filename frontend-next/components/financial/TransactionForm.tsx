@@ -219,7 +219,7 @@ export default function TransactionForm({
       <div className="flex min-h-screen items-center justify-center px-4 pt-4 pb-20 text-center sm:block sm:p-0">
         {/* Background overlay */}
         <div
-          className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+          className="fixed inset-0 bg-muted0 bg-opacity-75 transition-opacity"
           onClick={onClose}
         ></div>
 
@@ -228,12 +228,12 @@ export default function TransactionForm({
           {/* Header */}
           <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
             <div className="flex items-start justify-between">
-              <h3 className="text-lg leading-6 font-medium text-gray-900">
+              <h3 className="text-lg leading-6 font-medium text-foreground">
                 {title}
               </h3>
               <button
                 onClick={onClose}
-                className="rounded-md text-gray-400 hover:text-gray-500 focus:outline-none"
+                className="rounded-md text-muted-foreground hover:text-muted-foreground focus:outline-none"
               >
                 <XMarkIcon className="h-6 w-6" />
               </button>
@@ -252,13 +252,13 @@ export default function TransactionForm({
               <div>
                 <label
                   htmlFor="amount"
-                  className="block text-sm font-medium text-gray-700"
+                  className="block text-sm font-medium text-foreground"
                 >
                   Amount *
                 </label>
                 <div className="mt-1 relative rounded-md shadow-sm">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <span className="text-gray-500 sm:text-sm">$</span>
+                    <span className="text-muted-foreground sm:text-sm">$</span>
                   </div>
                   <input
                     type="number"
@@ -269,7 +269,7 @@ export default function TransactionForm({
                     required
                     value={formData.amount}
                     onChange={handleChange}
-                    className="pl-7 block w-full rounded-md border-gray-300 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    className="pl-7 block w-full rounded-md border-border focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                     placeholder="0.00"
                   />
                 </div>
@@ -279,7 +279,7 @@ export default function TransactionForm({
               <div>
                 <label
                   htmlFor="transaction_date"
-                  className="block text-sm font-medium text-gray-700"
+                  className="block text-sm font-medium text-foreground"
                 >
                   Date *
                 </label>
@@ -291,7 +291,7 @@ export default function TransactionForm({
                   value={formData.transaction_date}
                   onChange={handleChange}
                   max={new Date().toISOString().split("T")[0]}
-                  className="mt-1 block w-full rounded-md border-gray-300 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  className="mt-1 block w-full rounded-md border-border focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 />
               </div>
 
@@ -299,7 +299,7 @@ export default function TransactionForm({
               <div>
                 <label
                   htmlFor="category"
-                  className="block text-sm font-medium text-gray-700"
+                  className="block text-sm font-medium text-foreground"
                 >
                   Category *
                 </label>
@@ -309,7 +309,7 @@ export default function TransactionForm({
                   required
                   value={formData.category}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border-gray-300 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  className="mt-1 block w-full rounded-md border-border focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 >
                   <option value="">Select a category</option>
                   {categories.map((cat) => (
@@ -324,7 +324,7 @@ export default function TransactionForm({
               <div>
                 <label
                   htmlFor="construction_id"
-                  className="block text-sm font-medium text-gray-700"
+                  className="block text-sm font-medium text-foreground"
                 >
                   Job (optional)
                 </label>
@@ -333,7 +333,7 @@ export default function TransactionForm({
                   id="construction_id"
                   value={formData.construction_id}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border-gray-300 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  className="mt-1 block w-full rounded-md border-border focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 >
                   <option value="">Not linked to a job</option>
                   {jobs.map((job) => (
@@ -348,7 +348,7 @@ export default function TransactionForm({
               <div>
                 <label
                   htmlFor="description"
-                  className="block text-sm font-medium text-gray-700"
+                  className="block text-sm font-medium text-foreground"
                 >
                   Description
                 </label>
@@ -358,7 +358,7 @@ export default function TransactionForm({
                   rows={3}
                   value={formData.description}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border-gray-300 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  className="mt-1 block w-full rounded-md border-border focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                   placeholder="Additional details..."
                 />
               </div>
@@ -367,7 +367,7 @@ export default function TransactionForm({
               <div>
                 <label
                   htmlFor="receipt"
-                  className="block text-sm font-medium text-gray-700"
+                  className="block text-sm font-medium text-foreground"
                 >
                   Receipt (optional)
                 </label>
@@ -377,7 +377,7 @@ export default function TransactionForm({
                   id="receipt"
                   accept="image/*,.pdf"
                   onChange={handleFileChange}
-                  className="mt-1 block w-full text-sm text-gray-500
+                  className="mt-1 block w-full text-sm text-muted-foreground
                     file:mr-4 file:py-2 file:px-4
                     file:rounded-md file:border-0
                     file:text-sm file:font-semibold
@@ -385,7 +385,7 @@ export default function TransactionForm({
                     hover:file:bg-blue-100"
                 />
                 {receipt && (
-                  <p className="mt-1 text-sm text-gray-500">
+                  <p className="mt-1 text-sm text-muted-foreground">
                     Selected: {receipt.name}
                   </p>
                 )}
@@ -400,11 +400,11 @@ export default function TransactionForm({
                     id="auto_post"
                     checked={formData.auto_post}
                     onChange={handleChange}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-border rounded"
                   />
                   <label
                     htmlFor="auto_post"
-                    className="ml-2 block text-sm text-gray-700"
+                    className="ml-2 block text-sm text-foreground"
                   >
                     Post to books immediately (recommended)
                   </label>
@@ -414,7 +414,7 @@ export default function TransactionForm({
           </div>
 
           {/* Footer */}
-          <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+          <div className="bg-muted px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
             <button
               type="submit"
               onClick={handleSubmit}
@@ -427,7 +427,7 @@ export default function TransactionForm({
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              className="mt-3 w-full inline-flex justify-center rounded-md border border-border shadow-sm px-4 py-2 bg-white text-base font-medium text-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>

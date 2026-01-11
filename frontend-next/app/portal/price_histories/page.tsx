@@ -107,7 +107,7 @@ export default function PriceHistoriesPage() {
     <div className="container mx-auto p-6">
       <div className="mb-6">
         <h1 className="text-3xl font-bold mb-2 dark:text-white">Price Histories</h1>
-        <p className="text-gray-600 dark:text-gray-400">
+        <p className="text-muted-foreground dark:text-muted-foreground">
           Showing {histories.length.toLocaleString()} of {totalCount.toLocaleString()} total price changes
         </p>
       </div>
@@ -115,53 +115,53 @@ export default function PriceHistoriesPage() {
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
           <Table className="min-w-full">
-            <TableHeader className="bg-gray-50 dark:bg-gray-700">
+            <TableHeader className="bg-muted dark:bg-gray-700">
               <TableRow>
-                <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <TableHead className="px-6 py-3 text-left text-xs font-medium text-muted-foreground dark:text-muted-foreground uppercase tracking-wider">
                   Item
                 </TableHead>
-                <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <TableHead className="px-6 py-3 text-left text-xs font-medium text-muted-foreground dark:text-muted-foreground uppercase tracking-wider">
                   Code
                 </TableHead>
-                <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <TableHead className="px-6 py-3 text-left text-xs font-medium text-muted-foreground dark:text-muted-foreground uppercase tracking-wider">
                   Supplier
                 </TableHead>
-                <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <TableHead className="px-6 py-3 text-left text-xs font-medium text-muted-foreground dark:text-muted-foreground uppercase tracking-wider">
                   Old Price
                 </TableHead>
-                <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <TableHead className="px-6 py-3 text-left text-xs font-medium text-muted-foreground dark:text-muted-foreground uppercase tracking-wider">
                   New Price
                 </TableHead>
-                <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <TableHead className="px-6 py-3 text-left text-xs font-medium text-muted-foreground dark:text-muted-foreground uppercase tracking-wider">
                   Change
                 </TableHead>
-                <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <TableHead className="px-6 py-3 text-left text-xs font-medium text-muted-foreground dark:text-muted-foreground uppercase tracking-wider">
                   Reason
                 </TableHead>
-                <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <TableHead className="px-6 py-3 text-left text-xs font-medium text-muted-foreground dark:text-muted-foreground uppercase tracking-wider">
                   LGA
                 </TableHead>
-                <TableHead className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <TableHead className="px-6 py-3 text-left text-xs font-medium text-muted-foreground dark:text-muted-foreground uppercase tracking-wider">
                   Date
                 </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {histories.map((history) => (
-                <TableRow key={history.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                  <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                <TableRow key={history.id} className="hover:bg-muted dark:hover:bg-gray-700">
+                  <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium text-foreground dark:text-white">
                     {history.pricebook_item_name || 'N/A'}
                   </TableCell>
-                  <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                  <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground dark:text-muted-foreground">
                     {history.pricebook_item_code || 'N/A'}
                   </TableCell>
-                  <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                  <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground dark:text-muted-foreground">
                     {history.supplier_name || 'N/A'}
                   </TableCell>
-                  <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                  <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground dark:text-muted-foreground">
                     {formatPrice(history.old_price)}
                   </TableCell>
-                  <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                  <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground dark:text-muted-foreground">
                     {formatPrice(history.new_price)}
                   </TableCell>
                   <TableCell className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${
@@ -169,17 +169,17 @@ export default function PriceHistoriesPage() {
                       ? 'text-red-600 dark:text-red-400'
                       : history.price_change && history.price_change < 0
                       ? 'text-green-600 dark:text-green-400'
-                      : 'text-gray-500 dark:text-gray-400'
+                      : 'text-muted-foreground dark:text-muted-foreground'
                   }`}>
                     {formatChange(history.price_change, history.price_change_percentage)}
                   </TableCell>
-                  <TableCell className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
+                  <TableCell className="px-6 py-4 text-sm text-muted-foreground dark:text-muted-foreground max-w-xs truncate">
                     {history.change_reason || 'N/A'}
                   </TableCell>
-                  <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                  <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground dark:text-muted-foreground">
                     {history.lga || 'N/A'}
                   </TableCell>
-                  <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                  <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground dark:text-muted-foreground">
                     {formatDate(history.created_at)}
                   </TableCell>
                 </TableRow>
@@ -190,7 +190,7 @@ export default function PriceHistoriesPage() {
       </div>
 
       {histories.length === 0 && (
-        <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+        <div className="text-center py-12 text-muted-foreground dark:text-muted-foreground">
           No price histories found
         </div>
       )}

@@ -100,7 +100,7 @@ function ConfidenceBadge({ score }: { score: number }) {
       ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
       : score >= 50
         ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300"
-        : "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300";
+        : "bg-muted text-foreground dark:bg-gray-900/30 dark:text-muted-foreground";
 
   return <Badge className={cn("font-mono", color)}>{score}%</Badge>;
 }
@@ -434,7 +434,7 @@ export default function ContactQualityReviewPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Rejected</CardDescription>
-            <CardTitle className="text-3xl font-mono text-gray-500">
+            <CardTitle className="text-3xl font-mono text-muted-foreground">
               {stats?.by_status?.rejected || 0}
             </CardTitle>
           </CardHeader>

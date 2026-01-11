@@ -63,7 +63,7 @@ const COMPETITOR_COLORS: Record<string, string> = {
   blue: "bg-blue-500",
   pink: "bg-pink-500",
   yellow: "bg-yellow-500",
-  gray: "bg-gray-500",
+  gray: "bg-muted0",
   red: "bg-red-500",
   indigo: "bg-indigo-500",
 };
@@ -177,7 +177,7 @@ export default function FeaturesTrackingTable() {
                   {stats.competitors.map((competitor, index) => {
                     const isTEEEM = competitor.key === "teeem";
                     const isLeader = index === 0;
-                    const bgColor = COMPETITOR_COLORS[competitor.color] || "bg-gray-500";
+                    const bgColor = COMPETITOR_COLORS[competitor.color] || "bg-muted0";
 
                     return (
                       <div key={competitor.key} className="flex items-center gap-3">

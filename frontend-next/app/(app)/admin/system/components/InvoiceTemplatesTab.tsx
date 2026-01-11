@@ -347,7 +347,7 @@ export function InvoiceTemplatesTab() {
                 </div>
               ) : (
                 <div
-                  className="h-full overflow-auto bg-white dark:bg-gray-100 cursor-pointer"
+                  className="h-full overflow-auto bg-white dark:bg-muted cursor-pointer"
                   onDoubleClick={() => {
                     // Double-click opens full preview in new window
                     const blob = new Blob([previewHtml], { type: "text/html" });

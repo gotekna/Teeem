@@ -77,17 +77,17 @@ interface ESignatureResponse {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  draft: { label: "Draft", color: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300", icon: <FileText className="h-4 w-4" /> },
+  draft: { label: "Draft", color: "bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground", icon: <FileText className="h-4 w-4" /> },
   sent: { label: "Sent", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400", icon: <Send className="h-4 w-4" /> },
   in_progress: { label: "In Progress", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400", icon: <Clock className="h-4 w-4" /> },
   completed: { label: "Completed", color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400", icon: <CheckCircle2 className="h-4 w-4" /> },
   declined: { label: "Declined", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400", icon: <XCircle className="h-4 w-4" /> },
-  expired: { label: "Expired", color: "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400", icon: <AlertCircle className="h-4 w-4" /> },
-  cancelled: { label: "Cancelled", color: "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400", icon: <XCircle className="h-4 w-4" /> },
+  expired: { label: "Expired", color: "bg-muted text-muted-foreground dark:bg-gray-800 dark:text-muted-foreground", icon: <AlertCircle className="h-4 w-4" /> },
+  cancelled: { label: "Cancelled", color: "bg-muted text-muted-foreground dark:bg-gray-800 dark:text-muted-foreground", icon: <XCircle className="h-4 w-4" /> },
 };
 
 const SIGNER_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  pending: { label: "Pending", color: "bg-gray-100 text-gray-600" },
+  pending: { label: "Pending", color: "bg-muted text-muted-foreground" },
   notified: { label: "Notified", color: "bg-blue-100 text-blue-600" },
   viewed: { label: "Viewed", color: "bg-amber-100 text-amber-600" },
   signed: { label: "Signed", color: "bg-green-100 text-green-600" },

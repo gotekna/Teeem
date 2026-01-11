@@ -211,12 +211,12 @@ function formatValue(
         active: "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400",
         pending: "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400",
         completed: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400",
-        archived: "bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-400",
+        archived: "bg-muted text-foreground border-border dark:bg-gray-800 dark:text-muted-foreground",
         error: "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400",
         failed: "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400",
       };
       const statusKey = String(value).toLowerCase();
-      const colorClass = badgeColors[statusKey] || "bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-400";
+      const colorClass = badgeColors[statusKey] || "bg-muted text-foreground border-border dark:bg-gray-800 dark:text-muted-foreground";
       return (
         <Badge variant="outline" className={cn("text-[10px] px-1.5", colorClass)}>
           {String(value).toUpperCase()}

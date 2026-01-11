@@ -33,11 +33,11 @@ export const PoolNode = memo(
           <div className="flex flex-1 flex-col">
             <div className="flex-1 p-4">
               {data.description ? (
-                <p className="text-sm text-slate-600 dark:text-slate-400">
+                <p className="text-sm text-muted-foreground dark:text-muted-foreground">
                   {data.description}
                 </p>
               ) : (
-                <p className="text-sm italic text-slate-400 dark:text-slate-500">
+                <p className="text-sm italic text-muted-foreground dark:text-muted-foreground">
                   Drop lanes or elements here
                 </p>
               )}

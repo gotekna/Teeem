@@ -53,10 +53,10 @@ export default function PortalLogin() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-100 via-white to-purple-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
-          <h1 className="text-center text-4xl font-extrabold text-gray-900 dark:text-white">
+          <h1 className="text-center text-4xl font-extrabold text-foreground dark:text-white">
             TEEEM Portal
           </h1>
-          <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+          <p className="mt-2 text-center text-sm text-muted-foreground dark:text-muted-foreground">
             Subcontractor Access
           </p>
         </div>
@@ -113,10 +113,10 @@ export default function PortalLogin() {
           <div className="mt-6">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300 dark:border-gray-600" />
+                <div className="w-full border-t border-border dark:border-border" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">
+                <span className="px-2 bg-white dark:bg-gray-800 text-muted-foreground dark:text-muted-foreground">
                   Need help? Contact your builder
                 </span>
               </div>
@@ -124,7 +124,7 @@ export default function PortalLogin() {
           </div>
         </div>
 
-        <p className="text-center text-xs text-gray-500 dark:text-gray-400">
+        <p className="text-center text-xs text-muted-foreground dark:text-muted-foreground">
           This portal is for authorized subcontractors only
         </p>
       </div>

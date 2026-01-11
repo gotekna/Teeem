@@ -120,7 +120,7 @@ export default function PortalPage() {
                             index === 0
                               ? "bg-yellow-100 text-yellow-700"
                               : index === 1
-                              ? "bg-gray-100 text-gray-700"
+                              ? "bg-muted text-foreground"
                               : index === 2
                               ? "bg-orange-100 text-orange-700"
                               : "bg-secondary text-muted-foreground"

@@ -223,7 +223,7 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
           return hasMismatch ? (
             <X className="h-4 w-4 text-amber-500 mx-auto" />
           ) : (
-            <X className="h-4 w-4 text-gray-300 dark:text-gray-600 mx-auto" />
+            <X className="h-4 w-4 text-muted-foreground dark:text-muted-foreground mx-auto" />
           );
         }
       }
@@ -236,7 +236,7 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
             Active
           </Badge>
         ) : (
-          <Badge variant="outline" className="bg-gray-50 text-gray-500 dark:bg-gray-900/20 dark:text-gray-400">
+          <Badge variant="outline" className="bg-muted text-muted-foreground dark:bg-gray-900/20 dark:text-muted-foreground">
             Inactive
           </Badge>
         );

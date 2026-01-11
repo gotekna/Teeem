@@ -347,7 +347,7 @@ export default function ImportPage() {
                           onChange={(e) =>
                             updateColumnMapping(index, "include", e.target.checked)
                           }
-                          className="h-4 w-4 rounded border-gray-300"
+                          className="h-4 w-4 rounded border-border"
                         />
                       </TableCell>
                       <TableCell className="font-medium">{col.header}</TableCell>

@@ -303,7 +303,7 @@ export function XeroSetupWizard({ companyId, companyName, onComplete, onDismiss 
                   "w-10 h-10 rounded-full flex items-center justify-center shrink-0",
                   step.status === "completed" && "bg-green-100 dark:bg-green-900/50",
                   step.status === "pending" && isCurrentStep && "bg-blue-100 dark:bg-blue-900/50",
-                  step.status === "pending" && !isCurrentStep && "bg-gray-100 dark:bg-gray-800",
+                  step.status === "pending" && !isCurrentStep && "bg-muted dark:bg-gray-800",
                   step.status === "in_progress" && "bg-blue-100 dark:bg-blue-900/50"
                 )}>
                   {step.status === "completed" ? (
@@ -313,7 +313,7 @@ export function XeroSetupWizard({ companyId, companyName, onComplete, onDismiss 
                   ) : (
                     <StepIcon className={cn(
                       "h-5 w-5",
-                      isCurrentStep ? "text-blue-600 dark:text-blue-400" : "text-gray-400"
+                      isCurrentStep ? "text-blue-600 dark:text-blue-400" : "text-muted-foreground"
                     )} />
                   )}
                 </div>

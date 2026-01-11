@@ -1097,8 +1097,8 @@ export function ContactOverviewTab({
                                 disabled={savingCompanyLink}
                                 className="w-full text-left px-3 py-2 hover:bg-muted rounded-md transition-colors flex items-center gap-3"
                               >
-                                <div className="h-7 w-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
-                                  <Building2 className="h-3.5 w-3.5 text-slate-600 dark:text-slate-400" />
+                                <div className="h-7 w-7 rounded-full bg-muted dark:bg-slate-800 flex items-center justify-center shrink-0">
+                                  <Building2 className="h-3.5 w-3.5 text-muted-foreground dark:text-muted-foreground" />
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <div className="text-sm font-medium truncate">{company.name}</div>
@@ -1341,8 +1341,8 @@ export function ContactOverviewTab({
                       key={person.id}
                       className="flex items-center gap-3 py-2 px-3 -mx-3 rounded-md bg-muted/30"
                     >
-                      <div className="h-8 w-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                        <Users className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+                      <div className="h-8 w-8 rounded-full bg-muted dark:bg-slate-800 flex items-center justify-center">
+                        <Users className="h-4 w-4 text-muted-foreground dark:text-muted-foreground" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">

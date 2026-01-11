@@ -254,7 +254,7 @@ export default function POInvoiceMatchingTab() {
       );
     }
     return (
-      <Badge className="bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400">
+      <Badge className="bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground">
         {confidence}%
       </Badge>
     );
@@ -391,8 +391,8 @@ export default function POInvoiceMatchingTab() {
                 </>
               ) : (
                 <>
-                  <XCircle className="h-5 w-5 text-gray-400" />
-                  <span className="text-lg font-semibold text-gray-500">Disabled</span>
+                  <XCircle className="h-5 w-5 text-muted-foreground" />
+                  <span className="text-lg font-semibold text-muted-foreground">Disabled</span>
                 </>
               )}
             </div>

@@ -95,7 +95,7 @@ const CATEGORIES: {
     label: "Other",
     icon: Inbox,
     shortcut: "4",
-    color: "text-gray-500",
+    color: "text-muted-foreground",
   },
 ];
 
@@ -376,7 +376,7 @@ export function CategoryBadge({ category, className }: CategoryBadgeProps) {
         category === "vip" && "border-amber-500/30 text-amber-600 dark:text-amber-400",
         category === "team" && "border-blue-500/30 text-blue-600 dark:text-blue-400",
         category === "newsletters" && "border-purple-500/30 text-purple-600 dark:text-purple-400",
-        category === "other" && "border-gray-500/30 text-gray-600 dark:text-gray-400",
+        category === "other" && "border-border/30 text-muted-foreground dark:text-muted-foreground",
         className
       )}
     >

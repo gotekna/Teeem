@@ -133,7 +133,7 @@ const COLOR_CLASSES: Record<string, string> = {
     "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800 dark:hover:bg-emerald-950/50",
   cyan: "bg-cyan-50 text-cyan-700 border-cyan-200 hover:bg-cyan-100 dark:bg-cyan-950/30 dark:text-cyan-400 dark:border-cyan-800 dark:hover:bg-cyan-950/50",
   slate:
-    "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 dark:bg-slate-950/30 dark:text-slate-400 dark:border-slate-800 dark:hover:bg-slate-950/50",
+    "bg-muted text-foreground border-border hover:bg-muted dark:bg-slate-950/30 dark:text-muted-foreground dark:border-border dark:hover:bg-slate-950/50",
   indigo:
     "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:text-indigo-400 dark:border-indigo-800 dark:hover:bg-indigo-950/50",
   yellow:
@@ -150,7 +150,7 @@ export function NodePalette() {
 
   return (
     <div className="space-y-1.5">
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground dark:text-muted-foreground">
         Drag to canvas
       </h3>
       {PALETTE_ITEMS.map((item) => (

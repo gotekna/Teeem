@@ -163,7 +163,7 @@ function getMembershipTypeBadgeColor(type: string) {
     case "officer":
       return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300";
     default:
-      return "bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300";
+      return "bg-muted text-foreground dark:bg-gray-900/30 dark:text-muted-foreground";
   }
 }
 
@@ -622,7 +622,7 @@ export function CorporateStructureTab({
                     type="checkbox"
                     checked={structureFilters.shareholders}
                     onChange={(e) => setStructureFilters(prev => ({ ...prev, shareholders: e.target.checked }))}
-                    className="h-4 w-4 rounded border-gray-300"
+                    className="h-4 w-4 rounded border-border"
                   />
                   <span className="text-amber-700">Shareholders</span>
                 </label>
@@ -631,7 +631,7 @@ export function CorporateStructureTab({
                     type="checkbox"
                     checked={structureFilters.directors}
                     onChange={(e) => setStructureFilters(prev => ({ ...prev, directors: e.target.checked, secretary: e.target.checked, corporateOfficer: e.target.checked }))}
-                    className="h-4 w-4 rounded border-gray-300"
+                    className="h-4 w-4 rounded border-border"
                   />
                   <span className="text-purple-700">Directors/Officers</span>
                 </label>
@@ -640,7 +640,7 @@ export function CorporateStructureTab({
                     type="checkbox"
                     checked={structureFilters.ownershipLinks}
                     onChange={(e) => setStructureFilters(prev => ({ ...prev, ownershipLinks: e.target.checked }))}
-                    className="h-4 w-4 rounded border-gray-300"
+                    className="h-4 w-4 rounded border-border"
                   />
                   <span className="text-emerald-700">Ownership Lines</span>
                 </label>
@@ -694,7 +694,7 @@ function FilterCheckboxes({ filters, onChange }: FilterCheckboxesProps) {
           type="checkbox"
           checked={filters.shareholders}
           onChange={(e) => onChange({ ...filters, shareholders: e.target.checked })}
-          className="h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+          className="h-4 w-4 rounded border-border text-amber-600 focus:ring-amber-500"
         />
         <span className="text-sm text-amber-700 dark:text-amber-400">Shareholders</span>
       </label>
@@ -703,7 +703,7 @@ function FilterCheckboxes({ filters, onChange }: FilterCheckboxesProps) {
           type="checkbox"
           checked={filters.directors}
           onChange={(e) => onChange({ ...filters, directors: e.target.checked })}
-          className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+          className="h-4 w-4 rounded border-border text-purple-600 focus:ring-purple-500"
         />
         <span className="text-sm text-purple-700 dark:text-purple-400">Directors</span>
       </label>
@@ -712,7 +712,7 @@ function FilterCheckboxes({ filters, onChange }: FilterCheckboxesProps) {
           type="checkbox"
           checked={filters.secretary}
           onChange={(e) => onChange({ ...filters, secretary: e.target.checked })}
-          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          className="h-4 w-4 rounded border-border text-blue-600 focus:ring-blue-500"
         />
         <span className="text-sm text-blue-700 dark:text-blue-400">Secretary</span>
       </label>
@@ -721,17 +721,17 @@ function FilterCheckboxes({ filters, onChange }: FilterCheckboxesProps) {
           type="checkbox"
           checked={filters.corporateOfficer}
           onChange={(e) => onChange({ ...filters, corporateOfficer: e.target.checked })}
-          className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+          className="h-4 w-4 rounded border-border text-green-600 focus:ring-green-500"
         />
         <span className="text-sm text-green-700 dark:text-green-400">Officer</span>
       </label>
-      <span className="text-gray-300 dark:text-gray-600">|</span>
+      <span className="text-muted-foreground dark:text-muted-foreground">|</span>
       <label className="flex items-center gap-2 cursor-pointer">
         <input
           type="checkbox"
           checked={filters.ownershipLinks}
           onChange={(e) => onChange({ ...filters, ownershipLinks: e.target.checked })}
-          className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+          className="h-4 w-4 rounded border-border text-emerald-600 focus:ring-emerald-500"
         />
         <span className="text-sm text-emerald-700 dark:text-emerald-400">Ownership Links</span>
       </label>

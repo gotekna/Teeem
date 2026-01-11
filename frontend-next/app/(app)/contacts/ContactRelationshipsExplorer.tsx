@@ -146,7 +146,7 @@ export default function ContactRelationshipsExplorer({ initialContactId }: Conta
       case "sole_trader":
         return "bg-amber-500";
       default:
-        return "bg-gray-500";
+        return "bg-muted0";
     }
   };
 
@@ -161,7 +161,7 @@ export default function ContactRelationshipsExplorer({ initialContactId }: Conta
     } else if (relationshipType.includes("family")) {
       return "bg-pink-100 text-pink-800 border-pink-300";
     }
-    return "bg-gray-100 text-gray-800 border-gray-300";
+    return "bg-muted text-foreground border-border";
   };
 
   return (

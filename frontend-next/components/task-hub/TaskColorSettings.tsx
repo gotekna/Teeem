@@ -175,7 +175,7 @@ function ColorPickerRow({ label, description, value, onChange }: ColorPickerRowP
             className={cn(
               'w-6 h-6 rounded border-2 transition-all',
               preset.id === 'none'
-                ? 'bg-white dark:bg-gray-800 border-dashed border-gray-300 dark:border-gray-600'
+                ? 'bg-white dark:bg-gray-800 border-dashed border-border dark:border-border'
                 : `${preset.bg} border-transparent`,
               value === preset.id && 'ring-2 ring-primary ring-offset-1'
             )}

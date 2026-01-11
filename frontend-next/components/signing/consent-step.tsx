@@ -57,7 +57,7 @@ export function ConsentStep({
       {/* Consent checkboxes */}
       <div className="space-y-6 w-full max-w-md">
         {/* Consent 1: Read and understand */}
-        <div className="flex items-start space-x-3 p-4 border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+        <div className="flex items-start space-x-3 p-4 border rounded-lg hover:bg-muted dark:hover:bg-slate-800 transition-colors">
           <Checkbox
             id="consent1"
             checked={consent1}
@@ -79,7 +79,7 @@ export function ConsentStep({
         </div>
 
         {/* Consent 2: Electronic signature */}
-        <div className="flex items-start space-x-3 p-4 border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+        <div className="flex items-start space-x-3 p-4 border rounded-lg hover:bg-muted dark:hover:bg-slate-800 transition-colors">
           <Checkbox
             id="consent2"
             checked={consent2}
@@ -101,7 +101,7 @@ export function ConsentStep({
         </div>
 
         {/* Consent 3: Intent to sign */}
-        <div className="flex items-start space-x-3 p-4 border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+        <div className="flex items-start space-x-3 p-4 border rounded-lg hover:bg-muted dark:hover:bg-slate-800 transition-colors">
           <Checkbox
             id="consent3"
             checked={consent3}
@@ -124,7 +124,7 @@ export function ConsentStep({
       </div>
 
       {/* Legal notice */}
-      <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-800 rounded-lg max-w-md">
+      <div className="mt-6 p-4 bg-muted dark:bg-slate-800 rounded-lg max-w-md">
         <p className="text-xs text-muted-foreground text-center">
           By proceeding, you acknowledge that electronic signatures are legally binding
           under applicable laws including the Electronic Signatures in Global and National

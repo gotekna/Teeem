@@ -75,7 +75,7 @@ export function DayView() {
       case "started":
         return "border-blue-500 bg-blue-50 dark:bg-blue-950/20";
       default:
-        return "border-gray-300 bg-gray-50 dark:bg-gray-800/50";
+        return "border-border bg-muted dark:bg-gray-800/50";
     }
   };
 
@@ -131,7 +131,7 @@ export function DayView() {
                         <Pause className="h-4 w-4 text-yellow-600 flex-shrink-0" />
                       )}
                       {event.lock_type && (
-                        <Lock className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                        <Lock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                       )}
                       {event.is_overdue && (
                         <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
@@ -203,7 +203,7 @@ export function DayView() {
 
                     {/* Progress bar */}
                     <div className="flex items-center gap-2">
-                      <div className="w-16 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                      <div className="w-16 h-1.5 bg-muted dark:bg-gray-700 rounded-full overflow-hidden">
                         <div
                           className={cn(
                             "h-full rounded-full",
