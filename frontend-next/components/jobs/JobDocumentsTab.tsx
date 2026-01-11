@@ -2582,25 +2582,26 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     // Build tree from categories
     const buildTree = (): TreeNode[] => {
       const tree: TreeNode[] = [];
-      const usedFolderPaths = new Set<string>();
+      const usedTabKeys = new Set<string>();
 
       // Add categories as folders
       documentCategories.forEach((cat: DocumentCategory) => {
-        const folderPath = cat.folder_path?.toLowerCase() || cat.name.toLowerCase();
-        usedFolderPaths.add(folderPath);
+        // Use tab_key for matching (SSoT from Entity Configurator)
+        const tabKey = cat.tab_key?.toLowerCase() || cat.name.toLowerCase();
+        usedTabKeys.add(tabKey);
 
         const categoryNode: TreeNode = {
           id: `cat-${cat.id}`,
           name: cat.display_name || cat.name,
           type: "folder",
-          folderPath,
+          folderPath: tabKey,
           icon: cat.icon,
           color: cat.color,
           children: []
         };
 
-        // Add files that match this folder path
-        const matchingFiles = filesByFolder.get(folderPath) || [];
+        // Add files that match this tab_key
+        const matchingFiles = filesByFolder.get(tabKey) || [];
         matchingFiles.forEach(file => {
           categoryNode.children!.push({
             id: `file-${file.document_id || file.id}`,
@@ -2613,20 +2614,20 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         // Add subcategories
         if (cat.children) {
           cat.children.forEach((sub: DocumentCategory) => {
-            const subPath = sub.folder_path?.toLowerCase() || `${folderPath}/${sub.name.toLowerCase()}`;
-            usedFolderPaths.add(subPath);
+            const subTabKey = sub.tab_key?.toLowerCase() || `${tabKey}/${sub.name.toLowerCase()}`;
+            usedTabKeys.add(subTabKey);
 
             const subNode: TreeNode = {
               id: `cat-${sub.id}`,
               name: sub.display_name || sub.name,
               type: "folder",
-              folderPath: subPath,
+              folderPath: subTabKey,
               icon: sub.icon,
               color: sub.color,
               children: []
             };
 
-            const subFiles = filesByFolder.get(subPath) || [];
+            const subFiles = filesByFolder.get(subTabKey) || [];
             subFiles.forEach(file => {
               subNode.children!.push({
                 id: `file-${file.document_id || file.id}`,
@@ -2651,7 +2652,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       // Add uncategorized files to "Documents" catch-all
       const uncategorizedFiles: LegacyItem[] = [];
       filesByFolder.forEach((files, path) => {
-        if (!usedFolderPaths.has(path)) {
+        if (!usedTabKeys.has(path)) {
           uncategorizedFiles.push(...files);
         }
       });
