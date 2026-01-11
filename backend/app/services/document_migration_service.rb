@@ -124,22 +124,27 @@ class DocumentMigrationService
 
       Rails.logger.info "[DocumentMigration] Migrating #{count} #{type_name} documents"
 
+      # Get document IDs first (before updating status, which would change query results)
+      document_ids = documents.pluck(:id)
+
       # Reset failed and mark as pending
-      documents.where(migration_status: 'failed').update_all(
+      klass.where(id: document_ids, migration_status: 'failed').update_all(
         migration_status: 'pending',
         migration_error: nil
       )
-      documents.where(migration_status: nil).update_all(migration_status: 'pending')
+      klass.where(id: document_ids, migration_status: nil).update_all(migration_status: 'pending')
 
-      # Enqueue jobs
+      # Enqueue jobs using the captured IDs
       jobs_enqueued = 0
-      documents.find_each(batch_size: batch_size) do |document|
-        DocumentMigrationJob.perform_later(
-          document.id,
-          document_type: type_name,
-          delete_source: delete_source
-        )
-        jobs_enqueued += 1
+      document_ids.each_slice(batch_size) do |id_batch|
+        id_batch.each do |document_id|
+          DocumentMigrationJob.perform_later(
+            document_id,
+            document_type: type_name,
+            delete_source: delete_source
+          )
+          jobs_enqueued += 1
+        end
       end
 
       { document_count: count, jobs_enqueued: jobs_enqueued }
