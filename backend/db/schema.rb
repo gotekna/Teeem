@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_12_120002) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_12_163747) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -6406,6 +6406,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_120002) do
     t.bigint "estimator_id"
     t.bigint "internal_sales_id"
     t.bigint "client_coordinator_id"
+    t.string "sharepoint_folder_status", default: "not_requested"
     t.index ["archived_at", "job_status_id"], name: "idx_jobs_archived_status"
     t.index ["archived_at"], name: "index_jobs_on_archived_at"
     t.index ["archived_by_id"], name: "index_jobs_on_archived_by_id"
@@ -9381,7 +9382,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_120002) do
     t.boolean "is_template", default: false, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "job_id"
+    t.text "description"
     t.index ["is_template"], name: "index_teeem_spreadsheets_on_is_template"
+    t.index ["job_id", "updated_at"], name: "index_teeem_spreadsheets_on_job_id_and_updated_at"
+    t.index ["job_id"], name: "index_teeem_spreadsheets_on_job_id"
     t.index ["name"], name: "index_teeem_spreadsheets_on_name"
     t.index ["user_id", "updated_at"], name: "index_teeem_spreadsheets_on_user_id_and_updated_at"
     t.index ["user_id"], name: "index_teeem_spreadsheets_on_user_id"
@@ -11090,6 +11095,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_120002) do
   add_foreign_key "task_followers", "users", on_delete: :cascade
   add_foreign_key "task_viewers", "sm_tasks"
   add_foreign_key "task_viewers", "users"
+  add_foreign_key "teeem_spreadsheets", "jobs"
   add_foreign_key "teeem_spreadsheets", "users"
   add_foreign_key "unreal_measurements", "job_colour_selections"
   add_foreign_key "unreal_measurements", "job_plans"

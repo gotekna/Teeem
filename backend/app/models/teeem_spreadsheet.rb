@@ -1,5 +1,6 @@
 class TeeemSpreadsheet < ApplicationRecord
   belongs_to :user
+  belongs_to :job, optional: true
 
   validates :name, presence: true, length: { maximum: 255 }
 
@@ -16,6 +17,8 @@ class TeeemSpreadsheet < ApplicationRecord
   scope :recent, -> { order(updated_at: :desc) }
   scope :templates, -> { where(is_template: true) }
   scope :user_spreadsheets, -> { where(is_template: false) }
+  scope :for_job, ->(job_id) { where(job_id: job_id) }
+  scope :unattached, -> { where(job_id: nil) }
 
   private
 
