@@ -696,7 +696,8 @@ class Api::V1::MicrosoftAuthController < ApplicationController
 
     if user_email.present?
       # Get the tenant prefix from SharePoint site URL (e.g., "gotekna" from "gotekna.sharepoint.com")
-      site_url = CorporateCompanySetting.instance.sharepoint_site_url.presence
+      # SSoT: Use StorageConfiguration for site URL
+      site_url = StorageConfiguration.instance.site_url
       tenant_prefix = site_url&.match(/https?:\/\/([^.]+)\.sharepoint\.com/)&.[](1)
 
       if tenant_prefix.present?

@@ -91,10 +91,11 @@ class UnifiedDocumentGenerator
   def upload_result(result, destination_folder:)
     return result unless result[:pdf_content]
 
-    # Use Microsoft Graph client to upload
+    # SSoT: Use StorageConfiguration for site/drive IDs
+    storage_config = StorageConfiguration.instance
     graph_client = MicrosoftAppGraphClient.new
-    site_id = template.sharepoint_site_id
-    drive_id = template.sharepoint_drive_id
+    site_id = storage_config.site_id
+    drive_id = storage_config.drive_id
 
     uploaded_file = graph_client.upload_file_content(
       site_id,

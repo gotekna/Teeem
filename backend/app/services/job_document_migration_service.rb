@@ -549,8 +549,9 @@ class JobDocumentMigrationService
   end
 
   # Get or create the root folder for job documents
+  # SSoT: Uses StorageConfiguration for path
   def get_or_create_jobs_root_folder
-    root_folder_name = CorporateCompanySetting.job_documents_base_path
+    root_folder_name = StorageConfiguration.instance.path_for(:jobs)
 
     result = @client.get("/drives/#{@credential.drive_id}/root/children")
     folder = result["value"]&.find { |item| item["name"] == root_folder_name && item["folder"].present? }

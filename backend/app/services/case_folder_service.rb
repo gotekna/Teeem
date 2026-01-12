@@ -1,10 +1,13 @@
 # Service to manage OneDrive folders for cases
 # Creates folders under Documents > Corporate > Case Info
 class CaseFolderService
-  CASE_INFO_PATH = "Corporate/Case Info"
-
   def initialize(case_record)
     @case = case_record
+  end
+
+  # SSoT: Get case info path from StorageConfiguration
+  def case_info_path
+    @case_info_path ||= "#{StorageConfiguration.instance.path_for(:corporate)}/Case Info"
   end
 
   # Create a dedicated folder for this case in OneDrive
@@ -26,7 +29,7 @@ class CaseFolderService
 
       if result && result["id"]
         # Save the folder ID and path to the case
-        full_path = "#{CASE_INFO_PATH}/#{folder_name}"
+        full_path = "#{case_info_path}/#{folder_name}"
         @case.update!(
           storage_folder_id: result["id"],
           storage_folder_path: full_path
@@ -96,7 +99,7 @@ class CaseFolderService
 
   def ensure_case_info_folder_exists
     # Try to get existing folder
-    folder = graph_client.get_folder_by_path(CASE_INFO_PATH)
+    folder = graph_client.get_folder_by_path(case_info_path)
     return folder if folder
 
     # Need to create Corporate and Case Info folders

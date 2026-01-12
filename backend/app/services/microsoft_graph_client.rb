@@ -270,9 +270,9 @@ class MicrosoftGraphClient
   end
 
   # Create root folder for all jobs (organization-level)
-  # SSoT: Default folder name comes from CorporateCompanySetting - NO HARDCODED FALLBACKS
+  # SSoT: Default folder name comes from StorageConfiguration
   def create_jobs_root_folder(folder_name = nil)
-    folder_name ||= CorporateCompanySetting.instance.sharepoint_jobs_path.presence || "Jobs"
+    folder_name ||= StorageConfiguration.instance.path_for(:jobs)
     # SSoT: Sanitize folder name - remove leading/trailing slashes (SharePoint doesn't allow "/" in names)
     folder_name = folder_name.to_s.gsub(%r{^/+|/+$}, "").presence || "Jobs"
     # Get the drive if we don't have it
@@ -488,8 +488,8 @@ class MicrosoftGraphClient
     # Normalize title for fuzzy matching (remove common prefixes like "Lot", lowercase, etc.)
     normalized_title = construction.title.to_s.downcase.gsub(/^lot\s+/i, "").strip
 
-    # SSoT: Get jobs folder name from CorporateCompanySetting
-    jobs_folder_name = CorporateCompanySetting.instance.sharepoint_jobs_path.presence || "Jobs"
+    # SSoT: Get jobs folder name from StorageConfiguration
+    jobs_folder_name = StorageConfiguration.instance.path_for(:jobs)
 
     # Determine where to search - use root_folder_id if set, otherwise find jobs folder
     search_folder_id = @credential.root_folder_id

@@ -150,9 +150,10 @@ class DocumentEsignService
     content = generated[:pdf_content] || generated[:docx_content]
     filename = generated[:pdf_filename] || generated[:filename]
 
-    # Use organization's SharePoint site/drive (SSoT)
-    site_id = credential.site_id
-    drive_id = credential.drive_id
+    # SSoT: Use StorageConfiguration for site/drive IDs (not credential)
+    storage_config = StorageConfiguration.instance
+    site_id = storage_config.site_id
+    drive_id = storage_config.drive_id
 
     graph_client.upload_file(
       folder_path,
@@ -163,15 +164,15 @@ class DocumentEsignService
 
   def build_job_folder_path
     # Build path like: "Jobs/123 - Smith Residence/Documents"
-    # SSoT: Uses sharepoint_jobs_path via CorporateCompanySetting.job_documents_base_path
-    base_path = CorporateCompanySetting.job_documents_base_path
+    # SSoT: Uses StorageConfiguration for jobs path
+    base_path = StorageConfiguration.instance.path_for(:jobs)
     job_folder = job.sharepoint_folder_name || "#{job.id} - #{job.name}"
     "#{base_path}/#{job_folder}/Documents"
   end
 
   def create_esign_request(uploaded_file, document_filename)
-    # Get SharePoint credential for site/drive IDs
-    credential = MicrosoftCredential.sharepoint_credential
+    # SSoT: Use StorageConfiguration for site/drive IDs
+    storage_config = StorageConfiguration.instance
 
     request = ESignatureRequest.new(
       title: options[:title] || "#{template_name} - #{job.name}",
@@ -183,8 +184,8 @@ class DocumentEsignService
       message_to_signers: options[:message_to_signers],
       send_reminders: options[:send_reminders] != false,
       original_sharepoint_file_id: uploaded_file[:id],
-      sharepoint_site_id: credential&.site_id,
-      sharepoint_drive_id: credential&.drive_id
+      sharepoint_site_id: storage_config.site_id,
+      sharepoint_drive_id: storage_config.drive_id
     )
 
     # Add signers

@@ -15,16 +15,16 @@
 class CorporateSharePointScannerService
   attr_reader :credential, :results, :folder_path
 
-  # SSoT: Get the preferred company folder path from CorporateCompanySetting
+  # SSoT: Get the preferred company folder path from StorageConfiguration
   def self.company_folder_path
-    CorporateCompanySetting.instance.sharepoint_company_path.presence || "Corporate"
+    StorageConfiguration.instance.path_for(:corporate)
   end
 
   # Try multiple possible paths for corporate documents
   # New structure uses company_folder_path with organized subfolders
   def self.default_folder_paths
     [
-      company_folder_path,                    # SSoT: From CorporateCompanySetting (preferred)
+      company_folder_path,                    # SSoT: From StorageConfiguration (preferred)
       "Accounts - Internal/Corporate File",   # Robert's legacy SharePoint structure
       "Corporate File",                       # Legacy direct Corporate File folder
       "Corporate"                             # Legacy simple Corporate folder

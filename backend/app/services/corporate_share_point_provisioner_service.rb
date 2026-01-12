@@ -135,7 +135,8 @@ class CorporateSharePointProvisionerService
   # Preview the folder structure that would be created in configurable base path
   # Returns a hash describing the structure without creating anything
   def preview_private_folder_structure(dry_run: true)
-    base_path = CorporateCompanySetting.company_documents_base_path
+    # SSoT: Use StorageConfiguration for corporate path
+    base_path = StorageConfiguration.instance.path_for(:corporate)
     structure = {
       root: base_path,
       groups: []
@@ -182,7 +183,8 @@ class CorporateSharePointProvisionerService
   # Create the entire folder structure in configurable base path
   # Structure: [base_path] / [Group Name] / [Company Name] / [Document Type Folders]
   def create_private_folder_structure!
-    base_path = CorporateCompanySetting.company_documents_base_path
+    # SSoT: Use StorageConfiguration for corporate path
+    base_path = StorageConfiguration.instance.path_for(:corporate)
     Rails.logger.info "Creating private folder structure at: #{base_path}..."
 
     # Get or create base folder
