@@ -1359,6 +1359,7 @@ interface MigrationStatus {
   additional_files?: {
     email_eml: number;
     email_attachments: number;
+    task_attachments: number;
     total: number;
   };
 }
@@ -1539,17 +1540,15 @@ function DocumentMigration() {
           </div>
         </div>
 
-        {/* Additional Files (Emails & Attachments) */}
-        {status?.additional_files && (status.additional_files.email_eml > 0 || status.additional_files.email_attachments > 0) && (
+        {/* Additional Files (Emails, Attachments, Tasks) */}
+        {status?.additional_files && status.additional_files.total > 0 && (
           <div className="text-xs text-muted-foreground p-2 rounded bg-muted/30">
             <span className="font-medium">Includes:</span>{" "}
-            {status.additional_files.email_eml > 0 && (
-              <span>{status.additional_files.email_eml.toLocaleString()} email EML files</span>
-            )}
-            {status.additional_files.email_eml > 0 && status.additional_files.email_attachments > 0 && " + "}
-            {status.additional_files.email_attachments > 0 && (
-              <span>{status.additional_files.email_attachments.toLocaleString()} email attachments</span>
-            )}
+            {[
+              status.additional_files.email_eml > 0 && `${status.additional_files.email_eml.toLocaleString()} emails`,
+              status.additional_files.email_attachments > 0 && `${status.additional_files.email_attachments.toLocaleString()} attachments`,
+              status.additional_files.task_attachments > 0 && `${status.additional_files.task_attachments.toLocaleString()} task files`,
+            ].filter(Boolean).join(" + ")}
           </div>
         )}
 

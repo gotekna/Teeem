@@ -38,6 +38,7 @@ import {
   Warehouse,
   Mail,
   Paperclip,
+  ClipboardList,
 } from "lucide-react";
 import {
   Dialog,
@@ -93,6 +94,7 @@ interface AllDocumentsResponse {
     people: number;
     emails: number;
     attachments: number;
+    tasks: number;
     total: number;
   };
 }
@@ -169,7 +171,7 @@ export default function AllDocumentsPage() {
     corporate: DocumentItem[];
     people: DocumentItem[];
   }>({ jobs: [], corporate: [], people: [] });
-  const [counts, setCounts] = useState({ jobs: 0, corporate: 0, people: 0, emails: 0, attachments: 0, total: 0 });
+  const [counts, setCounts] = useState({ jobs: 0, corporate: 0, people: 0, emails: 0, attachments: 0, tasks: 0, total: 0 });
   // Document preview popup state
   const [previewDocument, setPreviewDocument] = useState<DocumentItem | null>(null);
   // Click timer for single/double click differentiation
@@ -250,7 +252,7 @@ export default function AllDocumentsPage() {
           corporate: response.data.corporate_documents || [],
           people: response.data.people_documents || [],
         });
-        setCounts(response.counts || { jobs: 0, corporate: 0, people: 0, total: 0 });
+        setCounts(response.counts || { jobs: 0, corporate: 0, people: 0, emails: 0, attachments: 0, tasks: 0, total: 0 });
       }
     } catch (error) {
       console.error("Failed to fetch documents:", error);
@@ -476,7 +478,17 @@ export default function AllDocumentsPage() {
       children: [],
     };
 
-    return [jobsNode, corporateNode, peopleNode, emailsNode, attachmentsNode];
+    // Tasks category - Schedule Master task attachments
+    const tasksNode: TreeNode = {
+      id: "tasks",
+      name: "Tasks",
+      type: "category",
+      icon: <ClipboardList className="h-4 w-4" />,
+      fileCount: counts.tasks || 0,
+      children: [],
+    };
+
+    return [jobsNode, corporateNode, peopleNode, emailsNode, attachmentsNode, tasksNode];
   }, [filteredDocuments, entityFolders, scopeFolders, counts]);
 
   // Toggle folder expansion

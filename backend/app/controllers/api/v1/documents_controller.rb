@@ -8,7 +8,7 @@ module Api
       # GET /api/v1/documents/all
       # Returns file counts for the entire warehouse (fast)
       # Used by the File Warehouse page
-      # SSoT: Counts ALL file types - documents, emails, attachments
+      # SSoT: Counts ALL file types - documents, emails, attachments, tasks
       def all
         # Document counts (records with actual files)
         job_count = JobDocument.where.not(file_name: [nil, ""]).count
@@ -18,10 +18,13 @@ module Api
         # Email counts (EML files stored)
         email_eml_count = EmailWarehouse.where.not(sharepoint_email_path: [nil, ""]).count
 
-        # Attachment counts (files stored)
-        attachment_count = EmailAttachment.where.not(sharepoint_path: [nil, ""]).count
+        # Email attachment counts (files stored)
+        email_attachment_count = EmailAttachment.where.not(sharepoint_path: [nil, ""]).count
 
-        total = job_count + corp_count + people_count + email_eml_count + attachment_count
+        # Task attachment counts (Schedule Master)
+        task_attachment_count = SmTaskAttachment.count rescue 0
+
+        total = job_count + corp_count + people_count + email_eml_count + email_attachment_count + task_attachment_count
 
         render json: {
           success: true,
@@ -35,7 +38,8 @@ module Api
             corporate: corp_count,
             people: people_count,
             emails: email_eml_count,
-            attachments: attachment_count,
+            attachments: email_attachment_count,
+            tasks: task_attachment_count,
             total: total
           }
         }
