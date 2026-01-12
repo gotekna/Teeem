@@ -205,14 +205,14 @@ class DocumentMigrationService
       # Email, attachment, and task counts (stored but not migration-tracked)
       email_eml_count = EmailWarehouse.where.not(sharepoint_email_path: [nil, ""]).count rescue 0
       email_attachment_count = EmailAttachment.where.not(sharepoint_path: [nil, ""]).count rescue 0
-      task_attachment_count = SmTaskAttachment.count rescue 0
+      task_doc_count = SmTaskAttachment.where(attachable_type: 'CorporateCompanyDocument').distinct.count(:attachable_id) rescue 0
 
       # Add to provider breakdown
       provider_breakdown['s3_compatible'] ||= 0
-      provider_breakdown['s3_compatible'] += email_eml_count + email_attachment_count + task_attachment_count
+      provider_breakdown['s3_compatible'] += email_eml_count + email_attachment_count + task_doc_count
 
       # Grand total including emails, attachments, and tasks
-      grand_total = total_documents + email_eml_count + email_attachment_count + task_attachment_count
+      grand_total = total_documents + email_eml_count + email_attachment_count + task_doc_count
 
       {
         total_documents: total_documents,
@@ -227,8 +227,8 @@ class DocumentMigrationService
         additional_files: {
           email_eml: email_eml_count,
           email_attachments: email_attachment_count,
-          task_attachments: task_attachment_count,
-          total: email_eml_count + email_attachment_count + task_attachment_count
+          task_documents: task_doc_count,
+          total: email_eml_count + email_attachment_count + task_doc_count
         }
       }
     end

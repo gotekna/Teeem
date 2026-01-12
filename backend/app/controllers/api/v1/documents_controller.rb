@@ -21,10 +21,11 @@ module Api
         # Email attachment counts (files stored)
         email_attachment_count = EmailAttachment.where.not(sharepoint_path: [nil, ""]).count
 
-        # Task attachment counts (Schedule Master)
-        task_attachment_count = SmTaskAttachment.count rescue 0
+        # Task attachment counts - documents uploaded against task IDs
+        # These are CorporateCompanyDocuments linked via SmTaskAttachment
+        task_doc_count = SmTaskAttachment.where(attachable_type: 'CorporateCompanyDocument').distinct.count(:attachable_id) rescue 0
 
-        total = job_count + corp_count + people_count + email_eml_count + email_attachment_count + task_attachment_count
+        total = job_count + corp_count + people_count + email_eml_count + email_attachment_count + task_doc_count
 
         render json: {
           success: true,
@@ -39,7 +40,7 @@ module Api
             people: people_count,
             emails: email_eml_count,
             attachments: email_attachment_count,
-            tasks: task_attachment_count,
+            tasks: task_doc_count,
             total: total
           }
         }
