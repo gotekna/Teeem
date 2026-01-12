@@ -49,6 +49,7 @@ import {
   AlignRight,
   Palette,
   Type,
+  Check,
 } from "lucide-react";
 import {
   Popover,
@@ -269,9 +270,22 @@ const createSlashCommandExtension = (onSlashCommand?: (command: SlashCommand) =>
 // to ensure commands are sent to the correct editor even during React re-renders
 let lastFocusedEditor: Editor | null = null;
 
+// Subscribers that want to be notified when focused editor changes
+const focusedEditorSubscribers: Set<() => void> = new Set();
+
 // Export function for editors to register themselves when focused
 export function registerFocusedEditor(editor: Editor | null) {
   lastFocusedEditor = editor;
+  // Notify all subscribers that the focused editor changed
+  focusedEditorSubscribers.forEach(callback => callback());
+}
+
+// Subscribe to focused editor changes (returns unsubscribe function)
+function subscribeFocusedEditorChange(callback: () => void): () => void {
+  focusedEditorSubscribers.add(callback);
+  return () => {
+    focusedEditorSubscribers.delete(callback);
+  };
 }
 
 function ToolbarButton({
@@ -375,6 +389,33 @@ export function EditorToolbar({
   const [selectedHighlightColor, setSelectedHighlightColor] = React.useState("#fef08a");
   const imageInputRef = React.useRef<HTMLInputElement>(null);
   const { issues, isChecking } = useWritingCheckerState(editor);
+
+  // Track focused editor in React state for dependency arrays and re-renders
+  const [trackedEditor, setTrackedEditor] = React.useState<Editor | null>(null);
+  const [, forceUpdate] = React.useReducer(x => x + 1, 0);
+
+  // Subscribe to focused editor changes
+  React.useEffect(() => {
+    const handleFocusChange = () => {
+      setTrackedEditor(lastFocusedEditor);
+      forceUpdate();
+    };
+    return subscribeFocusedEditorChange(handleFocusChange);
+  }, []);
+
+  // Re-render when trackedEditor's selection changes (for Styles dropdown)
+  React.useEffect(() => {
+    if (!trackedEditor) return;
+
+    const handleSelectionUpdate = () => forceUpdate();
+    trackedEditor.on("selectionUpdate", handleSelectionUpdate);
+    trackedEditor.on("transaction", handleSelectionUpdate);
+
+    return () => {
+      trackedEditor.off("selectionUpdate", handleSelectionUpdate);
+      trackedEditor.off("transaction", handleSelectionUpdate);
+    };
+  }, [trackedEditor]);
 
   // Helper to get the target editor - uses last focused editor if available
   const getTargetEditor = () => lastFocusedEditor || editor;
@@ -916,8 +957,15 @@ export function EditorToolbar({
             <RibbonGroup label="Styles">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs gap-1">
-                    Styles
+                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs gap-1 min-w-[90px]">
+                    {(() => {
+                      const targetEditor = getTargetEditor();
+                      if (targetEditor?.isActive("heading", { level: 1 })) return "Heading 1";
+                      if (targetEditor?.isActive("heading", { level: 2 })) return "Heading 2";
+                      if (targetEditor?.isActive("heading", { level: 3 })) return "Heading 3";
+                      if (targetEditor?.isActive("blockquote")) return "Quote";
+                      return "Normal";
+                    })()}
                     <ChevronDown className="h-3 w-3" />
                   </Button>
                 </DropdownMenuTrigger>

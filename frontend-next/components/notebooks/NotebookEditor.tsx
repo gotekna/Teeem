@@ -12,6 +12,7 @@ import {
   attachmentActions,
   type NotebookPageAttachment,
   type PositionedBoxData,
+  type StrokeData,
 } from "./hooks/useNotebookPage";
 import { NotebookCanvas } from "./NotebookCanvas";
 import {
@@ -76,8 +77,18 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
   const [activeEditor, setActiveEditor] = useState<Editor | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Undo/redo history for positioned boxes (images and text boxes)
-  const [boxesHistory, setBoxesHistory] = useState<PositionedBoxData[][]>([]);
+  // Draw mode state
+  const [drawMode, setDrawMode] = useState<"select" | "pen" | "highlighter" | "eraser" | null>(null);
+  const [drawColor, setDrawColor] = useState("#000000");
+  const [drawSize, setDrawSize] = useState(2);
+  const [strokes, setStrokes] = useState<StrokeData[]>([]);
+
+  // Unified history for undo/redo - stores both boxes and strokes together
+  interface HistoryState {
+    boxes: PositionedBoxData[];
+    strokes: StrokeData[];
+  }
+  const [history, setHistory] = useState<HistoryState[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const isUndoRedoRef = useRef(false); // Track if change is from undo/redo
 
@@ -88,41 +99,49 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
   const [userOptions, setUserOptions] = useState<Option[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
 
-  // Undo function for positioned boxes
+  // Undo function for boxes and strokes
   const undoBoxes = useCallback(() => {
     if (historyIndex > 0) {
       isUndoRedoRef.current = true;
       const newIndex = historyIndex - 1;
-      const previousBoxes = boxesHistory[newIndex];
+      const previousState = history[newIndex];
       setHistoryIndex(newIndex);
-      setPositionedBoxes(previousBoxes);
-      updateContentMetadata({ positioned_boxes: previousBoxes });
+      setPositionedBoxes(previousState.boxes);
+      setStrokes(previousState.strokes);
+      updateContentMetadata({
+        positioned_boxes: previousState.boxes,
+        strokes: previousState.strokes,
+      });
 
       // Also update legacy content field if main content box exists
-      const mainBox = previousBoxes.find(b => b.id === MAIN_CONTENT_ID);
+      const mainBox = previousState.boxes.find(b => b.id === MAIN_CONTENT_ID);
       if (mainBox) {
         updateContent(mainBox.content);
       }
     }
-  }, [historyIndex, boxesHistory, updateContentMetadata, updateContent]);
+  }, [historyIndex, history, updateContentMetadata, updateContent]);
 
-  // Redo function for positioned boxes
+  // Redo function for boxes and strokes
   const redoBoxes = useCallback(() => {
-    if (historyIndex < boxesHistory.length - 1) {
+    if (historyIndex < history.length - 1) {
       isUndoRedoRef.current = true;
       const newIndex = historyIndex + 1;
-      const nextBoxes = boxesHistory[newIndex];
+      const nextState = history[newIndex];
       setHistoryIndex(newIndex);
-      setPositionedBoxes(nextBoxes);
-      updateContentMetadata({ positioned_boxes: nextBoxes });
+      setPositionedBoxes(nextState.boxes);
+      setStrokes(nextState.strokes);
+      updateContentMetadata({
+        positioned_boxes: nextState.boxes,
+        strokes: nextState.strokes,
+      });
 
       // Also update legacy content field if main content box exists
-      const mainBox = nextBoxes.find(b => b.id === MAIN_CONTENT_ID);
+      const mainBox = nextState.boxes.find(b => b.id === MAIN_CONTENT_ID);
       if (mainBox) {
         updateContent(mainBox.content);
       }
     }
-  }, [historyIndex, boxesHistory, updateContentMetadata, updateContent]);
+  }, [historyIndex, history, updateContentMetadata, updateContent]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -246,8 +265,12 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
       }
       setPositionedBoxes(initialBoxes);
 
-      // Initialize history with the loaded state
-      setBoxesHistory([initialBoxes]);
+      // Load drawing strokes from content_metadata
+      const loadedStrokes = page.content_metadata?.strokes || [];
+      setStrokes(loadedStrokes);
+
+      // Initialize unified history with boxes and strokes
+      setHistory([{ boxes: initialBoxes, strokes: loadedStrokes }]);
       setHistoryIndex(0);
     }
   }, [page]);
@@ -308,6 +331,29 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
     updateTitle(newTitle);
   };
 
+  // Helper to add state to unified history
+  const addToHistory = useCallback(
+    (boxes: PositionedBoxData[], strokesData: StrokeData[]) => {
+      // Skip if this change came from undo/redo
+      if (isUndoRedoRef.current) {
+        isUndoRedoRef.current = false;
+        return;
+      }
+
+      // Add to history, discarding any "future" states if we're not at the end
+      setHistory((prev) => {
+        const newHistory = prev.slice(0, historyIndex + 1);
+        // Limit history to 50 states to avoid memory issues
+        const limitedHistory = newHistory.length >= 50
+          ? newHistory.slice(-49)
+          : newHistory;
+        return [...limitedHistory, { boxes, strokes: strokesData }];
+      });
+      setHistoryIndex((prev) => Math.min(prev + 1, 49));
+    },
+    [historyIndex]
+  );
+
   const handlePositionedBoxesChange = useCallback(
     (boxes: PositionedBoxData[], skipHistory?: boolean) => {
       setPositionedBoxes(boxes);
@@ -326,24 +372,22 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
         return;
       }
 
-      // Track history for undo/redo (skip if this change came from undo/redo)
-      if (isUndoRedoRef.current) {
-        isUndoRedoRef.current = false;
-        return;
-      }
-
-      // Add to history, discarding any "future" states if we're not at the end
-      setBoxesHistory((prev) => {
-        const newHistory = prev.slice(0, historyIndex + 1);
-        // Limit history to 50 states to avoid memory issues
-        const limitedHistory = newHistory.length >= 50
-          ? newHistory.slice(-49)
-          : newHistory;
-        return [...limitedHistory, boxes];
-      });
-      setHistoryIndex((prev) => Math.min(prev + 1, 49));
+      // Add to unified history with current strokes
+      addToHistory(boxes, strokes);
     },
-    [updateContent, updateContentMetadata, historyIndex]
+    [updateContent, updateContentMetadata, addToHistory, strokes]
+  );
+
+  // Handle strokes change - save to content_metadata and track history
+  const handleStrokesChange = useCallback(
+    (newStrokes: StrokeData[]) => {
+      setStrokes(newStrokes);
+      updateContentMetadata({ strokes: newStrokes });
+
+      // Add to unified history with current boxes
+      addToHistory(positionedBoxes, newStrokes);
+    },
+    [updateContentMetadata, addToHistory, positionedBoxes]
   );
 
   // Handle external image upload - creates a positioned image box
@@ -392,154 +436,159 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
     );
   }
 
+  // Right side content for the ribbon toolbar
+  const toolbarRightContent = (
+    <>
+      <SaveStatus
+        isSaving={isSaving}
+        hasUnsavedChanges={hasUnsavedChanges}
+        lastSaved={lastSaved}
+      />
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        onChange={handleFileUpload}
+      />
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => fileInputRef.current?.click()}
+        disabled={isUploading}
+        className="relative h-7"
+      >
+        {isUploading ? (
+          <Spinner className="h-4 w-4" />
+        ) : (
+          <Paperclip className="h-4 w-4" />
+        )}
+        {attachments.length > 0 && (
+          <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full h-4 w-4 flex items-center justify-center">
+            {attachments.length}
+          </span>
+        )}
+      </Button>
+      {attachments.length > 0 && (
+        <Button
+          variant={showAttachments ? "secondary" : "ghost"}
+          size="sm"
+          onClick={() => setShowAttachments(!showAttachments)}
+          className="h-7 text-xs"
+        >
+          Attachments
+        </Button>
+      )}
+
+      {/* Share button */}
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="ghost" size="sm" className="h-7">
+            <Share2 className="h-4 w-4" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-80" align="end">
+          <div className="space-y-4">
+            <h4 className="font-medium text-sm">Share this page</h4>
+
+            {/* User selector */}
+            <div className="space-y-2">
+              <label className="text-xs text-muted-foreground">
+                Share with team members
+              </label>
+              <MultipleSelector
+                value={selectedUsers}
+                onChange={setSelectedUsers}
+                defaultOptions={userOptions}
+                placeholder="Search users..."
+                emptyIndicator={
+                  loadingUsers ? (
+                    <p className="text-center text-sm text-muted-foreground py-2">Loading...</p>
+                  ) : (
+                    <p className="text-center text-sm text-muted-foreground py-2">No users found</p>
+                  )
+                }
+                className="min-h-[36px]"
+                badgeClassName="bg-primary/10 text-primary hover:bg-primary/20"
+              />
+              <div className="flex items-center gap-2">
+                <div onClick={(e) => e.stopPropagation()}>
+                  <Select
+                    value={shareAccess}
+                    onValueChange={(v: "read" | "edit") => setShareAccess(v)}
+                  >
+                    <SelectTrigger className="w-28 h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="read">Can view</SelectItem>
+                      <SelectItem value="edit">Can edit</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={handleShare}
+                  disabled={selectedUsers.length === 0}
+                  className="flex-1 h-8"
+                >
+                  Share
+                </Button>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="border-t" />
+
+            {/* Share link */}
+            <div className="space-y-2">
+              <label className="text-xs text-muted-foreground">
+                Or copy link
+              </label>
+              <div className="flex gap-2">
+                <Input
+                  readOnly
+                  value={shareLink}
+                  className="flex-1 h-8 text-xs bg-muted"
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCopyLink}
+                  className="h-8 px-3"
+                >
+                  {shareLinkCopied ? (
+                    <Check className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+    </>
+  );
+
   return (
     <div className={cn("flex flex-col h-full", className)}>
-      {/* Toolbar header */}
-      <div className="border-b px-4 py-2">
-        <div className="flex items-center justify-between gap-2">
-          <EditorToolbar
-            editor={activeEditor}
-            transparent
-            onExternalImageUpload={handleExternalImageUpload}
-            onExternalUndo={undoBoxes}
-            onExternalRedo={redoBoxes}
-            canExternalUndo={historyIndex > 0}
-            canExternalRedo={historyIndex < boxesHistory.length - 1}
-          />
-
-          {/* Save status and attachments */}
-          <div className="flex items-center gap-2 shrink-0">
-            <SaveStatus
-              isSaving={isSaving}
-              hasUnsavedChanges={hasUnsavedChanges}
-              lastSaved={lastSaved}
-            />
-            <input
-              ref={fileInputRef}
-              type="file"
-              className="hidden"
-              onChange={handleFileUpload}
-            />
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
-              className="relative"
-            >
-              {isUploading ? (
-                <Spinner className="h-4 w-4" />
-              ) : (
-                <Paperclip className="h-4 w-4" />
-              )}
-              {attachments.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                  {attachments.length}
-                </span>
-              )}
-            </Button>
-            {attachments.length > 0 && (
-              <Button
-                variant={showAttachments ? "secondary" : "ghost"}
-                size="sm"
-                onClick={() => setShowAttachments(!showAttachments)}
-              >
-                Attachments
-              </Button>
-            )}
-
-            {/* Share button */}
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="ghost" size="sm">
-                  <Share2 className="h-4 w-4" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-80" align="end">
-                <div className="space-y-4">
-                  <h4 className="font-medium text-sm">Share this page</h4>
-
-                  {/* User selector */}
-                  <div className="space-y-2">
-                    <label className="text-xs text-muted-foreground">
-                      Share with team members
-                    </label>
-                    <MultipleSelector
-                      value={selectedUsers}
-                      onChange={setSelectedUsers}
-                      defaultOptions={userOptions}
-                      placeholder="Search users..."
-                      emptyIndicator={
-                        loadingUsers ? (
-                          <p className="text-center text-sm text-muted-foreground py-2">Loading...</p>
-                        ) : (
-                          <p className="text-center text-sm text-muted-foreground py-2">No users found</p>
-                        )
-                      }
-                      className="min-h-[36px]"
-                      badgeClassName="bg-primary/10 text-primary hover:bg-primary/20"
-                    />
-                    <div className="flex items-center gap-2">
-                      <div onClick={(e) => e.stopPropagation()}>
-                        <Select
-                          value={shareAccess}
-                          onValueChange={(v: "read" | "edit") => setShareAccess(v)}
-                        >
-                          <SelectTrigger className="w-28 h-8 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="read">Can view</SelectItem>
-                            <SelectItem value="edit">Can edit</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <Button
-                        size="sm"
-                        onClick={handleShare}
-                        disabled={selectedUsers.length === 0}
-                        className="flex-1 h-8"
-                      >
-                        Share
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Divider */}
-                  <div className="border-t" />
-
-                  {/* Share link */}
-                  <div className="space-y-2">
-                    <label className="text-xs text-muted-foreground">
-                      Or copy link
-                    </label>
-                    <div className="flex gap-2">
-                      <Input
-                        readOnly
-                        value={shareLink}
-                        className="flex-1 h-8 text-xs bg-muted"
-                        onClick={(e) => (e.target as HTMLInputElement).select()}
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleCopyLink}
-                        className="h-8 px-3"
-                      >
-                        {shareLinkCopied ? (
-                          <Check className="h-4 w-4 text-green-500" />
-                        ) : (
-                          <Copy className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
-          </div>
-        </div>
-      </div>
+      {/* Ribbon Toolbar */}
+      <EditorToolbar
+        editor={activeEditor}
+        onExternalImageUpload={handleExternalImageUpload}
+        onExternalUndo={undoBoxes}
+        onExternalRedo={redoBoxes}
+        canExternalUndo={historyIndex > 0}
+        canExternalRedo={historyIndex < history.length - 1}
+        rightContent={toolbarRightContent}
+        drawMode={drawMode}
+        onDrawModeChange={setDrawMode}
+        drawColor={drawColor}
+        onDrawColorChange={setDrawColor}
+        drawSize={drawSize}
+        onDrawSizeChange={setDrawSize}
+      />
 
       {/* Attachments panel */}
       {showAttachments && attachments.length > 0 && (
@@ -598,11 +647,16 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
             )}
           </div>
 
-          {/* Canvas with all text boxes */}
+          {/* Canvas with all text boxes and drawing layer */}
           <NotebookCanvas
             boxes={positionedBoxes}
             onBoxesChange={handlePositionedBoxesChange}
             onActiveEditorChange={setActiveEditor}
+            drawMode={drawMode}
+            drawColor={drawColor}
+            drawSize={drawSize}
+            strokes={strokes}
+            onStrokesChange={handleStrokesChange}
             className="min-h-[500px]"
           />
         </div>

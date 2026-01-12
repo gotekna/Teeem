@@ -28,8 +28,19 @@ export interface PositionedBoxData {
   imageUrl?: string;       // For image boxes - the image source URL
 }
 
+// Stroke data for drawing canvas
+export interface StrokeData {
+  id: string;
+  points: { x: number; y: number }[];
+  color: string;
+  size: number;
+  opacity: number;
+  tool: "pen" | "highlighter";
+}
+
 export interface ContentMetadata {
   positioned_boxes?: PositionedBoxData[];
+  strokes?: StrokeData[];
 }
 
 export interface NotebookPage {

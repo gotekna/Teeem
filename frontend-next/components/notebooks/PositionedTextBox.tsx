@@ -309,7 +309,13 @@ export function PositionedTextBox({
           "[&_ul.task-list]:list-none [&_ul.task-list]:pl-0",
           "[&_.task-item]:flex [&_.task-item]:items-center [&_.task-item]:gap-2",
           "[&_.task-item>label]:flex [&_.task-item>label]:items-center [&_.task-item>label]:shrink-0",
-          "[&_.task-item>div]:flex-1 [&_.task-item>div]:min-w-0"
+          "[&_.task-item>div]:flex-1 [&_.task-item>div]:min-w-0",
+          // Heading styles
+          "[&_h1]:text-2xl [&_h1]:font-bold [&_h1]:my-2",
+          "[&_h2]:text-xl [&_h2]:font-semibold [&_h2]:my-2",
+          "[&_h3]:text-lg [&_h3]:font-medium [&_h3]:my-1",
+          // Blockquote styles
+          "[&_blockquote]:border-l-4 [&_blockquote]:border-muted-foreground/30 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:my-2"
         )}
         style={{
           overflow: box.height_px ? "auto" : undefined,

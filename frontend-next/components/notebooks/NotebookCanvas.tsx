@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { PositionedTextBox, type PositionedBox } from "./PositionedTextBox";
 import { PositionedImageBox } from "./PositionedImageBox";
+import { DrawingCanvas, type DrawMode, type Stroke } from "./DrawingCanvas";
 import { type Editor } from "@tiptap/react";
 
 interface NotebookCanvasProps {
@@ -12,6 +13,12 @@ interface NotebookCanvasProps {
   onBoxesChange: (boxes: PositionedBox[], skipHistory?: boolean) => void;
   onActiveEditorChange?: (editor: Editor | null) => void;
   onAddImage?: (x_percent: number, y_percent: number) => void;
+  // Drawing props
+  drawMode?: DrawMode;
+  drawColor?: string;
+  drawSize?: number;
+  strokes?: Stroke[];
+  onStrokesChange?: (strokes: Stroke[]) => void;
   className?: string;
 }
 
@@ -31,6 +38,11 @@ export function NotebookCanvas({
   onBoxesChange,
   onActiveEditorChange,
   onAddImage,
+  drawMode,
+  drawColor = "#000000",
+  drawSize = 2,
+  strokes = [],
+  onStrokesChange,
   className,
 }: NotebookCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -38,6 +50,30 @@ export function NotebookCanvas({
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [resizingId, setResizingId] = useState<string | null>(null);
   const dragStartRef = useRef<{ x: number; y: number; boxX: number; boxY: number } | null>(null);
+
+  // Canvas dimensions for drawing layer
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+
+  // Update canvas size when container resizes
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const updateSize = () => {
+      if (containerRef.current) {
+        setCanvasSize({
+          width: containerRef.current.offsetWidth,
+          height: containerRef.current.offsetHeight,
+        });
+      }
+    };
+
+    updateSize();
+
+    const resizeObserver = new ResizeObserver(updateSize);
+    resizeObserver.observe(containerRef.current);
+
+    return () => resizeObserver.disconnect();
+  }, []);
 
   // Ensure main content box exists
   const allBoxes = React.useMemo(() => {
@@ -228,12 +264,36 @@ export function NotebookCanvas({
     }
   }, [onAddImage]);
 
+  // Disable double-click to create text box when in draw mode
+  const handleDoubleClickWrapper = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      // Don't create text box when drawing mode is active
+      if (drawMode && drawMode !== "select") return;
+      handleDoubleClick(e);
+    },
+    [drawMode, handleDoubleClick]
+  );
+
   return (
     <div
       ref={containerRef}
       className={cn("relative min-h-[600px]", className)}
-      onDoubleClick={handleDoubleClick}
+      onDoubleClick={handleDoubleClickWrapper}
     >
+      {/* Drawing canvas layer - renders behind content when not drawing, above when drawing */}
+      {onStrokesChange && canvasSize.width > 0 && (
+        <DrawingCanvas
+          strokes={strokes}
+          onStrokesChange={onStrokesChange}
+          drawMode={drawMode || null}
+          drawColor={drawColor}
+          drawSize={drawSize}
+          width={canvasSize.width}
+          height={canvasSize.height}
+          className={drawMode && drawMode !== "select" ? "z-50" : "z-0"}
+        />
+      )}
+
       {allBoxes.map((box) => {
         // Render image boxes differently
         if (box.type === "image" && box.imageUrl) {
@@ -277,3 +337,6 @@ export function NotebookCanvas({
 export function useCanvasContainer() {
   return useRef<HTMLDivElement>(null);
 }
+
+// Re-export types from DrawingCanvas for convenience
+export type { DrawMode, Stroke } from "./DrawingCanvas";
