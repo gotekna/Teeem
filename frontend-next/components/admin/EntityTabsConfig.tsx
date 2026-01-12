@@ -1737,9 +1737,7 @@ export function EntityTabsConfig({
                         label="Folder Path"
                         value={warehouseTemplates.bill_inbox ?? '{{TabName}}'}
                         onChange={(val) => setWarehouseTemplates(prev => ({ ...prev, bill_inbox: val }))}
-                        placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) =>
-                          ['{{TabName}}', '{{Category}}', '{{Year}}', '{{Month}}'].includes(p.code)
-                        )}
+                        placeholders={SHAREPOINT_PLACEHOLDERS}
                         showPreview={true}
                         placeholder="Click tokens below to add..."
                         disabled={false}
@@ -1753,9 +1751,7 @@ export function EntityTabsConfig({
                         label="File Name"
                         value={warehouseFileNameTemplates.bill_inbox ?? '{{OriginalFileName}}'}
                         onChange={(val) => setWarehouseFileNameTemplates(prev => ({ ...prev, bill_inbox: val }))}
-                        placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) =>
-                          ['{{OriginalFileName}}', '{{Date}}', '{{Year}}', '{{Month}}', '{{UploadedBy}}', '{{Sequence}}'].includes(p.code)
-                        )}
+                        placeholders={SHAREPOINT_PLACEHOLDERS}
                         showPreview={true}
                         disabled={false}
                         defaultExpanded={true}
@@ -1781,9 +1777,7 @@ export function EntityTabsConfig({
                         label="Folder Path"
                         value={warehouseTemplates.pricebook_photos ?? '{{TabName}}'}
                         onChange={(val) => setWarehouseTemplates(prev => ({ ...prev, pricebook_photos: val }))}
-                        placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) =>
-                          ['{{TabName}}', '{{Category}}'].includes(p.code)
-                        )}
+                        placeholders={SHAREPOINT_PLACEHOLDERS}
                         showPreview={true}
                         disabled={false}
                         defaultExpanded={true}
@@ -1796,9 +1790,7 @@ export function EntityTabsConfig({
                         label="File Name"
                         value={warehouseFileNameTemplates.pricebook_photos ?? '{{OriginalFileName}}'}
                         onChange={(val) => setWarehouseFileNameTemplates(prev => ({ ...prev, pricebook_photos: val }))}
-                        placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) =>
-                          ['{{OriginalFileName}}', '{{Date}}', '{{Sequence}}'].includes(p.code)
-                        )}
+                        placeholders={SHAREPOINT_PLACEHOLDERS}
                         showPreview={true}
                         disabled={false}
                         defaultExpanded={true}
@@ -1824,9 +1816,7 @@ export function EntityTabsConfig({
                         label="Folder Path"
                         value={warehouseTemplates.chat ?? '{{UserCode}}'}
                         onChange={(val) => setWarehouseTemplates(prev => ({ ...prev, chat: val }))}
-                        placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) =>
-                          ['{{UserCode}}', '{{TabName}}', '{{Category}}', '{{Year}}', '{{Month}}'].includes(p.code)
-                        )}
+                        placeholders={SHAREPOINT_PLACEHOLDERS}
                         showPreview={true}
                         disabled={false}
                         defaultExpanded={true}
@@ -1839,9 +1829,7 @@ export function EntityTabsConfig({
                         label="File Name"
                         value={warehouseFileNameTemplates.chat ?? '{{OriginalFileName}}'}
                         onChange={(val) => setWarehouseFileNameTemplates(prev => ({ ...prev, chat: val }))}
-                        placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) =>
-                          ['{{OriginalFileName}}', '{{Date}}', '{{UploadedBy}}', '{{Sequence}}'].includes(p.code)
-                        )}
+                        placeholders={SHAREPOINT_PLACEHOLDERS}
                         showPreview={true}
                         disabled={false}
                         defaultExpanded={true}
@@ -1867,9 +1855,7 @@ export function EntityTabsConfig({
                         label="Folder Path"
                         value={warehouseTemplates.templates ?? '{{TabName}}'}
                         onChange={(val) => setWarehouseTemplates(prev => ({ ...prev, templates: val }))}
-                        placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) =>
-                          ['{{TabName}}', '{{Category}}'].includes(p.code)
-                        )}
+                        placeholders={SHAREPOINT_PLACEHOLDERS}
                         showPreview={true}
                         disabled={false}
                         defaultExpanded={true}
@@ -1882,9 +1868,7 @@ export function EntityTabsConfig({
                         label="File Name"
                         value={warehouseFileNameTemplates.templates ?? '{{OriginalFileName}}'}
                         onChange={(val) => setWarehouseFileNameTemplates(prev => ({ ...prev, templates: val }))}
-                        placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) =>
-                          ['{{OriginalFileName}}', '{{Date}}', '{{Category}}', '{{Sequence}}'].includes(p.code)
-                        )}
+                        placeholders={SHAREPOINT_PLACEHOLDERS}
                         showPreview={true}
                         disabled={false}
                         defaultExpanded={true}
@@ -1910,9 +1894,7 @@ export function EntityTabsConfig({
                         label="Folder Path"
                         value={warehouseTemplates.custom ?? '{{Category}}'}
                         onChange={(val) => setWarehouseTemplates(prev => ({ ...prev, custom: val }))}
-                        placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) =>
-                          ['{{Category}}', '{{Year}}', '{{Month}}', '{{TabName}}'].includes(p.code)
-                        )}
+                        placeholders={SHAREPOINT_PLACEHOLDERS}
                         showPreview={true}
                         disabled={false}
                         defaultExpanded={true}
@@ -1925,9 +1907,7 @@ export function EntityTabsConfig({
                         label="File Name"
                         value={warehouseFileNameTemplates.custom ?? '{{OriginalFileName}}'}
                         onChange={(val) => setWarehouseFileNameTemplates(prev => ({ ...prev, custom: val }))}
-                        placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) =>
-                          ['{{OriginalFileName}}', '{{Date}}', '{{Category}}', '{{Sequence}}'].includes(p.code)
-                        )}
+                        placeholders={SHAREPOINT_PLACEHOLDERS}
                         showPreview={true}
                         disabled={false}
                         defaultExpanded={true}
