@@ -6,14 +6,22 @@ module Api
       before_action :set_document, only: [ :show, :update, :destroy, :preview ]
 
       # GET /api/v1/documents/all
-      # Returns document counts only (fast) - actual documents fetched on demand
+      # Returns file counts for the entire warehouse (fast)
       # Used by the File Warehouse page
+      # SSoT: Counts ALL file types - documents, emails, attachments
       def all
-        # Just counts - no document serialization for speed
-        # These queries are fast with proper indexes
+        # Document counts (records with actual files)
         job_count = JobDocument.where.not(file_name: [nil, ""]).count
         corp_count = CorporateCompanyDocument.where.not(file_name: [nil, ""]).count
         people_count = PeopleDocument.where.not(title: [nil, ""]).count
+
+        # Email counts (EML files stored)
+        email_eml_count = EmailWarehouse.where.not(sharepoint_email_path: [nil, ""]).count
+
+        # Attachment counts (files stored)
+        attachment_count = EmailAttachment.where.not(sharepoint_path: [nil, ""]).count
+
+        total = job_count + corp_count + people_count + email_eml_count + attachment_count
 
         render json: {
           success: true,
@@ -26,7 +34,9 @@ module Api
             jobs: job_count,
             corporate: corp_count,
             people: people_count,
-            total: job_count + corp_count + people_count
+            emails: email_eml_count,
+            attachments: attachment_count,
+            total: total
           }
         }
       end

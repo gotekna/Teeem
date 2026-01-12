@@ -37,6 +37,8 @@ export interface GanttDataManagerConfig {
   jobId?: number;
   /** Show all PO required tasks including those without suppliers (template mode only) */
   showAllPOTasks?: boolean;
+  /** Show claim tasks (hidden by default in template mode) */
+  showClaims?: boolean;
 }
 
 export interface EditRowForm {
@@ -145,7 +147,7 @@ function extractLookupDisplay(value: unknown): string | undefined {
 // =============================================================================
 
 export function useGanttDataManager(config: GanttDataManagerConfig) {
-  const { mode, templateId, jobId, showAllPOTasks } = config;
+  const { mode, templateId, jobId, showAllPOTasks, showClaims } = config;
   const { toast } = useToast();
 
   // Check if we have a valid ID for the mode
@@ -153,8 +155,8 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
 
   // Get API config for this mode (only if we have a valid ID)
   const apiConfig = React.useMemo(
-    () => hasValidId ? getGanttApiConfig(mode, { templateId, jobId, showAllPOTasks }) : null,
-    [mode, templateId, jobId, showAllPOTasks, hasValidId]
+    () => hasValidId ? getGanttApiConfig(mode, { templateId, jobId, showAllPOTasks, showClaims }) : null,
+    [mode, templateId, jobId, showAllPOTasks, showClaims, hasValidId]
   );
 
   // ---------------------------------------------------------------------------

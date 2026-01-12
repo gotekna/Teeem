@@ -202,14 +202,32 @@ class DocumentMigrationService
 
       total_with_status = total_counts.values.sum - total_counts[:not_migrated]
 
+      # Email and attachment counts (stored but not migration-tracked)
+      email_eml_count = EmailWarehouse.where.not(sharepoint_email_path: [nil, ""]).count rescue 0
+      attachment_count = EmailAttachment.where.not(sharepoint_path: [nil, ""]).count rescue 0
+
+      # Add to provider breakdown
+      provider_breakdown['s3_compatible'] ||= 0
+      provider_breakdown['s3_compatible'] += email_eml_count + attachment_count
+
+      # Grand total including emails and attachments
+      grand_total = total_documents + email_eml_count + attachment_count
+
       {
         total_documents: total_documents,
+        grand_total: grand_total,
         migration_in_progress: total_counts[:in_progress] > 0 || total_counts[:pending] > 0,
         status_counts: total_counts,
         provider_breakdown: provider_breakdown,
         progress_percent: total_with_status > 0 ? ((total_counts[:completed].to_f / total_with_status) * 100).round(1) : 0,
         by_type: status_by_type,
-        recent_failures: all_failures.first(10)
+        recent_failures: all_failures.first(10),
+        # Additional file types (not migration-tracked)
+        additional_files: {
+          email_eml: email_eml_count,
+          email_attachments: attachment_count,
+          total: email_eml_count + attachment_count
+        }
       }
     end
 

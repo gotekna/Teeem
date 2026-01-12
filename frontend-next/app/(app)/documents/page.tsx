@@ -36,6 +36,8 @@ import {
   Check,
   Loader2,
   Warehouse,
+  Mail,
+  Paperclip,
 } from "lucide-react";
 import {
   Dialog,
@@ -89,6 +91,8 @@ interface AllDocumentsResponse {
     jobs: number;
     corporate: number;
     people: number;
+    emails: number;
+    attachments: number;
     total: number;
   };
 }
@@ -165,7 +169,7 @@ export default function AllDocumentsPage() {
     corporate: DocumentItem[];
     people: DocumentItem[];
   }>({ jobs: [], corporate: [], people: [] });
-  const [counts, setCounts] = useState({ jobs: 0, corporate: 0, people: 0, total: 0 });
+  const [counts, setCounts] = useState({ jobs: 0, corporate: 0, people: 0, emails: 0, attachments: 0, total: 0 });
   // Document preview popup state
   const [previewDocument, setPreviewDocument] = useState<DocumentItem | null>(null);
   // Click timer for single/double click differentiation
@@ -446,7 +450,33 @@ export default function AllDocumentsPage() {
       children: peopleFolders,
     };
 
-    return [jobsNode, corporateNode, peopleNode];
+    // Email EML category - stored email files
+    const emailsNode: TreeNode = {
+      id: "emails",
+      name: "Emails",
+      type: "category",
+      icon: <Mail className="h-4 w-4" />,
+      fileCount: counts.emails || 0,
+      children: [{
+        id: "emails-eml",
+        name: "EML Files",
+        type: "folder" as const,
+        fileCount: counts.emails || 0,
+        children: [],
+      }],
+    };
+
+    // Email Attachments category
+    const attachmentsNode: TreeNode = {
+      id: "attachments",
+      name: "Email Attachments",
+      type: "category",
+      icon: <Paperclip className="h-4 w-4" />,
+      fileCount: counts.attachments || 0,
+      children: [],
+    };
+
+    return [jobsNode, corporateNode, peopleNode, emailsNode, attachmentsNode];
   }, [filteredDocuments, entityFolders, scopeFolders, counts]);
 
   // Toggle folder expansion
