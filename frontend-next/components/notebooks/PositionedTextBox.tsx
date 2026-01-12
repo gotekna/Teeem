@@ -6,9 +6,14 @@ import { cn } from "@/lib/utils";
 import { GripVertical } from "lucide-react";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import Heading from "@tiptap/extension-heading";
+import Blockquote from "@tiptap/extension-blockquote";
 import Placeholder from "@tiptap/extension-placeholder";
 import Underline from "@tiptap/extension-underline";
 import { TextStyle } from "@tiptap/extension-text-style";
+import { Color } from "@tiptap/extension-color";
+import Highlight from "@tiptap/extension-highlight";
+import TextAlign from "@tiptap/extension-text-align";
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
 import TaskList from "@tiptap/extension-task-list";
@@ -52,14 +57,30 @@ export function PositionedTextBox({
   // Memoize extensions to prevent TipTap duplicate extension warnings
   const extensions = useMemo(() => [
     StarterKit.configure({
+      // Disable heading and blockquote from StarterKit - we add them explicitly below
+      // to ensure their commands are properly available for the Styles dropdown
       heading: false,
+      blockquote: false,
     }),
+    // Explicitly add Heading extension for Styles dropdown support
+    Heading.configure({
+      levels: [1, 2, 3],
+    }),
+    // Explicitly add Blockquote for Quote style
+    Blockquote,
     Placeholder.configure({
       placeholder: box.isMainContent ? "Start writing..." : "Type here...",
     }),
     Underline,
     TextStyle,
     createFontSizeExtension(),
+    Color,
+    Highlight.configure({
+      multicolor: true,
+    }),
+    TextAlign.configure({
+      types: ["heading", "paragraph"],
+    }),
     Link.configure({
       openOnClick: false,
       HTMLAttributes: {

@@ -13,6 +13,9 @@ import Image from "@tiptap/extension-image";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { TextStyle } from "@tiptap/extension-text-style";
+import { Color } from "@tiptap/extension-color";
+import Highlight from "@tiptap/extension-highlight";
+import TextAlign from "@tiptap/extension-text-align";
 import { Table } from "@tiptap/extension-table";
 import { TableRow } from "@tiptap/extension-table-row";
 import { TableCell } from "@tiptap/extension-table-cell";
@@ -31,10 +34,21 @@ import {
   Undo,
   Redo,
   ImageIcon,
-SpellCheck,
+  SpellCheck,
   Loader2,
   ListTodo,
   ChevronDown,
+  Table2,
+  Minus,
+  Pen,
+  Highlighter,
+  Eraser,
+  MousePointer2,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  Palette,
+  Type,
 } from "lucide-react";
 import {
   Popover,
@@ -291,6 +305,21 @@ function ToolbarButton({
   );
 }
 
+// Toolbar tab type
+type ToolbarTab = "home" | "insert" | "draw";
+
+// Ribbon group component - groups related tools with a label
+function RibbonGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col items-center px-3 border-r border-gray-200 dark:border-gray-700">
+      <div className="flex items-center gap-0.5 py-1.5">
+        {children}
+      </div>
+      <span className="text-[10px] text-muted-foreground/60 pb-1">{label}</span>
+    </div>
+  );
+}
+
 // Exported for external use (e.g., notebook editor header toolbar)
 export function EditorToolbar({
   editor,
@@ -301,6 +330,13 @@ export function EditorToolbar({
   onExternalRedo,
   canExternalUndo,
   canExternalRedo,
+  onDrawModeChange,
+  drawMode,
+  drawColor,
+  onDrawColorChange,
+  drawSize,
+  onDrawSizeChange,
+  rightContent,
 }: {
   editor: Editor | null;
   showWritingChecker?: boolean;
@@ -315,13 +351,29 @@ export function EditorToolbar({
   canExternalUndo?: boolean;
   /** Whether external redo is available */
   canExternalRedo?: boolean;
+  /** Called when draw mode changes */
+  onDrawModeChange?: (mode: "select" | "pen" | "highlighter" | "eraser" | null) => void;
+  /** Current draw mode */
+  drawMode?: "select" | "pen" | "highlighter" | "eraser" | null;
+  /** Current draw color */
+  drawColor?: string;
+  /** Called when draw color changes */
+  onDrawColorChange?: (color: string) => void;
+  /** Current draw size */
+  drawSize?: number;
+  /** Called when draw size changes */
+  onDrawSizeChange?: (size: number) => void;
+  /** Content to render on the right side of the tab bar */
+  rightContent?: React.ReactNode;
 }) {
+  const [activeTab, setActiveTab] = React.useState<ToolbarTab>("home");
   const [linkUrl, setLinkUrl] = React.useState("");
   const [linkOpen, setLinkOpen] = React.useState(false);
   const [fontSizeInput, setFontSizeInput] = React.useState("");
   const [fontSizeOpen, setFontSizeOpen] = React.useState(false);
+  const [selectedTextColor, setSelectedTextColor] = React.useState("#000000");
+  const [selectedHighlightColor, setSelectedHighlightColor] = React.useState("#fef08a");
   const imageInputRef = React.useRef<HTMLInputElement>(null);
-  const fontSizeInputRef = React.useRef<HTMLInputElement>(null);
   const { issues, isChecking } = useWritingCheckerState(editor);
 
   // Helper to get the target editor - uses last focused editor if available
@@ -351,8 +403,7 @@ export function EditorToolbar({
     if (!targetEditor?.view || targetEditor.isDestroyed) return "";
     try {
       const attrs = targetEditor.getAttributes("textStyle");
-      // Return explicit font size if set, otherwise return default (14px is the TipTap default)
-      return attrs.fontSize ? attrs.fontSize.replace("px", "") : "14";
+      return attrs.fontSize ? attrs.fontSize.replace("px", "") : "11";
     } catch {
       return "";
     }
@@ -370,41 +421,25 @@ export function EditorToolbar({
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!file.type.startsWith("image/")) return;
+    if (file.size > 5 * 1024 * 1024) return;
 
-    // Check file type
-    if (!file.type.startsWith("image/")) {
-      return;
-    }
-
-    // Check file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      return;
-    }
-
-    // Convert to base64 and insert
     const reader = new FileReader();
     reader.onload = () => {
       const base64 = reader.result as string;
       const targetEditor = getTargetEditor();
-
-      // If no editor is focused and we have external handler, use that
-      // This allows images to be inserted as positioned boxes in notebook canvas
       if ((!targetEditor || !targetEditor.isFocused) && onExternalImageUpload) {
         onExternalImageUpload(base64);
       } else {
-        // Insert into the focused editor
         targetEditor?.chain().focus().setImage({ src: base64 }).run();
       }
     };
     reader.readAsDataURL(file);
-
-    // Clear input so same file can be selected again
     e.target.value = "";
   };
 
   const handleSetLink = () => {
     if (linkUrl) {
-      // Add https:// if no protocol specified
       const url = linkUrl.match(/^https?:\/\//) ? linkUrl : `https://${linkUrl}`;
       getTargetEditor()?.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
     }
@@ -412,250 +447,78 @@ export function EditorToolbar({
     setLinkOpen(false);
   };
 
-  const handleRemoveLink = () => {
-    getTargetEditor()?.chain().focus().unsetLink().run();
+  const handleInsertTable = () => {
+    getTargetEditor()?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
   };
 
-  const fontSizes = ["8", "9", "10", "11", "12", "14", "16", "18", "20", "22", "24", "26", "28", "36", "48", "72"];
+  const fontSizes = ["8", "9", "10", "11", "12", "14", "16", "18", "20", "24", "28", "36", "48", "72"];
+  const drawColors = ["#000000", "#ef4444", "#f97316", "#eab308", "#22c55e", "#3b82f6", "#8b5cf6", "#ec4899"];
 
   return (
     <div
-      className={cn("flex items-center gap-0.5 p-1 flex-wrap", !transparent && "border-b bg-muted/30 rounded-t-md")}
+      className={cn("flex flex-col select-none", !transparent && "bg-muted/10")}
       onMouseDown={handleToolbarMouseDown}
     >
-      {/* Font Size - Editable input with dropdown */}
-      <Popover open={fontSizeOpen} onOpenChange={setFontSizeOpen}>
-        <div className={cn("flex items-center border rounded-sm bg-background", !isEditorReady && "opacity-50")}>
-          <input
-            ref={fontSizeInputRef}
-            type="text"
-            value={fontSizeInput || getCurrentFontSize()}
-            onChange={(e) => setFontSizeInput(e.target.value)}
-            disabled={!isEditorReady}
-            onFocus={(e) => {
-              e.target.select();
-              setFontSizeInput(getCurrentFontSize());
-            }}
-            onBlur={() => {
-              if (fontSizeInput) {
-                applyFontSize(fontSizeInput);
+      {/* Tab bar */}
+      <div className="flex items-center bg-muted/30">
+        {/* Undo/Redo - always visible on left */}
+        <div className="flex items-center gap-0.5 px-2">
+          <ToolbarButton
+            onClick={() => {
+              const targetEditor = getTargetEditor();
+              if (targetEditor?.isFocused && targetEditor.can().undo()) {
+                targetEditor.chain().focus().undo().run();
+              } else if (onExternalUndo) {
+                onExternalUndo();
               }
             }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                applyFontSize(fontSizeInput || getCurrentFontSize());
-                (e.target as HTMLInputElement).blur();
-              }
-              if (e.key === "Escape") {
-                setFontSizeInput("");
-                (e.target as HTMLInputElement).blur();
-              }
-            }}
-            className="w-8 h-6 text-center text-xs bg-transparent border-none outline-none focus:bg-muted/50"
-            placeholder="--"
-          />
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              disabled={!isEditorReady}
-              className="h-6 px-0.5 border-l hover:bg-muted/50 flex items-center justify-center disabled:opacity-50"
-              title="Font size presets"
-              onMouseDown={(e) => e.preventDefault()}
-            >
-              <ChevronDown className="h-3 w-3" />
-            </button>
-          </PopoverTrigger>
-        </div>
-        <PopoverContent className="w-16 p-1" align="start">
-          <div className="max-h-48 overflow-auto">
-            {fontSizes.map((size) => (
-              <button
-                key={size}
-                type="button"
-                onClick={() => applyFontSize(size)}
-                onMouseDown={(e) => e.preventDefault()}
-                className={cn(
-                  "w-full text-left px-2 py-1 text-sm rounded hover:bg-muted",
-                  getCurrentFontSize() === size && "bg-muted font-medium"
-                )}
-              >
-                {size}
-              </button>
-            ))}
-          </div>
-        </PopoverContent>
-      </Popover>
-
-      <div className="w-px h-5 bg-border mx-1" />
-
-      {/* Text formatting */}
-      <ToolbarButton
-        onClick={() => getTargetEditor()?.chain().focus().toggleBold().run()}
-        isActive={safeIsActive("bold")}
-        disabled={!isEditorReady}
-        title="Bold (Cmd+B)"
-      >
-        <Bold className="h-4 w-4" />
-      </ToolbarButton>
-      <ToolbarButton
-        onClick={() => getTargetEditor()?.chain().focus().toggleItalic().run()}
-        isActive={safeIsActive("italic")}
-        disabled={!isEditorReady}
-        title="Italic (Cmd+I)"
-      >
-        <Italic className="h-4 w-4" />
-      </ToolbarButton>
-      <ToolbarButton
-        onClick={() => getTargetEditor()?.chain().focus().toggleUnderline().run()}
-        isActive={safeIsActive("underline")}
-        disabled={!isEditorReady}
-        title="Underline (Cmd+U)"
-      >
-        <UnderlineIcon className="h-4 w-4" />
-      </ToolbarButton>
-      <ToolbarButton
-        onClick={() => getTargetEditor()?.chain().focus().toggleStrike().run()}
-        isActive={safeIsActive("strike")}
-        disabled={!isEditorReady}
-        title="Strikethrough"
-      >
-        <Strikethrough className="h-4 w-4" />
-      </ToolbarButton>
-
-      <div className="w-px h-5 bg-border mx-1" />
-
-      {/* Lists */}
-      <ToolbarButton
-        onClick={() => getTargetEditor()?.chain().focus().toggleBulletList().run()}
-        isActive={safeIsActive("bulletList")}
-        disabled={!isEditorReady}
-        title="Bullet list"
-      >
-        <List className="h-4 w-4" />
-      </ToolbarButton>
-      <ToolbarButton
-        onClick={() => getTargetEditor()?.chain().focus().toggleOrderedList().run()}
-        isActive={safeIsActive("orderedList")}
-        disabled={!isEditorReady}
-        title="Numbered list"
-      >
-        <ListOrdered className="h-4 w-4" />
-      </ToolbarButton>
-      <ToolbarButton
-        onClick={() => getTargetEditor()?.chain().focus().toggleTaskList().run()}
-        isActive={safeIsActive("taskList")}
-        disabled={!isEditorReady}
-        title="Checklist"
-      >
-        <ListTodo className="h-4 w-4" />
-      </ToolbarButton>
-
-      <div className="w-px h-5 bg-border mx-1" />
-
-      {/* Link */}
-      <Popover open={linkOpen} onOpenChange={setLinkOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            title="Add link"
-            disabled={!isEditorReady}
-            onMouseDown={(e) => e.preventDefault()}
-            className={cn(
-              "h-7 w-7 p-0",
-              safeIsActive("link") && "bg-muted text-foreground"
-            )}
+            disabled={!(isEditorReady && editor?.can().undo()) && !canExternalUndo}
+            title="Undo (Cmd+Z)"
           >
-            <LinkIcon className="h-4 w-4" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-72 p-2" align="start">
-          <div className="flex gap-2">
-            <Input
-              placeholder="https://example.com"
-              value={linkUrl}
-              onChange={(e) => setLinkUrl(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  handleSetLink();
-                }
-              }}
-              className="h-8 text-sm"
-            />
-            <Button size="sm" onClick={handleSetLink} onMouseDown={(e) => e.preventDefault()} className="h-8">
-              Add
-            </Button>
-          </div>
-        </PopoverContent>
-      </Popover>
-      {safeIsActive("link") && (
-        <ToolbarButton onClick={handleRemoveLink} title="Remove link">
-          <Unlink className="h-4 w-4" />
-        </ToolbarButton>
-      )}
+            <Undo className="h-4 w-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => {
+              const targetEditor = getTargetEditor();
+              if (targetEditor?.isFocused && targetEditor.can().redo()) {
+                targetEditor.chain().focus().redo().run();
+              } else if (onExternalRedo) {
+                onExternalRedo();
+              }
+            }}
+            disabled={!(isEditorReady && editor?.can().redo()) && !canExternalRedo}
+            title="Redo (Cmd+Shift+Z)"
+          >
+            <Redo className="h-4 w-4" />
+          </ToolbarButton>
+        </div>
 
-      <div className="w-px h-5 bg-border mx-1" />
+        {/* Tab buttons */}
+        <div className="flex items-center ml-2">
+          {(["home", "insert", "draw"] as ToolbarTab[]).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              onMouseDown={(e) => e.preventDefault()}
+              className={cn(
+                "px-4 py-1.5 text-xs font-medium capitalize transition-colors rounded-t-md",
+                activeTab === tab
+                  ? "text-foreground bg-background"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
 
-      {/* Image */}
-      <input
-        ref={imageInputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleImageUpload}
-        className="hidden"
-      />
-      <ToolbarButton
-        onClick={() => imageInputRef.current?.click()}
-        disabled={!isEditorReady}
-        title="Insert image"
-      >
-        <ImageIcon className="h-4 w-4" />
-      </ToolbarButton>
+        {/* Spacer */}
+        <div className="flex-1" />
 
-      <div className="w-px h-5 bg-border mx-1" />
-
-      {/* Undo/Redo */}
-      <ToolbarButton
-        onClick={() => {
-          const targetEditor = getTargetEditor();
-          // If editor is focused and can undo, use editor's undo
-          if (targetEditor?.isFocused && targetEditor.can().undo()) {
-            targetEditor.chain().focus().undo().run();
-          } else if (onExternalUndo) {
-            // Otherwise use external undo (for positioned boxes)
-            onExternalUndo();
-          }
-        }}
-        disabled={!(isEditorReady && editor?.can().undo()) && !canExternalUndo}
-        title="Undo (Cmd+Z)"
-      >
-        <Undo className="h-4 w-4" />
-      </ToolbarButton>
-      <ToolbarButton
-        onClick={() => {
-          const targetEditor = getTargetEditor();
-          // If editor is focused and can redo, use editor's redo
-          if (targetEditor?.isFocused && targetEditor.can().redo()) {
-            targetEditor.chain().focus().redo().run();
-          } else if (onExternalRedo) {
-            // Otherwise use external redo (for positioned boxes)
-            onExternalRedo();
-          }
-        }}
-        disabled={!(isEditorReady && editor?.can().redo()) && !canExternalRedo}
-        title="Redo (Cmd+Shift+Z)"
-      >
-        <Redo className="h-4 w-4" />
-      </ToolbarButton>
-
-      {/* Writing Checker Status */}
-      {showWritingChecker && (
-        <>
-          <div className="w-px h-5 bg-border mx-1" />
-          <div className="flex items-center gap-1 px-1">
+        {/* Writing checker status */}
+        {showWritingChecker && (
+          <div className="flex items-center gap-1 px-3">
             {isChecking ? (
               <div className="flex items-center gap-1 text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -664,17 +527,693 @@ export function EditorToolbar({
             ) : issues.length > 0 ? (
               <div className="flex items-center gap-1 text-yellow-600 dark:text-yellow-500">
                 <SpellCheck className="h-4 w-4" />
-                <span className="text-xs font-medium">{issues.length} {issues.length === 1 ? 'issue' : 'issues'}</span>
+                <span className="text-xs font-medium">{issues.length}</span>
               </div>
             ) : (
               <div className="flex items-center gap-1 text-green-600 dark:text-green-500">
                 <SpellCheck className="h-4 w-4" />
-                <span className="text-xs">Good</span>
               </div>
             )}
           </div>
-        </>
-      )}
+        )}
+
+        {/* Right side content (save status, attachments, etc.) */}
+        {rightContent && (
+          <div className="flex items-center gap-2 px-3">
+            {rightContent}
+          </div>
+        )}
+      </div>
+
+      {/* Ribbon content */}
+      <div className="flex items-stretch bg-background border-b border-border/40 min-h-[54px]">
+        {/* HOME TAB */}
+        {activeTab === "home" && (
+          <>
+            {/* Clipboard group */}
+            <RibbonGroup label="Clipboard">
+              <ToolbarButton
+                onClick={() => document.execCommand("paste")}
+                disabled={!isEditorReady}
+                title="Paste"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" />
+                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                </svg>
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => document.execCommand("copy")}
+                disabled={!isEditorReady}
+                title="Copy"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" />
+                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                </svg>
+              </ToolbarButton>
+            </RibbonGroup>
+
+            {/* Font group */}
+            <RibbonGroup label="Font">
+              {/* Font size dropdown */}
+              <Popover open={fontSizeOpen} onOpenChange={setFontSizeOpen}>
+                <div className={cn("flex items-center h-7", !isEditorReady && "opacity-50")}>
+                  <input
+                    type="text"
+                    value={fontSizeInput || getCurrentFontSize()}
+                    onChange={(e) => setFontSizeInput(e.target.value)}
+                    disabled={!isEditorReady}
+                    onFocus={(e) => {
+                      e.target.select();
+                      setFontSizeInput(getCurrentFontSize());
+                    }}
+                    onBlur={() => fontSizeInput && applyFontSize(fontSizeInput)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        applyFontSize(fontSizeInput || getCurrentFontSize());
+                        (e.target as HTMLInputElement).blur();
+                      }
+                    }}
+                    className="w-7 h-full text-center text-xs bg-transparent outline-none"
+                    placeholder="--"
+                  />
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      disabled={!isEditorReady}
+                      className="h-full px-0.5 hover:bg-muted/50 rounded"
+                      onMouseDown={(e) => e.preventDefault()}
+                    >
+                      <ChevronDown className="h-3 w-3" />
+                    </button>
+                  </PopoverTrigger>
+                </div>
+                <PopoverContent className="w-16 p-1" align="start">
+                  <div className="max-h-48 overflow-auto">
+                    {fontSizes.map((size) => (
+                      <button
+                        key={size}
+                        type="button"
+                        onClick={() => applyFontSize(size)}
+                        onMouseDown={(e) => e.preventDefault()}
+                        className={cn(
+                          "w-full text-left px-2 py-1 text-sm rounded hover:bg-muted",
+                          getCurrentFontSize() === size && "bg-muted font-medium"
+                        )}
+                      >
+                        {size}
+                      </button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              <ToolbarButton
+                onClick={() => getTargetEditor()?.chain().focus().toggleBold().run()}
+                isActive={safeIsActive("bold")}
+                disabled={!isEditorReady}
+                title="Bold (Cmd+B)"
+              >
+                <Bold className="h-4 w-4" />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => getTargetEditor()?.chain().focus().toggleItalic().run()}
+                isActive={safeIsActive("italic")}
+                disabled={!isEditorReady}
+                title="Italic (Cmd+I)"
+              >
+                <Italic className="h-4 w-4" />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => getTargetEditor()?.chain().focus().toggleUnderline().run()}
+                isActive={safeIsActive("underline")}
+                disabled={!isEditorReady}
+                title="Underline (Cmd+U)"
+              >
+                <UnderlineIcon className="h-4 w-4" />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => getTargetEditor()?.chain().focus().toggleStrike().run()}
+                isActive={safeIsActive("strike")}
+                disabled={!isEditorReady}
+                title="Strikethrough"
+              >
+                <Strikethrough className="h-4 w-4" />
+              </ToolbarButton>
+
+              {/* Text color */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Text color">
+                    <div className="flex flex-col items-center">
+                      <Type className="h-3.5 w-3.5" />
+                      <div className="w-4 h-0.5 mt-0.5 rounded-sm" style={{ backgroundColor: selectedTextColor }} />
+                    </div>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-3" align="start">
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground mb-2">Theme Colors</p>
+                    <div className="grid grid-cols-10 gap-1">
+                      {/* Row 1: Base colors */}
+                      {["#000000", "#424242", "#666666", "#808080", "#999999", "#b3b3b3", "#cccccc", "#e0e0e0", "#f0f0f0", "#ffffff"].map((color) => (
+                        <button
+                          key={color}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            getTargetEditor()?.chain().focus().setColor(color).run();
+                            setSelectedTextColor(color);
+                          }}
+                          className="w-5 h-5 rounded-sm border border-gray-300 dark:border-gray-600 hover:scale-110 transition-transform"
+                          style={{ backgroundColor: color }}
+                          title={color}
+                        />
+                      ))}
+                      {/* Row 2-6: Color spectrum with intensities */}
+                      {[
+                        ["#7f1d1d", "#991b1b", "#b91c1c", "#dc2626", "#ef4444", "#f87171", "#fca5a5", "#fecaca", "#fee2e2", "#fef2f2"], // Red
+                        ["#7c2d12", "#9a3412", "#c2410c", "#ea580c", "#f97316", "#fb923c", "#fdba74", "#fed7aa", "#ffedd5", "#fff7ed"], // Orange
+                        ["#713f12", "#854d0e", "#a16207", "#ca8a04", "#eab308", "#facc15", "#fde047", "#fef08a", "#fef9c3", "#fefce8"], // Yellow
+                        ["#14532d", "#166534", "#15803d", "#16a34a", "#22c55e", "#4ade80", "#86efac", "#bbf7d0", "#dcfce7", "#f0fdf4"], // Green
+                        ["#1e3a8a", "#1e40af", "#1d4ed8", "#2563eb", "#3b82f6", "#60a5fa", "#93c5fd", "#bfdbfe", "#dbeafe", "#eff6ff"], // Blue
+                        ["#4c1d95", "#5b21b6", "#6d28d9", "#7c3aed", "#8b5cf6", "#a78bfa", "#c4b5fd", "#ddd6fe", "#ede9fe", "#f5f3ff"], // Purple
+                        ["#831843", "#9d174d", "#be185d", "#db2777", "#ec4899", "#f472b6", "#f9a8d4", "#fbcfe8", "#fce7f3", "#fdf2f8"], // Pink
+                      ].map((row, rowIdx) => (
+                        row.map((color) => (
+                          <button
+                            key={color}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              getTargetEditor()?.chain().focus().setColor(color).run();
+                              setSelectedTextColor(color);
+                            }}
+                            className="w-5 h-5 rounded-sm border border-gray-300 dark:border-gray-600 hover:scale-110 transition-transform"
+                            style={{ backgroundColor: color }}
+                            title={color}
+                          />
+                        ))
+                      ))}
+                    </div>
+                    {/* Remove color option */}
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        getTargetEditor()?.chain().focus().unsetColor().run();
+                        setSelectedTextColor("#000000");
+                      }}
+                      className="w-full mt-2 px-2 py-1 text-xs text-muted-foreground hover:bg-muted rounded flex items-center gap-1"
+                    >
+                      <span className="w-4 h-4 rounded-sm border bg-[repeating-conic-gradient(#ccc_0_25%,#fff_0_50%)] bg-[length:6px_6px]" />
+                      Remove color
+                    </button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              {/* Highlight color */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Highlight color">
+                    <div className="flex flex-col items-center">
+                      <Palette className="h-3.5 w-3.5" />
+                      <div className="w-4 h-0.5 mt-0.5 rounded-sm" style={{ backgroundColor: selectedHighlightColor }} />
+                    </div>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-3" align="start">
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground mb-2">Highlight Colors</p>
+                    <div className="grid grid-cols-6 gap-1">
+                      {/* Light highlights (15% opacity feel) */}
+                      {["#fef2f2", "#fff7ed", "#fefce8", "#f0fdf4", "#eff6ff", "#f5f3ff"].map((color) => (
+                        <button
+                          key={`light-${color}`}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            getTargetEditor()?.chain().focus().toggleHighlight({ color }).run();
+                            setSelectedHighlightColor(color);
+                          }}
+                          className="w-6 h-6 rounded-sm border border-gray-300 dark:border-gray-600 hover:scale-110 transition-transform"
+                          style={{ backgroundColor: color }}
+                          title="Light"
+                        />
+                      ))}
+                      {/* Medium-light highlights (30% opacity feel) */}
+                      {["#fee2e2", "#ffedd5", "#fef9c3", "#dcfce7", "#dbeafe", "#ede9fe"].map((color) => (
+                        <button
+                          key={`medlight-${color}`}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            getTargetEditor()?.chain().focus().toggleHighlight({ color }).run();
+                            setSelectedHighlightColor(color);
+                          }}
+                          className="w-6 h-6 rounded-sm border border-gray-300 dark:border-gray-600 hover:scale-110 transition-transform"
+                          style={{ backgroundColor: color }}
+                          title="Medium Light"
+                        />
+                      ))}
+                      {/* Medium highlights (50% opacity feel) */}
+                      {["#fecaca", "#fed7aa", "#fef08a", "#bbf7d0", "#bfdbfe", "#ddd6fe"].map((color) => (
+                        <button
+                          key={`med-${color}`}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            getTargetEditor()?.chain().focus().toggleHighlight({ color }).run();
+                            setSelectedHighlightColor(color);
+                          }}
+                          className="w-6 h-6 rounded-sm border border-gray-300 dark:border-gray-600 hover:scale-110 transition-transform"
+                          style={{ backgroundColor: color }}
+                          title="Medium"
+                        />
+                      ))}
+                      {/* Strong highlights (70% opacity feel) */}
+                      {["#fca5a5", "#fdba74", "#fde047", "#86efac", "#93c5fd", "#c4b5fd"].map((color) => (
+                        <button
+                          key={`strong-${color}`}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            getTargetEditor()?.chain().focus().toggleHighlight({ color }).run();
+                            setSelectedHighlightColor(color);
+                          }}
+                          className="w-6 h-6 rounded-sm border border-gray-300 dark:border-gray-600 hover:scale-110 transition-transform"
+                          style={{ backgroundColor: color }}
+                          title="Strong"
+                        />
+                      ))}
+                      {/* Vivid highlights (full saturation) */}
+                      {["#f87171", "#fb923c", "#facc15", "#4ade80", "#60a5fa", "#a78bfa"].map((color) => (
+                        <button
+                          key={`vivid-${color}`}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            getTargetEditor()?.chain().focus().toggleHighlight({ color }).run();
+                            setSelectedHighlightColor(color);
+                          }}
+                          className="w-6 h-6 rounded-sm border border-gray-300 dark:border-gray-600 hover:scale-110 transition-transform"
+                          style={{ backgroundColor: color }}
+                          title="Vivid"
+                        />
+                      ))}
+                    </div>
+                    {/* Additional colors: pink, gray, cyan */}
+                    <div className="grid grid-cols-6 gap-1 pt-1 border-t border-gray-200 dark:border-gray-700">
+                      {["#fce7f3", "#fbcfe8", "#f9a8d4", "#f472b6", "#e5e5e5", "#d4d4d4"].map((color) => (
+                        <button
+                          key={`extra-${color}`}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            getTargetEditor()?.chain().focus().toggleHighlight({ color }).run();
+                            setSelectedHighlightColor(color);
+                          }}
+                          className="w-6 h-6 rounded-sm border border-gray-300 dark:border-gray-600 hover:scale-110 transition-transform"
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
+                    {/* Remove highlight option */}
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        getTargetEditor()?.chain().focus().unsetHighlight().run();
+                        setSelectedHighlightColor("#fef08a");
+                      }}
+                      className="w-full mt-1 px-2 py-1 text-xs text-muted-foreground hover:bg-muted rounded flex items-center gap-1"
+                    >
+                      <span className="w-4 h-4 rounded-sm border bg-[repeating-conic-gradient(#ccc_0_25%,#fff_0_50%)] bg-[length:6px_6px]" />
+                      Remove highlight
+                    </button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </RibbonGroup>
+
+            {/* Paragraph group */}
+            <RibbonGroup label="Paragraph">
+              <ToolbarButton
+                onClick={() => getTargetEditor()?.chain().focus().toggleBulletList().run()}
+                isActive={safeIsActive("bulletList")}
+                disabled={!isEditorReady}
+                title="Bullet list"
+              >
+                <List className="h-4 w-4" />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => getTargetEditor()?.chain().focus().toggleOrderedList().run()}
+                isActive={safeIsActive("orderedList")}
+                disabled={!isEditorReady}
+                title="Numbered list"
+              >
+                <ListOrdered className="h-4 w-4" />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => getTargetEditor()?.chain().focus().toggleTaskList().run()}
+                isActive={safeIsActive("taskList")}
+                disabled={!isEditorReady}
+                title="Checklist"
+              >
+                <ListTodo className="h-4 w-4" />
+              </ToolbarButton>
+
+              <ToolbarButton
+                onClick={() => getTargetEditor()?.chain().focus().setTextAlign("left").run()}
+                isActive={getTargetEditor()?.isActive({ textAlign: "left" })}
+                disabled={!isEditorReady}
+                title="Align left"
+              >
+                <AlignLeft className="h-4 w-4" />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => getTargetEditor()?.chain().focus().setTextAlign("center").run()}
+                isActive={getTargetEditor()?.isActive({ textAlign: "center" })}
+                disabled={!isEditorReady}
+                title="Center"
+              >
+                <AlignCenter className="h-4 w-4" />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => getTargetEditor()?.chain().focus().setTextAlign("right").run()}
+                isActive={getTargetEditor()?.isActive({ textAlign: "right" })}
+                disabled={!isEditorReady}
+                title="Align right"
+              >
+                <AlignRight className="h-4 w-4" />
+              </ToolbarButton>
+            </RibbonGroup>
+
+            {/* Styles group */}
+            <RibbonGroup label="Styles">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs gap-1">
+                    Styles
+                    <ChevronDown className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  onCloseAutoFocus={(e) => e.preventDefault()}
+                >
+                  <DropdownMenuItem
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      const targetEditor = getTargetEditor();
+                      if (targetEditor && !targetEditor.isDestroyed) {
+                        targetEditor.chain().focus().setParagraph().run();
+                      }
+                    }}
+                  >
+                    Normal
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="font-bold text-2xl"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      const targetEditor = getTargetEditor();
+                      if (targetEditor && !targetEditor.isDestroyed) {
+                        targetEditor.chain().focus().toggleHeading({ level: 1 }).run();
+                      }
+                    }}
+                  >
+                    Heading 1
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="font-semibold text-xl"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      const targetEditor = getTargetEditor();
+                      if (targetEditor && !targetEditor.isDestroyed) {
+                        targetEditor.chain().focus().toggleHeading({ level: 2 }).run();
+                      }
+                    }}
+                  >
+                    Heading 2
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="font-medium text-lg"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      const targetEditor = getTargetEditor();
+                      if (targetEditor && !targetEditor.isDestroyed) {
+                        targetEditor.chain().focus().toggleHeading({ level: 3 }).run();
+                      }
+                    }}
+                  >
+                    Heading 3
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="italic border-l-2 border-muted-foreground pl-2"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      const targetEditor = getTargetEditor();
+                      if (targetEditor && !targetEditor.isDestroyed && targetEditor.can().toggleBlockquote()) {
+                        targetEditor.chain().focus().toggleBlockquote().run();
+                      }
+                    }}
+                  >
+                    Quote
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </RibbonGroup>
+          </>
+        )}
+
+        {/* INSERT TAB */}
+        {activeTab === "insert" && (
+          <>
+            {/* Tables group */}
+            <RibbonGroup label="Tables">
+              <ToolbarButton
+                onClick={handleInsertTable}
+                disabled={!isEditorReady}
+                title="Insert table"
+              >
+                <Table2 className="h-4 w-4" />
+              </ToolbarButton>
+            </RibbonGroup>
+
+            {/* Media group */}
+            <RibbonGroup label="Media">
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                className="hidden"
+              />
+              <ToolbarButton
+                onClick={() => imageInputRef.current?.click()}
+                disabled={!isEditorReady && !onExternalImageUpload}
+                title="Insert image"
+              >
+                <ImageIcon className="h-4 w-4" />
+              </ToolbarButton>
+            </RibbonGroup>
+
+            {/* Links group */}
+            <RibbonGroup label="Links">
+              <Popover open={linkOpen} onOpenChange={setLinkOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    title="Add link"
+                    disabled={!isEditorReady}
+                    onMouseDown={(e) => e.preventDefault()}
+                    className={cn("h-7 w-7 p-0", safeIsActive("link") && "bg-muted")}
+                  >
+                    <LinkIcon className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-72 p-2" align="start">
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="https://example.com"
+                      value={linkUrl}
+                      onChange={(e) => setLinkUrl(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleSetLink())}
+                      className="h-8 text-sm"
+                    />
+                    <Button size="sm" onClick={handleSetLink} className="h-8">Add</Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+              {safeIsActive("link") && (
+                <ToolbarButton onClick={() => getTargetEditor()?.chain().focus().unsetLink().run()} title="Remove link">
+                  <Unlink className="h-4 w-4" />
+                </ToolbarButton>
+              )}
+            </RibbonGroup>
+
+            {/* Other inserts */}
+            <RibbonGroup label="Other">
+              <ToolbarButton
+                onClick={() => getTargetEditor()?.chain().focus().setHorizontalRule().run()}
+                disabled={!isEditorReady}
+                title="Horizontal line"
+              >
+                <Minus className="h-4 w-4" />
+              </ToolbarButton>
+            </RibbonGroup>
+          </>
+        )}
+
+        {/* DRAW TAB */}
+        {activeTab === "draw" && (
+          <>
+            {/* Tools group */}
+            <RibbonGroup label="Tools">
+              <ToolbarButton
+                onClick={() => onDrawModeChange?.(drawMode === "select" ? null : "select")}
+                isActive={drawMode === "select"}
+                title="Select"
+              >
+                <MousePointer2 className="h-4 w-4" />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => onDrawModeChange?.(drawMode === "pen" ? null : "pen")}
+                isActive={drawMode === "pen"}
+                title="Pen"
+              >
+                <Pen className="h-4 w-4" />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => onDrawModeChange?.(drawMode === "highlighter" ? null : "highlighter")}
+                isActive={drawMode === "highlighter"}
+                title="Highlighter"
+              >
+                <Highlighter className="h-4 w-4" />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => onDrawModeChange?.(drawMode === "eraser" ? null : "eraser")}
+                isActive={drawMode === "eraser"}
+                title="Eraser"
+              >
+                <Eraser className="h-4 w-4" />
+              </ToolbarButton>
+            </RibbonGroup>
+
+            {/* Pens group - preset pen styles */}
+            <RibbonGroup label="Pens">
+              {[
+                { color: "#000000", size: 2 },
+                { color: "#ef4444", size: 2 },
+                { color: "#3b82f6", size: 2 },
+                { color: "#22c55e", size: 4 },
+                { color: "#eab308", size: 8, opacity: 0.4 },
+              ].map((pen, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => {
+                    onDrawColorChange?.(pen.color);
+                    onDrawSizeChange?.(pen.size);
+                    onDrawModeChange?.("pen");
+                  }}
+                  onMouseDown={(e) => e.preventDefault()}
+                  className={cn(
+                    "w-7 h-7 rounded-sm border flex items-center justify-center hover:bg-muted/50",
+                    drawMode === "pen" && drawColor === pen.color && "ring-2 ring-primary"
+                  )}
+                  title={`Pen ${i + 1}`}
+                >
+                  <div
+                    className="rounded-full"
+                    style={{
+                      width: Math.min(pen.size * 2, 12),
+                      height: Math.min(pen.size * 2, 12),
+                      backgroundColor: pen.color,
+                      opacity: pen.opacity || 1,
+                    }}
+                  />
+                </button>
+              ))}
+            </RibbonGroup>
+
+            {/* Color & Size */}
+            <RibbonGroup label="Color">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="h-7 w-7 rounded-sm border flex items-center justify-center hover:bg-muted/50"
+                    title="Draw color"
+                    onMouseDown={(e) => e.preventDefault()}
+                  >
+                    <div
+                      className="w-4 h-4 rounded-sm border"
+                      style={{ backgroundColor: drawColor || "#000000" }}
+                    />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-2" align="start">
+                  <div className="grid grid-cols-8 gap-1">
+                    {drawColors.map((color) => (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => onDrawColorChange?.(color)}
+                        onMouseDown={(e) => e.preventDefault()}
+                        className={cn(
+                          "w-5 h-5 rounded-sm border hover:scale-110 transition-transform",
+                          drawColor === color && "ring-2 ring-primary"
+                        )}
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="h-7 px-2 rounded-sm border flex items-center gap-1 hover:bg-muted/50 text-xs"
+                    title="Stroke size"
+                    onMouseDown={(e) => e.preventDefault()}
+                  >
+                    {drawSize || 2}px
+                    <ChevronDown className="h-3 w-3" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-2" align="start">
+                  <div className="flex flex-col gap-1">
+                    {[1, 2, 4, 6, 8, 12].map((size) => (
+                      <button
+                        key={size}
+                        type="button"
+                        onClick={() => onDrawSizeChange?.(size)}
+                        onMouseDown={(e) => e.preventDefault()}
+                        className={cn(
+                          "flex items-center gap-2 px-2 py-1 rounded hover:bg-muted text-sm",
+                          drawSize === size && "bg-muted"
+                        )}
+                      >
+                        <div className="w-4 flex justify-center">
+                          <div className="rounded-full bg-foreground" style={{ width: size, height: size }} />
+                        </div>
+                        {size}px
+                      </button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </RibbonGroup>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -698,8 +1237,10 @@ export function RichTextEditor({
 () => {
       const baseExtensions = [
         StarterKit.configure({
-          // Disable heading since we don't need it for emails
-          heading: false,
+          // Enable headings for Styles dropdown
+          heading: {
+            levels: [1, 2, 3],
+          },
         }),
         Placeholder.configure({
           placeholder: onSlashCommand
@@ -713,6 +1254,13 @@ export function RichTextEditor({
         Underline,
         TextStyle,
         FontSize,
+        Color,
+        Highlight.configure({
+          multicolor: true,
+        }),
+        TextAlign.configure({
+          types: ["heading", "paragraph"],
+        }),
         Link.configure({
           openOnClick: false,
           HTMLAttributes: {
