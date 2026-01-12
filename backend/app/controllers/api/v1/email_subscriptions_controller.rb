@@ -4,7 +4,8 @@ module Api
   module V1
     class EmailSubscriptionsController < ApplicationController
       before_action :set_subscription, only: [:show, :update, :add_mailbox, :remove_mailbox,
-                                               :start_migration, :cancel, :send_invite]
+                                               :start_migration, :cancel, :send_invite,
+                                               :add_alias, :remove_alias]
 
       # GET /api/v1/email_subscriptions
       # List all email subscriptions (admin)
@@ -187,6 +188,44 @@ module Api
         }
       end
 
+      # POST /api/v1/email_subscriptions/:id/add_alias
+      # Add an email alias
+      def add_alias
+        alias_address = params[:alias_address]&.strip
+        target_address = params[:target_address]&.strip
+
+        # If target is just username, append domain
+        target_address = "#{target_address}@#{@subscription.domain}" unless target_address&.include?("@")
+
+        email_alias = @subscription.email_aliases.build(
+          alias_address: alias_address,
+          target_address: target_address
+        )
+
+        if email_alias.save
+          render json: {
+            success: true,
+            data: alias_json(email_alias)
+          }, status: :created
+        else
+          render json: {
+            success: false,
+            error: email_alias.errors.full_messages.join(", ")
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # DELETE /api/v1/email_subscriptions/:id/remove_alias/:alias_id
+      # Remove an email alias
+      def remove_alias
+        email_alias = @subscription.email_aliases.find(params[:alias_id])
+        email_alias.destroy!
+
+        render json: { success: true }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Alias not found" }, status: :not_found
+      end
+
       # POST /api/v1/email_subscriptions/:id/send_invite
       # Send migration invite to client
       def send_invite
@@ -340,6 +379,7 @@ module Api
           stripe_subscription_id: sub.stripe_subscription_id,
           polaris_account_id: sub.polaris_account_id,
           mailboxes: sub.email_mailboxes.map { |m| mailbox_json(m) },
+          aliases: sub.email_aliases.active.map { |a| alias_json(a) },
           migrations: sub.email_migrations.recent.limit(10).map { |m| migration_json(m) },
           invites: sub.email_migration_invites.recent.limit(5).map { |i| invite_json(i) },
           invoices: sub.email_subscription_invoices.recent.limit(10).map { |i| invoice_json(i) }
@@ -398,6 +438,18 @@ module Api
           margin: inv.margin_amount.to_f,
           status: inv.status,
           stripe_invoice_id: inv.stripe_invoice_id
+        }
+      end
+
+      def alias_json(email_alias)
+        {
+          id: email_alias.id,
+          alias_address: email_alias.alias_address,
+          full_alias: email_alias.full_alias_address,
+          target_address: email_alias.target_address,
+          alias_type: email_alias.alias_type,
+          is_active: email_alias.is_active,
+          created_at: email_alias.created_at
         }
       end
     end

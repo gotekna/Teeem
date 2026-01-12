@@ -502,6 +502,20 @@ module Api
         else false
         end
 
+        # Count synced files and last sync based on actual provider
+        synced_files_count, last_sync_time = case actual_provider_type
+        when "wasabi", "s3"
+          # Documents on S3/Wasabi storage
+          s3_docs = documents.where(storage_provider: [ "s3", "wasabi" ])
+          [ s3_docs.count, s3_docs.maximum(:last_modified_at) || s3_credential&.updated_at ]
+        when "sharepoint"
+          # Documents synced from SharePoint/OneDrive
+          sp_docs = documents.where(storage_provider: "sharepoint")
+          [ sp_docs.count, sp_docs.maximum(:last_modified_at) || ms_credential&.last_sync_at ]
+        else
+          [ 0, nil ]
+        end
+
         storage_stats = {
           provider_type: actual_provider_type,
           provider_name: storage_provider_display_name_for(actual_provider_type),
@@ -510,8 +524,8 @@ module Api
           # Provider-agnostic connection info
           connection_info: storage_connection_info_for(actual_provider_type, s3_credential, ms_credential, storage_config),
           root_path: storage_config&.root_path || "/Shared Documents",
-          total_synced: documents.where(source: "onedrive").count,
-          last_sync: documents.where(source: "onedrive").maximum(:last_modified_at)
+          total_synced: synced_files_count,
+          last_sync: last_sync_time
         }
 
         # Xero stats - SSoT: Filter connections by XeroConnectionHealth

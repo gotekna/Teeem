@@ -100,6 +100,16 @@ interface Invoice {
   stripe_invoice_id: string | null;
 }
 
+interface EmailAlias {
+  id: number;
+  alias_address: string;
+  full_alias: string;
+  target_address: string;
+  alias_type: string;
+  is_active: boolean;
+  created_at: string;
+}
+
 interface SubscriptionDetail {
   id: number;
   contact_id: number;
@@ -118,6 +128,7 @@ interface SubscriptionDetail {
   current_period_end: string | null;
   created_at: string;
   mailboxes: Mailbox[];
+  aliases: EmailAlias[];
   migrations: Migration[];
   invites: Invite[];
   invoices: Invoice[];
@@ -140,6 +151,13 @@ export default function SubscriptionDetailPage({ params }: { params: Promise<{ i
     display_name: "",
     type: "user",
     source_email: "",
+  });
+
+  // Add alias dialog state
+  const [showAddAlias, setShowAddAlias] = useState(false);
+  const [newAlias, setNewAlias] = useState({
+    alias_address: "",
+    target_address: "",
   });
 
   const loadData = useCallback(async () => {
@@ -223,6 +241,57 @@ export default function SubscriptionDetailPage({ params }: { params: Promise<{ i
       }
     } catch (err) {
       toast({ title: "Error", description: "Failed to add mailbox", variant: "destructive" });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleAddAlias = async () => {
+    if (!newAlias.alias_address || !newAlias.target_address) {
+      toast({ title: "Error", description: "Both alias and target address are required", variant: "destructive" });
+      return;
+    }
+
+    setActionLoading("add_alias");
+    try {
+      const res = await api.post<{ success: boolean; error?: string; data?: EmailAlias }>(
+        `/api/v1/email_subscriptions/${id}/add_alias`,
+        {
+          alias_address: newAlias.alias_address,
+          target_address: newAlias.target_address,
+        }
+      );
+
+      if (res?.success) {
+        toast({ title: "Success", description: "Alias added successfully" });
+        setShowAddAlias(false);
+        setNewAlias({ alias_address: "", target_address: "" });
+        loadData();
+      } else {
+        toast({ title: "Error", description: res?.error || "Failed to add alias", variant: "destructive" });
+      }
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to add alias", variant: "destructive" });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRemoveAlias = async (aliasId: number) => {
+    setActionLoading(`remove_alias_${aliasId}`);
+    try {
+      const res = await api.delete<{ success: boolean; error?: string }>(
+        `/api/v1/email_subscriptions/${id}/remove_alias/${aliasId}`
+      );
+
+      if (res?.success) {
+        toast({ title: "Success", description: "Alias removed" });
+        loadData();
+      } else {
+        toast({ title: "Error", description: res?.error || "Failed to remove alias", variant: "destructive" });
+      }
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to remove alias", variant: "destructive" });
     } finally {
       setActionLoading(null);
     }
@@ -469,6 +538,119 @@ export default function SubscriptionDetailPage({ params }: { params: Promise<{ i
                       </TableCell>
                       <TableCell>
                         {mb.storage_used_gb ? `${mb.storage_used_gb}GB / ` : ""}{mb.storage_quota_gb}GB
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        {/* Aliases */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Email Aliases</CardTitle>
+              <CardDescription>Forward emails to existing mailboxes. Use * for catch-all.</CardDescription>
+            </div>
+            <Dialog open={showAddAlias} onOpenChange={setShowAddAlias}>
+              <DialogTrigger asChild>
+                <Button size="sm">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Alias
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add Email Alias</DialogTitle>
+                  <DialogDescription>
+                    Create an alias to forward emails. Use * for catch-all (receives all unmatched emails).
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label>Alias Address</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        placeholder="info, sales, or * for catch-all"
+                        value={newAlias.alias_address}
+                        onChange={(e) => setNewAlias({ ...newAlias, alias_address: e.target.value })}
+                        className="flex-1"
+                      />
+                      <span className="text-muted-foreground">@{subscription.domain}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Enter * to create a catch-all that receives all emails not matched by other addresses.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Forward To</Label>
+                    <Select
+                      value={newAlias.target_address}
+                      onValueChange={(v) => setNewAlias({ ...newAlias, target_address: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a mailbox" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {subscription.mailboxes.map((mb) => (
+                          <SelectItem key={mb.id} value={mb.email_address}>
+                            {mb.email_address} {mb.display_name ? `(${mb.display_name})` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowAddAlias(false)}>Cancel</Button>
+                  <Button onClick={handleAddAlias} disabled={actionLoading === "add_alias"}>
+                    Add Alias
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Alias</TableHead>
+                  <TableHead>Forwards To</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(!subscription.aliases || subscription.aliases.length === 0) ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                      No aliases yet. Click "Add Alias" to add one, or use * for catch-all.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  subscription.aliases.map((alias) => (
+                    <TableRow key={alias.id}>
+                      <TableCell className="font-medium">
+                        {alias.full_alias}
+                        {alias.alias_type === "catchall" && (
+                          <Badge variant="secondary" className="ml-2">Catch-All</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>{alias.target_address}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{alias.alias_type}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveAlias(alias.id)}
+                          disabled={actionLoading === `remove_alias_${alias.id}`}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))

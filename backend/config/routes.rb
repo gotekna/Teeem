@@ -2267,6 +2267,8 @@ Rails.application.routes.draw do
         member do
           post :add_mailbox
           delete "remove_mailbox/:mailbox_id", action: :remove_mailbox
+          post :add_alias
+          delete "remove_alias/:alias_id", action: :remove_alias
           post :start_migration
           post :cancel
           post :send_invite
