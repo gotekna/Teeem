@@ -214,7 +214,7 @@ useEffect(() => {
 
 // ✅ FAST - Load when cell edit starts
 const handleCellEdit = (row, column) => {
-  if (column.type === 'lookup' && !companiesLoaded) {
+  if (column.column_type === 'lookup' && !companiesLoaded) {
     fetchCompanies()
   }
 }
