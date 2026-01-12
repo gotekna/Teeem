@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_12_163748) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_12_220000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -440,6 +440,30 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_163748) do
     t.index ["content_hash"], name: "index_attachments_on_content_hash", unique: true
     t.index ["organization_microsoft_app_credential_id"], name: "index_attachments_on_org_cred_id"
     t.index ["sharepoint_file_id"], name: "index_attachments_on_sharepoint_file_id"
+  end
+
+  create_table "background_job_progress", force: :cascade do |t|
+    t.string "job_type", null: false
+    t.string "job_id", null: false
+    t.string "scope"
+    t.string "status", default: "pending"
+    t.integer "total_items", default: 0
+    t.integer "processed_items", default: 0
+    t.integer "success_count", default: 0
+    t.integer "error_count", default: 0
+    t.string "current_item"
+    t.text "message"
+    t.jsonb "errors", default: []
+    t.jsonb "metadata", default: {}
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_background_job_progress_on_created_at"
+    t.index ["job_id"], name: "index_background_job_progress_on_job_id", unique: true
+    t.index ["job_type", "status"], name: "index_background_job_progress_on_job_type_and_status"
+    t.index ["job_type"], name: "index_background_job_progress_on_job_type"
+    t.index ["status"], name: "index_background_job_progress_on_status"
   end
 
   create_table "balance_sheet_reports", force: :cascade do |t|

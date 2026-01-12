@@ -26,6 +26,8 @@
 #   progress.fail!(message: "Connection lost")
 #
 class BackgroundJobProgress < ApplicationRecord
+  self.table_name = "background_job_progress"
+
   # Status constants
   STATUSES = %w[pending running completed failed].freeze
 

@@ -403,6 +403,25 @@ export default function AllDocumentsPage() {
   const [subscriptions, setSubscriptions] = useState<SyncSubscription[]>([]);
   const [userOverrides, setUserOverrides] = useState<Record<string, boolean>>({});
 
+  // Background job progress state
+  const [activeJob, setActiveJob] = useState<{
+    job_type: string;
+    scope: string | null;
+    status: string;
+    total_items: number;
+    processed_items: number;
+    progress_percent: number;
+    current_item: string | null;
+    message: string | null;
+    elapsed_time: string | null;
+    estimated_remaining: number | null;
+    metadata?: {
+      old_template?: string;
+      new_template?: string;
+      dry_run?: boolean;
+    };
+  } | null>(null);
+
   // SSoT: Fetch storage config from StorageConfiguration (scope folders, templates, root path)
   useEffect(() => {
     const fetchStorageConfig = async () => {
@@ -480,6 +499,41 @@ export default function AllDocumentsPage() {
   useEffect(() => {
     fetchDocuments();
   }, [fetchDocuments]);
+
+  // Poll for active background jobs (folder reorganization)
+  useEffect(() => {
+    const pollJobProgress = async () => {
+      try {
+        const response = await api.get<{
+          success: boolean;
+          active: boolean;
+          data: typeof activeJob;
+        }>("/api/v1/background_jobs/progress/folder_reorganization");
+
+        if (response?.success && response.active && response.data) {
+          setActiveJob(response.data);
+        } else {
+          // If job just completed, refresh documents
+          if (activeJob && !response?.active) {
+            fetchDocuments();
+          }
+          setActiveJob(null);
+        }
+      } catch (err) {
+        // Silent fail - job tracking is optional
+        console.debug("Failed to fetch job progress:", err);
+      }
+    };
+
+    // Poll immediately on mount
+    pollJobProgress();
+
+    // Poll every 2 seconds while active, every 10 seconds otherwise
+    const intervalMs = activeJob ? 2000 : 10000;
+    const interval = setInterval(pollJobProgress, intervalMs);
+
+    return () => clearInterval(interval);
+  }, [activeJob, fetchDocuments]);
 
   // Fetch sync settings when modal opens
   // Note: These endpoints require desktop client auth (not web auth)
@@ -991,6 +1045,52 @@ export default function AllDocumentsPage() {
           </div>
         </div>
       </div>
+
+      {/* Background Job Progress Banner */}
+      {activeJob && (
+        <div className="px-4 py-3 bg-blue-50 dark:bg-blue-950/30 border-b shrink-0">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="font-medium text-sm">
+                {activeJob.metadata?.dry_run ? "Previewing" : "Reorganizing"} {activeJob.scope || "files"}...
+              </span>
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-3">
+                {/* Progress bar */}
+                <div className="flex-1 h-2 bg-blue-100 dark:bg-blue-900/50 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-500 dark:bg-blue-400 transition-all duration-300"
+                    style={{ width: `${activeJob.progress_percent}%` }}
+                  />
+                </div>
+                {/* Progress text */}
+                <span className="text-sm text-blue-600 dark:text-blue-400 tabular-nums min-w-[4rem]">
+                  {activeJob.progress_percent}%
+                </span>
+              </div>
+              {/* Details row */}
+              <div className="flex items-center gap-4 mt-1 text-xs text-blue-500 dark:text-blue-400/80">
+                <span>
+                  {activeJob.processed_items.toLocaleString()} / {activeJob.total_items.toLocaleString()} files
+                </span>
+                {activeJob.elapsed_time && (
+                  <span>Elapsed: {activeJob.elapsed_time}</span>
+                )}
+                {activeJob.estimated_remaining && activeJob.estimated_remaining > 0 && (
+                  <span>~{Math.ceil(activeJob.estimated_remaining / 60)}m remaining</span>
+                )}
+                {activeJob.current_item && (
+                  <span className="truncate max-w-[300px]" title={activeJob.current_item}>
+                    {activeJob.current_item}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-auto px-4 py-4">

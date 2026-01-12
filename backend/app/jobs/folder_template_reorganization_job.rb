@@ -38,39 +38,35 @@ class FolderTemplateReorganizationJob < ApplicationJob
       return { success: true, skipped: true, reason: "Templates are identical" }
     end
 
+    # Create progress tracker
+    progress = BackgroundJobProgress.start(
+      job_type: "folder_reorganization",
+      scope: scope,
+      metadata: {
+        old_template: old_template,
+        new_template: new_template,
+        dry_run: dry_run
+      }
+    )
+
+    Rails.logger.info "[FolderReorg] Created progress tracker: #{progress.job_id}"
+
     service = FolderTemplateReorganizationService.new(
       scope: scope,
       old_template: old_template,
       new_template: new_template,
-      dry_run: dry_run
+      dry_run: dry_run,
+      progress: progress
     )
 
     result = service.execute
 
     if result[:success]
       Rails.logger.info "[FolderReorg] Complete: #{result[:stats].inspect}"
-
-      # Create notification if files were moved
-      if result[:stats][:moved] > 0 && !dry_run
-        create_completion_notification(scope, result[:stats])
-      end
     else
       Rails.logger.error "[FolderReorg] Failed: #{result[:error]}"
     end
 
     result
-  end
-
-  private
-
-  def create_completion_notification(scope, stats)
-    # Create a system notification about the reorganization
-    SystemNotification.create(
-      title: "Folder Reorganization Complete",
-      message: "Reorganized #{stats[:moved]} files in #{scope} scope. #{stats[:errors].count} errors.",
-      notification_type: "system",
-      severity: stats[:errors].any? ? "warning" : "info",
-      data: { scope: scope, stats: stats }
-    ) rescue nil
   end
 end

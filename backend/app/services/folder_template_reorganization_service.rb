@@ -40,12 +40,15 @@ class FolderTemplateReorganizationService
     "tasks" => "SmTaskAttachment"
   }.freeze
 
-  def initialize(scope:, old_template:, new_template:, dry_run: false)
+  attr_reader :progress
+
+  def initialize(scope:, old_template:, new_template:, dry_run: false, progress: nil)
     @scope = scope.to_s
     @old_template = old_template
     @new_template = new_template
     @dry_run = dry_run
     @stats = { moved: 0, skipped: 0, errors: [], total: 0 }
+    @progress = progress  # Optional BackgroundJobProgress instance
   end
 
   def execute
@@ -57,6 +60,7 @@ class FolderTemplateReorganizationService
     # Validate scope
     model_name = SCOPE_DOCUMENT_MODELS[@scope]
     unless model_name
+      fail_progress("Unknown scope: #{@scope}")
       return error_result("Unknown scope: #{@scope}")
     end
 
@@ -64,29 +68,36 @@ class FolderTemplateReorganizationService
     begin
       @document_model = model_name.constantize
     rescue NameError
+      fail_progress("Document model not found: #{model_name}")
       return error_result("Document model not found: #{model_name}")
     end
 
     # Get storage provider
     @storage_config = StorageConfiguration.instance
     unless @storage_config
+      fail_progress("No storage configuration found")
       return error_result("No storage configuration found")
     end
 
     @provider = get_storage_provider
     unless @provider
+      fail_progress("No storage provider available")
       return error_result("No storage provider available")
     end
 
     # Process documents
     process_documents
 
+    # Mark progress complete
+    complete_progress
+
     Rails.logger.info "[FolderReorg] Completed: #{@stats}"
-    { success: true, stats: @stats }
+    { success: true, stats: @stats, progress_id: @progress&.id }
   rescue StandardError => e
     Rails.logger.error "[FolderReorg] Error: #{e.message}"
     Rails.logger.error e.backtrace.first(10).join("\n")
-    { success: false, error: e.message, stats: @stats }
+    fail_progress(e.message)
+    { success: false, error: e.message, stats: @stats, progress_id: @progress&.id }
   end
 
   private
@@ -120,13 +131,32 @@ class FolderTemplateReorganizationService
 
     Rails.logger.info "[FolderReorg] Processing #{@stats[:total]} documents"
 
+    # Set total items for progress tracking
+    @progress&.set_total!(@stats[:total])
+
     documents.find_each.with_index do |doc, index|
+      # Update progress with current item
+      @progress&.processing!(get_document_name(doc))
+
       process_document(doc)
 
       # Log progress every 100 documents
       if (index + 1) % 100 == 0
         Rails.logger.info "[FolderReorg] Progress: #{index + 1}/#{@stats[:total]}"
       end
+    end
+  end
+
+  def get_document_name(doc)
+    case @scope
+    when "job", "jobs"
+      doc.file_name
+    when "corporate", "corporate_entity", "company"
+      doc.file_name || doc.display_name
+    when "email", "emails"
+      doc.subject
+    else
+      "Document #{doc.id}"
     end
   end
 
@@ -152,15 +182,22 @@ class FolderTemplateReorganizationService
 
     # Get current folder path
     old_path = get_document_folder_path(doc)
-    return skip_document(doc, "No current folder path") if old_path.blank?
+    if old_path.blank?
+      skip_document(doc, "No current folder path")
+      return
+    end
 
     # Calculate new path using new template
     new_path = expand_template(@new_template, context)
-    return skip_document(doc, "Could not calculate new path") if new_path.blank?
+    if new_path.blank?
+      skip_document(doc, "Could not calculate new path")
+      return
+    end
 
     # Skip if paths are the same
     if normalize_path(old_path) == normalize_path(new_path)
       @stats[:skipped] += 1
+      @progress&.increment!(success: true)
       return
     end
 
@@ -168,12 +205,27 @@ class FolderTemplateReorganizationService
     move_document(doc, old_path, new_path, context)
   rescue => e
     @stats[:errors] << { document_id: doc.id, error: e.message }
+    @progress&.increment!(success: false, error: "Document #{doc.id}: #{e.message}")
     Rails.logger.warn "[FolderReorg] Error processing document #{doc.id}: #{e.message}"
   end
 
   def skip_document(doc, reason)
     @stats[:skipped] += 1
+    @progress&.increment!(success: true)  # Skipped counts as success
     Rails.logger.debug "[FolderReorg] Skipping document #{doc.id}: #{reason}"
+  end
+
+  # Progress tracking helpers
+  def complete_progress
+    return unless @progress
+    message = "Moved #{@stats[:moved]} files, skipped #{@stats[:skipped]}"
+    message += ", #{@stats[:errors].count} errors" if @stats[:errors].any?
+    @progress.complete!(message: message)
+  end
+
+  def fail_progress(message)
+    return unless @progress
+    @progress.fail!(message: message)
   end
 
   def build_context_for_document(doc)
@@ -291,6 +343,7 @@ class FolderTemplateReorganizationService
 
     if storage_reference.blank?
       @stats[:skipped] += 1
+      @progress&.increment!(success: true)
       Rails.logger.debug "[FolderReorg] No storage reference for document #{doc.id}"
       return
     end
@@ -305,6 +358,7 @@ class FolderTemplateReorganizationService
     if @dry_run
       Rails.logger.info "[FolderReorg] DRY RUN - Would move: #{full_old_path} -> #{full_new_path}"
       @stats[:moved] += 1
+      @progress&.increment!(success: true)
       return
     end
 
@@ -313,6 +367,7 @@ class FolderTemplateReorganizationService
       ensure_folder_exists(File.dirname(full_new_path))
     rescue => e
       @stats[:errors] << { document_id: doc.id, error: "Failed to create folder: #{e.message}" }
+      @progress&.increment!(success: false, error: "Failed to create folder: #{e.message}")
       return
     end
 
@@ -324,12 +379,14 @@ class FolderTemplateReorganizationService
       Rails.logger.warn "[FolderReorg] File not found in storage for document #{doc.id}"
     rescue => e
       @stats[:errors] << { document_id: doc.id, error: "Move failed: #{e.message}" }
+      @progress&.increment!(success: false, error: "Move failed: #{e.message}")
       return
     end
 
     # Update database record
     update_document_path(doc, new_path)
     @stats[:moved] += 1
+    @progress&.increment!(success: true)
   end
 
   def get_storage_reference(doc)

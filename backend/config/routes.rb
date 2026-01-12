@@ -68,6 +68,18 @@ Rails.application.routes.draw do
       get "documents/all", to: "documents#all"
 
       # =============================================================
+      # Background Job Progress API
+      # For tracking long-running background jobs (file reorganization, migrations)
+      # =============================================================
+      resources :background_jobs, only: [:show] do
+        collection do
+          get "progress/:job_type", action: :progress
+          get :active
+          get :recent
+        end
+      end
+
+      # =============================================================
       # Desktop Sync Client API
       # For TEEEM Sync desktop app (Electron + native)
       # =============================================================
