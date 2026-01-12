@@ -13,6 +13,7 @@ import { CorporateTab } from "@/app/(app)/admin/system/components/CorporateTab";
 import { HolidaysTab } from "@/app/(app)/admin/system/components/HolidaysTab";
 import { WorkflowsTab } from "@/app/(app)/admin/system/components/WorkflowsTab";
 import { BrandColorsTab } from "@/app/(app)/admin/system/components/BrandColorsTab";
+import { BrandGuidelinesTab } from "@/app/(app)/admin/system/components/BrandGuidelinesTab";
 import { DocumentTemplatesTab } from "@/app/(app)/admin/system/components/DocumentTemplatesTab";
 import { ConnectionsTab } from "@/app/(app)/admin/system/components/ConnectionsTab";
 import { JobSetupTab } from "@/app/(app)/admin/system/components/JobSetupTab";

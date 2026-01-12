@@ -1,80 +1,74 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import { Card, CardContent } from "@/components/ui/card";
-import { HeartPulse, Activity, Wrench, ChevronRight } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+// Import system-related tab components from admin
+import { NavigationTab } from "@/app/(app)/admin/system/components/NavigationTab";
+import { AgentsTab } from "@/app/(app)/admin/system/components/AgentsTab";
+import { ScheduledJobsTab } from "@/app/(app)/admin/system/components/ScheduledJobsTab";
+import { AiProcessingTab } from "@/app/(app)/admin/system/components/AiProcessingTab";
+import { XeroHealthTab } from "@/app/(app)/admin/system/components/XeroHealthTab";
+
+/**
+ * System Settings Page - Organization Settings
+ *
+ * SSoT: This is THE ONE location for system-level configuration.
+ * Part of the Settings/Admin merge - Organization section.
+ * Admin role required (enforced by layout).
+ */
+
+const SYSTEM_TABS = [
+  { id: "navigation", label: "Navigation" },
+  { id: "agents", label: "AI Agents" },
+  { id: "scheduled-jobs", label: "Scheduled Jobs" },
+  { id: "ai-processing", label: "AI Processing" },
+  { id: "health", label: "System Health" },
+];
 
 export default function SystemSettingsPage() {
-  const router = useRouter();
+  const [activeTab, setActiveTab] = React.useState("navigation");
 
   return (
-    <div className="space-y-4">
-      <Card
-        className="cursor-pointer hover:bg-accent/50 transition-colors"
-        onClick={() => router.push("/system-health")}
-      >
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-green-100 rounded-lg dark:bg-green-900/30">
-                <HeartPulse className="h-6 w-6 text-green-600 dark:text-green-400" />
-              </div>
-              <div>
-                <h3 className="font-medium">System Health</h3>
-                <p className="text-sm text-muted-foreground">
-                  Data quality checks and system diagnostics
-                </p>
-              </div>
-            </div>
-            <ChevronRight className="h-5 w-5 text-muted-foreground" />
-          </div>
-        </CardContent>
-      </Card>
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold">System Configuration</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Configure navigation, AI agents, scheduled jobs, and system health monitoring
+        </p>
+      </div>
 
-      <Card
-        className="cursor-pointer hover:bg-accent/50 transition-colors"
-        onClick={() => router.push("/corporate")}
-      >
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-purple-100 rounded-lg dark:bg-purple-900/30">
-                <Activity className="h-6 w-6 text-purple-600 dark:text-purple-400" />
-              </div>
-              <div>
-                <h3 className="font-medium">Corporate Health</h3>
-                <p className="text-sm text-muted-foreground">
-                  Company compliance and document verification
-                </p>
-              </div>
-            </div>
-            <ChevronRight className="h-5 w-5 text-muted-foreground" />
-          </div>
-        </CardContent>
-      </Card>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1">
+          {SYSTEM_TABS.map((tab) => (
+            <TabsTrigger
+              key={tab.id}
+              value={tab.id}
+              className="text-sm"
+            >
+              {tab.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
 
-      <Card
-        className="cursor-pointer hover:bg-accent/50 transition-colors"
-        onClick={() => router.push("/admin")}
-      >
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-orange-100 rounded-lg dark:bg-orange-900/30">
-                <Wrench className="h-6 w-6 text-orange-600 dark:text-orange-400" />
-              </div>
-              <div>
-                <h3 className="font-medium">Admin Tools</h3>
-                <p className="text-sm text-muted-foreground">
-                  User management and system configuration
-                </p>
-              </div>
-            </div>
-            <ChevronRight className="h-5 w-5 text-muted-foreground" />
-          </div>
-        </CardContent>
-      </Card>
+        <div className="mt-6">
+          <TabsContent value="navigation">
+            <NavigationTab />
+          </TabsContent>
+          <TabsContent value="agents">
+            <AgentsTab />
+          </TabsContent>
+          <TabsContent value="scheduled-jobs">
+            <ScheduledJobsTab />
+          </TabsContent>
+          <TabsContent value="ai-processing">
+            <AiProcessingTab />
+          </TabsContent>
+          <TabsContent value="health">
+            <XeroHealthTab />
+          </TabsContent>
+        </div>
+      </Tabs>
     </div>
   );
 }
