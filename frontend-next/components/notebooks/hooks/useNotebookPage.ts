@@ -66,7 +66,7 @@ export function useNotebookPage(pageId: number | null, notebookId: number | null
     staleTime: 0, // Always fetch fresh data to ensure we have notebook ID
   });
 
-  // Debounced save function (300ms for faster sidebar updates)
+  // Debounced save function (800ms to reduce save frequency while typing)
   const debouncedSave = useRef(
     debounce(async (id: number, changes: { title?: string; content?: string }) => {
       try {
@@ -74,14 +74,23 @@ export function useNotebookPage(pageId: number | null, notebookId: number | null
         const response = await api.patch<PageResponse>(`/api/v1/notebook_pages/${id}`, changes);
         if (response?.success) {
           setLastSaved(new Date());
-          setHasUnsavedChanges(false);
-          pendingChangesRef.current = null;
-          // Update the page cache
-          queryClient.setQueryData(["notebook-page", id], response);
-// Invalidate the notebook cache to refresh the sidebar
-          const notebookId = response.page.notebook?.id;
-          if (notebookId) {
-            queryClient.invalidateQueries({ queryKey: ["notebook", notebookId] });
+          // Only clear pending changes if they haven't changed since we started saving
+          // This prevents race conditions where user types more while save is in progress
+          const currentPending = pendingChangesRef.current;
+          if (currentPending?.content === changes.content && currentPending?.title === changes.title) {
+            setHasUnsavedChanges(false);
+            pendingChangesRef.current = null;
+          }
+          // DON'T update page cache here - it causes the editor to "jump back"
+          // The editor already has the current content, updating cache with server
+          // response (which may be stale) causes glitches while typing fast
+
+          // Only invalidate notebook cache if title changed (for sidebar updates)
+          if (changes.title) {
+            const nbId = response.page.notebook?.id;
+            if (nbId) {
+              queryClient.invalidateQueries({ queryKey: ["notebook", nbId] });
+            }
           }
         }
       } catch (err) {
@@ -89,7 +98,7 @@ export function useNotebookPage(pageId: number | null, notebookId: number | null
       } finally {
         setIsSaving(false);
       }
-    }, 300)
+    }, 800)
   ).current;
 
   // Update page content with debounced auto-save
@@ -143,28 +152,29 @@ export function useNotebookPage(pageId: number | null, notebookId: number | null
     [pageId, notebookId, debouncedSave, queryClient]
   );
 
-  // Force save immediately
+  // Force save immediately (used on blur/unmount)
   const saveNow = useCallback(async () => {
     if (!pageId || !pendingChangesRef.current) return;
     debouncedSave.cancel();
+    const changesToSave = { ...pendingChangesRef.current };
     try {
       setIsSaving(true);
       const response = await api.patch<PageResponse>(
         `/api/v1/notebook_pages/${pageId}`,
-        pendingChangesRef.current
+        changesToSave
       );
       if (response?.success) {
         setLastSaved(new Date());
         setHasUnsavedChanges(false);
         pendingChangesRef.current = null;
-        queryClient.setQueryData(["notebook-page", pageId], response);
+        // Don't update page cache - same reason as debounced save
       }
     } catch (err) {
       console.error("Failed to save page:", err);
     } finally {
       setIsSaving(false);
     }
-  }, [pageId, debouncedSave, queryClient]);
+  }, [pageId, debouncedSave]);
 
   // Cleanup on unmount
   useEffect(() => {

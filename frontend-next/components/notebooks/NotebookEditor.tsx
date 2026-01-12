@@ -1,12 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { RichTextEditor } from "@/components/ui/rich-text-editor";
+import { RichTextEditor, EditorToolbar, type Editor } from "@/components/ui/rich-text-editor";
 import {
   useNotebookPage,
   attachmentActions,
@@ -66,7 +66,17 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
   const [attachments, setAttachments] = useState<NotebookPageAttachment[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [showAttachments, setShowAttachments] = useState(false);
+  const [editor, setEditor] = useState<Editor | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Calculate word and character counts from local content (real-time)
+  const { wordCount, charCount } = useMemo(() => {
+    // Strip HTML tags to get plain text
+    const plainText = content.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    const chars = plainText.length;
+    const words = plainText ? plainText.split(/\s+/).filter(Boolean).length : 0;
+    return { wordCount: words, charCount: chars };
+  }, [content]);
 
   // Sync local state with fetched page data
   useEffect(() => {
@@ -165,32 +175,21 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
   }
 
   return (
-    <div className={cn("flex flex-col h-full bg-background relative", className)}>
-      {/* Toolbar at top - will be populated by RichTextEditor toolbar via CSS */}
-      <div id="editor-toolbar-container" className="flex items-center justify-between px-8 py-2 border-b bg-background shrink-0">
-        {/* Toolbar will be moved here via CSS */}
-        <div className="flex items-center gap-3 ml-auto">
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            <SaveStatus
-              isSaving={isSaving}
-              hasUnsavedChanges={hasUnsavedChanges}
-              lastSaved={lastSaved}
-            />
-            {page && (
-              <>
-                <span>•</span>
-                <span>{page.word_count} words</span>
-                <span>•</span>
-                <span>{page.char_count} characters</span>
-                {page.last_edited_by && (
-                  <>
-                    <span>•</span>
-                    <span>Last edited by {page.last_edited_by.name}</span>
-                  </>
-                )}
-              </>
-            )}
-          </div>
+    <div className={cn("flex flex-col h-full", className)}>
+      {/* Header with toolbar (left) and save status/attachments (right) */}
+      <div className="flex items-center justify-between gap-2 py-1 border-b px-4">
+        {/* Toolbar on the left - fixed position, doesn't move with slider */}
+        <div className="flex-1">
+          <EditorToolbar editor={editor} transparent />
+        </div>
+
+        {/* Save status and attachments on the right */}
+        <div className="flex items-center gap-2 shrink-0">
+          <SaveStatus
+            isSaving={isSaving}
+            hasUnsavedChanges={hasUnsavedChanges}
+            lastSaved={lastSaved}
+          />
           <input
             ref={fileInputRef}
             type="file"
@@ -199,24 +198,38 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
           />
           <Button
             variant="ghost"
-            size="icon"
-            className="h-8 w-8"
+            size="sm"
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
+            className="relative"
           >
             {isUploading ? (
               <Spinner className="h-4 w-4" />
             ) : (
               <Paperclip className="h-4 w-4" />
             )}
+            {attachments.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full h-4 w-4 flex items-center justify-center">
+                {attachments.length}
+              </span>
+            )}
           </Button>
+          {attachments.length > 0 && (
+            <Button
+              variant={showAttachments ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setShowAttachments(!showAttachments)}
+            >
+              Attachments
+            </Button>
+          )}
         </div>
       </div>
 
       {/* Attachments panel */}
       {showAttachments && attachments.length > 0 && (
-        <div className="border-b bg-muted/30 p-4 shrink-0">
-          <div className="flex items-center justify-between mb-3">
+        <div className="border-b bg-muted/30 p-3">
+          <div className="flex items-center justify-between mb-2">
             <h4 className="text-sm font-medium">Attachments ({attachments.length})</h4>
             <Button
               variant="ghost"
@@ -240,46 +253,57 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
         </div>
       )}
 
-      {/* Editor Canvas */}
-      <div className="flex-1 overflow-auto bg-background">
-        <div className="max-w-6xl mx-auto px-20 pt-16 pb-24">
-          {/* Title - Large and prominent like OneNote */}
+      {/* Editor */}
+      <div className="flex-1 overflow-auto">
+        <div style={{ paddingLeft: 78, paddingRight: 24, paddingTop: 45, paddingBottom: 16 }}>
+          {/* Title */}
           <Input
             value={title}
             onChange={handleTitleChange}
             placeholder="Untitled"
-            className="text-5xl font-bold border-none shadow-none focus-visible:ring-0 px-0 h-auto bg-transparent placeholder:text-muted-foreground/30 mb-8"
+            className="text-2xl font-semibold border-none shadow-none focus-visible:ring-0 px-0 h-auto"
           />
-
-          {/* Rich text editor - toolbar moved to top via CSS */}
-          <div className="notebook-editor-wrapper">
-            <RichTextEditor
-              value={content}
-              onChange={handleContentChange}
-              placeholder="Start typing..."
-              minHeight={700}
-              className="border-none shadow-none focus-within:ring-0 rounded-none bg-transparent [&_.ProseMirror]:px-0 [&_.ProseMirror]:py-0 prose prose-lg dark:prose-invert max-w-none"
-            />
-          </div>
+          <div className="border-b border-border mb-1" />
+          {/* Created date */}
+          {page?.created_at && (
+            <p className="text-sm text-muted-foreground mb-4">
+              {new Date(page.created_at).toLocaleDateString("en-AU", {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })}
+              {"    "}
+              {new Date(page.created_at).toLocaleTimeString("en-AU", {
+                hour: "numeric",
+                minute: "2-digit",
+                hour12: true,
+              })}
+            </p>
+          )}
+          {/* Content */}
+          <RichTextEditor
+            value={content}
+            onChange={handleContentChange}
+            placeholder="Start writing..."
+            minHeight={400}
+            hideToolbar={true}
+            onEditorReady={setEditor}
+            className="prose prose-sm dark:prose-invert max-w-none border-none shadow-none focus-within:ring-0 [&_.ProseMirror]:px-0"
+          />
         </div>
       </div>
 
-      <style jsx global>{`
-        .notebook-editor-wrapper > div > div:first-child {
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          border: none !important;
-          background: transparent !important;
-          padding: 0.5rem 2rem !important;
-          z-index: 10;
-        }
-
-        #editor-toolbar-container {
-          min-height: 40px;
-        }
-      `}</style>
+      {/* Footer with metadata */}
+      {page && (
+        <div className="flex items-center gap-4 px-4 py-2 border-t text-xs text-muted-foreground bg-muted/30">
+          <span>{wordCount} words</span>
+          <span>{charCount} characters</span>
+          {page.last_edited_by && (
+            <span>Last edited by {page.last_edited_by.name}</span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

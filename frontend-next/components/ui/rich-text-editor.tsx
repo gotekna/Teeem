@@ -2,6 +2,9 @@
 
 import * as React from "react";
 import { useEditor, EditorContent, Editor, Extension } from "@tiptap/react";
+
+// Re-export Editor type for external use
+export type { Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Link from "@tiptap/extension-link";
@@ -131,6 +134,22 @@ interface RichTextEditorProps {
    * Context for writing checker (helps AI understand what type of content)
    */
   writingContext?: "email_body" | "notes" | "general";
+  /**
+   * Called when the editor receives focus
+   */
+  onFocus?: () => void;
+  /**
+   * Called when the editor loses focus
+   */
+  onBlur?: () => void;
+  /**
+   * Hide the toolbar (useful when toolbar is rendered externally)
+   */
+  hideToolbar?: boolean;
+  /**
+   * Callback to expose the editor instance externally
+   */
+  onEditorReady?: (editor: Editor | null) => void;
 }
 
 // Slash command extension - detects /template or /t and triggers callback
@@ -209,13 +228,32 @@ function ToolbarButton({
   );
 }
 
-function Toolbar({ editor, showWritingChecker }: { editor: Editor | null; showWritingChecker?: boolean }) {
+// Exported for external use (e.g., notebook editor header toolbar)
+export function EditorToolbar({ editor, showWritingChecker, transparent }: { editor: Editor | null; showWritingChecker?: boolean; transparent?: boolean }) {
   const [linkUrl, setLinkUrl] = React.useState("");
   const [linkOpen, setLinkOpen] = React.useState(false);
+  const [fontSizeInput, setFontSizeInput] = React.useState("");
+  const [fontSizeOpen, setFontSizeOpen] = React.useState(false);
   const imageInputRef = React.useRef<HTMLInputElement>(null);
+  const fontSizeInputRef = React.useRef<HTMLInputElement>(null);
   const { issues, isChecking } = useWritingCheckerState(editor);
 
   if (!editor) return null;
+
+  // Get current font size from selection
+  const getCurrentFontSize = () => {
+    const attrs = editor.getAttributes("textStyle");
+    return attrs.fontSize ? attrs.fontSize.replace("px", "") : "";
+  };
+
+  const applyFontSize = (size: string) => {
+    const numericSize = size.replace(/[^0-9]/g, "");
+    if (numericSize && parseInt(numericSize) > 0) {
+      editor.chain().focus().setFontSize(`${numericSize}px`).run();
+    }
+    setFontSizeInput("");
+    setFontSizeOpen(false);
+  };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -257,35 +295,69 @@ function Toolbar({ editor, showWritingChecker }: { editor: Editor | null; showWr
     editor.chain().focus().unsetLink().run();
   };
 
-  const fontSizes = ["12px", "14px", "16px", "18px", "20px", "24px", "28px", "32px", "36px"];
+  const fontSizes = ["8", "9", "10", "11", "12", "14", "16", "18", "20", "22", "24", "26", "28", "36", "48", "72"];
 
   return (
-    <div className="flex items-center gap-0.5 p-1 border-b bg-muted/30 rounded-t-md flex-wrap">
-      {/* Font Size */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            title="Font size"
-            className="h-7 px-2 text-xs"
-          >
-            Size <ChevronDown className="h-3 w-3 ml-1" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          {fontSizes.map((size) => (
-            <DropdownMenuItem
-              key={size}
-              onClick={() => editor.chain().focus().setFontSize(size).run()}
-              className="text-sm"
+    <div className={cn("flex items-center gap-0.5 p-1 flex-wrap", !transparent && "border-b bg-muted/30 rounded-t-md")}>
+      {/* Font Size - Editable input with dropdown */}
+      <Popover open={fontSizeOpen} onOpenChange={setFontSizeOpen}>
+        <div className="flex items-center border rounded-sm bg-background">
+          <input
+            ref={fontSizeInputRef}
+            type="text"
+            value={fontSizeInput || getCurrentFontSize()}
+            onChange={(e) => setFontSizeInput(e.target.value)}
+            onFocus={(e) => {
+              e.target.select();
+              setFontSizeInput(getCurrentFontSize());
+            }}
+            onBlur={() => {
+              if (fontSizeInput) {
+                applyFontSize(fontSizeInput);
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                applyFontSize(fontSizeInput || getCurrentFontSize());
+                (e.target as HTMLInputElement).blur();
+              }
+              if (e.key === "Escape") {
+                setFontSizeInput("");
+                (e.target as HTMLInputElement).blur();
+              }
+            }}
+            className="w-8 h-6 text-center text-xs bg-transparent border-none outline-none focus:bg-muted/50"
+            placeholder="--"
+          />
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="h-6 px-0.5 border-l hover:bg-muted/50 flex items-center justify-center"
+              title="Font size presets"
             >
-              {size}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+              <ChevronDown className="h-3 w-3" />
+            </button>
+          </PopoverTrigger>
+        </div>
+        <PopoverContent className="w-16 p-1" align="start">
+          <div className="max-h-48 overflow-auto">
+            {fontSizes.map((size) => (
+              <button
+                key={size}
+                type="button"
+                onClick={() => applyFontSize(size)}
+                className={cn(
+                  "w-full text-left px-2 py-1 text-sm rounded hover:bg-muted",
+                  getCurrentFontSize() === size && "bg-muted font-medium"
+                )}
+              >
+                {size}
+              </button>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
 
       <div className="w-px h-5 bg-border mx-1" />
 
@@ -460,6 +532,10 @@ export function RichTextEditor({
   onSlashCommand,
   enableWritingChecker = false,
   writingContext = "email_body",
+  onFocus,
+  onBlur,
+  hideToolbar = false,
+  onEditorReady,
 }: RichTextEditorProps) {
   // Memoize all extensions to prevent tiptap duplicate extension warnings
   const extensions = React.useMemo(
@@ -474,6 +550,9 @@ export function RichTextEditor({
             ? `${placeholder} (Type /template or /t for templates)`
             : placeholder,
           emptyEditorClass: "is-editor-empty",
+          emptyNodeClass: "is-node-empty",
+          showOnlyWhenEditable: true,
+          includeChildren: false,
         }),
         Underline,
         TextStyle,
@@ -551,6 +630,12 @@ export function RichTextEditor({
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML());
     },
+    onFocus: () => {
+      onFocus?.();
+    },
+    onBlur: () => {
+      onBlur?.();
+    },
   });
 
   // Update editor content when value changes externally
@@ -560,6 +645,11 @@ export function RichTextEditor({
     }
   }, [value, editor]);
 
+  // Notify parent of editor instance
+  React.useEffect(() => {
+    onEditorReady?.(editor);
+  }, [editor, onEditorReady]);
+
   return (
     <div
       className={cn(
@@ -568,11 +658,11 @@ export function RichTextEditor({
         className
       )}
     >
-      <Toolbar editor={editor} showWritingChecker={enableWritingChecker} />
+      {!hideToolbar && <EditorToolbar editor={editor} showWritingChecker={enableWritingChecker} />}
       <div style={{ minHeight }} className="overflow-y-auto">
         <EditorContent
           editor={editor}
-          className="[&_.is-editor-empty]:before:content-[attr(data-placeholder)] [&_.is-editor-empty]:before:text-muted-foreground [&_.is-editor-empty]:before:float-left [&_.is-editor-empty]:before:h-0 [&_.is-editor-empty]:before:pointer-events-none [&_ol]:list-decimal [&_ol]:pl-6 [&_ol_ol]:list-[lower-alpha] [&_ol_ol_ol]:list-[lower-roman] [&_ul]:list-disc [&_ul]:pl-6 [&_ul_ul]:list-[circle] [&_ul_ul_ul]:list-[square] [&_li]:my-1 [&_ul.task-list]:list-none [&_ul.task-list]:pl-0 [&_.task-item]:flex [&_.task-item]:items-start [&_.task-item>label]:flex [&_.task-item>label]:items-center [&_.task-item>label>input]:mr-2 [&_.task-item>label>input]:mt-1 [&_.task-item>label>div]:flex-1"
+          className="[&_.ProseMirror>p.is-editor-empty:first-child]:before:content-[attr(data-placeholder)] [&_.ProseMirror>p.is-editor-empty:first-child]:before:text-muted-foreground [&_.ProseMirror>p.is-editor-empty:first-child]:before:float-left [&_.ProseMirror>p.is-editor-empty:first-child]:before:h-0 [&_.ProseMirror>p.is-editor-empty:first-child]:before:pointer-events-none [&_ol]:list-decimal [&_ol]:pl-6 [&_ol_ol]:list-[lower-alpha] [&_ol_ol_ol]:list-[lower-roman] [&_ul]:list-disc [&_ul]:pl-6 [&_ul_ul]:list-[circle] [&_ul_ul_ul]:list-[square] [&_li]:my-1 [&_ul.task-list]:list-none [&_ul.task-list]:pl-0 [&_.task-item]:flex [&_.task-item]:items-center [&_.task-item]:gap-2 [&_.task-item>label]:flex [&_.task-item>label]:items-center [&_.task-item>label]:shrink-0 [&_.task-item>div]:flex-1 [&_.task-item>div]:min-w-0"
         />
       </div>
     </div>
