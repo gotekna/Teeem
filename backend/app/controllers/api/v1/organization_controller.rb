@@ -480,15 +480,15 @@ module Api
         end
 
         # SharePoint stats
-        # SSoT: Use MicrosoftCredential for delegated credentials
-        # Note: company_documents uses last_modified_at (not synced_at) for OneDrive sync timestamps
-        onedrive_credential = MicrosoftCredential.delegated_credentials.org_level.active.connected.first rescue nil
+        # SSoT: Use StorageConfiguration for all storage config
+        # MicrosoftCredential only provides auth tokens, not site/drive config
+        storage_config = StorageConfiguration.instance rescue nil
         sharepoint_stats = {
-          connected: onedrive_credential.present?,
-          site_url: onedrive_credential&.drive_name || "SharePoint",
-          site_path: onedrive_credential&.root_folder_path || "/Shared Documents",
+          connected: storage_config&.connected? || false,
+          site_url: storage_config&.site_url || "SharePoint",
+          site_path: storage_config&.root_path || "/Shared Documents",
           total_synced: documents.where(source: "onedrive").count,
-          last_sync: onedrive_credential&.last_synced_at || documents.where(source: "onedrive").maximum(:last_modified_at)
+          last_sync: documents.where(source: "onedrive").maximum(:last_modified_at)
         }
 
         # Xero stats - SSoT: Filter connections by XeroConnectionHealth

@@ -1,11 +1,13 @@
-import initSqlJs, { Database as SqlJsDatabase } from 'sql.js';
+import initSqlJs, { Database as SqlJsDatabase, SqlValue } from 'sql.js';
 import path from 'path';
 import fs from 'fs';
 
 interface FileState {
   id: number;
+  server_id: string | null;
   subscription_id: number;
   remote_path: string;
+  local_path: string | null;
   file_name: string;
   file_size: number | null;
   remote_etag: string | null;
@@ -166,7 +168,7 @@ export class LocalDatabase {
     }
   }
 
-  private runQuery<T>(sql: string, params: unknown[] = []): T[] {
+  private runQuery<T>(sql: string, params: SqlValue[] = []): T[] {
     if (!this.db) throw new Error('Database not initialized');
     const stmt = this.db.prepare(sql);
     stmt.bind(params);
@@ -179,7 +181,7 @@ export class LocalDatabase {
     return results;
   }
 
-  private runExec(sql: string, params: unknown[] = []): void {
+  private runExec(sql: string, params: SqlValue[] = []): void {
     if (!this.db) throw new Error('Database not initialized');
     const stmt = this.db.prepare(sql);
     stmt.bind(params);

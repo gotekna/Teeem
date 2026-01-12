@@ -518,11 +518,9 @@ export class SyncEngine {
   }
 
   private async hashFile(filePath: string): Promise<string> {
-    // Use xxhash for fast hashing
-    const xxhash = await import('xxhash-wasm');
-    const { h64 } = await xxhash.default();
-
+    // Use Node.js crypto for hashing (fast enough for our purposes)
+    const crypto = await import('crypto');
     const content = fs.readFileSync(filePath);
-    return h64(content).toString(16);
+    return crypto.createHash('sha256').update(content).digest('hex').substring(0, 16);
   }
 }

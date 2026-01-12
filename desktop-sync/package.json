@@ -59,8 +59,7 @@
     "electron-store": "^8.1.0",
     "electron-updater": "^6.1.7",
     "sql.js": "^1.10.2",
-    "uuid": "^9.0.1",
-    "xxhash-wasm": "^1.0.2"
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "@electron/rebuild": "^3.6.0",
