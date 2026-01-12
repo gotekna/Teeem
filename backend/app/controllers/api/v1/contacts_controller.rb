@@ -120,10 +120,11 @@ module Api
               search_term = "%#{params[:search]}%"
 
               # Find people (employees) matching the search term
+              # Note: Must include is_team_contact because display_name method depends on it
               matching_employees = Contact.where(entity_type: "person")
                                           .where("display_name ILIKE ? OR first_name ILIKE ? OR last_name ILIKE ?",
                                                  search_term, search_term, search_term)
-                                          .select(:id, :display_name, :primary_company_id)
+                                          .select(:id, :display_name, :primary_company_id, :is_team_contact)
 
               # Build mapping: employer_id -> [employee names]
               @matched_employees_by_company = {}
