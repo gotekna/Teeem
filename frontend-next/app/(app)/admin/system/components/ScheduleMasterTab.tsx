@@ -974,13 +974,13 @@ export function ScheduleMasterTab() {
   // Load count of items with no templates assigned
   const loadNoTemplateCount = async () => {
     try {
-      const response = await api.get<{ total: number }>("/api/v1/foundations/sm-schedule-master/records", {
+      const response = await api.get<{ pagination?: { total_count: number } }>("/api/v1/foundations/sm-schedule-master/records", {
         params: {
           per_page: 1,
           filters: JSON.stringify([{ column: "sm_template_ids", operator: "is_empty" }]),
         },
       });
-      setNoTemplateCount(response.total || 0);
+      setNoTemplateCount(response.pagination?.total_count || 0);
     } catch (error) {
       console.error("Failed to load no-template count:", error);
       setNoTemplateCount(0);
