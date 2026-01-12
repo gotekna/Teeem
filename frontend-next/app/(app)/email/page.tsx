@@ -1035,11 +1035,12 @@ export default function EmailPage() {
         "/api/v1/imap_credentials/toggle_mailbox_favorite",
         { account_id: accountId }
       );
-      if (response.data?.is_favorite !== undefined) {
+      const isFavorite = response?.data?.is_favorite;
+      if (isFavorite !== undefined) {
         // Update accounts state with new favorite status
         setAccounts(prev => prev.map(a =>
           String(a.id) === accountId
-            ? { ...a, is_favorite: response.data.is_favorite }
+            ? { ...a, is_favorite: isFavorite }
             : a
         ));
       }
@@ -1626,37 +1627,74 @@ To: ${email.to_emails?.join(", ") || ""}
 
           <div className="border-b my-2" />
 
-          {/* Mailbox list - always show */}
+          {/* Mailbox list - show favorites or all based on toggle */}
           <div className="px-1 mb-2">
-            <div className="text-xs text-muted-foreground px-0.5 py-1 font-medium">Mailboxes</div>
-            {accounts.map((account) => (
+            <div className="flex items-center justify-between px-0.5 py-1">
+              <span className="text-xs text-muted-foreground font-medium">
+                {showAllMailboxes ? "All Mailboxes" : "Favorites"}
+              </span>
               <button
-                key={account.id}
-                onClick={() => {
-                  const accountId = String(account.id);
-                  setSelectedAccount(accountId);
-                  // Immediately set folder to Inbox when switching accounts
-                  // (don't wait for fetchFolders to complete - fixes race condition)
-                  setSelectedFolder("Inbox");
-                  setSelectedFolderId("");  // Clear old folder ID
-                  setExpandedAccounts(new Set([accountId]));
-                  fetchFolders(accountId, account, true);  // forceSelectInbox to update folder ID
-                }}
-                onDoubleClick={() => {
-                  // Open mailbox in a new dedicated fullscreen tab
-                  window.open(`/email?account=${account.id}&standalone=true`, '_blank');
-                }}
-                className={cn(
-                  "w-full flex items-center gap-2 px-1 py-1 text-sm hover:bg-muted/50 rounded-sm",
-                  selectedAccount === String(account.id) && "bg-primary/10 text-primary font-medium"
-                )}
+                onClick={() => setShowAllMailboxes(!showAllMailboxes)}
+                className="text-xs text-primary hover:underline"
               >
-                <Mail className="h-3.5 w-3.5 shrink-0" />
-                <span className="flex-1 text-left truncate text-sm">
-                  {account.email_address || account.name}
-                </span>
+                {showAllMailboxes ? "Show Favorites" : "Show All"}
               </button>
-            ))}
+            </div>
+            {(showAllMailboxes ? accounts : accounts.filter(a => a.is_favorite)).length === 0 ? (
+              <div className="px-2 py-2 text-xs text-muted-foreground">
+                {showAllMailboxes ? "No mailboxes" : "No favorites. Click 'Show All' to bookmark mailboxes."}
+              </div>
+            ) : (
+              (showAllMailboxes ? accounts : accounts.filter(a => a.is_favorite)).map((account) => (
+                <div
+                  key={account.id}
+                  className={cn(
+                    "group w-full flex items-center gap-1 px-1 py-1 text-sm hover:bg-muted/50 rounded-sm",
+                    selectedAccount === String(account.id) && "bg-primary/10 text-primary font-medium"
+                  )}
+                >
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleMailboxFavorite(String(account.id));
+                    }}
+                    className="shrink-0 p-0.5 hover:bg-muted rounded"
+                    title={account.is_favorite ? "Remove from favorites" : "Add to favorites"}
+                  >
+                    <Star
+                      className={cn(
+                        "h-3 w-3",
+                        account.is_favorite
+                          ? "fill-yellow-400 text-yellow-400"
+                          : "text-muted-foreground/50 group-hover:text-muted-foreground"
+                      )}
+                    />
+                  </button>
+                  <button
+                    onClick={() => {
+                      const accountId = String(account.id);
+                      setSelectedAccount(accountId);
+                      // Immediately set folder to Inbox when switching accounts
+                      // (don't wait for fetchFolders to complete - fixes race condition)
+                      setSelectedFolder("Inbox");
+                      setSelectedFolderId("");  // Clear old folder ID
+                      setExpandedAccounts(new Set([accountId]));
+                      fetchFolders(accountId, account, true);  // forceSelectInbox to update folder ID
+                    }}
+                    onDoubleClick={() => {
+                      // Open mailbox in a new dedicated fullscreen tab
+                      window.open(`/email?account=${account.id}&standalone=true`, '_blank');
+                    }}
+                    className="flex-1 min-w-0 flex items-center gap-2 text-left"
+                  >
+                    <Mail className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate text-sm">
+                      {account.email_address || account.name}
+                    </span>
+                  </button>
+                </div>
+              ))
+            )}
           </div>
 
           {selectedAccount && selectedAccount !== "all" ? (

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_12_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_12_120001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2638,6 +2638,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_120000) do
     t.index ["user_id", "name"], name: "index_email_labels_on_user_id_and_name", unique: true
     t.index ["user_id", "position"], name: "index_email_labels_on_user_id_and_position"
     t.index ["user_id"], name: "index_email_labels_on_user_id"
+  end
+
+  create_table "email_mailbox_favorites", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "account_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id", "account_id"], name: "index_email_mailbox_favorites_on_user_id_and_account_id", unique: true
+    t.index ["user_id"], name: "index_email_mailbox_favorites_on_user_id"
   end
 
   create_table "email_mailboxes", force: :cascade do |t|
@@ -10416,6 +10425,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_120000) do
   add_foreign_key "email_label_assignments", "email_labels"
   add_foreign_key "email_label_assignments", "email_warehouses"
   add_foreign_key "email_labels", "users"
+  add_foreign_key "email_mailbox_favorites", "users"
   add_foreign_key "email_mailboxes", "contacts"
   add_foreign_key "email_mailboxes", "email_subscriptions"
   add_foreign_key "email_migration_invites", "contacts"
