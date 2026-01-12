@@ -14,12 +14,14 @@ import { redirect } from "next/navigation";
  */
 
 // Map paths to their correct locations
+// NOTE: Base paths should NOT include default sub-paths like /data-view
+// because getRedirectUrl() appends additional path segments
 const PATH_REDIRECTS: Record<string, string> = {
   // Entity configuration still lives under admin (developer tools)
   "entity-config": "/admin/system/entity-config",
 
-  // Schedule Master stays under admin
-  "schedule-master": "/admin/system/schedule-master/data-view",
+  // Schedule Master stays under admin (default to data-view if no sub-path)
+  "schedule-master": "/admin/system/schedule-master",
 };
 
 function getRedirectUrl(pathSegments: string[]): string {

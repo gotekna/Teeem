@@ -56,7 +56,14 @@ function getRedirectUrl(pathSegments: string[]): string {
     return `/admin/system/entity-config/${scope}`;
   }
 
-  // Check for prefix matches (handles deep links like system/entity-config/sharepoint_config)
+  // Special handling for schedule-master deep links (preserve sub-paths)
+  // e.g., system/schedule-master/tables/sm_trades → /admin/system/schedule-master/tables/sm_trades
+  if (fullPath.startsWith("system/schedule-master/")) {
+    const subPath = pathSegments.slice(2).join("/") || "data-view";
+    return `/admin/system/schedule-master/${subPath}`;
+  }
+
+  // Check for prefix matches (handles deep links)
   for (const [pattern, target] of Object.entries(PATH_REDIRECTS)) {
     if (fullPath.startsWith(pattern + "/") || fullPath.startsWith(pattern)) {
       return target;
