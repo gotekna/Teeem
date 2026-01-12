@@ -1871,6 +1871,20 @@ Rails.application.routes.draw do
         end
       end
 
+      # Live Location Tracking (iOS app + web dashboard)
+      resources :location_tracking, only: [] do
+        collection do
+          post :ping               # Single location update
+          post :batch_ping         # Batch offline sync
+          get :active              # All active workers with locations
+          get :geofence_events     # Recent geofence breaches
+        end
+        member do
+          get :session_path, path: "session/:id/path"  # Route history for a session
+        end
+      end
+      get "location_tracking/session/:id/path", to: "location_tracking#session_path"
+
       # ============================================
       # SM Gantt Phase 3 - Collaboration
       # ============================================

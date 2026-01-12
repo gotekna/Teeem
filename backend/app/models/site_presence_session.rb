@@ -36,6 +36,10 @@ class SitePresenceSession < ApplicationRecord
 
   has_one :labour_cost_entry, dependent: :destroy
 
+  # Live location tracking
+  has_many :location_pings, dependent: :destroy
+  has_many :geofence_events, dependent: :destroy
+
   # Validations
   validates :session_status, presence: true, inclusion: { in: SESSION_STATUSES }
   validates :approval_status, inclusion: { in: APPROVAL_STATUSES }

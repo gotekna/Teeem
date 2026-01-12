@@ -49,13 +49,13 @@ interface SharePointConfig {
     jobs: string;
     tasks: string;
     people: string;
-    company: string;
+    corporate: string;  // SSoT key is "corporate"
     contacts: string;
   };
   templates: {
     job: string;
     task: string;
-    company: string;
+    corporate: string;  // SSoT key is "corporate"
     people: string;
     contacts: string;
   };
@@ -113,11 +113,11 @@ export function SharePointTab() {
           sharepoint_jobs_path: response.data.paths?.jobs || "Jobs",
           sharepoint_tasks_path: response.data.paths?.tasks || "Tasks",
           sharepoint_people_path: response.data.paths?.people || "Corporate/People",
-          sharepoint_company_path: response.data.paths?.company || "Corporate",
+          sharepoint_company_path: response.data.paths?.corporate || "Corporate",  // SSoT key is "corporate"
           sharepoint_contacts_path: response.data.paths?.contacts || "Contacts",
           sharepoint_job_template: response.data.templates?.job || "{{JobCode}}/{{Category}}",
           sharepoint_task_template: response.data.templates?.task || "Task-{{TaskId}}/{{Category}}",
-          sharepoint_company_template: response.data.templates?.company || "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
+          sharepoint_company_template: response.data.templates?.corporate || "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",  // SSoT key is "corporate"
           sharepoint_people_template: response.data.templates?.people || "{{ContactName}}/{{Category}}",
           sharepoint_contacts_template: response.data.templates?.contacts || "{{ContactName}}/{{Category}}",
         });

@@ -278,22 +278,26 @@ class StorageConfiguration < ApplicationRecord
   # Configuration Export (for API/UI)
   # ========================================
 
+  # Returns config in format expected by SharePointTab.tsx frontend
+  # Flat structure with connection details at top level
   def to_config_hash
     {
+      configured: connected?,
       provider_type: provider_type,
       status: status,
+      # Connection details (flat, not nested)
+      site_url: site_url,
+      site_id: site_id,
+      drive_id: drive_id,
+      drive_name: drive_name,
+      # S3/Wasabi details
+      endpoint: endpoint,
+      bucket: bucket,
+      region: region,
+      # Paths
       root_path: root_path,
       paths: paths,
-      templates: templates,
-      connection: {
-        site_id: site_id,
-        drive_id: drive_id,
-        site_url: site_url,
-        drive_name: drive_name,
-        endpoint: endpoint,
-        bucket: bucket,
-        region: region
-      }.compact
+      templates: templates
     }
   end
 end

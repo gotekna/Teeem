@@ -15,6 +15,10 @@ module Api
       # Skip standard auth - we use our own desktop client authentication
       skip_before_action :authorize_request
       skip_before_action :authenticate_user!, raise: false
+
+      # verify_device_code needs web user auth (to link device to user)
+      before_action :require_web_user!, only: [:verify_device_code]
+      # All other endpoints (except auth flow) need desktop client auth
       before_action :authenticate_desktop_client!, except: [:initiate_device_auth, :poll_device_auth, :verify_device_code]
 
       # ==========================================
@@ -506,6 +510,26 @@ module Api
           render json: { success: false, error: "Token expired" }, status: :unauthorized
         rescue JWT::DecodeError
           render json: { success: false, error: "Invalid token" }, status: :unauthorized
+        end
+      end
+
+      # Require web user authentication (JWT from web app login)
+      def require_web_user!
+        token = request.headers["Authorization"]&.sub(/^Bearer /, "")
+
+        unless token.present?
+          return render json: { success: false, error: "Authorization required" }, status: :unauthorized
+        end
+
+        begin
+          payload = JWT.decode(token, Rails.application.secret_key_base, true, algorithm: "HS256").first
+          @current_user = User.find(payload["sub"])
+        rescue JWT::ExpiredSignature
+          render json: { success: false, error: "Token expired" }, status: :unauthorized
+        rescue JWT::DecodeError
+          render json: { success: false, error: "Invalid token" }, status: :unauthorized
+        rescue ActiveRecord::RecordNotFound
+          render json: { success: false, error: "User not found" }, status: :unauthorized
         end
       end
 

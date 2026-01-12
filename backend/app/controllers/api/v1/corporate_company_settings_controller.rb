@@ -98,20 +98,57 @@ module Api
       end
 
       # PATCH /api/v1/corporate_company_settings/sharepoint
-      # NOTE: Still updates CorporateCompanySetting for backwards compatibility
-      # TODO: Migrate to updating StorageConfiguration directly
+      # SSoT: Updates StorageConfiguration directly (Jan 2026)
       def update_sharepoint
-        settings = CorporateCompanySetting.instance
+        storage_config = StorageConfiguration.instance
 
-        if settings.update(sharepoint_params)
+        # Map frontend params to StorageConfiguration structure
+        sp = sharepoint_params
+
+        # Build connection_config from flat params
+        connection_config = storage_config.connection_config || {}
+        connection_config["site_url"] = sp[:sharepoint_site_url] if sp.key?(:sharepoint_site_url)
+        connection_config["site_id"] = sp[:sharepoint_site_id] if sp.key?(:sharepoint_site_id)
+        connection_config["drive_id"] = sp[:sharepoint_drive_id] if sp.key?(:sharepoint_drive_id)
+        connection_config["drive_name"] = sp[:sharepoint_drive_name] if sp.key?(:sharepoint_drive_name)
+
+        # Build paths hash
+        paths = storage_config.paths || StorageConfiguration::DEFAULT_PATHS.dup
+        paths["jobs"] = sp[:sharepoint_jobs_path] if sp.key?(:sharepoint_jobs_path)
+        paths["tasks"] = sp[:sharepoint_tasks_path] if sp.key?(:sharepoint_tasks_path)
+        paths["people"] = sp[:sharepoint_people_path] if sp.key?(:sharepoint_people_path)
+        paths["corporate"] = sp[:sharepoint_company_path] if sp.key?(:sharepoint_company_path)
+        paths["contacts"] = sp[:sharepoint_contacts_path] if sp.key?(:sharepoint_contacts_path)
+
+        # Build templates hash
+        templates = storage_config.templates || StorageConfiguration::DEFAULT_TEMPLATES.dup
+        templates["job"] = sp[:sharepoint_job_template] if sp.key?(:sharepoint_job_template)
+        templates["task"] = sp[:sharepoint_task_template] if sp.key?(:sharepoint_task_template)
+        templates["corporate"] = sp[:sharepoint_company_template] if sp.key?(:sharepoint_company_template)
+        templates["people"] = sp[:sharepoint_people_template] if sp.key?(:sharepoint_people_template)
+        templates["contacts"] = sp[:sharepoint_contacts_template] if sp.key?(:sharepoint_contacts_template)
+
+        # Determine status based on connection config
+        new_status = (connection_config["site_id"].present? && connection_config["drive_id"].present?) ? "connected" : "disconnected"
+
+        # Update StorageConfiguration
+        update_attrs = {
+          connection_config: connection_config,
+          paths: paths,
+          templates: templates,
+          status: new_status
+        }
+        update_attrs[:root_path] = sp[:sharepoint_root_path] if sp.key?(:sharepoint_root_path)
+
+        if storage_config.update(update_attrs)
           render json: {
             success: true,
-            data: StorageConfiguration.instance&.to_config_hash || {}
+            data: storage_config.to_config_hash
           }
         else
           render json: {
             success: false,
-            errors: settings.errors.full_messages
+            errors: storage_config.errors.full_messages
           }, status: :unprocessable_entity
         end
       end

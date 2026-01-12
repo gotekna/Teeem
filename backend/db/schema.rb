@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_12_100013) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_12_100015) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -3337,6 +3337,33 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_100013) do
     t.index ["table_type"], name: "index_foundations_on_table_type"
   end
 
+  create_table "geofence_events", force: :cascade do |t|
+    t.bigint "site_presence_session_id", null: false
+    t.bigint "worker_profile_id", null: false
+    t.bigint "job_id", null: false
+    t.string "event_type", limit: 20, null: false
+    t.decimal "latitude", precision: 10, scale: 7
+    t.decimal "longitude", precision: 10, scale: 7
+    t.integer "distance_from_site"
+    t.datetime "detected_at", null: false
+    t.datetime "resolved_at"
+    t.integer "duration_seconds"
+    t.boolean "notification_sent", default: false
+    t.boolean "acknowledged", default: false
+    t.bigint "acknowledged_by_id"
+    t.datetime "acknowledged_at"
+    t.text "acknowledgment_notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["acknowledged_by_id"], name: "index_geofence_events_on_acknowledged_by_id"
+    t.index ["job_id", "detected_at"], name: "idx_geofence_events_job_time"
+    t.index ["job_id"], name: "index_geofence_events_on_job_id"
+    t.index ["site_presence_session_id", "event_type"], name: "idx_geofence_events_session_type"
+    t.index ["site_presence_session_id"], name: "index_geofence_events_on_site_presence_session_id"
+    t.index ["worker_profile_id", "created_at"], name: "idx_geofence_events_worker_time"
+    t.index ["worker_profile_id"], name: "index_geofence_events_on_worker_profile_id"
+  end
+
   create_table "gl_account_balances", force: :cascade do |t|
     t.bigint "gl_account_id", null: false
     t.bigint "gl_period_id", null: false
@@ -6495,6 +6522,32 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_100013) do
     t.index ["job_id"], name: "index_leads_on_job_id"
     t.index ["lead_number"], name: "index_leads_on_lead_number", unique: true
     t.index ["status"], name: "index_leads_on_status"
+  end
+
+  create_table "location_pings", force: :cascade do |t|
+    t.bigint "site_presence_session_id", null: false
+    t.bigint "worker_profile_id", null: false
+    t.bigint "job_id", null: false
+    t.decimal "latitude", precision: 10, scale: 7, null: false
+    t.decimal "longitude", precision: 10, scale: 7, null: false
+    t.decimal "accuracy", precision: 8, scale: 2
+    t.decimal "altitude", precision: 10, scale: 2
+    t.decimal "speed", precision: 6, scale: 2
+    t.decimal "heading", precision: 5, scale: 2
+    t.integer "distance_from_site"
+    t.boolean "within_geofence", default: true
+    t.string "source", limit: 20
+    t.integer "battery_level"
+    t.string "battery_state", limit: 20
+    t.datetime "recorded_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "idx_location_pings_created"
+    t.index ["job_id"], name: "index_location_pings_on_job_id"
+    t.index ["site_presence_session_id", "recorded_at"], name: "idx_location_pings_session_time"
+    t.index ["site_presence_session_id"], name: "index_location_pings_on_site_presence_session_id"
+    t.index ["worker_profile_id", "recorded_at"], name: "idx_location_pings_worker_time"
+    t.index ["worker_profile_id"], name: "index_location_pings_on_worker_profile_id"
   end
 
   create_table "maintenance_requests", force: :cascade do |t|
@@ -10402,6 +10455,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_100013) do
   add_foreign_key "folder_template_items", "folder_template_items", column: "parent_id"
   add_foreign_key "folder_template_items", "folder_templates"
   add_foreign_key "folder_templates", "users", column: "created_by_id"
+  add_foreign_key "geofence_events", "jobs"
+  add_foreign_key "geofence_events", "site_presence_sessions"
+  add_foreign_key "geofence_events", "users", column: "acknowledged_by_id"
+  add_foreign_key "geofence_events", "worker_profiles"
   add_foreign_key "gl_account_balances", "gl_accounts"
   add_foreign_key "gl_account_balances", "gl_periods"
   add_foreign_key "gl_accounts", "corporate_companies"
@@ -10750,6 +10807,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_100013) do
   add_foreign_key "labour_cost_entries", "sm_tasks"
   add_foreign_key "labour_cost_entries", "worker_profiles"
   add_foreign_key "leads", "jobs"
+  add_foreign_key "location_pings", "jobs"
+  add_foreign_key "location_pings", "site_presence_sessions"
+  add_foreign_key "location_pings", "worker_profiles"
   add_foreign_key "maintenance_requests", "contacts", column: "supplier_contact_id"
   add_foreign_key "maintenance_requests", "jobs"
   add_foreign_key "maintenance_requests", "purchase_orders"
