@@ -261,12 +261,28 @@ class Api::V1::ImapCredentialsController < ApplicationController
       user_mailbox_access = org_cred.sync_config&.dig("user_mailbox_access") || {}
       configured_emails = user_mailbox_access[current_user.id.to_s] || []
 
-      # SSoT: Auto-include user's own email ONLY if it exists in this tenant
-      tenant_emails = org_cred.list_tenant_users.map { |u| u[:email]&.downcase }.compact
-      auto_emails = if current_user.email.present? && tenant_emails.include?(current_user.email.downcase)
-        [current_user.email]
-      else
-        []
+      # SSoT: Auto-include user's own email if it matches the org credential's known domain
+      # PERFORMANCE FIX: Don't call list_tenant_users (Graph API call was causing 30+ second delays)
+      # Instead, use a simple domain check based on the credential's name/known domains
+      auto_emails = []
+      if current_user.email.present?
+        user_domain = current_user.email.split("@").last&.downcase
+
+        # Known domains per org name (SSoT mapping)
+        known_domains = {
+          "Tekna" => ["tekna.com.au", "teeem.au"],
+          "100xBestLife" => ["100xbestlife.com"],
+          "Homes of Hope" => ["homesofhope.org.au"],
+          "Love Your World" => ["loveyourworld.org"]
+        }
+
+        # Get domains for this org
+        org_domains = known_domains[org_cred.name] || []
+
+        # Include user's email if their domain matches this tenant
+        if org_domains.any? { |d| d.casecmp?(user_domain) }
+          auto_emails = [current_user.email]
+        end
       end
 
       # Combine auto + configured, remove duplicates
@@ -363,9 +379,9 @@ class Api::V1::ImapCredentialsController < ApplicationController
       account_type: account_type,
       credential_id: credential_id,
       user: current_user,
-      to: Array(params[:to]),
-      cc: Array(params[:cc]),
-      bcc: Array(params[:bcc]),
+      to: parse_recipients(params[:to]),
+      cc: parse_recipients(params[:cc]),
+      bcc: parse_recipients(params[:bcc]),
       subject: params[:subject],
       body: params[:body],
       attachments: attachments,
@@ -405,9 +421,9 @@ class Api::V1::ImapCredentialsController < ApplicationController
       account_type: account_type,
       credential_id: credential_id,
       user: current_user,
-      to: Array(params[:to]),
-      cc: Array(params[:cc]),
-      bcc: Array(params[:bcc]),
+      to: parse_recipients(params[:to]),
+      cc: parse_recipients(params[:cc]),
+      bcc: parse_recipients(params[:bcc]),
       subject: params[:subject],
       body: params[:body],
       from_address: params[:from_address],
@@ -702,6 +718,18 @@ class Api::V1::ImapCredentialsController < ApplicationController
   def set_credential
     # SSoT: Both owner and shared users have full access
     @credential = ImapCredential.accessible_by(current_user).find(params[:id])
+  end
+
+  # Parse recipients from comma-separated string or array
+  # Handles: "a@b.com, c@d.com" or ["a@b.com", "c@d.com"] or ["a@b.com, c@d.com"]
+  def parse_recipients(value)
+    return [] if value.blank?
+
+    # Handle both array and string inputs
+    values = value.is_a?(Array) ? value : [value]
+
+    # Split each value by comma/semicolon, strip whitespace, remove blanks
+    values.flat_map { |v| v.to_s.split(/[,;]/).map(&:strip) }.reject(&:blank?)
   end
 
   # Infer account type from credential_id format
