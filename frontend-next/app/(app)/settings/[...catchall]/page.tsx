@@ -19,10 +19,11 @@ import { redirect } from "next/navigation";
 
 // Map legacy/deep paths to their correct settings locations
 const PATH_REDIRECTS: Record<string, string> = {
-  // Entity Configuration deep links → Developer tab
-  "system/entity-config": "/settings/developer?tab=entity-config",
-  "system/entity-configuration": "/settings/developer?tab=entity-config",
-  "developer/entity-config": "/settings/developer?tab=entity-config",
+  // Entity Configuration deep links → Admin System (where EntityConfigurationTab lives)
+  // These need to go to admin/system, not settings/developer
+  "system/entity-config": "/admin/system/entity-config/corporate_entity",
+  "system/entity-configuration": "/admin/system/entity-config/corporate_entity",
+  "developer/entity-config": "/admin/system/entity-config/corporate_entity",
 
   // Component deep links → Developer tab
   "system/components": "/settings/developer?tab=components",
@@ -46,6 +47,13 @@ function getRedirectUrl(pathSegments: string[]): string {
   // Check for exact match first
   if (PATH_REDIRECTS[fullPath]) {
     return PATH_REDIRECTS[fullPath];
+  }
+
+  // Special handling for entity-config deep links (preserve the scope)
+  // e.g., system/entity-config/sharepoint_config → /admin/system/entity-config/sharepoint_config
+  if (fullPath.startsWith("system/entity-config/") || fullPath.startsWith("system/entity-configuration/")) {
+    const scope = pathSegments[2] || "corporate_entity";
+    return `/admin/system/entity-config/${scope}`;
   }
 
   // Check for prefix matches (handles deep links like system/entity-config/sharepoint_config)
