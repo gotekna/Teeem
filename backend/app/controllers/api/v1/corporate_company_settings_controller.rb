@@ -149,8 +149,15 @@ module Api
         update_attrs[:root_path] = sp[:sharepoint_root_path] if sp.key?(:sharepoint_root_path)
         update_attrs[:scope_folders] = sp[:scope_folders] if sp.key?(:scope_folders)
         # SSoT: Folder path templates (auto-saved from Entity Config)
-        update_attrs[:templates] = sp[:scope_templates] if sp.key?(:scope_templates)
-        update_attrs[:file_name_templates] = sp[:file_name_templates] if sp.key?(:file_name_templates)
+        # MERGE with existing templates to avoid losing other scopes' templates
+        if sp.key?(:scope_templates)
+          existing_templates = storage_config.templates || {}
+          update_attrs[:templates] = existing_templates.merge(sp[:scope_templates].to_h)
+        end
+        if sp.key?(:file_name_templates)
+          existing_file_templates = storage_config.file_name_templates || {}
+          update_attrs[:file_name_templates] = existing_file_templates.merge(sp[:file_name_templates].to_h)
+        end
 
         if storage_config.update(update_attrs)
           render json: {

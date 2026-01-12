@@ -242,6 +242,8 @@ export function EntityTabsConfig({
   const [storageConfig, setStorageConfig] = React.useState<{
     root_path?: string;
     scope_folders?: Record<string, string>;
+    scope_templates?: Record<string, string>;
+    file_name_templates?: Record<string, string>;
   } | null>(null);
 
   React.useEffect(() => {
@@ -249,7 +251,12 @@ export function EntityTabsConfig({
       try {
         const response = await api.get<{
           success: boolean;
-          data: { root_path?: string; scope_folders?: Record<string, string> };
+          data: {
+            root_path?: string;
+            scope_folders?: Record<string, string>;
+            scope_templates?: Record<string, string>;
+            file_name_templates?: Record<string, string>;
+          };
         }>("/api/v1/corporate_company_settings/sharepoint");
         if (response?.success && response.data) {
           setStorageConfig(response.data);
@@ -394,18 +401,18 @@ export function EntityTabsConfig({
     if (showSharePointPaths && storageConfig) {
       // Try to get from scope_templates in storageConfig, fallback to getDefaultTemplate
       // Use ?? to allow empty string (user intentionally cleared the template)
-      const savedTemplate = (storageConfig as any)?.scope_templates?.[scope];
+      const savedTemplate = storageConfig?.scope_templates?.[scope];
       setFolderPathTemplate(savedTemplate ?? getDefaultTemplate(scope));
 
       // Initialize file name template
-      const savedFileNameTemplate = (storageConfig as any)?.file_name_templates?.[scope];
+      const savedFileNameTemplate = storageConfig?.file_name_templates?.[scope];
       setFileNameTemplate(savedFileNameTemplate ?? '{{OriginalFileName}}');
 
       // Initialize attachments template for email scope
       if (scope === 'email') {
-        const savedAttachmentsTemplate = (storageConfig as any)?.scope_templates?.['email_attachments'];
+        const savedAttachmentsTemplate = storageConfig?.scope_templates?.['email_attachments'];
         setAttachmentsPathTemplate(savedAttachmentsTemplate ?? getDefaultTemplate('email'));
-        const savedAttachmentsFileName = (storageConfig as any)?.file_name_templates?.['email_attachments'];
+        const savedAttachmentsFileName = storageConfig?.file_name_templates?.['email_attachments'];
         setAttachmentsFileNameTemplate(savedAttachmentsFileName ?? '{{OriginalFileName}}');
       }
 
@@ -415,10 +422,10 @@ export function EntityTabsConfig({
         const templates: Record<string, string> = {};
         const fileNameTemplates: Record<string, string> = {};
         warehouseScopes.forEach(subScope => {
-          const saved = (storageConfig as any)?.scope_templates?.[subScope];
+          const saved = storageConfig?.scope_templates?.[subScope];
           // Use ?? to allow empty string (user intentionally cleared the template)
           templates[subScope] = saved ?? '{{TabName}}';
-          const savedFileName = (storageConfig as any)?.file_name_templates?.[subScope];
+          const savedFileName = storageConfig?.file_name_templates?.[subScope];
           fileNameTemplates[subScope] = savedFileName ?? '{{OriginalFileName}}';
         });
         setWarehouseTemplates(templates);
