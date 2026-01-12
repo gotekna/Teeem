@@ -54,6 +54,8 @@ class StorageConfiguration < ApplicationRecord
     "templates" => "Warehousing/Templates",
     "bank_statements" => "Warehousing/Templates/Bank Statements",
     "contracts" => "Warehousing/Templates/Contracts",
+    # Custom storage
+    "custom" => "Custom",
     # System storage
     "active_storage" => "ActiveStorage"
   }.freeze
@@ -358,7 +360,10 @@ class StorageConfiguration < ApplicationRecord
       region: actual_connection["region"] || region,
       # Root path and scope folders
       root_path: root_path,
-      scope_folders: effective_scope_folders
+      scope_folders: effective_scope_folders,
+      # Templates for Entity Config auto-save
+      scope_templates: templates || {},
+      file_name_templates: file_name_templates || {}
     }
   end
 end

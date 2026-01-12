@@ -425,16 +425,20 @@ export function TokenBuilder({
                       type="button"
                       onClick={() => insertToken(p.code)}
                       className={cn(
-                        "inline-flex items-center gap-1 px-2 py-1 rounded-none border text-xs font-mono",
-                        "hover:shadow-sm transition-all cursor-pointer hover:scale-105",
+                        "inline-flex items-center gap-1.5 px-2 py-1.5 rounded-none border text-xs font-mono",
+                        "hover:shadow-sm transition-all cursor-pointer hover:scale-[1.02]",
                         colorClasses.bg,
                         colorClasses.text,
                         colorClasses.border
                       )}
                       title={p.description || `Add ${p.code}`}
                     >
-                      <Plus className="h-2.5 w-2.5 opacity-60" />
-                      {p.code}
+                      <Plus className="h-2.5 w-2.5 opacity-60 flex-shrink-0" />
+                      <span className="flex items-center gap-1.5">
+                        <span>{p.code}</span>
+                        <span className="opacity-50">→</span>
+                        <span className="opacity-70 truncate">{p.example}</span>
+                      </span>
                     </button>
                   );
                 })}

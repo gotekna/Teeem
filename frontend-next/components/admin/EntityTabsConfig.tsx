@@ -384,6 +384,10 @@ export function EntityTabsConfig({
   const [attachmentsPathTemplate, setAttachmentsPathTemplate] = React.useState<string>("");
   // SSoT: Warehouse sub-scope templates (only used when scope === 'warehouse')
   const [warehouseTemplates, setWarehouseTemplates] = React.useState<Record<string, string>>({});
+  // SSoT: File name templates (how files are named when uploaded)
+  const [fileNameTemplate, setFileNameTemplate] = React.useState<string>("{{OriginalFileName}}");
+  const [attachmentsFileNameTemplate, setAttachmentsFileNameTemplate] = React.useState<string>("{{OriginalFileName}}");
+  const [warehouseFileNameTemplates, setWarehouseFileNameTemplates] = React.useState<Record<string, string>>({});
 
   // Initialize folder path template when scope or storageConfig changes
   React.useEffect(() => {
@@ -392,24 +396,133 @@ export function EntityTabsConfig({
       const savedTemplate = (storageConfig as any)?.scope_templates?.[scope];
       setFolderPathTemplate(savedTemplate || getDefaultTemplate(scope));
 
+      // Initialize file name template
+      const savedFileNameTemplate = (storageConfig as any)?.file_name_templates?.[scope];
+      setFileNameTemplate(savedFileNameTemplate || '{{OriginalFileName}}');
+
       // Initialize attachments template for email scope
       if (scope === 'email') {
         const savedAttachmentsTemplate = (storageConfig as any)?.scope_templates?.['email_attachments'];
         setAttachmentsPathTemplate(savedAttachmentsTemplate || getDefaultTemplate('email'));
+        const savedAttachmentsFileName = (storageConfig as any)?.file_name_templates?.['email_attachments'];
+        setAttachmentsFileNameTemplate(savedAttachmentsFileName || '{{OriginalFileName}}');
       }
 
       // Initialize warehouse sub-scope templates
       if (scope === 'warehouse') {
-        const warehouseScopes = ['bill_inbox', 'pricebook_photos', 'chat', 'templates'];
+        const warehouseScopes = ['bill_inbox', 'pricebook_photos', 'chat', 'templates', 'custom'];
         const templates: Record<string, string> = {};
+        const fileNameTemplates: Record<string, string> = {};
         warehouseScopes.forEach(subScope => {
           const saved = (storageConfig as any)?.scope_templates?.[subScope];
           templates[subScope] = saved || '{{TabName}}';
+          const savedFileName = (storageConfig as any)?.file_name_templates?.[subScope];
+          fileNameTemplates[subScope] = savedFileName || '{{OriginalFileName}}';
         });
         setWarehouseTemplates(templates);
+        setWarehouseFileNameTemplates(fileNameTemplates);
       }
     }
   }, [scope, storageConfig, showSharePointPaths, getDefaultTemplate]);
+
+  // SSoT: Auto-save templates when they change (debounced)
+  const isInitialLoadRef = React.useRef(true);
+  const saveTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  // Save templates to API (debounced)
+  const saveTemplates = React.useCallback(async () => {
+    if (!showSharePointPaths) return;
+
+    try {
+      // Build scope_templates object
+      const scopeTemplates: Record<string, string> = {};
+      const fileNameTemplatesPayload: Record<string, string> = {};
+
+      // Add main scope template
+      if (folderPathTemplate) {
+        scopeTemplates[scope] = folderPathTemplate;
+      }
+      if (fileNameTemplate && fileNameTemplate !== '{{OriginalFileName}}') {
+        fileNameTemplatesPayload[scope] = fileNameTemplate;
+      }
+
+      // Add email attachments template
+      if (scope === 'email') {
+        if (attachmentsPathTemplate) {
+          scopeTemplates['email_attachments'] = attachmentsPathTemplate;
+        }
+        if (attachmentsFileNameTemplate && attachmentsFileNameTemplate !== '{{OriginalFileName}}') {
+          fileNameTemplatesPayload['email_attachments'] = attachmentsFileNameTemplate;
+        }
+      }
+
+      // Add warehouse sub-scope templates
+      if (scope === 'warehouse') {
+        Object.entries(warehouseTemplates).forEach(([key, value]) => {
+          if (value) scopeTemplates[key] = value;
+        });
+        Object.entries(warehouseFileNameTemplates).forEach(([key, value]) => {
+          if (value && value !== '{{OriginalFileName}}') {
+            fileNameTemplatesPayload[key] = value;
+          }
+        });
+      }
+
+      // Only save if we have templates to save
+      if (Object.keys(scopeTemplates).length === 0 && Object.keys(fileNameTemplatesPayload).length === 0) {
+        return;
+      }
+
+      await api.patch('/api/v1/corporate_company_settings/sharepoint', {
+        sharepoint: {
+          scope_templates: scopeTemplates,
+          file_name_templates: fileNameTemplatesPayload,
+        }
+      });
+
+      // Silent save - no toast to avoid noise
+      console.log('[EntityTabsConfig] Auto-saved templates');
+    } catch (err) {
+      console.error('[EntityTabsConfig] Failed to auto-save templates:', err);
+    }
+  }, [
+    showSharePointPaths, scope, folderPathTemplate, fileNameTemplate,
+    attachmentsPathTemplate, attachmentsFileNameTemplate,
+    warehouseTemplates, warehouseFileNameTemplates
+  ]);
+
+  // Auto-save effect with debounce
+  React.useEffect(() => {
+    // Skip initial load
+    if (isInitialLoadRef.current) {
+      isInitialLoadRef.current = false;
+      return;
+    }
+
+    // Skip if not showing path config
+    if (!showSharePointPaths) return;
+
+    // Clear existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    // Debounce save by 1 second
+    saveTimeoutRef.current = setTimeout(() => {
+      saveTemplates();
+    }, 1000);
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [
+    folderPathTemplate, fileNameTemplate,
+    attachmentsPathTemplate, attachmentsFileNameTemplate,
+    warehouseTemplates, warehouseFileNameTemplates,
+    saveTemplates, showSharePointPaths
+  ]);
 
   // SSoT: Track original display_name to detect changes for folder rename prompt
   const [originalDisplayName, setOriginalDisplayName] = React.useState<string | null>(null);
@@ -1452,7 +1565,7 @@ export function EntityTabsConfig({
                   {/* Folder Path template with token builder - drag and drop enabled */}
                   <TokenBuilder
                     label="Folder Path (drag to reorder, click tokens to add)"
-                    value={folderPathTemplate || getDefaultTemplate(scope)}
+                    value={folderPathTemplate ?? getDefaultTemplate(scope)}
                     onChange={setFolderPathTemplate}
                     placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) => {
                       // Filter tokens relevant to each scope
@@ -1476,15 +1589,16 @@ export function EntityTabsConfig({
                   {/* Full path preview */}
                   {(() => {
                     const basePath = getBasePath(scope);
-                    const template = folderPathTemplate || getDefaultTemplate(scope);
-                    // Replace tokens with example values
-                    const folderPath = template
-                      .replace(/\{\{TaskId\}\}/g, "T-001")
-                      .replace(/\{\{Category\}\}/g, "Documents")
-                      .replace(/\{\{TabName\}\}/g, "Documents")
-                      .replace(/\{\{Year\}\}/g, "2025")
-                      .replace(/\{\{Month\}\}/g, "01");
-                    const fullPath = `${basePath}/${folderPath}`;
+                    // Replace tokens with example values only if template exists
+                    const resolvedPath = folderPathTemplate
+                      ? `/${folderPathTemplate
+                          .replace(/\{\{TaskId\}\}/g, "T-001")
+                          .replace(/\{\{Category\}\}/g, "Responses")
+                          .replace(/\{\{TabName\}\}/g, "Responses")
+                          .replace(/\{\{Year\}\}/g, "2025")
+                          .replace(/\{\{Month\}\}/g, "01")}`
+                      : '';
+                    const fullPath = `${basePath}${resolvedPath}`;
                     return (
                       <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono" title={fullPath}>
                         <span className="text-green-600 dark:text-green-400 font-medium">Full Path: </span>
@@ -1492,6 +1606,34 @@ export function EntityTabsConfig({
                       </div>
                     );
                   })()}
+
+                  {/* File Name template */}
+                  <TokenBuilder
+                    label="File Name (how files are named when saved)"
+                    value={fileNameTemplate}
+                    onChange={setFileNameTemplate}
+                    placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) =>
+                      ['{{OriginalFileName}}', '{{Date}}', '{{TaskId}}', '{{Year}}', '{{Month}}', '{{UploadedBy}}', '{{Sequence}}', '{{Category}}'].includes(p.code)
+                    )}
+                    showPreview={true}
+                    placeholder="Click tokens below to add..."
+                    disabled={false}
+                    defaultExpanded={true}
+                  />
+                  <div className="text-xs bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded px-2 py-1.5 font-mono">
+                    <span className="text-blue-600 dark:text-blue-400 font-medium">Example: </span>
+                    <span className="text-blue-700 dark:text-blue-300">
+                      {fileNameTemplate
+                        .replace(/\{\{OriginalFileName\}\}/g, "Invoice.pdf")
+                        .replace(/\{\{Date\}\}/g, "2025-01-12")
+                        .replace(/\{\{TaskId\}\}/g, "T-001")
+                        .replace(/\{\{Year\}\}/g, "2025")
+                        .replace(/\{\{Month\}\}/g, "01")
+                        .replace(/\{\{UploadedBy\}\}/g, "RH")
+                        .replace(/\{\{Sequence\}\}/g, "001")
+                        .replace(/\{\{Category\}\}/g, "Documents")}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Email Attachments Configuration (only for email scope) */}
@@ -1515,7 +1657,7 @@ export function EntityTabsConfig({
                     {/* Attachments Folder Path template */}
                     <TokenBuilder
                       label="Folder Path (drag to reorder, click tokens to add)"
-                      value={attachmentsPathTemplate || getDefaultTemplate('email')}
+                      value={attachmentsPathTemplate ?? getDefaultTemplate('email')}
                       onChange={setAttachmentsPathTemplate}
                       placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) =>
                         ['{{Year}}', '{{Month}}', '{{Category}}'].includes(p.code)
@@ -1529,12 +1671,14 @@ export function EntityTabsConfig({
                     {/* Full path preview for attachments */}
                     {(() => {
                       const basePath = getBasePath('email_attachments');
-                      const template = attachmentsPathTemplate || getDefaultTemplate('email');
-                      const folderPath = template
-                        .replace(/\{\{Year\}\}/g, "2025")
-                        .replace(/\{\{Month\}\}/g, "01")
-                        .replace(/\{\{Category\}\}/g, "Documents");
-                      const fullPath = `${basePath}/${folderPath}`;
+                      // Replace tokens with example values only if template exists
+                      const resolvedPath = attachmentsPathTemplate
+                        ? `/${attachmentsPathTemplate
+                            .replace(/\{\{Year\}\}/g, "2025")
+                            .replace(/\{\{Month\}\}/g, "01")
+                            .replace(/\{\{Category\}\}/g, "Attachments")}`
+                        : '';
+                      const fullPath = `${basePath}${resolvedPath}`;
                       return (
                         <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono" title={fullPath}>
                           <span className="text-green-600 dark:text-green-400 font-medium">Full Path: </span>
@@ -1542,6 +1686,32 @@ export function EntityTabsConfig({
                         </div>
                       );
                     })()}
+
+                    {/* File Name template for attachments */}
+                    <TokenBuilder
+                      label="File Name (how files are named when saved)"
+                      value={attachmentsFileNameTemplate}
+                      onChange={setAttachmentsFileNameTemplate}
+                      placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) =>
+                        ['{{OriginalFileName}}', '{{Date}}', '{{Year}}', '{{Month}}', '{{UploadedBy}}', '{{Sequence}}'].includes(p.code)
+                      )}
+                      showPreview={true}
+                      placeholder="Click tokens below to add..."
+                      disabled={false}
+                      defaultExpanded={true}
+                    />
+                    <div className="text-xs bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded px-2 py-1.5 font-mono">
+                      <span className="text-blue-600 dark:text-blue-400 font-medium">Example: </span>
+                      <span className="text-blue-700 dark:text-blue-300">
+                        {attachmentsFileNameTemplate
+                          .replace(/\{\{OriginalFileName\}\}/g, "Report.xlsx")
+                          .replace(/\{\{Date\}\}/g, "2025-01-12")
+                          .replace(/\{\{Year\}\}/g, "2025")
+                          .replace(/\{\{Month\}\}/g, "01")
+                          .replace(/\{\{UploadedBy\}\}/g, "RH")
+                          .replace(/\{\{Sequence\}\}/g, "001")}
+                      </span>
+                    </div>
                   </div>
                 )}
 
@@ -1564,8 +1734,8 @@ export function EntityTabsConfig({
                         </div>
                       </div>
                       <TokenBuilder
-                        label="Folder Path (drag to reorder, click tokens to add)"
-                        value={warehouseTemplates.bill_inbox || '{{TabName}}'}
+                        label="Folder Path"
+                        value={warehouseTemplates.bill_inbox ?? '{{TabName}}'}
                         onChange={(val) => setWarehouseTemplates(prev => ({ ...prev, bill_inbox: val }))}
                         placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) =>
                           ['{{TabName}}', '{{Category}}', '{{Year}}', '{{Month}}'].includes(p.code)
@@ -1573,12 +1743,23 @@ export function EntityTabsConfig({
                         showPreview={true}
                         placeholder="Click tokens below to add..."
                         disabled={false}
-                        defaultExpanded={false}
+                        defaultExpanded={true}
                       />
                       <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono">
                         <span className="text-green-600 dark:text-green-400 font-medium">Full Path: </span>
-                        <span className="text-green-700 dark:text-green-300">{getBasePath('bill_inbox')}/{(warehouseTemplates.bill_inbox || '{{TabName}}').replace(/\{\{TabName\}\}/g, 'Invoices')}</span>
+                        <span className="text-green-700 dark:text-green-300">{getBasePath('bill_inbox')}{warehouseTemplates.bill_inbox ? `/${warehouseTemplates.bill_inbox.replace(/\{\{TabName\}\}/g, 'Invoices')}` : ''}</span>
                       </div>
+                      <TokenBuilder
+                        label="File Name"
+                        value={warehouseFileNameTemplates.bill_inbox ?? '{{OriginalFileName}}'}
+                        onChange={(val) => setWarehouseFileNameTemplates(prev => ({ ...prev, bill_inbox: val }))}
+                        placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) =>
+                          ['{{OriginalFileName}}', '{{Date}}', '{{Year}}', '{{Month}}', '{{UploadedBy}}', '{{Sequence}}'].includes(p.code)
+                        )}
+                        showPreview={true}
+                        disabled={false}
+                        defaultExpanded={true}
+                      />
                     </div>
 
                     {/* Pricebook Photos */}
@@ -1597,21 +1778,31 @@ export function EntityTabsConfig({
                         </div>
                       </div>
                       <TokenBuilder
-                        label="Folder Path (drag to reorder, click tokens to add)"
-                        value={warehouseTemplates.pricebook_photos || '{{TabName}}'}
+                        label="Folder Path"
+                        value={warehouseTemplates.pricebook_photos ?? '{{TabName}}'}
                         onChange={(val) => setWarehouseTemplates(prev => ({ ...prev, pricebook_photos: val }))}
                         placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) =>
                           ['{{TabName}}', '{{Category}}'].includes(p.code)
                         )}
                         showPreview={true}
-                        placeholder="Click tokens below to add..."
                         disabled={false}
-                        defaultExpanded={false}
+                        defaultExpanded={true}
                       />
                       <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono">
                         <span className="text-green-600 dark:text-green-400 font-medium">Full Path: </span>
-                        <span className="text-green-700 dark:text-green-300">{getBasePath('pricebook_photos')}/{(warehouseTemplates.pricebook_photos || '{{TabName}}').replace(/\{\{TabName\}\}/g, 'Products')}</span>
+                        <span className="text-green-700 dark:text-green-300">{getBasePath('pricebook_photos')}{warehouseTemplates.pricebook_photos ? `/${warehouseTemplates.pricebook_photos.replace(/\{\{TabName\}\}/g, 'Products')}` : ''}</span>
                       </div>
+                      <TokenBuilder
+                        label="File Name"
+                        value={warehouseFileNameTemplates.pricebook_photos ?? '{{OriginalFileName}}'}
+                        onChange={(val) => setWarehouseFileNameTemplates(prev => ({ ...prev, pricebook_photos: val }))}
+                        placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) =>
+                          ['{{OriginalFileName}}', '{{Date}}', '{{Sequence}}'].includes(p.code)
+                        )}
+                        showPreview={true}
+                        disabled={false}
+                        defaultExpanded={true}
+                      />
                     </div>
 
                     {/* Chat */}
@@ -1630,21 +1821,31 @@ export function EntityTabsConfig({
                         </div>
                       </div>
                       <TokenBuilder
-                        label="Folder Path (drag to reorder, click tokens to add)"
-                        value={warehouseTemplates.chat || '{{TabName}}'}
+                        label="Folder Path"
+                        value={warehouseTemplates.chat ?? '{{UserCode}}'}
                         onChange={(val) => setWarehouseTemplates(prev => ({ ...prev, chat: val }))}
                         placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) =>
-                          ['{{TabName}}', '{{Category}}', '{{Year}}', '{{Month}}'].includes(p.code)
+                          ['{{UserCode}}', '{{TabName}}', '{{Category}}', '{{Year}}', '{{Month}}'].includes(p.code)
                         )}
                         showPreview={true}
-                        placeholder="Click tokens below to add..."
                         disabled={false}
-                        defaultExpanded={false}
+                        defaultExpanded={true}
                       />
                       <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono">
                         <span className="text-green-600 dark:text-green-400 font-medium">Full Path: </span>
-                        <span className="text-green-700 dark:text-green-300">{getBasePath('chat')}/{(warehouseTemplates.chat || '{{TabName}}').replace(/\{\{TabName\}\}/g, 'Messages')}</span>
+                        <span className="text-green-700 dark:text-green-300">{getBasePath('chat')}{warehouseTemplates.chat ? `/${warehouseTemplates.chat.replace(/\{\{UserCode\}\}/g, 'RH')}` : ''}</span>
                       </div>
+                      <TokenBuilder
+                        label="File Name"
+                        value={warehouseFileNameTemplates.chat ?? '{{OriginalFileName}}'}
+                        onChange={(val) => setWarehouseFileNameTemplates(prev => ({ ...prev, chat: val }))}
+                        placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) =>
+                          ['{{OriginalFileName}}', '{{Date}}', '{{UploadedBy}}', '{{Sequence}}'].includes(p.code)
+                        )}
+                        showPreview={true}
+                        disabled={false}
+                        defaultExpanded={true}
+                      />
                     </div>
 
                     {/* Templates */}
@@ -1663,21 +1864,74 @@ export function EntityTabsConfig({
                         </div>
                       </div>
                       <TokenBuilder
-                        label="Folder Path (drag to reorder, click tokens to add)"
-                        value={warehouseTemplates.templates || '{{TabName}}'}
+                        label="Folder Path"
+                        value={warehouseTemplates.templates ?? '{{TabName}}'}
                         onChange={(val) => setWarehouseTemplates(prev => ({ ...prev, templates: val }))}
                         placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) =>
                           ['{{TabName}}', '{{Category}}'].includes(p.code)
                         )}
                         showPreview={true}
-                        placeholder="Click tokens below to add..."
                         disabled={false}
-                        defaultExpanded={false}
+                        defaultExpanded={true}
                       />
                       <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono">
                         <span className="text-green-600 dark:text-green-400 font-medium">Full Path: </span>
-                        <span className="text-green-700 dark:text-green-300">{getBasePath('templates')}/{(warehouseTemplates.templates || '{{TabName}}').replace(/\{\{TabName\}\}/g, 'Contracts')}</span>
+                        <span className="text-green-700 dark:text-green-300">{getBasePath('templates')}{warehouseTemplates.templates ? `/${warehouseTemplates.templates.replace(/\{\{TabName\}\}/g, 'Contracts')}` : ''}</span>
                       </div>
+                      <TokenBuilder
+                        label="File Name"
+                        value={warehouseFileNameTemplates.templates ?? '{{OriginalFileName}}'}
+                        onChange={(val) => setWarehouseFileNameTemplates(prev => ({ ...prev, templates: val }))}
+                        placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) =>
+                          ['{{OriginalFileName}}', '{{Date}}', '{{Category}}', '{{Sequence}}'].includes(p.code)
+                        )}
+                        showPreview={true}
+                        disabled={false}
+                        defaultExpanded={true}
+                      />
+                    </div>
+
+                    {/* Custom */}
+                    <div className="space-y-3 pt-4 border-t">
+                      <h4 className="text-sm font-medium flex items-center gap-2">
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-xs font-bold">6</span>
+                        Custom
+                      </h4>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Base Path</Label>
+                        <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
+                          <span className="inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border bg-muted dark:bg-slate-800 text-foreground dark:text-muted-foreground border-border dark:border-border">
+                            {getBasePath('custom')}
+                          </span>
+                          <span className="text-muted-foreground">/</span>
+                        </div>
+                      </div>
+                      <TokenBuilder
+                        label="Folder Path"
+                        value={warehouseTemplates.custom ?? '{{Category}}'}
+                        onChange={(val) => setWarehouseTemplates(prev => ({ ...prev, custom: val }))}
+                        placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) =>
+                          ['{{Category}}', '{{Year}}', '{{Month}}', '{{TabName}}'].includes(p.code)
+                        )}
+                        showPreview={true}
+                        disabled={false}
+                        defaultExpanded={true}
+                      />
+                      <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono">
+                        <span className="text-green-600 dark:text-green-400 font-medium">Full Path: </span>
+                        <span className="text-green-700 dark:text-green-300">{getBasePath('custom')}{warehouseTemplates.custom ? `/${warehouseTemplates.custom.replace(/\{\{Category\}\}/g, 'Misc')}` : ''}</span>
+                      </div>
+                      <TokenBuilder
+                        label="File Name"
+                        value={warehouseFileNameTemplates.custom ?? '{{OriginalFileName}}'}
+                        onChange={(val) => setWarehouseFileNameTemplates(prev => ({ ...prev, custom: val }))}
+                        placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) =>
+                          ['{{OriginalFileName}}', '{{Date}}', '{{Category}}', '{{Sequence}}'].includes(p.code)
+                        )}
+                        showPreview={true}
+                        disabled={false}
+                        defaultExpanded={true}
+                      />
                     </div>
                   </>
                 )}

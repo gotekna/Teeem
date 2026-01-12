@@ -43,27 +43,9 @@ const PROVIDER_OPTIONS: { value: ProviderType; label: string; icon: React.Elemen
 
 // SSoT: StorageConfiguration handles CONNECTION + root path + scope folders
 // Individual tab folder paths are managed in EntityTab (Entity Configurator)
-interface ScopeFolders {
-  job: string;
-  corporate: string;
-  people: string;
-  users: string;
-  user_photos: string;
-  user_contracts: string;
-  my_docs: string;
-  contact: string;
-  email: string;
-  email_attachments: string;
-  warehouse: string;
-  task: string;
-  billinbox: string;
-  pricebook: string;
-  chat: string;
-  active_storage: string;
-  templates: string;
-  bank_statements: string;
-  contracts: string;
-}
+// SSoT: Dynamic scope folders from StorageConfiguration.SCOPE_FOLDERS
+// Keys and values come from the backend API
+type ScopeFolders = Record<string, string>;
 
 interface StorageConfig {
   configured: boolean;
@@ -103,28 +85,8 @@ export function SharePointTab() {
     s3_region: "",
     // Root path
     sharepoint_root_path: "",
-    // Scope folders (base folder per scope)
-    scope_folders: {
-      job: "Jobs",
-      corporate: "Corporate",
-      people: "Corporate/People",
-      users: "Users",
-      user_photos: "Users/Photos",
-      user_contracts: "Users/Contracts",
-      my_docs: "Users/MyDocs",
-      contact: "Contacts",
-      email: "Emails/eml",
-      email_attachments: "Emails/attachments",
-      warehouse: "Warehousing",
-      task: "Warehousing/Tasks",
-      billinbox: "Warehousing/BillInbox",
-      pricebook: "Warehousing/Pricebook Photos",
-      chat: "Warehousing/Chat",
-      active_storage: "ActiveStorage",
-      templates: "Warehousing/Templates",
-      bank_statements: "Warehousing/Templates/Bank Statements",
-      contracts: "Warehousing/Templates/Contracts",
-    } as ScopeFolders,
+    // SSoT: Scope folders loaded from StorageConfiguration.SCOPE_FOLDERS via API
+    scope_folders: {} as ScopeFolders,
   });
 
   // Load storage config on mount
@@ -154,16 +116,8 @@ export function SharePointTab() {
           s3_region: response.data.region || "",
           // Root path
           sharepoint_root_path: response.data.root_path || "",
-          // Scope folders
-          scope_folders: response.data.scope_folders || {
-            job: "Jobs",
-            corporate: "Corporate",
-            people: "People",
-            contact: "Contacts",
-            email: "emails",
-            warehouse: "Warehousing",
-            task: "Tasks",
-          },
+          // SSoT: Scope folders from StorageConfiguration.SCOPE_FOLDERS
+          scope_folders: response.data.scope_folders || {},
         });
       }
     } catch (error) {
@@ -557,44 +511,38 @@ export function SharePointTab() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* SSoT: Dynamically render all scopes from StorageConfiguration.SCOPE_FOLDERS */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[
-              { key: "job", label: "Jobs", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.job}` },
-              { key: "corporate", label: "Corporate", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.corporate}`, hint: "Sensitive company data" },
-              { key: "people", label: "People", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.people}`, hint: "Confidential employee data" },
-              { key: "users", label: "Users", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.users}` },
-              { key: "user_photos", label: "User Photos", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.user_photos}`, hint: "Profile photos/icons" },
-              { key: "user_contracts", label: "User Contracts", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.user_contracts}`, hint: "Employment contracts" },
-              { key: "my_docs", label: "MyDocs", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.my_docs}`, hint: "Personal document storage" },
-              { key: "contact", label: "Contacts", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.contact}`, hint: "External contacts, Xero invoices/bills" },
-              { key: "email", label: "Email EML", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.email}`, hint: "Raw .eml files" },
-              { key: "email_attachments", label: "Email Attachments", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.email_attachments}`, hint: "Email file attachments" },
-              { key: "warehouse", label: "Warehousing", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.warehouse}` },
-              { key: "task", label: "Tasks", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.task}` },
-              { key: "billinbox", label: "Bill Inbox", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.billinbox}`, hint: "AP invoices" },
-              { key: "pricebook", label: "Pricebook Photos", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.pricebook}` },
-              { key: "chat", label: "Chat", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.chat}`, hint: "Chat message files" },
-              { key: "active_storage", label: "Active Storage", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.active_storage}`, hint: "Rails file uploads" },
-              { key: "templates", label: "Templates", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.templates}` },
-              { key: "bank_statements", label: "Bank Statements", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.bank_statements}` },
-              { key: "contracts", label: "Contracts", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.contracts}` },
-            ].map(({ key, label, preview, hint }) => (
-              <div key={key} className="space-y-1">
-                <Label htmlFor={`scope_${key}`} className="text-xs">{label}</Label>
-                <Input
-                  id={`scope_${key}`}
-                  value={formData.scope_folders[key as keyof ScopeFolders] || ""}
-                  onChange={(e) => setFormData(prev => ({
-                    ...prev,
-                    scope_folders: { ...prev.scope_folders, [key]: e.target.value }
-                  }))}
-                  className="font-mono text-sm h-8"
-                />
-                <p className="text-[10px] text-muted-foreground font-mono truncate" title={preview}>
-                  → {preview.replace(/\/+/g, "/")}
-                </p>
-              </div>
-            ))}
+            {Object.entries(formData.scope_folders)
+              .sort(([, a], [, b]) => a.localeCompare(b)) // Sort by folder path
+              .map(([key, folderPath]) => {
+                // Generate label from key (snake_case to Title Case)
+                const label = key
+                  .split('_')
+                  .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                  .join(' ');
+                const rootPath = formData.sharepoint_root_path || '/';
+                const preview = rootPath === '/'
+                  ? `/${folderPath}`
+                  : `${rootPath}/${folderPath}`;
+                return (
+                  <div key={key} className="space-y-1">
+                    <Label htmlFor={`scope_${key}`} className="text-xs">{label}</Label>
+                    <Input
+                      id={`scope_${key}`}
+                      value={folderPath || ""}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        scope_folders: { ...prev.scope_folders, [key]: e.target.value }
+                      }))}
+                      className="font-mono text-sm h-8"
+                    />
+                    <p className="text-[10px] text-muted-foreground font-mono truncate" title={preview}>
+                      → {preview.replace(/\/+/g, "/")}
+                    </p>
+                  </div>
+                );
+              })}
           </div>
         </CardContent>
       </Card>

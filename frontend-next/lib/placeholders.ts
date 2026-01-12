@@ -449,6 +449,49 @@ export const SHAREPOINT_PLACEHOLDERS: PlaceholderToken[] = [
     color: "gray",
     description: "Contact name",
   },
+  // File name specific placeholders
+  {
+    code: "{{OriginalFileName}}",
+    example: "Invoice.pdf",
+    color: "blue",
+    description: "Original uploaded file name",
+  },
+  {
+    code: "{{Date}}",
+    example: "2025-01-12",
+    color: "green",
+    description: "Upload date (YYYY-MM-DD)",
+  },
+  {
+    code: "{{Year}}",
+    example: "2025",
+    color: "green",
+    description: "Year (4 digit)",
+  },
+  {
+    code: "{{Month}}",
+    example: "01",
+    color: "green",
+    description: "Month (2 digit)",
+  },
+  {
+    code: "{{UploadedBy}}",
+    example: "RH",
+    color: "gray",
+    description: "User code who uploaded",
+  },
+  {
+    code: "{{Sequence}}",
+    example: "001",
+    color: "gray",
+    description: "Sequential number",
+  },
+  {
+    code: "{{UserCode}}",
+    example: "RH",
+    color: "gray",
+    description: "User code (initials)",
+  },
 ];
 
 // =============================================================================

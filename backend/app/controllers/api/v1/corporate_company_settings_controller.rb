@@ -148,6 +148,9 @@ module Api
         }
         update_attrs[:root_path] = sp[:sharepoint_root_path] if sp.key?(:sharepoint_root_path)
         update_attrs[:scope_folders] = sp[:scope_folders] if sp.key?(:scope_folders)
+        # SSoT: Folder path templates (auto-saved from Entity Config)
+        update_attrs[:templates] = sp[:scope_templates] if sp.key?(:scope_templates)
+        update_attrs[:file_name_templates] = sp[:file_name_templates] if sp.key?(:file_name_templates)
 
         if storage_config.update(update_attrs)
           render json: {
@@ -432,8 +435,12 @@ module Api
           :s3_region,
           # Root path
           :sharepoint_root_path,
-          # Scope folders (SSoT: configurable base folder per scope)
-          scope_folders: [:job, :corporate, :people, :users, :user_photos, :user_contracts, :my_docs, :contact, :email, :email_attachments, :warehouse, :task, :billinbox, :pricebook, :chat, :active_storage, :templates, :bank_statements, :contracts]
+          # SSoT: Scope folders from StorageConfiguration.SCOPE_FOLDERS
+          scope_folders: StorageConfiguration::SCOPE_FOLDERS.keys.map(&:to_sym),
+          # SSoT: Folder path templates (auto-saved from Entity Config)
+          scope_templates: {},
+          # SSoT: File name templates (auto-saved from Entity Config)
+          file_name_templates: {}
         )
       end
 
