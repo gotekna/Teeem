@@ -23,7 +23,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
-import { TablePage } from "@/components/ui/page-wrappers";
 import { BackButton } from "@/components/ui/back-button";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -357,7 +356,7 @@ export default function SubscriptionDetailPage({ params }: { params: Promise<{ i
     return (
       <div className="text-center py-12">
         <div className="text-destructive">{error || "Subscription not found"}</div>
-        <Button onClick={() => router.push("/admin/polaris-mail")} variant="outline" className="mt-4">
+        <Button onClick={() => router.push("/admin/system/email-accounts")} variant="outline" className="mt-4">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to List
         </Button>
@@ -366,12 +365,11 @@ export default function SubscriptionDetailPage({ params }: { params: Promise<{ i
   }
 
   return (
-    <TablePage>
-      <div className="space-y-6">
+    <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <BackButton fallbackHref="/admin/polaris-mail" />
+            <BackButton fallbackHref="/admin/system/email-accounts" />
             <div>
               <h1 className="text-2xl font-bold flex items-center gap-2">
                 <Mail className="h-6 w-6" />
@@ -781,7 +779,6 @@ export default function SubscriptionDetailPage({ params }: { params: Promise<{ i
             </CardContent>
           </Card>
         )}
-      </div>
-    </TablePage>
+    </div>
   );
 }

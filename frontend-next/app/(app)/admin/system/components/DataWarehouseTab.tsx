@@ -49,6 +49,7 @@ import {
 import { api } from "@/lib/api";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { SharePointTab } from "./SharePointTab";
 
 interface WarehouseViewStatus {
   key: string;
@@ -625,6 +626,10 @@ export function DataWarehouseTab() {
           ))}
           <TabsTrigger value="browse">Browse Views</TabsTrigger>
           <TabsTrigger value="data">View Data</TabsTrigger>
+          <TabsTrigger value="storage-config" className="gap-1">
+            <Settings className="h-3 w-3" />
+            Storage Config
+          </TabsTrigger>
         </TabsList>
 
         {/* Browse Views Tab */}
@@ -887,6 +892,11 @@ export function DataWarehouseTab() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        {/* Storage Config Tab - Embeds the same component from Entity Configurator */}
+        <TabsContent value="storage-config" className="space-y-4">
+          <SharePointTab />
         </TabsContent>
 
         {/* Microsoft 365 Organization Tabs */}
@@ -1264,11 +1274,14 @@ export function DataWarehouseTab() {
                   Manage Storage
                 </Link>
               </Button>
-              <Button variant="outline" size="sm" className="flex-1" asChild>
-                <Link href="/admin/system/entity-config/sharepoint_config" className="flex items-center justify-center">
-                  <Settings className="h-4 w-4 mr-2" />
-                  Configure Paths
-                </Link>
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1"
+                onClick={() => handleTabChange("storage-config")}
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                Configure Paths
               </Button>
             </div>
           </CardContent>
