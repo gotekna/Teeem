@@ -492,6 +492,12 @@ export const SHAREPOINT_PLACEHOLDERS: PlaceholderToken[] = [
     color: "gray",
     description: "User code (initials)",
   },
+  {
+    code: "{{UserName}}",
+    example: "Robert Harder",
+    color: "gray",
+    description: "Full user name",
+  },
 ];
 
 // =============================================================================

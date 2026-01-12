@@ -1567,19 +1567,7 @@ export function EntityTabsConfig({
                     label="Folder Path (drag to reorder, click tokens to add)"
                     value={folderPathTemplate ?? getDefaultTemplate(scope)}
                     onChange={setFolderPathTemplate}
-                    placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) => {
-                      // Filter tokens relevant to each scope
-                      if (scope === 'task') {
-                        return ['{{TaskId}}', '{{Category}}', '{{TabName}}'].includes(p.code);
-                      }
-                      if (scope === 'email') {
-                        return ['{{Year}}', '{{Month}}', '{{Category}}'].includes(p.code);
-                      }
-                      if (scope === 'warehouse') {
-                        return ['{{TabName}}', '{{Category}}'].includes(p.code);
-                      }
-                      return true;
-                    })}
+                    placeholders={SHAREPOINT_PLACEHOLDERS}
                     showPreview={true}
                     placeholder="Click tokens below to add..."
                     disabled={false}
@@ -1596,7 +1584,12 @@ export function EntityTabsConfig({
                           .replace(/\{\{Category\}\}/g, "Responses")
                           .replace(/\{\{TabName\}\}/g, "Responses")
                           .replace(/\{\{Year\}\}/g, "2025")
-                          .replace(/\{\{Month\}\}/g, "01")}`
+                          .replace(/\{\{Month\}\}/g, "01")
+                          .replace(/\{\{UserCode\}\}/g, "RH")
+                          .replace(/\{\{UserName\}\}/g, "Robert Harder")
+                          .replace(/\{\{JobCode\}\}/g, "J069")
+                          .replace(/\{\{CompanyCode\}\}/g, "TH")
+                          .replace(/\{\{ContactName\}\}/g, "John Smith")}`
                       : '';
                     const fullPath = `${basePath}${resolvedPath}`;
                     return (
@@ -1612,9 +1605,7 @@ export function EntityTabsConfig({
                     label="File Name (how files are named when saved)"
                     value={fileNameTemplate}
                     onChange={setFileNameTemplate}
-                    placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) =>
-                      ['{{OriginalFileName}}', '{{Date}}', '{{TaskId}}', '{{Year}}', '{{Month}}', '{{UploadedBy}}', '{{Sequence}}', '{{Category}}'].includes(p.code)
-                    )}
+                    placeholders={SHAREPOINT_PLACEHOLDERS}
                     showPreview={true}
                     placeholder="Click tokens below to add..."
                     disabled={false}
@@ -1631,7 +1622,11 @@ export function EntityTabsConfig({
                         .replace(/\{\{Month\}\}/g, "01")
                         .replace(/\{\{UploadedBy\}\}/g, "RH")
                         .replace(/\{\{Sequence\}\}/g, "001")
-                        .replace(/\{\{Category\}\}/g, "Documents")}
+                        .replace(/\{\{Category\}\}/g, "Documents")
+                        .replace(/\{\{UserCode\}\}/g, "RH")
+                          .replace(/\{\{UserName\}\}/g, "Robert Harder")
+                        .replace(/\{\{JobCode\}\}/g, "J069")
+                        .replace(/\{\{ContactName\}\}/g, "John Smith")}
                     </span>
                   </div>
                 </div>
@@ -1659,9 +1654,7 @@ export function EntityTabsConfig({
                       label="Folder Path (drag to reorder, click tokens to add)"
                       value={attachmentsPathTemplate ?? getDefaultTemplate('email')}
                       onChange={setAttachmentsPathTemplate}
-                      placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) =>
-                        ['{{Year}}', '{{Month}}', '{{Category}}'].includes(p.code)
-                      )}
+                      placeholders={SHAREPOINT_PLACEHOLDERS}
                       showPreview={true}
                       placeholder="Click tokens below to add..."
                       disabled={false}
@@ -1676,7 +1669,11 @@ export function EntityTabsConfig({
                         ? `/${attachmentsPathTemplate
                             .replace(/\{\{Year\}\}/g, "2025")
                             .replace(/\{\{Month\}\}/g, "01")
-                            .replace(/\{\{Category\}\}/g, "Attachments")}`
+                            .replace(/\{\{Category\}\}/g, "Attachments")
+                            .replace(/\{\{UserCode\}\}/g, "RH")
+                          .replace(/\{\{UserName\}\}/g, "Robert Harder")
+                            .replace(/\{\{JobCode\}\}/g, "J069")
+                            .replace(/\{\{ContactName\}\}/g, "John Smith")}`
                         : '';
                       const fullPath = `${basePath}${resolvedPath}`;
                       return (
@@ -1692,9 +1689,7 @@ export function EntityTabsConfig({
                       label="File Name (how files are named when saved)"
                       value={attachmentsFileNameTemplate}
                       onChange={setAttachmentsFileNameTemplate}
-                      placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) =>
-                        ['{{OriginalFileName}}', '{{Date}}', '{{Year}}', '{{Month}}', '{{UploadedBy}}', '{{Sequence}}'].includes(p.code)
-                      )}
+                      placeholders={SHAREPOINT_PLACEHOLDERS}
                       showPreview={true}
                       placeholder="Click tokens below to add..."
                       disabled={false}
@@ -1709,7 +1704,11 @@ export function EntityTabsConfig({
                           .replace(/\{\{Year\}\}/g, "2025")
                           .replace(/\{\{Month\}\}/g, "01")
                           .replace(/\{\{UploadedBy\}\}/g, "RH")
-                          .replace(/\{\{Sequence\}\}/g, "001")}
+                          .replace(/\{\{Sequence\}\}/g, "001")
+                          .replace(/\{\{UserCode\}\}/g, "RH")
+                          .replace(/\{\{UserName\}\}/g, "Robert Harder")
+                          .replace(/\{\{JobCode\}\}/g, "J069")
+                          .replace(/\{\{ContactName\}\}/g, "John Smith")}
                       </span>
                     </div>
                   </div>
