@@ -226,7 +226,14 @@ module Api
       end
 
       def page_params
-        params.permit(:title, :content, :position, :is_pinned)
+        # content_metadata is a JSONB field with positioned_boxes array
+        # We need to permit nested hash structure
+        permitted = params.permit(:title, :content, :position, :is_pinned)
+        # Manually handle content_metadata since it's a complex nested structure
+        if params[:content_metadata].present?
+          permitted[:content_metadata] = params[:content_metadata].to_unsafe_h
+        end
+        permitted
       end
 
       def page_json(page, include_content: false, include_notebook: false)
@@ -253,6 +260,7 @@ module Api
 
         if include_content
           json[:content] = page.content
+          json[:content_metadata] = page.content_metadata
           json[:attachments] = page.attachments.map do |a|
             {
               id: a.id,

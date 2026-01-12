@@ -15,11 +15,24 @@ export interface NotebookPageAttachment {
   is_image: boolean;
 }
 
+// Content metadata for positioned text boxes
+export interface PositionedBoxData {
+  id: string;
+  x_percent: number;
+  y_percent: number;
+  content: string;
+}
+
+export interface ContentMetadata {
+  positioned_boxes?: PositionedBoxData[];
+}
+
 export interface NotebookPage {
   id: number;
   section_id: number;
   title: string;
   content: string;
+  content_metadata?: ContentMetadata;
   position: number;
   is_pinned: boolean;
   preview: string;
@@ -49,7 +62,7 @@ export function useNotebookPage(pageId: number | null, notebookId: number | null
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const pendingChangesRef = useRef<{ title?: string; content?: string } | null>(null);
+  const pendingChangesRef = useRef<{ title?: string; content?: string; content_metadata?: ContentMetadata } | null>(null);
   const queryClient = useQueryClient();
 
   const { data, isLoading, error, refetch } = useQuery({
@@ -68,7 +81,7 @@ export function useNotebookPage(pageId: number | null, notebookId: number | null
 
   // Debounced save function (800ms to reduce save frequency while typing)
   const debouncedSave = useRef(
-    debounce(async (id: number, changes: { title?: string; content?: string }) => {
+    debounce(async (id: number, changes: { title?: string; content?: string; content_metadata?: ContentMetadata }) => {
       try {
         setIsSaving(true);
         const response = await api.patch<PageResponse>(`/api/v1/notebook_pages/${id}`, changes);
@@ -77,7 +90,8 @@ export function useNotebookPage(pageId: number | null, notebookId: number | null
           // Only clear pending changes if they haven't changed since we started saving
           // This prevents race conditions where user types more while save is in progress
           const currentPending = pendingChangesRef.current;
-          if (currentPending?.content === changes.content && currentPending?.title === changes.title) {
+          const metadataMatch = JSON.stringify(currentPending?.content_metadata) === JSON.stringify(changes.content_metadata);
+          if (currentPending?.content === changes.content && currentPending?.title === changes.title && metadataMatch) {
             setHasUnsavedChanges(false);
             pendingChangesRef.current = null;
           }
@@ -152,6 +166,17 @@ export function useNotebookPage(pageId: number | null, notebookId: number | null
     [pageId, notebookId, debouncedSave, queryClient]
   );
 
+  // Update content_metadata (for positioned boxes) with debounced auto-save
+  const updateContentMetadata = useCallback(
+    (content_metadata: ContentMetadata) => {
+      if (!pageId) return;
+      setHasUnsavedChanges(true);
+      pendingChangesRef.current = { ...pendingChangesRef.current, content_metadata };
+      debouncedSave(pageId, pendingChangesRef.current);
+    },
+    [pageId, debouncedSave]
+  );
+
   // Force save immediately (used on blur/unmount)
   const saveNow = useCallback(async () => {
     if (!pageId || !pendingChangesRef.current) return;
@@ -195,6 +220,7 @@ export function useNotebookPage(pageId: number | null, notebookId: number | null
     // Update functions
     updateContent,
     updateTitle,
+    updateContentMetadata,
     saveNow,
   };
 }

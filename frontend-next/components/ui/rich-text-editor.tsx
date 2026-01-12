@@ -112,6 +112,59 @@ const FontSize = Extension.create({
   },
 });
 
+// Export FontSize extension creator for use in other TipTap editors
+// Note: Each editor needs its own extension instance, so we export the creator
+export const createFontSizeExtension = () => Extension.create({
+  name: "fontSize",
+
+  addOptions() {
+    return {
+      types: ["textStyle"],
+    };
+  },
+
+  addGlobalAttributes() {
+    return [
+      {
+        types: this.options.types,
+        attributes: {
+          fontSize: {
+            default: null,
+            parseHTML: (element: HTMLElement) =>
+              element.style.fontSize.replace(/['"]+/g, ""),
+            renderHTML: (attributes: { fontSize?: string }) => {
+              if (!attributes.fontSize) {
+                return {};
+              }
+              return {
+                style: `font-size: ${attributes.fontSize}`,
+              };
+            },
+          },
+        },
+      },
+    ];
+  },
+
+  addCommands() {
+    return {
+      setFontSize:
+        (fontSize: string) =>
+        ({ chain }: { chain: () => any }) => {
+          return chain().setMark("textStyle", { fontSize }).run();
+        },
+      unsetFontSize:
+        () =>
+        ({ chain }: { chain: () => any }) => {
+          return chain()
+            .setMark("textStyle", { fontSize: null })
+            .removeEmptyTextStyle()
+            .run();
+        },
+    };
+  },
+});
+
 // Slash command types
 export type SlashCommand = "template";
 
@@ -197,6 +250,16 @@ const createSlashCommandExtension = (onSlashCommand?: (command: SlashCommand) =>
   });
 };
 
+// Module-level variable to track the last focused editor
+// This is updated by editors when they gain focus, and used by the toolbar
+// to ensure commands are sent to the correct editor even during React re-renders
+let lastFocusedEditor: Editor | null = null;
+
+// Export function for editors to register themselves when focused
+export function registerFocusedEditor(editor: Editor | null) {
+  lastFocusedEditor = editor;
+}
+
 function ToolbarButton({
   onClick,
   isActive,
@@ -238,18 +301,44 @@ export function EditorToolbar({ editor, showWritingChecker, transparent }: { edi
   const fontSizeInputRef = React.useRef<HTMLInputElement>(null);
   const { issues, isChecking } = useWritingCheckerState(editor);
 
+  // Helper to get the target editor - uses last focused editor if available
+  const getTargetEditor = () => lastFocusedEditor || editor;
+
+  // Prevent focus from shifting when clicking toolbar
+  const handleToolbarMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+  };
+
   if (!editor) return null;
+
+  // Check if editor view is available (prevents errors during mount/unmount)
+  const isEditorReady = editor.view && !editor.isDestroyed;
+
+  // Safe wrapper for isActive to prevent errors during mount/unmount
+  const safeIsActive = (name: string) => {
+    if (!isEditorReady) return false;
+    try {
+      return editor.isActive(name);
+    } catch {
+      return false;
+    }
+  };
 
   // Get current font size from selection
   const getCurrentFontSize = () => {
-    const attrs = editor.getAttributes("textStyle");
-    return attrs.fontSize ? attrs.fontSize.replace("px", "") : "";
+    if (!isEditorReady) return "";
+    try {
+      const attrs = editor.getAttributes("textStyle");
+      return attrs.fontSize ? attrs.fontSize.replace("px", "") : "";
+    } catch {
+      return "";
+    }
   };
 
   const applyFontSize = (size: string) => {
     const numericSize = size.replace(/[^0-9]/g, "");
     if (numericSize && parseInt(numericSize) > 0) {
-      editor.chain().focus().setFontSize(`${numericSize}px`).run();
+      getTargetEditor()?.chain().focus().setFontSize(`${numericSize}px`).run();
     }
     setFontSizeInput("");
     setFontSizeOpen(false);
@@ -273,7 +362,7 @@ export function EditorToolbar({ editor, showWritingChecker, transparent }: { edi
     const reader = new FileReader();
     reader.onload = () => {
       const base64 = reader.result as string;
-      editor.chain().focus().setImage({ src: base64 }).run();
+      getTargetEditor()?.chain().focus().setImage({ src: base64 }).run();
     };
     reader.readAsDataURL(file);
 
@@ -285,20 +374,23 @@ export function EditorToolbar({ editor, showWritingChecker, transparent }: { edi
     if (linkUrl) {
       // Add https:// if no protocol specified
       const url = linkUrl.match(/^https?:\/\//) ? linkUrl : `https://${linkUrl}`;
-      editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
+      getTargetEditor()?.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
     }
     setLinkUrl("");
     setLinkOpen(false);
   };
 
   const handleRemoveLink = () => {
-    editor.chain().focus().unsetLink().run();
+    getTargetEditor()?.chain().focus().unsetLink().run();
   };
 
   const fontSizes = ["8", "9", "10", "11", "12", "14", "16", "18", "20", "22", "24", "26", "28", "36", "48", "72"];
 
   return (
-    <div className={cn("flex items-center gap-0.5 p-1 flex-wrap", !transparent && "border-b bg-muted/30 rounded-t-md")}>
+    <div
+      className={cn("flex items-center gap-0.5 p-1 flex-wrap", !transparent && "border-b bg-muted/30 rounded-t-md")}
+      onMouseDown={handleToolbarMouseDown}
+    >
       {/* Font Size - Editable input with dropdown */}
       <Popover open={fontSizeOpen} onOpenChange={setFontSizeOpen}>
         <div className="flex items-center border rounded-sm bg-background">
@@ -335,6 +427,7 @@ export function EditorToolbar({ editor, showWritingChecker, transparent }: { edi
               type="button"
               className="h-6 px-0.5 border-l hover:bg-muted/50 flex items-center justify-center"
               title="Font size presets"
+              onMouseDown={(e) => e.preventDefault()}
             >
               <ChevronDown className="h-3 w-3" />
             </button>
@@ -347,6 +440,7 @@ export function EditorToolbar({ editor, showWritingChecker, transparent }: { edi
                 key={size}
                 type="button"
                 onClick={() => applyFontSize(size)}
+                onMouseDown={(e) => e.preventDefault()}
                 className={cn(
                   "w-full text-left px-2 py-1 text-sm rounded hover:bg-muted",
                   getCurrentFontSize() === size && "bg-muted font-medium"
@@ -363,29 +457,29 @@ export function EditorToolbar({ editor, showWritingChecker, transparent }: { edi
 
       {/* Text formatting */}
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleBold().run()}
-        isActive={editor.isActive("bold")}
+        onClick={() => getTargetEditor()?.chain().focus().toggleBold().run()}
+        isActive={safeIsActive("bold")}
         title="Bold (Cmd+B)"
       >
         <Bold className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleItalic().run()}
-        isActive={editor.isActive("italic")}
+        onClick={() => getTargetEditor()?.chain().focus().toggleItalic().run()}
+        isActive={safeIsActive("italic")}
         title="Italic (Cmd+I)"
       >
         <Italic className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleUnderline().run()}
-        isActive={editor.isActive("underline")}
+        onClick={() => getTargetEditor()?.chain().focus().toggleUnderline().run()}
+        isActive={safeIsActive("underline")}
         title="Underline (Cmd+U)"
       >
         <UnderlineIcon className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleStrike().run()}
-        isActive={editor.isActive("strike")}
+        onClick={() => getTargetEditor()?.chain().focus().toggleStrike().run()}
+        isActive={safeIsActive("strike")}
         title="Strikethrough"
       >
         <Strikethrough className="h-4 w-4" />
@@ -395,22 +489,22 @@ export function EditorToolbar({ editor, showWritingChecker, transparent }: { edi
 
       {/* Lists */}
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleBulletList().run()}
-        isActive={editor.isActive("bulletList")}
+        onClick={() => getTargetEditor()?.chain().focus().toggleBulletList().run()}
+        isActive={safeIsActive("bulletList")}
         title="Bullet list"
       >
         <List className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleOrderedList().run()}
-        isActive={editor.isActive("orderedList")}
+        onClick={() => getTargetEditor()?.chain().focus().toggleOrderedList().run()}
+        isActive={safeIsActive("orderedList")}
         title="Numbered list"
       >
         <ListOrdered className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
-        onClick={() => editor.chain().focus().toggleTaskList().run()}
-        isActive={editor.isActive("taskList")}
+        onClick={() => getTargetEditor()?.chain().focus().toggleTaskList().run()}
+        isActive={safeIsActive("taskList")}
         title="Checklist"
       >
         <ListTodo className="h-4 w-4" />
@@ -426,9 +520,10 @@ export function EditorToolbar({ editor, showWritingChecker, transparent }: { edi
             variant="ghost"
             size="sm"
             title="Add link"
+            onMouseDown={(e) => e.preventDefault()}
             className={cn(
               "h-7 w-7 p-0",
-              editor.isActive("link") && "bg-muted text-foreground"
+              safeIsActive("link") && "bg-muted text-foreground"
             )}
           >
             <LinkIcon className="h-4 w-4" />
@@ -448,13 +543,13 @@ export function EditorToolbar({ editor, showWritingChecker, transparent }: { edi
               }}
               className="h-8 text-sm"
             />
-            <Button size="sm" onClick={handleSetLink} className="h-8">
+            <Button size="sm" onClick={handleSetLink} onMouseDown={(e) => e.preventDefault()} className="h-8">
               Add
             </Button>
           </div>
         </PopoverContent>
       </Popover>
-      {editor.isActive("link") && (
+      {safeIsActive("link") && (
         <ToolbarButton onClick={handleRemoveLink} title="Remove link">
           <Unlink className="h-4 w-4" />
         </ToolbarButton>
@@ -481,15 +576,15 @@ export function EditorToolbar({ editor, showWritingChecker, transparent }: { edi
 
       {/* Undo/Redo */}
       <ToolbarButton
-        onClick={() => editor.chain().focus().undo().run()}
-        disabled={!editor.can().undo()}
+        onClick={() => getTargetEditor()?.chain().focus().undo().run()}
+        disabled={!isEditorReady || !editor.can().undo()}
         title="Undo (Cmd+Z)"
       >
         <Undo className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
-        onClick={() => editor.chain().focus().redo().run()}
-        disabled={!editor.can().redo()}
+        onClick={() => getTargetEditor()?.chain().focus().redo().run()}
+        disabled={!isEditorReady || !editor.can().redo()}
         title="Redo (Cmd+Shift+Z)"
       >
         <Redo className="h-4 w-4" />
@@ -630,7 +725,8 @@ export function RichTextEditor({
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML());
     },
-    onFocus: () => {
+    onFocus: ({ editor }) => {
+      registerFocusedEditor(editor);
       onFocus?.();
     },
     onBlur: () => {

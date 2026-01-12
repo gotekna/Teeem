@@ -11,7 +11,9 @@ import {
   useNotebookPage,
   attachmentActions,
   type NotebookPageAttachment,
+  type PositionedBoxData,
 } from "./hooks/useNotebookPage";
+import { NotebookCanvas } from "./NotebookCanvas";
 import {
   Check,
   Cloud,
@@ -42,6 +44,7 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
     hasUnsavedChanges,
     updateContent,
     updateTitle,
+    updateContentMetadata,
     saveNow,
   } = useNotebookPage(pageId, notebookId);
 
@@ -64,10 +67,19 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [attachments, setAttachments] = useState<NotebookPageAttachment[]>([]);
+  const [positionedBoxes, setPositionedBoxes] = useState<PositionedBoxData[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [showAttachments, setShowAttachments] = useState(false);
-  const [editor, setEditor] = useState<Editor | null>(null);
+  const [mainEditor, setMainEditor] = useState<Editor | null>(null);
+  const [activeEditor, setActiveEditor] = useState<Editor | null>(null);
+  const activeEditorRef = useRef<Editor | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Helper to set active editor (updates both ref and state)
+  const updateActiveEditor = useCallback((editor: Editor | null) => {
+    activeEditorRef.current = editor;
+    setActiveEditor(editor);
+  }, []);
 
   // Calculate word and character counts from local content (real-time)
   const { wordCount, charCount } = useMemo(() => {
@@ -84,6 +96,7 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
       setTitle(page.title);
       setContent(page.content || "");
       setAttachments(page.attachments || []);
+      setPositionedBoxes(page.content_metadata?.positioned_boxes || []);
     }
   }, [page]);
 
@@ -148,6 +161,14 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
     updateContent(newContent);
   };
 
+  const handlePositionedBoxesChange = useCallback(
+    (boxes: PositionedBoxData[]) => {
+      setPositionedBoxes(boxes);
+      updateContentMetadata({ positioned_boxes: boxes });
+    },
+    [updateContentMetadata]
+  );
+
   if (!pageId) {
     return (
       <div className={cn("flex flex-col items-center justify-center h-full text-muted-foreground", className)}>
@@ -180,7 +201,7 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
       <div className="flex items-center justify-between gap-2 py-1 border-b px-4">
         {/* Toolbar on the left - fixed position, doesn't move with slider */}
         <div className="flex-1">
-          <EditorToolbar editor={editor} transparent />
+          <EditorToolbar editor={activeEditor} transparent />
         </div>
 
         {/* Save status and attachments on the right */}
@@ -255,43 +276,60 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
 
       {/* Editor */}
       <div className="flex-1 overflow-auto">
-        <div style={{ paddingLeft: 78, paddingRight: 24, paddingTop: 45, paddingBottom: 16 }}>
-          {/* Title */}
-          <Input
-            value={title}
-            onChange={handleTitleChange}
-            placeholder="Untitled"
-            className="text-2xl font-semibold border-none shadow-none focus-visible:ring-0 px-0 h-auto"
-          />
-          <div className="border-b border-border mb-1" />
-          {/* Created date */}
-          {page?.created_at && (
-            <p className="text-sm text-muted-foreground mb-4">
-              {new Date(page.created_at).toLocaleDateString("en-AU", {
-                weekday: "long",
-                day: "numeric",
-                month: "long",
-                year: "numeric",
-              })}
-              {"    "}
-              {new Date(page.created_at).toLocaleTimeString("en-AU", {
-                hour: "numeric",
-                minute: "2-digit",
-                hour12: true,
-              })}
-            </p>
-          )}
-          {/* Content */}
-          <RichTextEditor
-            value={content}
-            onChange={handleContentChange}
-            placeholder="Start writing..."
-            minHeight={400}
-            hideToolbar={true}
-            onEditorReady={setEditor}
-            className="prose prose-sm dark:prose-invert max-w-none border-none shadow-none focus-within:ring-0 [&_.ProseMirror]:px-0"
-          />
-        </div>
+        <NotebookCanvas
+          boxes={positionedBoxes}
+          onBoxesChange={handlePositionedBoxesChange}
+          onActiveEditorChange={updateActiveEditor}
+          className="min-h-full"
+        >
+          <div style={{ paddingLeft: 78, paddingRight: 24, paddingTop: 45, paddingBottom: 16 }}>
+            {/* Title */}
+            <Input
+              value={title}
+              onChange={handleTitleChange}
+              placeholder="Untitled"
+              className="text-2xl font-semibold border-none shadow-none focus-visible:ring-0 px-0 h-auto"
+            />
+            <div className="border-b border-border mb-1" />
+            {/* Created date */}
+            {page?.created_at && (
+              <p className="text-sm text-muted-foreground mb-4">
+                {new Date(page.created_at).toLocaleDateString("en-AU", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
+                {"    "}
+                {new Date(page.created_at).toLocaleTimeString("en-AU", {
+                  hour: "numeric",
+                  minute: "2-digit",
+                  hour12: true,
+                })}
+              </p>
+            )}
+            {/* Content */}
+            <RichTextEditor
+              value={content}
+              onChange={handleContentChange}
+              placeholder="Start writing..."
+              minHeight={400}
+              hideToolbar={true}
+              onEditorReady={(editor) => {
+                setMainEditor(editor);
+                updateActiveEditor(editor);
+              }}
+              onFocus={() => {
+                // Always set main editor as active when it receives focus
+                // The positioned textbox will set itself as active when focused
+                if (mainEditor) {
+                  updateActiveEditor(mainEditor);
+                }
+              }}
+              className="prose prose-sm dark:prose-invert max-w-none border-none shadow-none focus-within:ring-0 [&_.ProseMirror]:px-0"
+            />
+          </div>
+        </NotebookCanvas>
       </div>
 
       {/* Footer with metadata */}

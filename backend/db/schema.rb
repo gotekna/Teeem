@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_12_120002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1066,8 +1066,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.string "file_action", default: "copy"
     t.string "document_processing_status", default: "pending"
     t.integer "unanswered_questions_count", default: 0
-    t.string "sharepoint_folder_id"
-    t.string "sharepoint_folder_path"
+    t.string "storage_folder_id"
+    t.string "storage_folder_path"
     t.index ["assigned_to_id"], name: "index_cases_on_assigned_to_id"
     t.index ["case_number"], name: "index_cases_on_case_number", unique: true
     t.index ["case_type"], name: "index_cases_on_case_type"
@@ -1079,8 +1079,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.index ["parent_case_id", "status"], name: "index_cases_on_parent_and_status"
     t.index ["parent_case_id"], name: "index_cases_on_parent_case_id"
     t.index ["priority"], name: "index_cases_on_priority"
-    t.index ["sharepoint_folder_id"], name: "index_cases_on_sharepoint_folder_id"
     t.index ["status"], name: "index_cases_on_status"
+    t.index ["storage_folder_id"], name: "index_cases_on_storage_folder_id"
   end
 
   create_table "chat_messages", force: :cascade do |t|
@@ -1559,6 +1559,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.boolean "is_customer_cached", default: false, null: false
     t.boolean "is_supplier_cached", default: false, null: false
     t.boolean "is_director_cached", default: false, null: false
+    t.string "stripe_customer_id"
     t.index "lower(TRIM(BOTH FROM display_name))", name: "idx_contacts_unique_company_name", unique: true, where: "(((entity_type)::text = 'company'::text) AND (is_active = true))"
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["acn"], name: "index_contacts_on_acn"
@@ -1583,6 +1584,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.index ["referrer_status"], name: "index_contacts_on_referrer_status"
     t.index ["saas_status"], name: "index_contacts_on_saas_status"
     t.index ["searchable"], name: "idx_contacts_searchable_gin", using: :gin
+    t.index ["stripe_customer_id"], name: "index_contacts_on_stripe_customer_id", unique: true, where: "(stripe_customer_id IS NOT NULL)"
     t.index ["support_contact_id"], name: "index_contacts_on_support_contact_id"
     t.index ["upline_contact_id"], name: "index_contacts_on_upline_contact_id"
     t.index ["xero_contact_number"], name: "index_contacts_on_xero_contact_number"
@@ -1623,11 +1625,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.string "health_status"
     t.boolean "has_loans", default: false
     t.boolean "loan_documents_in_place", default: false
-    t.string "sharepoint_folder_id"
-    t.string "sharepoint_folder_path"
+    t.string "storage_folder_id"
+    t.string "storage_folder_path"
     t.string "code"
-    t.string "sharepoint_folder_url"
-    t.string "sharepoint_folder_name"
+    t.string "storage_folder_url"
+    t.string "storage_folder_name"
     t.string "entity_type", default: "company"
     t.bigint "parent_company_id"
     t.integer "hierarchy_level", default: 0
@@ -1655,9 +1657,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.index ["name"], name: "index_corporate_companies_on_name"
     t.index ["parent_company_id"], name: "index_corporate_companies_on_parent_company_id"
     t.index ["review_date"], name: "index_corporate_companies_on_review_date"
-    t.index ["sharepoint_folder_id"], name: "index_corporate_companies_on_sharepoint_folder_id"
     t.index ["slug"], name: "index_corporate_companies_on_slug", unique: true
     t.index ["status"], name: "index_corporate_companies_on_status"
+    t.index ["storage_folder_id"], name: "index_corporate_companies_on_storage_folder_id"
   end
 
   create_table "corporate_company_activities", force: :cascade do |t|
@@ -2101,6 +2103,31 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.index ["name"], name: "index_designs_on_name", unique: true
   end
 
+  create_table "desktop_clients", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "organization_id", null: false
+    t.string "device_id", null: false
+    t.string "device_name", null: false
+    t.string "platform"
+    t.string "app_version"
+    t.text "refresh_token"
+    t.datetime "token_expires_at"
+    t.string "device_code"
+    t.datetime "device_code_expires_at"
+    t.boolean "is_active", default: true
+    t.datetime "last_seen_at"
+    t.datetime "last_sync_at"
+    t.string "last_sync_status"
+    t.jsonb "sync_settings", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["device_code"], name: "index_desktop_clients_on_device_code", unique: true
+    t.index ["is_active"], name: "index_desktop_clients_on_is_active"
+    t.index ["organization_id"], name: "index_desktop_clients_on_organization_id"
+    t.index ["user_id", "device_id"], name: "index_desktop_clients_on_user_id_and_device_id", unique: true
+    t.index ["user_id"], name: "index_desktop_clients_on_user_id"
+  end
+
   create_table "director_onboarding_requests", force: :cascade do |t|
     t.bigint "contact_id"
     t.bigint "company_id"
@@ -2496,6 +2523,20 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.index ["status"], name: "index_e_signature_signers_on_status"
   end
 
+  create_table "email_aliases", force: :cascade do |t|
+    t.bigint "email_subscription_id", null: false
+    t.string "alias_address", null: false
+    t.string "target_address", null: false
+    t.string "alias_type", default: "alias"
+    t.boolean "is_active", default: true
+    t.string "polaris_alias_id"
+    t.datetime "provisioned_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["email_subscription_id", "alias_address"], name: "index_email_aliases_on_email_subscription_id_and_alias_address", unique: true
+    t.index ["email_subscription_id"], name: "index_email_aliases_on_email_subscription_id"
+  end
+
   create_table "email_attachments", id: :bigint, default: nil, force: :cascade do |t|
     t.bigint "email_warehouse_id", null: false
     t.string "outlook_attachment_id"
@@ -2613,6 +2654,94 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.index ["user_id"], name: "index_email_labels_on_user_id"
   end
 
+  create_table "email_mailbox_favorites", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "account_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id", "account_id"], name: "index_email_mailbox_favorites_on_user_id_and_account_id", unique: true
+    t.index ["user_id"], name: "index_email_mailbox_favorites_on_user_id"
+  end
+
+  create_table "email_mailboxes", force: :cascade do |t|
+    t.bigint "email_subscription_id", null: false
+    t.bigint "contact_id"
+    t.string "email_address", null: false
+    t.string "display_name"
+    t.string "mailbox_type", default: "user", null: false
+    t.string "status", default: "pending", null: false
+    t.integer "storage_quota_gb", default: 50
+    t.decimal "storage_used_gb", precision: 10, scale: 2
+    t.string "polaris_mailbox_id"
+    t.datetime "provisioned_at"
+    t.datetime "last_sync_at"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_email_mailboxes_on_contact_id"
+    t.index ["email_address"], name: "index_email_mailboxes_on_email_address", unique: true
+    t.index ["email_subscription_id"], name: "index_email_mailboxes_on_email_subscription_id"
+    t.index ["mailbox_type"], name: "index_email_mailboxes_on_mailbox_type"
+    t.index ["polaris_mailbox_id"], name: "index_email_mailboxes_on_polaris_mailbox_id"
+    t.index ["status"], name: "index_email_mailboxes_on_status"
+  end
+
+  create_table "email_migration_invites", force: :cascade do |t|
+    t.bigint "email_subscription_id", null: false
+    t.bigint "contact_id", null: false
+    t.bigint "created_by_id"
+    t.string "token", null: false
+    t.string "status", default: "pending", null: false
+    t.decimal "total_monthly", precision: 10, scale: 2
+    t.jsonb "mailboxes_data", default: []
+    t.datetime "expires_at"
+    t.datetime "viewed_at"
+    t.integer "view_count", default: 0
+    t.datetime "payment_completed_at"
+    t.datetime "migration_started_at"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_email_migration_invites_on_contact_id"
+    t.index ["created_by_id"], name: "index_email_migration_invites_on_created_by_id"
+    t.index ["email_subscription_id"], name: "index_email_migration_invites_on_email_subscription_id"
+    t.index ["expires_at"], name: "index_email_migration_invites_on_expires_at"
+    t.index ["status"], name: "index_email_migration_invites_on_status"
+    t.index ["token"], name: "index_email_migration_invites_on_token", unique: true
+  end
+
+  create_table "email_migrations", force: :cascade do |t|
+    t.bigint "email_subscription_id", null: false
+    t.bigint "email_mailbox_id"
+    t.bigint "initiated_by_id"
+    t.bigint "microsoft_credential_id"
+    t.string "migration_type", null: false
+    t.string "status", default: "pending", null: false
+    t.string "source_email"
+    t.string "source_tenant_id"
+    t.integer "total_items", default: 0
+    t.integer "processed_items", default: 0
+    t.integer "failed_items", default: 0
+    t.bigint "total_bytes", default: 0
+    t.bigint "processed_bytes", default: 0
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.datetime "failed_at"
+    t.text "error_message"
+    t.jsonb "migration_log", default: {}
+    t.jsonb "options", default: {}
+    t.boolean "is_self_service", default: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["email_mailbox_id"], name: "index_email_migrations_on_email_mailbox_id"
+    t.index ["email_subscription_id"], name: "index_email_migrations_on_email_subscription_id"
+    t.index ["initiated_by_id"], name: "index_email_migrations_on_initiated_by_id"
+    t.index ["is_self_service"], name: "index_email_migrations_on_is_self_service"
+    t.index ["microsoft_credential_id"], name: "index_email_migrations_on_microsoft_credential_id"
+    t.index ["migration_type"], name: "index_email_migrations_on_migration_type"
+    t.index ["status"], name: "index_email_migrations_on_status"
+  end
+
   create_table "email_recipients", force: :cascade do |t|
     t.bigint "email_warehouse_id", null: false
     t.bigint "user_id"
@@ -2661,6 +2790,57 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.index ["snooze_until", "is_active"], name: "idx_email_snoozes_pending_wakeup", where: "(is_active = true)"
     t.index ["user_id", "is_active"], name: "idx_email_snoozes_user_active", where: "(is_active = true)"
     t.index ["user_id"], name: "index_email_snoozes_on_user_id"
+  end
+
+  create_table "email_subscription_invoices", force: :cascade do |t|
+    t.bigint "email_subscription_id", null: false
+    t.bigint "gl_invoice_id"
+    t.date "billing_period_start", null: false
+    t.date "billing_period_end", null: false
+    t.decimal "retail_amount", precision: 10, scale: 2
+    t.decimal "wholesale_amount", precision: 10, scale: 2
+    t.string "stripe_invoice_id"
+    t.string "status", default: "pending", null: false
+    t.datetime "paid_at"
+    t.string "failure_reason"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["billing_period_start", "billing_period_end"], name: "idx_email_invoices_period"
+    t.index ["email_subscription_id"], name: "index_email_subscription_invoices_on_email_subscription_id"
+    t.index ["gl_invoice_id"], name: "index_email_subscription_invoices_on_gl_invoice_id"
+    t.index ["status"], name: "index_email_subscription_invoices_on_status"
+    t.index ["stripe_invoice_id"], name: "index_email_subscription_invoices_on_stripe_invoice_id"
+  end
+
+  create_table "email_subscriptions", force: :cascade do |t|
+    t.bigint "contact_id", null: false
+    t.bigint "organization_id", null: false
+    t.string "polaris_account_id"
+    t.string "domain", null: false
+    t.string "status", default: "pending", null: false
+    t.string "billing_interval", default: "monthly", null: false
+    t.decimal "retail_price", precision: 10, scale: 2
+    t.decimal "wholesale_cost", precision: 10, scale: 2
+    t.string "stripe_subscription_id"
+    t.string "stripe_customer_id"
+    t.string "stripe_payment_method_id"
+    t.date "next_billing_date"
+    t.date "current_period_start"
+    t.date "current_period_end"
+    t.integer "mailbox_count", default: 0
+    t.integer "total_storage_gb", default: 0
+    t.jsonb "metadata", default: {}
+    t.datetime "started_at"
+    t.datetime "cancelled_at"
+    t.string "cancellation_reason"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id", "organization_id"], name: "index_email_subscriptions_on_contact_id_and_organization_id", unique: true
+    t.index ["contact_id"], name: "index_email_subscriptions_on_contact_id"
+    t.index ["domain"], name: "index_email_subscriptions_on_domain"
+    t.index ["organization_id"], name: "index_email_subscriptions_on_organization_id"
+    t.index ["status"], name: "index_email_subscriptions_on_status"
+    t.index ["stripe_subscription_id"], name: "index_email_subscriptions_on_stripe_subscription_id", unique: true
   end
 
   create_table "email_sync_statuses", force: :cascade do |t|
@@ -2825,17 +3005,17 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.string "icon_name"
     t.string "component_name"
     t.boolean "is_system_tab", default: false
-    t.boolean "has_sharepoint_folder", default: false
-    t.string "sharepoint_folder_path"
+    t.boolean "has_storage_folder", default: false
+    t.string "storage_folder_path"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "display_code", limit: 3
     t.boolean "uses_custom_path", default: false, null: false
-    t.string "sharepoint_path_type", default: "corporate"
+    t.string "storage_path_type", default: "corporate"
     t.boolean "is_photo_category", default: false, null: false
     t.string "display_mode", default: "both", null: false
     t.boolean "hidden_by_default", default: false, null: false
-    t.string "sharepoint_folder_id"
+    t.string "storage_folder_id"
     t.boolean "is_cad_category"
     t.index ["enabled"], name: "index_entity_tabs_on_enabled"
     t.index ["entity_filters"], name: "index_entity_tabs_on_entity_filters", using: :gin
@@ -2845,7 +3025,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.index ["scope", "tab_group"], name: "index_entity_tabs_on_scope_and_tab_group"
     t.index ["scope", "tab_key", "job_id", "parent_id"], name: "idx_entity_tabs_unique_key", unique: true
     t.index ["scope"], name: "index_entity_tabs_on_scope"
-    t.index ["sharepoint_folder_id"], name: "index_entity_tabs_on_sharepoint_folder_id"
+    t.index ["storage_folder_id"], name: "index_entity_tabs_on_storage_folder_id"
   end
 
   create_table "estimate_line_items", force: :cascade do |t|
@@ -3178,6 +3358,33 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.index ["model_class"], name: "index_foundations_on_model_class"
     t.index ["slug"], name: "index_foundations_on_slug", unique: true
     t.index ["table_type"], name: "index_foundations_on_table_type"
+  end
+
+  create_table "geofence_events", force: :cascade do |t|
+    t.bigint "site_presence_session_id", null: false
+    t.bigint "worker_profile_id", null: false
+    t.bigint "job_id", null: false
+    t.string "event_type", limit: 20, null: false
+    t.decimal "latitude", precision: 10, scale: 7
+    t.decimal "longitude", precision: 10, scale: 7
+    t.integer "distance_from_site"
+    t.datetime "detected_at", null: false
+    t.datetime "resolved_at"
+    t.integer "duration_seconds"
+    t.boolean "notification_sent", default: false
+    t.boolean "acknowledged", default: false
+    t.bigint "acknowledged_by_id"
+    t.datetime "acknowledged_at"
+    t.text "acknowledgment_notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["acknowledged_by_id"], name: "index_geofence_events_on_acknowledged_by_id"
+    t.index ["job_id", "detected_at"], name: "idx_geofence_events_job_time"
+    t.index ["job_id"], name: "index_geofence_events_on_job_id"
+    t.index ["site_presence_session_id", "event_type"], name: "idx_geofence_events_session_type"
+    t.index ["site_presence_session_id"], name: "index_geofence_events_on_site_presence_session_id"
+    t.index ["worker_profile_id", "created_at"], name: "idx_geofence_events_worker_time"
+    t.index ["worker_profile_id"], name: "index_geofence_events_on_worker_profile_id"
   end
 
   create_table "gl_account_balances", force: :cascade do |t|
@@ -6127,7 +6334,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.integer "purchase_orders_count", default: 0, null: false
-    t.string "sharepoint_folder_status", default: "not_requested"
+    t.string "storage_folder_status", default: "not_requested"
     t.decimal "latitude", precision: 10, scale: 6
     t.decimal "longitude", precision: 10, scale: 6
     t.string "location"
@@ -6191,7 +6398,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.integer "plans_count", default: 0, null: false
     t.integer "on_issue_plans_count", default: 0, null: false
     t.datetime "template_applied_at"
-    t.string "sharepoint_folder_id"
+    t.string "storage_folder_id"
     t.string "level"
     t.string "dwelling_type"
     t.bigint "supervisor_id"
@@ -6213,9 +6420,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.index ["job_type_id"], name: "index_jobs_on_job_type_id"
     t.index ["postcode"], name: "index_jobs_on_postcode"
     t.index ["searchable"], name: "idx_jobs_searchable_gin", using: :gin
-    t.index ["sharepoint_folder_id"], name: "index_jobs_on_sharepoint_folder_id"
-    t.index ["sharepoint_folder_status"], name: "index_jobs_on_sharepoint_folder_status"
     t.index ["site_coordinator_id"], name: "index_jobs_on_site_coordinator_id"
+    t.index ["storage_folder_id"], name: "index_jobs_on_storage_folder_id"
+    t.index ["storage_folder_status"], name: "index_jobs_on_storage_folder_status"
     t.index ["suburb"], name: "index_jobs_on_suburb"
     t.index ["supervisor_id"], name: "index_jobs_on_supervisor_id"
     t.index ["xero_tracking_option_id"], name: "index_jobs_on_xero_tracking_option_id"
@@ -6338,6 +6545,32 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.index ["job_id"], name: "index_leads_on_job_id"
     t.index ["lead_number"], name: "index_leads_on_lead_number", unique: true
     t.index ["status"], name: "index_leads_on_status"
+  end
+
+  create_table "location_pings", force: :cascade do |t|
+    t.bigint "site_presence_session_id", null: false
+    t.bigint "worker_profile_id", null: false
+    t.bigint "job_id", null: false
+    t.decimal "latitude", precision: 10, scale: 7, null: false
+    t.decimal "longitude", precision: 10, scale: 7, null: false
+    t.decimal "accuracy", precision: 8, scale: 2
+    t.decimal "altitude", precision: 10, scale: 2
+    t.decimal "speed", precision: 6, scale: 2
+    t.decimal "heading", precision: 5, scale: 2
+    t.integer "distance_from_site"
+    t.boolean "within_geofence", default: true
+    t.string "source", limit: 20
+    t.integer "battery_level"
+    t.string "battery_state", limit: 20
+    t.datetime "recorded_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "idx_location_pings_created"
+    t.index ["job_id"], name: "index_location_pings_on_job_id"
+    t.index ["site_presence_session_id", "recorded_at"], name: "idx_location_pings_session_time"
+    t.index ["site_presence_session_id"], name: "index_location_pings_on_site_presence_session_id"
+    t.index ["worker_profile_id", "recorded_at"], name: "idx_location_pings_worker_time"
+    t.index ["worker_profile_id"], name: "index_location_pings_on_worker_profile_id"
   end
 
   create_table "maintenance_requests", force: :cascade do |t|
@@ -6481,11 +6714,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.datetime "last_refresh_attempt_at"
     t.datetime "admin_consent_granted_at"
     t.string "admin_consent_granted_by"
-    t.string "sharepoint_site_id"
-    t.string "sharepoint_drive_id"
-    t.string "sharepoint_drive_name"
-    t.string "drive_id"
-    t.string "drive_name"
     t.string "root_folder_id"
     t.string "root_folder_path"
     t.jsonb "sync_config", default: {}
@@ -7226,6 +7454,24 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.index ["staging_file_id"], name: "index_plan_uploads_on_staging_file_id"
     t.index ["status"], name: "index_plan_uploads_on_status"
     t.index ["uploaded_by_id"], name: "index_plan_uploads_on_uploaded_by_id"
+  end
+
+  create_table "polaris_credentials", force: :cascade do |t|
+    t.bigint "organization_id", null: false
+    t.text "api_key"
+    t.text "api_secret"
+    t.string "reseller_id"
+    t.string "status", default: "pending", null: false
+    t.boolean "is_active", default: true, null: false
+    t.text "error_message"
+    t.datetime "last_connected_at"
+    t.datetime "last_error_at"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["organization_id", "is_active"], name: "idx_polaris_credentials_active_org", unique: true, where: "(is_active = true)"
+    t.index ["organization_id"], name: "index_polaris_credentials_on_organization_id"
+    t.index ["status"], name: "index_polaris_credentials_on_status"
   end
 
   create_table "portal_access_logs", force: :cascade do |t|
@@ -8456,7 +8702,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_080000) do
     t.bigint "updated_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-t.bigint "sm_schedule_master_id"
+    t.bigint "sm_schedule_master_id"
     t.boolean "spawn_order_task", default: false
     t.boolean "spawn_call_task", default: false
     t.boolean "is_photo_task", default: false, null: false
@@ -8788,6 +9034,22 @@ t.bigint "sm_schedule_master_id"
     t.index ["job_type_id"], name: "index_specification_templates_on_job_type_id"
   end
 
+  create_table "storage_configurations", force: :cascade do |t|
+    t.bigint "organization_id", null: false
+    t.string "provider_type", default: "sharepoint", null: false
+    t.string "status", default: "disconnected", null: false
+    t.jsonb "connection_config", default: {}, null: false
+    t.string "root_path", default: "/Shared Documents", null: false
+    t.jsonb "paths", default: {"jobs"=>"Jobs", "tasks"=>"Tasks", "emails"=>"Emails", "people"=>"People", "accounts"=>"Accounts", "contacts"=>"Contacts", "corporate"=>"Corporate"}, null: false
+    t.jsonb "templates", default: {"job"=>"{{JobCode}}/{{Category}}", "task"=>"Task-{{TaskId}}/{{Category}}", "people"=>"{{ContactName}}/{{Category}}", "account"=>"{{Source}}/{{ContactName}}/{{Category}}", "contacts"=>"{{ContactName}}/{{Category}}", "corporate"=>"{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}"}, null: false
+    t.string "credential_type"
+    t.bigint "credential_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["credential_type", "credential_id"], name: "index_storage_configurations_on_credential"
+    t.index ["organization_id"], name: "index_storage_configurations_on_organization_id", unique: true
+  end
+
   create_table "stripe_configurations", force: :cascade do |t|
     t.bigint "organization_id"
     t.boolean "enabled", default: false, null: false
@@ -8925,6 +9187,71 @@ t.bigint "sm_schedule_master_id"
     t.string "default_sync_direction", default: "import_only"
     t.index ["accounting_system"], name: "index_sync_configurations_on_accounting_system"
     t.index ["xero_tenant_id"], name: "index_sync_configurations_on_xero_tenant_id", unique: true
+  end
+
+  create_table "sync_exclusion_rules", force: :cascade do |t|
+    t.bigint "organization_id"
+    t.bigint "user_id"
+    t.string "rule_type", null: false
+    t.string "value", null: false
+    t.string "action", default: "skip", null: false
+    t.string "description"
+    t.boolean "is_default", default: false
+    t.integer "priority", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_default"], name: "index_sync_exclusion_rules_on_is_default"
+    t.index ["organization_id"], name: "index_sync_exclusion_rules_on_organization_id"
+    t.index ["rule_type", "value"], name: "index_sync_exclusion_rules_on_rule_type_and_value"
+    t.index ["user_id"], name: "index_sync_exclusion_rules_on_user_id"
+  end
+
+  create_table "sync_file_states", force: :cascade do |t|
+    t.bigint "desktop_client_id", null: false
+    t.bigint "sync_subscription_id", null: false
+    t.string "remote_path", null: false
+    t.string "remote_item_id"
+    t.string "file_name", null: false
+    t.string "remote_etag"
+    t.string "remote_content_hash"
+    t.string "local_content_hash"
+    t.bigint "file_size"
+    t.datetime "remote_modified_at"
+    t.datetime "local_modified_at"
+    t.datetime "last_synced_at"
+    t.string "sync_status", default: "pending_download", null: false
+    t.boolean "is_placeholder", default: true
+    t.boolean "is_pinned", default: false
+    t.boolean "is_deleted", default: false
+    t.integer "error_count", default: 0
+    t.text "last_error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["desktop_client_id", "remote_path"], name: "index_sync_file_states_on_desktop_client_id_and_remote_path", unique: true
+    t.index ["desktop_client_id"], name: "index_sync_file_states_on_desktop_client_id"
+    t.index ["is_deleted"], name: "index_sync_file_states_on_is_deleted"
+    t.index ["is_placeholder"], name: "index_sync_file_states_on_is_placeholder"
+    t.index ["remote_item_id"], name: "index_sync_file_states_on_remote_item_id"
+    t.index ["sync_status"], name: "index_sync_file_states_on_sync_status"
+    t.index ["sync_subscription_id"], name: "index_sync_file_states_on_sync_subscription_id"
+  end
+
+  create_table "sync_subscriptions", force: :cascade do |t|
+    t.bigint "desktop_client_id", null: false
+    t.string "syncable_type", null: false
+    t.bigint "syncable_id", null: false
+    t.boolean "include_subfolders", default: true
+    t.boolean "enabled", default: true
+    t.jsonb "file_type_overrides", default: {}
+    t.string "delta_token"
+    t.datetime "last_sync_at"
+    t.integer "files_synced", default: 0
+    t.bigint "bytes_synced", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["desktop_client_id", "syncable_type", "syncable_id"], name: "idx_sync_subscriptions_unique", unique: true
+    t.index ["desktop_client_id"], name: "index_sync_subscriptions_on_desktop_client_id"
+    t.index ["syncable_type", "syncable_id"], name: "index_sync_subscriptions_on_syncable_type_and_syncable_id"
   end
 
   create_table "system_settings", force: :cascade do |t|
@@ -10075,6 +10402,8 @@ t.bigint "sm_schedule_master_id"
   add_foreign_key "corporate_company_xero_connections", "corporate_companies", column: "company_id"
   add_foreign_key "corporate_company_xero_connections", "xero_credentials"
   add_foreign_key "cost_centres", "cost_centres", column: "parent_id", on_delete: :nullify
+  add_foreign_key "desktop_clients", "organizations"
+  add_foreign_key "desktop_clients", "users"
   add_foreign_key "director_onboarding_requests", "contacts"
   add_foreign_key "director_onboarding_requests", "corporate_companies", column: "company_id"
   add_foreign_key "director_onboarding_requests", "users", column: "invited_by_id"
@@ -10103,6 +10432,7 @@ t.bigint "sm_schedule_master_id"
   add_foreign_key "e_signature_requests", "users", column: "created_by_id"
   add_foreign_key "e_signature_signers", "contacts"
   add_foreign_key "e_signature_signers", "e_signature_requests"
+  add_foreign_key "email_aliases", "email_subscriptions"
   add_foreign_key "email_drafts", "imap_credentials"
   add_foreign_key "email_drafts", "organizations"
   add_foreign_key "email_drafts", "users"
@@ -10110,11 +10440,25 @@ t.bigint "sm_schedule_master_id"
   add_foreign_key "email_label_assignments", "email_labels"
   add_foreign_key "email_label_assignments", "email_warehouses"
   add_foreign_key "email_labels", "users"
+  add_foreign_key "email_mailbox_favorites", "users"
+  add_foreign_key "email_mailboxes", "contacts"
+  add_foreign_key "email_mailboxes", "email_subscriptions"
+  add_foreign_key "email_migration_invites", "contacts"
+  add_foreign_key "email_migration_invites", "email_subscriptions"
+  add_foreign_key "email_migration_invites", "users", column: "created_by_id"
+  add_foreign_key "email_migrations", "email_mailboxes"
+  add_foreign_key "email_migrations", "email_subscriptions"
+  add_foreign_key "email_migrations", "microsoft_credentials"
+  add_foreign_key "email_migrations", "users", column: "initiated_by_id"
   add_foreign_key "email_rules", "imap_credentials"
   add_foreign_key "email_rules", "microsoft_credentials", on_delete: :cascade
   add_foreign_key "email_rules", "users"
   add_foreign_key "email_snoozes", "email_warehouses"
   add_foreign_key "email_snoozes", "users"
+  add_foreign_key "email_subscription_invoices", "email_subscriptions"
+  add_foreign_key "email_subscription_invoices", "gl_invoices"
+  add_foreign_key "email_subscriptions", "contacts"
+  add_foreign_key "email_subscriptions", "organizations"
   add_foreign_key "email_templates", "users"
   add_foreign_key "email_user_states", "email_warehouses"
   add_foreign_key "email_user_states", "users"
@@ -10136,6 +10480,10 @@ t.bigint "sm_schedule_master_id"
   add_foreign_key "folder_template_items", "folder_template_items", column: "parent_id"
   add_foreign_key "folder_template_items", "folder_templates"
   add_foreign_key "folder_templates", "users", column: "created_by_id"
+  add_foreign_key "geofence_events", "jobs"
+  add_foreign_key "geofence_events", "site_presence_sessions"
+  add_foreign_key "geofence_events", "users", column: "acknowledged_by_id"
+  add_foreign_key "geofence_events", "worker_profiles"
   add_foreign_key "gl_account_balances", "gl_accounts"
   add_foreign_key "gl_account_balances", "gl_periods"
   add_foreign_key "gl_accounts", "corporate_companies"
@@ -10484,6 +10832,9 @@ t.bigint "sm_schedule_master_id"
   add_foreign_key "labour_cost_entries", "sm_tasks"
   add_foreign_key "labour_cost_entries", "worker_profiles"
   add_foreign_key "leads", "jobs"
+  add_foreign_key "location_pings", "jobs"
+  add_foreign_key "location_pings", "site_presence_sessions"
+  add_foreign_key "location_pings", "worker_profiles"
   add_foreign_key "maintenance_requests", "contacts", column: "supplier_contact_id"
   add_foreign_key "maintenance_requests", "jobs"
   add_foreign_key "maintenance_requests", "purchase_orders"
@@ -10552,6 +10903,7 @@ t.bigint "sm_schedule_master_id"
   add_foreign_key "plan_uploads", "job_plan_tabs"
   add_foreign_key "plan_uploads", "jobs"
   add_foreign_key "plan_uploads", "users", column: "uploaded_by_id"
+  add_foreign_key "polaris_credentials", "organizations"
   add_foreign_key "portal_access_logs", "portal_users"
   add_foreign_key "portal_users", "contacts"
   add_foreign_key "price_histories", "contacts", column: "supplier_id", name: "fk_rails_price_histories_contact"
@@ -10707,6 +11059,7 @@ t.bigint "sm_schedule_master_id"
   add_foreign_key "solid_queue_recurring_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "specification_templates", "job_types"
+  add_foreign_key "storage_configurations", "organizations"
   add_foreign_key "stripe_configurations", "organizations"
   add_foreign_key "stripe_payments", "contacts"
   add_foreign_key "stripe_payments", "external_invoices", column: "invoice_id"
@@ -10716,6 +11069,11 @@ t.bigint "sm_schedule_master_id"
   add_foreign_key "subcontractor_invoices", "accounting_integrations"
   add_foreign_key "subcontractor_invoices", "contacts"
   add_foreign_key "subcontractor_invoices", "purchase_orders"
+  add_foreign_key "sync_exclusion_rules", "organizations"
+  add_foreign_key "sync_exclusion_rules", "users"
+  add_foreign_key "sync_file_states", "desktop_clients"
+  add_foreign_key "sync_file_states", "sync_subscriptions"
+  add_foreign_key "sync_subscriptions", "desktop_clients"
   add_foreign_key "table_health_checks", "foundations"
   add_foreign_key "task_action_items", "sm_tasks"
   add_foreign_key "task_action_items", "sm_tasks", column: "delegated_task_id"
