@@ -84,6 +84,8 @@ import {
   CornerDownRight,
   AlertCircle,
   Pencil,
+  Check,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -437,6 +439,7 @@ export function EntityTabsConfig({
   // SSoT: Auto-save templates when they change (debounced)
   const isInitialLoadRef = React.useRef(true);
   const saveTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const [saveStatus, setSaveStatus] = React.useState<'idle' | 'saving' | 'saved'>('idle');
 
   // Save templates to API (debounced)
   const saveTemplates = React.useCallback(async () => {
@@ -474,6 +477,7 @@ export function EntityTabsConfig({
         });
       }
 
+      setSaveStatus('saving');
       await api.patch('/api/v1/corporate_company_settings/sharepoint', {
         sharepoint: {
           scope_templates: scopeTemplates,
@@ -481,10 +485,13 @@ export function EntityTabsConfig({
         }
       });
 
-      // Silent save - no toast to avoid noise
+      // Show green tick for 2 seconds
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
       console.log('[EntityTabsConfig] Auto-saved templates');
     } catch (err) {
       console.error('[EntityTabsConfig] Failed to auto-save templates:', err);
+      setSaveStatus('idle');
     }
   }, [
     showSharePointPaths, scope, folderPathTemplate, fileNameTemplate,
@@ -1544,6 +1551,27 @@ export function EntityTabsConfig({
             {/* SSoT: Storage Configuration for system scopes (task, email, warehouse) - always visible */}
             {showSharePointPaths && (
               <div className="space-y-6 mb-6">
+                {/* Auto-save status indicator */}
+                {saveStatus !== 'idle' && (
+                  <div className={cn(
+                    "flex items-center gap-2 text-xs px-2 py-1 rounded-md w-fit transition-all duration-300",
+                    saveStatus === 'saving' && "bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400",
+                    saveStatus === 'saved' && "bg-green-50 dark:bg-green-950/30 text-green-600 dark:text-green-400"
+                  )}>
+                    {saveStatus === 'saving' && (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <span>Saving...</span>
+                      </>
+                    )}
+                    {saveStatus === 'saved' && (
+                      <>
+                        <Check className="h-3 w-3" />
+                        <span>Saved</span>
+                      </>
+                    )}
+                  </div>
+                )}
                 {/* EML Files Configuration (or primary scope for non-email) */}
                 <div className="space-y-3">
                   {scope === 'email' && (
