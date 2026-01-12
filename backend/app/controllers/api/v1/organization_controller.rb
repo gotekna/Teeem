@@ -480,15 +480,35 @@ module Api
         end
 
         # Storage stats (provider-agnostic: SharePoint, S3, Wasabi, local)
-        # SSoT: Use StorageConfiguration for all storage config
+        # SSoT: Auto-detect from active credentials, not just StorageConfiguration
         storage_config = StorageConfiguration.instance rescue nil
+
+        # Auto-detect actual provider from credentials (SSoT: credentials are source of truth)
+        s3_credential = S3CompatibleCredential.active.first rescue nil
+        ms_credential = MicrosoftCredential.connected.first rescue nil
+
+        # Determine actual provider based on what's connected (prioritize S3/Wasabi if active)
+        actual_provider_type = if s3_credential&.status == "connected"
+          s3_credential.provider_type == "wasabi" ? "wasabi" : "s3"
+        elsif ms_credential&.status == "connected"
+          "sharepoint"
+        else
+          storage_config&.provider_type || "sharepoint"
+        end
+
+        actual_connected = case actual_provider_type
+        when "wasabi", "s3" then s3_credential&.status == "connected"
+        when "sharepoint" then ms_credential&.status == "connected"
+        else false
+        end
+
         storage_stats = {
-          provider_type: storage_config&.provider_type || "sharepoint",
-          provider_name: storage_provider_display_name(storage_config),
-          connected: storage_config&.connected? || false,
-          status: storage_config&.status || "disconnected",
+          provider_type: actual_provider_type,
+          provider_name: storage_provider_display_name_for(actual_provider_type),
+          connected: actual_connected,
+          status: actual_connected ? "connected" : "disconnected",
           # Provider-agnostic connection info
-          connection_info: storage_connection_info(storage_config),
+          connection_info: storage_connection_info_for(actual_provider_type, s3_credential, ms_credential, storage_config),
           root_path: storage_config&.root_path || "/Shared Documents",
           total_synced: documents.where(source: "onedrive").count,
           last_sync: documents.where(source: "onedrive").maximum(:last_modified_at)
@@ -615,6 +635,40 @@ module Api
           }
         else
           {}
+        end
+      end
+
+      # SSoT: Display name from provider type string
+      def storage_provider_display_name_for(provider_type)
+        case provider_type
+        when "sharepoint" then "SharePoint"
+        when "s3" then "Amazon S3"
+        when "wasabi" then "Wasabi"
+        when "local" then "Local Storage"
+        else provider_type&.titleize || "Cloud Storage"
+        end
+      end
+
+      # SSoT: Connection info from credentials directly
+      def storage_connection_info_for(provider_type, s3_credential, ms_credential, storage_config)
+        case provider_type
+        when "wasabi", "s3"
+          return {} unless s3_credential
+          {
+            endpoint: s3_credential.endpoint,
+            bucket: s3_credential.bucket,
+            region: s3_credential.region
+          }
+        when "sharepoint"
+          return {} unless ms_credential
+          {
+            site_url: ms_credential.site_url || "https://#{ms_credential.tenant_id}.sharepoint.com",
+            site_id: ms_credential.sharepoint_site_id,
+            drive_id: ms_credential.sharepoint_drive_id,
+            drive_name: "Shared Documents"
+          }
+        else
+          storage_connection_info(storage_config)
         end
       end
     end

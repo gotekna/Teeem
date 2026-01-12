@@ -1,91 +1,51 @@
 # frozen_string_literal: true
 
-# PolarisMailService - API client for PolarisMail reseller integration
+# PolarisMailService - API client for PolarisMail/EmailArray reseller integration
 #
-# Handles all communication with PolarisMail's reseller API including:
-# - Account creation and management
-# - Mailbox provisioning
-# - Migration initiation
-# - Status polling
-#
-# NOTE: This is a stub implementation. Update with actual API endpoints
-# once PolarisMail reseller API documentation is available.
+# API discovered via reverse-engineering the admin panel:
+# - Endpoint: https://cfcp.emailarray.com/admin/json.php
+# - Auth: Session-based (username/password login, CSRF token per request)
 #
 # Usage:
 #   service = PolarisMailService.new
-#   service.create_account(domain: "example.com", contact_email: "admin@example.com")
+#   service.create_mailbox(
+#     domain: "example.com",
+#     username: "john",
+#     password: "SecurePass123!",
+#     display_name: "John Doe"
+#   )
 #
 class PolarisMailService
   class ApiError < StandardError; end
+  class AuthenticationError < StandardError; end
   class NotConnectedError < StandardError; end
-  class RateLimitError < StandardError; end
 
-  # Placeholder API base URL - update when PolarisMail provides reseller API access
-  API_BASE = ENV.fetch("POLARIS_API_URL", "https://api.polarismail.com/v1")
+  # PolarisMail Admin API endpoint
+  API_BASE = "https://cfcp.emailarray.com/admin"
 
-  # Rate limiting
-  MAX_RETRIES = 3
-  RETRY_DELAY = 2.seconds
+  # Account types
+  ACCOUNT_TYPES = {
+    basic: 1,
+    enhanced: 2
+  }.freeze
 
   def initialize(credential = nil)
     @credential = credential || find_active_credential
-    raise NotConnectedError, "PolarisMail not configured. Please add API credentials in Admin > System." unless @credential
+    @session_cookie = nil
+    @csrf_token = nil
   end
 
   # ====================
   # CONNECTION
   # ====================
 
+  # Test connection by attempting login
   def test_connection
-    response = get("/account")
-    response["status"] == "active"
-  rescue ApiError => e
+    authenticate!
+    true
+  rescue AuthenticationError, ApiError => e
     Rails.logger.warn "[PolarisMailService] Connection test failed: #{e.message}"
     false
-  end
-
-  # ====================
-  # ACCOUNT MANAGEMENT
-  # ====================
-
-  # Create a new reseller account for a client
-  # @param domain [String] Primary domain for the account
-  # @param contact_email [String] Admin contact email
-  # @param plan_id [String] PolarisMail plan ID (optional)
-  # @return [Hash] Account details including ID
-  def create_account(domain:, contact_email:, plan_id: nil)
-    post("/accounts", {
-      domain: domain,
-      admin_email: contact_email,
-      plan_id: plan_id || default_plan_id,
-      reseller_id: @credential.reseller_id
-    })
-  end
-
-  # Get account details
-  # @param account_id [String] PolarisMail account ID
-  # @return [Hash] Account details
-  def get_account(account_id)
-    get("/accounts/#{account_id}")
-  end
-
-  # Suspend an account
-  # @param account_id [String] PolarisMail account ID
-  # @param reason [String] Reason for suspension
-  def suspend_account(account_id, reason:)
-    post("/accounts/#{account_id}/suspend", { reason: reason })
-  end
-
-  # Reactivate a suspended account
-  # @param account_id [String] PolarisMail account ID
-  def reactivate_account(account_id)
-    post("/accounts/#{account_id}/reactivate")
-  end
-
-  # Delete an account (use with caution)
-  # @param account_id [String] PolarisMail account ID
-  def delete_account(account_id)
-    delete("/accounts/#{account_id}")
   end
 
   # ====================
@@ -93,210 +53,248 @@ class PolarisMailService
   # ====================
 
   # Create a new mailbox
-  # @param account_id [String] PolarisMail account ID
-  # @param email [String] Full email address
+  # @param domain [String] Domain name (e.g., "100xbestlife.com")
+  # @param username [String] Local part of email (e.g., "john")
+  # @param password [String] Mailbox password
   # @param display_name [String] Display name
-  # @param type [String] Mailbox type: user, shared, resource
-  # @param quota_gb [Integer] Storage quota in GB
-  # @return [Hash] Mailbox details including ID
-  def create_mailbox(account_id:, email:, display_name:, type: "user", quota_gb: 50)
-    post("/accounts/#{account_id}/mailboxes", {
-      email: email,
-      display_name: display_name,
-      type: type,
-      quota_gb: quota_gb
-    })
-  end
+  # @param quota_gb [Integer] Storage quota in GB (default 5)
+  # @param account_type [Symbol] :basic or :enhanced
+  # @return [Hash] Response from API
+  def create_mailbox(domain:, username:, password:, display_name:, quota_gb: 5, account_type: :basic)
+    ensure_authenticated!
 
-  # Update mailbox settings
-  # @param mailbox_id [String] PolarisMail mailbox ID
-  # @param attrs [Hash] Attributes to update
-  def update_mailbox(mailbox_id, **attrs)
-    patch("/mailboxes/#{mailbox_id}", attrs)
+    response = post_form("json.php", {
+      action: "addUser",
+      token: @csrf_token,
+      domain: domain,
+      username: username,
+      password: password,
+      uname: display_name,
+      quota: quota_gb,
+      account_type: ACCOUNT_TYPES[account_type] || 1,
+      twofa_allowed: 1,
+      user_language: "en",
+      timezone: "Australia/Brisbane",
+      dateformat: "dd-mm-yyyy"
+    })
+
+    handle_response(response, "create_mailbox")
   end
 
   # Delete a mailbox
-  # @param mailbox_id [String] PolarisMail mailbox ID
-  def delete_mailbox(mailbox_id)
-    delete("/mailboxes/#{mailbox_id}")
-  end
+  # @param domain [String] Domain name
+  # @param username [String] Local part of email
+  def delete_mailbox(domain:, username:)
+    ensure_authenticated!
 
-  # Get mailbox statistics
-  # @param mailbox_id [String] PolarisMail mailbox ID
-  # @return [Hash] Storage used, message count, etc.
-  def get_mailbox_stats(mailbox_id)
-    get("/mailboxes/#{mailbox_id}/stats")
-  end
-
-  # List all mailboxes for an account
-  # @param account_id [String] PolarisMail account ID
-  # @return [Array<Hash>] List of mailboxes
-  def list_mailboxes(account_id)
-    get("/accounts/#{account_id}/mailboxes")
-  end
-
-  # ====================
-  # MIGRATION
-  # ====================
-
-  # Start a migration from external source
-  # @param mailbox_id [String] Target PolarisMail mailbox ID
-  # @param source_type [String] Source type: office365, imap, gmail
-  # @param source_credentials [Hash] Credentials for source
-  # @param options [Hash] Migration options
-  # @return [Hash] Migration job details
-  def start_migration(mailbox_id:, source_type:, source_credentials:, options: {})
-    post("/mailboxes/#{mailbox_id}/migrate", {
-      source_type: source_type,
-      source_credentials: source_credentials,
-      options: {
-        include_emails: options.fetch(:include_emails, true),
-        include_calendar: options.fetch(:include_calendar, true),
-        include_contacts: options.fetch(:include_contacts, true),
-        include_folders: options.fetch(:include_folders, true),
-        date_range_start: options[:date_range_start],
-        date_range_end: options[:date_range_end]
-      }.compact
+    response = post_form("json.php", {
+      action: "deleteUser",
+      token: @csrf_token,
+      domain: domain,
+      username: username
     })
+
+    handle_response(response, "delete_mailbox")
   end
 
-  # Get migration status
-  # @param migration_id [String] PolarisMail migration ID
-  # @return [Hash] Migration status and progress
-  def get_migration_status(migration_id)
-    get("/migrations/#{migration_id}")
+  # Update mailbox quota
+  # @param domain [String] Domain name
+  # @param username [String] Local part of email
+  # @param quota_gb [Integer] New quota in GB
+  def update_mailbox_quota(domain:, username:, quota_gb:)
+    ensure_authenticated!
+
+    response = post_form("json.php", {
+      action: "updateUser",
+      token: @csrf_token,
+      domain: domain,
+      username: username,
+      quota: quota_gb
+    })
+
+    handle_response(response, "update_mailbox_quota")
   end
 
-  # Cancel a running migration
-  # @param migration_id [String] PolarisMail migration ID
-  def cancel_migration(migration_id)
-    post("/migrations/#{migration_id}/cancel")
+  # Reset mailbox password
+  # @param domain [String] Domain name
+  # @param username [String] Local part of email
+  # @param new_password [String] New password
+  def reset_password(domain:, username:, new_password:)
+    ensure_authenticated!
+
+    response = post_form("json.php", {
+      action: "updatePassword",
+      token: @csrf_token,
+      domain: domain,
+      username: username,
+      password: new_password
+    })
+
+    handle_response(response, "reset_password")
+  end
+
+  # List all mailboxes for a domain
+  # @param domain [String] Domain name
+  # @return [Array<Hash>] List of mailboxes
+  def list_mailboxes(domain:)
+    ensure_authenticated!
+
+    response = post_form("json.php", {
+      action: "getUsers",
+      token: @csrf_token,
+      domain: domain
+    })
+
+    handle_response(response, "list_mailboxes")
   end
 
   # ====================
-  # PLANS & PRICING
+  # DOMAIN MANAGEMENT
   # ====================
 
-  # List available plans
-  # @return [Array<Hash>] Available plans with pricing
-  def list_plans
-    get("/plans")
+  # Add a domain
+  # @param domain [String] Domain name
+  def add_domain(domain:)
+    ensure_authenticated!
+
+    response = post_form("json.php", {
+      action: "addDomain",
+      token: @csrf_token,
+      domain: domain
+    })
+
+    handle_response(response, "add_domain")
   end
 
-  # Get reseller account info (credits, usage, etc.)
-  # @return [Hash] Reseller account details
-  def get_reseller_info
-    get("/reseller")
+  # List all domains
+  # @return [Array<Hash>] List of domains
+  def list_domains
+    ensure_authenticated!
+
+    response = post_form("json.php", {
+      action: "getDomains",
+      token: @csrf_token
+    })
+
+    handle_response(response, "list_domains")
+  end
+
+  # Get domain health status
+  # @param domain [String] Domain name
+  # @return [Hash] Domain health info
+  def domain_health(domain:)
+    ensure_authenticated!
+
+    response = post_form("json.php", {
+      action: "getDomainHealth",
+      token: @csrf_token,
+      domain: domain
+    })
+
+    handle_response(response, "domain_health")
+  end
+
+  # ====================
+  # ALIASES
+  # ====================
+
+  # Add an alias
+  # @param domain [String] Domain name
+  # @param alias_address [String] Alias local part
+  # @param target_address [String] Target email address
+  def add_alias(domain:, alias_address:, target_address:)
+    ensure_authenticated!
+
+    response = post_form("json.php", {
+      action: "addAlias",
+      token: @csrf_token,
+      domain: domain,
+      alias: alias_address,
+      target: target_address
+    })
+
+    handle_response(response, "add_alias")
   end
 
   private
 
-  # HTTP request methods with error handling and retries
-  def get(path, params = {})
-    request(:get, path, params: params)
-  end
+  # Authenticate with PolarisMail admin panel
+  def authenticate!
+    raise NotConnectedError, "PolarisMail not configured" unless @credential
 
-  def post(path, body = {})
-    request(:post, path, json: body)
-  end
-
-  def patch(path, body = {})
-    request(:patch, path, json: body)
-  end
-
-  def delete(path)
-    request(:delete, path)
-  end
-
-  def request(method, path, retries: 0, **options)
-    # Stub implementation - returns mock data for testing
-    # TODO: Replace with actual HTTP calls when API is available
-    if ENV["POLARIS_API_STUB"] != "false"
-      return stub_response(method, path, options)
-    end
-
+    # Login request
     response = HTTP
-      .auth("Bearer #{@credential.api_key}")
-      .headers(
-        "X-Reseller-ID" => @credential.reseller_id,
-        "Content-Type" => "application/json",
-        "Accept" => "application/json"
-      )
       .timeout(connect: 5, write: 10, read: 30)
-      .public_send(method, "#{API_BASE}#{path}", **options)
+      .post("#{API_BASE}/json.php", form: {
+        action: "login",
+        username: @credential.admin_username,
+        password: @credential.admin_password
+      })
 
-    handle_response(response)
-  rescue HTTP::TimeoutError => e
-    raise ApiError, "Request timed out: #{e.message}"
-  rescue HTTP::ConnectionError => e
-    if retries < MAX_RETRIES
-      sleep(RETRY_DELAY)
-      request(method, path, retries: retries + 1, **options)
-    else
-      raise ApiError, "Connection failed after #{MAX_RETRIES} retries: #{e.message}"
+    unless response.status.success?
+      raise AuthenticationError, "Login failed: #{response.status}"
     end
+
+    # Extract session cookie
+    set_cookie = response.headers["Set-Cookie"]
+    if set_cookie && set_cookie.include?("PHPSESSID")
+      @session_cookie = set_cookie.match(/PHPSESSID=([^;]+)/)[1]
+    else
+      raise AuthenticationError, "No session cookie received"
+    end
+
+    # Parse response for token
+    # API returns: {"returncode":1,"returndata":"<csrf_token>"}
+    body = response.parse rescue {}
+    if body["returncode"] == 1 && body["returndata"]
+      @csrf_token = body["returndata"]
+    else
+      raise AuthenticationError, "Login failed: #{body['returndata'] || 'Unknown error'}"
+    end
+
+    Rails.logger.info "[PolarisMailService] Authenticated successfully"
+    true
   end
 
-  def handle_response(response)
-    case response.status.code
-    when 200..299
-      response.parse
-    when 401
-      raise NotConnectedError, "Invalid API credentials"
-    when 429
-      raise RateLimitError, "Rate limit exceeded"
-    when 400..499
-      error_body = response.parse rescue {}
-      raise ApiError, error_body["error"] || "Client error: #{response.status}"
-    when 500..599
-      raise ApiError, "Server error: #{response.status}"
-    else
-      raise ApiError, "Unexpected response: #{response.status}"
+  def ensure_authenticated!
+    authenticate! unless @session_cookie && @csrf_token
+  end
+
+  def post_form(path, params)
+    HTTP
+      .cookies(PHPSESSID: @session_cookie)
+      .timeout(connect: 5, write: 10, read: 30)
+      .post("#{API_BASE}/#{path}", form: params)
+  end
+
+  def handle_response(response, operation)
+    unless response.status.success?
+      raise ApiError, "#{operation} failed: HTTP #{response.status}"
     end
+
+    body = response.parse rescue {}
+
+    # API returns: {"returncode":1,"returndata":...} for success
+    # API returns: {"returncode":0,"returndata":"error message"} for failure
+    if body.is_a?(Hash)
+      if body["returncode"] == 0
+        raise ApiError, "#{operation} failed: #{body['returndata'] || 'Unknown error'}"
+      end
+
+      # Re-authenticate if session expired
+      if body["returndata"].is_a?(String) && body["returndata"].include?("session")
+        @session_cookie = nil
+        @csrf_token = nil
+        raise AuthenticationError, "Session expired"
+      end
+    end
+
+    body["returndata"] || body
+  rescue JSON::ParserError
+    raise ApiError, "#{operation} failed: Invalid JSON response"
   end
 
   def find_active_credential
     PolarisCredential.connected.first
-  end
-
-  def default_plan_id
-    ENV.fetch("POLARIS_DEFAULT_PLAN_ID", "reseller_standard")
-  end
-
-  # Stub responses for development/testing
-  # Remove when real API is integrated
-  def stub_response(method, path, _options)
-    Rails.logger.info "[PolarisMailService] STUB: #{method.upcase} #{path}"
-
-    case path
-    when "/account"
-      { "status" => "active", "reseller_id" => @credential.reseller_id }
-    when %r{^/accounts$}
-      { "id" => "acct_#{SecureRandom.hex(8)}", "domain" => "example.com", "status" => "active" }
-    when %r{^/accounts/[\w-]+$}
-      { "id" => path.split("/").last, "status" => "active" }
-    when %r{^/accounts/[\w-]+/mailboxes$}
-      if method == :post
-        { "id" => "mbx_#{SecureRandom.hex(8)}", "status" => "active" }
-      else
-        []
-      end
-    when %r{^/mailboxes/[\w-]+$}
-      { "id" => path.split("/").last, "status" => "active" }
-    when %r{^/mailboxes/[\w-]+/migrate$}
-      { "id" => "mig_#{SecureRandom.hex(8)}", "status" => "pending" }
-    when %r{^/migrations/[\w-]+$}
-      { "id" => path.split("/").last, "status" => "completed", "processed_items" => 1000, "total_items" => 1000 }
-    when "/plans"
-      [
-        { "id" => "basic", "name" => "Basic", "price" => 3.00 },
-        { "id" => "standard", "name" => "Standard", "price" => 5.00 },
-        { "id" => "premium", "name" => "Premium", "price" => 10.00 }
-      ]
-    when "/reseller"
-      { "id" => @credential.reseller_id, "credits" => 1000.00, "accounts" => 0 }
-    else
-      {}
-    end
   end
 end

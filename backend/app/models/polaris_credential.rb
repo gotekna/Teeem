@@ -2,20 +2,24 @@
 
 # PolarisCredential - API credentials for PolarisMail reseller integration
 #
-# Stores encrypted API keys for communicating with PolarisMail's reseller API.
-# Pattern follows MicrosoftCredential for consistency.
+# Stores encrypted admin credentials for PolarisMail session-based API.
+# API endpoint: https://cfcp.emailarray.com/admin/json.php
 #
 # Usage:
 #   credential = PolarisCredential.active_for_org(organization)
 #   service = PolarisMailService.new(credential)
-#   service.create_account(domain: "example.com", ...)
+#   service.create_mailbox(domain: "example.com", username: "john", ...)
 #
 class PolarisCredential < ApplicationRecord
   belongs_to :organization
 
-  # Encrypt API credentials
-  encrypts :api_key
-  encrypts :api_secret
+  # Encrypt credentials (stored as api_key/api_secret for DB compatibility)
+  encrypts :api_key      # Admin username
+  encrypts :api_secret   # Admin password
+
+  # Alias methods for clarity
+  alias_attribute :admin_username, :api_key
+  alias_attribute :admin_password, :api_secret
 
   # Constants
   STATUSES = %w[pending connected error disconnected].freeze
