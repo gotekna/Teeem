@@ -1296,7 +1296,11 @@ export function ScheduleMasterTab() {
 
   // SSoT: Save handler for EditRowDialog
   const handleEditRowSave = React.useCallback(async (rowId: number, data: EditRowFormData) => {
-    if (!activeEditTemplateId) {
+    // activeEditTemplateId can be:
+    // - null: no template context (shouldn't happen)
+    // - -1: "No Template Selected" view - use Foundation API
+    // - positive number: specific template - use template API
+    if (activeEditTemplateId === null) {
       throw new Error("No active template to save to");
     }
 
@@ -1355,9 +1359,18 @@ export function ScheduleMasterTab() {
       }));
     }
 
-    await api.patch(`/api/v1/sm_schedule_master_templates/${activeEditTemplateId}/rows/${rowId}`, {
-      row: rowPayload,
-    });
+    // SSoT: Use Foundation API for "No Template Selected" view, template API otherwise
+    if (activeEditTemplateId === -1) {
+      // "No Template Selected" - use Foundation API directly
+      await api.patch(`/api/v1/foundations/sm-schedule-master/records/${rowId}`, {
+        record: rowPayload,
+      });
+    } else {
+      // Specific template - use template API
+      await api.patch(`/api/v1/sm_schedule_master_templates/${activeEditTemplateId}/rows/${rowId}`, {
+        row: rowPayload,
+      });
+    }
 
     // Refresh data
     setDataViewRefreshKey(prev => prev + 1);
