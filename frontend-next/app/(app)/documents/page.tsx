@@ -15,6 +15,7 @@ import {
 import {
   ChevronRight,
   Folder,
+  FolderOpen,
   File,
   Image as ImageIcon,
   Search,
@@ -25,6 +26,8 @@ import {
   Briefcase,
   Building2,
   Users,
+  User,
+  Contact,
   RefreshCw,
   X,
   Maximize2,
@@ -40,6 +43,12 @@ import {
   Paperclip,
   ClipboardList,
   FileText,
+  Receipt,
+  Package,
+  MessageCircle,
+  HardDrive,
+  FileSpreadsheet,
+  PenTool,
 } from "lucide-react";
 import {
   Dialog,
@@ -89,17 +98,8 @@ interface AllDocumentsResponse {
     corporate_documents: DocumentItem[];
     people_documents: DocumentItem[];
   };
-  counts: {
-    jobs: number;
-    corporate: number;
-    people: number;
-    emails: number;
-    attachments: number;
-    tasks: number;
-    templates: number;
-    pricebook_images: number;
-    total: number;
-  };
+  // Counts for all scopes - dynamic, extends as new scopes are added
+  counts: Record<string, number>;
 }
 
 // Tree node structure
@@ -163,18 +163,197 @@ interface EntityTabFolder {
   children?: EntityTabFolder[];
 }
 
+// Icon mapping for all storage scopes - matches StorageConfiguration.SCOPE_FOLDERS
+const SCOPE_ICONS: Record<string, React.ReactNode> = {
+  job: <Briefcase className="h-4 w-4" />,
+  jobs: <Briefcase className="h-4 w-4" />,
+  corporate: <Building2 className="h-4 w-4" />,
+  corporate_entity: <Building2 className="h-4 w-4" />,
+  company: <Building2 className="h-4 w-4" />,
+  people: <Users className="h-4 w-4" />,
+  users: <User className="h-4 w-4" />,
+  user_photos: <ImageIcon className="h-4 w-4" />,
+  user_contracts: <FileText className="h-4 w-4" />,
+  my_docs: <FolderOpen className="h-4 w-4" />,
+  contact: <Contact className="h-4 w-4" />,
+  contacts: <Contact className="h-4 w-4" />,
+  email: <Mail className="h-4 w-4" />,
+  emails: <Mail className="h-4 w-4" />,
+  email_attachments: <Paperclip className="h-4 w-4" />,
+  warehouse: <Warehouse className="h-4 w-4" />,
+  warehousing: <Warehouse className="h-4 w-4" />,
+  task: <ClipboardList className="h-4 w-4" />,
+  tasks: <ClipboardList className="h-4 w-4" />,
+  billinbox: <Receipt className="h-4 w-4" />,
+  bill_inbox: <Receipt className="h-4 w-4" />,
+  pricebook: <Package className="h-4 w-4" />,
+  pricebook_photos: <Package className="h-4 w-4" />,
+  chat: <MessageCircle className="h-4 w-4" />,
+  active_storage: <HardDrive className="h-4 w-4" />,
+  attachments: <Paperclip className="h-4 w-4" />,
+  templates: <FileText className="h-4 w-4" />,
+  bank_statements: <FileSpreadsheet className="h-4 w-4" />,
+  contracts: <PenTool className="h-4 w-4" />,
+};
+
+// Build hierarchical tree from scope folders
+// e.g., "Users/Photos" becomes child of "Users"
+// This dynamically generates the tree from StorageConfiguration.scope_folders
+const buildScopeTree = (
+  scopes: Record<string, string>,
+  counts: Record<string, number>
+): TreeNode[] => {
+  const tree: TreeNode[] = [];
+  const parentMap: Record<string, TreeNode> = {};
+  const seenPaths = new Set<string>();
+
+  // Preferred keys when there are duplicates (canonical name for each path)
+  const preferredKeys: Record<string, string> = {
+    "Jobs": "job",
+    "Corporate": "corporate",
+    "Contacts": "contact",
+    "Warehousing/Tasks": "task",
+    "Warehousing/BillInbox": "bill_inbox",
+    "Warehousing/Pricebook Photos": "pricebook_photos",
+    "Emails/eml": "email",
+    "Emails/attachments": "email_attachments",
+    "ActiveStorage": "active_storage",
+    "Accounts": "account",
+  };
+
+  // Keys to skip - legacy aliases that may still exist in some database records
+  // Backend SCOPE_FOLDERS is now clean, but database scope_folders may have old keys
+  const skipKeys = new Set([
+    "jobs", "emails", "contacts", "tasks", "attachments", "warehousing",
+    "pricebook_images", "billinbox", "pricebook", "accounts", "account",
+    "company", "corporate_entity"
+  ]);
+
+  // First pass: collect unique paths and determine which key to use
+  const pathToKey: Record<string, string> = {};
+  for (const [key, path] of Object.entries(scopes)) {
+    if (skipKeys.has(key)) continue;
+    // Use preferred key if available, otherwise first one wins
+    if (!pathToKey[path] || preferredKeys[path] === key) {
+      pathToKey[path] = key;
+    }
+  }
+
+  // Get unique entries sorted by depth (parents before children)
+  const uniqueEntries = Object.entries(pathToKey)
+    .map(([path, key]) => [key, path] as [string, string])
+    .sort((a, b) => {
+      const depthA = a[1].split("/").length;
+      const depthB = b[1].split("/").length;
+      if (depthA !== depthB) return depthA - depthB;
+      return a[1].localeCompare(b[1]);
+    });
+
+  // Create parent folders that don't exist (e.g., "Emails" for "Emails/eml")
+  const ensureParentExists = (path: string) => {
+    const parts = path.split("/");
+    if (parts.length <= 1) return;
+
+    let currentPath = "";
+    for (let i = 0; i < parts.length - 1; i++) {
+      currentPath = currentPath ? `${currentPath}/${parts[i]}` : parts[i];
+      if (!parentMap[currentPath]) {
+        // Create synthetic parent node
+        const parentNode: TreeNode = {
+          id: `parent-${currentPath.replace(/\//g, "-").toLowerCase()}`,
+          name: parts[i],
+          type: "category",
+          icon: <Folder className="h-4 w-4" />,
+          fileCount: 0,
+          children: [],
+        };
+
+        if (i === 0) {
+          tree.push(parentNode);
+        } else {
+          const grandParentPath = parts.slice(0, i).join("/");
+          const grandParent = parentMap[grandParentPath];
+          if (grandParent?.children) {
+            grandParent.children.push(parentNode);
+          }
+        }
+        parentMap[currentPath] = parentNode;
+      }
+    }
+  };
+
+  for (const [key, path] of uniqueEntries) {
+    // Skip if we've already processed this path
+    if (seenPaths.has(path)) continue;
+    seenPaths.add(path);
+
+    const parts = path.split("/");
+    const displayName = parts[parts.length - 1];
+
+    // Ensure parent folders exist
+    ensureParentExists(path);
+
+    // Map scope key to count key
+    const countKey = key === "job" ? "jobs"
+      : key === "corporate" ? "corporate"
+      : key === "email" ? "emails"
+      : key === "email_attachments" ? "email_attachments"
+      : key === "task" ? "tasks"
+      : key === "pricebook_photos" ? "pricebook_images"
+      : key;
+
+    const node: TreeNode = {
+      id: key,
+      name: displayName,
+      type: "category",
+      icon: SCOPE_ICONS[key] || <Folder className="h-4 w-4" />,
+      fileCount: counts[countKey] || 0,
+      children: [],
+    };
+
+    if (parts.length === 1) {
+      // Root level scope
+      tree.push(node);
+      parentMap[path] = node;
+    } else {
+      // Nested scope - find parent
+      const parentPath = parts.slice(0, -1).join("/");
+      const parent = parentMap[parentPath];
+      if (parent?.children) {
+        parent.children.push(node);
+        // Update parent's file count to include children
+        parent.fileCount = (parent.fileCount || 0) + (node.fileCount || 0);
+      } else {
+        // Parent not found, add to root
+        tree.push(node);
+      }
+      parentMap[path] = node;
+    }
+  }
+
+  return tree;
+};
+
 export default function AllDocumentsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("tree");
   const [treeDisplayMode, setTreeDisplayMode] = useState<TreeDisplayMode>("list");
   const [searchQuery, setSearchQuery] = useState("");
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(["jobs", "corporate", "people"]));
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(["job", "corporate", "contact"]));
   const [loading, setLoading] = useState(true);
   const [documents, setDocuments] = useState<{
     jobs: DocumentItem[];
     corporate: DocumentItem[];
     people: DocumentItem[];
   }>({ jobs: [], corporate: [], people: [] });
-  const [counts, setCounts] = useState({ jobs: 0, corporate: 0, people: 0, emails: 0, attachments: 0, tasks: 0, templates: 0, pricebook_images: 0, total: 0 });
+  // Counts for all scopes - matches StorageConfiguration.SCOPE_FOLDERS
+  const [counts, setCounts] = useState<Record<string, number>>({
+    jobs: 0, corporate: 0, people: 0, contacts: 0,
+    emails: 0, attachments: 0, email_attachments: 0,
+    users: 0, user_photos: 0, user_contracts: 0, my_docs: 0,
+    warehousing: 0, tasks: 0, bill_inbox: 0, pricebook_photos: 0, pricebook_images: 0, chat: 0,
+    templates: 0, bank_statements: 0, contracts: 0,
+    active_storage: 0, total: 0
+  });
   // Document preview popup state
   const [previewDocument, setPreviewDocument] = useState<DocumentItem | null>(null);
   // Click timer for single/double click differentiation
@@ -255,8 +434,8 @@ export default function AllDocumentsPage() {
           corporate: response.data.corporate_documents || [],
           people: response.data.people_documents || [],
         });
-        const defaultCounts = { jobs: 0, corporate: 0, people: 0, emails: 0, attachments: 0, tasks: 0, templates: 0, pricebook_images: 0, total: 0 };
-        setCounts(Object.assign({}, defaultCounts, response.counts));
+        // Merge API counts with defaults - API now returns all scope counts
+        setCounts(prev => ({ ...prev, ...response.counts }));
       }
     } catch (error) {
       console.error("Failed to fetch documents:", error);
@@ -371,10 +550,10 @@ export default function AllDocumentsPage() {
     };
   }, [documents, searchQuery]);
 
-  // Build tree structure from Entity Configurator folders (SSoT)
-  // Shows ALL configured folders even if empty, with file counts
+  // Build tree structure dynamically from StorageConfiguration.scope_folders (SSoT)
+  // Shows ALL configured scopes even if empty, with nested hierarchy
   const treeData = useMemo((): TreeNode[] => {
-    // Helper to recursively build folder tree from EntityTab
+    // Helper to recursively build folder tree from EntityTab (for sub-folders)
     const buildFolderTree = (
       tabs: EntityTabFolder[],
       docs: DocumentItem[],
@@ -414,105 +593,39 @@ export default function AllDocumentsPage() {
       });
     };
 
-    // Jobs category - shows all configured job folders
-    const jobFolders = entityFolders.job.length > 0
-      ? buildFolderTree(entityFolders.job, filteredDocuments.jobs, "job")
-      : [];
+    // Use dynamic tree building from scope_folders
+    // This reads from StorageConfiguration and builds nested hierarchy
+    // Filter out undefined values from scopeFolders
+    const definedScopes = Object.fromEntries(
+      Object.entries(scopeFolders).filter((entry): entry is [string, string] => entry[1] !== undefined)
+    );
+    const dynamicTree = buildScopeTree(definedScopes, counts);
 
-    const jobsNode: TreeNode = {
-      id: "jobs",
-      name: scopeFolders.job || "Jobs",
-      type: "category",
-      icon: <Briefcase className="h-4 w-4" />,
-      fileCount: counts.jobs,
-      children: jobFolders,
-    };
-
-    // Corporate category - shows all configured corporate folders
-    const corpFolders = entityFolders.corporate.length > 0
-      ? buildFolderTree(entityFolders.corporate, filteredDocuments.corporate, "corp")
-      : [];
-
-    const corporateNode: TreeNode = {
-      id: "corporate",
-      name: scopeFolders.corporate || "Corporate",
-      type: "category",
-      icon: <Building2 className="h-4 w-4" />,
-      fileCount: counts.corporate,
-      children: corpFolders,
-    };
-
-    // People category - shows all configured contact folders
-    const peopleFolders = entityFolders.contact.length > 0
-      ? buildFolderTree(entityFolders.contact, filteredDocuments.people, "people")
-      : [];
-
-    const peopleNode: TreeNode = {
-      id: "people",
-      name: scopeFolders.people || scopeFolders.contact || "People",
-      type: "category",
-      icon: <Users className="h-4 w-4" />,
-      fileCount: counts.people,
-      children: peopleFolders,
-    };
-
-    // Email EML category - stored email files
-    const emailsNode: TreeNode = {
-      id: "emails",
-      name: "Emails",
-      type: "category",
-      icon: <Mail className="h-4 w-4" />,
-      fileCount: counts.emails || 0,
-      children: [{
-        id: "emails-eml",
-        name: "EML Files",
-        type: "folder" as const,
-        fileCount: counts.emails || 0,
-        children: [],
-      }],
-    };
-
-    // Email Attachments category
-    const attachmentsNode: TreeNode = {
-      id: "attachments",
-      name: "Email Attachments",
-      type: "category",
-      icon: <Paperclip className="h-4 w-4" />,
-      fileCount: counts.attachments || 0,
-      children: [],
-    };
-
-    // Tasks category - Schedule Master task attachments
-    const tasksNode: TreeNode = {
-      id: "tasks",
-      name: "Tasks",
-      type: "category",
-      icon: <ClipboardList className="h-4 w-4" />,
-      fileCount: counts.tasks || 0,
-      children: [],
-    };
-
-    // Templates category - Document templates (Word/Excel)
-    const templatesNode: TreeNode = {
-      id: "templates",
-      name: "Templates",
-      type: "category",
-      icon: <FileText className="h-4 w-4" />,
-      fileCount: counts.templates || 0,
-      children: [],
-    };
-
-    // Pricebook Images category - Product photos
-    const pricebookImagesNode: TreeNode = {
-      id: "pricebook-images",
-      name: "Pricebook Images",
-      type: "category",
-      icon: <ImageIcon className="h-4 w-4" />,
-      fileCount: counts.pricebook_images || 0,
-      children: [],
-    };
-
-    return [jobsNode, corporateNode, peopleNode, emailsNode, attachmentsNode, tasksNode, templatesNode, pricebookImagesNode];
+    // Enhance specific nodes with EntityTab-based sub-folders
+    // (Jobs, Corporate, People have EntityTab configurations for their internal folder structure)
+    return dynamicTree.map(node => {
+      if (node.id === "job" && entityFolders.job.length > 0) {
+        return {
+          ...node,
+          children: buildFolderTree(entityFolders.job, filteredDocuments.jobs, "job"),
+        };
+      }
+      if ((node.id === "corporate" || node.id === "corporate_entity") && entityFolders.corporate.length > 0) {
+        // For corporate, add entity tab children but keep nested scopes (like People)
+        const corpChildren = buildFolderTree(entityFolders.corporate, filteredDocuments.corporate, "corp");
+        return {
+          ...node,
+          children: [...corpChildren, ...(node.children || [])],
+        };
+      }
+      if (node.id === "contact" && entityFolders.contact.length > 0) {
+        return {
+          ...node,
+          children: buildFolderTree(entityFolders.contact, filteredDocuments.people, "contact"),
+        };
+      }
+      return node;
+    });
   }, [filteredDocuments, entityFolders, scopeFolders, counts]);
 
   // Toggle folder expansion

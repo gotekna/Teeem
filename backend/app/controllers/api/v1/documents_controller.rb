@@ -9,6 +9,7 @@ module Api
       # Returns file counts for the entire warehouse (fast)
       # Used by the File Warehouse page
       # SSoT: Counts ALL file types - documents, emails, attachments, tasks
+      # NOTE: Scope keys match StorageConfiguration.SCOPE_FOLDERS for consistency
       def all
         # Document counts (records with actual files)
         job_count = JobDocument.where.not(file_name: [nil, ""]).count
@@ -31,6 +32,9 @@ module Api
         # Pricebook images (product photos)
         pricebook_image_count = PricebookItem.where.not(image_file_id: nil).count rescue 0
 
+        # Active Storage files (Rails attachments)
+        active_storage_count = ActiveStorage::Blob.count rescue 0
+
         total = job_count + corp_count + people_count + email_eml_count + email_attachment_count + task_doc_count + template_count + pricebook_image_count
 
         render json: {
@@ -41,14 +45,34 @@ module Api
             people_documents: []
           },
           counts: {
+            # Primary document scopes
             jobs: job_count,
             corporate: corp_count,
             people: people_count,
+            contacts: people_count,  # Alias for people
+            # Email scopes
             emails: email_eml_count,
-            attachments: email_attachment_count,
+            email_attachments: email_attachment_count,
+            attachments: email_attachment_count,  # Legacy alias
+            # User scopes (files stored per user)
+            users: 0,
+            user_photos: 0,
+            user_contracts: 0,
+            my_docs: 0,
+            # Warehouse scopes
+            warehousing: 0,
             tasks: task_doc_count,
+            bill_inbox: 0,
+            pricebook_photos: pricebook_image_count,
+            pricebook_images: pricebook_image_count,  # Legacy alias
+            chat: 0,
+            # Templates
             templates: template_count,
-            pricebook_images: pricebook_image_count,
+            bank_statements: 0,
+            contracts: 0,
+            # System storage
+            active_storage: active_storage_count,
+            # Total
             total: total
           }
         }

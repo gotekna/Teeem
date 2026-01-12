@@ -931,6 +931,11 @@ export default function TeeemTableView({
   // This ensures search always uses the LATEST filter state even if React hasn't re-rendered yet
   const cascadeFiltersRef = useRef<CascadeFilter[]>([]);
 
+  // Ref to hold current groupByColumns for use in search handler (bidirectional company search)
+  // When contacts page is grouped by primary_company_id, search needs to pass this to backend
+  // so it can find employees of matching companies (bidirectional search)
+  const groupByColumnsRef = useRef<string[]>([]);
+
   // SSR: Track if initial records have been applied (one-time only)
   // Prevents re-application on prop changes that would wipe load-more data
   const hasAppliedInitialRecordsRef = useRef(false);
@@ -1290,6 +1295,14 @@ export default function TeeemTableView({
           operator: f.operator,
           value: f.value,
         })));
+      }
+      // Include group_by for bidirectional search (contacts)
+      // When contacts are grouped by primary_company_id, backend does bidirectional search:
+      // - Search for company → also return its employees
+      // - Search for employee → also return their company
+      const currentGroupByColumns = groupByColumnsRef.current;
+      if (currentGroupByColumns.length > 0) {
+        params.group_by = currentGroupByColumns.join(",");
       }
       const response = await api.get<{ records: TableRowType[], has_more: boolean }>(
         `/api/v1/foundations/${effectiveFoundationId}/records`,
@@ -1821,6 +1834,13 @@ export default function TeeemTableView({
 
   // Keep ref in sync for use in toggleSelectAll callback
   collapsedGroupsRef.current = collapsedGroups;
+
+  // Keep groupByColumnsRef in sync for use in search handler (bidirectional company search)
+  // CRITICAL: useLayoutEffect ensures ref is updated BEFORE any user interaction
+  // This enables backend to do bidirectional search when contacts are grouped by company
+  useLayoutEffect(() => {
+    groupByColumnsRef.current = groupByColumns;
+  }, [groupByColumns]);
 
   // Derive groupByColumn from groupByColumns - NOT a separate state (SSoT compliance)
   const groupByColumn = groupByColumns.length > 0 ? groupByColumns[0] : null;
@@ -2414,7 +2434,11 @@ export default function TeeemTableView({
       // FRC FIX 2: If we had a previous search, hasMore=false means "search results complete" not "all records loaded"
       // So we MUST do server search when changing from one search term to another
       const hasLimitedRecords = autoFetchLimit !== undefined;
-      if (!isClearing && !hadPreviousSearch && !hasMore && autoFetchedRecords.length > 0 && !hasLimitedRecords) {
+      // SSoT: Force server search for contacts in Company/Role view
+      // Backend has bidirectional search logic (search company → include employees, search employee → include company)
+      // Client-side search can't replicate this without duplicating logic - backend is THE source
+      const needsBidirectionalSearch = foundationSlug === 'contacts' && groupByColumns.includes('primary_company_id');
+      if (!isClearing && !hadPreviousSearch && !hasMore && autoFetchedRecords.length > 0 && !hasLimitedRecords && !needsBidirectionalSearch) {
         console.log('[TeeemTableView] All records loaded (no prior search), searching client-side');
         return; // Skip API call - safe because we truly have all records
       }
@@ -2440,7 +2464,7 @@ export default function TeeemTableView({
         }
       }
     },
-    [effectiveOnServerSearch, hasMore, autoFetchedRecords.length, autoFetchLimit, searchHook.actions, effectiveFoundationId]
+    [effectiveOnServerSearch, hasMore, autoFetchedRecords.length, autoFetchLimit, searchHook.actions, effectiveFoundationId, foundationSlug, groupByColumns]
   );
 
   const handleSearchAllChange = useCallback(

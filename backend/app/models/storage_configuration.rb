@@ -27,42 +27,35 @@ class StorageConfiguration < ApplicationRecord
   # Connection statuses
   STATUSES = %w[disconnected connected error].freeze
 
-  # Base folder names for each scope (used by EntityTab.storage_base_path)
-  # These map scope names to folder names in storage
-  # SSoT: EntityTab owns the full path template, this just provides base folder
-  # Note: EntityTab.scope_for_template may return different values (people, company)
+  # SSoT: Base folder names for each scope
+  # These match the Entity Config UI at /admin/system/entity-config/sharepoint_config
+  # Only include scopes that are actually shown in Entity Config
   SCOPE_FOLDERS = {
+    # Primary document scopes
     "job" => "Jobs",
-    "jobs" => "Jobs",
     "corporate" => "Corporate",
-    "corporate_entity" => "Corporate",
-    "company" => "Company",           # EntityTab.scope_for_template returns this
-    "people" => "Corporate/People",   # Nested under Corporate (confidential employee data)
+    "people" => "Corporate/People",
+    "contact" => "Contacts",
+    # User scopes
     "users" => "Users",
     "user_photos" => "Users/Photos",
     "user_contracts" => "Users/Contracts",
     "my_docs" => "Users/MyDocs",
-    "contact" => "Contacts",
-    "contacts" => "Contacts",
-    "task" => "Warehousing/Tasks",
-    "tasks" => "Warehousing/Tasks",
-    "account" => "Accounts",
-    "accounts" => "Accounts",
-    "email" => "Emails/eml",            # Raw .eml files from email warehouse
-    "emails" => "Emails/eml",
+    # Email scopes
+    "email" => "Emails/eml",
     "email_attachments" => "Emails/attachments",
+    # Warehouse scopes
     "warehouse" => "Warehousing",
-    "warehousing" => "Warehousing",
-    "billinbox" => "Warehousing/BillInbox",
+    "task" => "Tasks",
     "bill_inbox" => "Warehousing/BillInbox",
-    "pricebook" => "Warehousing/Pricebook Photos",
     "pricebook_photos" => "Warehousing/Pricebook Photos",
-    "chat" => "Warehousing/Chat",       # Chat file attachments
-    "active_storage" => "ActiveStorage", # Rails Active Storage files
-    "attachments" => "ActiveStorage",    # Alias for Active Storage
+    "chat" => "Warehousing/Chat",
+    # Template scopes
     "templates" => "Warehousing/Templates",
     "bank_statements" => "Warehousing/Templates/Bank Statements",
-    "contracts" => "Warehousing/Templates/Contracts"
+    "contracts" => "Warehousing/Templates/Contracts",
+    # System storage
+    "active_storage" => "ActiveStorage"
   }.freeze
 
   # Validations
