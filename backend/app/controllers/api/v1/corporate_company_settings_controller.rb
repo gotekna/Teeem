@@ -124,21 +124,9 @@ module Api
           connection_config["region"] = sp[:s3_region] if sp.key?(:s3_region)
         end
 
-        # Build paths hash (provider-agnostic)
-        paths = storage_config.paths || StorageConfiguration::DEFAULT_PATHS.dup
-        paths["jobs"] = sp[:sharepoint_jobs_path] if sp.key?(:sharepoint_jobs_path)
-        paths["tasks"] = sp[:sharepoint_tasks_path] if sp.key?(:sharepoint_tasks_path)
-        paths["people"] = sp[:sharepoint_people_path] if sp.key?(:sharepoint_people_path)
-        paths["corporate"] = sp[:sharepoint_company_path] if sp.key?(:sharepoint_company_path)
-        paths["contacts"] = sp[:sharepoint_contacts_path] if sp.key?(:sharepoint_contacts_path)
-
-        # Build templates hash (provider-agnostic)
-        templates = storage_config.templates || StorageConfiguration::DEFAULT_TEMPLATES.dup
-        templates["job"] = sp[:sharepoint_job_template] if sp.key?(:sharepoint_job_template)
-        templates["task"] = sp[:sharepoint_task_template] if sp.key?(:sharepoint_task_template)
-        templates["corporate"] = sp[:sharepoint_company_template] if sp.key?(:sharepoint_company_template)
-        templates["people"] = sp[:sharepoint_people_template] if sp.key?(:sharepoint_people_template)
-        templates["contacts"] = sp[:sharepoint_contacts_template] if sp.key?(:sharepoint_contacts_template)
+        # SSoT: Folder paths are managed by EntityTab (Entity Configurator)
+        # StorageConfiguration only handles CONNECTION config
+        # paths/templates columns are deprecated and will be removed in future migration
 
         # Determine status based on provider and connection config
         new_status = case provider_type
@@ -152,12 +140,10 @@ module Api
           "disconnected"
         end
 
-        # Update StorageConfiguration
+        # Update StorageConfiguration (connection only)
         update_attrs = {
           provider_type: provider_type,
           connection_config: connection_config,
-          paths: paths,
-          templates: templates,
           status: new_status
         }
         update_attrs[:root_path] = sp[:sharepoint_root_path] if sp.key?(:sharepoint_root_path)

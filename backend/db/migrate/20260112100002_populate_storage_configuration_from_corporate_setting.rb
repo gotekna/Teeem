@@ -24,12 +24,24 @@ class PopulateStorageConfigurationFromCorporateSetting < ActiveRecord::Migration
     provider = org.document_provider
     provider = "sharepoint" unless allowed_providers.include?(provider)
 
+    # Default paths and templates (inline since model constants were removed for SSoT simplification)
+    default_paths = {
+      "jobs" => "Jobs", "tasks" => "Tasks", "emails" => "Emails",
+      "people" => "People", "accounts" => "Accounts",
+      "contacts" => "Contacts", "corporate" => "Corporate"
+    }
+    default_templates = {
+      "job" => "{{JobCode}}/{{Category}}", "task" => "Task-{{TaskId}}/{{Category}}",
+      "people" => "{{ContactName}}/{{Category}}", "account" => "{{Source}}/{{ContactName}}/{{Category}}",
+      "contacts" => "{{ContactName}}/{{Category}}", "corporate" => "{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}"
+    }
+
     storage_config = StorageConfiguration.find_or_create_by!(organization: org) do |sc|
       sc.provider_type = provider
       sc.status = "disconnected"
       sc.root_path = setting.sharepoint_root_path.presence || "/Shared Documents"
-      sc.paths = StorageConfiguration::DEFAULT_PATHS
-      sc.templates = StorageConfiguration::DEFAULT_TEMPLATES
+      sc.paths = default_paths
+      sc.templates = default_templates
     end
 
     # Populate connection_config from CorporateCompanySetting
