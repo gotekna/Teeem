@@ -441,6 +441,23 @@ export function EntityTabsConfig({
   const saveTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const [saveStatus, setSaveStatus] = React.useState<'idle' | 'saving' | 'saved'>('idle');
 
+  // Helper to render label with save indicator
+  const labelWithStatus = (text: string) => (
+    <span className="flex items-center gap-2">
+      <span>{text}</span>
+      {saveStatus === 'saving' && (
+        <span className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400">
+          <Loader2 className="h-3 w-3 animate-spin" />
+        </span>
+      )}
+      {saveStatus === 'saved' && (
+        <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400">
+          <Check className="h-3 w-3" />
+        </span>
+      )}
+    </span>
+  );
+
   // Save templates to API (debounced)
   const saveTemplates = React.useCallback(async () => {
     if (!showSharePointPaths) return;
@@ -1551,27 +1568,6 @@ export function EntityTabsConfig({
             {/* SSoT: Storage Configuration for system scopes (task, email, warehouse) - always visible */}
             {showSharePointPaths && (
               <div className="space-y-6 mb-6">
-                {/* Auto-save status indicator */}
-                {saveStatus !== 'idle' && (
-                  <div className={cn(
-                    "flex items-center gap-2 text-xs px-2 py-1 rounded-md w-fit transition-all duration-300",
-                    saveStatus === 'saving' && "bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400",
-                    saveStatus === 'saved' && "bg-green-50 dark:bg-green-950/30 text-green-600 dark:text-green-400"
-                  )}>
-                    {saveStatus === 'saving' && (
-                      <>
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        <span>Saving...</span>
-                      </>
-                    )}
-                    {saveStatus === 'saved' && (
-                      <>
-                        <Check className="h-3 w-3" />
-                        <span>Saved</span>
-                      </>
-                    )}
-                  </div>
-                )}
                 {/* EML Files Configuration (or primary scope for non-email) */}
                 <div className="space-y-3">
                   {scope === 'email' && (
@@ -1593,7 +1589,7 @@ export function EntityTabsConfig({
 
                   {/* Folder Path template with token builder - drag and drop enabled */}
                   <TokenBuilder
-                    label="Folder Path (drag to reorder, click tokens to add)"
+                    label={labelWithStatus("Folder Path")}
                     value={folderPathTemplate ?? getDefaultTemplate(scope)}
                     onChange={setFolderPathTemplate}
                     placeholders={SHAREPOINT_PLACEHOLDERS}
@@ -1631,7 +1627,7 @@ export function EntityTabsConfig({
 
                   {/* File Name template */}
                   <TokenBuilder
-                    label="File Name (how files are named when saved)"
+                    label={labelWithStatus("File Name")}
                     value={fileNameTemplate}
                     onChange={setFileNameTemplate}
                     placeholders={SHAREPOINT_PLACEHOLDERS}
@@ -1680,7 +1676,7 @@ export function EntityTabsConfig({
 
                     {/* Attachments Folder Path template */}
                     <TokenBuilder
-                      label="Folder Path (drag to reorder, click tokens to add)"
+                      label={labelWithStatus("Folder Path")}
                       value={attachmentsPathTemplate ?? getDefaultTemplate('email')}
                       onChange={setAttachmentsPathTemplate}
                       placeholders={SHAREPOINT_PLACEHOLDERS}
@@ -1715,7 +1711,7 @@ export function EntityTabsConfig({
 
                     {/* File Name template for attachments */}
                     <TokenBuilder
-                      label="File Name (how files are named when saved)"
+                      label={labelWithStatus("File Name")}
                       value={attachmentsFileNameTemplate}
                       onChange={setAttachmentsFileNameTemplate}
                       placeholders={SHAREPOINT_PLACEHOLDERS}
@@ -1762,7 +1758,7 @@ export function EntityTabsConfig({
                         </div>
                       </div>
                       <TokenBuilder
-                        label="Folder Path"
+                        label={labelWithStatus("Folder Path")}
                         value={warehouseTemplates.bill_inbox ?? '{{TabName}}'}
                         onChange={(val) => setWarehouseTemplates(prev => ({ ...prev, bill_inbox: val }))}
                         placeholders={SHAREPOINT_PLACEHOLDERS}
@@ -1776,7 +1772,7 @@ export function EntityTabsConfig({
                         <span className="text-green-700 dark:text-green-300">{getBasePath('bill_inbox')}{warehouseTemplates.bill_inbox ? `/${warehouseTemplates.bill_inbox.replace(/\{\{TabName\}\}/g, 'Invoices')}` : ''}</span>
                       </div>
                       <TokenBuilder
-                        label="File Name"
+                        label={labelWithStatus("File Name")}
                         value={warehouseFileNameTemplates.bill_inbox ?? '{{OriginalFileName}}'}
                         onChange={(val) => setWarehouseFileNameTemplates(prev => ({ ...prev, bill_inbox: val }))}
                         placeholders={SHAREPOINT_PLACEHOLDERS}
@@ -1802,7 +1798,7 @@ export function EntityTabsConfig({
                         </div>
                       </div>
                       <TokenBuilder
-                        label="Folder Path"
+                        label={labelWithStatus("Folder Path")}
                         value={warehouseTemplates.pricebook_photos ?? '{{TabName}}'}
                         onChange={(val) => setWarehouseTemplates(prev => ({ ...prev, pricebook_photos: val }))}
                         placeholders={SHAREPOINT_PLACEHOLDERS}
@@ -1815,7 +1811,7 @@ export function EntityTabsConfig({
                         <span className="text-green-700 dark:text-green-300">{getBasePath('pricebook_photos')}{warehouseTemplates.pricebook_photos ? `/${warehouseTemplates.pricebook_photos.replace(/\{\{TabName\}\}/g, 'Products')}` : ''}</span>
                       </div>
                       <TokenBuilder
-                        label="File Name"
+                        label={labelWithStatus("File Name")}
                         value={warehouseFileNameTemplates.pricebook_photos ?? '{{OriginalFileName}}'}
                         onChange={(val) => setWarehouseFileNameTemplates(prev => ({ ...prev, pricebook_photos: val }))}
                         placeholders={SHAREPOINT_PLACEHOLDERS}
@@ -1841,7 +1837,7 @@ export function EntityTabsConfig({
                         </div>
                       </div>
                       <TokenBuilder
-                        label="Folder Path"
+                        label={labelWithStatus("Folder Path")}
                         value={warehouseTemplates.chat ?? '{{UserCode}}'}
                         onChange={(val) => setWarehouseTemplates(prev => ({ ...prev, chat: val }))}
                         placeholders={SHAREPOINT_PLACEHOLDERS}
@@ -1854,7 +1850,7 @@ export function EntityTabsConfig({
                         <span className="text-green-700 dark:text-green-300">{getBasePath('chat')}{warehouseTemplates.chat ? `/${warehouseTemplates.chat.replace(/\{\{UserCode\}\}/g, 'RH')}` : ''}</span>
                       </div>
                       <TokenBuilder
-                        label="File Name"
+                        label={labelWithStatus("File Name")}
                         value={warehouseFileNameTemplates.chat ?? '{{OriginalFileName}}'}
                         onChange={(val) => setWarehouseFileNameTemplates(prev => ({ ...prev, chat: val }))}
                         placeholders={SHAREPOINT_PLACEHOLDERS}
@@ -1880,7 +1876,7 @@ export function EntityTabsConfig({
                         </div>
                       </div>
                       <TokenBuilder
-                        label="Folder Path"
+                        label={labelWithStatus("Folder Path")}
                         value={warehouseTemplates.templates ?? '{{TabName}}'}
                         onChange={(val) => setWarehouseTemplates(prev => ({ ...prev, templates: val }))}
                         placeholders={SHAREPOINT_PLACEHOLDERS}
@@ -1893,7 +1889,7 @@ export function EntityTabsConfig({
                         <span className="text-green-700 dark:text-green-300">{getBasePath('templates')}{warehouseTemplates.templates ? `/${warehouseTemplates.templates.replace(/\{\{TabName\}\}/g, 'Contracts')}` : ''}</span>
                       </div>
                       <TokenBuilder
-                        label="File Name"
+                        label={labelWithStatus("File Name")}
                         value={warehouseFileNameTemplates.templates ?? '{{OriginalFileName}}'}
                         onChange={(val) => setWarehouseFileNameTemplates(prev => ({ ...prev, templates: val }))}
                         placeholders={SHAREPOINT_PLACEHOLDERS}
@@ -1919,7 +1915,7 @@ export function EntityTabsConfig({
                         </div>
                       </div>
                       <TokenBuilder
-                        label="Folder Path"
+                        label={labelWithStatus("Folder Path")}
                         value={warehouseTemplates.custom ?? '{{Category}}'}
                         onChange={(val) => setWarehouseTemplates(prev => ({ ...prev, custom: val }))}
                         placeholders={SHAREPOINT_PLACEHOLDERS}
@@ -1932,7 +1928,7 @@ export function EntityTabsConfig({
                         <span className="text-green-700 dark:text-green-300">{getBasePath('custom')}{warehouseTemplates.custom ? `/${warehouseTemplates.custom.replace(/\{\{Category\}\}/g, 'Misc')}` : ''}</span>
                       </div>
                       <TokenBuilder
-                        label="File Name"
+                        label={labelWithStatus("File Name")}
                         value={warehouseFileNameTemplates.custom ?? '{{OriginalFileName}}'}
                         onChange={(val) => setWarehouseFileNameTemplates(prev => ({ ...prev, custom: val }))}
                         placeholders={SHAREPOINT_PLACEHOLDERS}

@@ -74,7 +74,7 @@ export interface TokenBuilderProps {
   /** Whether preview should use long variants */
   previewUseLong?: boolean;
   /** Label for the field */
-  label?: string;
+  label?: React.ReactNode;
   /** Placeholder text for empty state */
   placeholder?: string;
   /** Whether the field is disabled */
