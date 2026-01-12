@@ -30,6 +30,7 @@ import {
   ChevronRight,
   ChevronDown,
   Pencil,
+  FileText,
 } from "lucide-react";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
 import { api } from "@/lib/api";
@@ -167,6 +168,11 @@ interface TreeNodeProps {
   onCancelEdit: () => void;
   currentPath: ScopeFolders;
   rootPath: string;
+  // Tab editing props
+  editingTabId: number | null;
+  onStartTabEdit: (tabId: number) => void;
+  onSaveTabEdit: (tabId: number, path: string) => void;
+  onCancelTabEdit: () => void;
 }
 
 function TreeNode({
@@ -180,8 +186,14 @@ function TreeNode({
   onCancelEdit,
   currentPath,
   rootPath,
+  editingTabId,
+  onStartTabEdit,
+  onSaveTabEdit,
+  onCancelTabEdit,
 }: TreeNodeProps) {
   const hasChildren = node.children.length > 0;
+  const hasTabs = node.tabs && node.tabs.length > 0;
+  const hasExpandableContent = hasChildren || hasTabs;
   const isExpanded = expandedPaths.has(node.path);
   const isEditing = editingKey === node.scopeKey;
   const [editValue, setEditValue] = React.useState(node.path);
@@ -208,7 +220,7 @@ function TreeNode({
         style={{ paddingLeft: `${level * 16 + 4}px` }}
       >
         {/* Expand/collapse button or spacer */}
-        {hasChildren ? (
+        {hasExpandableContent ? (
           <button
             type="button"
             onClick={() => onToggle(node.path)}
@@ -221,7 +233,7 @@ function TreeNode({
         )}
 
         {/* Folder icon */}
-        {hasChildren && isExpanded ? (
+        {hasExpandableContent && isExpanded ? (
           <FolderOpen className="h-4 w-4 text-amber-500 flex-shrink-0" />
         ) : (
           <Folder className="h-4 w-4 text-amber-500 flex-shrink-0" />
@@ -283,6 +295,13 @@ function TreeNode({
           </>
         )}
 
+        {/* Tab count badge */}
+        {hasTabs && (
+          <span className="ml-1 text-[10px] text-muted-foreground">
+            ({node.tabs!.length} tabs)
+          </span>
+        )}
+
         {/* Full path preview (on hover) */}
         {!isEditing && (
           <span className="ml-auto text-[10px] text-muted-foreground font-mono opacity-0 group-hover:opacity-100 transition-opacity">
@@ -291,9 +310,10 @@ function TreeNode({
         )}
       </div>
 
-      {/* Children */}
-      {hasChildren && isExpanded && (
+      {/* Expanded content: Children and Tabs */}
+      {isExpanded && hasExpandableContent && (
         <div>
+          {/* Child folders */}
           {node.children.map((child) => (
             <TreeNode
               key={child.path}
@@ -307,9 +327,128 @@ function TreeNode({
               onCancelEdit={onCancelEdit}
               currentPath={currentPath}
               rootPath={rootPath}
+              editingTabId={editingTabId}
+              onStartTabEdit={onStartTabEdit}
+              onSaveTabEdit={onSaveTabEdit}
+              onCancelTabEdit={onCancelTabEdit}
             />
           ))}
+
+          {/* Tabs under this scope */}
+          {hasTabs && (
+            <div className="ml-1">
+              {node.tabs!.map((tab) => (
+                <TabNode
+                  key={tab.id}
+                  tab={tab}
+                  level={level + 1}
+                  basePath={fullPath}
+                  editingTabId={editingTabId}
+                  onStartEdit={onStartTabEdit}
+                  onSaveEdit={onSaveTabEdit}
+                  onCancelEdit={onCancelTabEdit}
+                />
+              ))}
+            </div>
+          )}
         </div>
+      )}
+    </div>
+  );
+}
+
+// TabNode component for displaying entity tabs
+interface TabNodeProps {
+  tab: EntityTab;
+  level: number;
+  basePath: string;
+  editingTabId: number | null;
+  onStartEdit: (tabId: number) => void;
+  onSaveEdit: (tabId: number, path: string) => void;
+  onCancelEdit: () => void;
+}
+
+function TabNode({
+  tab,
+  level,
+  basePath,
+  editingTabId,
+  onStartEdit,
+  onSaveEdit,
+  onCancelEdit,
+}: TabNodeProps) {
+  const isEditing = editingTabId === tab.id;
+  const [editValue, setEditValue] = React.useState(tab.sharepoint_folder_path || '');
+
+  React.useEffect(() => {
+    if (isEditing) {
+      setEditValue(tab.sharepoint_folder_path || '');
+    }
+  }, [isEditing, tab.sharepoint_folder_path]);
+
+  const tabFullPath = tab.sharepoint_folder_path
+    ? `${basePath}/${tab.sharepoint_folder_path}`.replace(/\/+/g, '/')
+    : basePath;
+
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-1 py-1 px-1 rounded-sm hover:bg-muted/50 group",
+        isEditing && "bg-blue-50 dark:bg-blue-900/20"
+      )}
+      style={{ paddingLeft: `${level * 16 + 24}px` }}
+    >
+      {/* Tab icon - document/file icon */}
+      <FileText className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
+
+      {/* Tab name */}
+      <span className="text-sm">{tab.display_name}</span>
+
+      {/* Tab folder path editing */}
+      {isEditing ? (
+        <div className="flex items-center gap-1 ml-2">
+          <Input
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                onSaveEdit(tab.id, editValue);
+              } else if (e.key === 'Escape') {
+                onCancelEdit();
+              }
+            }}
+            className="h-6 text-xs font-mono w-48"
+            placeholder="Folder path..."
+            autoFocus
+          />
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 px-2 text-xs"
+            onClick={() => onSaveEdit(tab.id, editValue)}
+          >
+            Save
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 px-2 text-xs"
+            onClick={onCancelEdit}
+          >
+            Cancel
+          </Button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => onStartEdit(tab.id)}
+          className="flex items-center gap-1 ml-auto group/edit"
+        >
+          <span className="text-[10px] text-muted-foreground font-mono opacity-60 group-hover:opacity-100">
+            {tab.sharepoint_folder_path || '(no subfolder)'}
+          </span>
+          <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover/edit:opacity-100 transition-opacity" />
+        </button>
       )}
     </div>
   );
@@ -413,14 +552,49 @@ export function SharePointTab() {
     });
   };
 
-  // Expand all nodes initially
+  // Save tab folder path via API
+  const saveTabFolderPath = async (tabId: number, folderPath: string) => {
+    try {
+      const response = await api.patch<{ success: boolean }>(
+        `/api/v1/entity_tabs/${tabId}`,
+        { entity_tab: { sharepoint_folder_path: folderPath } }
+      );
+      if (response?.success) {
+        // Update local state
+        setEntityTabs(prev => {
+          const newTabs = { ...prev };
+          Object.keys(newTabs).forEach(scope => {
+            newTabs[scope] = newTabs[scope].map(tab =>
+              tab.id === tabId ? { ...tab, sharepoint_folder_path: folderPath } : tab
+            );
+          });
+          return newTabs;
+        });
+        toast({
+          title: "Saved",
+          description: "Tab folder path updated",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to save tab folder path:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save tab folder path",
+        variant: "destructive",
+      });
+    }
+    setEditingTabId(null);
+  };
+
+  // Expand all nodes initially (folders with children or tabs)
   React.useEffect(() => {
     if (Object.keys(formData.scope_folders).length > 0 && expandedPaths.size === 0) {
-      // Collect all paths that have children
+      // Collect all paths that have children or tabs
       const allPaths = new Set<string>();
       const collectPaths = (nodes: FolderTreeNode[]) => {
         nodes.forEach(node => {
-          if (node.children.length > 0) {
+          const hasExpandableContent = node.children.length > 0 || (node.tabs && node.tabs.length > 0);
+          if (hasExpandableContent) {
             allPaths.add(node.path);
             collectPaths(node.children);
           }
@@ -889,6 +1063,10 @@ export function SharePointTab() {
                     onCancelEdit={() => setEditingKey(null)}
                     currentPath={formData.scope_folders}
                     rootPath={formData.sharepoint_root_path}
+                    editingTabId={editingTabId}
+                    onStartTabEdit={setEditingTabId}
+                    onSaveTabEdit={saveTabFolderPath}
+                    onCancelTabEdit={() => setEditingTabId(null)}
                   />
                 ))}
               </div>
@@ -903,29 +1081,21 @@ export function SharePointTab() {
             </span>
             <span className="flex items-center gap-1">
               <Badge variant="outline" className="h-4 text-[10px] px-1">scope</Badge>
-              Scope folder (editable)
+              Scope folder
+            </span>
+            <span className="flex items-center gap-1">
+              <FileText className="h-3 w-3 text-blue-500" />
+              Tab (click to edit path)
             </span>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Folder Paths Note */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Info className="h-4 w-4 text-blue-500" />
-            Tab Folder Paths
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-            <p className="text-sm text-blue-800 dark:text-blue-200">
-              <strong>Individual tab folder paths are configured in the Entity Configurator.</strong>
-            </p>
-            <p className="text-sm text-blue-700 dark:text-blue-300 mt-2">
-              Use the scope tabs above (Jobs, Corporate, Contacts, etc.) to edit folder paths and templates for each tab.
-            </p>
-          </div>
+          {/* Loading indicator for tabs */}
+          {loadingTabs && (
+            <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
+              <Spinner size={12} />
+              Loading tabs...
+            </div>
+          )}
         </CardContent>
       </Card>
 

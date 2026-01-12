@@ -86,17 +86,27 @@ class EmailStorageUploadService
     case @storage_config.provider_type
     when "wasabi", "s3"
       credential = S3CompatibleCredential.active.first
-      return nil unless credential
+      unless credential
+        Rails.logger.error "[EmailUpload] No active S3CompatibleCredential found"
+        return nil
+      end
       DocumentProviders::S3Compatible.new(credential)
     when "sharepoint"
       credential = MicrosoftCredential.sharepoint_credential
-      return nil unless credential
+      unless credential
+        Rails.logger.error "[EmailUpload] No active MicrosoftCredential found for SharePoint"
+        return nil
+      end
       DocumentProviders::SharePoint.new(credential)
     else
+      Rails.logger.error "[EmailUpload] Unknown provider type: #{@storage_config.provider_type}"
       nil
     end
+  rescue ActiveRecord::Encryption::Errors::Decryption => e
+    Rails.logger.error "[EmailUpload] Credential decryption failed - check encryption keys: #{e.message}"
+    nil
   rescue => e
-    Rails.logger.error "[EmailUpload] Failed to get storage provider: #{e.message}"
+    Rails.logger.error "[EmailUpload] Failed to get storage provider: #{e.class} - #{e.message}"
     nil
   end
 

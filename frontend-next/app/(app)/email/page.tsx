@@ -1001,8 +1001,10 @@ export default function EmailPage() {
 
       if (activeAccounts.length > 0) {
         if (accountParam) {
-          // Find account matching URL param
-          const accountToSelect = activeAccounts.find(a => String(a.id) === accountParam);
+          // Find account matching URL param (by email address or ID for backwards compatibility)
+          const accountToSelect = activeAccounts.find(a =>
+            a.email_address === accountParam || String(a.id) === accountParam
+          );
           if (accountToSelect) {
             targetAccountId = String(accountToSelect.id);
             // Reset folder to Inbox when loading specific account from URL
@@ -1078,7 +1080,7 @@ export default function EmailPage() {
   // Handle URL account param changes (e.g., clicking different mailbox in nav)
   useEffect(() => {
     if (accountParam && accounts.length > 0) {
-      const matchingAccount = accounts.find(a => String(a.id) === accountParam);
+      const matchingAccount = accounts.find(a => a.email_address === accountParam || String(a.id) === accountParam);
       if (matchingAccount && String(matchingAccount.id) !== selectedAccount) {
         const accountId = String(matchingAccount.id);
         setSelectedAccount(accountId);
@@ -1708,12 +1710,14 @@ To: ${email.to_emails?.join(", ") || ""}
                       setSelectedFolderId("");  // Clear old folder ID
                       setExpandedAccounts(new Set([accountId]));
                       fetchFolders(accountId, account, true);  // forceSelectInbox to update folder ID
-                      // Update URL to be bookmarkable
-                      router.push(`/email?account=${accountId}`, { scroll: false });
+                      // Update URL to be bookmarkable (use email address for readability, fallback to ID)
+                      const urlParam = account.email_address || String(account.id);
+                      router.push(`/email?account=${encodeURIComponent(urlParam)}`, { scroll: false });
                     }}
                     onDoubleClick={() => {
                       // Open mailbox in a new dedicated fullscreen tab
-                      window.open(`/email?account=${account.id}&standalone=true`, '_blank');
+                      const urlParam = account.email_address || String(account.id);
+                      window.open(`/email?account=${encodeURIComponent(urlParam)}&standalone=true`, '_blank');
                     }}
                     className="flex-1 min-w-0 flex items-center gap-2 text-left"
                   >

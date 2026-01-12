@@ -17,9 +17,8 @@ class UploadEmailsToStorageJob < ApplicationJob
   queue_as :low
 
   def perform(batch_size: nil)
-    progress = BackgroundJobProgress.create!(
+    progress = BackgroundJobProgress.start(
       job_type: "email_storage_upload",
-      status: "processing",
       metadata: { batch_size: batch_size }
     )
 
