@@ -44,6 +44,7 @@ import {
   Building2,
   X,
   Users,
+  Settings,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
@@ -1256,12 +1257,20 @@ export function DataWarehouseTab() {
               <span className="text-sm text-muted-foreground">Last Sync</span>
               <span className="text-sm">{formatDate(stats.storage.last_sync)}</span>
             </div>
-            <Button variant="outline" size="sm" className="w-full" asChild>
-              <Link href="/settings/integrations/storage" className="flex items-center justify-center">
-                <ExternalLink className="h-4 w-4 mr-2" />
-                Manage Storage
-              </Link>
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="flex-1" asChild>
+                <Link href="/settings/integrations/storage" className="flex items-center justify-center">
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Manage Storage
+                </Link>
+              </Button>
+              <Button variant="outline" size="sm" className="flex-1" asChild>
+                <Link href="/admin/system/entity-config/sharepoint_config" className="flex items-center justify-center">
+                  <Settings className="h-4 w-4 mr-2" />
+                  Configure Paths
+                </Link>
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
