@@ -31,6 +31,13 @@ struct Job: Identifiable, Hashable {
     let lotNumber: String?
     let jobStatus: JobStatus?
 
+    // Site presence / location tracking
+    let siteLatitude: Double?
+    let siteLongitude: Double?
+    let siteRadiusMeters: Int?
+    let sitePresenceEnabled: Bool?
+    let liveTrackingEnabled: Bool?
+
     var displayName: String {
         // Build address-style display name
         var parts: [String] = []
@@ -97,6 +104,11 @@ extension Job: Codable {
         case streetName = "street_name"
         case lotNumber = "lot_number"
         case jobStatus = "job_status"
+        case siteLatitude = "site_latitude"
+        case siteLongitude = "site_longitude"
+        case siteRadiusMeters = "site_radius_meters"
+        case sitePresenceEnabled = "site_presence_enabled"
+        case liveTrackingEnabled = "live_tracking_enabled"
     }
 
     init(from decoder: Decoder) throws {
@@ -109,6 +121,28 @@ extension Job: Codable {
         streetName = try container.decodeIfPresent(String.self, forKey: .streetName)
         lotNumber = try container.decodeIfPresent(String.self, forKey: .lotNumber)
         jobStatus = try container.decodeIfPresent(JobStatus.self, forKey: .jobStatus)
+
+        // Site presence / location tracking
+        sitePresenceEnabled = try container.decodeIfPresent(Bool.self, forKey: .sitePresenceEnabled)
+        liveTrackingEnabled = try container.decodeIfPresent(Bool.self, forKey: .liveTrackingEnabled)
+        siteRadiusMeters = try container.decodeIfPresent(Int.self, forKey: .siteRadiusMeters)
+
+        // Handle latitude/longitude as string or double
+        if let latString = try? container.decodeIfPresent(String.self, forKey: .siteLatitude) {
+            siteLatitude = Double(latString)
+        } else if let latDouble = try? container.decodeIfPresent(Double.self, forKey: .siteLatitude) {
+            siteLatitude = latDouble
+        } else {
+            siteLatitude = nil
+        }
+
+        if let lngString = try? container.decodeIfPresent(String.self, forKey: .siteLongitude) {
+            siteLongitude = Double(lngString)
+        } else if let lngDouble = try? container.decodeIfPresent(Double.self, forKey: .siteLongitude) {
+            siteLongitude = lngDouble
+        } else {
+            siteLongitude = nil
+        }
 
         // contract_price comes as string from Rails API - convert to Double
         if let priceString = try container.decodeIfPresent(String.self, forKey: .contractPrice) {
@@ -131,6 +165,11 @@ extension Job: Codable {
         try container.encodeIfPresent(streetName, forKey: .streetName)
         try container.encodeIfPresent(lotNumber, forKey: .lotNumber)
         try container.encodeIfPresent(jobStatus, forKey: .jobStatus)
+        try container.encodeIfPresent(siteLatitude, forKey: .siteLatitude)
+        try container.encodeIfPresent(siteLongitude, forKey: .siteLongitude)
+        try container.encodeIfPresent(siteRadiusMeters, forKey: .siteRadiusMeters)
+        try container.encodeIfPresent(sitePresenceEnabled, forKey: .sitePresenceEnabled)
+        try container.encodeIfPresent(liveTrackingEnabled, forKey: .liveTrackingEnabled)
     }
 }
 

@@ -19,7 +19,8 @@ module Api
       # verify_device_code needs web user auth (to link device to user)
       before_action :require_web_user!, only: [:verify_device_code]
       # All other endpoints (except auth flow) need desktop client auth
-      before_action :authenticate_desktop_client!, except: [:initiate_device_auth, :poll_device_auth, :verify_device_code]
+      # refresh_token uses refresh_token to find client, not JWT
+      before_action :authenticate_desktop_client!, except: [:initiate_device_auth, :poll_device_auth, :verify_device_code, :refresh_token]
 
       # ==========================================
       # DEVICE CODE AUTHENTICATION
@@ -152,13 +153,19 @@ module Api
       # POST /api/v1/sync/auth/refresh
       # Refresh access token using refresh token
       def refresh_token
-        refresh_token = params[:refresh_token]
+        provided_refresh_token = params[:refresh_token]
 
-        unless refresh_token.present?
+        unless provided_refresh_token.present?
           return render json: { success: false, error: "Refresh token required" }, status: :bad_request
         end
 
-        tokens = @desktop_client.refresh_access_token!(refresh_token)
+        # Find client by refresh token (no JWT required for this endpoint)
+        client = DesktopClient.find_by(refresh_token: provided_refresh_token, is_active: true)
+        unless client
+          return render json: { success: false, error: "Invalid refresh token" }, status: :unauthorized
+        end
+
+        tokens = client.refresh_access_token!(provided_refresh_token)
         unless tokens
           return render json: { success: false, error: "Invalid refresh token" }, status: :unauthorized
         end
@@ -514,23 +521,23 @@ module Api
       end
 
       # Require web user authentication (JWT from web app login)
+      # Uses same pattern as ApplicationController#authorize_request
       def require_web_user!
-        token = request.headers["Authorization"]&.sub(/^Bearer /, "")
-
-        unless token.present?
-          return render json: { success: false, error: "Authorization required" }, status: :unauthorized
-        end
+        header = request.headers["Authorization"]
+        header = header.split(" ").last if header
 
         begin
-          payload = JWT.decode(token, Rails.application.secret_key_base, true, algorithm: "HS256").first
-          @current_user = User.find(payload["sub"])
-        rescue JWT::ExpiredSignature
-          render json: { success: false, error: "Token expired" }, status: :unauthorized
-        rescue JWT::DecodeError
-          render json: { success: false, error: "Invalid token" }, status: :unauthorized
-        rescue ActiveRecord::RecordNotFound
-          render json: { success: false, error: "User not found" }, status: :unauthorized
+          decoded = JsonWebToken.decode(header)
+          @current_user = User.find(decoded[:user_id]) if decoded
+        rescue ActiveRecord::RecordNotFound, JWT::DecodeError => e
+          # Authentication failed
         end
+
+        unless @current_user
+          render json: { success: false, error: "Authorization required" }, status: :unauthorized
+          return false
+        end
+        true
       end
 
       def current_user
@@ -567,7 +574,7 @@ module Api
             name: entity.name,
             path: "/Companies/#{entity.name}",
             document_count: entity.corporate_company_documents.count,
-            has_sharepoint_folder: entity.sharepoint_folder_id.present?
+            has_sharepoint_folder: entity.respond_to?(:sharepoint_folder_id) && entity.sharepoint_folder_id.present?
           }
         when "Contact"
           {
@@ -576,7 +583,7 @@ module Api
             syncable_id: entity.id,
             name: entity.full_name,
             path: "/People/#{entity.full_name}",
-            document_count: entity.people_documents.count
+            document_count: 0  # Contacts don't have direct document associations yet
           }
         end
       end

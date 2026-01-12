@@ -69,8 +69,8 @@ const scopes = [
     isEntityTab: false,
   },
   {
-    id: "sharepoint_config",
-    label: "SharePoint Config",
+    id: "sharepoint_config",  // Keep URL for backwards compatibility
+    label: "Storage Config",  // SSoT: Provider-agnostic label
     icon: Settings,
     showEntityFilters: false,
     showSharePointPaths: false,

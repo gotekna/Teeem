@@ -7,6 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Cloud,
   CheckCircle2,
   AlertCircle,
@@ -22,6 +29,8 @@ import {
   ClipboardList,
   Folder,
   Settings,
+  HardDrive,
+  Database,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -38,24 +47,42 @@ import {
 } from "@/components/ui/sheet";
 import { Search, RotateCcw } from "lucide-react";
 
-interface SharePointConfig {
+// SSoT: Provider types match StorageConfiguration.PROVIDER_TYPES
+type ProviderType = "sharepoint" | "s3" | "wasabi" | "local";
+
+const PROVIDER_OPTIONS: { value: ProviderType; label: string; icon: React.ElementType; description: string }[] = [
+  { value: "sharepoint", label: "SharePoint", icon: Cloud, description: "Microsoft SharePoint / OneDrive for Business" },
+  { value: "wasabi", label: "Wasabi", icon: Database, description: "Wasabi Hot Cloud Storage (S3-compatible)" },
+  { value: "s3", label: "Amazon S3", icon: Cloud, description: "Amazon Simple Storage Service" },
+  { value: "local", label: "Local Storage", icon: HardDrive, description: "Local file system (development only)" },
+];
+
+interface StorageConfig {
   configured: boolean;
+  provider_type: ProviderType;
+  status: string;
+  // SharePoint connection
   site_url: string | null;
   site_id: string | null;
   drive_id: string | null;
   drive_name: string | null;
+  // S3/Wasabi connection
+  endpoint: string | null;
+  bucket: string | null;
+  region: string | null;
+  // Paths (provider-agnostic)
   root_path: string;
   paths: {
     jobs: string;
     tasks: string;
     people: string;
-    corporate: string;  // SSoT key is "corporate"
+    corporate: string;
     contacts: string;
   };
   templates: {
     job: string;
     task: string;
-    corporate: string;  // SSoT key is "corporate"
+    corporate: string;
     people: string;
     contacts: string;
   };
@@ -66,15 +93,21 @@ export function SharePointTab() {
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [testing, setTesting] = React.useState(false);
-  const [config, setConfig] = React.useState<SharePointConfig | null>(null);
+  const [config, setConfig] = React.useState<StorageConfig | null>(null);
   const [showBrowser, setShowBrowser] = React.useState<"root" | "jobs" | "tasks" | "company" | "people" | "contacts" | null>(null);
   const [resetting, setResetting] = React.useState(false);
   const [formData, setFormData] = React.useState({
-    // Site configuration
+    // Provider type (SSoT)
+    provider_type: "sharepoint" as ProviderType,
+    // SharePoint configuration
     sharepoint_site_url: "",
     sharepoint_site_id: "",
     sharepoint_drive_id: "",
     sharepoint_drive_name: "",
+    // S3/Wasabi configuration
+    s3_endpoint: "",
+    s3_bucket: "",
+    s3_region: "",
     // Folder paths - root path empty by default (SSoT: paths are relative to drive root)
     sharepoint_root_path: "",
     sharepoint_jobs_path: "Jobs",
@@ -90,7 +123,7 @@ export function SharePointTab() {
     sharepoint_contacts_template: "{{ContactName}}/{{Category}}",
   });
 
-  // Load SharePoint config on mount
+  // Load storage config on mount
   React.useEffect(() => {
     loadConfig();
   }, []);
@@ -98,35 +131,42 @@ export function SharePointTab() {
   const loadConfig = async () => {
     try {
       setLoading(true);
-      const response = await api.get<{ success: boolean; data: SharePointConfig }>(
+      const response = await api.get<{ success: boolean; data: StorageConfig }>(
         "/api/v1/corporate_company_settings/sharepoint"
       );
       if (response?.success && response.data) {
         setConfig(response.data);
         setFormData({
+          // Provider type
+          provider_type: response.data.provider_type || "sharepoint",
+          // SharePoint connection
           sharepoint_site_url: response.data.site_url || "",
           sharepoint_site_id: response.data.site_id || "",
           sharepoint_drive_id: response.data.drive_id || "",
           sharepoint_drive_name: response.data.drive_name || "",
-          // SSoT: root path defaults to empty (drive root), not "/Shared Documents"
+          // S3/Wasabi connection
+          s3_endpoint: response.data.endpoint || "",
+          s3_bucket: response.data.bucket || "",
+          s3_region: response.data.region || "",
+          // SSoT: root path defaults to empty (drive root)
           sharepoint_root_path: response.data.root_path || "",
           sharepoint_jobs_path: response.data.paths?.jobs || "Jobs",
           sharepoint_tasks_path: response.data.paths?.tasks || "Tasks",
           sharepoint_people_path: response.data.paths?.people || "Corporate/People",
-          sharepoint_company_path: response.data.paths?.corporate || "Corporate",  // SSoT key is "corporate"
+          sharepoint_company_path: response.data.paths?.corporate || "Corporate",
           sharepoint_contacts_path: response.data.paths?.contacts || "Contacts",
           sharepoint_job_template: response.data.templates?.job || "{{JobCode}}/{{Category}}",
           sharepoint_task_template: response.data.templates?.task || "Task-{{TaskId}}/{{Category}}",
-          sharepoint_company_template: response.data.templates?.corporate || "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",  // SSoT key is "corporate"
+          sharepoint_company_template: response.data.templates?.corporate || "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
           sharepoint_people_template: response.data.templates?.people || "{{ContactName}}/{{Category}}",
           sharepoint_contacts_template: response.data.templates?.contacts || "{{ContactName}}/{{Category}}",
         });
       }
     } catch (error) {
-      console.error("Failed to load SharePoint config:", error);
+      console.error("Failed to load storage config:", error);
       toast({
         title: "Error",
-        description: "Failed to load SharePoint configuration",
+        description: "Failed to load storage configuration",
         variant: "destructive",
       });
     } finally {
@@ -137,21 +177,31 @@ export function SharePointTab() {
   const handleSave = async () => {
     try {
       setSaving(true);
-      const response = await api.patch<{ success: boolean; data: SharePointConfig }>(
+      // Include provider_type and S3/Wasabi fields in save
+      const response = await api.patch<{ success: boolean; data: StorageConfig }>(
         "/api/v1/corporate_company_settings/sharepoint",
-        { sharepoint: formData }
+        {
+          sharepoint: {
+            ...formData,
+            // Map S3/Wasabi fields to backend expected names
+            s3_endpoint: formData.s3_endpoint,
+            s3_bucket: formData.s3_bucket,
+            s3_region: formData.s3_region,
+          }
+        }
       );
       if (response?.success) {
         setConfig(response.data);
+        const providerLabel = PROVIDER_OPTIONS.find(p => p.value === formData.provider_type)?.label || "Storage";
         toast({
           title: "Saved",
-          description: "SharePoint configuration updated successfully",
+          description: `${providerLabel} configuration updated successfully`,
         });
       }
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error?.message || "Failed to save SharePoint configuration",
+        description: error?.message || "Failed to save storage configuration",
         variant: "destructive",
       });
     } finally {
@@ -244,14 +294,18 @@ export function SharePointTab() {
     );
   }
 
+  // Get current provider info
+  const currentProvider = PROVIDER_OPTIONS.find(p => p.value === formData.provider_type) || PROVIDER_OPTIONS[0];
+  const ProviderIcon = currentProvider.icon;
+
   return (
     <div className="space-y-6">
-      {/* Header with Status */}
+      {/* Header with Provider Selector */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">SharePoint Configuration</h2>
+          <h2 className="text-lg font-semibold">Storage Configuration</h2>
           <p className="text-sm text-muted-foreground">
-            Single Source of Truth for all SharePoint document storage paths
+            Single Source of Truth for all document storage paths
           </p>
         </div>
         <Badge
@@ -275,99 +329,232 @@ export function SharePointTab() {
         </Badge>
       </div>
 
-      {/* Site Configuration */}
+      {/* Provider Selection */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <Cloud className="h-4 w-4" />
-            SharePoint Site
+            <Settings className="h-4 w-4" />
+            Storage Provider
           </CardTitle>
           <CardDescription>
-            Configure the SharePoint site where all documents will be stored
+            Select where documents will be stored
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <CardContent>
+          <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="site_url">Site URL</Label>
-              <Input
-                id="site_url"
-                value={formData.sharepoint_site_url}
-                onChange={(e) => handleChange("sharepoint_site_url", e.target.value)}
-                placeholder="https://gotekna.sharepoint.com/sites/TEEEM"
-              />
+              <Label>Provider</Label>
+              <Select
+                value={formData.provider_type}
+                onValueChange={(value: ProviderType) => handleChange("provider_type", value)}
+              >
+                <SelectTrigger className="w-full md:w-[300px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PROVIDER_OPTIONS.map((option) => {
+                    const Icon = option.icon;
+                    return (
+                      <SelectItem key={option.value} value={option.value}>
+                        <div className="flex items-center gap-2">
+                          <Icon className="h-4 w-4" />
+                          <span>{option.label}</span>
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
               <p className="text-xs text-muted-foreground">
-                The full URL to your SharePoint site
+                {currentProvider.description}
               </p>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="site_id">Site ID</Label>
-              <Input
-                id="site_id"
-                value={formData.sharepoint_site_id}
-                onChange={(e) => handleChange("sharepoint_site_id", e.target.value)}
-                placeholder="gotekna.sharepoint.com,abc123..."
-                className="font-mono text-xs"
-              />
-              <p className="text-xs text-muted-foreground">
-                Microsoft Graph Site ID (from API)
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="drive_id">Drive ID</Label>
-              <Input
-                id="drive_id"
-                value={formData.sharepoint_drive_id}
-                onChange={(e) => handleChange("sharepoint_drive_id", e.target.value)}
-                placeholder="b!abc123..."
-                className="font-mono text-xs"
-              />
-              <p className="text-xs text-muted-foreground">
-                Document Library Drive ID
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="drive_name">Drive Name</Label>
-              <Input
-                id="drive_name"
-                value={formData.sharepoint_drive_name}
-                onChange={(e) => handleChange("sharepoint_drive_name", e.target.value)}
-                placeholder="Shared Documents"
-              />
-              <p className="text-xs text-muted-foreground">
-                Display name of the document library
-              </p>
-            </div>
-          </div>
-
-          <div className="flex gap-2 pt-2">
-            <Button onClick={handleTest} disabled={testing || !formData.sharepoint_site_id}>
-              {testing ? (
-                <>
-                  <Spinner size={16} className="mr-2" />
-                  Testing...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Test Connection
-                </>
-              )}
-            </Button>
-            {formData.sharepoint_site_url && (
-              <Button variant="outline" asChild>
-                <a href={formData.sharepoint_site_url} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Open Site
-                </a>
-              </Button>
-            )}
           </div>
         </CardContent>
       </Card>
+
+      {/* SharePoint Connection - shown when provider is sharepoint */}
+      {formData.provider_type === "sharepoint" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Cloud className="h-4 w-4" />
+              SharePoint Site
+            </CardTitle>
+            <CardDescription>
+              Configure the SharePoint site where all documents will be stored
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="site_url">Site URL</Label>
+                <Input
+                  id="site_url"
+                  value={formData.sharepoint_site_url}
+                  onChange={(e) => handleChange("sharepoint_site_url", e.target.value)}
+                  placeholder="https://gotekna.sharepoint.com/sites/TEEEM"
+                />
+                <p className="text-xs text-muted-foreground">
+                  The full URL to your SharePoint site
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="site_id">Site ID</Label>
+                <Input
+                  id="site_id"
+                  value={formData.sharepoint_site_id}
+                  onChange={(e) => handleChange("sharepoint_site_id", e.target.value)}
+                  placeholder="gotekna.sharepoint.com,abc123..."
+                  className="font-mono text-xs"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Microsoft Graph Site ID (from API)
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="drive_id">Drive ID</Label>
+                <Input
+                  id="drive_id"
+                  value={formData.sharepoint_drive_id}
+                  onChange={(e) => handleChange("sharepoint_drive_id", e.target.value)}
+                  placeholder="b!abc123..."
+                  className="font-mono text-xs"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Document Library Drive ID
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="drive_name">Drive Name</Label>
+                <Input
+                  id="drive_name"
+                  value={formData.sharepoint_drive_name}
+                  onChange={(e) => handleChange("sharepoint_drive_name", e.target.value)}
+                  placeholder="Shared Documents"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Display name of the document library
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <Button onClick={handleTest} disabled={testing || !formData.sharepoint_site_id}>
+                {testing ? (
+                  <>
+                    <Spinner size={16} className="mr-2" />
+                    Testing...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Test Connection
+                  </>
+                )}
+              </Button>
+              {formData.sharepoint_site_url && (
+                <Button variant="outline" asChild>
+                  <a href={formData.sharepoint_site_url} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Open Site
+                  </a>
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* S3/Wasabi Connection - shown when provider is s3 or wasabi */}
+      {(formData.provider_type === "s3" || formData.provider_type === "wasabi") && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Database className="h-4 w-4" />
+              {formData.provider_type === "wasabi" ? "Wasabi" : "Amazon S3"} Connection
+            </CardTitle>
+            <CardDescription>
+              Configure the {formData.provider_type === "wasabi" ? "Wasabi" : "S3"} bucket where all documents will be stored
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="s3_endpoint">Endpoint URL</Label>
+                <Input
+                  id="s3_endpoint"
+                  value={formData.s3_endpoint}
+                  onChange={(e) => handleChange("s3_endpoint", e.target.value)}
+                  placeholder={formData.provider_type === "wasabi" ? "https://s3.wasabisys.com" : "https://s3.amazonaws.com"}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {formData.provider_type === "wasabi" ? "Wasabi endpoint (e.g., s3.wasabisys.com or s3.ap-southeast-2.wasabisys.com)" : "S3 endpoint URL"}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="s3_bucket">Bucket Name</Label>
+                <Input
+                  id="s3_bucket"
+                  value={formData.s3_bucket}
+                  onChange={(e) => handleChange("s3_bucket", e.target.value)}
+                  placeholder="my-documents-bucket"
+                />
+                <p className="text-xs text-muted-foreground">
+                  The name of your {formData.provider_type === "wasabi" ? "Wasabi" : "S3"} bucket
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="s3_region">Region</Label>
+                <Input
+                  id="s3_region"
+                  value={formData.s3_region}
+                  onChange={(e) => handleChange("s3_region", e.target.value)}
+                  placeholder={formData.provider_type === "wasabi" ? "ap-southeast-2" : "us-east-1"}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {formData.provider_type === "wasabi" ? "Wasabi region (e.g., ap-southeast-2 for Sydney)" : "AWS region (e.g., us-east-1)"}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-muted/50 rounded-lg border">
+              <p className="text-sm flex items-center gap-2">
+                <Info className="h-4 w-4 text-blue-500" />
+                <span>Credentials are configured in <strong>Admin → System → Connections</strong></span>
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Local Storage - shown when provider is local */}
+      {formData.provider_type === "local" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <HardDrive className="h-4 w-4" />
+              Local Storage
+            </CardTitle>
+            <CardDescription>
+              Store documents on the local file system (development only)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+              <p className="text-sm text-yellow-800 dark:text-yellow-200 flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" />
+                Local storage is for development only. Documents will be stored in the Rails storage directory.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Document Paths - Two Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -105,14 +105,26 @@ module Api
         # Map frontend params to StorageConfiguration structure
         sp = sharepoint_params
 
-        # Build connection_config from flat params
-        connection_config = storage_config.connection_config || {}
-        connection_config["site_url"] = sp[:sharepoint_site_url] if sp.key?(:sharepoint_site_url)
-        connection_config["site_id"] = sp[:sharepoint_site_id] if sp.key?(:sharepoint_site_id)
-        connection_config["drive_id"] = sp[:sharepoint_drive_id] if sp.key?(:sharepoint_drive_id)
-        connection_config["drive_name"] = sp[:sharepoint_drive_name] if sp.key?(:sharepoint_drive_name)
+        # Get provider type (default to current or sharepoint)
+        provider_type = sp[:provider_type].presence || storage_config.provider_type || "sharepoint"
 
-        # Build paths hash
+        # Build connection_config based on provider type
+        connection_config = storage_config.connection_config || {}
+
+        if provider_type == "sharepoint"
+          # SharePoint connection config
+          connection_config["site_url"] = sp[:sharepoint_site_url] if sp.key?(:sharepoint_site_url)
+          connection_config["site_id"] = sp[:sharepoint_site_id] if sp.key?(:sharepoint_site_id)
+          connection_config["drive_id"] = sp[:sharepoint_drive_id] if sp.key?(:sharepoint_drive_id)
+          connection_config["drive_name"] = sp[:sharepoint_drive_name] if sp.key?(:sharepoint_drive_name)
+        elsif provider_type.in?(%w[s3 wasabi])
+          # S3/Wasabi connection config
+          connection_config["endpoint"] = sp[:s3_endpoint] if sp.key?(:s3_endpoint)
+          connection_config["bucket"] = sp[:s3_bucket] if sp.key?(:s3_bucket)
+          connection_config["region"] = sp[:s3_region] if sp.key?(:s3_region)
+        end
+
+        # Build paths hash (provider-agnostic)
         paths = storage_config.paths || StorageConfiguration::DEFAULT_PATHS.dup
         paths["jobs"] = sp[:sharepoint_jobs_path] if sp.key?(:sharepoint_jobs_path)
         paths["tasks"] = sp[:sharepoint_tasks_path] if sp.key?(:sharepoint_tasks_path)
@@ -120,7 +132,7 @@ module Api
         paths["corporate"] = sp[:sharepoint_company_path] if sp.key?(:sharepoint_company_path)
         paths["contacts"] = sp[:sharepoint_contacts_path] if sp.key?(:sharepoint_contacts_path)
 
-        # Build templates hash
+        # Build templates hash (provider-agnostic)
         templates = storage_config.templates || StorageConfiguration::DEFAULT_TEMPLATES.dup
         templates["job"] = sp[:sharepoint_job_template] if sp.key?(:sharepoint_job_template)
         templates["task"] = sp[:sharepoint_task_template] if sp.key?(:sharepoint_task_template)
@@ -128,11 +140,21 @@ module Api
         templates["people"] = sp[:sharepoint_people_template] if sp.key?(:sharepoint_people_template)
         templates["contacts"] = sp[:sharepoint_contacts_template] if sp.key?(:sharepoint_contacts_template)
 
-        # Determine status based on connection config
-        new_status = (connection_config["site_id"].present? && connection_config["drive_id"].present?) ? "connected" : "disconnected"
+        # Determine status based on provider and connection config
+        new_status = case provider_type
+        when "sharepoint"
+          (connection_config["site_id"].present? && connection_config["drive_id"].present?) ? "connected" : "disconnected"
+        when "s3", "wasabi"
+          (connection_config["endpoint"].present? && connection_config["bucket"].present?) ? "connected" : "disconnected"
+        when "local"
+          "connected"  # Local is always "connected"
+        else
+          "disconnected"
+        end
 
         # Update StorageConfiguration
         update_attrs = {
+          provider_type: provider_type,
           connection_config: connection_config,
           paths: paths,
           templates: templates,
@@ -410,11 +432,17 @@ module Api
 
       def sharepoint_params
         params.require(:sharepoint).permit(
-          # Site configuration
+          # Provider type (SSoT)
+          :provider_type,
+          # SharePoint configuration
           :sharepoint_site_url,
           :sharepoint_site_id,
           :sharepoint_drive_id,
           :sharepoint_drive_name,
+          # S3/Wasabi configuration
+          :s3_endpoint,
+          :s3_bucket,
+          :s3_region,
           # Folder paths (relative to root)
           :sharepoint_root_path,
           :sharepoint_jobs_path,

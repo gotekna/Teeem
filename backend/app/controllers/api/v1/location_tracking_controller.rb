@@ -101,14 +101,21 @@ class Api::V1::LocationTrackingController < ApplicationController
         worker_name: session.worker_profile.display_name,
         job_name: session.job.name,
         job_address: session.job.site_address,
-        checkin_at: session.checkin_at,
-        checkout_at: session.checkout_at,
+        checkin_at: session.checkin_at&.iso8601,
+        checkout_at: session.checkout_at&.iso8601,
         job_site: {
-          latitude: session.job.site_latitude,
-          longitude: session.job.site_longitude,
+          latitude: session.job.site_latitude.to_f,
+          longitude: session.job.site_longitude.to_f,
           radius_meters: session.job.site_radius_meters || 100
         },
-        path: pings.map { |p| path_point(p) },
+        # Format for Leaflet Polyline: array of {latitude, longitude, recorded_at}
+        points: pings.map do |p|
+          {
+            latitude: p.latitude.to_f,
+            longitude: p.longitude.to_f,
+            recorded_at: p.recorded_at.iso8601
+          }
+        end,
         geofence_events: session.geofence_events.map { |e| geofence_event_json(e) },
         stats: path_stats(pings, session.job)
       }
@@ -125,28 +132,43 @@ class Api::V1::LocationTrackingController < ApplicationController
 
     active_sessions = SitePresenceSession.active.includes(:worker_profile, :job, :location_pings)
 
+    # Filter by job if specified
+    active_sessions = active_sessions.where(job_id: params[:job_id]) if params[:job_id].present?
+
+    # Collect unique job sites from active sessions
+    job_sites = {}
+
     workers = active_sessions.map do |session|
       latest_ping = session.location_pings.recent.first
+      job = session.job
+
+      # Collect job site data for the map
+      if job.site_latitude.present? && job.site_longitude.present? && !job_sites.key?(job.id)
+        job_sites[job.id] = {
+          id: job.id,
+          name: job.name,
+          latitude: job.site_latitude.to_f,
+          longitude: job.site_longitude.to_f,
+          radius_meters: job.site_radius_meters || 100
+        }
+      end
+
+      # Use checkin location if no pings yet
+      lat = latest_ping&.latitude || session.latitude_checkin
+      lng = latest_ping&.longitude || session.longitude_checkin
 
       {
-        session_id: session.id,
         worker_id: session.worker_profile_id,
         worker_name: session.worker_profile.display_name,
+        session_id: session.id,
         job_id: session.job_id,
-        job_name: session.job.name,
-        checkin_at: session.checkin_at,
-        latest_location: latest_ping ? {
-          latitude: latest_ping.latitude,
-          longitude: latest_ping.longitude,
-          recorded_at: latest_ping.recorded_at,
-          within_geofence: latest_ping.within_geofence,
-          distance_from_site: latest_ping.distance_from_site
-        } : nil,
-        job_site: {
-          latitude: session.job.site_latitude,
-          longitude: session.job.site_longitude,
-          radius_meters: session.job.site_radius_meters || 100
-        }
+        job_name: job.name,
+        latitude: lat.to_f,
+        longitude: lng.to_f,
+        within_geofence: latest_ping&.within_geofence != false,
+        distance_from_site: latest_ping&.distance_from_site,
+        checkin_at: session.checkin_at&.iso8601,
+        last_ping_at: latest_ping&.recorded_at&.iso8601 || session.checkin_at&.iso8601
       }
     end
 
@@ -154,6 +176,7 @@ class Api::V1::LocationTrackingController < ApplicationController
       success: true,
       data: {
         workers: workers,
+        job_sites: job_sites.values,
         count: workers.count,
         timestamp: Time.current.iso8601
       }
