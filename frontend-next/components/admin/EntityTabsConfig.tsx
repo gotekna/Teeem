@@ -393,19 +393,20 @@ export function EntityTabsConfig({
   React.useEffect(() => {
     if (showSharePointPaths && storageConfig) {
       // Try to get from scope_templates in storageConfig, fallback to getDefaultTemplate
+      // Use ?? to allow empty string (user intentionally cleared the template)
       const savedTemplate = (storageConfig as any)?.scope_templates?.[scope];
-      setFolderPathTemplate(savedTemplate || getDefaultTemplate(scope));
+      setFolderPathTemplate(savedTemplate ?? getDefaultTemplate(scope));
 
       // Initialize file name template
       const savedFileNameTemplate = (storageConfig as any)?.file_name_templates?.[scope];
-      setFileNameTemplate(savedFileNameTemplate || '{{OriginalFileName}}');
+      setFileNameTemplate(savedFileNameTemplate ?? '{{OriginalFileName}}');
 
       // Initialize attachments template for email scope
       if (scope === 'email') {
         const savedAttachmentsTemplate = (storageConfig as any)?.scope_templates?.['email_attachments'];
-        setAttachmentsPathTemplate(savedAttachmentsTemplate || getDefaultTemplate('email'));
+        setAttachmentsPathTemplate(savedAttachmentsTemplate ?? getDefaultTemplate('email'));
         const savedAttachmentsFileName = (storageConfig as any)?.file_name_templates?.['email_attachments'];
-        setAttachmentsFileNameTemplate(savedAttachmentsFileName || '{{OriginalFileName}}');
+        setAttachmentsFileNameTemplate(savedAttachmentsFileName ?? '{{OriginalFileName}}');
       }
 
       // Initialize warehouse sub-scope templates
@@ -415,9 +416,10 @@ export function EntityTabsConfig({
         const fileNameTemplates: Record<string, string> = {};
         warehouseScopes.forEach(subScope => {
           const saved = (storageConfig as any)?.scope_templates?.[subScope];
-          templates[subScope] = saved || '{{TabName}}';
+          // Use ?? to allow empty string (user intentionally cleared the template)
+          templates[subScope] = saved ?? '{{TabName}}';
           const savedFileName = (storageConfig as any)?.file_name_templates?.[subScope];
-          fileNameTemplates[subScope] = savedFileName || '{{OriginalFileName}}';
+          fileNameTemplates[subScope] = savedFileName ?? '{{OriginalFileName}}';
         });
         setWarehouseTemplates(templates);
         setWarehouseFileNameTemplates(fileNameTemplates);
@@ -435,42 +437,34 @@ export function EntityTabsConfig({
 
     try {
       // Build scope_templates object
+      // Always include templates even if empty (user may intentionally clear them)
       const scopeTemplates: Record<string, string> = {};
       const fileNameTemplatesPayload: Record<string, string> = {};
 
-      // Add main scope template
-      if (folderPathTemplate) {
-        scopeTemplates[scope] = folderPathTemplate;
-      }
-      if (fileNameTemplate && fileNameTemplate !== '{{OriginalFileName}}') {
+      // Add main scope template (always save, even if empty)
+      scopeTemplates[scope] = folderPathTemplate;
+      if (fileNameTemplate !== '{{OriginalFileName}}') {
         fileNameTemplatesPayload[scope] = fileNameTemplate;
       }
 
       // Add email attachments template
       if (scope === 'email') {
-        if (attachmentsPathTemplate) {
-          scopeTemplates['email_attachments'] = attachmentsPathTemplate;
-        }
-        if (attachmentsFileNameTemplate && attachmentsFileNameTemplate !== '{{OriginalFileName}}') {
+        scopeTemplates['email_attachments'] = attachmentsPathTemplate;
+        if (attachmentsFileNameTemplate !== '{{OriginalFileName}}') {
           fileNameTemplatesPayload['email_attachments'] = attachmentsFileNameTemplate;
         }
       }
 
-      // Add warehouse sub-scope templates
+      // Add warehouse sub-scope templates (always save, even if empty)
       if (scope === 'warehouse') {
         Object.entries(warehouseTemplates).forEach(([key, value]) => {
-          if (value) scopeTemplates[key] = value;
+          scopeTemplates[key] = value;
         });
         Object.entries(warehouseFileNameTemplates).forEach(([key, value]) => {
-          if (value && value !== '{{OriginalFileName}}') {
+          if (value !== '{{OriginalFileName}}') {
             fileNameTemplatesPayload[key] = value;
           }
         });
-      }
-
-      // Only save if we have templates to save
-      if (Object.keys(scopeTemplates).length === 0 && Object.keys(fileNameTemplatesPayload).length === 0) {
-        return;
       }
 
       await api.patch('/api/v1/corporate_company_settings/sharepoint', {
