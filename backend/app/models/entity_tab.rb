@@ -373,6 +373,11 @@ class EntityTab < ApplicationRecord
     tabs.map(&:as_nested_json)
   end
 
+  # Seed task tabs only (callable individually)
+  def self.seed_task_tabs_only!
+    send(:seed_task_tabs!)
+  end
+
   # Seed system tabs for all scopes
   def self.seed_system_tabs!
     # Corporate Entity tabs
@@ -386,6 +391,9 @@ class EntityTab < ApplicationRecord
 
     # Document folder tabs
     seed_document_tabs!
+
+    # Task tabs
+    seed_task_tabs!
 
     Rails.logger.info "[EntityTab] Seeded #{count} total tabs"
   end
@@ -514,6 +522,51 @@ class EntityTab < ApplicationRecord
         tab.storage_folder_path = name.upcase
       end
     end
+  end
+
+  # Task document folder tabs
+  # SSoT: Defines the folder structure for task-related documents
+  # Base path from StorageConfiguration: "Tasks"
+  # Template: "Tasks/Task-{{TaskId}}/{{Category}}"
+  private_class_method def self.seed_task_tabs!
+    # Overview tab - task info display
+    find_or_create_by!(scope: 'task', tab_key: 'overview') do |tab|
+      tab.display_name = 'Overview'
+      tab.tab_group = 'overview'
+      tab.order_position = 0
+      tab.enabled = true
+      tab.is_system_tab = true
+      tab.icon_name = 'ClipboardList'
+    end
+
+    # Document folder tabs for task attachments
+    # These represent categories of documents that can be attached to tasks
+    task_document_tabs = [
+      { tab_key: 'documents', display_name: 'Documents', icon: 'FileText', folder: 'Documents' },
+      { tab_key: 'photos', display_name: 'Photos', icon: 'Image', folder: 'Photos', is_photo: true },
+      { tab_key: 'plans', display_name: 'Plans', icon: 'Map', folder: 'Plans' },
+      { tab_key: 'drawings', display_name: 'Drawings', icon: 'PenTool', folder: 'Drawings', is_cad: true },
+      { tab_key: 'reports', display_name: 'Reports', icon: 'FileBarChart', folder: 'Reports' },
+      { tab_key: 'correspondence', display_name: 'Correspondence', icon: 'Mail', folder: 'Correspondence' },
+      { tab_key: 'attachments', display_name: 'Attachments', icon: 'Paperclip', folder: 'Attachments' }
+    ]
+
+    task_document_tabs.each_with_index do |attrs, idx|
+      find_or_create_by!(scope: 'task', tab_key: attrs[:tab_key]) do |tab|
+        tab.display_name = attrs[:display_name]
+        tab.tab_group = 'documents'
+        tab.order_position = idx + 10
+        tab.enabled = true
+        tab.is_system_tab = true
+        tab.icon_name = attrs[:icon]
+        tab.has_storage_folder = true
+        tab.storage_folder_path = attrs[:folder]
+        tab.is_photo_category = attrs[:is_photo] || false
+        tab.is_cad_category = attrs[:is_cad] || false
+      end
+    end
+
+    Rails.logger.info "[EntityTab] Seeded #{where(scope: 'task').count} task tabs"
   end
 
   # SSoT: Get effective icon name (child tabs inherit from parent)
