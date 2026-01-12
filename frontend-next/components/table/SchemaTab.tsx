@@ -20,6 +20,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { getColumnTypeEmoji, getColumnTypeLabel } from "@/lib/column-type-registry";
+import { isChoiceColumn } from "@/lib/constants/column-types";
 import { Key, Link, Calculator, Copy, Check } from "lucide-react";
 import { TableColumn } from "./types";
 

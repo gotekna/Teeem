@@ -52,6 +52,7 @@ import {
 } from "@/components/ui/accordion";
 import type { TableColumn } from "./types";
 import { isSystemGeneratedType, SYSTEM_VISIBLE_COLUMNS } from "@/lib/constants/system-columns";
+import { isLookupColumn } from "@/lib/constants/column-types";
 import type { LookupOption } from "./utils/lookup-cache";
 import { DocumentTypeLinker, type LinkedDocumentType, type DocumentType } from "@/components/schedule-master/DocumentTypeLinker";
 
@@ -391,11 +392,7 @@ export function CreateRecordDialog({
 
       // Fetch lookup options for all lookup columns
       const lookupColumns = filteredColumns.filter(
-        (col) =>
-          col.column_type === "lookup" ||
-          col.column_type === "multiple_lookups" ||
-          col.column_type === "relation" ||
-          col.lookup_foundation_id
+        (col) => isLookupColumn(col.column_type) || col.lookup_foundation_id
       );
 
       lookupColumns.forEach(async (col) => {
@@ -539,8 +536,9 @@ export function CreateRecordDialog({
       ) : null;
 
     // Check if column is a lookup type
-    const isLookup = col.column_type === "lookup" || col.column_type === "relation" || col.lookup_foundation_id;
-    const isMultipleLookup = col.column_type === "multiple_lookups";
+    const colType = col.column_type;
+    const isLookup = colType === "lookup" || !!col.lookup_foundation_id;
+    const isMultipleLookup = colType === "multiple_lookups";
 
     // Handle multiple lookups (checkboxes for multi-select)
     if (isMultipleLookup) {

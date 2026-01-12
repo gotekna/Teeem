@@ -33,6 +33,7 @@ import {
 import { validateCell as validateCellValue } from '../core/column-renderer/CellValidation';
 import { api } from '@/lib/api';
 import { clearCachedRecords } from '@/lib/records-cache';
+import { isLookupColumn } from '@/lib/constants/column-types';
 import type { TableColumn } from '../types';
 
 // ============================================================================
@@ -153,8 +154,7 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
     // Pre-fetch lookup options for lookup columns
     if (fetchLookupOptions) {
       columns.forEach(col => {
-        if ((col.column_type === 'lookup' || col.column_type === 'relation' || col.column_type === 'multiple_lookups') &&
-            col.lookup_foundation_id) {
+        if (isLookupColumn(col.column_type) && col.lookup_foundation_id) {
           fetchLookupOptions(col);
         }
       });
@@ -175,8 +175,7 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
     // Pre-fetch lookup options
     if (fetchLookupOptions) {
       columns.forEach(col => {
-        if ((col.column_type === 'lookup' || col.column_type === 'relation' || col.column_type === 'multiple_lookups') &&
-            col.lookup_foundation_id) {
+        if (isLookupColumn(col.column_type) && col.lookup_foundation_id) {
           fetchLookupOptions(col);
         }
       });

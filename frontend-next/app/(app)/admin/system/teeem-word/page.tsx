@@ -163,6 +163,7 @@ export default function TeeemWordPage() {
 
   // TipTap editor
   const editor = useEditor({
+    immediatelyRender: false, // Required for Next.js SSR - prevents hydration mismatch
     extensions: [
       StarterKit.configure({
         heading: {

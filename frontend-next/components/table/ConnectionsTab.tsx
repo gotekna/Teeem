@@ -16,6 +16,7 @@ import {
 import { ArrowRight, ArrowLeft, Link2, ExternalLink, Database } from "lucide-react";
 import NextLink from "next/link";
 import { urls } from "@/lib/url-utils";
+import { isLookupColumn } from "@/lib/constants/column-types";
 import { TableColumn } from "./types";
 
 interface Foundation {
@@ -129,7 +130,7 @@ export function ConnectionsTab({ foundationId, columns, tableName }: Connections
 
       if (lookupFoundationId) {
         const targetFoundation = foundations.find((f) => f.id === lookupFoundationId);
-        const isMultiple = details?.is_multiple || column.column_type === "multiple_lookups";
+        const isMultiple = details?.is_multiple || column.column_type === 'multiple_lookups';
 
         result.push({
           type: "outgoing",
@@ -154,7 +155,7 @@ export function ConnectionsTab({ foundationId, columns, tableName }: Connections
           targetFoundationId: foundationId,
           targetFoundationName: tableName,
           targetColumnName: column.lookup_display_column,
-          isMultiple: column.is_multiple || column.column_type === "multiple_lookups",
+          isMultiple: column.is_multiple || column.column_type === 'multiple_lookups',
           sourceFoundationId: column.foundation_id,
           sourceFoundationName: sourceFoundation?.name || `Table #${column.foundation_id}`,
         });
