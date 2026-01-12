@@ -29,6 +29,12 @@ import {
   X,
   Maximize2,
   Download,
+  CloudOff,
+  Cloud,
+  Monitor,
+  Settings2,
+  Check,
+  Loader2,
 } from "lucide-react";
 import {
   Dialog,
@@ -38,6 +44,9 @@ import {
 } from "@/components/ui/dialog";
 import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { BackButton } from "@/components/ui/back-button";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -97,6 +106,32 @@ interface TreeNode {
 type ViewMode = "tree" | "list" | "gallery";
 type TreeDisplayMode = "list" | "gallery";
 
+// Sync settings types
+interface DesktopClient {
+  id: number;
+  deviceName: string;
+  platform: string;
+  lastSeenAt: string;
+  isActive: boolean;
+}
+
+interface SyncExclusionRule {
+  id: string;
+  ruleType: "extension" | "size" | "pattern";
+  value: string;
+  action: "skip" | "include";
+  description: string;
+  isDefault: boolean;
+  priority: number;
+}
+
+interface SyncSubscription {
+  id: string;
+  folderName: string;
+  folderType: string;
+  lastSyncAt?: string;
+}
+
 export default function AllDocumentsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("tree");
   const [treeDisplayMode, setTreeDisplayMode] = useState<TreeDisplayMode>("list");
@@ -113,6 +148,14 @@ export default function AllDocumentsPage() {
   const [previewDocument, setPreviewDocument] = useState<DocumentItem | null>(null);
   // Click timer for single/double click differentiation
   const clickTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Sync settings state
+  const [showSyncSettings, setShowSyncSettings] = useState(false);
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [desktopClients, setDesktopClients] = useState<DesktopClient[]>([]);
+  const [exclusionRules, setExclusionRules] = useState<SyncExclusionRule[]>([]);
+  const [subscriptions, setSubscriptions] = useState<SyncSubscription[]>([]);
+  const [userOverrides, setUserOverrides] = useState<Record<string, boolean>>({});
 
   // Fetch all documents
   const fetchDocuments = useCallback(async () => {
@@ -137,6 +180,75 @@ export default function AllDocumentsPage() {
   useEffect(() => {
     fetchDocuments();
   }, [fetchDocuments]);
+
+  // Fetch sync settings when modal opens
+  const fetchSyncSettings = useCallback(async () => {
+    setSyncLoading(true);
+    try {
+      // Fetch exclusion rules
+      const exclusionsRes = await api.get<{ success: boolean; data: SyncExclusionRule[] }>("/api/v1/sync/exclusions");
+      if (exclusionsRes.success && exclusionsRes.data) {
+        setExclusionRules(exclusionsRes.data);
+        // Build user overrides map
+        const overrides: Record<string, boolean> = {};
+        exclusionsRes.data.forEach((rule) => {
+          if (!rule.isDefault) {
+            overrides[`${rule.ruleType}:${rule.value}`] = rule.action === "include";
+          }
+        });
+        setUserOverrides(overrides);
+      }
+
+      // Fetch subscriptions (what folders are being synced)
+      const subsRes = await api.get<{ success: boolean; data: SyncSubscription[] }>("/api/v1/sync/subscriptions");
+      if (subsRes.success && subsRes.data) {
+        setSubscriptions(subsRes.data);
+      }
+
+      // Fetch desktop clients
+      const clientsRes = await api.get<{ success: boolean; data: DesktopClient[] }>("/api/v1/sync/clients");
+      if (clientsRes.success && clientsRes.data) {
+        setDesktopClients(clientsRes.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch sync settings:", error);
+    } finally {
+      setSyncLoading(false);
+    }
+  }, []);
+
+  // Handle opening sync settings
+  const handleOpenSyncSettings = useCallback(() => {
+    setShowSyncSettings(true);
+    fetchSyncSettings();
+  }, [fetchSyncSettings]);
+
+  // Toggle exclusion rule
+  const handleToggleExclusion = useCallback(async (rule: SyncExclusionRule) => {
+    const key = `${rule.ruleType}:${rule.value}`;
+    const currentlyIncluded = userOverrides[key] ?? (rule.action === "include");
+    const newValue = !currentlyIncluded;
+
+    // Optimistic update
+    setUserOverrides((prev) => ({
+      ...prev,
+      [key]: newValue,
+    }));
+
+    try {
+      await api.put("/api/v1/sync/exclusions", {
+        rule_id: rule.id,
+        action: newValue ? "include" : "skip",
+      });
+    } catch (error) {
+      console.error("Failed to update exclusion:", error);
+      // Revert on error
+      setUserOverrides((prev) => ({
+        ...prev,
+        [key]: !newValue,
+      }));
+    }
+  }, [userOverrides]);
 
   // Filter documents by search query
   const filteredDocuments = useMemo(() => {
@@ -604,6 +716,12 @@ export default function AllDocumentsPage() {
               </Select>
             )}
 
+            {/* Desktop Sync Settings */}
+            <Button variant="outline" size="sm" onClick={handleOpenSyncSettings}>
+              <Cloud className="h-4 w-4 mr-1" />
+              Sync Settings
+            </Button>
+
             {/* Refresh */}
             <Button variant="outline" size="icon" onClick={fetchDocuments} disabled={loading}>
               <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
@@ -795,6 +913,222 @@ export default function AllDocumentsPage() {
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Desktop Sync Settings Modal */}
+      <Dialog open={showSyncSettings} onOpenChange={setShowSyncSettings}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Cloud className="h-5 w-5" />
+              Desktop Sync Settings
+            </DialogTitle>
+          </DialogHeader>
+
+          {syncLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <Tabs defaultValue="file-types" className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="file-types">File Types</TabsTrigger>
+                <TabsTrigger value="folders">Synced Folders</TabsTrigger>
+                <TabsTrigger value="devices">Devices</TabsTrigger>
+              </TabsList>
+
+              {/* File Types Tab */}
+              <TabsContent value="file-types" className="space-y-4 mt-4">
+                <p className="text-sm text-muted-foreground">
+                  Choose which file types to sync to your desktop. Disabled types will appear as placeholders only.
+                </p>
+
+                {/* Extension rules */}
+                {exclusionRules.filter(r => r.ruleType === "extension").length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-medium">File Extensions</h3>
+                    <div className="space-y-2">
+                      {exclusionRules
+                        .filter((r) => r.ruleType === "extension")
+                        .map((rule) => {
+                          const key = `${rule.ruleType}:${rule.value}`;
+                          const isEnabled = userOverrides[key] ?? (rule.action === "include");
+
+                          return (
+                            <div
+                              key={rule.id}
+                              className="flex items-center justify-between py-2 px-3 bg-muted/50 rounded-lg"
+                            >
+                              <div className="flex items-center gap-3">
+                                <File className="h-4 w-4 text-muted-foreground" />
+                                <div>
+                                  <span className="text-sm">{rule.description}</span>
+                                  <span className="ml-2 text-xs text-muted-foreground">
+                                    ({rule.value})
+                                  </span>
+                                </div>
+                              </div>
+                              <Switch
+                                checked={isEnabled}
+                                onCheckedChange={() => handleToggleExclusion(rule)}
+                              />
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Size rules */}
+                {exclusionRules.filter(r => r.ruleType === "size").length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-medium">File Size Limits</h3>
+                    <div className="space-y-2">
+                      {exclusionRules
+                        .filter((r) => r.ruleType === "size")
+                        .map((rule) => {
+                          const key = `${rule.ruleType}:${rule.value}`;
+                          const isEnabled = userOverrides[key] ?? (rule.action === "include");
+
+                          return (
+                            <div
+                              key={rule.id}
+                              className="flex items-center justify-between py-2 px-3 bg-muted/50 rounded-lg"
+                            >
+                              <div>
+                                <span className="text-sm">{rule.description}</span>
+                              </div>
+                              <Switch
+                                checked={isEnabled}
+                                onCheckedChange={() => handleToggleExclusion(rule)}
+                              />
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Always excluded patterns */}
+                {exclusionRules.filter(r => r.ruleType === "pattern").length > 0 && (
+                  <div className="mt-4 p-3 bg-muted rounded-lg">
+                    <h3 className="text-xs font-medium text-muted-foreground mb-1">
+                      Always Excluded (System Files)
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      {exclusionRules
+                        .filter((r) => r.ruleType === "pattern")
+                        .map((r) => r.value)
+                        .join(", ")}
+                    </p>
+                  </div>
+                )}
+
+                {exclusionRules.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <CloudOff className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>No sync rules configured yet.</p>
+                    <p className="text-sm mt-1">Install the desktop app to configure sync settings.</p>
+                  </div>
+                )}
+              </TabsContent>
+
+              {/* Synced Folders Tab */}
+              <TabsContent value="folders" className="space-y-4 mt-4">
+                <p className="text-sm text-muted-foreground">
+                  Folders currently being synced to your desktop.
+                </p>
+
+                {subscriptions.length > 0 ? (
+                  <div className="space-y-2">
+                    {subscriptions.map((sub) => (
+                      <div
+                        key={sub.id}
+                        className="flex items-center justify-between py-3 px-3 bg-muted/50 rounded-lg"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Folder className="h-4 w-4 text-blue-500" />
+                          <div>
+                            <p className="text-sm font-medium">{sub.folderName}</p>
+                            <p className="text-xs text-muted-foreground capitalize">
+                              {sub.folderType.replace("_", " ")}
+                            </p>
+                          </div>
+                        </div>
+                        {sub.lastSyncAt && (
+                          <span className="text-xs text-muted-foreground">
+                            Last sync: {new Date(sub.lastSyncAt).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Folder className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>No folders synced yet.</p>
+                    <p className="text-sm mt-1">Use the desktop app to select folders to sync.</p>
+                  </div>
+                )}
+              </TabsContent>
+
+              {/* Devices Tab */}
+              <TabsContent value="devices" className="space-y-4 mt-4">
+                <p className="text-sm text-muted-foreground">
+                  Desktop devices connected to your account.
+                </p>
+
+                {desktopClients.length > 0 ? (
+                  <div className="space-y-2">
+                    {desktopClients.map((client) => (
+                      <div
+                        key={client.id}
+                        className="flex items-center justify-between py-3 px-3 bg-muted/50 rounded-lg"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Monitor className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <p className="text-sm font-medium">{client.deviceName}</p>
+                            <p className="text-xs text-muted-foreground capitalize">
+                              {client.platform}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {client.isActive ? (
+                            <Badge variant="outline" className="text-xs text-green-600 border-green-600">
+                              <Check className="h-3 w-3 mr-1" />
+                              Active
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs text-muted-foreground">
+                              Inactive
+                            </Badge>
+                          )}
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(client.lastSeenAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Monitor className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>No desktop clients connected.</p>
+                    <p className="text-sm mt-1">
+                      Download TEEEM Sync to sync files to your desktop.
+                    </p>
+                    <Button variant="outline" className="mt-4" disabled>
+                      <Download className="h-4 w-4 mr-2" />
+                      Download TEEEM Sync (Coming Soon)
+                    </Button>
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          )}
         </DialogContent>
       </Dialog>
     </div>

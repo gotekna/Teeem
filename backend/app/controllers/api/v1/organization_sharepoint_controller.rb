@@ -89,13 +89,15 @@ module Api
         end
 
         if credential.valid_credential?
+          # SSoT: Get storage config from StorageConfiguration
+          storage_config = StorageConfiguration.instance
           render json: {
             connected: true,
             source: "organization_credential",
-            drive_id: credential.drive_id,
-            drive_name: credential.drive_name,
+            drive_id: storage_config&.drive_id,
+            drive_name: storage_config&.drive_name,
             root_folder_id: credential.root_folder_id,
-            root_folder_path: credential.root_folder_path,
+            root_folder_path: storage_config&.root_path,
             root_folder_web_url: credential.metadata&.dig("root_folder_web_url"),
             connected_at: credential.created_at,
             connected_by: credential.connected_by&.as_json(),
@@ -835,10 +837,12 @@ module Api
           # Mark credential as synced
           credential.mark_synced!
 
+          # SSoT: Get root_path from StorageConfiguration
+          storage_config = StorageConfiguration.instance
           render json: {
             message: "Folder structure created successfully",
             job_folder: job_folder,
-            folder_path: "#{credential.root_folder_path}/#{job_folder['name']}",
+            folder_path: "#{storage_config&.root_path}/#{job_folder['name']}",
             web_url: job_folder["webUrl"]
           }
 

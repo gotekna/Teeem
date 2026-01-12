@@ -668,10 +668,10 @@ class Api::V1::MicrosoftAuthController < ApplicationController
       Rails.logger.warn "[Connections] Failed to get SharePoint auth user: #{e.message}"
     end
 
-    # SSoT: Get SharePoint config from CorporateCompanySetting
-    setting = CorporateCompanySetting.instance
-    site_url = setting.sharepoint_site_url.presence
-    drive_name = setting.sharepoint_drive_name.presence || "Shared Documents"
+    # SSoT: Get SharePoint config from StorageConfiguration
+    storage_config = StorageConfiguration.instance
+    site_url = storage_config&.site_url.presence
+    drive_name = storage_config&.drive_name.presence || "Shared Documents"
     documents_url = site_url ? "#{site_url}/#{drive_name.gsub(' ', '%20')}" : nil
 
     {
@@ -679,10 +679,10 @@ class Api::V1::MicrosoftAuthController < ApplicationController
       name: "TEEEM SharePoint",
       url: documents_url,
       document_library: drive_name,
-      root_folder: org_credential.root_folder_path,
+      root_folder: storage_config&.root_path,
       authenticated_as: authenticated_as,
       auth_type: "organization",
-      drive_id: org_credential.drive_id
+      drive_id: storage_config&.drive_id
     }
   end
 
