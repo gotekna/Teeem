@@ -1743,14 +1743,17 @@ module Api
           end
 
           # Get SharePoint URL for Contacts folder
+          # SSoT: Use StorageConfiguration for paths
           sharepoint_contacts_url = nil
           begin
             credential = MicrosoftCredential.sharepoint_credential
-            if credential&.metadata&.dig("site_web_url")
-              settings = CorporateCompanySetting.first
-              contacts_folder = settings&.contact_documents_path || "Contacts"
+            storage_config = StorageConfiguration.instance
+            if credential&.metadata&.dig("site_web_url") && storage_config
+              contacts_folder = storage_config.path_for(:contacts) || "Contacts"
+              root_path = storage_config.root_path&.sub(%r{^/}, "") || "Shared Documents"
               encoded_folder = ERB::Util.url_encode(contacts_folder)
-              sharepoint_contacts_url = "#{credential.metadata["site_web_url"]}/Shared%20Documents/#{encoded_folder}"
+              encoded_root = ERB::Util.url_encode(root_path)
+              sharepoint_contacts_url = "#{credential.metadata["site_web_url"]}/#{encoded_root}/#{encoded_folder}"
             end
           rescue => e
             Rails.logger.warn("[pdf_sync_status] Could not get SharePoint URL: #{e.message}")

@@ -303,11 +303,11 @@ class XeroAttachmentSyncService
   end
 
   # Generate the expected OneDrive path for this document
-  # Uses CorporateCompanySetting.contact_documents_path + contact folder name + invoice type folder
+  # SSoT: Uses StorageConfiguration.path_for(:contacts) + contact folder name + invoice type folder
   # e.g., "Contacts/123 - ABC Supplies/BILLS/BILL-001234.pdf"
   def expected_document_path(filename)
-    settings = CorporateCompanySetting.instance
-    base_path = settings.contact_documents_path || "Contacts"
+    storage_config = StorageConfiguration.instance
+    base_path = storage_config&.path_for(:contacts) || "Contacts"
     contact_folder = contact_folder_name
     type_folder = folder_for_invoice_type
 
@@ -359,9 +359,9 @@ class XeroAttachmentSyncService
       # If refresh fails (e.g., refresh token expired), it will raise AuthenticationError
       graph_client = MicrosoftGraphClient.new(credential)
 
-      # Get or create Contacts folder at root
-      settings = CorporateCompanySetting.instance
-      base_folder_name = settings.contact_documents_path || "Contacts"
+      # SSoT: Get contacts folder path from StorageConfiguration
+      storage_config = StorageConfiguration.instance
+      base_folder_name = storage_config&.path_for(:contacts) || "Contacts"
 
       # Find or create the base Contacts folder
       contacts_folder = graph_client.find_folder_in_drive_root(base_folder_name)

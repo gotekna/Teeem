@@ -95,9 +95,9 @@ class XeroDocumentBackfillJob < ApplicationJob
 
     # Try to find the folder first
     begin
-      # Navigate to the folder
-      settings = CorporateCompanySetting.instance
-      base_folder_name = settings.contact_documents_path || "Contacts"
+      # SSoT: Get contacts folder path from StorageConfiguration
+      storage_config = StorageConfiguration.instance
+      base_folder_name = storage_config&.path_for(:contacts) || "Contacts"
 
       # Start from base folder
       current_folder = graph_client.find_folder_in_drive_root(base_folder_name)

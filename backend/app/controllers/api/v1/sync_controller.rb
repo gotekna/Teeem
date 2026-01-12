@@ -514,7 +514,7 @@ module Api
       end
 
       def frontend_url
-        Rails.application.config.frontend_url || "https://teeemlive.vercel.app"
+        ENV.fetch("FRONTEND_URL", "https://teeemlive.vercel.app")
       end
 
       def folder_json(entity, type)

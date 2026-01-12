@@ -2231,6 +2231,33 @@ Rails.application.routes.draw do
         end
       end
 
+      # =============================================================
+      # Email Hosting (PolarisMail Reseller)
+      # =============================================================
+
+      # Email Migration Portal (public, token-based)
+      get "migrate/:token", to: "migrate_portal#show", as: :migrate_portal_show
+      post "migrate/:token/subscribe", to: "migrate_portal#create_subscription", as: :migrate_subscribe
+      get "migrate/:token/progress", to: "migrate_portal#progress", as: :migrate_progress
+      post "migrate/:token/confirm", to: "migrate_portal#confirm_migration", as: :migrate_confirm
+      post "migrate/webhook", to: "migrate_portal#webhook", as: :migrate_webhook
+
+      # Email Subscriptions (admin, requires auth)
+      resources :email_subscriptions do
+        collection do
+          get :profit_report
+          get :discover_mailboxes
+          get :pricing
+        end
+        member do
+          post :add_mailbox
+          delete "remove_mailbox/:mailbox_id", action: :remove_mailbox
+          post :start_migration
+          post :cancel
+          post :send_invite
+        end
+      end
+
       # Warehouse Bank Transactions (Xero bank statement data)
       resources :warehouse_bank_transactions, only: [ :index, :show ] do
         collection do
