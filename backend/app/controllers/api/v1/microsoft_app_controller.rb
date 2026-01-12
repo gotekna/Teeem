@@ -1040,15 +1040,14 @@ class Api::V1::MicrosoftAppController < ApplicationController
     mc = MicrosoftCredential.find_by(name: old_credential.name, credential_type: "app")
     return unless mc
 
+    # Note: sharepoint_* columns removed from MicrosoftCredential in Phase 5
+    # SSoT: SharePoint config now lives in StorageConfiguration
     mc.update!(
       access_token: old_credential.access_token,
       token_expires_at: old_credential.token_expires_at,
       status: "connected",
       admin_consent_granted_at: Time.current,
-      admin_consent_granted_by: admin_email,
-      sharepoint_site_id: old_credential.sharepoint_site_id,
-      sharepoint_drive_id: old_credential.sharepoint_drive_id,
-      sharepoint_drive_name: old_credential.sharepoint_drive_name
+      admin_consent_granted_by: admin_email
     )
 
     Rails.logger.info "[MicrosoftApp] DUAL-WRITE: MicrosoftCredential marked connected: #{mc.id}"

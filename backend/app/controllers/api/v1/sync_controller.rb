@@ -11,7 +11,7 @@ module Api
     # - Delta sync for changes
     # - File upload/download URLs
     #
-    class SyncController < Api::V1::BaseController
+    class SyncController < ApplicationController
       # Skip auth for device code endpoints (client not yet authenticated)
       skip_before_action :authenticate_user!, only: [:initiate_device_auth, :poll_device_auth]
       before_action :authenticate_desktop_client!, except: [:initiate_device_auth, :poll_device_auth, :verify_device_code]
