@@ -25,7 +25,13 @@ import {
   HardDrive,
   Database,
   FolderTree,
+  Folder,
+  FolderOpen,
+  ChevronRight,
+  ChevronDown,
+  Pencil,
 } from "lucide-react";
+import { ExpandChevron } from "@/components/ui/expand-chevron";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
@@ -47,6 +53,32 @@ const PROVIDER_OPTIONS: { value: ProviderType; label: string; icon: React.Elemen
 // Keys and values come from the backend API
 type ScopeFolders = Record<string, string>;
 
+// Entity tab interface for tabs under each scope
+interface EntityTab {
+  id: number;
+  tab_key: string;
+  display_name: string;
+  scope: string;
+  parent_id: number | null;
+  has_sharepoint_folder: boolean;
+  sharepoint_folder_path: string | null;
+  sharepoint_folder_template: string | null;
+  sharepoint_filename_template: string | null;
+  enabled: boolean;
+  order_position: number;
+  icon_name: string | null;
+}
+
+// Scope to API scope mapping
+const SCOPE_TO_API_SCOPE: Record<string, string> = {
+  corporate_entity: 'corporate_entity',
+  job: 'job',
+  contact: 'contact',
+  email: 'email',
+  warehouse: 'warehouse',
+  task: 'task',
+};
+
 interface StorageConfig {
   configured: boolean;
   provider_type: ProviderType;
@@ -63,6 +95,224 @@ interface StorageConfig {
   // Root path and scope folders
   root_path: string;
   scope_folders: ScopeFolders;
+}
+
+// Tree node structure for folder hierarchy
+interface FolderTreeNode {
+  name: string;  // Display name (e.g., "Users", "Contracts")
+  path: string;  // Full path (e.g., "Users/Contracts")
+  scopeKey: string | null;  // Scope key if this is a scope folder (e.g., "user_contracts")
+  children: FolderTreeNode[];
+  tabs?: EntityTab[];  // Tabs under this scope folder
+}
+
+// Build tree structure from flat scope folders
+function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
+  const root: FolderTreeNode[] = [];
+
+  // Sort entries by path for consistent tree building
+  const entries = Object.entries(scopeFolders).sort(([, a], [, b]) => a.localeCompare(b));
+
+  entries.forEach(([key, path]) => {
+    if (!path) return;
+
+    const parts = path.split('/').filter(Boolean);
+    let current = root;
+    let currentPath = '';
+
+    parts.forEach((part, index) => {
+      currentPath = currentPath ? `${currentPath}/${part}` : part;
+      const isLeaf = index === parts.length - 1;
+
+      // Look for existing node at this level
+      let node = current.find(n => n.name === part);
+
+      if (!node) {
+        node = {
+          name: part,
+          path: currentPath,
+          scopeKey: isLeaf ? key : null,
+          children: [],
+        };
+        current.push(node);
+      } else if (isLeaf && !node.scopeKey) {
+        // If this path is a scope folder but was created as intermediate, update it
+        node.scopeKey = key;
+      }
+
+      current = node.children;
+    });
+  });
+
+  return root;
+}
+
+// Get scope label from key (snake_case to Title Case)
+function getScopeLabel(key: string): string {
+  return key
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+// TreeNode component for folder hierarchy
+interface TreeNodeProps {
+  node: FolderTreeNode;
+  level: number;
+  expandedPaths: Set<string>;
+  onToggle: (path: string) => void;
+  editingKey: string | null;
+  onStartEdit: (key: string) => void;
+  onSaveEdit: (key: string, value: string) => void;
+  onCancelEdit: () => void;
+  currentPath: ScopeFolders;
+  rootPath: string;
+}
+
+function TreeNode({
+  node,
+  level,
+  expandedPaths,
+  onToggle,
+  editingKey,
+  onStartEdit,
+  onSaveEdit,
+  onCancelEdit,
+  currentPath,
+  rootPath,
+}: TreeNodeProps) {
+  const hasChildren = node.children.length > 0;
+  const isExpanded = expandedPaths.has(node.path);
+  const isEditing = editingKey === node.scopeKey;
+  const [editValue, setEditValue] = React.useState(node.path);
+
+  // Reset edit value when editing starts
+  React.useEffect(() => {
+    if (isEditing) {
+      setEditValue(currentPath[node.scopeKey!] || node.path);
+    }
+  }, [isEditing, node.scopeKey, currentPath, node.path]);
+
+  const fullPath = rootPath
+    ? `${rootPath}/${node.path}`.replace(/\/+/g, '/')
+    : `/${node.path}`;
+
+  return (
+    <div>
+      {/* Node row */}
+      <div
+        className={cn(
+          "flex items-center gap-1 py-1 px-1 rounded-sm hover:bg-muted/50 group",
+          isEditing && "bg-muted"
+        )}
+        style={{ paddingLeft: `${level * 16 + 4}px` }}
+      >
+        {/* Expand/collapse button or spacer */}
+        {hasChildren ? (
+          <button
+            type="button"
+            onClick={() => onToggle(node.path)}
+            className="p-0.5 hover:bg-muted rounded"
+          >
+            <ExpandChevron expanded={isExpanded} size={14} />
+          </button>
+        ) : (
+          <span className="w-5" />
+        )}
+
+        {/* Folder icon */}
+        {hasChildren && isExpanded ? (
+          <FolderOpen className="h-4 w-4 text-amber-500 flex-shrink-0" />
+        ) : (
+          <Folder className="h-4 w-4 text-amber-500 flex-shrink-0" />
+        )}
+
+        {/* Folder name and scope badge */}
+        <span className="font-mono text-sm">{node.name}</span>
+
+        {/* Scope badge (if this is a scope folder) */}
+        {node.scopeKey && (
+          <>
+            {isEditing ? (
+              <div className="flex items-center gap-1 ml-2">
+                <Input
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      onSaveEdit(node.scopeKey!, editValue);
+                    } else if (e.key === 'Escape') {
+                      onCancelEdit();
+                    }
+                  }}
+                  className="h-6 text-xs font-mono w-48"
+                  autoFocus
+                />
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => onSaveEdit(node.scopeKey!, editValue)}
+                >
+                  Save
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 px-2 text-xs"
+                  onClick={onCancelEdit}
+                >
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onStartEdit(node.scopeKey!)}
+                className="flex items-center gap-1 ml-2 group/edit"
+              >
+                <Badge
+                  variant="outline"
+                  className="h-5 text-[10px] px-1.5 bg-background hover:bg-muted cursor-pointer"
+                >
+                  {getScopeLabel(node.scopeKey)}
+                </Badge>
+                <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover/edit:opacity-100 transition-opacity" />
+              </button>
+            )}
+          </>
+        )}
+
+        {/* Full path preview (on hover) */}
+        {!isEditing && (
+          <span className="ml-auto text-[10px] text-muted-foreground font-mono opacity-0 group-hover:opacity-100 transition-opacity">
+            {fullPath}
+          </span>
+        )}
+      </div>
+
+      {/* Children */}
+      {hasChildren && isExpanded && (
+        <div>
+          {node.children.map((child) => (
+            <TreeNode
+              key={child.path}
+              node={child}
+              level={level + 1}
+              expandedPaths={expandedPaths}
+              onToggle={onToggle}
+              editingKey={editingKey}
+              onStartEdit={onStartEdit}
+              onSaveEdit={onSaveEdit}
+              onCancelEdit={onCancelEdit}
+              currentPath={currentPath}
+              rootPath={rootPath}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function SharePointTab() {
@@ -88,10 +338,103 @@ export function SharePointTab() {
     // SSoT: Scope folders loaded from StorageConfiguration.SCOPE_FOLDERS via API
     scope_folders: {} as ScopeFolders,
   });
+  // Tree view state
+  const [expandedPaths, setExpandedPaths] = React.useState<Set<string>>(new Set());
+  const [editingKey, setEditingKey] = React.useState<string | null>(null);
+  const [editingTabId, setEditingTabId] = React.useState<number | null>(null);
 
-  // Load storage config on mount
+  // Entity tabs for each scope
+  const [entityTabs, setEntityTabs] = React.useState<Record<string, EntityTab[]>>({});
+  const [loadingTabs, setLoadingTabs] = React.useState(false);
+
+  // Fetch entity tabs for all scopes
+  const loadEntityTabs = async () => {
+    setLoadingTabs(true);
+    try {
+      const tabsByScope: Record<string, EntityTab[]> = {};
+
+      // Fetch tabs for each scope in parallel
+      const scopeKeys = Object.keys(SCOPE_TO_API_SCOPE);
+      const results = await Promise.all(
+        scopeKeys.map(async (scopeKey) => {
+          const apiScope = SCOPE_TO_API_SCOPE[scopeKey];
+          const response = await api.get<{ success: boolean; data: { tabs: EntityTab[] } }>(
+            `/api/v1/entity_tabs?scope=${apiScope}`
+          );
+          return { scopeKey, tabs: response?.success ? response.data.tabs : [] };
+        })
+      );
+
+      results.forEach(({ scopeKey, tabs }) => {
+        // Only include root tabs (no parent) with sharepoint folders
+        tabsByScope[scopeKey] = tabs.filter(
+          (tab) => tab.parent_id === null && tab.has_sharepoint_folder
+        );
+      });
+
+      setEntityTabs(tabsByScope);
+    } catch (error) {
+      console.error("Failed to load entity tabs:", error);
+    } finally {
+      setLoadingTabs(false);
+    }
+  };
+
+  // Build folder tree from scope_folders, attaching tabs to scope nodes
+  const folderTree = React.useMemo(() => {
+    const tree = buildFolderTree(formData.scope_folders);
+
+    // Attach tabs to scope nodes
+    const attachTabs = (nodes: FolderTreeNode[]) => {
+      nodes.forEach(node => {
+        if (node.scopeKey && entityTabs[node.scopeKey]) {
+          node.tabs = entityTabs[node.scopeKey];
+        }
+        if (node.children.length > 0) {
+          attachTabs(node.children);
+        }
+      });
+    };
+
+    attachTabs(tree);
+    return tree;
+  }, [formData.scope_folders, entityTabs]);
+
+  // Toggle tree node expansion
+  const toggleExpanded = (path: string) => {
+    setExpandedPaths(prev => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  };
+
+  // Expand all nodes initially
+  React.useEffect(() => {
+    if (Object.keys(formData.scope_folders).length > 0 && expandedPaths.size === 0) {
+      // Collect all paths that have children
+      const allPaths = new Set<string>();
+      const collectPaths = (nodes: FolderTreeNode[]) => {
+        nodes.forEach(node => {
+          if (node.children.length > 0) {
+            allPaths.add(node.path);
+            collectPaths(node.children);
+          }
+        });
+      };
+      collectPaths(folderTree);
+      setExpandedPaths(allPaths);
+    }
+  }, [formData.scope_folders, folderTree, expandedPaths.size]);
+
+  // Load storage config and entity tabs on mount
   React.useEffect(() => {
     loadConfig();
+    loadEntityTabs();
   }, []);
 
   const loadConfig = async () => {
@@ -499,7 +842,7 @@ export function SharePointTab() {
         </CardContent>
       </Card>
 
-      {/* Scope Folders - Base folder name per scope */}
+      {/* Scope Folders - Tree View */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
@@ -507,42 +850,61 @@ export function SharePointTab() {
             Scope Folders
           </CardTitle>
           <CardDescription>
-            Base folder name for each entity type. Combined with Root Path to form the full base path.
+            Folder structure for each entity type. Click a scope label to edit its path.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {/* SSoT: Dynamically render all scopes from StorageConfiguration.SCOPE_FOLDERS */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Object.entries(formData.scope_folders)
-              .sort(([, a], [, b]) => a.localeCompare(b)) // Sort by folder path
-              .map(([key, folderPath]) => {
-                // Generate label from key (snake_case to Title Case)
-                const label = key
-                  .split('_')
-                  .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-                  .join(' ');
-                const rootPath = formData.sharepoint_root_path || '/';
-                const preview = rootPath === '/'
-                  ? `/${folderPath}`
-                  : `${rootPath}/${folderPath}`;
-                return (
-                  <div key={key} className="space-y-1">
-                    <Label htmlFor={`scope_${key}`} className="text-xs">{label}</Label>
-                    <Input
-                      id={`scope_${key}`}
-                      value={folderPath || ""}
-                      onChange={(e) => setFormData(prev => ({
+        <CardContent>
+          {/* Tree view of folder structure */}
+          <div className="border rounded-md p-3 bg-muted/20">
+            {/* Root path header */}
+            <div className="flex items-center gap-2 mb-2 pb-2 border-b">
+              <Folder className="h-4 w-4 text-amber-500" />
+              <span className="font-mono text-sm font-medium">
+                {formData.sharepoint_root_path || "/"}
+              </span>
+              <span className="text-xs text-muted-foreground">(root)</span>
+            </div>
+
+            {/* Recursive tree render */}
+            {folderTree.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-2">No scope folders configured</p>
+            ) : (
+              <div className="space-y-0.5">
+                {folderTree.map((node) => (
+                  <TreeNode
+                    key={node.path}
+                    node={node}
+                    level={0}
+                    expandedPaths={expandedPaths}
+                    onToggle={toggleExpanded}
+                    editingKey={editingKey}
+                    onStartEdit={setEditingKey}
+                    onSaveEdit={(key, value) => {
+                      setFormData(prev => ({
                         ...prev,
-                        scope_folders: { ...prev.scope_folders, [key]: e.target.value }
-                      }))}
-                      className="font-mono text-sm h-8"
-                    />
-                    <p className="text-[10px] text-muted-foreground font-mono truncate" title={preview}>
-                      → {preview.replace(/\/+/g, "/")}
-                    </p>
-                  </div>
-                );
-              })}
+                        scope_folders: { ...prev.scope_folders, [key]: value }
+                      }));
+                      setEditingKey(null);
+                    }}
+                    onCancelEdit={() => setEditingKey(null)}
+                    currentPath={formData.scope_folders}
+                    rootPath={formData.sharepoint_root_path}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Legend */}
+          <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <Folder className="h-3 w-3 text-amber-500" />
+              Folder
+            </span>
+            <span className="flex items-center gap-1">
+              <Badge variant="outline" className="h-4 text-[10px] px-1">scope</Badge>
+              Scope folder (editable)
+            </span>
           </div>
         </CardContent>
       </Card>
