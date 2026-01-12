@@ -336,12 +336,12 @@ export function SchemaTab({ foundationId, columns, tableName, onRefresh }: Schem
       </div>
 
       {/* Choice Columns Summary */}
-      {displayColumns.filter((c) => c.column_type === "choice" && c.choices?.length).length > 0 && (
+      {displayColumns.filter((c) => isChoiceColumn(c.column_type) && c.choices?.length).length > 0 && (
         <div className="border rounded-lg p-4 space-y-3">
           <h4 className="font-semibold text-sm">Choice Column Options</h4>
           <div className="grid gap-3">
             {displayColumns
-              .filter((c) => c.column_type === "choice" && c.choices?.length)
+              .filter((c) => isChoiceColumn(c.column_type) && c.choices?.length)
               .map((column) => (
                 <div key={column.key} className="flex items-start gap-3">
                   <span className="font-medium text-sm min-w-32">{column.label}:</span>

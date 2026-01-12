@@ -102,7 +102,7 @@ const scopes = [
     isEntityTab: false,
   },
   {
-    id: "sharepoint_config",  // Keep URL for backwards compatibility
+    id: "storage_config",  // SSoT: Provider-agnostic URL
     label: "Storage Config",  // SSoT: Provider-agnostic label
     icon: Settings,
     showEntityFilters: false,

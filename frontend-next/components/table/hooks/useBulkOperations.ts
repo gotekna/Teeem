@@ -27,6 +27,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { clearCachedRecords } from '@/lib/records-cache';
+import { isLookupColumn } from '@/lib/constants/column-types';
 import type { TableColumn, TableRow } from '../types';
 
 // ============================================================================
@@ -195,9 +196,7 @@ export function useBulkOperations(props: UseBulkOperationsProps): UseBulkOperati
     if (column && onColumnChange) {
       const selectedCol = columns.find(c => c.key === column);
       if (selectedCol) {
-        const isLookup = selectedCol.column_type === 'lookup' ||
-                        selectedCol.column_type === 'multiple_lookups' ||
-                        !!selectedCol.lookup_foundation_id;
+        const isLookup = isLookupColumn(selectedCol.column_type) || !!selectedCol.lookup_foundation_id;
         if (isLookup) {
           onColumnChange(selectedCol);
         }

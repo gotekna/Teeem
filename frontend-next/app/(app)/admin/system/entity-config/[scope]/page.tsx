@@ -1,4 +1,10 @@
+import { redirect } from "next/navigation";
 import { EntityConfigurationTab } from "../../components/EntityConfigurationTab";
+
+// Legacy URL redirects (preserve bookmarks)
+const LEGACY_REDIRECTS: Record<string, string> = {
+  "sharepoint_config": "storage_config",  // Renamed to provider-agnostic
+};
 
 interface EntityConfigPageProps {
   params: Promise<{ scope: string }>;
@@ -6,7 +12,12 @@ interface EntityConfigPageProps {
 
 export default async function EntityConfigPage({ params }: EntityConfigPageProps) {
   const resolvedParams = await params;
-  const scope = resolvedParams.scope || "corporate_entity";
+  let scope = resolvedParams.scope || "corporate_entity";
+
+  // Handle legacy URLs
+  if (LEGACY_REDIRECTS[scope]) {
+    redirect(`/admin/system/entity-config/${LEGACY_REDIRECTS[scope]}`);
+  }
 
   return <EntityConfigurationTab scope={scope} />;
 }

@@ -50,7 +50,7 @@ function getRedirectUrl(pathSegments: string[]): string {
   }
 
   // Special handling for entity-config deep links (preserve the scope)
-  // e.g., system/entity-config/sharepoint_config → /admin/system/entity-config/sharepoint_config
+  // e.g., system/entity-config/storage_config → /admin/system/entity-config/storage_config
   if (fullPath.startsWith("system/entity-config/") || fullPath.startsWith("system/entity-configuration/")) {
     const scope = pathSegments[2] || "corporate_entity";
     return `/admin/system/entity-config/${scope}`;

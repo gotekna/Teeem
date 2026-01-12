@@ -24,6 +24,7 @@ import { ResizableColumnHeader } from '../../components/ResizableColumnHeader';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from '@/lib/utils';
+import { isLookupColumn } from '@/lib/constants/column-types';
 import type { TableColumn, CascadeFilter } from '../../types';
 
 /**
@@ -166,8 +167,8 @@ export function TableHeaderSection({
     if (!showColumnFilters || !onFetchLookupOptions) return;
 
     visibleColumnsInOrder.forEach(column => {
-      const isLookup = column.column_type === 'lookup' || column.column_type === 'relation';
-      if (isLookup && column.lookup_foundation_id && !lookupOptions[column.key]) {
+      // BUG FIX: Was missing 'multiple_lookups' - now uses SSoT constant
+      if (isLookupColumn(column.column_type) && column.lookup_foundation_id && !lookupOptions[column.key]) {
         onFetchLookupOptions(column);
       }
     });
