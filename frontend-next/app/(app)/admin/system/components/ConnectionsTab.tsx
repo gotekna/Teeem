@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useCallback } from "react";
-import { useRouter } from "next/navigation";
+// useRouter removed - ConnectionsTab now uses local state for sub-tabs
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1660,16 +1660,13 @@ function DocumentMigration() {
 
 // Main Connections Tab
 export function ConnectionsTab({ innerTab }: { innerTab?: string }) {
-  const router = useRouter();
-  // Use innerTab prop passed from parent route
-  const activeTab = innerTab || "provider";
+  // Use local state for sub-tab switching instead of URL navigation
+  // This component is now used within /settings/company, not standalone admin pages
+  const [activeTab, setActiveTab] = React.useState(innerTab || "provider");
 
   const handleTabChange = useCallback((tabId: string) => {
-    const url = tabId === "provider"
-      ? `/admin/system/company/connections`
-      : `/admin/system/company/connections/${tabId}`;
-    router.push(url, { scroll: false });
-  }, [router]);
+    setActiveTab(tabId);
+  }, []);
 
   return (
     <div className="space-y-4">

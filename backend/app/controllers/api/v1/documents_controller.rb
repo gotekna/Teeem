@@ -6,37 +6,21 @@ module Api
       before_action :set_document, only: [ :show, :update, :destroy, :preview ]
 
       # GET /api/v1/documents/all
-      # Returns all documents across JobDocument, CorporateCompanyDocument, and PeopleDocument
-      # Used by the unified "All Documents" page
+      # Returns document counts only (fast) - actual documents fetched on demand
+      # Used by the File Warehouse page
       def all
-        # Fetch from all three document sources with eager loading
-        job_docs = JobDocument.includes(:job, :document_type, :contact, :company)
-                              .where.not(file_name: nil)
-                              .order(created_at: :desc)
-                              .limit(5000)
-
-        corp_docs = CorporateCompanyDocument.includes(:corporate_company, :document_type_record, :contact)
-                                            .where.not(file_name: nil)
-                                            .order(created_at: :desc)
-                                            .limit(5000)
-
-        people_docs = PeopleDocument.includes(:contact, :document_type_record)
-                                    .where.not(title: nil)
-                                    .order(created_at: :desc)
-                                    .limit(1000)
-
-        # TRUE counts (without limits) - used for display
-        # SSoT: These should match Data Warehouse stats
-        job_count = JobDocument.where.not(file_name: nil).count
-        corp_count = CorporateCompanyDocument.where.not(file_name: nil).count
-        people_count = PeopleDocument.where.not(title: nil).count
+        # Just counts - no document serialization for speed
+        # These queries are fast with proper indexes
+        job_count = JobDocument.where.not(file_name: [nil, ""]).count
+        corp_count = CorporateCompanyDocument.where.not(file_name: [nil, ""]).count
+        people_count = PeopleDocument.where.not(title: [nil, ""]).count
 
         render json: {
           success: true,
           data: {
-            job_documents: job_docs.map { |d| serialize_job_doc(d) },
-            corporate_documents: corp_docs.map { |d| serialize_corp_doc(d) },
-            people_documents: people_docs.map { |d| serialize_people_doc(d) }
+            job_documents: [],
+            corporate_documents: [],
+            people_documents: []
           },
           counts: {
             jobs: job_count,
