@@ -100,15 +100,15 @@ function SharePointConnection() {
   };
 
   const handleDisconnect = async () => {
-    if (!confirm("Are you sure you want to disconnect SharePoint?")) return;
+    if (!confirm("Are you sure you want to disconnect cloud storage?")) return;
     setDisconnecting(true);
     try {
       await api.delete("/api/v1/documents/disconnect");
-      toast({ title: "Success", description: "SharePoint disconnected successfully" });
+      toast({ title: "Success", description: "Cloud storage disconnected successfully" });
       setStatus({ connected: false });
     } catch (error) {
       console.error("Failed to disconnect:", error);
-      toast({ title: "Error", description: "Failed to disconnect SharePoint", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to disconnect cloud storage", variant: "destructive" });
     } finally {
       setDisconnecting(false);
     }
@@ -1125,7 +1125,7 @@ function DocumentStorageProvider() {
           {/* Current Active Provider Badge */}
           <Badge variant={orgConfig?.document_provider === "s3_compatible" ? "outline" : "default"}>
             <Check className="h-3 w-3 mr-1" />
-            Active: {orgConfig?.document_provider === "s3_compatible" ? "S3 Storage" : "SharePoint"}
+            Active: {orgConfig?.document_provider === "s3_compatible" ? "S3/Wasabi" : orgConfig?.document_provider === "sharepoint" ? "SharePoint" : "Cloud Storage"}
           </Badge>
         </div>
       </CardHeader>

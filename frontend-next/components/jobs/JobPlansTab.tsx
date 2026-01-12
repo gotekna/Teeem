@@ -914,7 +914,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
           onSelectionChange={setSelectedPlanIds}
           enableSelection
           statusLabels={{ draft: "Draft", approved: "On Issue" }}
-          actionLabels={{ approve: "Set On Issue", openExternal: "Open in SharePoint" }}
+          actionLabels={{ approve: "Set On Issue", openExternal: "Open in Storage" }}
           loading={loading}
           emptyMessage="Drop a PDF here or click Add Plan to get started"
           // MASTERPIECE: Infinite scroll props

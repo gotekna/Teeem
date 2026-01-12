@@ -133,7 +133,7 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
         ...doc,
         display_title: doc.display_name || doc.file_name,
         file_size_display: formatFileSize(doc.file_size),
-        source_display: doc.source === "sharepoint" ? "SharePoint" : "Upload",
+        source_display: doc.source === "sharepoint" ? "Cloud Storage" : "Upload",
         financial_years: Array.isArray(doc.financial_years)
           ? (doc.financial_years as unknown as string[]).join(", ")
           : doc.financial_years || "",

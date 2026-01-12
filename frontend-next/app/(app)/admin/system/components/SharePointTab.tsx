@@ -218,19 +218,19 @@ export function SharePointTab() {
       if (response?.success) {
         toast({
           title: "Connection Successful",
-          description: `Connected to ${response.site?.name || "SharePoint"}`,
+          description: `Connected to ${response.site?.name || "cloud storage"}`,
         });
       } else {
         toast({
           title: "Connection Failed",
-          description: response?.error || "Could not connect to SharePoint",
+          description: response?.error || "Could not connect to storage",
           variant: "destructive",
         });
       }
     } catch (error: any) {
       toast({
         title: "Connection Failed",
-        description: error?.message || "Could not connect to SharePoint",
+        description: error?.message || "Could not connect to storage",
         variant: "destructive",
       });
     } finally {

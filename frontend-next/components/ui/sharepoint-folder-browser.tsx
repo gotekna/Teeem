@@ -188,7 +188,7 @@ export function SharePointFolderBrowser({
   // Drive/Site selection state
   const [sites, setSites] = React.useState<SharePointSite[]>([]);
   const [currentDrive, setCurrentDrive] = React.useState<string>("personal");
-  const [currentDriveName, setCurrentDriveName] = React.useState<string>("My SharePoint");
+  const [currentDriveName, setCurrentDriveName] = React.useState<string>("Cloud Storage");
   const [loadingSites, setLoadingSites] = React.useState(true);
   const [switchingDrive, setSwitchingDrive] = React.useState(false);
   const [creatingFolder, setCreatingFolder] = React.useState(false);
@@ -232,7 +232,7 @@ export function SharePointFolderBrowser({
 
       if (sitesResult.status === 'rejected' || statusResult.status === 'rejected') {
         // One or both failed - show not connected state
-        setError("SharePoint not connected");
+        setError("Cloud storage not connected");
         setLoadingSites(false);
         return;
       }
@@ -259,20 +259,20 @@ export function SharePointFolderBrowser({
           try {
             await api.post("/api/v1/documents/use_sharepoint_site", { site_name: targetSite.name }, { skipAuthRedirect: true });
           } catch (err) {
-            console.error("Failed to auto-switch to SharePoint:", err);
+            console.error("Failed to auto-switch storage site:", err);
           }
         }
       } else if (statusResponse.drive_type === "sharepoint" && statusResponse.site_name) {
-        // Already on SharePoint but no sites list - use current
+        // Already on cloud storage but no sites list - use current
         setCurrentDrive("sharepoint");
-        setCurrentDriveName(statusResponse.site_name || "SharePoint");
+        setCurrentDriveName(statusResponse.site_name || "Cloud Storage");
       } else {
-        // Fallback to personal OneDrive only if no SharePoint available
+        // Fallback to personal drive only if no cloud storage available
         setCurrentDrive("personal");
-        setCurrentDriveName(statusResponse.drive_name || "My SharePoint");
+        setCurrentDriveName(statusResponse.drive_name || "Cloud Storage");
       }
     } catch (err) {
-      console.error("Failed to load SharePoint sites:", err);
+      console.error("Failed to load storage sites:", err);
     } finally {
       setLoadingSites(false);
     }
@@ -304,7 +304,7 @@ export function SharePointFolderBrowser({
           setTreeNodes(nodes);
         } else {
           // Root folder not found - show error or create it
-          setError(`Folder "${rootFolder}" not found. Please create it in SharePoint first.`);
+          setError(`Folder "${rootFolder}" not found. Please create it in cloud storage first.`);
           setTreeNodes([]);
         }
       } else {
@@ -319,11 +319,11 @@ export function SharePointFolderBrowser({
         setTreeNodes(nodes);
       }
     } catch (err: any) {
-      // Check for auth errors - SharePoint not connected (don't spam console)
+      // Check for auth errors - cloud storage not connected (don't spam console)
       const isAuthError = err?.status === 401 || err?.status === 403 ||
         err?.message?.includes("Session expired") || err?.message?.includes("Unauthorized");
       if (isAuthError) {
-        setError("SharePoint not connected");
+        setError("Cloud storage not connected");
       } else {
         console.error("Failed to load folders:", err);
         setError(err instanceof Error ? err.message : "Failed to load folders");
@@ -396,7 +396,7 @@ export function SharePointFolderBrowser({
     try {
       if (driveId === "personal") {
         await api.post("/api/v1/documents/use_personal_drive", undefined, { skipAuthRedirect: true });
-        setCurrentDriveName("My SharePoint");
+        setCurrentDriveName("Personal Drive");
       } else {
         const site = sites.find((s) => s.id === driveId);
         if (!site?.name) throw new Error("Site not found");
@@ -427,18 +427,18 @@ export function SharePointFolderBrowser({
       <div className={cn("flex flex-col items-center justify-center p-8 text-center", className)}>
         <AlertCircle className={cn("h-8 w-8 mb-2", isNotConnected ? "text-amber-500" : "text-destructive")} />
         <p className={cn("text-sm mb-2", isNotConnected ? "text-amber-600" : "text-destructive")}>
-          {isNotConnected ? "SharePoint not connected" : error}
+          {isNotConnected ? "Cloud storage not connected" : error}
         </p>
         {isNotConnected ? (
           <>
             <p className="text-xs text-muted-foreground mb-4">
-              Connect your SharePoint in Settings to browse folders
+              Connect your cloud storage in Settings to browse folders
             </p>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" asChild>
-                <a href="/settings/integrations/microsoft" target="_blank">
+                <a href="/settings/integrations/storage" target="_blank">
                   <Cloud className="h-4 w-4 mr-2" />
-                  Connect SharePoint
+                  Connect Storage
                 </a>
               </Button>
               <Button variant="ghost" size="sm" onClick={loadRootFolders}>
@@ -450,7 +450,7 @@ export function SharePointFolderBrowser({
         ) : isFolderNotFound ? (
           <>
             <p className="text-xs text-muted-foreground mb-4">
-              The &quot;{rootFolder}&quot; folder doesn&apos;t exist yet in your SharePoint site
+              The &quot;{rootFolder}&quot; folder doesn&apos;t exist yet in your cloud storage
             </p>
             <div className="flex gap-2">
               <Button
@@ -515,7 +515,7 @@ export function SharePointFolderBrowser({
             <SelectItem value="personal">
               <div className="flex items-center gap-2">
                 <Cloud className="h-4 w-4 text-blue-500" />
-                <span>My SharePoint</span>
+                <span>Personal Drive</span>
               </div>
             </SelectItem>
             {sites.map((site) => (

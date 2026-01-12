@@ -423,7 +423,7 @@ export function ImageLightbox({
               size="icon"
               onClick={() => window.open(currentPhoto.webUrl, "_blank")}
               className="text-white hover:bg-white/10"
-              title="Open in SharePoint"
+              title="Open in Cloud Storage"
             >
               <ExternalLink className="h-5 w-5" />
             </Button>

@@ -277,12 +277,12 @@ export function SharePointPathConfigurator({
       await api.patch("/api/v1/corporate_company_settings/sharepoint", payload);
       toast({
         title: "Saved",
-        description: "SharePoint path configuration saved successfully",
+        description: "Storage path configuration saved successfully",
       });
       setHasChanges(false);
       onSave?.(templates);
     } catch (error) {
-      console.error("Failed to save SharePoint config:", error);
+      console.error("Failed to save storage config:", error);
       toast({
         title: "Error",
         description: "Failed to save path configuration",

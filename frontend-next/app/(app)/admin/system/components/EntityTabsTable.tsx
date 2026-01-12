@@ -254,7 +254,7 @@ export function EntityTabsTable() {
       });
       await loadTabs();
       setEditingPath(null);
-      toast({ title: "Path updated", description: "SharePoint folder path saved" });
+      toast({ title: "Path updated", description: "Storage folder path saved" });
     } catch (error) {
       console.error("Failed to update path:", error);
       toast({ title: "Error", description: "Failed to update path", variant: "destructive" });
