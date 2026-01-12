@@ -238,6 +238,37 @@ export function EntityTabsConfig({
   // Fetch used icons for icon picker (SSoT: unique icons per root tab)
   const { usedIcons, refetch: refetchUsedIcons } = useUsedIcons(scope);
 
+  // SSoT: Fetch storage configuration for scope folder paths
+  const [storageConfig, setStorageConfig] = React.useState<{
+    root_path?: string;
+    scope_folders?: Record<string, string>;
+  } | null>(null);
+
+  React.useEffect(() => {
+    const fetchStorageConfig = async () => {
+      try {
+        const response = await api.get<{
+          success: boolean;
+          data: { root_path?: string; scope_folders?: Record<string, string> };
+        }>("/api/v1/corporate_company_settings/sharepoint");
+        if (response?.success && response.data) {
+          setStorageConfig(response.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch storage config:", err);
+      }
+    };
+    fetchStorageConfig();
+  }, []);
+
+  // SSoT: Get base path for a scope from StorageConfiguration
+  const getBasePath = React.useCallback((scopeKey: string): string => {
+    const rootPath = storageConfig?.root_path || "";
+    const scopePath = storageConfig?.scope_folders?.[scopeKey] || "";
+    if (!scopePath) return rootPath || "/";
+    return rootPath ? `${rootPath}/${scopePath}` : `/${scopePath}`;
+  }, [storageConfig]);
+
   const [saving, setSaving] = React.useState(false);
 
   // Local state for dialog - URL state doesn't work reliably with catch-all routes
@@ -1670,23 +1701,24 @@ export function EntityTabsConfig({
               </div>
             </div>
 
-            {/* Column 2: SharePoint Configuration */}
+            {/* Column 2: Storage Configuration */}
             <div className="space-y-4 overflow-y-auto">
-              <h3 className="text-sm font-medium text-muted-foreground border-b pb-2">SharePoint Configuration</h3>
+              <h3 className="text-sm font-medium text-muted-foreground border-b pb-2">Storage Configuration</h3>
 
-            {/* SharePoint Folder Path */}
+            {/* Storage Folder Path */}
             {showSharePointPaths && (
               <div className="space-y-3">
-                {/* Base path from global config (read-only) - reactive to Corporate Path toggle */}
+                {/* Base path from StorageConfiguration (read-only) - SSoT for scope folders */}
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Base Path (from Admin → System → Company)</Label>
+                  <Label className="text-xs text-muted-foreground">Base Path (from Admin → System → Storage Config)</Label>
                   <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
                     <span className="inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border bg-muted dark:bg-slate-800 text-foreground dark:text-muted-foreground border-border dark:border-border">
+                      {/* SSoT: Get base path from StorageConfiguration scope_folders */}
                       {scope === "contact"
                         ? (formData.sharepoint_path_type === 'corporate'
-                            ? "/Shared Documents/Corporate/People"
-                            : "/Shared Documents/Contacts")
-                        : (editingTab?.sharepoint_base_path || "/Shared Documents/...")}
+                            ? getBasePath("people")
+                            : getBasePath("contact"))
+                        : (editingTab?.sharepoint_base_path || getBasePath(scope))}
                     </span>
                     <span className="text-muted-foreground">/</span>
                   </div>
@@ -1722,11 +1754,12 @@ export function EntityTabsConfig({
 
                 {/* Full path preview - uses ACTUAL tab names, not generic examples */}
                 {(() => {
+                  // SSoT: Get base path from StorageConfiguration scope_folders
                   const basePath = scope === "contact"
                     ? (formData.sharepoint_path_type === 'corporate'
-                        ? "/Shared Documents/Corporate/People"
-                        : "/Shared Documents/Contacts")
-                    : (editingTab?.sharepoint_base_path || "/Shared Documents");
+                        ? getBasePath("people")
+                        : getBasePath("contact"))
+                    : (editingTab?.sharepoint_base_path || getBasePath(scope));
 
                   // Get actual tab names for preview
                   const parentId = formData.parent_id || editingTab?.parent_id;
