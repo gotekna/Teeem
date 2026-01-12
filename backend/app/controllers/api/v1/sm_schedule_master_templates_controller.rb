@@ -32,9 +32,10 @@ module Api
       # SSoT: Returns Gantt-formatted data with dependencies converted to row.id format
       # This is THE SINGLE place that converts task_number references to row.id
       # Use ?show_all_po=true to show all PO required tasks (useful for template editing)
+      # Use ?show_claims=true to show claim tasks (hidden by default in templates)
       def gantt_data
         all_records = @template.sm_schedule_master_rows.in_sequence.includes(:po_supplier).to_a
-        puts "[gantt_data] Template: #{@template.name}, Total records: #{all_records.count}, show_all_po param: '#{params[:show_all_po]}'"
+        puts "[gantt_data] Template: #{@template.name}, Total records: #{all_records.count}, show_all_po: '#{params[:show_all_po]}', show_claims: '#{params[:show_claims]}'"
 
         # SSoT: Calculate dates from ALL records FIRST (before filtering)
         # This ensures the dependency chain is complete for accurate date calculations
@@ -43,9 +44,10 @@ module Api
         # SSoT: Pass ALL records to service, let service handle filtering
         # This ensures the lookup map is complete for dependency rewiring
         filter_po = params[:show_all_po] != "true"
-        puts "[gantt_data] filter_po_tasks: #{filter_po}"
+        filter_claims = params[:show_claims] != "true"
+        puts "[gantt_data] filter_po_tasks: #{filter_po}, filter_claim_tasks: #{filter_claims}"
 
-        service = GanttDataService.new(all_records, date_overrides: date_overrides, filter_po_tasks: filter_po)
+        service = GanttDataService.new(all_records, date_overrides: date_overrides, filter_po_tasks: filter_po, filter_claim_tasks: filter_claims)
         result = service.build_response
 
         render json: {

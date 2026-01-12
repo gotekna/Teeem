@@ -156,6 +156,7 @@ When discovering duplicates:
 | System columns | `lib/constants/system-columns.ts` |
 | Document types | `lib/constants/document-types.ts` |
 | UI components | `lib/component-registry.ts` |
+| Storage paths | `StorageConfiguration` model (paths, templates, provider config) |
 
 **Rule:** Search `lib/constants/` before creating ANY constant.
 
@@ -338,16 +339,24 @@ cd /Users/robertharder/GitHub/teeem && rm -rf "$DEPLOY_DIR"
 - Email: `robert@tekna.com.au`
 - Password: `Wisdom50-50`
 
-## 🔴 Microsoft 365 (SSoT: MicrosoftCredential)
+## 🔴 Microsoft 365 (Auth vs Config Separation)
+
+**MicrosoftCredential = Auth ONLY.** Storage config lives in StorageConfiguration.
 
 ```ruby
-# SSoT lookups
-MicrosoftCredential.active_for_org(organization)
+# Auth (tokens)
+MicrosoftCredential.sharepoint_credential  # Gets auth token
 MicrosoftAppGraphClient.for_org(organization)
+
+# Config (paths, site_id, drive_id)
+StorageConfiguration.instance  # SSoT for all storage config
 ```
 
-- ❌ NEVER: `MicrosoftCredential.active.first` (no org context)
-- ✅ ALWAYS: Org-scoped lookups
+| Need | SSoT | NOT This |
+|------|------|----------|
+| Auth token | `MicrosoftCredential.sharepoint_credential` | - |
+| Site ID / Drive ID | `StorageConfiguration.instance.site_id` | `credential.sharepoint_site_id` ❌ REMOVED |
+| Storage paths | `StorageConfiguration.instance.path_for(:scope)` | `CorporateCompanySetting.sharepoint_*` ❌ DEPRECATED |
 
 **UI Term:** "SharePoint" (never "OneDrive" to users)
 
@@ -360,12 +369,82 @@ MicrosoftAppGraphClient.for_org(organization)
 | Contact/Invoice sync | Webhooks (live) |
 | Bank transactions | `xero_bank_transaction_sync` (no webhook available) |
 
-## 🔴 SharePoint Paths (SSoT: CorporateCompanySetting)
+## 🔴 Document Storage (SSoT: StorageConfiguration)
+
+**StorageConfiguration is THE SSoT for all document storage paths and provider config.**
 
 ```ruby
-CorporateCompanySetting.sharepoint_full_path(:jobs)  # SSoT
-# NOT: "/Shared Documents/TEEEM Jobs"  # Hardcoded
+# THE ONE way to get storage paths
+StorageConfiguration.instance.path_for(:jobs)      # → "Jobs"
+StorageConfiguration.instance.path_for(:contacts)  # → "Contacts"
+StorageConfiguration.instance.path_for(:people)    # → "People"
+StorageConfiguration.instance.resolve_path(:job, JobCode: "J-001", Category: "Plans")
+# → "/Shared Documents/Jobs/J-001/Plans"
 ```
+
+### Architecture (Provider-Agnostic)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    StorageConfiguration                      │
+│                      (THE ONE SSoT)                          │
+├─────────────────────────────────────────────────────────────┤
+│  provider_type:    sharepoint | s3 | wasabi | local         │
+│  status:           connected | disconnected | error          │
+│  connection_config: { site_id, drive_id } (JSONB)           │
+│  root_path:        "/Shared Documents"                       │
+│  paths:            { jobs: "Jobs", contacts: "Contacts" }   │
+│  templates:        { job: "{{JobCode}}/{{Category}}" }      │
+└─────────────────────────────────────────────────────────────┘
+         ↓ provides auth
+┌─────────────────────────────────────────────────────────────┐
+│  MicrosoftCredential (auth ONLY - tokens, refresh, scopes)  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### SSoT Lookups
+
+| Need | SSoT | ❌ NEVER |
+|------|------|----------|
+| Base path for scope | `StorageConfiguration.instance.path_for(:contacts)` | `"Contacts"` hardcoded |
+| Full resolved path | `StorageConfiguration.instance.resolve_path(:job, ...)` | Manual string building |
+| Site ID | `StorageConfiguration.instance.site_id` | `credential.sharepoint_site_id` |
+| Drive ID | `StorageConfiguration.instance.drive_id` | `credential.sharepoint_drive_id` |
+| Root path | `StorageConfiguration.instance.root_path` | `"/Shared Documents"` hardcoded |
+| Provider type | `StorageConfiguration.instance.provider_type` | Checking multiple sources |
+
+### Available Scopes
+
+| Scope | Default Path | Template |
+|-------|-------------|----------|
+| `:jobs` | `"Jobs"` | `{{JobCode}}/{{Category}}` |
+| `:contacts` | `"Contacts"` | `{{ContactName}}/{{Category}}` |
+| `:people` | `"People"` | `{{PersonName}}/{{Category}}` |
+| `:tasks` | `"Tasks"` | `Task-{{TaskId}}/{{Category}}` |
+| `:accounts` | `"Accounts"` | `{{Source}}/{{ContactName}}/{{Category}}` |
+| `:emails` | `"Emails"` | `{{Year}}/{{Month}}` |
+
+### Deprecated (DO NOT USE)
+
+```ruby
+# ❌ REMOVED from MicrosoftCredential (Jan 2026):
+credential.sharepoint_site_id    # Use StorageConfiguration.instance.site_id
+credential.sharepoint_drive_id   # Use StorageConfiguration.instance.drive_id
+credential.sharepoint_drive_name # Use StorageConfiguration.instance.drive_name
+credential.drive_id              # Use StorageConfiguration.instance.drive_id
+credential.drive_name            # Use StorageConfiguration.instance.drive_name
+
+# ❌ DEPRECATED in CorporateCompanySetting:
+CorporateCompanySetting.sharepoint_full_path(:jobs)  # Use StorageConfiguration
+CorporateCompanySetting.contact_documents_path       # Use StorageConfiguration.path_for(:contacts)
+```
+
+### Admin UI
+
+**Configure at:** `/admin/system/entity-config/sharepoint_config`
+- Edit paths (Jobs, Contacts, People, etc.)
+- Edit path templates with drag-and-drop tokens
+- View SharePoint connection status
 
 ## 🔴 API Response Format
 

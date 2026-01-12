@@ -179,7 +179,9 @@ class CorporateBankStatementsJob < ApplicationJob
     filename = "Bank_Statement_#{account_name_safe}_#{month_year}.pdf"
 
     # Get SharePoint path for company BANK folder
-    base_path = CorporateCompanySetting.sharepoint_full_path(:company)
+    # SSoT: Uses StorageConfiguration for path resolution
+    storage_config = StorageConfiguration.instance
+    base_path = File.join(storage_config.root_path, storage_config.path_for(:corporate))
     company_folder = company.sharepoint_folder_name || company.name.gsub(/[^a-zA-Z0-9\-\s]/, "").strip
     folder_path = "#{base_path}/#{company_folder}/BANK"
 

@@ -236,7 +236,7 @@ function SharePointDelegatedConnection() {
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                 <div>
                   <p className="text-xs text-muted-foreground">Drive</p>
-                  <p className="font-medium">{status.drive_name || "SharePoint"}</p>
+                  <p className="font-medium">{status.drive_name || "Cloud Storage"}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Connected By</p>
@@ -727,14 +727,14 @@ function OrganizationCard({
       );
       setSharePointResult({
         success: response?.success || false,
-        message: response?.success ? response.message : (response?.error || "SharePoint test failed"),
+        message: response?.success ? response.message : (response?.error || "Storage connection test failed"),
         sites: response?.sample_sites
       });
     } catch (err: unknown) {
       const error = err as { data?: { error?: string }; message?: string };
       setSharePointResult({
         success: false,
-        message: error.data?.error || error.message || "SharePoint test failed"
+        message: error.data?.error || error.message || "Storage connection test failed"
       });
     } finally {
       setTestingSharePoint(false);
@@ -1008,7 +1008,7 @@ function OrganizationCard({
                 {sharePointResult && (
                   <Alert variant={sharePointResult.success ? "default" : "destructive"} className={sharePointResult.success ? "bg-green-50 border-green-200 dark:bg-green-950/50 dark:border-green-800" : ""}>
                     {sharePointResult.success ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <AlertTriangle className="h-4 w-4" />}
-                    <AlertTitle>{sharePointResult.success ? "SharePoint Connected" : "SharePoint Error"}</AlertTitle>
+                    <AlertTitle>{sharePointResult.success ? "Storage Connected" : "Storage Connection Error"}</AlertTitle>
                     <AlertDescription>
                       {sharePointResult.message}
                       {sharePointResult.sites && sharePointResult.sites.length > 0 && (

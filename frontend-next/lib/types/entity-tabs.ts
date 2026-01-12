@@ -1,10 +1,11 @@
 // EntityTab types - SSoT for unified tab configuration
 // Matches backend EntityTab model exactly
 
-export type EntityTabScope = 'corporate_entity' | 'people' | 'job' | 'contact';
+export type EntityTabScope = 'corporate_entity' | 'people' | 'job' | 'contact' | 'email' | 'warehouse' | 'task' | 'xero';
 
 // Tab groups - matches backend EntityTab::TAB_GROUPS
-export type TabGroup = 'overview' | 'documents' | 'reports' | 'data' | 'setup' | 'main';
+// 'system' is for system-managed tabs (email storage, warehousing) - read-only in UI
+export type TabGroup = 'overview' | 'documents' | 'reports' | 'data' | 'setup' | 'main' | 'system';
 
 // Display modes for tabs - matches backend EntityTab::DISPLAY_MODES
 // - 'both': Show icon + text (default)
@@ -130,6 +131,10 @@ export const SCOPE_LABELS: Record<EntityTabScope, string> = {
   people: 'People',
   job: 'Job',
   contact: 'Contact',
+  email: 'Email',
+  warehouse: 'Warehouse',
+  task: 'Task',
+  xero: 'Xero',
 };
 
 // Tab group display names for UI
@@ -140,6 +145,7 @@ export const GROUP_LABELS: Record<TabGroup, string> = {
   data: 'Data',
   setup: 'Setup',
   main: 'Main',
+  system: 'System',
 };
 
 // Entity type options are now fetched from API (SSoT: CorporateCompanySetting)

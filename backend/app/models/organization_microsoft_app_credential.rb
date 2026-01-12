@@ -256,27 +256,27 @@ class OrganizationMicrosoftAppCredential < ApplicationRecord
 
   # SharePoint configuration helpers
   # TEEEM's single SharePoint config (all orgs store attachments here)
-  # SSoT Migration: Delegates to CorporateCompanySetting
+  # SSoT: Delegates to StorageConfiguration
   def self.teeem_sharepoint_config
     warn_deprecation
 
-    # SSoT: Use CorporateCompanySetting for SharePoint config
-    setting = CorporateCompanySetting.instance
-    return nil unless setting.sharepoint_site_id.present? && setting.sharepoint_drive_id.present?
+    # SSoT: Use StorageConfiguration for SharePoint config
+    config = StorageConfiguration.instance
+    return nil unless config.site_id.present? && config.drive_id.present?
 
     {
-      site_id: setting.sharepoint_site_id,
-      drive_id: setting.sharepoint_drive_id,
-      drive_name: setting.sharepoint_drive_name || "Shared Documents",
+      site_id: config.site_id,
+      drive_id: config.drive_id,
+      drive_name: config.drive_name || "Shared Documents",
       credential: active_credential  # Still need a credential for API calls
     }
   end
 
-  # SSoT Migration: Delegates to CorporateCompanySetting
+  # SSoT: Delegates to StorageConfiguration
   def self.sharepoint_configured?
     warn_deprecation
-    CorporateCompanySetting.instance.sharepoint_site_id.present? &&
-      CorporateCompanySetting.instance.sharepoint_drive_id.present?
+    config = StorageConfiguration.instance
+    config.site_id.present? && config.drive_id.present?
   end
 
   # Instance method for backward compatibility
@@ -285,7 +285,8 @@ class OrganizationMicrosoftAppCredential < ApplicationRecord
   end
 
   def attachment_root_path
-    # SSoT: Use centralized SharePoint path sanitization
-    "emails/attachments/#{SharePoint::FilenameSanitizer.sanitize_path_segment(name)}"
+    # SSoT: Get base path from StorageConfiguration
+    base_path = StorageConfiguration.instance&.path_for(:email_attachments) || "Emails/attachments"
+    "#{base_path}/#{SharePoint::FilenameSanitizer.sanitize_path_segment(name)}"
   end
 end

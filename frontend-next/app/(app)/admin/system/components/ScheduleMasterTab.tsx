@@ -476,6 +476,7 @@ export function ScheduleMasterTab() {
   }, []);
   // Show PO required tasks without suppliers (useful for template editing)
   const [showAllPOTasks, setShowAllPOTasks] = React.useState(false);
+  const [showClaims, setShowClaims] = React.useState(false);
 
   // SSoT: Use shared hook for all Gantt V2 behavior
   // Gantt always loads its own data (same as Job Gantt) - no external data mode
@@ -483,6 +484,7 @@ export function ScheduleMasterTab() {
     mode: 'template',
     templateId: ganttV2TemplateId ?? undefined,
     showAllPOTasks,
+    showClaims,
   });
 
   // Aliases for backward compatibility during transition
@@ -1296,7 +1298,11 @@ export function ScheduleMasterTab() {
 
   // SSoT: Save handler for EditRowDialog
   const handleEditRowSave = React.useCallback(async (rowId: number, data: EditRowFormData) => {
-    if (!activeEditTemplateId) {
+    // activeEditTemplateId can be:
+    // - null: no template context (shouldn't happen)
+    // - -1: "No Template Selected" view - use Foundation API
+    // - positive number: specific template - use template API
+    if (activeEditTemplateId === null) {
       throw new Error("No active template to save to");
     }
 
@@ -1355,9 +1361,18 @@ export function ScheduleMasterTab() {
       }));
     }
 
-    await api.patch(`/api/v1/sm_schedule_master_templates/${activeEditTemplateId}/rows/${rowId}`, {
-      row: rowPayload,
-    });
+    // SSoT: Use Foundation API for "No Template Selected" view, template API otherwise
+    if (activeEditTemplateId === -1) {
+      // "No Template Selected" - use Foundation API directly
+      await api.patch(`/api/v1/foundations/sm-schedule-master/records/${rowId}`, {
+        record: rowPayload,
+      });
+    } else {
+      // Specific template - use template API
+      await api.patch(`/api/v1/sm_schedule_master_templates/${activeEditTemplateId}/rows/${rowId}`, {
+        row: rowPayload,
+      });
+    }
 
     // Refresh data
     setDataViewRefreshKey(prev => prev + 1);
@@ -2337,21 +2352,21 @@ export function ScheduleMasterTab() {
   }, [ganttV2TemplateId, gantt.loadData]);
 
   // Reload when showAllPOTasks changes (separate effect for clarity)
-  // Use ref pattern to avoid stale closure - loadData references apiConfig which includes showAllPOTasks
+  // Use ref pattern to avoid stale closure - loadData references apiConfig which includes showAllPOTasks/showClaims
   const loadDataRef = React.useRef(gantt.loadData);
   loadDataRef.current = gantt.loadData; // Always update to latest on every render
 
-  const isFirstRenderForPOToggle = React.useRef(true);
+  const isFirstRenderForToggles = React.useRef(true);
   React.useEffect(() => {
-    if (isFirstRenderForPOToggle.current) {
-      isFirstRenderForPOToggle.current = false;
+    if (isFirstRenderForToggles.current) {
+      isFirstRenderForToggles.current = false;
       return;
     }
     if (ganttV2TemplateId) {
-      console.log('[ScheduleMasterTab] showAllPOTasks changed to:', showAllPOTasks, '- reloading data via ref');
+      console.log('[ScheduleMasterTab] Toggle changed - showAllPOTasks:', showAllPOTasks, 'showClaims:', showClaims, '- reloading data');
       loadDataRef.current(); // Always calls latest version with correct apiConfig
     }
-  }, [showAllPOTasks, ganttV2TemplateId]);
+  }, [showAllPOTasks, showClaims, ganttV2TemplateId]);
 
   if (loading) {
     return (
@@ -2632,16 +2647,28 @@ export function ScheduleMasterTab() {
                   {ganttV2Tasks.length} tasks
                 </Badge>
               )}
-              {/* Show All PO Tasks toggle - useful for template editing */}
-              <div className="flex items-center gap-2 ml-auto">
-                <Switch
-                  id="show-all-po"
-                  checked={showAllPOTasks}
-                  onCheckedChange={setShowAllPOTasks}
-                />
-                <Label htmlFor="show-all-po" className="text-sm cursor-pointer">
-                  Show All PO Tasks
-                </Label>
+              {/* Toggle switches for visibility filters */}
+              <div className="flex items-center gap-4 ml-auto">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="show-claims"
+                    checked={showClaims}
+                    onCheckedChange={setShowClaims}
+                  />
+                  <Label htmlFor="show-claims" className="text-sm cursor-pointer">
+                    Show Claims
+                  </Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="show-all-po"
+                    checked={showAllPOTasks}
+                    onCheckedChange={setShowAllPOTasks}
+                  />
+                  <Label htmlFor="show-all-po" className="text-sm cursor-pointer">
+                    Show All PO Tasks
+                  </Label>
+                </div>
               </div>
             </div>
 

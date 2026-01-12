@@ -513,12 +513,12 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
                 onClick={() => window.open(data.stage3_sharepoint?.sharepoint_url!, '_blank')}
               >
                 <ExternalLink className="h-3.5 w-3.5 mr-2" />
-                Open SharePoint
+                Open in Storage
               </Button>
             )}
             <StageProgress
               stage={3}
-              title="SharePoint"
+              title="Cloud Storage"
               icon={Upload}
               completed={data.stage3_sharepoint?.uploaded || data.sharepoint_uploads}
               total={data.stage3_sharepoint?.total_to_upload || data.pdfs_synced}

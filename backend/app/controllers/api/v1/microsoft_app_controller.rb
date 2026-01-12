@@ -879,28 +879,31 @@ class Api::V1::MicrosoftAppController < ApplicationController
       return render json: { error: "site_id and drive_id are required" }, status: :bad_request
     end
 
-    # Get the credential to store the config on (org-scoped)
-    credential = find_credential_with_org_context
-
-    unless credential
-      return render json: { error: "No Microsoft credential found" }, status: :not_found
+    # SSoT: Update StorageConfiguration instead of MicrosoftCredential
+    # MicrosoftCredential only holds auth tokens, StorageConfiguration holds connection config
+    storage_config = StorageConfiguration.instance
+    unless storage_config
+      return render json: { error: "No StorageConfiguration found" }, status: :not_found
     end
 
-    # Update the SharePoint configuration
-    credential.update!(
-      sharepoint_site_id: site_id,
-      sharepoint_drive_id: drive_id,
-      sharepoint_drive_name: drive_name
+    # Update the SharePoint connection config
+    storage_config.update!(
+      connection_config: storage_config.connection_config.merge(
+        "site_id" => site_id,
+        "drive_id" => drive_id,
+        "drive_name" => drive_name
+      ),
+      status: "connected"
     )
 
     render json: {
       success: true,
       message: "SharePoint configuration saved. All attachment uploads will now go to TEEEM's SharePoint.",
       config: {
-        site_id: credential.sharepoint_site_id,
-        drive_id: credential.sharepoint_drive_id,
-        drive_name: credential.sharepoint_drive_name,
-        credential_name: credential.name
+        site_id: storage_config.site_id,
+        drive_id: storage_config.drive_id,
+        drive_name: storage_config.drive_name,
+        provider_type: storage_config.provider_type
       }
     }
   rescue StandardError => e
@@ -1037,15 +1040,14 @@ class Api::V1::MicrosoftAppController < ApplicationController
     mc = MicrosoftCredential.find_by(name: old_credential.name, credential_type: "app")
     return unless mc
 
+    # Note: sharepoint_* columns removed from MicrosoftCredential in Phase 5
+    # SSoT: SharePoint config now lives in StorageConfiguration
     mc.update!(
       access_token: old_credential.access_token,
       token_expires_at: old_credential.token_expires_at,
       status: "connected",
       admin_consent_granted_at: Time.current,
-      admin_consent_granted_by: admin_email,
-      sharepoint_site_id: old_credential.sharepoint_site_id,
-      sharepoint_drive_id: old_credential.sharepoint_drive_id,
-      sharepoint_drive_name: old_credential.sharepoint_drive_name
+      admin_consent_granted_by: admin_email
     )
 
     Rails.logger.info "[MicrosoftApp] DUAL-WRITE: MicrosoftCredential marked connected: #{mc.id}"

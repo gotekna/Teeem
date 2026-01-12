@@ -144,7 +144,7 @@ export function XeroBankStatementReportView({ companyId }: XeroBankStatementRepo
           window.open(response.data.download_url, "_blank");
         } else {
           console.log("🔴 No download URL in response");
-          setError("Report download not available - PDF was not uploaded to SharePoint. Click 'Generate All Historical' to regenerate.");
+          setError("Report download not available - PDF was not uploaded to cloud storage. Click 'Generate All Historical' to regenerate.");
         }
       } catch (err) {
         console.log("🔴 API error:", err);

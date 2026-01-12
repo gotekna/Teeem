@@ -1,10 +1,13 @@
 # Service to manage OneDrive folders for cases
 # Creates folders under Documents > Corporate > Case Info
 class CaseFolderService
-  CASE_INFO_PATH = "Corporate/Case Info"
-
   def initialize(case_record)
     @case = case_record
+  end
+
+  # SSoT: Get case info path from StorageConfiguration
+  def case_info_path
+    @case_info_path ||= "#{StorageConfiguration.instance.path_for(:corporate)}/Case Info"
   end
 
   # Create a dedicated folder for this case in OneDrive
@@ -26,13 +29,13 @@ class CaseFolderService
 
       if result && result["id"]
         # Save the folder ID and path to the case
-        full_path = "#{CASE_INFO_PATH}/#{folder_name}"
+        full_path = "#{case_info_path}/#{folder_name}"
         @case.update!(
-          sharepoint_folder_id: result["id"],
-          sharepoint_folder_path: full_path
+          storage_folder_id: result["id"],
+          storage_folder_path: full_path
         )
 
-        Rails.logger.info "[CaseFolderService] Created SharePoint folder: #{full_path}"
+        Rails.logger.info "[CaseFolderService] Created storage folder: #{full_path}"
         result
       else
         Rails.logger.error "[CaseFolderService] Failed to create folder: #{result}"
@@ -46,10 +49,10 @@ class CaseFolderService
 
   # Get or verify the existing case folder
   def get_case_folder
-    return nil unless @case.sharepoint_folder_id.present?
+    return nil unless @case.storage_folder_id.present?
 
     begin
-      graph_client.get_item(@case.sharepoint_folder_id)
+      graph_client.get_item(@case.storage_folder_id)
     rescue MicrosoftGraphClient::APIError => e
       Rails.logger.warn "[CaseFolderService] Case folder not found: #{e.message}"
       nil
@@ -58,7 +61,7 @@ class CaseFolderService
 
   # Ensure the case has a folder (create if missing)
   def ensure_folder_exists
-    return get_case_folder if @case.sharepoint_folder_id.present?
+    return get_case_folder if @case.storage_folder_id.present?
 
     create_case_folder
   end
@@ -96,7 +99,7 @@ class CaseFolderService
 
   def ensure_case_info_folder_exists
     # Try to get existing folder
-    folder = graph_client.get_folder_by_path(CASE_INFO_PATH)
+    folder = graph_client.get_folder_by_path(case_info_path)
     return folder if folder
 
     # Need to create Corporate and Case Info folders

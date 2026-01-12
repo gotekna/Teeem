@@ -29,6 +29,15 @@ import {
   X,
   Maximize2,
   Download,
+  CloudOff,
+  Cloud,
+  Monitor,
+  Settings2,
+  Check,
+  Loader2,
+  Warehouse,
+  Mail,
+  Paperclip,
 } from "lucide-react";
 import {
   Dialog,
@@ -38,6 +47,9 @@ import {
 } from "@/components/ui/dialog";
 import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { BackButton } from "@/components/ui/back-button";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -79,6 +91,8 @@ interface AllDocumentsResponse {
     jobs: number;
     corporate: number;
     people: number;
+    emails: number;
+    attachments: number;
     total: number;
   };
 }
@@ -97,6 +111,53 @@ interface TreeNode {
 type ViewMode = "tree" | "list" | "gallery";
 type TreeDisplayMode = "list" | "gallery";
 
+// Sync settings types
+interface DesktopClient {
+  id: number;
+  deviceName: string;
+  platform: string;
+  lastSeenAt: string;
+  isActive: boolean;
+}
+
+interface SyncExclusionRule {
+  id: string;
+  ruleType: "extension" | "size" | "pattern";
+  value: string;
+  action: "skip" | "include";
+  description: string;
+  isDefault: boolean;
+  priority: number;
+}
+
+interface SyncSubscription {
+  id: string;
+  folderName: string;
+  folderType: string;
+  lastSyncAt?: string;
+}
+
+// SSoT: Scope folder names from StorageConfiguration
+interface ScopeFolders {
+  job?: string;
+  corporate?: string;
+  people?: string;
+  contact?: string;
+  [key: string]: string | undefined;
+}
+
+// SSoT: Entity Tab structure from Entity Configurator
+interface EntityTabFolder {
+  id: number;
+  display_name: string;
+  scope: string;
+  storage_folder_path: string | null;
+  icon: string | null;
+  is_enabled: boolean;
+  document_count?: number;
+  children?: EntityTabFolder[];
+}
+
 export default function AllDocumentsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("tree");
   const [treeDisplayMode, setTreeDisplayMode] = useState<TreeDisplayMode>("list");
@@ -108,11 +169,75 @@ export default function AllDocumentsPage() {
     corporate: DocumentItem[];
     people: DocumentItem[];
   }>({ jobs: [], corporate: [], people: [] });
-  const [counts, setCounts] = useState({ jobs: 0, corporate: 0, people: 0, total: 0 });
+  const [counts, setCounts] = useState({ jobs: 0, corporate: 0, people: 0, emails: 0, attachments: 0, total: 0 });
   // Document preview popup state
   const [previewDocument, setPreviewDocument] = useState<DocumentItem | null>(null);
   // Click timer for single/double click differentiation
   const clickTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // SSoT: Scope folder names from StorageConfiguration
+  const [scopeFolders, setScopeFolders] = useState<ScopeFolders>({
+    job: "Jobs",
+    corporate: "Corporate",
+    people: "People",
+    contact: "Contacts",
+  });
+
+  // SSoT: All configured folders from Entity Configurator
+  const [entityFolders, setEntityFolders] = useState<{
+    job: EntityTabFolder[];
+    corporate: EntityTabFolder[];
+    contact: EntityTabFolder[];
+  }>({ job: [], corporate: [], contact: [] });
+
+  // Sync settings state
+  const [showSyncSettings, setShowSyncSettings] = useState(false);
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [desktopClients, setDesktopClients] = useState<DesktopClient[]>([]);
+  const [exclusionRules, setExclusionRules] = useState<SyncExclusionRule[]>([]);
+  const [subscriptions, setSubscriptions] = useState<SyncSubscription[]>([]);
+  const [userOverrides, setUserOverrides] = useState<Record<string, boolean>>({});
+
+  // SSoT: Fetch scope folder names from StorageConfiguration
+  useEffect(() => {
+    const fetchScopeFolders = async () => {
+      try {
+        const response = await api.get<{
+          success: boolean;
+          data: { scope_folders?: ScopeFolders };
+        }>("/api/v1/corporate_company_settings/sharepoint");
+        if (response?.success && response.data?.scope_folders) {
+          setScopeFolders(prev => ({ ...prev, ...response.data.scope_folders }));
+        }
+      } catch (err) {
+        console.error("Failed to fetch scope folders:", err);
+      }
+    };
+    fetchScopeFolders();
+  }, []);
+
+  // SSoT: Fetch all configured folders from Entity Configurator
+  useEffect(() => {
+    const fetchEntityFolders = async () => {
+      try {
+        // Fetch folders for all scopes in parallel
+        const [jobRes, corpRes, contactRes] = await Promise.all([
+          api.get<{ success: boolean; data: { tabs: EntityTabFolder[] } }>("/api/v1/entity_tabs?scope=job&include_disabled=false"),
+          api.get<{ success: boolean; data: { tabs: EntityTabFolder[] } }>("/api/v1/entity_tabs?scope=corporate_entity&include_disabled=false"),
+          api.get<{ success: boolean; data: { tabs: EntityTabFolder[] } }>("/api/v1/entity_tabs?scope=contact&include_disabled=false"),
+        ]);
+
+        setEntityFolders({
+          job: jobRes?.success && jobRes.data?.tabs ? jobRes.data.tabs : [],
+          corporate: corpRes?.success && corpRes.data?.tabs ? corpRes.data.tabs : [],
+          contact: contactRes?.success && contactRes.data?.tabs ? contactRes.data.tabs : [],
+        });
+      } catch (err) {
+        console.error("Failed to fetch entity folders:", err);
+      }
+    };
+    fetchEntityFolders();
+  }, []);
 
   // Fetch all documents
   const fetchDocuments = useCallback(async () => {
@@ -138,6 +263,85 @@ export default function AllDocumentsPage() {
     fetchDocuments();
   }, [fetchDocuments]);
 
+  // Fetch sync settings when modal opens
+  // Note: These endpoints require desktop client auth (not web auth)
+  // We use skipAuthRedirect to prevent 401 from logging the user out
+  // A 401 here means "no desktop app connected", not "session expired"
+  const fetchSyncSettings = useCallback(async () => {
+    setSyncLoading(true);
+    try {
+      // Fetch exclusion rules
+      // skipAuthRedirect: 401 means no desktop client, not session expired
+      const exclusionsRes = await api.get<{ success: boolean; data: { rules?: SyncExclusionRule[] } }>(
+        "/api/v1/sync/exclusions",
+        { skipAuthRedirect: true }
+      );
+      if (exclusionsRes?.success && exclusionsRes.data?.rules) {
+        setExclusionRules(exclusionsRes.data.rules);
+        // Build user overrides map
+        const overrides: Record<string, boolean> = {};
+        exclusionsRes.data.rules.forEach((rule) => {
+          if (!rule.isDefault) {
+            overrides[`${rule.ruleType}:${rule.value}`] = rule.action === "include";
+          }
+        });
+        setUserOverrides(overrides);
+      }
+
+      // Fetch subscriptions (what folders are being synced)
+      const subsRes = await api.get<{ success: boolean; data: SyncSubscription[] }>(
+        "/api/v1/sync/subscriptions",
+        { skipAuthRedirect: true }
+      );
+      if (subsRes?.success && subsRes.data) {
+        setSubscriptions(subsRes.data);
+      }
+
+      // Note: /api/v1/sync/clients endpoint doesn't exist yet
+      // Desktop clients would need a web-accessible endpoint
+      // For now, we leave desktopClients empty and show "No clients" message
+    } catch (error) {
+      // Expected to fail if no desktop app connected (401)
+      // Just log and continue - the UI will show empty state
+      console.log("Sync settings not available (no desktop app connected):", error);
+    } finally {
+      setSyncLoading(false);
+    }
+  }, []);
+
+  // Handle opening sync settings
+  const handleOpenSyncSettings = useCallback(() => {
+    setShowSyncSettings(true);
+    fetchSyncSettings();
+  }, [fetchSyncSettings]);
+
+  // Toggle exclusion rule
+  const handleToggleExclusion = useCallback(async (rule: SyncExclusionRule) => {
+    const key = `${rule.ruleType}:${rule.value}`;
+    const currentlyIncluded = userOverrides[key] ?? (rule.action === "include");
+    const newValue = !currentlyIncluded;
+
+    // Optimistic update
+    setUserOverrides((prev) => ({
+      ...prev,
+      [key]: newValue,
+    }));
+
+    try {
+      await api.put("/api/v1/sync/exclusions", {
+        rule_id: rule.id,
+        action: newValue ? "include" : "skip",
+      });
+    } catch (error) {
+      console.error("Failed to update exclusion:", error);
+      // Revert on error
+      setUserOverrides((prev) => ({
+        ...prev,
+        [key]: !newValue,
+      }));
+    }
+  }, [userOverrides]);
+
   // Filter documents by search query
   const filteredDocuments = useMemo(() => {
     if (!searchQuery) return documents;
@@ -161,143 +365,119 @@ export default function AllDocumentsPage() {
     };
   }, [documents, searchQuery]);
 
-  // Build tree structure from documents
+  // Build tree structure from Entity Configurator folders (SSoT)
+  // Shows ALL configured folders even if empty, with file counts
   const treeData = useMemo((): TreeNode[] => {
-    // Jobs category
-    const jobsByParent = new Map<string, DocumentItem[]>();
-    filteredDocuments.jobs.forEach(doc => {
-      const key = `${doc.jobId}-${doc.jobNumber || "unknown"}`;
-      if (!jobsByParent.has(key)) {
-        jobsByParent.set(key, []);
-      }
-      jobsByParent.get(key)!.push(doc);
-    });
+    // Helper to recursively build folder tree from EntityTab
+    const buildFolderTree = (
+      tabs: EntityTabFolder[],
+      docs: DocumentItem[],
+      scopePrefix: string
+    ): TreeNode[] => {
+      return tabs.map(tab => {
+        // Count files matching this folder path
+        const folderPath = tab.storage_folder_path || tab.display_name;
+        const matchingDocs = docs.filter(d =>
+          d.folderPath === folderPath ||
+          d.folderPath === tab.display_name ||
+          d.documentTypeName === tab.display_name
+        );
+
+        // Build children if any
+        const childNodes = tab.children && tab.children.length > 0
+          ? buildFolderTree(tab.children, docs, scopePrefix)
+          : matchingDocs.map(file => ({
+              id: `${scopePrefix}-file-${file.id}`,
+              name: file.displayName || file.fileName,
+              type: "file" as const,
+              file,
+            }));
+
+        // Calculate total file count including children
+        const childFileCount = tab.children && tab.children.length > 0
+          ? childNodes.reduce((sum, c) => sum + ('fileCount' in c ? (c.fileCount || 0) : 1), 0)
+          : matchingDocs.length;
+
+        return {
+          id: `${scopePrefix}-folder-${tab.id}`,
+          name: tab.display_name,
+          type: "folder" as const,
+          fileCount: tab.document_count ?? childFileCount,
+          children: childNodes,
+        };
+      });
+    };
+
+    // Jobs category - shows all configured job folders
+    const jobFolders = entityFolders.job.length > 0
+      ? buildFolderTree(entityFolders.job, filteredDocuments.jobs, "job")
+      : [];
 
     const jobsNode: TreeNode = {
       id: "jobs",
-      name: "Jobs",
+      name: scopeFolders.job || "Jobs",
       type: "category",
       icon: <Briefcase className="h-4 w-4" />,
-      fileCount: filteredDocuments.jobs.length,
-      children: Array.from(jobsByParent.entries()).map(([key, docs]) => {
-        const firstDoc = docs[0];
-        // Group by folder path within each job
-        const byFolder = new Map<string, DocumentItem[]>();
-        docs.forEach(doc => {
-          const folder = doc.folderPath || "Documents";
-          if (!byFolder.has(folder)) {
-            byFolder.set(folder, []);
-          }
-          byFolder.get(folder)!.push(doc);
-        });
-
-        return {
-          id: `job-${key}`,
-          name: firstDoc.jobNumber
-            ? `Job ${firstDoc.jobNumber}${firstDoc.jobTitle ? ` - ${firstDoc.jobTitle}` : ""}`
-            : `Job ${firstDoc.jobId}`,
-          type: "parent" as const,
-          fileCount: docs.length,
-          children: Array.from(byFolder.entries()).map(([folder, files]) => ({
-            id: `job-${key}-folder-${folder}`,
-            name: folder,
-            type: "folder" as const,
-            fileCount: files.length,
-            children: files.map(file => ({
-              id: `job-file-${file.id}`,
-              name: file.displayName || file.fileName,
-              type: "file" as const,
-              file,
-            })),
-          })),
-        };
-      }).sort((a, b) => a.name.localeCompare(b.name)),
+      fileCount: counts.jobs,
+      children: jobFolders,
     };
 
-    // Corporate category
-    const corpByParent = new Map<string, DocumentItem[]>();
-    filteredDocuments.corporate.forEach(doc => {
-      const key = doc.companyId?.toString() || "unknown";
-      if (!corpByParent.has(key)) {
-        corpByParent.set(key, []);
-      }
-      corpByParent.get(key)!.push(doc);
-    });
+    // Corporate category - shows all configured corporate folders
+    const corpFolders = entityFolders.corporate.length > 0
+      ? buildFolderTree(entityFolders.corporate, filteredDocuments.corporate, "corp")
+      : [];
 
     const corporateNode: TreeNode = {
       id: "corporate",
-      name: "Corporate",
+      name: scopeFolders.corporate || "Corporate",
       type: "category",
       icon: <Building2 className="h-4 w-4" />,
-      fileCount: filteredDocuments.corporate.length,
-      children: Array.from(corpByParent.entries()).map(([key, docs]) => {
-        const firstDoc = docs[0];
-        // Group by folder
-        const byFolder = new Map<string, DocumentItem[]>();
-        docs.forEach(doc => {
-          const folder = doc.folderPath || "Documents";
-          if (!byFolder.has(folder)) {
-            byFolder.set(folder, []);
-          }
-          byFolder.get(folder)!.push(doc);
-        });
-
-        return {
-          id: `corp-${key}`,
-          name: firstDoc.companyName || `Company ${key}`,
-          type: "parent" as const,
-          fileCount: docs.length,
-          children: Array.from(byFolder.entries()).map(([folder, files]) => ({
-            id: `corp-${key}-folder-${folder}`,
-            name: folder,
-            type: "folder" as const,
-            fileCount: files.length,
-            children: files.map(file => ({
-              id: `corp-file-${file.id}`,
-              name: file.displayName || file.fileName,
-              type: "file" as const,
-              file,
-            })),
-          })),
-        };
-      }).sort((a, b) => a.name.localeCompare(b.name)),
+      fileCount: counts.corporate,
+      children: corpFolders,
     };
 
-    // People category
-    const peopleByParent = new Map<string, DocumentItem[]>();
-    filteredDocuments.people.forEach(doc => {
-      const key = doc.contactId?.toString() || "unknown";
-      if (!peopleByParent.has(key)) {
-        peopleByParent.set(key, []);
-      }
-      peopleByParent.get(key)!.push(doc);
-    });
+    // People category - shows all configured contact folders
+    const peopleFolders = entityFolders.contact.length > 0
+      ? buildFolderTree(entityFolders.contact, filteredDocuments.people, "people")
+      : [];
 
     const peopleNode: TreeNode = {
       id: "people",
-      name: "People",
+      name: scopeFolders.people || scopeFolders.contact || "People",
       type: "category",
       icon: <Users className="h-4 w-4" />,
-      fileCount: filteredDocuments.people.length,
-      children: Array.from(peopleByParent.entries()).map(([key, docs]) => {
-        const firstDoc = docs[0];
-        return {
-          id: `person-${key}`,
-          name: firstDoc.contactName || `Contact ${key}`,
-          type: "parent" as const,
-          fileCount: docs.length,
-          children: docs.map(file => ({
-            id: `people-file-${file.id}`,
-            name: file.displayName || file.fileName,
-            type: "file" as const,
-            file,
-          })),
-        };
-      }).sort((a, b) => a.name.localeCompare(b.name)),
+      fileCount: counts.people,
+      children: peopleFolders,
     };
 
-    return [jobsNode, corporateNode, peopleNode];
-  }, [filteredDocuments]);
+    // Email EML category - stored email files
+    const emailsNode: TreeNode = {
+      id: "emails",
+      name: "Emails",
+      type: "category",
+      icon: <Mail className="h-4 w-4" />,
+      fileCount: counts.emails || 0,
+      children: [{
+        id: "emails-eml",
+        name: "EML Files",
+        type: "folder" as const,
+        fileCount: counts.emails || 0,
+        children: [],
+      }],
+    };
+
+    // Email Attachments category
+    const attachmentsNode: TreeNode = {
+      id: "attachments",
+      name: "Email Attachments",
+      type: "category",
+      icon: <Paperclip className="h-4 w-4" />,
+      fileCount: counts.attachments || 0,
+      children: [],
+    };
+
+    return [jobsNode, corporateNode, peopleNode, emailsNode, attachmentsNode];
+  }, [filteredDocuments, entityFolders, scopeFolders, counts]);
 
   // Toggle folder expansion
   const toggleFolder = useCallback((folderId: string) => {
@@ -528,9 +708,9 @@ export default function AllDocumentsPage() {
           <div className="flex items-center gap-4">
             <BackButton fallbackHref="/dashboard" />
             <div>
-              <h1 className="text-2xl font-bold">All Documents</h1>
+              <h1 className="text-2xl font-bold">File Warehouse</h1>
               <p className="text-sm text-muted-foreground">
-                {counts.total.toLocaleString()} documents across all sources
+                {counts.total.toLocaleString()} files across all storage locations
               </p>
             </div>
           </div>
@@ -603,6 +783,12 @@ export default function AllDocumentsPage() {
                 </SelectContent>
               </Select>
             )}
+
+            {/* Desktop Sync Settings */}
+            <Button variant="outline" size="sm" onClick={handleOpenSyncSettings}>
+              <Cloud className="h-4 w-4 mr-1" />
+              Sync Settings
+            </Button>
 
             {/* Refresh */}
             <Button variant="outline" size="icon" onClick={fetchDocuments} disabled={loading}>
@@ -795,6 +981,222 @@ export default function AllDocumentsPage() {
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Desktop Sync Settings Modal */}
+      <Dialog open={showSyncSettings} onOpenChange={setShowSyncSettings}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Cloud className="h-5 w-5" />
+              Desktop Sync Settings
+            </DialogTitle>
+          </DialogHeader>
+
+          {syncLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <Tabs defaultValue="file-types" className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="file-types">File Types</TabsTrigger>
+                <TabsTrigger value="folders">Synced Folders</TabsTrigger>
+                <TabsTrigger value="devices">Devices</TabsTrigger>
+              </TabsList>
+
+              {/* File Types Tab */}
+              <TabsContent value="file-types" className="space-y-4 mt-4">
+                <p className="text-sm text-muted-foreground">
+                  Choose which file types to sync to your desktop. Disabled types will appear as placeholders only.
+                </p>
+
+                {/* Extension rules */}
+                {exclusionRules.filter(r => r.ruleType === "extension").length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-medium">File Extensions</h3>
+                    <div className="space-y-2">
+                      {exclusionRules
+                        .filter((r) => r.ruleType === "extension")
+                        .map((rule) => {
+                          const key = `${rule.ruleType}:${rule.value}`;
+                          const isEnabled = userOverrides[key] ?? (rule.action === "include");
+
+                          return (
+                            <div
+                              key={rule.id}
+                              className="flex items-center justify-between py-2 px-3 bg-muted/50 rounded-lg"
+                            >
+                              <div className="flex items-center gap-3">
+                                <File className="h-4 w-4 text-muted-foreground" />
+                                <div>
+                                  <span className="text-sm">{rule.description}</span>
+                                  <span className="ml-2 text-xs text-muted-foreground">
+                                    ({rule.value})
+                                  </span>
+                                </div>
+                              </div>
+                              <Switch
+                                checked={isEnabled}
+                                onCheckedChange={() => handleToggleExclusion(rule)}
+                              />
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Size rules */}
+                {exclusionRules.filter(r => r.ruleType === "size").length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-medium">File Size Limits</h3>
+                    <div className="space-y-2">
+                      {exclusionRules
+                        .filter((r) => r.ruleType === "size")
+                        .map((rule) => {
+                          const key = `${rule.ruleType}:${rule.value}`;
+                          const isEnabled = userOverrides[key] ?? (rule.action === "include");
+
+                          return (
+                            <div
+                              key={rule.id}
+                              className="flex items-center justify-between py-2 px-3 bg-muted/50 rounded-lg"
+                            >
+                              <div>
+                                <span className="text-sm">{rule.description}</span>
+                              </div>
+                              <Switch
+                                checked={isEnabled}
+                                onCheckedChange={() => handleToggleExclusion(rule)}
+                              />
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Always excluded patterns */}
+                {exclusionRules.filter(r => r.ruleType === "pattern").length > 0 && (
+                  <div className="mt-4 p-3 bg-muted rounded-lg">
+                    <h3 className="text-xs font-medium text-muted-foreground mb-1">
+                      Always Excluded (System Files)
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      {exclusionRules
+                        .filter((r) => r.ruleType === "pattern")
+                        .map((r) => r.value)
+                        .join(", ")}
+                    </p>
+                  </div>
+                )}
+
+                {exclusionRules.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <CloudOff className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>No sync rules configured yet.</p>
+                    <p className="text-sm mt-1">Install the desktop app to configure sync settings.</p>
+                  </div>
+                )}
+              </TabsContent>
+
+              {/* Synced Folders Tab */}
+              <TabsContent value="folders" className="space-y-4 mt-4">
+                <p className="text-sm text-muted-foreground">
+                  Folders currently being synced to your desktop.
+                </p>
+
+                {subscriptions.length > 0 ? (
+                  <div className="space-y-2">
+                    {subscriptions.map((sub) => (
+                      <div
+                        key={sub.id}
+                        className="flex items-center justify-between py-3 px-3 bg-muted/50 rounded-lg"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Folder className="h-4 w-4 text-blue-500" />
+                          <div>
+                            <p className="text-sm font-medium">{sub.folderName}</p>
+                            <p className="text-xs text-muted-foreground capitalize">
+                              {sub.folderType.replace("_", " ")}
+                            </p>
+                          </div>
+                        </div>
+                        {sub.lastSyncAt && (
+                          <span className="text-xs text-muted-foreground">
+                            Last sync: {new Date(sub.lastSyncAt).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Folder className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>No folders synced yet.</p>
+                    <p className="text-sm mt-1">Use the desktop app to select folders to sync.</p>
+                  </div>
+                )}
+              </TabsContent>
+
+              {/* Devices Tab */}
+              <TabsContent value="devices" className="space-y-4 mt-4">
+                <p className="text-sm text-muted-foreground">
+                  Desktop devices connected to your account.
+                </p>
+
+                {desktopClients.length > 0 ? (
+                  <div className="space-y-2">
+                    {desktopClients.map((client) => (
+                      <div
+                        key={client.id}
+                        className="flex items-center justify-between py-3 px-3 bg-muted/50 rounded-lg"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Monitor className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <p className="text-sm font-medium">{client.deviceName}</p>
+                            <p className="text-xs text-muted-foreground capitalize">
+                              {client.platform}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {client.isActive ? (
+                            <Badge variant="outline" className="text-xs text-green-600 border-green-600">
+                              <Check className="h-3 w-3 mr-1" />
+                              Active
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs text-muted-foreground">
+                              Inactive
+                            </Badge>
+                          )}
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(client.lastSeenAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Monitor className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>No desktop clients connected.</p>
+                    <p className="text-sm mt-1">
+                      Download TEEEM Sync to sync files to your desktop.
+                    </p>
+                    <Button variant="outline" className="mt-4" disabled>
+                      <Download className="h-4 w-4 mr-2" />
+                      Download TEEEM Sync (Coming Soon)
+                    </Button>
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          )}
         </DialogContent>
       </Dialog>
     </div>

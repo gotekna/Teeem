@@ -1,32 +1,65 @@
 "use client";
 
-import { useEffect } from "react";
+import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Spinner } from "@/components/ui/spinner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+// Import document-related tab components from admin
+import { DocumentTypesTab } from "@/app/(app)/admin/system/components/DocumentTypesTab";
+import { DocumentTemplatesTab } from "@/app/(app)/admin/system/components/DocumentTemplatesTab";
+import { PdfFieldsTab } from "@/app/(app)/admin/system/components/PdfFieldsTab";
 
 /**
- * SSoT Redirect: Document path settings have been consolidated
+ * Documents Settings Page - Organization Settings
  *
- * The SSoT for SharePoint/document path configuration is:
- * /admin/system/entity-config/sharepoint_config
- *
- * This page previously edited legacy columns (*_documents_base_path)
- * which have been deprecated in favor of sharepoint_* columns.
+ * SSoT: This is THE ONE location for document configuration.
+ * Part of the Settings/Admin merge - Organization section.
+ * Admin role required (enforced by layout).
  */
-export default function DocumentSettingsPage() {
-  const router = useRouter();
 
-  useEffect(() => {
-    // SSoT: Redirect to the single source of truth for SharePoint config
-    router.replace("/admin/system/entity-config/sharepoint_config");
-  }, [router]);
+const DOCUMENT_TABS = [
+  { id: "types", label: "Document Types" },
+  { id: "templates", label: "Templates" },
+  { id: "pdf-fields", label: "PDF Fields" },
+];
+
+export default function DocumentsSettingsPage() {
+  const [activeTab, setActiveTab] = React.useState("types");
 
   return (
-    <div className="flex flex-col items-center justify-center h-96 gap-4">
-      <Spinner size={32} className="text-muted-foreground" />
-      <p className="text-sm text-muted-foreground">
-        Redirecting to SharePoint Configuration...
-      </p>
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold">Document Configuration</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Manage document types, templates, and PDF field mappings
+        </p>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="bg-muted/50 p-1">
+          {DOCUMENT_TABS.map((tab) => (
+            <TabsTrigger
+              key={tab.id}
+              value={tab.id}
+              className="text-sm"
+            >
+              {tab.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+
+        <div className="mt-6">
+          <TabsContent value="types">
+            <DocumentTypesTab />
+          </TabsContent>
+          <TabsContent value="templates">
+            <DocumentTemplatesTab />
+          </TabsContent>
+          <TabsContent value="pdf-fields">
+            <PdfFieldsTab />
+          </TabsContent>
+        </div>
+      </Tabs>
     </div>
   );
 }

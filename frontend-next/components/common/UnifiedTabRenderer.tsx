@@ -315,17 +315,17 @@ export function UnifiedTabRenderer({
       );
     }
 
-    // If tab has SharePoint folder, render folder view
+    // If tab has storage folder, render folder view
     if (activeTab.has_sharepoint_folder && activeTab.full_sharepoint_path) {
-      // TODO: Import SharePointFolderView when extracted
+      // TODO: Import StorageFolderView when extracted
       return (
         <div className="p-4 text-muted-foreground">
-          SharePoint folder: {activeTab.full_sharepoint_path}
+          Storage folder: {activeTab.full_sharepoint_path}
         </div>
       );
     }
 
-    // No component and no SharePoint - empty state
+    // No component and no storage folder - empty state
     return (
       <div className="p-4 text-center text-muted-foreground">
         This tab has no content configured.

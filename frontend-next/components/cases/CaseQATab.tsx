@@ -403,7 +403,7 @@ export function CaseQATab({
                   ))}
                   <div className="flex items-center gap-2">
                     <Input
-                      placeholder="Enter SharePoint/OneDrive folder path..."
+                      placeholder="Enter cloud storage folder path..."
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           addSourceFolder((e.target as HTMLInputElement).value);
@@ -447,7 +447,7 @@ export function CaseQATab({
                   ))}
                   <div className="flex items-center gap-2">
                     <Input
-                      placeholder="Enter SharePoint/OneDrive folder path..."
+                      placeholder="Enter cloud storage folder path..."
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           addFilingFolder((e.target as HTMLInputElement).value);

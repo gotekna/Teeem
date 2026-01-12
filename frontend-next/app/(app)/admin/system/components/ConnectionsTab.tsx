@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useCallback } from "react";
-import { useRouter } from "next/navigation";
+// useRouter removed - ConnectionsTab now uses local state for sub-tabs
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -100,15 +100,15 @@ function SharePointConnection() {
   };
 
   const handleDisconnect = async () => {
-    if (!confirm("Are you sure you want to disconnect SharePoint?")) return;
+    if (!confirm("Are you sure you want to disconnect cloud storage?")) return;
     setDisconnecting(true);
     try {
       await api.delete("/api/v1/documents/disconnect");
-      toast({ title: "Success", description: "SharePoint disconnected successfully" });
+      toast({ title: "Success", description: "Cloud storage disconnected successfully" });
       setStatus({ connected: false });
     } catch (error) {
       console.error("Failed to disconnect:", error);
-      toast({ title: "Error", description: "Failed to disconnect SharePoint", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to disconnect cloud storage", variant: "destructive" });
     } finally {
       setDisconnecting(false);
     }
@@ -1125,7 +1125,7 @@ function DocumentStorageProvider() {
           {/* Current Active Provider Badge */}
           <Badge variant={orgConfig?.document_provider === "s3_compatible" ? "outline" : "default"}>
             <Check className="h-3 w-3 mr-1" />
-            Active: {orgConfig?.document_provider === "s3_compatible" ? "S3 Storage" : "SharePoint"}
+            Active: {orgConfig?.document_provider === "s3_compatible" ? "S3/Wasabi" : orgConfig?.document_provider === "sharepoint" ? "SharePoint" : "Cloud Storage"}
           </Badge>
         </div>
       </CardHeader>
@@ -1340,6 +1340,7 @@ function DocumentStorageProvider() {
 // Document Migration Types
 interface MigrationStatus {
   total_documents: number;
+  grand_total?: number;
   migration_in_progress: boolean;
   status_counts: {
     pending: number;
@@ -1355,6 +1356,11 @@ interface MigrationStatus {
     file_name: string;
     error: string;
   }>;
+  additional_files?: {
+    email_eml: number;
+    email_attachments: number;
+    total: number;
+  };
 }
 
 interface MigrationEstimate {
@@ -1524,14 +1530,35 @@ function DocumentMigration() {
         {/* Provider Breakdown */}
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div className="p-3 rounded-lg border bg-muted/30">
-            <p className="text-muted-foreground text-xs">SharePoint Documents</p>
+            <p className="text-muted-foreground text-xs">SharePoint Files</p>
             <p className="text-2xl font-semibold">{status?.provider_breakdown?.sharepoint || 0}</p>
           </div>
           <div className="p-3 rounded-lg border bg-muted/30">
-            <p className="text-muted-foreground text-xs">S3 Documents</p>
+            <p className="text-muted-foreground text-xs">S3 Files</p>
             <p className="text-2xl font-semibold">{status?.provider_breakdown?.s3_compatible || 0}</p>
           </div>
         </div>
+
+        {/* Additional Files (Emails & Attachments) */}
+        {status?.additional_files && (status.additional_files.email_eml > 0 || status.additional_files.email_attachments > 0) && (
+          <div className="text-xs text-muted-foreground p-2 rounded bg-muted/30">
+            <span className="font-medium">Includes:</span>{" "}
+            {status.additional_files.email_eml > 0 && (
+              <span>{status.additional_files.email_eml.toLocaleString()} email EML files</span>
+            )}
+            {status.additional_files.email_eml > 0 && status.additional_files.email_attachments > 0 && " + "}
+            {status.additional_files.email_attachments > 0 && (
+              <span>{status.additional_files.email_attachments.toLocaleString()} email attachments</span>
+            )}
+          </div>
+        )}
+
+        {/* Grand Total */}
+        {status?.grand_total && status.grand_total !== status.total_documents && (
+          <div className="text-sm font-medium text-center p-2 border-t">
+            Total Warehouse Files: {status.grand_total.toLocaleString()}
+          </div>
+        )}
 
         {/* Migration Progress */}
         {hasPendingWork && (
@@ -1660,16 +1687,13 @@ function DocumentMigration() {
 
 // Main Connections Tab
 export function ConnectionsTab({ innerTab }: { innerTab?: string }) {
-  const router = useRouter();
-  // Use innerTab prop passed from parent route
-  const activeTab = innerTab || "provider";
+  // Use local state for sub-tab switching instead of URL navigation
+  // This component is now used within /settings/company, not standalone admin pages
+  const [activeTab, setActiveTab] = React.useState(innerTab || "provider");
 
   const handleTabChange = useCallback((tabId: string) => {
-    const url = tabId === "provider"
-      ? `/admin/system/company/connections`
-      : `/admin/system/company/connections/${tabId}`;
-    router.push(url, { scroll: false });
-  }, [router]);
+    setActiveTab(tabId);
+  }, []);
 
   return (
     <div className="space-y-4">

@@ -777,10 +777,13 @@ module Api
           return render json: { success: true, data: { plans: [], folder_exists: false } }
         end
 
-        # Find 04 Plans folder - list_folder_items returns { "value" => [...] } with string keys
+        # SSoT: Get plans folder name from EntityTab
+        plans_folder_name = EntityTab.folder_name_for("job", "plans", "04 Plans")
+
+        # Find plans folder - list_folder_items returns { "value" => [...] } with string keys
         response = client.list_folder_items(job_folder["id"])
         items = response["value"] || []
-        plans_folder = items.find { |item| item["name"] == "04 Plans" && item["folder"].present? }
+        plans_folder = items.find { |item| item["name"] == plans_folder_name && item["folder"].present? }
 
         unless plans_folder
           return render json: { success: true, data: { plans: [], folder_exists: false } }
@@ -871,8 +874,10 @@ module Api
           client = MicrosoftGraphClient.new(credential)
 
           # Build folder path: Jobs/0046 - Job Name/01 Contract Documents
+          # SSoT: Use StorageConfiguration for jobs path
+          jobs_base = StorageConfiguration.instance.path_for(:jobs)
           job_folder_name = "#{@job.job_number} - #{@job.name}".truncate(100)
-          folder_path = "Jobs/#{job_folder_name}/01 Contract Documents"
+          folder_path = "#{jobs_base}/#{job_folder_name}/01 Contract Documents"
 
           # Ensure folder exists
           client.ensure_folder_path(folder_path)
@@ -913,8 +918,10 @@ module Api
         client = MicrosoftGraphClient.new(credential)
 
         # Build folder path: Jobs/0046 - Job Name/01 Contract Documents
+        # SSoT: Use StorageConfiguration for jobs path
+        jobs_base = StorageConfiguration.instance.path_for(:jobs)
         job_folder_name = "#{@job.job_number} - #{@job.name}".truncate(100)
-        folder_path = "Jobs/#{job_folder_name}/01 Contract Documents"
+        folder_path = "#{jobs_base}/#{job_folder_name}/01 Contract Documents"
 
         # Ensure folder exists and upload
         client.ensure_folder_path(folder_path)

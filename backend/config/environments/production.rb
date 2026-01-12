@@ -18,9 +18,10 @@ Rails.application.configure do
   # Enable serving of images, stylesheets, and JavaScripts from an asset server.
   # config.asset_host = "http://assets.example.com"
 
-  # Store uploaded files in SharePoint via Microsoft Graph API
+  # Store uploaded files in Wasabi (S3-compatible) - SSoT for all document storage
+  # Credentials read from S3CompatibleCredential.active (database)
   # This prevents file loss on Heroku dyno restarts (ephemeral filesystem)
-  config.active_storage.service = :sharepoint
+  config.active_storage.service = :wasabi
 
   # Assume all access to the app is happening through a SSL-terminating reverse proxy.
   config.assume_ssl = true

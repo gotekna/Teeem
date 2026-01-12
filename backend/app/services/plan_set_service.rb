@@ -32,11 +32,14 @@ class PlanSetService
     job_folder = client.find_job_folder(@construction)
     raise ProcessingError, "Job folder not found" unless job_folder
 
-    # Find 04 Plans folder
+    # SSoT: Get plans folder name from EntityTab
+    plans_folder_name = EntityTab.folder_name_for("job", "plans", "04 Plans")
+
+    # Find plans folder
     response = client.list_folder_items(job_folder["id"])
     items = response["value"] || []
-    plans_folder = items.find { |item| item["name"] == "04 Plans" && item["folder"].present? }
-    raise ProcessingError, "04 Plans folder not found" unless plans_folder
+    plans_folder = items.find { |item| item["name"] == plans_folder_name && item["folder"].present? }
+    raise ProcessingError, "#{plans_folder_name} folder not found" unless plans_folder
 
     # List files in 04 Plans
     plan_response = client.list_folder_items(plans_folder["id"])
@@ -207,17 +210,19 @@ class PlanSetService
     job_folder = client.find_job_folder(@construction)
     raise ProcessingError, "Job folder not found in SharePoint. Please create folder structure first." unless job_folder
 
-    # Look for "04 Plans" subfolder
-    # list_folder_items returns { "value" => [...] } with string keys
+    # SSoT: Get plans folder name from EntityTab
+    plans_folder_name = EntityTab.folder_name_for("job", "plans", "04 Plans")
+
+    # Look for plans subfolder
     response = client.list_folder_items(job_folder["id"])
     items = response["value"] || []
-    plans_folder = items.find { |item| item["name"] == "04 Plans" && item["folder"].present? }
+    plans_folder = items.find { |item| item["name"] == plans_folder_name && item["folder"].present? }
 
     if plans_folder
       plans_folder["id"]
     else
-      # Create the 04 Plans folder
-      result = client.create_folder("04 Plans", parent_id: job_folder["id"])
+      # Create the plans folder
+      result = client.create_folder(plans_folder_name, parent_id: job_folder["id"])
       result["id"]
     end
   end

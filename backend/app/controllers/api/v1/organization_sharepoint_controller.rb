@@ -89,13 +89,15 @@ module Api
         end
 
         if credential.valid_credential?
+          # SSoT: Get storage config from StorageConfiguration
+          storage_config = StorageConfiguration.instance
           render json: {
             connected: true,
             source: "organization_credential",
-            drive_id: credential.drive_id,
-            drive_name: credential.drive_name,
+            drive_id: storage_config&.drive_id,
+            drive_name: storage_config&.drive_name,
             root_folder_id: credential.root_folder_id,
-            root_folder_path: credential.root_folder_path,
+            root_folder_path: storage_config&.root_path,
             root_folder_web_url: credential.metadata&.dig("root_folder_web_url"),
             connected_at: credential.created_at,
             connected_by: credential.connected_by&.as_json(),
@@ -211,7 +213,7 @@ module Api
             end
 
             # Create root folder for all jobs in the SharePoint site (SSoT)
-            jobs_folder_name = CorporateCompanySetting.instance.sharepoint_jobs_path.presence || "Jobs"
+            jobs_folder_name = StorageConfiguration.instance.path_for(:jobs)
             Rails.logger.info "Creating root folder '#{jobs_folder_name}'..."
             root_folder = client.create_jobs_root_folder(jobs_folder_name)
             Rails.logger.info "Root folder created successfully at: #{root_folder['webUrl']}"
@@ -521,13 +523,13 @@ module Api
           if is_app_credential
             # App credentials use MicrosoftAppGraphClient with explicit site/drive
             client = MicrosoftAppGraphClient.new(credential)
-            sharepoint_config = CorporateCompanySetting.sharepoint_config
+            storage_config = StorageConfiguration.instance
 
-            unless sharepoint_config[:configured]
+            unless storage_config&.connected?
               return render json: { error: "SharePoint not configured" }, status: :unprocessable_entity
             end
 
-            drive_id = sharepoint_config[:drive_id]
+            drive_id = storage_config.drive_id
 
             if folder_id.present?
               # Get current folder info for breadcrumb
@@ -835,10 +837,12 @@ module Api
           # Mark credential as synced
           credential.mark_synced!
 
+          # SSoT: Get root_path from StorageConfiguration
+          storage_config = StorageConfiguration.instance
           render json: {
             message: "Folder structure created successfully",
             job_folder: job_folder,
-            folder_path: "#{credential.root_folder_path}/#{job_folder['name']}",
+            folder_path: "#{storage_config&.root_path}/#{job_folder['name']}",
             web_url: job_folder["webUrl"]
           }
 
@@ -1005,7 +1009,7 @@ module Api
           client = MicrosoftGraphClient.new(credential)
 
           # SSoT: Use stored sharepoint_folder_id first, fall back to find_job_folder
-          job_folder_id = job.sharepoint_folder_id
+          job_folder_id = job.storage_folder_id
           job_folder_url = nil
 
           if job_folder_id.present?
@@ -1175,18 +1179,18 @@ module Api
           if is_app_credential
             # App credentials use MicrosoftAppGraphClient with explicit site/drive
             client = MicrosoftAppGraphClient.new(credential)
-            sharepoint_config = CorporateCompanySetting.sharepoint_config
+            storage_config = StorageConfiguration.instance
 
-            unless sharepoint_config[:configured]
+            unless storage_config&.connected?
               return render json: { error: "SharePoint not configured" }, status: :unprocessable_entity
             end
 
             # Get file metadata
-            file_metadata = client.get_drive_item(sharepoint_config[:drive_id], file_id)
+            file_metadata = client.get_drive_item(storage_config.drive_id, file_id)
 
             # Download file content
             file_content = client.get_drive_item_content(
-              drive_id: sharepoint_config[:drive_id],
+              drive_id: storage_config.drive_id,
               item_id: file_id
             )
           else
@@ -1257,14 +1261,14 @@ module Api
 
           if is_app_credential
             client = MicrosoftAppGraphClient.new(credential)
-            sharepoint_config = CorporateCompanySetting.sharepoint_config
+            storage_config = StorageConfiguration.instance
 
-            unless sharepoint_config[:configured]
+            unless storage_config&.connected?
               return render json: { success: false, error: "SharePoint not configured" }, status: :unprocessable_entity
             end
 
             client.delete_drive_item(
-              drive_id: sharepoint_config[:drive_id],
+              drive_id: storage_config.drive_id,
               item_id: file_id
             )
           else
@@ -1321,14 +1325,14 @@ module Api
           if is_app_credential
             # App credentials use MicrosoftAppGraphClient with explicit site/drive
             client = MicrosoftAppGraphClient.new(credential)
-            sharepoint_config = CorporateCompanySetting.sharepoint_config
+            storage_config = StorageConfiguration.instance
 
-            unless sharepoint_config[:configured]
+            unless storage_config&.connected?
               return render json: { error: "SharePoint not configured" }, status: :unprocessable_entity
             end
 
             # Get file metadata with download URL
-            item_data = client.get_drive_item(sharepoint_config[:drive_id], file_id)
+            item_data = client.get_drive_item(storage_config.drive_id, file_id)
             download_url_value = item_data[:download_url]
 
             unless download_url_value.present?
@@ -1839,7 +1843,7 @@ module Api
         else
           # Sync all jobs with SharePoint folders
           JobDocumentSyncJob.perform_later
-          jobs_count = Job.where(sharepoint_folder_status: "completed").count
+          jobs_count = Job.where(storage_folder_status: "completed").count
           render json: {
             success: true,
             message: "Sync triggered for #{jobs_count} jobs with SharePoint folders",
@@ -2494,15 +2498,15 @@ module Api
 
         if is_app_credential
           client = MicrosoftAppGraphClient.new(credential)
-          sharepoint_config = CorporateCompanySetting.sharepoint_config
+          storage_config = StorageConfiguration.instance
 
-          unless sharepoint_config[:configured]
+          unless storage_config&.connected?
             raise DocumentProviders::NotConnectedError, "SharePoint not configured"
           end
 
-          file_metadata = client.get_drive_item(sharepoint_config[:drive_id], file_id)
+          file_metadata = client.get_drive_item(storage_config.drive_id, file_id)
           file_content = client.get_drive_item_content(
-            drive_id: sharepoint_config[:drive_id],
+            drive_id: storage_config.drive_id,
             item_id: file_id
           )
         else
@@ -2556,13 +2560,13 @@ module Api
 
         if is_app_credential
           client = MicrosoftAppGraphClient.new(credential)
-          sharepoint_config = CorporateCompanySetting.sharepoint_config
+          storage_config = StorageConfiguration.instance
 
-          unless sharepoint_config[:configured]
+          unless storage_config&.connected?
             raise DocumentProviders::NotConnectedError, "SharePoint not configured"
           end
 
-          item_data = client.get_drive_item(sharepoint_config[:drive_id], file_id)
+          item_data = client.get_drive_item(storage_config.drive_id, file_id)
           item_data[:download_url] || document.web_url
         else
           client = MicrosoftGraphClient.new(credential)

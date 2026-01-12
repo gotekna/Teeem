@@ -89,35 +89,84 @@ module Api
       # ========================================
 
       # GET /api/v1/corporate_company_settings/sharepoint
+      # SSoT: Now uses StorageConfiguration for path/connection config
       def sharepoint
         render json: {
           success: true,
-          data: CorporateCompanySetting.sharepoint_config
+          data: StorageConfiguration.instance&.to_config_hash || {}
         }
       end
 
       # PATCH /api/v1/corporate_company_settings/sharepoint
+      # SSoT: Updates StorageConfiguration directly (Jan 2026)
       def update_sharepoint
-        settings = CorporateCompanySetting.instance
+        storage_config = StorageConfiguration.instance
 
-        if settings.update(sharepoint_params)
+        # Map frontend params to StorageConfiguration structure
+        sp = sharepoint_params
+
+        # Get provider type (default to current or sharepoint)
+        provider_type = sp[:provider_type].presence || storage_config.provider_type || "sharepoint"
+
+        # Build connection_config based on provider type
+        connection_config = storage_config.connection_config || {}
+
+        if provider_type == "sharepoint"
+          # SharePoint connection config
+          connection_config["site_url"] = sp[:sharepoint_site_url] if sp.key?(:sharepoint_site_url)
+          connection_config["site_id"] = sp[:sharepoint_site_id] if sp.key?(:sharepoint_site_id)
+          connection_config["drive_id"] = sp[:sharepoint_drive_id] if sp.key?(:sharepoint_drive_id)
+          connection_config["drive_name"] = sp[:sharepoint_drive_name] if sp.key?(:sharepoint_drive_name)
+        elsif provider_type.in?(%w[s3 wasabi])
+          # S3/Wasabi connection config
+          connection_config["endpoint"] = sp[:s3_endpoint] if sp.key?(:s3_endpoint)
+          connection_config["bucket"] = sp[:s3_bucket] if sp.key?(:s3_bucket)
+          connection_config["region"] = sp[:s3_region] if sp.key?(:s3_region)
+        end
+
+        # SSoT: Folder paths are managed by EntityTab (Entity Configurator)
+        # StorageConfiguration only handles CONNECTION config
+        # paths/templates columns are deprecated and will be removed in future migration
+
+        # Determine status based on provider and connection config
+        new_status = case provider_type
+        when "sharepoint"
+          (connection_config["site_id"].present? && connection_config["drive_id"].present?) ? "connected" : "disconnected"
+        when "s3", "wasabi"
+          (connection_config["endpoint"].present? && connection_config["bucket"].present?) ? "connected" : "disconnected"
+        when "local"
+          "connected"  # Local is always "connected"
+        else
+          "disconnected"
+        end
+
+        # Update StorageConfiguration (connection + paths)
+        update_attrs = {
+          provider_type: provider_type,
+          connection_config: connection_config,
+          status: new_status
+        }
+        update_attrs[:root_path] = sp[:sharepoint_root_path] if sp.key?(:sharepoint_root_path)
+        update_attrs[:scope_folders] = sp[:scope_folders] if sp.key?(:scope_folders)
+
+        if storage_config.update(update_attrs)
           render json: {
             success: true,
-            data: CorporateCompanySetting.sharepoint_config
+            data: storage_config.to_config_hash
           }
         else
           render json: {
             success: false,
-            errors: settings.errors.full_messages
+            errors: storage_config.errors.full_messages
           }, status: :unprocessable_entity
         end
       end
 
       # POST /api/v1/corporate_company_settings/sharepoint/test
       def test_sharepoint
-        config = CorporateCompanySetting.sharepoint_config
+        storage_config = StorageConfiguration.instance
 
-        unless config[:configured]
+        unless storage_config&.connected?
           return render json: {
             success: false,
             error: "SharePoint is not configured. Please set site_id and drive_id."
@@ -136,7 +185,7 @@ module Api
           end
 
           client = MicrosoftAppGraphClient.new(credential)
-          site_info = client.get_site(config[:site_id])
+          site_info = client.get_site(storage_config.site_id)
 
           render json: {
             success: true,
@@ -370,24 +419,21 @@ module Api
 
       def sharepoint_params
         params.require(:sharepoint).permit(
-          # Site configuration
+          # Provider type (SSoT)
+          :provider_type,
+          # SharePoint configuration
           :sharepoint_site_url,
           :sharepoint_site_id,
           :sharepoint_drive_id,
           :sharepoint_drive_name,
-          # Folder paths (relative to root)
+          # S3/Wasabi configuration
+          :s3_endpoint,
+          :s3_bucket,
+          :s3_region,
+          # Root path
           :sharepoint_root_path,
-          :sharepoint_jobs_path,
-          :sharepoint_tasks_path,
-          :sharepoint_people_path,
-          :sharepoint_company_path,
-          :sharepoint_contacts_path,
-          # Path templates (with placeholders)
-          :sharepoint_job_template,
-          :sharepoint_task_template,
-          :sharepoint_company_template,
-          :sharepoint_people_template,
-          :sharepoint_contacts_template
+          # Scope folders (SSoT: configurable base folder per scope)
+          scope_folders: [:job, :corporate, :people, :users, :user_photos, :user_contracts, :my_docs, :contact, :email, :email_attachments, :warehouse, :task, :billinbox, :pricebook, :chat, :active_storage, :templates, :bank_statements, :contracts]
         )
       end
 

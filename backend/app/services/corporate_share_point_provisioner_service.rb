@@ -56,6 +56,7 @@ class CorporateSharePointProvisionerService
   end
 
   # Create standard folder structure for a company
+  # SSoT: Uses EntityTab for folder structure, falls back to FOLDER_STRUCTURE constant
   def create_company_folders(company)
     folder_name = company_folder_name(company)
     Rails.logger.info "Creating folder structure for: #{folder_name}"
@@ -65,8 +66,11 @@ class CorporateSharePointProvisionerService
       root_folder = create_or_find_folder(folder_name)
       company_folder_id = root_folder["id"]
 
+      # SSoT: Get folder structure from EntityTab (falls back to FOLDER_STRUCTURE constant)
+      folder_structure = self.class.folder_structure_from_entity_tabs("corporate_entity")
+
       # Create subfolders
-      FOLDER_STRUCTURE.each do |parent_folder, subfolders|
+      folder_structure.each do |parent_folder, subfolders|
         parent = create_or_find_folder(parent_folder, parent_id: company_folder_id)
 
         subfolders.each do |subfolder|
@@ -74,11 +78,11 @@ class CorporateSharePointProvisionerService
         end
       end
 
-      # Update company with SharePoint folder info
+      # Update company with storage folder info
       company.update(
-        sharepoint_folder_id: company_folder_id,
-        sharepoint_folder_path: folder_name
-      ) if company.respond_to?(:sharepoint_folder_id)
+        storage_folder_id: company_folder_id,
+        storage_folder_path: folder_name
+      ) if company.respond_to?(:storage_folder_id)
 
       {
         success: true,
@@ -135,7 +139,8 @@ class CorporateSharePointProvisionerService
   # Preview the folder structure that would be created in configurable base path
   # Returns a hash describing the structure without creating anything
   def preview_private_folder_structure(dry_run: true)
-    base_path = CorporateCompanySetting.company_documents_base_path
+    # SSoT: Use StorageConfiguration for corporate path
+    base_path = StorageConfiguration.instance.path_for(:corporate)
     structure = {
       root: base_path,
       groups: []
@@ -182,7 +187,8 @@ class CorporateSharePointProvisionerService
   # Create the entire folder structure in configurable base path
   # Structure: [base_path] / [Group Name] / [Company Name] / [Document Type Folders]
   def create_private_folder_structure!
-    base_path = CorporateCompanySetting.company_documents_base_path
+    # SSoT: Use StorageConfiguration for corporate path
+    base_path = StorageConfiguration.instance.path_for(:corporate)
     Rails.logger.info "Creating private folder structure at: #{base_path}..."
 
     # Get or create base folder
@@ -223,10 +229,10 @@ class CorporateSharePointProvisionerService
           subfolders_created << { name: folder_name, id: subfolder["id"] }
         end
 
-        # Update company with SharePoint folder info
+        # Update company with storage folder info
         company.update_columns(
-          sharepoint_folder_id: company_folder_id,
-          sharepoint_folder_path: "#{base_path}/#{group.name}/#{company_folder_name}"
+          storage_folder_id: company_folder_id,
+          storage_folder_path: "#{base_path}/#{group.name}/#{company_folder_name}"
         )
 
         group_result[:entities] << {
@@ -250,10 +256,10 @@ class CorporateSharePointProvisionerService
 
   # Scan company folder and categorise documents
   def scan_company_documents(company)
-    return { success: false, error: "Company has no SharePoint folder" } unless company.sharepoint_folder_id.present?
+    return { success: false, error: "Company has no storage folder" } unless company.storage_folder_id.present?
 
     documents = []
-    scan_folder_recursive(company.sharepoint_folder_id, documents)
+    scan_folder_recursive(company.storage_folder_id, documents)
 
     # Categorise documents by type
     categorised = categorise_documents(documents)
@@ -307,7 +313,7 @@ class CorporateSharePointProvisionerService
 
   # Auto-organise documents in a company folder
   def organise_company_documents(company, dry_run: true)
-    return { success: false, error: "Company has no SharePoint folder" } unless company.sharepoint_folder_id.present?
+    return { success: false, error: "Company has no storage folder" } unless company.storage_folder_id.present?
 
     scan_result = scan_company_documents(company)
     return scan_result unless scan_result[:success]
@@ -323,7 +329,7 @@ class CorporateSharePointProvisionerService
       next unless detected_type
 
       # Find target folder
-      target_folder = find_folder_for_type(company.sharepoint_folder_id, detected_type)
+      target_folder = find_folder_for_type(company.storage_folder_id, detected_type)
       next unless target_folder
 
       # Check if already in correct folder
@@ -558,4 +564,24 @@ class CorporateSharePointProvisionerService
   rescue ArgumentError
     { date: nil, type: nil, description: filename, extension: "" }
   end
+
+  # SSoT: Get folder structure from EntityTab instead of hardcoded constant
+  # Returns hash of { folder_name => [subfolders] } for tabs with storage folders
+  def self.folder_structure_from_entity_tabs(scope = "corporate_entity")
+    tabs = EntityTab.where(scope: scope, has_storage_folder: true, parent_id: nil)
+    structure = {}
+
+    tabs.each do |tab|
+      folder_name = tab.display_name
+      # Get children with storage folders
+      children = tab.children.where(has_storage_folder: true).pluck(:display_name)
+      structure[folder_name] = children
+    end
+
+    # Fall back to FOLDER_STRUCTURE if no EntityTabs configured
+    structure.empty? ? FOLDER_STRUCTURE : structure
+  end
 end
+
+# Backwards compatibility alias (old name)
+CorporateOneDriveService = CorporateSharePointProvisionerService

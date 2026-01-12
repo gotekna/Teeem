@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_12_120002) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_12_120004) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7192,7 +7192,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_120002) do
     t.index ["status"], name: "index_performance_anomalies_on_status"
   end
 
-  create_table "performance_requests", force: :cascade do |t|
+  create_table "performance_requests", id: false, force: :cascade do |t|
+    t.bigserial "id", null: false
     t.string "endpoint", null: false
     t.string "method", null: false
     t.integer "duration_ms", null: false
@@ -7270,7 +7271,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_120002) do
     t.index ["user_id"], name: "index_performance_slow_queries_on_user_id"
   end
 
-  create_table "performance_vitals", force: :cascade do |t|
+  create_table "performance_vitals", id: false, force: :cascade do |t|
+    t.bigserial "id", null: false
     t.string "metric_name", null: false
     t.float "value", null: false
     t.string "page_path"
@@ -8762,6 +8764,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_120002) do
     t.boolean "requires_document_to_complete", default: false
     t.bigint "completion_document_type_id"
     t.jsonb "completion_linked_task_ids", default: []
+    t.integer "sm_task_group_id"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
     t.index ["complete_workflow_id"], name: "index_sm_tasks_on_complete_workflow_id"
@@ -9045,6 +9048,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_120002) do
     t.bigint "credential_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.jsonb "scope_folders", default: {}, null: false
     t.index ["credential_type", "credential_id"], name: "index_storage_configurations_on_credential"
     t.index ["organization_id"], name: "index_storage_configurations_on_organization_id", unique: true
   end
@@ -9621,7 +9625,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_120002) do
     t.index ["wphs_appointee"], name: "index_users_on_wphs_appointee"
   end
 
-  create_table "versions", force: :cascade do |t|
+  create_table "versions", id: false, force: :cascade do |t|
+    t.bigserial "id", null: false
     t.integer "current_version", default: 101, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false

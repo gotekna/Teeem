@@ -2,7 +2,10 @@
 # Matches photos and QR codes by filename to item names/codes and updates image_url and qr_code_url
 
 class PricebookPhotoSyncService
-  SHAREPOINT_FOLDER_PATH = "Warehousing/Pricebook Photos"
+  # SSoT: Folder path from StorageConfiguration, fallback to default
+  def self.folder_path
+    StorageConfiguration.instance&.path_for(:pricebook_photos) || "Warehousing/Pricebook Photos"
+  end
 
   class SyncError < StandardError; end
 

@@ -64,13 +64,14 @@ class CorporateCompanySetting < ApplicationRecord
   # The sharepoint_* columns are THE SSoT - configured at /admin/system/entity-config/sharepoint_config
   def self.base_path_for_scope(scope)
     setting = instance
+    storage_config = StorageConfiguration.instance
     case scope.to_s
     when "company", "both"
-      setting.sharepoint_company_path.presence || "Corporate"
+      setting.sharepoint_company_path.presence || storage_config&.path_for(:corporate) || "Corporate"
     when "people"
-      setting.sharepoint_people_path.presence || "Corporate/People"
+      setting.sharepoint_people_path.presence || storage_config&.path_for(:people) || "Corporate/People"
     when "job"
-      setting.sharepoint_jobs_path.presence || "Jobs"
+      setting.sharepoint_jobs_path.presence || storage_config&.path_for(:job) || "Jobs"
     else
       raise ArgumentError, "Unknown scope: #{scope}"
     end
@@ -90,25 +91,45 @@ class CorporateCompanySetting < ApplicationRecord
   end
 
   # ========================================
-  # SharePoint Configuration (SSoT)
+  # SharePoint Configuration (DEPRECATED)
+  # ========================================
+  #
+  # DEPRECATION NOTICE: These methods are deprecated.
+  # Use StorageConfiguration instead:
+  #
+  #   config = StorageConfiguration.for_organization(Organization.first)
+  #   config.site_id
+  #   config.drive_id
+  #   config.resolve_path(:job, JobCode: "J-001")
+  #
+  # These methods will be removed in a future release.
   # ========================================
 
-  # Check if SharePoint is configured
+  # DEPRECATED: Use StorageConfiguration.for_organization(org).site_id instead
   def self.sharepoint_configured?
+    Rails.deprecator.warn(
+      "CorporateCompanySetting.sharepoint_configured? is deprecated. " \
+      "Use StorageConfiguration.for_organization(org).connected? instead."
+    )
     setting = instance
     setting.sharepoint_site_id.present? && setting.sharepoint_drive_id.present?
   end
 
-  # Get SharePoint site URL
-  # SSoT: Returns configured URL or nil - no hardcoded fallbacks
+  # DEPRECATED: Use StorageConfiguration.for_organization(org).site_url instead
   def self.sharepoint_site_url
+    Rails.deprecator.warn(
+      "CorporateCompanySetting.sharepoint_site_url is deprecated. " \
+      "Use StorageConfiguration.for_organization(org).site_url instead."
+    )
     instance.sharepoint_site_url.presence
   end
 
-  # Get full path for a document scope
-  # Returns: "/Jobs" for scope: :jobs
-  # SSoT: All paths come from database - NO HARDCODED FALLBACKS
+  # DEPRECATED: Use StorageConfiguration.for_organization(org).path_for(scope) instead
   def self.sharepoint_full_path(scope)
+    Rails.deprecator.warn(
+      "CorporateCompanySetting.sharepoint_full_path is deprecated. " \
+      "Use StorageConfiguration.for_organization(org).path_for(scope) instead."
+    )
     setting = instance
     root = setting.sharepoint_root_path.presence || ""
     sub_path = case scope.to_sym
@@ -130,12 +151,15 @@ class CorporateCompanySetting < ApplicationRecord
     "#{root.chomp('/')}/#{sub_path.sub(/^\//, '')}"
   end
 
-  # Get SharePoint config hash for API responses
-  # SSoT: Returns actual database values - frontend handles empty states
+  # DEPRECATED: Use StorageConfiguration.for_organization(org).to_config_hash instead
   def self.sharepoint_config
+    Rails.deprecator.warn(
+      "CorporateCompanySetting.sharepoint_config is deprecated. " \
+      "Use StorageConfiguration.for_organization(org).to_config_hash instead."
+    )
     setting = instance
     {
-      configured: sharepoint_configured?,
+      configured: setting.sharepoint_site_id.present? && setting.sharepoint_drive_id.present?,
       site_url: setting.sharepoint_site_url,
       site_id: setting.sharepoint_site_id,
       drive_id: setting.sharepoint_drive_id,
@@ -159,11 +183,27 @@ class CorporateCompanySetting < ApplicationRecord
   end
 
   # ========================================
-  # SharePoint Path Resolution (SSoT)
+  # SharePoint Path Resolution (DEPRECATED)
+  # ========================================
+  #
+  # DEPRECATION NOTICE: These methods are deprecated.
+  # Use StorageConfiguration instead:
+  #
+  #   config = StorageConfiguration.for_organization(Organization.first)
+  #   config.job_path(job_code, category)
+  #   config.contacts_path(contact_name, category)
+  #   config.resolve_path(:job, JobCode: "J-001", Category: "Plans")
+  #
+  # These methods will be removed in a future release.
   # ========================================
 
-  # Get template for a scope
+  # DEPRECATED: Use EntityTab.find_by(scope: scope).storage_folder_path instead
+  # SSoT: EntityTab owns folder paths, StorageConfiguration owns connection only
   def self.sharepoint_template(scope)
+    Rails.deprecator.warn(
+      "CorporateCompanySetting.sharepoint_template is deprecated. " \
+      "SSoT: EntityTab owns folder paths. Use EntityTab.find_by(scope: scope).storage_folder_path."
+    )
     setting = instance
     case scope.to_sym
     when :jobs, :job
@@ -181,9 +221,12 @@ class CorporateCompanySetting < ApplicationRecord
     end
   end
 
-  # Resolve a full path for a job document
-  # Returns: "/Jobs/JOB-001/Plans"
+  # DEPRECATED: Use StorageConfiguration.for_organization(org).job_path(job_code, category) instead
   def self.job_path(job_code, category = nil)
+    Rails.deprecator.warn(
+      "CorporateCompanySetting.job_path is deprecated. " \
+      "Use StorageConfiguration.for_organization(org).job_path(job_code, category) instead."
+    )
     base = sharepoint_full_path(:jobs)
     template = sharepoint_template(:job)
     resolved = resolve_template(template, {
@@ -193,9 +236,12 @@ class CorporateCompanySetting < ApplicationRecord
     clean_path("#{base}/#{resolved}")
   end
 
-  # Resolve a full path for a standalone task document (tasks without a job)
-  # Returns: "/Tasks/Task-123/Responses"
+  # DEPRECATED: Use StorageConfiguration.for_organization(org).task_path(task_id, category) instead
   def self.task_path(task_id, category = nil)
+    Rails.deprecator.warn(
+      "CorporateCompanySetting.task_path is deprecated. " \
+      "Use StorageConfiguration.for_organization(org).task_path(task_id, category) instead."
+    )
     base = sharepoint_full_path(:tasks)
     template = sharepoint_template(:task)
     resolved = resolve_template(template, {
@@ -205,9 +251,12 @@ class CorporateCompanySetting < ApplicationRecord
     clean_path("#{base}/#{resolved}")
   end
 
-  # Resolve a full path for a company document
-  # Returns: "/Corporate/GroupName/COMP-001/TabName"
+  # DEPRECATED: Use StorageConfiguration.for_organization(org).corporate_path(...) instead
   def self.company_path(company_group: nil, company_code: nil, tab_name: nil)
+    Rails.deprecator.warn(
+      "CorporateCompanySetting.company_path is deprecated. " \
+      "Use StorageConfiguration.for_organization(org).corporate_path(...) instead."
+    )
     base = sharepoint_full_path(:company)
     template = sharepoint_template(:company)
     resolved = resolve_template(template, {
@@ -218,9 +267,12 @@ class CorporateCompanySetting < ApplicationRecord
     clean_path("#{base}/#{resolved}")
   end
 
-  # Resolve a full path for a people document
-  # Returns: "/Corporate/People/John Smith/Contracts"
+  # DEPRECATED: Use StorageConfiguration.for_organization(org).people_path(name, category) instead
   def self.people_path(contact_name, category = nil)
+    Rails.deprecator.warn(
+      "CorporateCompanySetting.people_path is deprecated. " \
+      "Use StorageConfiguration.for_organization(org).people_path(name, category) instead."
+    )
     base = sharepoint_full_path(:people)
     template = sharepoint_template(:people)
     resolved = resolve_template(template, {
@@ -230,8 +282,12 @@ class CorporateCompanySetting < ApplicationRecord
     clean_path("#{base}/#{resolved}")
   end
 
-  # Resolve a full path for a contact document
+  # DEPRECATED: Use StorageConfiguration.for_organization(org).contacts_path(name, category) instead
   def self.contacts_path(contact_name, category = nil)
+    Rails.deprecator.warn(
+      "CorporateCompanySetting.contacts_path is deprecated. " \
+      "Use StorageConfiguration.for_organization(org).contacts_path(name, category) instead."
+    )
     base = sharepoint_full_path(:contacts)
     template = sharepoint_template(:contacts)
     resolved = resolve_template(template, {

@@ -67,6 +67,37 @@ Rails.application.routes.draw do
       # All Documents - unified view across JobDocument, CorporateCompanyDocument, PeopleDocument
       get "documents/all", to: "documents#all"
 
+      # =============================================================
+      # Desktop Sync Client API
+      # For TEEEM Sync desktop app (Electron + native)
+      # =============================================================
+      namespace :sync do
+        # Device code authentication
+        post "auth/device_code", to: "/api/v1/sync#initiate_device_auth"
+        post "auth/verify", to: "/api/v1/sync#verify_device_code"
+        get "auth/poll", to: "/api/v1/sync#poll_device_auth"
+        post "auth/refresh", to: "/api/v1/sync#refresh_token"
+        delete "auth/logout", to: "/api/v1/sync#logout"
+
+        # Folder listing and subscriptions
+        get "folders", to: "/api/v1/sync#folders"
+        get "subscriptions", to: "/api/v1/sync#subscriptions"
+        post "subscriptions", to: "/api/v1/sync#create_subscription"
+        delete "subscriptions/:id", to: "/api/v1/sync#destroy_subscription"
+
+        # File exclusion rules
+        get "exclusions", to: "/api/v1/sync#exclusions"
+        put "exclusions", to: "/api/v1/sync#update_exclusions"
+
+        # Delta sync and file operations
+        get "delta", to: "/api/v1/sync#delta"
+        post "download_url", to: "/api/v1/sync#download_url"
+        post "upload", to: "/api/v1/sync#upload_url"
+        post "upload_complete", to: "/api/v1/sync#upload_complete"
+        post "conflict/resolve", to: "/api/v1/sync#resolve_conflict"
+        post "report_state", to: "/api/v1/sync#report_state"
+      end
+
       # Feature Trackers
       resources :feature_trackers, only: [ :index, :create, :update, :destroy ]
 
@@ -1266,6 +1297,7 @@ Rails.application.routes.draw do
           get :folders  # Fetch folders for a specific account (pass account_id param)
           get :folder_order  # Get user's custom folder order
           post :save_folder_order  # Save user's custom folder order
+          post :toggle_mailbox_favorite  # Toggle mailbox as favorite/bookmarked
           post :sync_all  # Sync ALL user's IMAP accounts
           get :shareable_users  # List users who can be granted access
         end
@@ -1840,6 +1872,20 @@ Rails.application.routes.draw do
         end
       end
 
+      # Live Location Tracking (iOS app + web dashboard)
+      resources :location_tracking, only: [] do
+        collection do
+          post :ping               # Single location update
+          post :batch_ping         # Batch offline sync
+          get :active              # All active workers with locations
+          get :geofence_events     # Recent geofence breaches
+        end
+        member do
+          get :session_path, path: "session/:id/path"  # Route history for a session
+        end
+      end
+      get "location_tracking/session/:id/path", to: "location_tracking#session_path"
+
       # ============================================
       # SM Gantt Phase 3 - Collaboration
       # ============================================
@@ -2197,6 +2243,35 @@ Rails.application.routes.draw do
         end
         member do
           post :refund
+        end
+      end
+
+      # =============================================================
+      # Email Hosting (PolarisMail Reseller)
+      # =============================================================
+
+      # Email Migration Portal (public, token-based)
+      get "migrate/:token", to: "migrate_portal#show", as: :migrate_portal_show
+      post "migrate/:token/subscribe", to: "migrate_portal#create_subscription", as: :migrate_subscribe
+      get "migrate/:token/progress", to: "migrate_portal#progress", as: :migrate_progress
+      post "migrate/:token/confirm", to: "migrate_portal#confirm_migration", as: :migrate_confirm
+      post "migrate/webhook", to: "migrate_portal#webhook", as: :migrate_webhook
+
+      # Email Subscriptions (admin, requires auth)
+      resources :email_subscriptions do
+        collection do
+          get :profit_report
+          get :discover_mailboxes
+          get :pricing
+        end
+        member do
+          post :add_mailbox
+          delete "remove_mailbox/:mailbox_id", action: :remove_mailbox
+          post :add_alias
+          delete "remove_alias/:alias_id", action: :remove_alias
+          post :start_migration
+          post :cancel
+          post :send_invite
         end
       end
 

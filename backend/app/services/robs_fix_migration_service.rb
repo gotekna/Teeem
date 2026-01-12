@@ -231,14 +231,14 @@ class RobsFixMigrationService
     nil
   end
 
-  # Ensure job has a SharePoint folder, return the folder ID
+  # Ensure job has a storage folder, return the folder ID
   def ensure_job_folder(job)
-    return job.sharepoint_folder_id if job.sharepoint_folder_id.present?
+    return job.storage_folder_id if job.storage_folder_id.present?
 
     # Try to find existing folder
     folder = @client.find_job_folder(job)
     if folder
-      job.update_column(:sharepoint_folder_id, folder["id"])
+      job.update_column(:storage_folder_id, folder["id"])
       return folder["id"]
     end
 

@@ -73,6 +73,7 @@ import { ThreadCountBadge } from "@/components/emails/ThreadCountBadge";
 import { QuickEmailActions } from "@/components/emails/QuickEmailActions";
 import { EmailContextMenu } from "@/components/emails/EmailContextMenu";
 import { EmailSummary } from "@/components/emails/EmailSummary";
+import { AttachmentList } from "@/components/emails/AttachmentList";
 import { useEmailKeyboardShortcuts } from "@/hooks/useEmailKeyboardShortcuts";
 import { useEmailSelection } from "@/hooks/useEmailSelection";
 import { useEmailBulkActions } from "@/hooks/useEmailBulkActions";
@@ -250,6 +251,7 @@ interface EmailAccount {
   is_default?: boolean;
   org_credential_id?: number;
   needs_mailbox_config?: boolean;
+  is_favorite?: boolean;
 }
 
 interface Pagination {
@@ -534,6 +536,7 @@ export default function EmailPage() {
 
   const [emails, setEmails] = useState<Email[]>([]);
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
+  const [showAllMailboxes, setShowAllMailboxes] = useState(false);  // Toggle to see all vs favorites only
   const [accountFolders, setAccountFolders] = useState<Record<string, EmailFolder[]>>({});
   const [folderOrder, setFolderOrder] = useState<Record<string, string[]>>({});
   const [loadingFolders, setLoadingFolders] = useState<Set<string>>(new Set());
@@ -1025,6 +1028,52 @@ export default function EmailPage() {
   useEffect(() => {
     fetchAccounts();
   }, []);
+
+  // Toggle mailbox favorite status
+  const toggleMailboxFavorite = useCallback(async (accountId: string) => {
+    // Find the account to get its current state for optimistic update
+    const account = accounts.find(a => String(a.id) === accountId);
+    const currentFavorite = account?.is_favorite ?? false;
+
+    // Optimistic update - immediately toggle the UI
+    setAccounts(prev => prev.map(a =>
+      String(a.id) === accountId
+        ? { ...a, is_favorite: !currentFavorite }
+        : a
+    ));
+
+    try {
+      const response = await api.post<{ success: boolean; data: { account_id: string; is_favorite: boolean } }>(
+        "/api/v1/imap_credentials/toggle_mailbox_favorite",
+        { account_id: accountId }
+      );
+      const isFavorite = response?.data?.is_favorite;
+      if (isFavorite !== undefined) {
+        // Confirm with server state (in case of any discrepancy)
+        setAccounts(prev => prev.map(a =>
+          String(a.id) === accountId
+            ? { ...a, is_favorite: isFavorite }
+            : a
+        ));
+        toast({
+          title: isFavorite ? "Added to favorites" : "Removed from favorites",
+          description: account?.email_address || account?.name,
+        });
+      }
+    } catch (error) {
+      // Revert optimistic update on error
+      setAccounts(prev => prev.map(a =>
+        String(a.id) === accountId
+          ? { ...a, is_favorite: currentFavorite }
+          : a
+      ));
+      console.error("Failed to toggle mailbox favorite:", error);
+      toast({
+        title: "Failed to update favorite",
+        variant: "destructive",
+      });
+    }
+  }, [accounts, toast]);
 
   // Handle URL account param changes (e.g., clicking different mailbox in nav)
   useEffect(() => {
@@ -1592,6 +1641,8 @@ To: ${email.to_emails?.join(", ") || ""}
               setSelectedAccount("all");
               setSelectedFolder("Inbox");
               setSelectedFolderId("ALL_INBOX");
+              // Update URL to be bookmarkable (remove account param for "all")
+              router.push("/email", { scroll: false });
             }}
             className={cn(
               "w-full flex items-center gap-2 px-1 py-1.5 text-sm hover:bg-muted/50 rounded-sm font-medium",
@@ -1604,37 +1655,76 @@ To: ${email.to_emails?.join(", ") || ""}
 
           <div className="border-b my-2" />
 
-          {/* Mailbox list - always show */}
+          {/* Mailbox list - show favorites or all based on toggle */}
           <div className="px-1 mb-2">
-            <div className="text-xs text-muted-foreground px-0.5 py-1 font-medium">Mailboxes</div>
-            {accounts.map((account) => (
+            <div className="flex items-center justify-between px-0.5 py-1">
+              <span className="text-xs text-muted-foreground font-medium">
+                {showAllMailboxes ? "All Mailboxes" : "Favorites"}
+              </span>
               <button
-                key={account.id}
-                onClick={() => {
-                  const accountId = String(account.id);
-                  setSelectedAccount(accountId);
-                  // Immediately set folder to Inbox when switching accounts
-                  // (don't wait for fetchFolders to complete - fixes race condition)
-                  setSelectedFolder("Inbox");
-                  setSelectedFolderId("");  // Clear old folder ID
-                  setExpandedAccounts(new Set([accountId]));
-                  fetchFolders(accountId, account, true);  // forceSelectInbox to update folder ID
-                }}
-                onDoubleClick={() => {
-                  // Open mailbox in a new dedicated fullscreen tab
-                  window.open(`/email?account=${account.id}&standalone=true`, '_blank');
-                }}
-                className={cn(
-                  "w-full flex items-center gap-2 px-1 py-1 text-sm hover:bg-muted/50 rounded-sm",
-                  selectedAccount === String(account.id) && "bg-primary/10 text-primary font-medium"
-                )}
+                onClick={() => setShowAllMailboxes(!showAllMailboxes)}
+                className="text-xs text-primary hover:underline"
               >
-                <Mail className="h-3.5 w-3.5 shrink-0" />
-                <span className="flex-1 text-left truncate text-sm">
-                  {account.email_address || account.name}
-                </span>
+                {showAllMailboxes ? "Show Favorites" : "Show All"}
               </button>
-            ))}
+            </div>
+            {(showAllMailboxes ? accounts : accounts.filter(a => a.is_favorite)).length === 0 ? (
+              <div className="px-2 py-2 text-xs text-muted-foreground">
+                {showAllMailboxes ? "No mailboxes" : "No favorites. Click 'Show All' to bookmark mailboxes."}
+              </div>
+            ) : (
+              (showAllMailboxes ? accounts : accounts.filter(a => a.is_favorite)).map((account) => (
+                <div
+                  key={account.id}
+                  className={cn(
+                    "group w-full flex items-center gap-1 px-1 py-1 text-sm hover:bg-muted/50 rounded-sm",
+                    selectedAccount === String(account.id) && "bg-primary/10 text-primary font-medium"
+                  )}
+                >
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleMailboxFavorite(String(account.id));
+                    }}
+                    className="shrink-0 p-0.5 hover:bg-muted rounded"
+                    title={account.is_favorite ? "Remove from favorites" : "Add to favorites"}
+                  >
+                    <Star
+                      className={cn(
+                        "h-3 w-3",
+                        account.is_favorite
+                          ? "fill-yellow-400 text-yellow-400"
+                          : "text-muted-foreground/50 group-hover:text-muted-foreground"
+                      )}
+                    />
+                  </button>
+                  <button
+                    onClick={() => {
+                      const accountId = String(account.id);
+                      setSelectedAccount(accountId);
+                      // Immediately set folder to Inbox when switching accounts
+                      // (don't wait for fetchFolders to complete - fixes race condition)
+                      setSelectedFolder("Inbox");
+                      setSelectedFolderId("");  // Clear old folder ID
+                      setExpandedAccounts(new Set([accountId]));
+                      fetchFolders(accountId, account, true);  // forceSelectInbox to update folder ID
+                      // Update URL to be bookmarkable
+                      router.push(`/email?account=${accountId}`, { scroll: false });
+                    }}
+                    onDoubleClick={() => {
+                      // Open mailbox in a new dedicated fullscreen tab
+                      window.open(`/email?account=${account.id}&standalone=true`, '_blank');
+                    }}
+                    className="flex-1 min-w-0 flex items-center gap-2 text-left"
+                  >
+                    <Mail className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate text-sm">
+                      {account.email_address || account.name}
+                    </span>
+                  </button>
+                </div>
+              ))
+            )}
           </div>
 
           {selectedAccount && selectedAccount !== "all" ? (
@@ -2032,14 +2122,10 @@ To: ${email.to_emails?.join(", ") || ""}
             {/* Attachments */}
             {selectedEmail.attachments && selectedEmail.attachments.length > 0 && (
               <div className="px-4 py-2 border-b bg-muted/30 shrink-0">
-                <div className="flex flex-wrap gap-2">
-                  {selectedEmail.attachments.map((att) => (
-                    <Badge key={att.id} variant="secondary" className="flex items-center gap-1">
-                      <Paperclip className="h-3 w-3" />
-                      {att.name}
-                    </Badge>
-                  ))}
-                </div>
+                <AttachmentList
+                  attachments={selectedEmail.attachments}
+                  emailId={selectedEmail.id}
+                />
               </div>
             )}
 
@@ -2206,14 +2292,10 @@ To: ${email.to_emails?.join(", ") || ""}
               {/* Attachments */}
               {popoutEmail.attachments && popoutEmail.attachments.length > 0 && (
                 <div className="py-2 border-b bg-muted/30 shrink-0">
-                  <div className="flex flex-wrap gap-2">
-                    {popoutEmail.attachments.map((att) => (
-                      <Badge key={att.id} variant="secondary" className="flex items-center gap-1">
-                        <Paperclip className="h-3 w-3" />
-                        {att.name}
-                      </Badge>
-                    ))}
-                  </div>
+                  <AttachmentList
+                    attachments={popoutEmail.attachments}
+                    emailId={popoutEmail.id}
+                  />
                 </div>
               )}
 

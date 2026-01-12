@@ -228,8 +228,8 @@ class CorporateCompany < ApplicationRecord
     group_name = corporate_group.name
     company_folder_name = "#{code.presence || name[0..2].upcase} - #{name}"
 
-    # SSoT: Get company folder path from CorporateCompanySetting
-    company_folder_path = CorporateCompanySetting.instance.sharepoint_company_path.presence || "Corporate"
+    # SSoT: Get company folder path from StorageConfiguration
+    company_folder_path = StorageConfiguration.instance.path_for(:corporate)
 
     # URL encode the path components
     encoded_path = [

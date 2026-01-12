@@ -250,7 +250,9 @@ class SyncEmailsToSharePointJob < ApplicationJob
     month = email_date.strftime("%m")
     # SSoT: Use centralized SharePoint path sanitization
     org_name = SharePoint::FilenameSanitizer.sanitize_path_segment(@credential.name)
-    "Emails/Attachments/#{org_name}/#{year}/#{month}"
+    # SSoT: Get base path from StorageConfiguration
+    base_path = StorageConfiguration.instance&.path_for(:email_attachments) || "Emails/attachments"
+    "#{base_path}/#{org_name}/#{year}/#{month}"
   end
 
   def sync_emails_to_sharepoint
@@ -321,10 +323,12 @@ class SyncEmailsToSharePointJob < ApplicationJob
   def upload_email_to_sharepoint(teeem_client, email, mime_content)
     sp_config = MicrosoftCredential.teeem_sharepoint_config
 
-    # Build folder path: Emails/eml/{org_name}/{year}/{month}
+    # SSoT: Build folder path from StorageConfiguration
     year = email.received_at.year
     month = email.received_at.strftime("%m")
-    folder_path = "Emails/eml/#{@credential.name}/#{year}/#{month}"
+    base_path = StorageConfiguration.instance&.path_for(:email) || "Emails/eml"
+    org_name = SharePoint::FilenameSanitizer.sanitize_path_segment(@credential.name)
+    folder_path = "#{base_path}/#{org_name}/#{year}/#{month}"
 
     # Build filename: {email_id}.eml
     filename = "#{email.id}.eml"

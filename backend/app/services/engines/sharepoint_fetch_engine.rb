@@ -21,10 +21,11 @@ module Engines
       folder_path = determine_folder_path(job)
       file_pattern = template.sharepoint_path || template.name
 
-      # Fetch from SharePoint
+      # SSoT: Get site_id/drive_id from StorageConfiguration, not template
+      storage_config = StorageConfiguration.instance
       graph_client = MicrosoftAppGraphClient.new
-      site_id = template.sharepoint_site_id
-      drive_id = template.sharepoint_drive_id
+      site_id = storage_config.site_id
+      drive_id = storage_config.drive_id
 
       # Navigate to the job folder and find the file
       content = graph_client.get_file_by_path(
@@ -49,10 +50,11 @@ module Engines
     private
 
     def determine_folder_path(job)
-      # Build path to job folder in SharePoint
-      # Format: "Jobs/JOB-123 - Project Name" or similar
+      # SSoT: Get jobs base path from StorageConfiguration
+      storage_config = StorageConfiguration.instance
+      jobs_base = storage_config.path_for(:jobs)
       job_folder_name = "#{job.job_number} - #{job.name}".truncate(100)
-      "Jobs/#{job_folder_name}"
+      "#{jobs_base}/#{job_folder_name}"
     end
   end
 end

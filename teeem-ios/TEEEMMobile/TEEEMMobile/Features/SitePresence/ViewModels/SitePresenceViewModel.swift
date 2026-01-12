@@ -40,6 +40,7 @@ class SitePresenceViewModel: NSObject, ObservableObject {
     private let apiClient = APIClient.shared
     private let cache = CacheManager.shared
     private let locationManager = CLLocationManager()
+    private let locationTracker = LocationTrackingManager.shared
 
     // MARK: - Location Status
 
@@ -163,6 +164,11 @@ class SitePresenceViewModel: NSObject, ObservableObject {
                 capturedPhotoUrl = nil
                 startTimer()
 
+                // Start live location tracking if enabled for this job
+                if job.liveTrackingEnabled == true || job.sitePresenceEnabled == true {
+                    locationTracker.startTracking(sessionId: session.id, job: job)
+                }
+
                 var message = "Checked in to \(job.name)"
                 if let verification = response.verification {
                     if verification.gpsVerified {
@@ -209,6 +215,9 @@ class SitePresenceViewModel: NSObject, ObservableObject {
 
             if response.success {
                 stopTimer()
+
+                // Stop live location tracking
+                locationTracker.stopTracking()
 
                 var message = "Checked out successfully"
                 if let updatedSession = response.session {

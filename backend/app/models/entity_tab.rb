@@ -12,7 +12,8 @@
 #
 class EntityTab < ApplicationRecord
   # Valid scopes (xero tabs are children of corporate_entity/xero tab)
-  SCOPES = %w[corporate_entity people job document contact].freeze
+  # System scopes (email, warehouse, task) are read-only in UI - is_system_tab: true
+  SCOPES = %w[corporate_entity people job document contact email warehouse task xero].freeze
 
   # Valid tab groups
   # - overview: Main features and data display
@@ -20,7 +21,8 @@ class EntityTab < ApplicationRecord
   # - reports: Xero reports (P&L, Balance Sheet, etc.)
   # - data: Xero data views (Accounts, Contacts, etc.)
   # - setup: Configuration tabs (Connection, Settings)
-  TAB_GROUPS = %w[overview documents reports data setup main].freeze
+  # - system: System-managed tabs (email storage, warehousing) - read-only in UI
+  TAB_GROUPS = %w[overview documents reports data setup main system].freeze
 
   # Display modes for tabs (SSoT: how tabs render in UI)
   # - both: Show icon + text (default)
@@ -38,8 +40,8 @@ class EntityTab < ApplicationRecord
   has_many :entity_tab_document_types, dependent: :destroy
   has_many :document_types, through: :entity_tab_document_types
 
-  # SSoT: Auto-inherit SharePoint folder flag from parent when document types assigned
-  before_save :inherit_sharepoint_from_parent
+  # SSoT: Auto-inherit storage folder flag from parent when document types assigned
+  before_save :inherit_storage_from_parent
 
   # SSoT: Auto-sync tab_key from display_name (display_name is the source of truth)
   before_validation :sync_tab_key_from_display_name
@@ -121,6 +123,24 @@ class EntityTab < ApplicationRecord
     tabs
   end
 
+  # SSoT: Get folder name for a tab by key
+  # Use this instead of hardcoding folder names like "04 Plans" or "Documents"
+  #
+  # @param scope [String] The scope (job, corporate_entity, etc.)
+  # @param tab_key [String] The tab key (plans, documents, photos, etc.)
+  # @param fallback [String] Fallback if tab not found (optional)
+  # @return [String] The display_name to use as folder name
+  #
+  # Examples:
+  #   EntityTab.folder_name_for("job", "plans")     # => "04 Plans" (from EntityTab)
+  #   EntityTab.folder_name_for("job", "documents") # => "Documents"
+  #   EntityTab.folder_name_for("job", "missing", "Fallback") # => "Fallback"
+  #
+  def self.folder_name_for(scope, tab_key, fallback = nil)
+    tab = find_by(scope: scope, tab_key: tab_key)
+    tab&.display_name || fallback
+  end
+
   # Check if this tab can be deleted
   def can_delete?
     return false if is_system_tab
@@ -138,16 +158,19 @@ class EntityTab < ApplicationRecord
       .count
   end
 
-  # Get the full SharePoint path for this tab
-  def full_sharepoint_path
-    return nil unless has_sharepoint_folder && sharepoint_folder_path.present?
+  # Get the full storage path for this tab
+  def full_storage_path
+    return nil unless has_storage_folder && storage_folder_path.present?
 
-    # Get base path from settings (SSoT: defaults to drive root, not "/Shared Documents")
-    config = CorporateCompanySetting.sharepoint_config rescue {}
-    base_path = config[:root_path] || ''
+    # Get base path from StorageConfiguration (SSoT)
+    config = StorageConfiguration.instance
+    base_path = config&.root_path || ''
 
-    "#{base_path}/#{sharepoint_folder_path}"
+    "#{base_path}/#{storage_folder_path}"
   end
+
+  # Alias for backwards compatibility
+  alias_method :full_sharepoint_path, :full_storage_path
 
   # SSoT: Template Inheritance for SharePoint Paths
   # ================================================
@@ -156,53 +179,79 @@ class EntityTab < ApplicationRecord
   PATH_TYPES = %w[corporate contacts].freeze
 
   # Map EntityTab scope to CorporateCompanySetting template scope
-  # For contact scope, uses sharepoint_path_type to determine which path
+  # For contact scope, uses storage_path_type to determine which path
   def scope_for_template
     case scope
     when 'job' then :job
     when 'corporate_entity' then :company
     when 'people', 'contact'
       # SSoT: For contacts, allow choosing between corporate (people) or contacts path
-      sharepoint_path_type == 'contacts' ? :contacts : :people
+      storage_path_type == 'contacts' ? :contacts : :people
+    when 'email' then :email
+    when 'warehouse' then :warehouse
+    when 'task' then :task
     else :job  # Default fallback
     end
   end
 
-  # Get the inherited template from CorporateCompanySetting (global config)
-  # This is what would be used if uses_custom_path is false
+  # Get the inherited template (default template based on scope)
+  # SSoT: EntityTab owns folder paths, this returns a sensible default
   def inherited_template
-    return nil unless has_sharepoint_folder
-    CorporateCompanySetting.sharepoint_template(scope_for_template)
+    return nil unless has_storage_folder
+
+    # Default templates per scope (if no custom path is set)
+    # Note: scope_for_template returns a symbol, convert to string
+    case scope_for_template.to_s
+    when "job", "jobs"
+      "{{JobCode}}/{{TabName}}"
+    when "corporate", "company"
+      "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}"
+    when "contact", "people"
+      "{{ContactName}}/{{TabName}}"
+    when "email"
+      "emails/eml/{{OrgName}}/{{Year}}/{{Month}}"
+    when "warehouse"
+      "Warehousing/{{TabName}}"
+    when "task"
+      "Tasks/Task-{{TaskId}}/{{Category}}"
+    else
+      "{{TabName}}"
+    end
   rescue => e
     Rails.logger.warn "[EntityTab] Failed to get inherited template: #{e.message}"
     nil
   end
 
-  # Get the SharePoint base path for this tab (used in UI preview)
-  def sharepoint_base_path
-    return nil unless has_sharepoint_folder
-    CorporateCompanySetting.sharepoint_full_path(scope_for_template)
+  # Get the storage base path for this tab (used in UI preview)
+  def storage_base_path
+    return nil unless has_storage_folder
+    config = StorageConfiguration.instance
+    return nil unless config
+    File.join(config.root_path, config.path_for(scope_for_template))
   rescue => e
     Rails.logger.warn "[EntityTab] Failed to get base path: #{e.message}"
     nil
   end
 
-  # Get the EFFECTIVE SharePoint path for this tab (for UI display)
-  # SSoT: Child tabs INHERIT from parent's path, not from global template directly
+  # Alias for backwards compatibility
+  alias_method :sharepoint_base_path, :storage_base_path
+
+  # Get the EFFECTIVE storage path for this tab (for UI display)
+  # SSoT: EntityTab owns folder paths. Child tabs INHERIT from parent.
   #
   # Inheritance chain:
-  #   CorporateCompanySetting.sharepoint_job_template → "{{JobCode}} {{TabName}}"
-  #   Photo (root tab) → "{{JobCode}} Photo"
-  #   Site Photo (child) → "{{JobCode}} Photo/Site Photo"  ← inherits parent + adds own name
-  def effective_sharepoint_path
-    return nil unless has_sharepoint_folder
+  #   inherited_template → "{{JobCode}}/{{TabName}}"  (default per scope)
+  #   Photo (root tab) → "{{JobCode}}/Photo"
+  #   Site Photo (child) → "{{JobCode}}/Photo/Site Photo"  ← inherits parent + adds own name
+  def effective_storage_path
+    return nil unless has_storage_folder
 
-    if uses_custom_path && sharepoint_folder_path.present?
+    if uses_custom_path && storage_folder_path.present?
       # Custom path - use exactly what's set
-      sharepoint_folder_path
-    elsif parent&.has_sharepoint_folder
+      storage_folder_path
+    elsif parent&.has_storage_folder
       # SSoT: INHERIT FROM PARENT - child path = parent path + "/" + display_name
-      parent_path = parent.effective_sharepoint_path
+      parent_path = parent.effective_storage_path
       return nil unless parent_path.present?
       "#{parent_path}/#{display_name}"
     else
@@ -218,10 +267,13 @@ class EntityTab < ApplicationRecord
     end
   end
 
+  # Alias for backwards compatibility
+  alias_method :effective_sharepoint_path, :effective_storage_path
+
   # Get the folder path for actual uploads (strips {{JobCode}} for job-scope tabs)
   # Use this when uploading files - the upload logic navigates to job folder separately
   def upload_folder_path
-    path = effective_sharepoint_path
+    path = effective_storage_path
     return nil unless path.present?
 
     # SSoT: For job-scope tabs, strip {{JobCode}} prefix since job folder is handled separately
@@ -232,10 +284,10 @@ class EntityTab < ApplicationRecord
     path.presence
   end
 
-  # Build hierarchy path - SSoT: Use sharepoint_folder_path when set
+  # Build hierarchy path - SSoT: Use storage_folder_path when set
   def hierarchy_path
-    # For document tabs with SharePoint paths, use the actual path (SSoT)
-    return sharepoint_folder_path if sharepoint_folder_path.present?
+    # For document tabs with storage paths, use the actual path (SSoT)
+    return storage_folder_path if storage_folder_path.present?
 
     # Fallback for tabs without SharePoint paths (overview tabs, etc.)
     scope_prefix = case scope
@@ -280,14 +332,14 @@ class EntityTab < ApplicationRecord
       hidden_by_default: hidden_by_default,      # SSoT: Tab hidden in overflow menu by default
       component_name: component_name,
       is_system_tab: is_system_tab,
-      has_sharepoint_folder: has_sharepoint_folder,
-      sharepoint_folder_path: sharepoint_folder_path,
-      full_sharepoint_path: full_sharepoint_path,
+      has_storage_folder: has_storage_folder,
+      storage_folder_path: storage_folder_path,
+      full_storage_path: full_storage_path,
       # SSoT: Template inheritance fields
       uses_custom_path: uses_custom_path,
-      sharepoint_path_type: sharepoint_path_type || 'corporate',
-      sharepoint_base_path: sharepoint_base_path,
-      effective_sharepoint_path: effective_sharepoint_path,  # For UI display (keeps {{JobCode}})
+      storage_path_type: storage_path_type || 'corporate',
+      storage_base_path: storage_base_path,
+      effective_storage_path: effective_storage_path,  # For UI display (keeps {{JobCode}})
       folder_path: upload_folder_path,  # For uploads (strips {{JobCode}} for job-scope tabs)
       inherited_template: inherited_template,
       hierarchy_path: hierarchy_path,
@@ -301,7 +353,14 @@ class EntityTab < ApplicationRecord
         display_name: dt.display_name,
         abbreviation: dt.abbreviation,
         file_name: dt.file_name
-      } }
+      } },
+      # Backwards compatibility aliases
+      has_sharepoint_folder: has_storage_folder,
+      sharepoint_folder_path: storage_folder_path,
+      full_sharepoint_path: full_storage_path,
+      sharepoint_path_type: storage_path_type || 'corporate',
+      sharepoint_base_path: storage_base_path,
+      effective_sharepoint_path: effective_storage_path
     }
   end
 
@@ -368,8 +427,8 @@ class EntityTab < ApplicationRecord
         tab.order_position = idx + 100
         tab.enabled = true
         tab.is_system_tab = true
-        tab.has_sharepoint_folder = true
-        tab.sharepoint_folder_path = name.upcase
+        tab.has_storage_folder = true
+        tab.storage_folder_path = name.upcase
       end
     end
 
@@ -451,8 +510,8 @@ class EntityTab < ApplicationRecord
         tab.order_position = idx
         tab.enabled = true
         tab.is_system_tab = true
-        tab.has_sharepoint_folder = true
-        tab.sharepoint_folder_path = name.upcase
+        tab.has_storage_folder = true
+        tab.storage_folder_path = name.upcase
       end
     end
   end
@@ -464,16 +523,16 @@ class EntityTab < ApplicationRecord
 
   private
 
-  # SSoT: Auto-inherit SharePoint folder settings from parent
-  # When a tab has document types AND has a parent with has_sharepoint_folder: true,
-  # automatically enable has_sharepoint_folder for this tab
-  def inherit_sharepoint_from_parent
-    return if has_sharepoint_folder  # Already enabled, skip
+  # SSoT: Auto-inherit storage folder settings from parent
+  # When a tab has document types AND has a parent with has_storage_folder: true,
+  # automatically enable has_storage_folder for this tab
+  def inherit_storage_from_parent
+    return if has_storage_folder  # Already enabled, skip
 
-    # Check if parent has SharePoint folder enabled
-    if parent&.has_sharepoint_folder
-      self.has_sharepoint_folder = true
-      Rails.logger.info "[EntityTab] Auto-inherited has_sharepoint_folder from parent '#{parent.display_name}' for tab '#{display_name}'"
+    # Check if parent has storage folder enabled
+    if parent&.has_storage_folder
+      self.has_storage_folder = true
+      Rails.logger.info "[EntityTab] Auto-inherited has_storage_folder from parent '#{parent.display_name}' for tab '#{display_name}'"
     end
   end
 
@@ -491,11 +550,11 @@ class EntityTab < ApplicationRecord
       .gsub(/^-|-$/, '')         # Remove leading/trailing hyphens
   end
 
-  # SSoT: When display_name changes, enqueue job to sync SharePoint folders and job_documents
+  # SSoT: When display_name changes, enqueue job to sync storage folders and job_documents
   # This ensures physical folders and database records match the tab configuration
   # Works for ALL scopes: job, corporate_entity, people, contact (unified folder rename system)
   def enqueue_folder_rename_if_needed
-    return unless has_sharepoint_folder
+    return unless has_storage_folder
     return unless saved_change_to_display_name?
 
     old_name, new_name = saved_change_to_display_name

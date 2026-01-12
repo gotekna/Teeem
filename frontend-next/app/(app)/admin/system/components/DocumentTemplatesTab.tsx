@@ -180,8 +180,8 @@ export function DocumentTemplatesTab({ innerTab: innerTabProp }: DocumentTemplat
         templates: qbccTemplates,
       },
       {
-        title: "SharePoint Sourced",
-        description: "Documents fetched from job folders in SharePoint",
+        title: "Cloud Storage Sourced",
+        description: "Documents fetched from job folders in cloud storage",
         icon: Cloud,
         templates: sharepointTemplates,
       },
@@ -420,7 +420,7 @@ export function DocumentTemplatesTab({ innerTab: innerTabProp }: DocumentTemplat
                         </div>
                       </div>
                       <Badge variant="outline" className="text-xs text-muted-foreground">
-                        {template.sharepoint_linked ? "SharePoint" : "Not Linked"}
+                        {template.sharepoint_linked ? "Cloud Storage" : "Not Linked"}
                       </Badge>
                     </div>
                   ))}

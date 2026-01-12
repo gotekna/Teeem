@@ -2208,7 +2208,7 @@ export default function DocumentPreviewModal({
                   </p>
                   <p className="text-sm mb-4 text-center">
                     {document.sharepoint_file_id
-                      ? "Could not load SharePoint preview."
+                      ? "Could not load cloud storage preview."
                       : "This file type cannot be previewed inline."}
                   </p>
                   {document.file_url && (

@@ -217,16 +217,19 @@ class PlanSetUploadJob < ApplicationJob
     job_folder = @client.find_job_folder(@job)
     raise "Job folder not found in SharePoint" unless job_folder
 
-    # Look for "04 Plans" subfolder
+    # SSoT: Get plans folder name from EntityTab
+    plans_folder_name = EntityTab.folder_name_for("job", "plans", "04 Plans")
+
+    # Look for plans subfolder
     response = @client.list_folder_items(job_folder["id"])
     items = response["value"] || []
-    plans_folder = items.find { |item| item["name"] == "04 Plans" && item["folder"].present? }
+    plans_folder = items.find { |item| item["name"] == plans_folder_name && item["folder"].present? }
 
     if plans_folder
       plans_folder["id"]
     else
-      # Create the 04 Plans folder
-      result = @client.create_folder("04 Plans", parent_id: job_folder["id"])
+      # Create the plans folder
+      result = @client.create_folder(plans_folder_name, parent_id: job_folder["id"])
       result["id"]
     end
   end

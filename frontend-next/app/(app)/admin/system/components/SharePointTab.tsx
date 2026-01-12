@@ -7,58 +7,80 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Cloud,
   CheckCircle2,
   AlertCircle,
-  FolderTree,
   Save,
   RefreshCw,
   ExternalLink,
   Info,
-  FileCode,
-  Briefcase,
-  Building2,
-  Users,
-  ClipboardList,
-  Folder,
   Settings,
+  HardDrive,
+  Database,
+  FolderTree,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
-import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
-import { TokenBuilder } from "@/components/ui/tokens";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import { Search, RotateCcw } from "lucide-react";
 
-interface SharePointConfig {
+// SSoT: Provider types match StorageConfiguration.PROVIDER_TYPES
+type ProviderType = "sharepoint" | "s3" | "wasabi" | "local";
+
+const PROVIDER_OPTIONS: { value: ProviderType; label: string; icon: React.ElementType; description: string }[] = [
+  { value: "sharepoint", label: "SharePoint", icon: Cloud, description: "Microsoft SharePoint / OneDrive for Business" },
+  { value: "wasabi", label: "Wasabi", icon: Database, description: "Wasabi Hot Cloud Storage (S3-compatible)" },
+  { value: "s3", label: "Amazon S3", icon: Cloud, description: "Amazon Simple Storage Service" },
+  { value: "local", label: "Local Storage", icon: HardDrive, description: "Local file system (development only)" },
+];
+
+// SSoT: StorageConfiguration handles CONNECTION + root path + scope folders
+// Individual tab folder paths are managed in EntityTab (Entity Configurator)
+interface ScopeFolders {
+  job: string;
+  corporate: string;
+  people: string;
+  users: string;
+  user_photos: string;
+  user_contracts: string;
+  my_docs: string;
+  contact: string;
+  email: string;
+  email_attachments: string;
+  warehouse: string;
+  task: string;
+  billinbox: string;
+  pricebook: string;
+  chat: string;
+  active_storage: string;
+  templates: string;
+  bank_statements: string;
+  contracts: string;
+}
+
+interface StorageConfig {
   configured: boolean;
+  provider_type: ProviderType;
+  status: string;
+  // SharePoint connection
   site_url: string | null;
   site_id: string | null;
   drive_id: string | null;
   drive_name: string | null;
+  // S3/Wasabi connection
+  endpoint: string | null;
+  bucket: string | null;
+  region: string | null;
+  // Root path and scope folders
   root_path: string;
-  paths: {
-    jobs: string;
-    tasks: string;
-    people: string;
-    company: string;
-    contacts: string;
-  };
-  templates: {
-    job: string;
-    task: string;
-    company: string;
-    people: string;
-    contacts: string;
-  };
+  scope_folders: ScopeFolders;
 }
 
 export function SharePointTab() {
@@ -66,31 +88,46 @@ export function SharePointTab() {
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [testing, setTesting] = React.useState(false);
-  const [config, setConfig] = React.useState<SharePointConfig | null>(null);
-  const [showBrowser, setShowBrowser] = React.useState<"root" | "jobs" | "tasks" | "company" | "people" | "contacts" | null>(null);
-  const [resetting, setResetting] = React.useState(false);
+  const [config, setConfig] = React.useState<StorageConfig | null>(null);
   const [formData, setFormData] = React.useState({
-    // Site configuration
+    // Provider type (SSoT)
+    provider_type: "sharepoint" as ProviderType,
+    // SharePoint configuration
     sharepoint_site_url: "",
     sharepoint_site_id: "",
     sharepoint_drive_id: "",
     sharepoint_drive_name: "",
-    // Folder paths - root path empty by default (SSoT: paths are relative to drive root)
+    // S3/Wasabi configuration
+    s3_endpoint: "",
+    s3_bucket: "",
+    s3_region: "",
+    // Root path
     sharepoint_root_path: "",
-    sharepoint_jobs_path: "Jobs",
-    sharepoint_tasks_path: "Tasks",
-    sharepoint_people_path: "Corporate/People",
-    sharepoint_company_path: "Corporate",
-    sharepoint_contacts_path: "Contacts",
-    // Path templates
-    sharepoint_job_template: "{{JobCode}}/{{Category}}",
-    sharepoint_task_template: "Task-{{TaskId}}/{{Category}}",
-    sharepoint_company_template: "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
-    sharepoint_people_template: "{{ContactName}}/{{Category}}",
-    sharepoint_contacts_template: "{{ContactName}}/{{Category}}",
+    // Scope folders (base folder per scope)
+    scope_folders: {
+      job: "Jobs",
+      corporate: "Corporate",
+      people: "Corporate/People",
+      users: "Users",
+      user_photos: "Users/Photos",
+      user_contracts: "Users/Contracts",
+      my_docs: "Users/MyDocs",
+      contact: "Contacts",
+      email: "Emails/eml",
+      email_attachments: "Emails/attachments",
+      warehouse: "Warehousing",
+      task: "Warehousing/Tasks",
+      billinbox: "Warehousing/BillInbox",
+      pricebook: "Warehousing/Pricebook Photos",
+      chat: "Warehousing/Chat",
+      active_storage: "ActiveStorage",
+      templates: "Warehousing/Templates",
+      bank_statements: "Warehousing/Templates/Bank Statements",
+      contracts: "Warehousing/Templates/Contracts",
+    } as ScopeFolders,
   });
 
-  // Load SharePoint config on mount
+  // Load storage config on mount
   React.useEffect(() => {
     loadConfig();
   }, []);
@@ -98,35 +135,42 @@ export function SharePointTab() {
   const loadConfig = async () => {
     try {
       setLoading(true);
-      const response = await api.get<{ success: boolean; data: SharePointConfig }>(
+      const response = await api.get<{ success: boolean; data: StorageConfig }>(
         "/api/v1/corporate_company_settings/sharepoint"
       );
       if (response?.success && response.data) {
         setConfig(response.data);
         setFormData({
+          // Provider type
+          provider_type: response.data.provider_type || "sharepoint",
+          // SharePoint connection
           sharepoint_site_url: response.data.site_url || "",
           sharepoint_site_id: response.data.site_id || "",
           sharepoint_drive_id: response.data.drive_id || "",
           sharepoint_drive_name: response.data.drive_name || "",
-          // SSoT: root path defaults to empty (drive root), not "/Shared Documents"
+          // S3/Wasabi connection
+          s3_endpoint: response.data.endpoint || "",
+          s3_bucket: response.data.bucket || "",
+          s3_region: response.data.region || "",
+          // Root path
           sharepoint_root_path: response.data.root_path || "",
-          sharepoint_jobs_path: response.data.paths?.jobs || "Jobs",
-          sharepoint_tasks_path: response.data.paths?.tasks || "Tasks",
-          sharepoint_people_path: response.data.paths?.people || "Corporate/People",
-          sharepoint_company_path: response.data.paths?.company || "Corporate",
-          sharepoint_contacts_path: response.data.paths?.contacts || "Contacts",
-          sharepoint_job_template: response.data.templates?.job || "{{JobCode}}/{{Category}}",
-          sharepoint_task_template: response.data.templates?.task || "Task-{{TaskId}}/{{Category}}",
-          sharepoint_company_template: response.data.templates?.company || "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
-          sharepoint_people_template: response.data.templates?.people || "{{ContactName}}/{{Category}}",
-          sharepoint_contacts_template: response.data.templates?.contacts || "{{ContactName}}/{{Category}}",
+          // Scope folders
+          scope_folders: response.data.scope_folders || {
+            job: "Jobs",
+            corporate: "Corporate",
+            people: "People",
+            contact: "Contacts",
+            email: "emails",
+            warehouse: "Warehousing",
+            task: "Tasks",
+          },
         });
       }
     } catch (error) {
-      console.error("Failed to load SharePoint config:", error);
+      console.error("Failed to load storage config:", error);
       toast({
         title: "Error",
-        description: "Failed to load SharePoint configuration",
+        description: "Failed to load storage configuration",
         variant: "destructive",
       });
     } finally {
@@ -137,21 +181,32 @@ export function SharePointTab() {
   const handleSave = async () => {
     try {
       setSaving(true);
-      const response = await api.patch<{ success: boolean; data: SharePointConfig }>(
+      // Include provider_type and S3/Wasabi fields in save
+      const response = await api.patch<{ success: boolean; data: StorageConfig }>(
         "/api/v1/corporate_company_settings/sharepoint",
-        { sharepoint: formData }
+        {
+          sharepoint: {
+            ...formData,
+            // Map S3/Wasabi fields to backend expected names
+            s3_endpoint: formData.s3_endpoint,
+            s3_bucket: formData.s3_bucket,
+            s3_region: formData.s3_region,
+          }
+        }
       );
       if (response?.success) {
         setConfig(response.data);
+        const providerLabel = PROVIDER_OPTIONS.find(p => p.value === formData.provider_type)?.label || "Storage";
         toast({
           title: "Saved",
-          description: "SharePoint configuration updated successfully",
+          description: `${providerLabel} configuration updated successfully`,
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { message?: string };
       toast({
         title: "Error",
-        description: error?.message || "Failed to save SharePoint configuration",
+        description: err?.message || "Failed to save storage configuration",
         variant: "destructive",
       });
     } finally {
@@ -168,19 +223,20 @@ export function SharePointTab() {
       if (response?.success) {
         toast({
           title: "Connection Successful",
-          description: `Connected to ${response.site?.name || "SharePoint"}`,
+          description: `Connected to ${response.site?.name || "cloud storage"}`,
         });
       } else {
         toast({
           title: "Connection Failed",
-          description: response?.error || "Could not connect to SharePoint",
+          description: response?.error || "Could not connect to storage",
           variant: "destructive",
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { message?: string };
       toast({
         title: "Connection Failed",
-        description: error?.message || "Could not connect to SharePoint",
+        description: err?.message || "Could not connect to storage",
         variant: "destructive",
       });
     } finally {
@@ -188,52 +244,8 @@ export function SharePointTab() {
     }
   };
 
-  const handleResetAllPaths = async () => {
-    if (!confirm("This will reset ALL tabs to use the default SSoT path templates. Tabs with custom paths will be updated to inherit from the template. Continue?")) {
-      return;
-    }
-    try {
-      setResetting(true);
-      const response = await api.post<{ success: boolean; updated_count: number }>("/api/v1/entity_tabs/reset_paths");
-      if (response?.success) {
-        toast({
-          title: "Paths Reset",
-          description: `${response.updated_count} tabs updated to use default paths`,
-        });
-      }
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error?.message || "Failed to reset paths",
-        variant: "destructive",
-      });
-    } finally {
-      setResetting(false);
-    }
-  };
-
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-  };
-
-  // Build full path preview
-  const getFullPath = (subPath: string, template?: string) => {
-    const root = formData.sharepoint_root_path.replace(/\/$/, "");
-    const sub = subPath.replace(/^\//, "").replace(/\/$/, "");
-    const tmpl = template ? `/${template.replace(/^\//, "")}` : "";
-    return `${root}/${sub}${tmpl}`.replace(/\/+/g, "/");
-  };
-
-  // Resolve template preview with example values
-  const resolveTemplatePreview = (template: string) => {
-    return template
-      .replace("{{JobCode}}", "JOB-001")
-      .replace("{{TaskId}}", "2236")
-      .replace("{{Category}}", "Responses")
-      .replace("{{CompanyGroup}}", "Tekna Group")
-      .replace("{{CompanyCode}}", "TEK")
-      .replace("{{TabName}}", "ASIC")
-      .replace("{{ContactName}}", "John Smith");
   };
 
   if (loading) {
@@ -244,14 +256,17 @@ export function SharePointTab() {
     );
   }
 
+  // Get current provider info
+  const currentProvider = PROVIDER_OPTIONS.find(p => p.value === formData.provider_type) || PROVIDER_OPTIONS[0];
+
   return (
     <div className="space-y-6">
-      {/* Header with Status */}
+      {/* Header with Provider Selector */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">SharePoint Configuration</h2>
+          <h2 className="text-lg font-semibold">Storage Configuration</h2>
           <p className="text-sm text-muted-foreground">
-            Single Source of Truth for all SharePoint document storage paths
+            Configure storage provider connection settings
           </p>
         </div>
         <Badge
@@ -275,533 +290,337 @@ export function SharePointTab() {
         </Badge>
       </div>
 
-      {/* Site Configuration */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Cloud className="h-4 w-4" />
-            SharePoint Site
-          </CardTitle>
-          <CardDescription>
-            Configure the SharePoint site where all documents will be stored
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="site_url">Site URL</Label>
-              <Input
-                id="site_url"
-                value={formData.sharepoint_site_url}
-                onChange={(e) => handleChange("sharepoint_site_url", e.target.value)}
-                placeholder="https://gotekna.sharepoint.com/sites/TEEEM"
-              />
-              <p className="text-xs text-muted-foreground">
-                The full URL to your SharePoint site
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="site_id">Site ID</Label>
-              <Input
-                id="site_id"
-                value={formData.sharepoint_site_id}
-                onChange={(e) => handleChange("sharepoint_site_id", e.target.value)}
-                placeholder="gotekna.sharepoint.com,abc123..."
-                className="font-mono text-xs"
-              />
-              <p className="text-xs text-muted-foreground">
-                Microsoft Graph Site ID (from API)
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="drive_id">Drive ID</Label>
-              <Input
-                id="drive_id"
-                value={formData.sharepoint_drive_id}
-                onChange={(e) => handleChange("sharepoint_drive_id", e.target.value)}
-                placeholder="b!abc123..."
-                className="font-mono text-xs"
-              />
-              <p className="text-xs text-muted-foreground">
-                Document Library Drive ID
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="drive_name">Drive Name</Label>
-              <Input
-                id="drive_name"
-                value={formData.sharepoint_drive_name}
-                onChange={(e) => handleChange("sharepoint_drive_name", e.target.value)}
-                placeholder="Shared Documents"
-              />
-              <p className="text-xs text-muted-foreground">
-                Display name of the document library
-              </p>
-            </div>
-          </div>
-
-          <div className="flex gap-2 pt-2">
-            <Button onClick={handleTest} disabled={testing || !formData.sharepoint_site_id}>
-              {testing ? (
-                <>
-                  <Spinner size={16} className="mr-2" />
-                  Testing...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Test Connection
-                </>
-              )}
-            </Button>
-            {formData.sharepoint_site_url && (
-              <Button variant="outline" asChild>
-                <a href={formData.sharepoint_site_url} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Open Site
-                </a>
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Document Paths - Two Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* LEFT COLUMN: Full List of All Paths */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <FolderTree className="h-4 w-4" />
-              All Paths (Full List)
-            </CardTitle>
-            <CardDescription>
-              Quick reference of all configured storage paths
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3 font-mono text-sm">
-              {/* Root */}
-              <div className="p-2 bg-muted/50 rounded border">
-                <div className="text-xs text-muted-foreground mb-1">Root Path</div>
-                <div className="text-foreground">{formData.sharepoint_root_path || "(drive root)"}</div>
-              </div>
-
-              {/* Jobs */}
-              <div className="flex items-start gap-2 p-2 rounded hover:bg-muted/30">
-                <Briefcase className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs text-muted-foreground">Jobs</div>
-                  <div className="text-foreground truncate">{getFullPath(formData.sharepoint_jobs_path)}</div>
-                </div>
-              </div>
-
-              {/* Tasks */}
-              <div className="flex items-start gap-2 p-2 rounded hover:bg-muted/30">
-                <ClipboardList className="h-4 w-4 text-cyan-500 mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs text-muted-foreground">Tasks</div>
-                  <div className="text-foreground truncate">{getFullPath(formData.sharepoint_tasks_path)}</div>
-                </div>
-              </div>
-
-              {/* Company */}
-              <div className="flex items-start gap-2 p-2 rounded hover:bg-muted/30">
-                <Building2 className="h-4 w-4 text-purple-500 mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs text-muted-foreground">Corporate</div>
-                  <div className="text-foreground truncate">{getFullPath(formData.sharepoint_company_path)}</div>
-                </div>
-              </div>
-
-              {/* People */}
-              <div className="flex items-start gap-2 p-2 rounded hover:bg-muted/30">
-                <Users className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs text-muted-foreground">Corporate People</div>
-                  <div className="text-foreground truncate">{getFullPath(formData.sharepoint_people_path)}</div>
-                </div>
-              </div>
-
-              {/* Contacts */}
-              <div className="flex items-start gap-2 p-2 rounded hover:bg-muted/30">
-                <Users className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs text-muted-foreground">Contacts</div>
-                  <div className="text-foreground truncate">{getFullPath(formData.sharepoint_contacts_path)}</div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* RIGHT COLUMN: Folder Structure Tree */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <FolderTree className="h-4 w-4" />
-              Folder Structure (Tree View)
-            </CardTitle>
-            <CardDescription>
-              Visual representation of folder hierarchy
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="font-mono text-sm space-y-1">
-              {/* Root */}
-              <div className="flex items-center gap-1">
-                <Folder className="h-4 w-4 text-yellow-600" />
-                <span className="font-medium">{formData.sharepoint_root_path || "/"}</span>
-              </div>
-
-              {/* Jobs branch */}
-              <div className="ml-4 border-l border-muted pl-3 space-y-1">
-                <div className="flex items-center gap-1 text-orange-600 dark:text-orange-400">
-                  <span className="text-muted-foreground">├─</span>
-                  <Briefcase className="h-3.5 w-3.5" />
-                  <span>{formData.sharepoint_jobs_path}</span>
-                </div>
-                <div className="ml-4 text-xs text-muted-foreground">
-                  <span className="text-muted-foreground/50">│  └─</span> {"{{JobCode}}/{{Category}}"}
-                </div>
-              </div>
-
-              {/* Tasks branch */}
-              <div className="ml-4 border-l border-muted pl-3 space-y-1">
-                <div className="flex items-center gap-1 text-cyan-600 dark:text-cyan-400">
-                  <span className="text-muted-foreground">├─</span>
-                  <ClipboardList className="h-3.5 w-3.5" />
-                  <span>{formData.sharepoint_tasks_path}</span>
-                </div>
-                <div className="ml-4 text-xs text-muted-foreground">
-                  <span className="text-muted-foreground/50">│  └─</span> Task-{"{{TaskId}}"}/{"{{Category}}"}
-                </div>
-              </div>
-
-              {/* Corporate branch */}
-              <div className="ml-4 border-l border-muted pl-3 space-y-1">
-                <div className="flex items-center gap-1 text-purple-600 dark:text-purple-400">
-                  <span className="text-muted-foreground">├─</span>
-                  <Building2 className="h-3.5 w-3.5" />
-                  <span>{formData.sharepoint_company_path}</span>
-                </div>
-                <div className="ml-4 text-xs text-muted-foreground">
-                  <span className="text-muted-foreground/50">│  └─</span> {"{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}"}
-                </div>
-
-                {/* People sub-branch (under Corporate) */}
-                {formData.sharepoint_people_path.startsWith(formData.sharepoint_company_path) && (
-                  <div className="ml-4 flex items-center gap-1 text-green-600 dark:text-green-400">
-                    <span className="text-muted-foreground/50">│  ├─</span>
-                    <Users className="h-3.5 w-3.5" />
-                    <span>People</span>
-                  </div>
-                )}
-              </div>
-
-              {/* People branch (if not under Corporate) */}
-              {!formData.sharepoint_people_path.startsWith(formData.sharepoint_company_path) && (
-                <div className="ml-4 border-l border-muted pl-3 space-y-1">
-                  <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
-                    <span className="text-muted-foreground">├─</span>
-                    <Users className="h-3.5 w-3.5" />
-                    <span>{formData.sharepoint_people_path}</span>
-                  </div>
-                  <div className="ml-4 text-xs text-muted-foreground">
-                    <span className="text-muted-foreground/50">│  └─</span> {"{{ContactName}}/{{Category}}"}
-                  </div>
-                </div>
-              )}
-
-              {/* Contacts branch */}
-              <div className="ml-4 border-l border-muted pl-3 space-y-1">
-                <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
-                  <span className="text-muted-foreground">└─</span>
-                  <Users className="h-3.5 w-3.5" />
-                  <span>{formData.sharepoint_contacts_path}</span>
-                </div>
-                <div className="ml-4 text-xs text-muted-foreground">
-                  <span className="text-muted-foreground/50">   └─</span> {"{{ContactName}}/{{Category}}"}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Path Configuration (Editable) */}
+      {/* Provider Selection */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Settings className="h-4 w-4" />
-            Edit Paths
+            Storage Provider
           </CardTitle>
           <CardDescription>
-            Configure base folders for each document type. All paths are relative to the root.
+            Select where documents will be stored
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Root Path */}
-          <div className="space-y-2 p-4 bg-muted/50 rounded-lg border">
-            <Label htmlFor="root_path" className="text-sm font-medium">
-              Root Path
-            </Label>
-            <div className="flex gap-2">
-              <Input
-                id="root_path"
-                value={formData.sharepoint_root_path}
-                onChange={(e) => handleChange("sharepoint_root_path", e.target.value)}
-                placeholder="/Shared Documents"
-                className="font-mono flex-1"
-              />
-              <Button variant="outline" size="icon" onClick={() => setShowBrowser("root")}>
-                <Search className="h-4 w-4" />
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <Info className="h-3 w-3" />
-              All paths below are relative to this root
-            </p>
-          </div>
-
-          {/* Sub-paths */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <CardContent>
+          <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="jobs_path" className="flex items-center gap-1">
-                <Briefcase className="h-3 w-3 text-orange-500" />
-                Job Documents
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  id="jobs_path"
-                  value={formData.sharepoint_jobs_path}
-                  onChange={(e) => handleChange("sharepoint_jobs_path", e.target.value)}
-                  placeholder="Jobs"
-                  className="flex-1"
-                />
-                <Button variant="outline" size="icon" onClick={() => setShowBrowser("jobs")}>
-                  <Search className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="tasks_path" className="flex items-center gap-1">
-                <ClipboardList className="h-3 w-3 text-cyan-500" />
-                Task Documents
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  id="tasks_path"
-                  value={formData.sharepoint_tasks_path}
-                  onChange={(e) => handleChange("sharepoint_tasks_path", e.target.value)}
-                  placeholder="Tasks"
-                  className="flex-1"
-                />
-                <Button variant="outline" size="icon" onClick={() => setShowBrowser("tasks")}>
-                  <Search className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="company_path" className="flex items-center gap-1">
-                <Building2 className="h-3 w-3 text-purple-500" />
-                Company Documents
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  id="company_path"
-                  value={formData.sharepoint_company_path}
-                  onChange={(e) => handleChange("sharepoint_company_path", e.target.value)}
-                  placeholder="Corporate"
-                  className="flex-1"
-                />
-                <Button variant="outline" size="icon" onClick={() => setShowBrowser("company")}>
-                  <Search className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="people_path" className="flex items-center gap-1">
-                <Users className="h-3 w-3 text-green-500" />
-                Corporate People
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  id="people_path"
-                  value={formData.sharepoint_people_path}
-                  onChange={(e) => handleChange("sharepoint_people_path", e.target.value)}
-                  placeholder="Corporate/People"
-                  className="flex-1"
-                />
-                <Button variant="outline" size="icon" onClick={() => setShowBrowser("people")}>
-                  <Search className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="contacts_path" className="flex items-center gap-1">
-                <Users className="h-3 w-3 text-blue-500" />
-                Contacts
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  id="contacts_path"
-                  value={formData.sharepoint_contacts_path}
-                  onChange={(e) => handleChange("sharepoint_contacts_path", e.target.value)}
-                  placeholder="Contacts"
-                  className="flex-1"
-                />
-                <Button variant="outline" size="icon" onClick={() => setShowBrowser("contacts")}>
-                  <Search className="h-4 w-4" />
-                </Button>
-              </div>
+              <Label>Provider</Label>
+              <Select
+                value={formData.provider_type}
+                onValueChange={(value: ProviderType) => handleChange("provider_type", value)}
+              >
+                <SelectTrigger className="w-full md:w-[300px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PROVIDER_OPTIONS.map((option) => {
+                    const Icon = option.icon;
+                    return (
+                      <SelectItem key={option.value} value={option.value}>
+                        <div className="flex items-center gap-2">
+                          <Icon className="h-4 w-4" />
+                          <span>{option.label}</span>
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {currentProvider.description}
+              </p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Path Templates */}
+      {/* SharePoint Connection - shown when provider is sharepoint */}
+      {formData.provider_type === "sharepoint" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Cloud className="h-4 w-4" />
+              SharePoint Site
+            </CardTitle>
+            <CardDescription>
+              Configure the SharePoint site where all documents will be stored
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="site_url">Site URL</Label>
+                <Input
+                  id="site_url"
+                  value={formData.sharepoint_site_url}
+                  onChange={(e) => handleChange("sharepoint_site_url", e.target.value)}
+                  placeholder="https://gotekna.sharepoint.com/sites/TEEEM"
+                />
+                <p className="text-xs text-muted-foreground">
+                  The full URL to your SharePoint site
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="site_id">Site ID</Label>
+                <Input
+                  id="site_id"
+                  value={formData.sharepoint_site_id}
+                  onChange={(e) => handleChange("sharepoint_site_id", e.target.value)}
+                  placeholder="gotekna.sharepoint.com,abc123..."
+                  className="font-mono text-xs"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Microsoft Graph Site ID (from API)
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="drive_id">Drive ID</Label>
+                <Input
+                  id="drive_id"
+                  value={formData.sharepoint_drive_id}
+                  onChange={(e) => handleChange("sharepoint_drive_id", e.target.value)}
+                  placeholder="b!abc123..."
+                  className="font-mono text-xs"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Document Library Drive ID
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="drive_name">Drive Name</Label>
+                <Input
+                  id="drive_name"
+                  value={formData.sharepoint_drive_name}
+                  onChange={(e) => handleChange("sharepoint_drive_name", e.target.value)}
+                  placeholder="Shared Documents"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Display name of the document library
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <Button onClick={handleTest} disabled={testing || !formData.sharepoint_site_id}>
+                {testing ? (
+                  <>
+                    <Spinner size={16} className="mr-2" />
+                    Testing...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Test Connection
+                  </>
+                )}
+              </Button>
+              {formData.sharepoint_site_url && (
+                <Button variant="outline" asChild>
+                  <a href={formData.sharepoint_site_url} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Open Site
+                  </a>
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* S3/Wasabi Connection - shown when provider is s3 or wasabi */}
+      {(formData.provider_type === "s3" || formData.provider_type === "wasabi") && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Database className="h-4 w-4" />
+              {formData.provider_type === "wasabi" ? "Wasabi" : "Amazon S3"} Connection
+            </CardTitle>
+            <CardDescription>
+              Configure the {formData.provider_type === "wasabi" ? "Wasabi" : "S3"} bucket where all documents will be stored
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="s3_endpoint">Endpoint URL</Label>
+                <Input
+                  id="s3_endpoint"
+                  value={formData.s3_endpoint}
+                  onChange={(e) => handleChange("s3_endpoint", e.target.value)}
+                  placeholder={formData.provider_type === "wasabi" ? "https://s3.wasabisys.com" : "https://s3.amazonaws.com"}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {formData.provider_type === "wasabi" ? "Wasabi endpoint (e.g., s3.wasabisys.com or s3.ap-southeast-2.wasabisys.com)" : "S3 endpoint URL"}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="s3_bucket">Bucket Name</Label>
+                <Input
+                  id="s3_bucket"
+                  value={formData.s3_bucket}
+                  onChange={(e) => handleChange("s3_bucket", e.target.value)}
+                  placeholder="my-documents-bucket"
+                />
+                <p className="text-xs text-muted-foreground">
+                  The name of your {formData.provider_type === "wasabi" ? "Wasabi" : "S3"} bucket
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="s3_region">Region</Label>
+                <Input
+                  id="s3_region"
+                  value={formData.s3_region}
+                  onChange={(e) => handleChange("s3_region", e.target.value)}
+                  placeholder={formData.provider_type === "wasabi" ? "ap-southeast-2" : "us-east-1"}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {formData.provider_type === "wasabi" ? "Wasabi region (e.g., ap-southeast-2 for Sydney)" : "AWS region (e.g., us-east-1)"}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-muted/50 rounded-lg border">
+              <p className="text-sm flex items-center gap-2">
+                <Info className="h-4 w-4 text-blue-500" />
+                <span>Credentials are configured in <strong>Admin → System → Connections</strong></span>
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Local Storage - shown when provider is local */}
+      {formData.provider_type === "local" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <HardDrive className="h-4 w-4" />
+              Local Storage
+            </CardTitle>
+            <CardDescription>
+              Store documents on the local file system (development only)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+              <p className="text-sm text-yellow-800 dark:text-yellow-200 flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" />
+                Local storage is for development only. Documents will be stored in the Rails storage directory.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Root Path Configuration */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <FileCode className="h-4 w-4" />
-            Path Templates (SSoT)
+            <Settings className="h-4 w-4" />
+            Root Path
           </CardTitle>
           <CardDescription>
-            Dynamic path templates using placeholders. Click tokens below to add them, drag to reorder.
+            Base path in the storage provider. All folder paths are relative to this root.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Templates */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <div className="flex items-center gap-1 text-sm font-medium">
-                <Briefcase className="h-3 w-3 text-orange-500" />
-                Job Template
-              </div>
-              <TokenBuilder
-                value={formData.sharepoint_job_template}
-                onChange={(value) => handleChange("sharepoint_job_template", value)}
-                scope="sharepoint"
-                showPreview={false}
-                placeholder="Click tokens below to build path..."
-              />
-              <div className="text-xs space-y-1">
-                <p className="text-muted-foreground">Full path preview:</p>
-                <p className="font-mono text-green-600 dark:text-green-400 break-all">
-                  {getFullPath(formData.sharepoint_jobs_path, resolveTemplatePreview(formData.sharepoint_job_template))}
-                </p>
-              </div>
-            </div>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="root_path">Root Path</Label>
+            <Input
+              id="root_path"
+              value={formData.sharepoint_root_path}
+              onChange={(e) => handleChange("sharepoint_root_path", e.target.value)}
+              placeholder="/ (drive root)"
+              className="font-mono"
+            />
+            <p className="text-xs text-muted-foreground">
+              Leave empty for drive root. For SharePoint, typically &quot;/Shared Documents&quot;.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
-            <div className="space-y-2">
-              <div className="flex items-center gap-1 text-sm font-medium">
-                <ClipboardList className="h-3 w-3 text-cyan-500" />
-                Task Template
-              </div>
-              <TokenBuilder
-                value={formData.sharepoint_task_template}
-                onChange={(value) => handleChange("sharepoint_task_template", value)}
-                scope="sharepoint"
-                showPreview={false}
-                placeholder="Click tokens below to build path..."
-              />
-              <div className="text-xs space-y-1">
-                <p className="text-muted-foreground">Full path preview:</p>
-                <p className="font-mono text-green-600 dark:text-green-400 break-all">
-                  {getFullPath(formData.sharepoint_tasks_path, resolveTemplatePreview(formData.sharepoint_task_template))}
+      {/* Scope Folders - Base folder name per scope */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <FolderTree className="h-4 w-4" />
+            Scope Folders
+          </CardTitle>
+          <CardDescription>
+            Base folder name for each entity type. Combined with Root Path to form the full base path.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[
+              { key: "job", label: "Jobs", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.job}` },
+              { key: "corporate", label: "Corporate", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.corporate}`, hint: "Sensitive company data" },
+              { key: "people", label: "People", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.people}`, hint: "Confidential employee data" },
+              { key: "users", label: "Users", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.users}` },
+              { key: "user_photos", label: "User Photos", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.user_photos}`, hint: "Profile photos/icons" },
+              { key: "user_contracts", label: "User Contracts", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.user_contracts}`, hint: "Employment contracts" },
+              { key: "my_docs", label: "MyDocs", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.my_docs}`, hint: "Personal document storage" },
+              { key: "contact", label: "Contacts", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.contact}`, hint: "External contacts, Xero invoices/bills" },
+              { key: "email", label: "Email EML", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.email}`, hint: "Raw .eml files" },
+              { key: "email_attachments", label: "Email Attachments", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.email_attachments}`, hint: "Email file attachments" },
+              { key: "warehouse", label: "Warehousing", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.warehouse}` },
+              { key: "task", label: "Tasks", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.task}` },
+              { key: "billinbox", label: "Bill Inbox", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.billinbox}`, hint: "AP invoices" },
+              { key: "pricebook", label: "Pricebook Photos", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.pricebook}` },
+              { key: "chat", label: "Chat", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.chat}`, hint: "Chat message files" },
+              { key: "active_storage", label: "Active Storage", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.active_storage}`, hint: "Rails file uploads" },
+              { key: "templates", label: "Templates", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.templates}` },
+              { key: "bank_statements", label: "Bank Statements", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.bank_statements}` },
+              { key: "contracts", label: "Contracts", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.contracts}` },
+            ].map(({ key, label, preview, hint }) => (
+              <div key={key} className="space-y-1">
+                <Label htmlFor={`scope_${key}`} className="text-xs">{label}</Label>
+                <Input
+                  id={`scope_${key}`}
+                  value={formData.scope_folders[key as keyof ScopeFolders] || ""}
+                  onChange={(e) => setFormData(prev => ({
+                    ...prev,
+                    scope_folders: { ...prev.scope_folders, [key]: e.target.value }
+                  }))}
+                  className="font-mono text-sm h-8"
+                />
+                <p className="text-[10px] text-muted-foreground font-mono truncate" title={preview}>
+                  → {preview.replace(/\/+/g, "/")}
                 </p>
               </div>
-              <p className="text-xs text-muted-foreground">
-                For standalone tasks (tasks without a job)
-              </p>
-            </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
-            <div className="space-y-2">
-              <div className="flex items-center gap-1 text-sm font-medium">
-                <Building2 className="h-3 w-3 text-purple-500" />
-                Company Template
-              </div>
-              <TokenBuilder
-                value={formData.sharepoint_company_template}
-                onChange={(value) => handleChange("sharepoint_company_template", value)}
-                scope="sharepoint"
-                showPreview={false}
-                placeholder="Click tokens below to build path..."
-              />
-              <div className="text-xs space-y-1">
-                <p className="text-muted-foreground">Full path preview:</p>
-                <p className="font-mono text-green-600 dark:text-green-400 break-all">
-                  {getFullPath(formData.sharepoint_company_path, resolveTemplatePreview(formData.sharepoint_company_template))}
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center gap-1 text-sm font-medium">
-                <Users className="h-3 w-3 text-green-500" />
-                Corporate People Template
-              </div>
-              <TokenBuilder
-                value={formData.sharepoint_people_template}
-                onChange={(value) => handleChange("sharepoint_people_template", value)}
-                scope="sharepoint"
-                showPreview={false}
-                placeholder="Click tokens below to build path..."
-              />
-              <div className="text-xs space-y-1">
-                <p className="text-muted-foreground">Full path preview:</p>
-                <p className="font-mono text-green-600 dark:text-green-400 break-all">
-                  {getFullPath(formData.sharepoint_people_path, resolveTemplatePreview(formData.sharepoint_people_template))}
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center gap-1 text-sm font-medium">
-                <Users className="h-3 w-3 text-blue-500" />
-                Contacts Template
-              </div>
-              <TokenBuilder
-                value={formData.sharepoint_contacts_template}
-                onChange={(value) => handleChange("sharepoint_contacts_template", value)}
-                scope="sharepoint"
-                showPreview={false}
-                placeholder="Click tokens below to build path..."
-              />
-              <div className="text-xs space-y-1">
-                <p className="text-muted-foreground">Full path preview:</p>
-                <p className="font-mono text-green-600 dark:text-green-400 break-all">
-                  {getFullPath(formData.sharepoint_contacts_path, resolveTemplatePreview(formData.sharepoint_contacts_template))}
-                </p>
-              </div>
-            </div>
+      {/* Folder Paths Note */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Info className="h-4 w-4 text-blue-500" />
+            Tab Folder Paths
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <p className="text-sm text-blue-800 dark:text-blue-200">
+              <strong>Individual tab folder paths are configured in the Entity Configurator.</strong>
+            </p>
+            <p className="text-sm text-blue-700 dark:text-blue-300 mt-2">
+              Use the scope tabs above (Jobs, Corporate, Contacts, etc.) to edit folder paths and templates for each tab.
+            </p>
           </div>
         </CardContent>
       </Card>
 
       {/* Action Buttons */}
-      <div className="flex justify-between">
-        <Button variant="outline" onClick={handleResetAllPaths} disabled={resetting}>
-          {resetting ? (
-            <>
-              <Spinner size={16} className="mr-2" />
-              Resetting...
-            </>
-          ) : (
-            <>
-              <RotateCcw className="mr-2 h-4 w-4" />
-              Reset All Tabs to Default Paths
-            </>
-          )}
-        </Button>
+      <div className="flex justify-end">
         <Button onClick={handleSave} disabled={saving}>
           {saving ? (
             <>
@@ -816,60 +635,6 @@ export function SharePointTab() {
           )}
         </Button>
       </div>
-
-      {/* SharePoint Folder Browser Sheet */}
-      {showBrowser && (
-        <Sheet open={true} onOpenChange={() => setShowBrowser(null)}>
-          <SheetContent side="right" className="w-[500px] sm:max-w-xl">
-            <SheetHeader>
-              <SheetTitle>
-                Select {showBrowser === "root" ? "Root" : showBrowser === "jobs" ? "Jobs" : showBrowser === "tasks" ? "Tasks" : showBrowser === "company" ? "Company" : showBrowser === "people" ? "People" : "Contacts"} Folder
-              </SheetTitle>
-              <SheetDescription>
-                Browse SharePoint to select a folder
-              </SheetDescription>
-            </SheetHeader>
-            <div className="mt-4 h-[calc(100vh-200px)] overflow-auto">
-              <SharePointFolderBrowser
-                onSelect={(folder, path) => {
-                  if (!path) return;
-                  if (showBrowser === "root") {
-                    handleChange("sharepoint_root_path", path);
-                  } else if (showBrowser === "jobs") {
-                    // Remove root path prefix if present
-                    const relativePath = path.startsWith(formData.sharepoint_root_path)
-                      ? path.slice(formData.sharepoint_root_path.length + 1)
-                      : path;
-                    handleChange("sharepoint_jobs_path", relativePath);
-                  } else if (showBrowser === "tasks") {
-                    const relativePath = path.startsWith(formData.sharepoint_root_path)
-                      ? path.slice(formData.sharepoint_root_path.length + 1)
-                      : path;
-                    handleChange("sharepoint_tasks_path", relativePath);
-                  } else if (showBrowser === "company") {
-                    const relativePath = path.startsWith(formData.sharepoint_root_path)
-                      ? path.slice(formData.sharepoint_root_path.length + 1)
-                      : path;
-                    handleChange("sharepoint_company_path", relativePath);
-                  } else if (showBrowser === "people") {
-                    const relativePath = path.startsWith(formData.sharepoint_root_path)
-                      ? path.slice(formData.sharepoint_root_path.length + 1)
-                      : path;
-                    handleChange("sharepoint_people_path", relativePath);
-                  } else if (showBrowser === "contacts") {
-                    const relativePath = path.startsWith(formData.sharepoint_root_path)
-                      ? path.slice(formData.sharepoint_root_path.length + 1)
-                      : path;
-                    handleChange("sharepoint_contacts_path", relativePath);
-                  }
-                  setShowBrowser(null);
-                }}
-                rootFolder=""
-              />
-            </div>
-          </SheetContent>
-        </Sheet>
-      )}
     </div>
   );
 }

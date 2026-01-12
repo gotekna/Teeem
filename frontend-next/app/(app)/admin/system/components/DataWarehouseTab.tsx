@@ -44,10 +44,12 @@ import {
   Building2,
   X,
   Users,
+  Settings,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { SharePointTab } from "./SharePointTab";
 
 interface WarehouseViewStatus {
   key: string;
@@ -133,10 +135,25 @@ interface OrgDataStats {
       body_preview_rate: number;
     };
   };
-  sharepoint: {
+  storage: {
+    provider_type: string;
+    provider_name: string;
     connected: boolean;
-    site_url: string | null;
-    site_path: string | null;
+    status: string;
+    connection_info: {
+      // SharePoint fields
+      site_url?: string;
+      site_id?: string;
+      drive_id?: string;
+      drive_name?: string;
+      // S3/Wasabi fields
+      endpoint?: string;
+      bucket?: string;
+      region?: string;
+      // Local fields
+      path?: string;
+    };
+    root_path: string;
     total_synced: number;
     last_sync: string | null;
   };
@@ -371,10 +388,17 @@ export function DataWarehouseTab() {
           size_by_company: 156000000,
           size_junk: 45000000,
         },
-        sharepoint: {
+        storage: {
+          provider_type: "wasabi",
+          provider_name: "Wasabi",
           connected: true,
-          site_url: "gotekna.sharepoint.com/sites/TEEEM",
-          site_path: "/Shared Documents",
+          status: "connected",
+          connection_info: {
+            endpoint: "s3.ap-southeast-2.wasabisys.com",
+            bucket: "teeem-documents",
+            region: "ap-southeast-2",
+          },
+          root_path: "/documents",
           total_synced: 1532,
           last_sync: new Date().toISOString(),
         },
@@ -602,6 +626,10 @@ export function DataWarehouseTab() {
           ))}
           <TabsTrigger value="browse">Browse Views</TabsTrigger>
           <TabsTrigger value="data">View Data</TabsTrigger>
+          <TabsTrigger value="storage-config" className="gap-1">
+            <Settings className="h-3 w-3" />
+            Storage Config
+          </TabsTrigger>
         </TabsList>
 
         {/* Browse Views Tab */}
@@ -864,6 +892,11 @@ export function DataWarehouseTab() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        {/* Storage Config Tab - Embeds the same component from Entity Configurator */}
+        <TabsContent value="storage-config" className="space-y-4">
+          <SharePointTab />
         </TabsContent>
 
         {/* Microsoft 365 Organization Tabs */}
@@ -1166,18 +1199,18 @@ export function DataWarehouseTab() {
 
       {/* Integrations Status */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* SharePoint */}
+        {/* Storage Provider (SSoT: provider-agnostic) */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <Cloud className="h-4 w-4" />
-              SharePoint
+              {stats.storage.provider_name}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Status</span>
-              {stats.sharepoint.connected ? (
+              {stats.storage.connected ? (
                 <Badge variant="default" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
                   <CheckCircle className="h-3 w-3 mr-1" />
                   Connected
@@ -1189,36 +1222,68 @@ export function DataWarehouseTab() {
                 </Badge>
               )}
             </div>
-            {stats.sharepoint.site_url && (
+            {/* Provider-specific connection info */}
+            {stats.storage.provider_type === "sharepoint" && stats.storage.connection_info.site_url && (
               <div className="flex flex-col gap-1">
                 <span className="text-sm text-muted-foreground">Site</span>
                 <span className="text-xs font-mono bg-muted px-2 py-1 rounded truncate">
-                  {stats.sharepoint.site_url}
+                  {stats.storage.connection_info.site_url}
                 </span>
               </div>
             )}
-            {stats.sharepoint.site_path && (
+            {(stats.storage.provider_type === "s3" || stats.storage.provider_type === "wasabi") && (
+              <>
+                {stats.storage.connection_info.endpoint && (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-sm text-muted-foreground">Endpoint</span>
+                    <span className="text-xs font-mono bg-muted px-2 py-1 rounded truncate">
+                      {stats.storage.connection_info.endpoint}
+                    </span>
+                  </div>
+                )}
+                {stats.storage.connection_info.bucket && (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-sm text-muted-foreground">Bucket</span>
+                    <span className="text-xs font-mono bg-muted px-2 py-1 rounded truncate">
+                      {stats.storage.connection_info.bucket}
+                    </span>
+                  </div>
+                )}
+              </>
+            )}
+            {stats.storage.root_path && (
               <div className="flex flex-col gap-1">
                 <span className="text-sm text-muted-foreground">Path</span>
                 <span className="text-xs font-mono bg-muted px-2 py-1 rounded truncate">
-                  {stats.sharepoint.site_path}
+                  {stats.storage.root_path}
                 </span>
               </div>
             )}
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Synced Files</span>
-              <span className="font-medium">{stats.sharepoint.total_synced.toLocaleString()}</span>
+              <span className="font-medium">{stats.storage.total_synced.toLocaleString()}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Last Sync</span>
-              <span className="text-sm">{formatDate(stats.sharepoint.last_sync)}</span>
+              <span className="text-sm">{formatDate(stats.storage.last_sync)}</span>
             </div>
-            <Button variant="outline" size="sm" className="w-full" asChild>
-              <Link href="/settings/integrations/microsoft" className="flex items-center justify-center">
-                <ExternalLink className="h-4 w-4 mr-2" />
-                Manage Integration
-              </Link>
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="flex-1" asChild>
+                <Link href="/settings/integrations/storage" className="flex items-center justify-center">
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Manage Storage
+                </Link>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1"
+                onClick={() => handleTabChange("storage-config")}
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                Configure Paths
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -1686,30 +1751,30 @@ export function DataWarehouseTab() {
           <CardContent>
             <div className="space-y-3">
               {Object.entries(stats.documents.by_source).map(([source, count]) => {
-                const isSharePoint = source === "onedrive";
-                const sharePointUrl = isSharePoint && stats.sharepoint.site_url
-                  ? `https://${stats.sharepoint.site_url}${stats.sharepoint.site_path || ''}`
+                const isCloudStorage = source === "onedrive";
+                const storageUrl = isCloudStorage && stats.storage.provider_type === "sharepoint" && stats.storage.connection_info.site_url
+                  ? `https://${stats.storage.connection_info.site_url}${stats.storage.root_path || ''}`
                   : null;
 
                 return (
                   <div key={source} className="flex items-center justify-between">
                     <div className="flex items-center gap-2 flex-1 min-w-0">
-                      {isSharePoint && <Cloud className="h-4 w-4 text-blue-500 flex-shrink-0" />}
+                      {isCloudStorage && <Cloud className="h-4 w-4 text-blue-500 flex-shrink-0" />}
                       {source === "upload" && <FolderOpen className="h-4 w-4 text-green-500 flex-shrink-0" />}
                       {source === "xero" && <BarChart3 className="h-4 w-4 text-cyan-500 flex-shrink-0" />}
                       {source === "email" && <Mail className="h-4 w-4 text-purple-500 flex-shrink-0" />}
                       <div className="flex flex-col min-w-0">
                         <span className="text-sm font-medium">
-                          {isSharePoint ? "SharePoint" : source.charAt(0).toUpperCase() + source.slice(1)}
+                          {isCloudStorage ? stats.storage.provider_name : source.charAt(0).toUpperCase() + source.slice(1)}
                         </span>
-                        {isSharePoint && stats.sharepoint.site_url && (
+                        {isCloudStorage && storageUrl && (
                           <a
-                            href={sharePointUrl || "#"}
+                            href={storageUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-xs text-blue-600 hover:text-blue-800 hover:underline truncate flex items-center gap-1"
                           >
-                            {stats.sharepoint.site_url}{stats.sharepoint.site_path}
+                            {stats.storage.connection_info.site_url}{stats.storage.root_path}
                             <ExternalLink className="h-3 w-3 flex-shrink-0" />
                           </a>
                         )}

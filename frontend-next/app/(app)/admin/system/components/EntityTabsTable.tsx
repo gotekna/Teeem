@@ -101,7 +101,7 @@ const GROUP_CONFIG = {
     label: "Document Folder Tabs",
     icon: FolderOpen,
     color: "blue",
-    description: "Document folders linked to SharePoint (BANK, ATO, ADVICE, etc.)"
+    description: "Document folders linked to cloud storage (BANK, ATO, ADVICE, etc.)"
   },
   special: {
     label: "Special Tabs",
@@ -151,9 +151,9 @@ export function EntityTabsTable() {
   // Load tabs from API
   const loadTabs = React.useCallback(async () => {
     try {
-      const response = await api.get<{ success: boolean; data: EntityTab[] }>("/api/v1/corporate/entity_tabs");
-      if (response.success && response.data) {
-        setTabs(response.data);
+      const response = await api.get<{ success: boolean; data: { tabs: EntityTab[] } }>("/api/v1/entity_tabs?scope=corporate_entity");
+      if (response.success && response.data?.tabs) {
+        setTabs(response.data.tabs);
       }
     } catch (error) {
       console.error("Failed to load entity tabs:", error);
@@ -168,6 +168,7 @@ export function EntityTabsTable() {
   }, [loadTabs]);
 
   // Load Xero feature tabs from API (SSoT: shows what Xero sub-tabs will be available)
+  // Note: This endpoint may not exist yet - fails silently
   const loadXeroFeatureTabs = React.useCallback(async () => {
     try {
       const response = await api.get<{
@@ -187,8 +188,8 @@ export function EntityTabsTable() {
       if (response.success && response.data) {
         setXeroFeatureTabs(response.data);
       }
-    } catch (error) {
-      console.error("Failed to load Xero feature tabs:", error);
+    } catch {
+      // Xero tabs endpoint may not exist - fail silently
     }
   }, []);
 
@@ -254,7 +255,7 @@ export function EntityTabsTable() {
       });
       await loadTabs();
       setEditingPath(null);
-      toast({ title: "Path updated", description: "SharePoint folder path saved" });
+      toast({ title: "Path updated", description: "Storage folder path saved" });
     } catch (error) {
       console.error("Failed to update path:", error);
       toast({ title: "Error", description: "Failed to update path", variant: "destructive" });

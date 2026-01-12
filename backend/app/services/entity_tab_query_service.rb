@@ -75,25 +75,25 @@ class EntityTabQueryService
       .count
   end
 
-  # Load SharePoint config once (eliminates 192 queries)
-  # SSoT: root_path defaults to empty string (drive root), not "/Shared Documents"
+  # Load storage config once (eliminates 192 queries)
+  # SSoT: Uses StorageConfiguration (not CorporateCompanySetting)
   def load_sharepoint_config
-    setting = CorporateCompanySetting.instance
+    config = StorageConfiguration.instance
     {
-      root_path: setting.sharepoint_root_path.presence || "",
+      root_path: config.root_path.presence || "",
       paths: {
-        job: setting.sharepoint_jobs_path.presence || "Jobs",
-        task: setting.sharepoint_tasks_path.presence || "Tasks",
-        people: setting.sharepoint_people_path.presence || "Corporate/People",
-        company: setting.sharepoint_company_path.presence || "Corporate",
-        contacts: setting.sharepoint_contacts_path.presence || "Contacts"
+        job: config.path_for(:jobs),
+        task: config.path_for(:tasks),
+        people: config.path_for(:people),
+        company: config.path_for(:corporate),
+        contacts: config.path_for(:contacts)
       },
       templates: {
-        job: setting.sharepoint_job_template.presence || "{{JobCode}}/{{Category}}",
-        task: setting.sharepoint_task_template.presence || "Task-{{TaskId}}/{{Category}}",
-        people: setting.sharepoint_people_template.presence || "{{ContactName}}/{{Category}}",
-        company: setting.sharepoint_company_template.presence || "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
-        contacts: setting.sharepoint_contacts_template.presence || "{{ContactName}}/{{Category}}"
+        job: config.template_for(:job),
+        task: config.template_for(:task),
+        people: config.template_for(:people),
+        company: config.template_for(:corporate),
+        contacts: config.template_for(:contacts)
       }
     }
   end
@@ -145,15 +145,22 @@ class EntityTabQueryService
       hidden_by_default: tab.hidden_by_default,
       component_name: tab.component_name,
       is_system_tab: tab.is_system_tab,
-      has_sharepoint_folder: tab.has_sharepoint_folder,
-      sharepoint_folder_path: tab.sharepoint_folder_path,
-      full_sharepoint_path: sharepoint_data[:full_path],
+      has_storage_folder: tab.has_storage_folder,
+      storage_folder_path: tab.storage_folder_path,
+      full_storage_path: sharepoint_data[:full_path],
       uses_custom_path: tab.uses_custom_path,
-      sharepoint_path_type: tab.sharepoint_path_type || 'corporate',
-      sharepoint_base_path: sharepoint_data[:base_path],
-      effective_sharepoint_path: sharepoint_data[:effective_path],
+      storage_path_type: tab.storage_path_type || 'corporate',
+      storage_base_path: sharepoint_data[:base_path],
+      effective_storage_path: sharepoint_data[:effective_path],
       folder_path: sharepoint_data[:upload_path],
       inherited_template: sharepoint_data[:inherited_template],
+      # Backwards compatibility aliases
+      has_sharepoint_folder: tab.has_storage_folder,
+      sharepoint_folder_path: tab.storage_folder_path,
+      full_sharepoint_path: sharepoint_data[:full_path],
+      sharepoint_path_type: tab.storage_path_type || 'corporate',
+      sharepoint_base_path: sharepoint_data[:base_path],
+      effective_sharepoint_path: sharepoint_data[:effective_path],
       hierarchy_path: compute_hierarchy_path(tab),
       document_count: doc_count,
       is_photo_category: tab.is_photo_category,
@@ -198,9 +205,9 @@ class EntityTabQueryService
     'Folder'  # Default
   end
 
-  # Compute all SharePoint-related paths
+  # Compute all storage-related paths
   def compute_sharepoint_data(tab)
-    return {} unless tab.has_sharepoint_folder
+    return {} unless tab.has_storage_folder
 
     scope_key = scope_for_template(tab)
     base_path = compute_base_path(scope_key)
@@ -213,7 +220,7 @@ class EntityTabQueryService
       inherited_template: inherited_template,
       effective_path: effective_path,
       upload_path: upload_path,
-      full_path: tab.sharepoint_folder_path.present? ? "#{@sharepoint_config[:root_path]}/#{tab.sharepoint_folder_path}" : nil
+      full_path: tab.storage_folder_path.present? ? "#{@sharepoint_config[:root_path]}/#{tab.storage_folder_path}" : nil
     }
   end
 
@@ -223,7 +230,7 @@ class EntityTabQueryService
     when 'job' then :job
     when 'corporate_entity' then :company
     when 'people', 'contact'
-      tab.sharepoint_path_type == 'contacts' ? :contacts : :people
+      tab.storage_path_type == 'contacts' ? :contacts : :people
     else :job
     end
   end
@@ -236,17 +243,17 @@ class EntityTabQueryService
     "#{@sharepoint_config[:root_path].chomp('/')}/#{sub_path.sub(/^\//, '')}"
   end
 
-  # Compute effective SharePoint path (handles parent inheritance)
+  # Compute effective storage path (handles parent inheritance)
   def compute_effective_path(tab, template)
-    return nil unless tab.has_sharepoint_folder
+    return nil unless tab.has_storage_folder
 
-    if tab.uses_custom_path && tab.sharepoint_folder_path.present?
+    if tab.uses_custom_path && tab.storage_folder_path.present?
       # Custom path - use exactly what's set
-      tab.sharepoint_folder_path
+      tab.storage_folder_path
     elsif tab.parent_id.present?
       # SSoT: Child tabs inherit from parent path
       parent = @tabs_by_id[tab.parent_id]
-      if parent&.has_sharepoint_folder
+      if parent&.has_storage_folder
         parent_template = @sharepoint_config.dig(:templates, scope_for_template(parent))
         parent_path = compute_effective_path(parent, parent_template)
         return nil unless parent_path.present?
@@ -284,7 +291,7 @@ class EntityTabQueryService
 
   # Compute hierarchy path
   def compute_hierarchy_path(tab)
-    return tab.sharepoint_folder_path if tab.sharepoint_folder_path.present?
+    return tab.storage_folder_path if tab.storage_folder_path.present?
 
     scope_prefix = case tab.scope
                    when 'corporate_entity' then 'Corporate'

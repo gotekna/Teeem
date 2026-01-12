@@ -6,37 +6,37 @@ module Api
       before_action :set_document, only: [ :show, :update, :destroy, :preview ]
 
       # GET /api/v1/documents/all
-      # Returns all documents across JobDocument, CorporateCompanyDocument, and PeopleDocument
-      # Used by the unified "All Documents" page
+      # Returns file counts for the entire warehouse (fast)
+      # Used by the File Warehouse page
+      # SSoT: Counts ALL file types - documents, emails, attachments
       def all
-        # Fetch from all three document sources with eager loading
-        job_docs = JobDocument.includes(:job, :document_type, :contact, :company)
-                              .where.not(file_name: nil)
-                              .order(created_at: :desc)
-                              .limit(5000)
+        # Document counts (records with actual files)
+        job_count = JobDocument.where.not(file_name: [nil, ""]).count
+        corp_count = CorporateCompanyDocument.where.not(file_name: [nil, ""]).count
+        people_count = PeopleDocument.where.not(title: [nil, ""]).count
 
-        corp_docs = CorporateCompanyDocument.includes(:corporate_company, :document_type_record, :contact)
-                                            .where.not(file_name: nil)
-                                            .order(created_at: :desc)
-                                            .limit(5000)
+        # Email counts (EML files stored)
+        email_eml_count = EmailWarehouse.where.not(sharepoint_email_path: [nil, ""]).count
 
-        people_docs = PeopleDocument.includes(:contact, :document_type_record)
-                                    .where.not(title: nil)
-                                    .order(created_at: :desc)
-                                    .limit(1000)
+        # Attachment counts (files stored)
+        attachment_count = EmailAttachment.where.not(sharepoint_path: [nil, ""]).count
+
+        total = job_count + corp_count + people_count + email_eml_count + attachment_count
 
         render json: {
           success: true,
           data: {
-            job_documents: job_docs.map { |d| serialize_job_doc(d) },
-            corporate_documents: corp_docs.map { |d| serialize_corp_doc(d) },
-            people_documents: people_docs.map { |d| serialize_people_doc(d) }
+            job_documents: [],
+            corporate_documents: [],
+            people_documents: []
           },
           counts: {
-            jobs: job_docs.size,
-            corporate: corp_docs.size,
-            people: people_docs.size,
-            total: job_docs.size + corp_docs.size + people_docs.size
+            jobs: job_count,
+            corporate: corp_count,
+            people: people_count,
+            emails: email_eml_count,
+            attachments: attachment_count,
+            total: total
           }
         }
       end
@@ -271,7 +271,7 @@ module Api
           displayName: doc.file_name,  # JobDocument doesn't have display_name
           mimeType: doc.mime_type || "application/octet-stream",
           fileSize: doc.file_size || 0,
-          fileUrl: doc.web_url,  # JobDocument uses web_url, not file_url
+          fileUrl: generate_download_url(doc),  # S3: presigned URL, SharePoint: web_url
           folderPath: doc.folder_path,
           storageProvider: doc.storage_provider,
           createdAt: doc.created_at&.iso8601,
@@ -300,7 +300,7 @@ module Api
           displayName: doc.display_name || doc.file_name,
           mimeType: doc.mime_type || "application/octet-stream",
           fileSize: doc.file_size || 0,
-          fileUrl: doc.file_url,  # CorporateCompanyDocument has file_url column
+          fileUrl: generate_download_url(doc),  # S3: presigned URL, SharePoint: file_url
           folderPath: doc.folder,
           storageProvider: doc.storage_provider,
           createdAt: doc.created_at&.iso8601,
@@ -347,6 +347,29 @@ module Api
       def image_file?(filename)
         return false unless filename.present?
         %w[.jpg .jpeg .png .gif .webp .heic .tiff .bmp].any? { |ext| filename.downcase.end_with?(ext) }
+      end
+
+      # Generate a download URL for a document based on its storage provider
+      # For S3 documents, generates a presigned URL
+      # For SharePoint documents, returns the web_url column
+      def generate_download_url(doc)
+        return nil unless doc.present?
+
+        if doc.storage_provider == 's3_compatible' && doc.storage_item_id.present?
+          # Generate presigned S3 URL (1 hour expiry)
+          begin
+            organization = Organization.first # Single-tenant
+            provider = DocumentProviders::S3Compatible.for_organization(organization)
+            provider.download_url(doc.storage_item_id, expires_in: 3600)
+          rescue => e
+            Rails.logger.warn "[Documents] Failed to generate S3 URL for #{doc.class.name}##{doc.id}: #{e.message}"
+            nil
+          end
+        else
+          # SharePoint - use stored URL column
+          # JobDocument uses web_url, CorporateCompanyDocument uses file_url
+          doc.respond_to?(:web_url) ? doc.web_url : doc.file_url
+        end
       end
     end
   end

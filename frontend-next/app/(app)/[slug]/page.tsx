@@ -12,6 +12,23 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertCircle, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { notFound } from "next/navigation";
+
+/**
+ * SSoT: Static routes that should NEVER be treated as Foundation slugs.
+ * If a slug matches one of these, the route should 404 (the actual page lives
+ * elsewhere and this catch-all shouldn't handle it).
+ *
+ * Why: Next.js routing can fall through to [slug] when deep paths under
+ * static routes don't exist (e.g., /settings/system/entity-config/foo
+ * matches [slug]=settings when /settings/system/entity-config/ doesn't exist).
+ */
+const STATIC_ROUTE_PREFIXES = [
+  "settings",
+  "admin",
+  // Note: Don't add foundation slugs here (jobs, contacts, etc.)
+  // Those are intentionally handled by this [slug] route
+];
 
 function PageSkeleton() {
   return (
@@ -46,6 +63,13 @@ function TablePageContent() {
   const router = useRouter();
 
   const rawSlug = params.slug as string;
+
+  // SSoT Guard: Prevent static routes from being treated as Foundation slugs
+  // This handles edge cases where Next.js routing falls through to [slug]
+  // when deep paths under static routes don't have explicit pages.
+  if (STATIC_ROUTE_PREFIXES.includes(rawSlug)) {
+    notFound();
+  }
 
   // Strip any legacy suffix if present (for backwards compatibility)
   const cleanSlug = stripUrlSuffix(rawSlug);

@@ -132,11 +132,9 @@ class OrganizationSharePointCredential < ApplicationRecord
     access_token.present? && refresh_token.present? && !token_expired?
   end
 
-  # Get the root folder path for all jobs (SSoT: from CorporateCompanySetting)
+  # Get the root folder path for all jobs (SSoT: from StorageConfiguration)
   def jobs_root_folder_path
-    root_folder_path.presence ||
-      CorporateCompanySetting.instance.sharepoint_jobs_path.presence ||
-      "Jobs"
+    root_folder_path.presence || StorageConfiguration.instance.path_for(:jobs)
   end
 
   # Get folder path for a specific construction/job

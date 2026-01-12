@@ -47,7 +47,7 @@ export function SharePointFolderPicker({
   open,
   onOpenChange,
   onSelect,
-  title = "Select SharePoint Folder",
+  title = "Select Storage Folder",
 }: SharePointFolderPickerProps) {
   const [folders, setFolders] = React.useState<FolderItem[]>([]);
   const [loading, setLoading] = React.useState(false);
@@ -77,7 +77,7 @@ export function SharePointFolderPicker({
       setFolders(response.folders || []);
       setCurrentFolderId(folderId);
     } catch (err) {
-      setError("Failed to load folders. Make sure SharePoint is connected.");
+      setError("Failed to load folders. Make sure cloud storage is connected.");
       console.error("Failed to load folders:", err);
     } finally {
       setLoading(false);
