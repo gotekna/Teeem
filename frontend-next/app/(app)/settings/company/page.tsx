@@ -31,6 +31,7 @@ import CompanyInfoTab from "@/app/(app)/admin/system/components/CompanyInfoTab";
 const COMPANY_TABS = [
   { id: "info", label: "Info" },
   { id: "brand-colors", label: "Brand Colors" },
+  { id: "brand-guidelines", label: "Brand Guidelines" },
   { id: "doc-templates", label: "Doc Templates" },
   { id: "security", label: "Security" },
   { id: "permissions", label: "Permissions" },
@@ -82,6 +83,9 @@ export default function CompanySettingsPage() {
           </TabsContent>
           <TabsContent value="brand-colors">
             <BrandColorsTab />
+          </TabsContent>
+          <TabsContent value="brand-guidelines">
+            <BrandGuidelinesTab />
           </TabsContent>
           <TabsContent value="security">
             <SecurityTab />

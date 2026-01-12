@@ -138,14 +138,14 @@ export default function SystemAdminLayout({
       {!isCompactTab && (
         <Tabs value={currentTab} onValueChange={handleTabChange} className="shrink-0 mb-4">
           <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent pb-2">
-            <TabsList className="inline-flex h-auto gap-1 bg-muted/50 p-1 w-max">
+            <TabsList className="inline-flex h-auto gap-1 bg-muted p-1 w-max rounded-lg">
               {MAIN_TABS.map((tab) => {
                 const Icon = tab.icon;
                 return (
                   <TabsTrigger
                     key={tab.id}
                     value={tab.id}
-                    className="text-xs sm:text-sm whitespace-nowrap flex items-center gap-1.5 data-[state=active]:bg-background"
+                    className="text-xs sm:text-sm whitespace-nowrap flex items-center gap-1.5 rounded-md px-3 py-1.5 text-foreground/70 hover:text-foreground hover:bg-background/50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
                   >
                     <Icon className="h-4 w-4" />
                     <span>{tab.label}</span>
