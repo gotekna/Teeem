@@ -479,14 +479,17 @@ module Api
           }
         end
 
-        # SharePoint stats
+        # Storage stats (provider-agnostic: SharePoint, S3, Wasabi, local)
         # SSoT: Use StorageConfiguration for all storage config
-        # MicrosoftCredential only provides auth tokens, not site/drive config
         storage_config = StorageConfiguration.instance rescue nil
-        sharepoint_stats = {
+        storage_stats = {
+          provider_type: storage_config&.provider_type || "sharepoint",
+          provider_name: storage_provider_display_name(storage_config),
           connected: storage_config&.connected? || false,
-          site_url: storage_config&.site_url || "SharePoint",
-          site_path: storage_config&.root_path || "/Shared Documents",
+          status: storage_config&.status || "disconnected",
+          # Provider-agnostic connection info
+          connection_info: storage_connection_info(storage_config),
+          root_path: storage_config&.root_path || "/Shared Documents",
           total_synced: documents.where(source: "onedrive").count,
           last_sync: documents.where(source: "onedrive").maximum(:last_modified_at)
         }
@@ -557,7 +560,7 @@ module Api
             document_types: doc_type_stats,
             emails: email_stats,
             corporate: corporate_stats,
-            sharepoint: sharepoint_stats,
+            storage: storage_stats,
             xero: xero_stats,
             job_documents: job_doc_stats,
             last_updated: Time.current
@@ -568,6 +571,51 @@ module Api
         Rails.cache.write(cache_key, result, expires_in: 10.minutes)
 
         render json: result.merge(from_cache: false)
+      end
+
+      private
+
+      # SSoT: Display name for storage provider
+      def storage_provider_display_name(config)
+        return "SharePoint" unless config
+
+        case config.provider_type
+        when "sharepoint" then "SharePoint"
+        when "s3" then "Amazon S3"
+        when "wasabi" then "Wasabi"
+        when "local" then "Local Storage"
+        else config.provider_type.titleize
+        end
+      end
+
+      # SSoT: Provider-specific connection info for display
+      def storage_connection_info(config)
+        return {} unless config
+
+        # Use effective_connection_info to get from stored config or credential
+        effective_config = config.respond_to?(:effective_connection_info) ? config.effective_connection_info : config.connection_config
+
+        case config.provider_type
+        when "sharepoint"
+          {
+            site_url: effective_config["site_url"] || config.site_url,
+            site_id: effective_config["site_id"] || config.site_id,
+            drive_id: effective_config["drive_id"] || config.drive_id,
+            drive_name: effective_config["drive_name"] || config.drive_name
+          }
+        when "s3", "wasabi"
+          {
+            endpoint: effective_config["endpoint"] || config.endpoint,
+            bucket: effective_config["bucket"] || config.bucket,
+            region: effective_config["region"] || config.region
+          }
+        when "local"
+          {
+            path: config.root_path
+          }
+        else
+          {}
+        end
       end
     end
   end

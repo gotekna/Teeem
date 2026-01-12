@@ -246,6 +246,63 @@ class StorageConfiguration < ApplicationRecord
     update!(connection_config: connection_config.merge(new_config))
   end
 
+  # Sync connection config from associated credential
+  # Call this when credential changes or is first set up
+  def sync_from_credential!
+    return unless credential
+
+    case credential
+    when MicrosoftCredential
+      update!(
+        provider_type: "sharepoint",
+        connection_config: connection_config.merge(
+          "site_id" => credential.sharepoint_site_id,
+          "drive_id" => credential.sharepoint_drive_id,
+          "site_url" => credential.respond_to?(:site_url) ? credential.site_url : nil,
+          "drive_name" => credential.respond_to?(:drive_name) ? credential.drive_name : "Shared Documents"
+        ).compact,
+        status: credential.connected? ? "connected" : "disconnected"
+      )
+    when S3CompatibleCredential
+      update!(
+        provider_type: credential.provider_type == "wasabi" ? "wasabi" : "s3",
+        connection_config: connection_config.merge(
+          "endpoint" => credential.endpoint,
+          "bucket" => credential.bucket,
+          "region" => credential.region
+        ).compact,
+        status: credential.status == "connected" ? "connected" : "disconnected"
+      )
+    end
+  end
+
+  # Get connection info for display (syncs from credential if empty)
+  def effective_connection_info
+    # If we have stored connection_config, use it
+    return connection_config if connection_config.present? && connection_config.keys.any?
+
+    # Otherwise, try to get from associated credential
+    return {} unless credential
+
+    case credential
+    when MicrosoftCredential
+      {
+        "site_id" => credential.sharepoint_site_id,
+        "drive_id" => credential.sharepoint_drive_id,
+        "site_url" => credential.respond_to?(:site_url) ? credential.site_url : nil,
+        "drive_name" => credential.respond_to?(:drive_name) ? credential.drive_name : "Shared Documents"
+      }.compact
+    when S3CompatibleCredential
+      {
+        "endpoint" => credential.endpoint,
+        "bucket" => credential.bucket,
+        "region" => credential.region
+      }.compact
+    else
+      {}
+    end
+  end
+
   # ========================================
   # Provider Helpers
   # ========================================
