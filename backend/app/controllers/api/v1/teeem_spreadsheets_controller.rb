@@ -6,8 +6,18 @@ module Api
       before_action :set_spreadsheet, only: [:show, :update, :destroy, :export]
 
       # GET /api/v1/teeem_spreadsheets
+      # Optional params:
+      #   - job_id: filter by job (returns spreadsheets attached to this job)
+      #   - unattached: if "true", returns only spreadsheets not attached to any job
       def index
         spreadsheets = current_user.teeem_spreadsheets.user_spreadsheets.recent
+
+        # Filter by job if specified
+        if params[:job_id].present?
+          spreadsheets = spreadsheets.for_job(params[:job_id])
+        elsif params[:unattached] == "true"
+          spreadsheets = spreadsheets.unattached
+        end
 
         render json: {
           success: true,
@@ -100,15 +110,18 @@ module Api
       end
 
       def spreadsheet_params
-        params.require(:teeem_spreadsheet).permit(:name, :is_template, data: {})
+        params.require(:teeem_spreadsheet).permit(:name, :is_template, :job_id, :description, data: {})
       end
 
       def spreadsheet_summary(spreadsheet)
         {
           id: spreadsheet.id,
           name: spreadsheet.name,
+          description: spreadsheet.description,
           isTemplate: spreadsheet.is_template,
           sheetCount: spreadsheet.data["sheets"]&.length || 0,
+          jobId: spreadsheet.job_id,
+          jobName: spreadsheet.job&.name,
           updatedAt: spreadsheet.updated_at.iso8601,
           createdAt: spreadsheet.created_at.iso8601
         }
@@ -118,8 +131,11 @@ module Api
         {
           id: spreadsheet.id,
           name: spreadsheet.name,
+          description: spreadsheet.description,
           isTemplate: spreadsheet.is_template,
           data: spreadsheet.data,
+          jobId: spreadsheet.job_id,
+          jobName: spreadsheet.job&.name,
           updatedAt: spreadsheet.updated_at.iso8601,
           createdAt: spreadsheet.created_at.iso8601
         }
