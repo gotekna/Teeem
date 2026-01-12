@@ -29,7 +29,7 @@ module Api
         template_count = DocumentTemplate.where.not(sharepoint_path: [nil, ""]).count rescue 0
 
         # Pricebook images (product photos)
-        pricebook_image_count = Pricebook.where.not(image_file_id: nil).count rescue 0
+        pricebook_image_count = PricebookItem.where.not(image_file_id: nil).count rescue 0
 
         total = job_count + corp_count + people_count + email_eml_count + email_attachment_count + task_doc_count + template_count + pricebook_image_count
 
