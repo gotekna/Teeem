@@ -207,7 +207,7 @@ export function CaseDocumentsTab({ caseId, caseNumber }: CaseDocumentsTabProps) 
               onClick={() => window.open(caseFolderInfo.web_url!, "_blank")}
             >
               <ExternalLink className="h-4 w-4 mr-2" />
-              Open in SharePoint
+              Open in Storage
             </Button>
           )}
         </CardHeader>
@@ -225,7 +225,7 @@ export function CaseDocumentsTab({ caseId, caseNumber }: CaseDocumentsTabProps) 
                   {caseFolderInfo.folder_path}
                 </p>
                 <p className="text-xs text-green-600 dark:text-green-400">
-                  Folder created in SharePoint
+                  Folder created in cloud storage
                 </p>
               </div>
             </div>
@@ -362,7 +362,7 @@ export function CaseDocumentsTab({ caseId, caseNumber }: CaseDocumentsTabProps) 
               <div className="text-center py-4 text-muted-foreground">
                 <FolderInput className="h-6 w-6 mx-auto mb-2 opacity-50" />
                 <p className="text-sm">No source folders selected</p>
-                <p className="text-xs mt-1">Add folders from SharePoint to scan for documents</p>
+                <p className="text-xs mt-1">Add folders from cloud storage to scan for documents</p>
               </div>
             )
           ) : (

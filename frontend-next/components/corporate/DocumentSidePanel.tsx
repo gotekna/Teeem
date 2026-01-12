@@ -268,7 +268,7 @@ export default function DocumentSidePanel({
                 </p>
                 <p className="text-sm text-center mb-4">
                   {document.sharepoint_file_id
-                    ? "Could not load SharePoint preview"
+                    ? "Could not load cloud storage preview"
                     : "This file type cannot be previewed inline"}
                 </p>
                 <div className="flex gap-2">

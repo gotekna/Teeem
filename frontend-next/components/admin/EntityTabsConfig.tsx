@@ -591,7 +591,7 @@ export function EntityTabsConfig({
             newName: formData.display_name || "",
             tabId: editingTab.id,
           });
-          toast.success("Tab updated - SharePoint folder rename queued");
+          toast.success("Tab updated - Storage folder rename queued");
         } else {
           toast.success("Tab updated");
         }

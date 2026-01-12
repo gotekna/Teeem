@@ -246,6 +246,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
     # SSoT: Use same positions as navigation sidebar for consistent ordering
     saved_positions = current_user.email_nav_positions || {}
     fallback_position = 1000
+    # SSoT: Get user's favorite mailbox IDs
+    favorite_ids = EmailMailboxFavorite.favorited_account_ids(current_user.id)
 
     # Add connected Microsoft 365 organization accounts
     # These use Application permissions to access mailboxes
@@ -284,7 +286,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
           is_active: org_cred.status == "connected",
           is_default: is_primary_account,
           org_credential_id: org_cred.id,
-          position: saved_positions[account_id] || (fallback_position += 1)
+          position: saved_positions[account_id] || (fallback_position += 1),
+          is_favorite: favorite_ids.include?(account_id)
         }
       end
     end
@@ -306,7 +309,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
         owner_name: is_shared ? cred.user&.name : nil,
         email_signature: cred.email_signature,
         email_aliases: cred.email_aliases || [],
-        position: saved_positions[account_id] || (fallback_position += 1)
+        position: saved_positions[account_id] || (fallback_position += 1),
+        is_favorite: favorite_ids.include?(account_id)
       }
     end
 
@@ -656,6 +660,30 @@ class Api::V1::ImapCredentialsController < ApplicationController
     render json: {
       success: true,
       data: { folder_ids: folder_ids }
+    }
+  end
+
+  # POST /api/v1/imap_credentials/toggle_mailbox_favorite
+  # Toggle a mailbox as favorite/bookmarked
+  # Only favorited mailboxes appear in sidebar by default
+  def toggle_mailbox_favorite
+    account_id = params[:account_id]
+
+    if account_id.blank?
+      return render json: {
+        success: false,
+        error: "account_id is required"
+      }, status: :unprocessable_entity
+    end
+
+    is_favorite = EmailMailboxFavorite.toggle!(current_user.id, account_id)
+
+    render json: {
+      success: true,
+      data: {
+        account_id: account_id,
+        is_favorite: is_favorite
+      }
     }
   end
 

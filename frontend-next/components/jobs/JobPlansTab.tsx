@@ -839,7 +839,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
                   window.open(`https://teeemptyltd.sharepoint.com/sites/TEEEM/Shared%20Documents/TEEEM%20Jobs/${jobCode}/Plans`, "_blank");
                 }}>
                   <ExternalLink className="h-4 w-4 mr-2" />
-                  Open SharePoint Folder
+                  Open Storage Folder
                 </DropdownMenuItem>
                 {(selectedPlan?.current_revision?.sharepoint_file_id || selectedPlanIds.length > 0) && (
                   <DropdownMenuItem onClick={() => {

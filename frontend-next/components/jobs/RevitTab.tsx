@@ -436,7 +436,7 @@ export function RevitTab({ jobId, jobTitle }: RevitTabProps) {
           {browseState.rootFolderUrl && (
             <Button variant="outline" size="sm" onClick={handleOpenInSharePoint}>
               <ExternalLink className="h-4 w-4 mr-2" />
-              Open in SharePoint
+              Open in Storage
             </Button>
           )}
         </div>

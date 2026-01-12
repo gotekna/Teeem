@@ -684,7 +684,7 @@ export function TypesSection() {
           {editingDefaults ? (
             <div className="space-y-4">
               <TokenBuilder
-                label="Default Short Name Template (SharePoint filename)"
+                label="Default Short Name Template (Storage filename)"
                 value={globalDefaults.short_name_template}
                 onChange={(value) => setGlobalDefaults({ ...globalDefaults, short_name_template: value })}
                 placeholders={PLAN_TYPE_PLACEHOLDERS}
@@ -706,7 +706,7 @@ export function TypesSection() {
                   Variant: "a",
                   ProjectName: "Wategors Estate",
                 }}
-                helpText="Used for SharePoint file naming"
+                helpText="Used for storage file naming"
               />
               <TokenBuilder
                 label="Default Long Name Template (Display Name)"
@@ -947,7 +947,7 @@ export function TypesSection() {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <TokenBuilder
-                    label="Short Name Template (SharePoint filename)"
+                    label="Short Name Template (Storage filename)"
                     value={formData.short_name_template}
                     onChange={(value) => setFormData({ ...formData, short_name_template: value })}
                     placeholders={PLAN_TYPE_PLACEHOLDERS}

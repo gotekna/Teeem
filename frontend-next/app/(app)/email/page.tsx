@@ -250,6 +250,7 @@ interface EmailAccount {
   is_default?: boolean;
   org_credential_id?: number;
   needs_mailbox_config?: boolean;
+  is_favorite?: boolean;
 }
 
 interface Pagination {
@@ -534,6 +535,7 @@ export default function EmailPage() {
 
   const [emails, setEmails] = useState<Email[]>([]);
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
+  const [showAllMailboxes, setShowAllMailboxes] = useState(false);  // Toggle to see all vs favorites only
   const [accountFolders, setAccountFolders] = useState<Record<string, EmailFolder[]>>({});
   const [folderOrder, setFolderOrder] = useState<Record<string, string[]>>({});
   const [loadingFolders, setLoadingFolders] = useState<Set<string>>(new Set());
@@ -1024,6 +1026,26 @@ export default function EmailPage() {
 
   useEffect(() => {
     fetchAccounts();
+  }, []);
+
+  // Toggle mailbox favorite status
+  const toggleMailboxFavorite = useCallback(async (accountId: string) => {
+    try {
+      const response = await api.post<{ success: boolean; data: { account_id: string; is_favorite: boolean } }>(
+        "/api/v1/imap_credentials/toggle_mailbox_favorite",
+        { account_id: accountId }
+      );
+      if (response.data?.is_favorite !== undefined) {
+        // Update accounts state with new favorite status
+        setAccounts(prev => prev.map(a =>
+          String(a.id) === accountId
+            ? { ...a, is_favorite: response.data.is_favorite }
+            : a
+        ));
+      }
+    } catch (error) {
+      console.error("Failed to toggle mailbox favorite:", error);
+    }
   }, []);
 
   // Handle URL account param changes (e.g., clicking different mailbox in nav)

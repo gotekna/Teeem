@@ -101,7 +101,7 @@ const GROUP_CONFIG = {
     label: "Document Folder Tabs",
     icon: FolderOpen,
     color: "blue",
-    description: "Document folders linked to SharePoint (BANK, ATO, ADVICE, etc.)"
+    description: "Document folders linked to cloud storage (BANK, ATO, ADVICE, etc.)"
   },
   special: {
     label: "Special Tabs",

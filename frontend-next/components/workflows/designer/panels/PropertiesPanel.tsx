@@ -398,7 +398,7 @@ function ServiceTaskProperties({
                 </Badge>
                 {selectedTemplate.sharepoint_linked ? (
                   <Badge variant="default" className="bg-green-600 text-xs">
-                    SharePoint Linked
+                    Storage Linked
                   </Badge>
                 ) : (
                   <Badge variant="destructive" className="text-xs">
@@ -420,7 +420,7 @@ function ServiceTaskProperties({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="job_documents">Job Documents Folder</SelectItem>
-                <SelectItem value="sharepoint">SharePoint (same location as template)</SelectItem>
+                <SelectItem value="sharepoint">Cloud Storage (same location as template)</SelectItem>
                 <SelectItem value="email_attachment">Email as Attachment</SelectItem>
               </SelectContent>
             </Select>
