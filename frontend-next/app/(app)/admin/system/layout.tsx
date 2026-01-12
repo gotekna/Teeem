@@ -138,7 +138,7 @@ export default function SystemAdminLayout({
       {!isCompactTab && (
         <Tabs value={currentTab} onValueChange={handleTabChange} className="shrink-0 mb-4">
           <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent pb-2">
-            <TabsList className="inline-flex h-auto gap-1 bg-muted p-1 w-max rounded-lg">
+            <TabsList className="h-auto gap-1 w-max">
               {MAIN_TABS.map((tab) => {
                 const Icon = tab.icon;
                 return (
