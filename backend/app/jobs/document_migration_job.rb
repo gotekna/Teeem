@@ -101,9 +101,22 @@ class DocumentMigrationJob < ApplicationJob
       # Step 1: Get source provider
       source_provider = get_provider(source_provider_type, organization)
 
-      # Step 2: Download file content from source
+      # Step 2: Determine download reference
+      # Primary: storage_reference (file ID or path)
+      # Fallback: expected_sharepoint_path (for Xero-imported docs without file_url)
+      download_ref = document.storage_reference.presence
+      if download_ref.blank? && document.respond_to?(:expected_sharepoint_path)
+        download_ref = document.expected_sharepoint_path
+        Rails.logger.info "[DocumentMigration] Using expected_sharepoint_path: #{download_ref}"
+      end
+
+      if download_ref.blank?
+        raise StandardError, "No storage reference or expected path available for download"
+      end
+
+      # Step 3: Download file content from source
       Rails.logger.info "[DocumentMigration] Downloading from #{source_provider_type}..."
-      content = source_provider.download_file(document.storage_reference)
+      content = source_provider.download_file(download_ref)
 
       unless content.present?
         raise StandardError, "Failed to download file from #{source_provider_type}"
