@@ -391,7 +391,7 @@ export default function AllDocumentsPage() {
 
         // Calculate total file count including children
         const childFileCount = tab.children && tab.children.length > 0
-          ? childNodes.reduce((sum, c) => sum + (c.fileCount || 0), 0)
+          ? childNodes.reduce((sum, c) => sum + ('fileCount' in c ? (c.fileCount || 0) : 1), 0)
           : matchingDocs.length;
 
         return {
