@@ -479,8 +479,8 @@ export function Sidebar() {
   ) => {
     const ItemIcon = getIcon(item.icon);
     const active = isActive(item.href);
-    // Check for email account badge (href like /email?account=X means it's an email account)
-    const isEmailAccount = item.href.startsWith('/email?account=');
+    // Check for email account badge (href like /email/x@y.com or /email?account=X)
+    const isEmailAccount = item.href.startsWith('/email/') || item.href.startsWith('/email?account=');
     const emailAccountCount = isEmailAccount ? (emailAccountBadges[item.name.toLowerCase()] ?? 0) : null;
     const badgeCount = emailAccountCount !== null ? emailAccountCount : (item.badge_key ? badges[item.badge_key] : 0);
     const showBadge = emailAccountCount !== null || badgeCount > 0; // Always show for email accounts
@@ -490,9 +490,8 @@ export function Sidebar() {
     const handleDoubleClick = (e: React.MouseEvent) => {
       if (isEmailAccount) {
         e.preventDefault();
-        const standaloneUrl = item.href.includes('?')
-          ? `${item.href}&standalone=true`
-          : `${item.href}?standalone=true`;
+        // Use path segment for standalone: /email/x@y.com/standalone
+        const standaloneUrl = `${item.href}/standalone`;
         window.open(standaloneUrl, '_blank');
       }
     };

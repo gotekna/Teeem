@@ -115,6 +115,61 @@ export interface DeprecatedComponent {
 // =============================================================================
 
 // =============================================================================
+// 🔴 URL PATTERNS - STANDARD ROUTE CONVENTIONS
+// =============================================================================
+//
+// All routes should follow these patterns for consistency and human-readability.
+//
+// ┌─────────────────────────────────────────────────────────────────────────────┐
+// │ PATH-BASED URLs (Preferred over query params)                              │
+// ├─────────────────────────────────────────────────────────────────────────────┤
+// │                                                                             │
+// │ Pattern              │ Example                    │ Use Case               │
+// │ ─────────────────────┼────────────────────────────┼─────────────────────── │
+// │ /entity              │ /jobs                      │ List page              │
+// │ /entity/[id]         │ /jobs/123                  │ Detail by numeric ID   │
+// │ /entity/[slug]       │ /foundations/sm_trades     │ Detail by slug         │
+// │ /entity/[email]      │ /email/robert@teeem.au     │ Detail by email        │
+// │ /entity/[id]/[tab]   │ /jobs/123/plans            │ Detail with tab        │
+// │ /entity/[[...path]]  │ /email or /email/x@y.com   │ Optional catch-all     │
+// │                                                                             │
+// │ ❌ WRONG: /email?account=123        (numeric ID in query param)            │
+// │ ❌ WRONG: /email?account=robert%40  (encoded email in query param)         │
+// │ ✅ RIGHT: /email/robert@teeem.au    (clean, human-readable path)           │
+// │                                                                             │
+// └─────────────────────────────────────────────────────────────────────────────┘
+//
+// ┌─────────────────────────────────────────────────────────────────────────────┐
+// │ OPTIONS AS PATH SEGMENTS (Avoid query params where possible)               │
+// ├─────────────────────────────────────────────────────────────────────────────┤
+// │                                                                             │
+// │ Boolean flags - use path segment (presence = true):                        │
+// │ ✅ /email/robert@teeem.au/standalone    (standalone mode)                  │
+// │ ✅ /email/robert@teeem.au/fullscreen    (fullscreen mode)                  │
+// │                                                                             │
+// │ Value options - use underscore separator:                                  │
+// │ ✅ /jobs/filter_active                  (filter by active)                 │
+// │ ✅ /jobs/sort_date                      (sort by date)                     │
+// │                                                                             │
+// │ ❌ AVOID: ?standalone=true, ?filter=active (query params)                  │
+// │                                                                             │
+// └─────────────────────────────────────────────────────────────────────────────┘
+//
+// ┌─────────────────────────────────────────────────────────────────────────────┐
+// │ BACKWARDS COMPATIBILITY                                                     │
+// ├─────────────────────────────────────────────────────────────────────────────┤
+// │                                                                             │
+// │ When migrating from query params to paths, support BOTH for a period:      │
+// │                                                                             │
+// │ const accountParam = params.account?.[0] || searchParams.get("account");   │
+// │                                                                             │
+// │ This allows old bookmarks to continue working while new URLs are clean.    │
+// │                                                                             │
+// └─────────────────────────────────────────────────────────────────────────────┘
+//
+// =============================================================================
+
+// =============================================================================
 // TIER 1: CORE PRIMITIVES (High Usage)
 // =============================================================================
 

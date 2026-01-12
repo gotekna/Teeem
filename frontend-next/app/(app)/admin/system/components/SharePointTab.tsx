@@ -37,6 +37,20 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
+import { TokenBuilder } from "@/components/ui/tokens";
+import Link from "next/link";
+
+// SSoT: Simple scopes have inline editing (no document types)
+const SIMPLE_SCOPES = ['email', 'warehouse', 'task'];
+// SSoT: Complex scopes need separate tab (have document types, entity filters)
+const COMPLEX_SCOPES = ['corporate_entity', 'job', 'contact'];
+
+// Human-readable labels for scope links
+const SCOPE_LABELS: Record<string, string> = {
+  corporate_entity: 'Corporate',
+  job: 'Jobs',
+  contact: 'Contacts',
+};
 
 // SSoT: Provider types match StorageConfiguration.PROVIDER_TYPES
 type ProviderType = "sharepoint" | "s3" | "wasabi" | "local";
@@ -171,7 +185,7 @@ interface TreeNodeProps {
   // Tab editing props
   editingTabId: number | null;
   onStartTabEdit: (tabId: number) => void;
-  onSaveTabEdit: (tabId: number, path: string) => void;
+  onSaveTabEdit: (tabId: number, path: string, template: string | null, filenameTemplate: string | null) => void;
   onCancelTabEdit: () => void;
 }
 
@@ -292,6 +306,16 @@ function TreeNode({
                 <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover/edit:opacity-100 transition-opacity" />
               </button>
             )}
+
+            {/* Complex scopes: Link to separate tab */}
+            {COMPLEX_SCOPES.includes(node.scopeKey) && (
+              <Link
+                href={`/admin/system/entity-config/${node.scopeKey}`}
+                className="ml-2 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
+              >
+                Configure in {SCOPE_LABELS[node.scopeKey] || getScopeLabel(node.scopeKey)} tab →
+              </Link>
+            )}
           </>
         )}
 
@@ -335,7 +359,7 @@ function TreeNode({
           ))}
 
           {/* Tabs under this scope */}
-          {hasTabs && (
+          {hasTabs && node.scopeKey && (
             <div className="ml-1">
               {node.tabs!.map((tab) => (
                 <TabNode
@@ -343,6 +367,7 @@ function TreeNode({
                   tab={tab}
                   level={level + 1}
                   basePath={fullPath}
+                  scope={node.scopeKey!}
                   editingTabId={editingTabId}
                   onStartEdit={onStartTabEdit}
                   onSaveEdit={onSaveTabEdit}
@@ -362,9 +387,10 @@ interface TabNodeProps {
   tab: EntityTab;
   level: number;
   basePath: string;
+  scope: string;
   editingTabId: number | null;
   onStartEdit: (tabId: number) => void;
-  onSaveEdit: (tabId: number, path: string) => void;
+  onSaveEdit: (tabId: number, path: string, template: string | null, filenameTemplate: string | null) => void;
   onCancelEdit: () => void;
 }
 
@@ -372,84 +398,151 @@ function TabNode({
   tab,
   level,
   basePath,
+  scope,
   editingTabId,
   onStartEdit,
   onSaveEdit,
   onCancelEdit,
 }: TabNodeProps) {
   const isEditing = editingTabId === tab.id;
-  const [editValue, setEditValue] = React.useState(tab.sharepoint_folder_path || '');
+  const isSimpleScope = SIMPLE_SCOPES.includes(scope);
+  const [editPath, setEditPath] = React.useState(tab.sharepoint_folder_path || '');
+  const [editTemplate, setEditTemplate] = React.useState(tab.sharepoint_folder_template || '');
+  const [editFilename, setEditFilename] = React.useState(tab.sharepoint_filename_template || '');
 
   React.useEffect(() => {
     if (isEditing) {
-      setEditValue(tab.sharepoint_folder_path || '');
+      setEditPath(tab.sharepoint_folder_path || '');
+      setEditTemplate(tab.sharepoint_folder_template || '');
+      setEditFilename(tab.sharepoint_filename_template || '');
     }
-  }, [isEditing, tab.sharepoint_folder_path]);
+  }, [isEditing, tab.sharepoint_folder_path, tab.sharepoint_folder_template, tab.sharepoint_filename_template]);
 
   const tabFullPath = tab.sharepoint_folder_path
     ? `${basePath}/${tab.sharepoint_folder_path}`.replace(/\/+/g, '/')
     : basePath;
 
+  // For simple scopes - inline editing with TokenBuilder
+  if (isSimpleScope) {
+    return (
+      <div
+        className={cn(
+          "py-2 px-1 rounded-sm",
+          isEditing && "bg-blue-50 dark:bg-blue-900/20"
+        )}
+        style={{ paddingLeft: `${level * 16 + 24}px` }}
+      >
+        {/* Tab header row */}
+        <div className="flex items-center gap-1 mb-2">
+          <FileText className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
+          <span className="text-sm font-medium">{tab.display_name}</span>
+          {!isEditing && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => onStartEdit(tab.id)}
+              className="h-5 px-1.5 ml-2 text-[10px] text-muted-foreground"
+            >
+              <Pencil className="h-3 w-3 mr-1" />
+              Edit
+            </Button>
+          )}
+        </div>
+
+        {isEditing ? (
+          <div className="space-y-3 ml-4 border-l-2 border-blue-200 dark:border-blue-800 pl-3">
+            {/* Folder path */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-muted-foreground">Folder Path</label>
+              <Input
+                value={editPath}
+                onChange={(e) => setEditPath(e.target.value)}
+                className="h-7 text-xs font-mono"
+                placeholder="Subfolder path..."
+              />
+            </div>
+
+            {/* Folder template with TokenBuilder */}
+            <div className="space-y-1">
+              <TokenBuilder
+                label={<span className="text-[11px] font-medium text-muted-foreground">Folder Template</span>}
+                value={editTemplate}
+                onChange={setEditTemplate}
+                scope="sharepoint"
+                showPreview={true}
+                separator="/"
+                placeholder="Click tokens to build folder path..."
+                defaultExpanded={false}
+              />
+            </div>
+
+            {/* Filename template with TokenBuilder */}
+            <div className="space-y-1">
+              <TokenBuilder
+                label={<span className="text-[11px] font-medium text-muted-foreground">Filename Template</span>}
+                value={editFilename}
+                onChange={setEditFilename}
+                scope="document"
+                showPreview={true}
+                placeholder="Click tokens to build filename..."
+                defaultExpanded={false}
+              />
+            </div>
+
+            {/* Save/Cancel buttons */}
+            <div className="flex gap-2 pt-1">
+              <Button
+                size="sm"
+                onClick={() => onSaveEdit(tab.id, editPath, editTemplate || null, editFilename || null)}
+                className="h-7 text-xs"
+              >
+                Save
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={onCancelEdit}
+                className="h-7 text-xs"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="ml-4 space-y-1 text-[11px] text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <span className="font-medium w-20">Path:</span>
+              <span className="font-mono">{tab.sharepoint_folder_path || '(none)'}</span>
+            </div>
+            {tab.sharepoint_folder_template && (
+              <div className="flex items-center gap-2">
+                <span className="font-medium w-20">Template:</span>
+                <span className="font-mono text-blue-600 dark:text-blue-400">{tab.sharepoint_folder_template}</span>
+              </div>
+            )}
+            {tab.sharepoint_filename_template && (
+              <div className="flex items-center gap-2">
+                <span className="font-medium w-20">Filename:</span>
+                <span className="font-mono text-green-600 dark:text-green-400">{tab.sharepoint_filename_template}</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // For complex scopes - read-only preview (configured in separate tab)
   return (
     <div
-      className={cn(
-        "flex items-center gap-1 py-1 px-1 rounded-sm hover:bg-muted/50 group",
-        isEditing && "bg-blue-50 dark:bg-blue-900/20"
-      )}
+      className="flex items-center gap-1 py-1 px-1 rounded-sm hover:bg-muted/50 group"
       style={{ paddingLeft: `${level * 16 + 24}px` }}
     >
-      {/* Tab icon - document/file icon */}
       <FileText className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
-
-      {/* Tab name */}
       <span className="text-sm">{tab.display_name}</span>
-
-      {/* Tab folder path editing */}
-      {isEditing ? (
-        <div className="flex items-center gap-1 ml-2">
-          <Input
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                onSaveEdit(tab.id, editValue);
-              } else if (e.key === 'Escape') {
-                onCancelEdit();
-              }
-            }}
-            className="h-6 text-xs font-mono w-48"
-            placeholder="Folder path..."
-            autoFocus
-          />
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-6 px-2 text-xs"
-            onClick={() => onSaveEdit(tab.id, editValue)}
-          >
-            Save
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-6 px-2 text-xs"
-            onClick={onCancelEdit}
-          >
-            Cancel
-          </Button>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => onStartEdit(tab.id)}
-          className="flex items-center gap-1 ml-auto group/edit"
-        >
-          <span className="text-[10px] text-muted-foreground font-mono opacity-60 group-hover:opacity-100">
-            {tab.sharepoint_folder_path || '(no subfolder)'}
-          </span>
-          <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover/edit:opacity-100 transition-opacity" />
-        </button>
-      )}
+      <span className="ml-auto text-[10px] text-muted-foreground font-mono opacity-60">
+        {tab.sharepoint_folder_path || '(no subfolder)'}
+      </span>
     </div>
   );
 }
@@ -552,12 +645,23 @@ export function SharePointTab() {
     });
   };
 
-  // Save tab folder path via API
-  const saveTabFolderPath = async (tabId: number, folderPath: string) => {
+  // Save tab folder path, template, and filename template via API
+  const saveTabFolderPath = async (
+    tabId: number,
+    folderPath: string,
+    folderTemplate: string | null,
+    filenameTemplate: string | null
+  ) => {
     try {
       const response = await api.patch<{ success: boolean }>(
         `/api/v1/entity_tabs/${tabId}`,
-        { entity_tab: { sharepoint_folder_path: folderPath } }
+        {
+          entity_tab: {
+            sharepoint_folder_path: folderPath,
+            sharepoint_folder_template: folderTemplate,
+            sharepoint_filename_template: filenameTemplate,
+          }
+        }
       );
       if (response?.success) {
         // Update local state
@@ -565,21 +669,28 @@ export function SharePointTab() {
           const newTabs = { ...prev };
           Object.keys(newTabs).forEach(scope => {
             newTabs[scope] = newTabs[scope].map(tab =>
-              tab.id === tabId ? { ...tab, sharepoint_folder_path: folderPath } : tab
+              tab.id === tabId
+                ? {
+                    ...tab,
+                    sharepoint_folder_path: folderPath,
+                    sharepoint_folder_template: folderTemplate,
+                    sharepoint_filename_template: filenameTemplate,
+                  }
+                : tab
             );
           });
           return newTabs;
         });
         toast({
           title: "Saved",
-          description: "Tab folder path updated",
+          description: "Tab storage settings updated",
         });
       }
     } catch (error) {
-      console.error("Failed to save tab folder path:", error);
+      console.error("Failed to save tab settings:", error);
       toast({
         title: "Error",
-        description: "Failed to save tab folder path",
+        description: "Failed to save tab settings",
         variant: "destructive",
       });
     }

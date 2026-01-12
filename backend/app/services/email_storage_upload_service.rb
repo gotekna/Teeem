@@ -162,10 +162,14 @@ class EmailStorageUploadService
 
   def upload_single_email(email_id)
     email = EmailWarehouse.find_by(id: email_id)
-    return unless email
+    unless email
+      Rails.logger.warn "[EmailUpload] Email #{email_id} not found"
+      return
+    end
 
     # Skip if already uploaded
     if email.sharepoint_email_path.present?
+      Rails.logger.info "[EmailUpload] Email #{email_id} already has path: #{email.sharepoint_email_path}"
       increment_skipped!
       @progress&.increment!(success: true)
       return
@@ -174,16 +178,28 @@ class EmailStorageUploadService
     # Get credential for this email
     credential = get_credential_for_email(email)
     unless credential&.connected?
+      Rails.logger.warn "[EmailUpload] Email #{email_id} - No valid credential (cred_id=#{credential&.id}, connected=#{credential&.connected?})"
       skip_email(email, "No valid credential")
       return
     end
 
     # Fetch .eml content from Graph API
+    Rails.logger.info "[EmailUpload] Email #{email_id} - Fetching content from #{email.mailbox_owner_email}"
     client = MicrosoftAppGraphClient.new(credential)
     mime_content = client.get_email_mime_content(email.mailbox_owner_email, email.outlook_id)
 
     unless mime_content.present?
+      Rails.logger.warn "[EmailUpload] Email #{email_id} - Could not fetch content"
       skip_email(email, "Could not fetch email content")
+      return
+    end
+
+    Rails.logger.info "[EmailUpload] Email #{email_id} - Got #{mime_content.bytesize} bytes, uploading..."
+
+    # Check provider is available
+    unless @provider
+      Rails.logger.error "[EmailUpload] Email #{email_id} - No storage provider available!"
+      skip_email(email, "No storage provider")
       return
     end
 
@@ -203,12 +219,14 @@ class EmailStorageUploadService
       sharepoint_email_file_id: result[:id]
     )
 
+    Rails.logger.info "[EmailUpload] Email #{email_id} - SUCCESS: #{result[:path]}"
     increment_uploaded!
     @progress&.increment!(success: true)
   rescue StandardError => e
     add_error!(email_id: email_id, error: e.message)
     @progress&.increment!(success: false, error: "Email #{email_id}: #{e.message}")
-    Rails.logger.warn "[EmailUpload] Error uploading email #{email_id}: #{e.message}"
+    Rails.logger.error "[EmailUpload] Error uploading email #{email_id}: #{e.class} - #{e.message}"
+    Rails.logger.error e.backtrace.first(3).join("\n")
   end
 
   # SSoT: Get credential for an email

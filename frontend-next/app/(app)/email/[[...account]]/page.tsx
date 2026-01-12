@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useState, useEffect, useCallback, useTransition, useMemo, memo } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams, useRouter, useParams } from "next/navigation";
 import { useLayoutMode } from "@/contexts/LayoutModeContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -520,10 +520,14 @@ const EmailListItem = memo(function EmailListItem({
 export default function EmailPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const accountParam = searchParams.get("account");
+  const params = useParams();
+  // Get account from path: /email/robert@teeem.au → params.account = ["robert@teeem.au"]
+  // With standalone: /email/robert@teeem.au/standalone → params.account = ["robert@teeem.au", "standalone"]
+  const pathSegments = params.account as string[] | undefined;
+  const accountParam = pathSegments?.[0] || searchParams.get("account"); // Legacy query param support
   const emailIdParam = searchParams.get("id");
-  const standaloneParam = searchParams.get("standalone");
-  const isStandalone = standaloneParam === "true";
+  // Standalone mode: check path segment first, then legacy query param
+  const isStandalone = pathSegments?.includes("standalone") || searchParams.get("standalone") === "true";
 
   // Fullscreen mode for standalone email tab (hides sidebar)
   const { setMode } = useLayoutMode();
@@ -1710,14 +1714,14 @@ To: ${email.to_emails?.join(", ") || ""}
                       setSelectedFolderId("");  // Clear old folder ID
                       setExpandedAccounts(new Set([accountId]));
                       fetchFolders(accountId, account, true);  // forceSelectInbox to update folder ID
-                      // Update URL to be bookmarkable (use email address for readability, fallback to ID)
+                      // Update URL to be bookmarkable (clean path with email address)
                       const urlParam = account.email_address || String(account.id);
-                      router.push(`/email?account=${encodeURIComponent(urlParam)}`, { scroll: false });
+                      router.push(`/email/${urlParam}`, { scroll: false });
                     }}
                     onDoubleClick={() => {
                       // Open mailbox in a new dedicated fullscreen tab
                       const urlParam = account.email_address || String(account.id);
-                      window.open(`/email?account=${encodeURIComponent(urlParam)}&standalone=true`, '_blank');
+                      window.open(`/email/${urlParam}/standalone`, '_blank');
                     }}
                     className="flex-1 min-w-0 flex items-center gap-2 text-left"
                   >
