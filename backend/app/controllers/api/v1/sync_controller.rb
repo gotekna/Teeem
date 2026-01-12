@@ -13,7 +13,7 @@ module Api
     #
     class SyncController < ApplicationController
       # Skip auth for device code endpoints (client not yet authenticated)
-      skip_before_action :authenticate_user!, only: [:initiate_device_auth, :poll_device_auth]
+      skip_before_action :authorize_request, only: [:initiate_device_auth, :poll_device_auth]
       before_action :authenticate_desktop_client!, except: [:initiate_device_auth, :poll_device_auth, :verify_device_code]
 
       # ==========================================
