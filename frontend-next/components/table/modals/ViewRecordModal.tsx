@@ -51,7 +51,11 @@ function formatDisplayValue(column: TableColumn, value: unknown): React.ReactNod
     return <span className="text-muted-foreground italic">—</span>;
   }
 
-  const columnType = column.column_type || 'string';
+  // SSoT: column_type should always be set - log error if missing
+  if (!column.column_type) {
+    console.error(`[SSoT] Column "${column.key}" missing column_type - defaulting to single_line_text`);
+  }
+  const columnType = column.column_type || 'single_line_text';
 
   switch (columnType) {
     case 'boolean':

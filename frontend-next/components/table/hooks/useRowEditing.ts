@@ -204,6 +204,10 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
     value: unknown,
     columnType?: string
   ) => {
+    // SSoT: column_type should always be provided - log error if missing
+    if (!columnType) {
+      console.error(`[SSoT] validateCell called without columnType for column "${columnKey}"`);
+    }
     const result = validateCellValue(value, columnType || 'single_line_text');
     const error = result.error;
 
@@ -241,6 +245,10 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
         const column = columns.find(c => c.key === columnKey);
         if (!column) continue;
 
+        // SSoT: column_type should always be set - log error if missing
+        if (!column.column_type) {
+          console.error(`[SSoT] Column "${columnKey}" missing column_type`);
+        }
         const result = validateCellValue(value, column.column_type || 'single_line_text');
         if (result.error) {
           rowErrors[columnKey] = result.error;

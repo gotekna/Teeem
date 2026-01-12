@@ -39,14 +39,14 @@ export const CascadeFilterItem = memo(function CascadeFilterItem({
   // Fetch lookup options when column changes to a lookup type
   const colType = column?.column_type;
   useEffect(() => {
-    if (column && (checkIsLookup(colType) || colType === 'relation') &&
+    if (column && checkIsLookup(colType) &&
         column.lookup_foundation_id && onFetchLookupOptions) {
       onFetchLookupOptions(column);
     }
   }, [column, colType, onFetchLookupOptions]);
 
   // Determine if this column should show a dropdown for values
-  const isLookupColumn = checkIsLookup(colType) || colType === 'relation';
+  const isLookupColumn = checkIsLookup(colType);
   const isChoiceColumn = checkIsChoice(colType);
   const isBooleanColumn = colType === 'boolean';
   const options = lookupOptions?.[filter.column] || [];

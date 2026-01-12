@@ -550,7 +550,6 @@ function validateCellLegacy(
       error = validateTfn(value);
       break;
     case 'lookup':
-    case 'relation':
     case 'user':
       error = validateLookup(value);
       break;

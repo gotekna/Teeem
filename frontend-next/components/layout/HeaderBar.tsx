@@ -345,6 +345,20 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             </div>
           </a>
 
+          {/* TeeemPowerPoint - Presentations (opens in new tab, fullscreen) */}
+          <a
+            href="/admin/system/teeem-powerpoint"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-1.5 text-muted-foreground hover:text-orange-500 dark:hover:text-orange-400 rounded-md"
+            title="TeeemPowerPoint - New Presentation (opens in new tab)"
+          >
+            <span className="sr-only">TeeemPowerPoint</span>
+            <div className="h-4 w-4 flex items-center justify-center font-bold text-[8px] border border-current rounded bg-current/5">
+              PP
+            </div>
+          </a>
+
           {/* Workflow Tasks */}
           <Link prefetch={false}
             href="/tasks/workflow"

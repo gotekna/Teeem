@@ -426,6 +426,7 @@ import { selectDefaultView } from '@/lib/view-loading-utils';
 // Single hook provides all view state with SSR support and foundation isolation
 import { useFoundationViewState } from '@/lib/view-state/hooks/useFoundationViewState';
 import { useViewFromPath } from '@/lib/view-state/hooks/useViewFromPath';
+import { isLookupColumn, isChoiceColumn } from '@/lib/constants/column-types';
 
 // Layer 2: Feature Hooks (new architecture - gradual migration)
 import { useSorting } from './hooks/useSorting';
@@ -3108,8 +3109,8 @@ export default function TeeemTableView({
   const isDropdownColumn = useCallback((column: TableColumn): boolean => {
     const colType = column.column_type || '';
     const hasChoices = column.choices && column.choices.length > 0;
-    const isLookup = colType === 'lookup' || colType === 'relation' || colType === 'multiple_lookups' || !!column.lookup_foundation_id;
-    const isChoice = colType === 'choice' || colType === 'single_select' || colType === 'multi_select';
+    const isLookup = isLookupColumn(colType) || !!column.lookup_foundation_id;
+    const isChoice = isChoiceColumn(colType);
     const isBoolean = colType === 'boolean';
     return hasChoices || isLookup || isChoice || isBoolean;
   }, []);
@@ -4191,7 +4192,11 @@ export default function TeeemTableView({
     if (!search || !propSearchMode) return false;
 
     // Check if column type supports highlighting
-    const columnType = column.column_type || 'text';
+    // SSoT: column_type should always be set - log error if missing
+    if (!column.column_type) {
+      console.error(`[SSoT] Column "${column.key}" missing column_type - defaulting to single_line_text`);
+    }
+    const columnType = column.column_type || 'single_line_text';
     return TEXT_HIGHLIGHTABLE_TYPES.includes(columnType);
   }, [search, propSearchMode]);
 
@@ -6283,7 +6288,12 @@ export default function TeeemTableView({
           foundationId={effectiveFoundationId}
           columns={COLUMNS
             .filter(col => col.key !== 'select' && col.key !== 'actions')
-            .map((col, index) => ({
+            .map((col, index) => {
+              // SSoT: column_type should always be set
+              if (!col.column_type) {
+                console.error(`[SSoT] Column "${col.key}" missing column_type`);
+              }
+              return {
               id: col.id || index,
               column_name: col.key,
               name: col.label,
@@ -6293,7 +6303,7 @@ export default function TeeemTableView({
               lookup_foundation_slug: col.lookup_foundation_slug,  // SSoT: Pass slug for portable lookups
               lookup_display_column: col.lookup_display_column,
               available_choices: col.choices,
-            }))}
+            };})}
           onViewsChange={onRefresh}
           onApplyView={loadViewState as (view: unknown) => void}
           onAutoFitChange={setAutoFitColumns}

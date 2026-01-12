@@ -90,25 +90,26 @@ echo ""
 echo "--- Hardcoded model arrays (should query schema) ---"
 grep -rn "%w\[.*Job.*Contact\|%w\[.*jobs.*contacts" backend/app --include="*.rb" | head -5
 
-# Hardcoded column type strings (should use Column::LOOKUP_COLUMN_TYPES etc)
+# Dead column type strings (types that don't exist in the database)
+# Note: 'choice' alone is OK (only valid choice type), 'lookup' alone may be intentional
 echo ""
-echo "--- Hardcoded column type strings (use constants) ---"
-echo "Backend:"
-backend_violations=$(grep -rn "== 'lookup'\|== 'choice'\|== 'relation'\|\.in?.*'lookup'\|\.in?.*'choice'" backend/app --include="*.rb" 2>/dev/null | grep -v "COLUMN_TYPE\|column_type:" | wc -l | tr -d ' ')
-echo "  Found: $backend_violations instances"
-[ "$backend_violations" -gt 0 ] && grep -rn "== 'lookup'\|== 'choice'\|== 'relation'" backend/app --include="*.rb" 2>/dev/null | grep -v "COLUMN_TYPE\|column_type:" | head -3
+echo "--- Dead column type strings (use constants or remove) ---"
+echo "Backend (relation, single_select, multi_select, dropdown):"
+backend_dead=$(grep -rn "'relation'\|'single_select'\|'multi_select'\|'dropdown'" backend/app --include="*.rb" 2>/dev/null | grep -v "COLUMN_TYPE\|#" | wc -l | tr -d ' ')
+echo "  Found: $backend_dead instances"
+[ "$backend_dead" -gt 0 ] && grep -rn "'relation'\|'single_select'\|'multi_select'\|'dropdown'" backend/app --include="*.rb" 2>/dev/null | grep -v "COLUMN_TYPE\|#" | head -3
 
-echo "Frontend:"
-frontend_violations=$(grep -rn "=== 'lookup'\|=== 'choice'\|=== 'relation'\|=== 'multiple_lookups'" frontend-next/components frontend-next/app --include="*.ts" --include="*.tsx" 2>/dev/null | grep -v "column-types.ts\|isLookupColumn\|isChoiceColumn" | wc -l | tr -d ' ')
-echo "  Found: $frontend_violations instances"
-[ "$frontend_violations" -gt 0 ] && grep -rn "=== 'lookup'\|=== 'choice'\|=== 'relation'" frontend-next/components frontend-next/app --include="*.ts" --include="*.tsx" 2>/dev/null | grep -v "column-types.ts" | head -3
+echo "Frontend (relation, single_select, multi_select, dropdown):"
+frontend_dead=$(grep -rn "'relation'\|'single_select'\|'multi_select'\|'dropdown'" frontend-next/components frontend-next/app --include="*.ts" --include="*.tsx" 2>/dev/null | grep -v "column-types.ts\|//" | wc -l | tr -d ' ')
+echo "  Found: $frontend_dead instances"
+[ "$frontend_dead" -gt 0 ] && grep -rn "'relation'\|'single_select'\|'multi_select'" frontend-next/components frontend-next/app --include="*.ts" --include="*.tsx" 2>/dev/null | grep -v "column-types.ts" | head -3
 
-total_type_violations=$((backend_violations + frontend_violations))
-if [ "$total_type_violations" -eq 0 ]; then
-  echo "✅ All column type checks use constants"
+total_dead=$((backend_dead + frontend_dead))
+if [ "$total_dead" -eq 0 ]; then
+  echo "✅ No dead column type strings"
 else
-  echo "❌ Found $total_type_violations hardcoded column type strings"
-  echo "   Use: Column::LOOKUP_COLUMN_TYPES (backend) or isLookupColumn() (frontend)"
+  echo "❌ Found $total_dead dead column type strings (these types don't exist)"
+  echo "   Remove or use: isLookupColumn() / isChoiceColumn() helpers"
 fi
 
 # Missing system columns

@@ -236,7 +236,7 @@ export function RecordFormField({
           </div>
         );
 
-      case 'dropdown':
+      case 'choice':
         // If choices provided, render select
         if (column.choices && column.choices.length > 0) {
           return (

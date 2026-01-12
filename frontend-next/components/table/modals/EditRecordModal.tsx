@@ -363,15 +363,20 @@ export function EditRecordModal({
   };
 
   // Convert TableColumn to ColumnDefinition for RecordFormField
-  const toColumnDefinition = useCallback((col: TableColumn): ColumnDefinition => ({
+  const toColumnDefinition = useCallback((col: TableColumn): ColumnDefinition => {
+    // SSoT: column_type should always be set - log error if missing
+    if (!col.column_type) {
+      console.error(`[SSoT] Column "${col.key}" missing column_type - defaulting to single_line_text`);
+    }
+    return {
     column_name: col.key,
     name: col.label,
-    column_type: col.column_type || 'string',
+    column_type: col.column_type || 'single_line_text',
     lookup_foundation_id: col.lookup_foundation_id,
     choices: col.choices,
     required: (col as { required?: boolean }).required,
     system: col.system,
-  }), []);
+  };}, []);
 
   if (!record) return null;
 

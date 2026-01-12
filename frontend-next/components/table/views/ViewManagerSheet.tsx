@@ -813,7 +813,7 @@ export function ViewManagerSheet({
     }
 
     const columnType = column.column_type?.toLowerCase() || '';
-    const isLookup = checkIsLookup(columnType) || columnType === 'relation';
+    const isLookup = checkIsLookup(columnType);
     const isChoice = checkIsChoice(columnType);
     const isBooleanColumn = columnType === 'boolean';
 
@@ -1100,7 +1100,11 @@ export function ViewManagerSheet({
 
   // Get default width for a column based on its type
   const getDefaultColumnWidth = (col: Column): number => {
-    const type = col.column_type?.toLowerCase() || 'text';
+    // SSoT: column_type should always be set - log error if missing
+    if (!col.column_type) {
+      console.error(`[SSoT] Column "${col.column_name}" missing column_type`);
+    }
+    const type = col.column_type?.toLowerCase() || 'single_line_text';
     switch (type) {
       case 'id': return 60;
       case 'boolean': return 80;
@@ -1117,8 +1121,7 @@ export function ViewManagerSheet({
       case 'email':
       case 'url': return 200;
       case 'choice':
-      case 'lookup':
-      case 'relation': return 150;
+      case 'lookup': return 150;
       case 'multiple_lookups': return 200;
       case 'text':
       case 'single_line_text': return 150;

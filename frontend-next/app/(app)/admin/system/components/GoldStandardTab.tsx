@@ -241,7 +241,7 @@ function GoldStandardDataTab() {
   React.useEffect(() => {
     if (rawColumns.length > 0 && visibleFields.size === 0) {
       // Default: show common field types INCLUDING system columns
-      const defaultVisibleTypes = ['short_text', 'long_text', 'number', 'whole_number', 'currency', 'date', 'boolean', 'email', 'dropdown', 'percentage'];
+      const defaultVisibleTypes = ['single_line_text', 'multiple_lines_text', 'number', 'whole_number', 'currency', 'date', 'boolean', 'email', 'choice', 'percentage'];
       const systemColumns = ['id', 'created_at', 'updated_at'];
 
       // Include ALL columns (system columns are visible but not editable)

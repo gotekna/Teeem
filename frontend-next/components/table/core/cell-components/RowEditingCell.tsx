@@ -23,6 +23,7 @@ import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
 import type { TableColumn } from '../../types';
+import { isLookupColumn } from '@/lib/constants/column-types';
 
 export interface RowEditingCellProps {
   /** Row entry data */
@@ -64,6 +65,11 @@ export function RowEditingCell({
   lookupLoading = {},
 }: RowEditingCellProps) {
   const { toast } = useToast();
+
+  // SSoT: column_type should always be set - log error if missing
+  if (!column.column_type) {
+    console.error(`[SSoT] Column "${column.key}" missing column_type - defaulting to single_line_text`);
+  }
   const columnType = column.column_type || 'single_line_text';
   const hasError = validationError;
 
@@ -91,7 +97,7 @@ export function RowEditingCell({
   }
 
   // Choice - Searchable dropdown with predefined options
-  if (columnType === 'choice' || columnType === 'single_select' || columnType === 'multi_select') {
+  if (columnType === 'choice') {
     const choices = column.choices || [];
     const choiceItems: ComboboxItem[] = choices.map((choice) => ({
       id: choice,
@@ -239,8 +245,8 @@ export function RowEditingCell({
     );
   }
 
-  // Lookup/Relation - Searchable dropdown from related table
-  if (columnType === 'lookup' || columnType === 'relation') {
+  // Lookup - Searchable dropdown from related table
+  if (isLookupColumn(columnType)) {
     const options = lookupOptions[column.key] || [];
     const isLoading = lookupLoading[column.key];
     const currentValue = rowEditingData[column.key];
