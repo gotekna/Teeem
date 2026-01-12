@@ -123,6 +123,24 @@ class EntityTab < ApplicationRecord
     tabs
   end
 
+  # SSoT: Get folder name for a tab by key
+  # Use this instead of hardcoding folder names like "04 Plans" or "Documents"
+  #
+  # @param scope [String] The scope (job, corporate_entity, etc.)
+  # @param tab_key [String] The tab key (plans, documents, photos, etc.)
+  # @param fallback [String] Fallback if tab not found (optional)
+  # @return [String] The display_name to use as folder name
+  #
+  # Examples:
+  #   EntityTab.folder_name_for("job", "plans")     # => "04 Plans" (from EntityTab)
+  #   EntityTab.folder_name_for("job", "documents") # => "Documents"
+  #   EntityTab.folder_name_for("job", "missing", "Fallback") # => "Fallback"
+  #
+  def self.folder_name_for(scope, tab_key, fallback = nil)
+    tab = find_by(scope: scope, tab_key: tab_key)
+    tab&.display_name || fallback
+  end
+
   # Check if this tab can be deleted
   def can_delete?
     return false if is_system_tab

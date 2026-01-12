@@ -146,16 +146,19 @@ class PlanCombinerService
     job_folder = client.get_folder_by_path(@job.storage_folder_id)
     raise CombineError, "Job folder not found" unless job_folder
 
-    # Look for "04 Plans" subfolder
+    # SSoT: Get plans folder name from EntityTab
+    plans_folder_name = EntityTab.folder_name_for("job", "plans", "04 Plans")
+
+    # Look for plans subfolder
     items_response = client.list_folder_items(job_folder["id"])
     items = items_response["value"] || []
-    plans_folder = items.find { |item| item["name"] == "04 Plans" && item["folder"].present? }
+    plans_folder = items.find { |item| item["name"] == plans_folder_name && item["folder"].present? }
 
     if plans_folder
       plans_folder["id"]
     else
       # Create the folder if it doesn't exist
-      result = client.create_folder("04 Plans", parent_id: job_folder["id"])
+      result = client.create_folder(plans_folder_name, parent_id: job_folder["id"])
       result["id"]
     end
   end

@@ -56,6 +56,7 @@ class CorporateSharePointProvisionerService
   end
 
   # Create standard folder structure for a company
+  # SSoT: Uses EntityTab for folder structure, falls back to FOLDER_STRUCTURE constant
   def create_company_folders(company)
     folder_name = company_folder_name(company)
     Rails.logger.info "Creating folder structure for: #{folder_name}"
@@ -65,8 +66,11 @@ class CorporateSharePointProvisionerService
       root_folder = create_or_find_folder(folder_name)
       company_folder_id = root_folder["id"]
 
+      # SSoT: Get folder structure from EntityTab (falls back to FOLDER_STRUCTURE constant)
+      folder_structure = self.class.folder_structure_from_entity_tabs("corporate_entity")
+
       # Create subfolders
-      FOLDER_STRUCTURE.each do |parent_folder, subfolders|
+      folder_structure.each do |parent_folder, subfolders|
         parent = create_or_find_folder(parent_folder, parent_id: company_folder_id)
 
         subfolders.each do |subfolder|
@@ -560,4 +564,24 @@ class CorporateSharePointProvisionerService
   rescue ArgumentError
     { date: nil, type: nil, description: filename, extension: "" }
   end
+
+  # SSoT: Get folder structure from EntityTab instead of hardcoded constant
+  # Returns hash of { folder_name => [subfolders] } for tabs with storage folders
+  def self.folder_structure_from_entity_tabs(scope = "corporate_entity")
+    tabs = EntityTab.where(scope: scope, has_storage_folder: true, parent_id: nil)
+    structure = {}
+
+    tabs.each do |tab|
+      folder_name = tab.display_name
+      # Get children with storage folders
+      children = tab.children.where(has_storage_folder: true).pluck(:display_name)
+      structure[folder_name] = children
+    end
+
+    # Fall back to FOLDER_STRUCTURE if no EntityTabs configured
+    structure.empty? ? FOLDER_STRUCTURE : structure
+  end
 end
+
+# Backwards compatibility alias (old name)
+CorporateOneDriveService = CorporateSharePointProvisionerService

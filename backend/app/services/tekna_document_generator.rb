@@ -818,12 +818,15 @@ class TeknaDocumentGenerator
     filename = path_parts.pop
     current_folder_id = job_folder["id"]
 
-    # Navigate through subfolders
+    # Navigate through subfolders (SSoT: resolve folder names from EntityTab)
     path_parts.each do |folder_name|
+      # SSoT: If folder matches a known tab pattern, resolve from EntityTab
+      resolved_folder_name = resolve_folder_name(folder_name)
+
       response = client.list_folder_items(current_folder_id)
       items = response["value"] || []
-      folder = items.find { |item| item["name"] == folder_name && item["folder"].present? }
-      raise GenerationError, "Folder '#{folder_name}' not found in job folder" unless folder
+      folder = items.find { |item| item["name"] == resolved_folder_name && item["folder"].present? }
+      raise GenerationError, "Folder '#{resolved_folder_name}' not found in job folder" unless folder
       current_folder_id = folder["id"]
     end
 
@@ -856,5 +859,22 @@ class TeknaDocumentGenerator
     }
   rescue MicrosoftGraphClient::ClientError, MicrosoftGraphClient::AuthenticationError => e
     raise GenerationError, "SharePoint error: #{e.message}"
+  end
+
+  # SSoT: Resolve folder names from EntityTab
+  # Maps template folder names to actual folder names from EntityTab
+  # Falls back to original name if no mapping exists
+  FOLDER_NAME_MAPPINGS = {
+    "04 Plans" => ["job", "plans"],
+    "Documents" => ["job", "documents"],
+    "Photos" => ["job", "photos"]
+  }.freeze
+
+  def resolve_folder_name(folder_name)
+    mapping = FOLDER_NAME_MAPPINGS[folder_name]
+    return folder_name unless mapping
+
+    scope, tab_key = mapping
+    EntityTab.folder_name_for(scope, tab_key, folder_name)
   end
 end

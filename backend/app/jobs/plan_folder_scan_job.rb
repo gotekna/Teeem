@@ -5,8 +5,15 @@
 class PlanFolderScanJob < ApplicationJob
   queue_as :default
 
-  PLANS_FOLDER_NAME = "Plan Documents"
+  # SSoT: Use EntityTab.folder_name_for instead of constant
+  # Fallback provided for backwards compatibility
+  PLANS_FOLDER_NAME_FALLBACK = "Plan Documents"
   SKIP_FILES = ["All Plans.pdf", "Thumbs.db", ".DS_Store"].freeze
+
+  def plans_folder_name
+    # SSoT: Get from EntityTab, fall back to constant
+    EntityTab.folder_name_for("job", "plans", PLANS_FOLDER_NAME_FALLBACK)
+  end
 
   def perform(job_id: nil)
     credential = MicrosoftCredential.sharepoint_credential
@@ -47,10 +54,13 @@ class PlanFolderScanJob < ApplicationJob
     job_folder = client.find_job_folder(job)
     return [0, 0] unless job_folder
 
-    # Look for 04 Plans subfolder
+    # SSoT: Get plans folder name from EntityTab
+    folder_name = plans_folder_name
+
+    # Look for plans subfolder
     response = client.list_folder_items(job_folder["id"])
     items = response["value"] || []
-    plans_folder = items.find { |item| item["name"] == PLANS_FOLDER_NAME && item["folder"].present? }
+    plans_folder = items.find { |item| item["name"] == folder_name && item["folder"].present? }
     return [0, 0] unless plans_folder
 
     # List files in the plans folder
