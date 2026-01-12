@@ -197,7 +197,7 @@ export function EntityNotesPanel({
 
         {/* Editor */}
         <Card className="col-span-8 overflow-hidden">
-          <NotebookEditor pageId={selectedPageId} className="h-full" />
+          <NotebookEditor pageId={selectedPageId} notebookId={selectedNotebookId} className="h-full" />
         </Card>
       </div>
 
