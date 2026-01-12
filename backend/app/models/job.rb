@@ -42,6 +42,7 @@ class Job < ApplicationRecord
   has_many :rain_logs, dependent: :destroy
   has_many :external_invoices, dependent: :nullify
   has_many :job_documents, dependent: :destroy
+  has_many :teeem_spreadsheets, dependent: :nullify
 
   # Plans (new plans tab with revision tracking)
   has_many :job_plan_tabs, dependent: :destroy

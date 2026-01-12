@@ -111,10 +111,11 @@ class NotebookPage < ApplicationRecord
     return unless content_changed?
 
     plain = ActionController::Base.helpers.strip_tags(content.to_s)
-    self.content_metadata = {
+    # Merge with existing metadata to preserve positioned_boxes and other data
+    self.content_metadata = (content_metadata || {}).merge(
       "word_count" => plain.split.size,
       "char_count" => plain.length,
       "updated_at" => Time.current.iso8601
-    }
+    )
   end
 end

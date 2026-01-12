@@ -15,11 +15,40 @@ export interface NotebookPageAttachment {
   is_image: boolean;
 }
 
+// Content metadata for positioned text boxes and images
+export interface PositionedBoxData {
+  id: string;
+  x_percent: number;
+  y_percent: number;
+  width_percent?: number;  // Optional width as percentage of container
+  height_px?: number;      // Optional height in pixels (auto if not set)
+  content: string;
+  isMainContent?: boolean; // True for the main content box
+  type?: "text" | "image"; // Box type - defaults to "text"
+  imageUrl?: string;       // For image boxes - the image source URL
+}
+
+// Stroke data for drawing canvas
+export interface StrokeData {
+  id: string;
+  points: { x: number; y: number }[];
+  color: string;
+  size: number;
+  opacity: number;
+  tool: "pen" | "highlighter";
+}
+
+export interface ContentMetadata {
+  positioned_boxes?: PositionedBoxData[];
+  strokes?: StrokeData[];
+}
+
 export interface NotebookPage {
   id: number;
   section_id: number;
   title: string;
   content: string;
+  content_metadata?: ContentMetadata;
   position: number;
   is_pinned: boolean;
   preview: string;
@@ -49,7 +78,7 @@ export function useNotebookPage(pageId: number | null, notebookId: number | null
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const pendingChangesRef = useRef<{ title?: string; content?: string } | null>(null);
+  const pendingChangesRef = useRef<{ title?: string; content?: string; content_metadata?: ContentMetadata } | null>(null);
   const queryClient = useQueryClient();
 
   const { data, isLoading, error, refetch } = useQuery({
@@ -66,22 +95,32 @@ export function useNotebookPage(pageId: number | null, notebookId: number | null
     staleTime: 0, // Always fetch fresh data to ensure we have notebook ID
   });
 
-  // Debounced save function (300ms for faster sidebar updates)
+  // Debounced save function (800ms to reduce save frequency while typing)
   const debouncedSave = useRef(
-    debounce(async (id: number, changes: { title?: string; content?: string }) => {
+    debounce(async (id: number, changes: { title?: string; content?: string; content_metadata?: ContentMetadata }) => {
       try {
         setIsSaving(true);
         const response = await api.patch<PageResponse>(`/api/v1/notebook_pages/${id}`, changes);
         if (response?.success) {
           setLastSaved(new Date());
-          setHasUnsavedChanges(false);
-          pendingChangesRef.current = null;
-          // Update the page cache
-          queryClient.setQueryData(["notebook-page", id], response);
-// Invalidate the notebook cache to refresh the sidebar
-          const notebookId = response.page.notebook?.id;
-          if (notebookId) {
-            queryClient.invalidateQueries({ queryKey: ["notebook", notebookId] });
+          // Only clear pending changes if they haven't changed since we started saving
+          // This prevents race conditions where user types more while save is in progress
+          const currentPending = pendingChangesRef.current;
+          const metadataMatch = JSON.stringify(currentPending?.content_metadata) === JSON.stringify(changes.content_metadata);
+          if (currentPending?.content === changes.content && currentPending?.title === changes.title && metadataMatch) {
+            setHasUnsavedChanges(false);
+            pendingChangesRef.current = null;
+          }
+          // DON'T update page cache here - it causes the editor to "jump back"
+          // The editor already has the current content, updating cache with server
+          // response (which may be stale) causes glitches while typing fast
+
+          // Only invalidate notebook cache if title changed (for sidebar updates)
+          if (changes.title) {
+            const nbId = response.page.notebook?.id;
+            if (nbId) {
+              queryClient.invalidateQueries({ queryKey: ["notebook", nbId] });
+            }
           }
         }
       } catch (err) {
@@ -89,7 +128,7 @@ export function useNotebookPage(pageId: number | null, notebookId: number | null
       } finally {
         setIsSaving(false);
       }
-    }, 300)
+    }, 800)
   ).current;
 
   // Update page content with debounced auto-save
@@ -143,28 +182,40 @@ export function useNotebookPage(pageId: number | null, notebookId: number | null
     [pageId, notebookId, debouncedSave, queryClient]
   );
 
-  // Force save immediately
+  // Update content_metadata (for positioned boxes) with debounced auto-save
+  const updateContentMetadata = useCallback(
+    (content_metadata: ContentMetadata) => {
+      if (!pageId) return;
+      setHasUnsavedChanges(true);
+      pendingChangesRef.current = { ...pendingChangesRef.current, content_metadata };
+      debouncedSave(pageId, pendingChangesRef.current);
+    },
+    [pageId, debouncedSave]
+  );
+
+  // Force save immediately (used on blur/unmount)
   const saveNow = useCallback(async () => {
     if (!pageId || !pendingChangesRef.current) return;
     debouncedSave.cancel();
+    const changesToSave = { ...pendingChangesRef.current };
     try {
       setIsSaving(true);
       const response = await api.patch<PageResponse>(
         `/api/v1/notebook_pages/${pageId}`,
-        pendingChangesRef.current
+        changesToSave
       );
       if (response?.success) {
         setLastSaved(new Date());
         setHasUnsavedChanges(false);
         pendingChangesRef.current = null;
-        queryClient.setQueryData(["notebook-page", pageId], response);
+        // Don't update page cache - same reason as debounced save
       }
     } catch (err) {
       console.error("Failed to save page:", err);
     } finally {
       setIsSaving(false);
     }
-  }, [pageId, debouncedSave, queryClient]);
+  }, [pageId, debouncedSave]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -185,6 +236,7 @@ export function useNotebookPage(pageId: number | null, notebookId: number | null
     // Update functions
     updateContent,
     updateTitle,
+    updateContentMetadata,
     saveNow,
   };
 }

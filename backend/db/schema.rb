@@ -6406,6 +6406,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_120004) do
     t.bigint "estimator_id"
     t.bigint "internal_sales_id"
     t.bigint "client_coordinator_id"
+    t.string "sharepoint_folder_status", default: "not_requested"
     t.index ["archived_at", "job_status_id"], name: "idx_jobs_archived_status"
     t.index ["archived_at"], name: "index_jobs_on_archived_at"
     t.index ["archived_by_id"], name: "index_jobs_on_archived_by_id"
@@ -8761,7 +8762,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_120004) do
     t.integer "claim_invoice_template_id"
     t.integer "claim_trading_name_id"
     t.boolean "is_variation", default: false
-    t.integer "claim_sequence_number"
     t.boolean "requires_document_to_complete", default: false
     t.bigint "completion_document_type_id"
     t.jsonb "completion_linked_task_ids", default: []
@@ -9385,7 +9385,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_120004) do
     t.boolean "is_template", default: false, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "job_id"
+    t.text "description"
     t.index ["is_template"], name: "index_teeem_spreadsheets_on_is_template"
+    t.index ["job_id", "updated_at"], name: "index_teeem_spreadsheets_on_job_id_and_updated_at"
+    t.index ["job_id"], name: "index_teeem_spreadsheets_on_job_id"
     t.index ["name"], name: "index_teeem_spreadsheets_on_name"
     t.index ["user_id", "updated_at"], name: "index_teeem_spreadsheets_on_user_id_and_updated_at"
     t.index ["user_id"], name: "index_teeem_spreadsheets_on_user_id"
@@ -9440,6 +9444,18 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_120004) do
     t.index ["section_number"], name: "index_trinities_on_section_number"
     t.index ["severity"], name: "index_trinities_on_severity"
     t.index ["status"], name: "index_trinities_on_status"
+  end
+
+  create_table "units_of_measure", force: :cascade do |t|
+    t.string "code", limit: 20, null: false
+    t.string "name", limit: 50, null: false
+    t.string "description", limit: 100
+    t.integer "sort_order", default: 0
+    t.boolean "is_active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["code"], name: "index_units_of_measure_on_code", unique: true
+    t.index ["is_active"], name: "index_units_of_measure_on_is_active"
   end
 
   create_table "unreal_measurements", force: :cascade do |t|
@@ -11095,6 +11111,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_120004) do
   add_foreign_key "task_followers", "users", on_delete: :cascade
   add_foreign_key "task_viewers", "sm_tasks"
   add_foreign_key "task_viewers", "users"
+  add_foreign_key "teeem_spreadsheets", "jobs"
   add_foreign_key "teeem_spreadsheets", "users"
   add_foreign_key "unreal_measurements", "job_colour_selections"
   add_foreign_key "unreal_measurements", "job_plans"

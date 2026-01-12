@@ -550,6 +550,11 @@ const MultipleSelector = React.forwardRef<
               )}
               onMouseLeave={() => {
                 setOnScrollbar(false);
+                // Close dropdown when mouse leaves (with small delay to allow re-entry)
+                setTimeout(() => {
+                  setOpen(false);
+                  inputRef.current?.blur();
+                }, 200);
               }}
               onMouseEnter={() => {
                 setOnScrollbar(true);

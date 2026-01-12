@@ -84,6 +84,7 @@ import { JobSitePresenceTab } from "@/components/jobs/JobSitePresenceTab";
 import { RevitTab } from "@/components/jobs/RevitTab";
 import { ColourSelectionBuilder } from "@/components/colours/ColourSelectionBuilder";
 import { SpecificationBuilder } from "@/components/specifications/SpecificationBuilder";
+import { JobSpreadsheetsSection } from "@/components/jobs/JobSpreadsheetsSection";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { EntityTab } from "@/lib/types/entity-tabs";
@@ -1686,6 +1687,9 @@ export default function JobDetailPage() {
                 }
               }}
             />
+
+            {/* Spreadsheets */}
+            <JobSpreadsheetsSection jobId={job.id} jobName={job.name} />
 
           </div>
         </TabsContent>

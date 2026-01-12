@@ -21,6 +21,8 @@ import {
   Search,
   X,
   GripVertical,
+  MoveRight,
+  CheckSquare,
 } from "lucide-react";
 import debounce from "lodash/debounce";
 import {
@@ -34,7 +36,6 @@ import {
   SortableContext,
   verticalListSortingStrategy,
   useSortable,
-  arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { createDndSensors } from "@/components/ui/dnd/dnd-config";
@@ -45,6 +46,14 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   useNotebooks,
   useNotebook,
@@ -85,6 +94,11 @@ export const NotebooksSidebar = forwardRef<NotebooksSidebarRef, NotebooksSidebar
   const [newSectionName, setNewSectionName] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
+
+  // Multi-select state
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedPageIds, setSelectedPageIds] = useState<Set<number>>(new Set());
+  const [showMoveDialog, setShowMoveDialog] = useState(false);
 
   // Debounce search query
   const debouncedSetQuery = useMemo(
@@ -206,6 +220,70 @@ export const NotebooksSidebar = forwardRef<NotebooksSidebarRef, NotebooksSidebar
     }
   };
 
+  // Multi-select handlers
+  const togglePageSelection = (pageId: number) => {
+    setSelectedPageIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(pageId)) {
+        next.delete(pageId);
+      } else {
+        next.add(pageId);
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedPageIds(new Set());
+    setIsSelectMode(false);
+  };
+
+  const selectAllPages = () => {
+    if (!selectedNotebook?.sections) return;
+    const allPageIds = new Set<number>();
+    selectedNotebook.sections.forEach((section) => {
+      section.pages?.forEach((page) => {
+        allPageIds.add(page.id);
+      });
+    });
+    setSelectedPageIds(allPageIds);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedPageIds.size === 0) return;
+    const count = selectedPageIds.size;
+    if (!confirm(`Are you sure you want to delete ${count} page${count > 1 ? "s" : ""}?`)) return;
+
+    try {
+      // Delete all selected pages
+      await Promise.all(Array.from(selectedPageIds).map((id) => pageActions.delete(id)));
+      await queryClient.invalidateQueries({ queryKey: ["notebook", selectedNotebookId] });
+      clearSelection();
+    } catch (err) {
+      console.error("Failed to delete pages:", err);
+    }
+  };
+
+  const handleBulkMove = async (targetSectionId: number, targetNotebookId?: number) => {
+    if (selectedPageIds.size === 0) return;
+
+    try {
+      // Move all selected pages to the target section
+      await Promise.all(
+        Array.from(selectedPageIds).map((id) => pageActions.move(id, { section_id: targetSectionId }))
+      );
+      // Invalidate both source and target notebook caches
+      await queryClient.invalidateQueries({ queryKey: ["notebook", selectedNotebookId] });
+      if (targetNotebookId && targetNotebookId !== selectedNotebookId) {
+        await queryClient.invalidateQueries({ queryKey: ["notebook", targetNotebookId] });
+      }
+      setShowMoveDialog(false);
+      clearSelection();
+    } catch (err) {
+      console.error("Failed to move pages:", err);
+    }
+  };
+
   const handleReorderSection = async (notebookId: number, sectionId: number, newPosition: number) => {
     try {
       await sectionActions.reorder(notebookId, sectionId, newPosition);
@@ -267,10 +345,68 @@ export const NotebooksSidebar = forwardRef<NotebooksSidebarRef, NotebooksSidebar
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b">
         <h2 className="font-semibold text-sm">Notebooks</h2>
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onCreateNotebook}>
-          <Plus className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            variant={isSelectMode ? "secondary" : "ghost"}
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => {
+              if (isSelectMode) {
+                clearSelection();
+              } else {
+                setIsSelectMode(true);
+              }
+            }}
+            title={isSelectMode ? "Cancel selection" : "Select pages"}
+          >
+            {isSelectMode ? <X className="h-4 w-4" /> : <CheckSquare className="h-4 w-4" />}
+          </Button>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onCreateNotebook}>
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
+
+      {/* Bulk Action Bar */}
+      {isSelectMode && (
+        <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/50">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={selectAllPages}
+            >
+              Select All
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              {selectedPageIds.size} page{selectedPageIds.size !== 1 ? "s" : ""} selected
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => setShowMoveDialog(true)}
+              disabled={selectedPageIds.size === 0}
+            >
+              <MoveRight className="h-3.5 w-3.5 mr-1" />
+              Move
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs text-destructive hover:text-destructive"
+              onClick={handleBulkDelete}
+              disabled={selectedPageIds.size === 0}
+            >
+              <Trash2 className="h-3.5 w-3.5 mr-1" />
+              Delete
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Search */}
       <div className="px-3 py-2 border-b">
@@ -361,6 +497,9 @@ export const NotebooksSidebar = forwardRef<NotebooksSidebarRef, NotebooksSidebar
               onReorderSection={(sectionId, newPosition) => handleReorderSection(notebook.id, sectionId, newPosition)}
               onReorderPage={handleReorderPage}
               onDeleteNotebook={() => handleDeleteNotebook(notebook.id)}
+              isSelectMode={isSelectMode}
+              selectedPageIds={selectedPageIds}
+              onTogglePageSelection={togglePageSelection}
             />
           ))}
 
@@ -381,6 +520,33 @@ export const NotebooksSidebar = forwardRef<NotebooksSidebarRef, NotebooksSidebar
         </div>
       </div>
       )}
+
+      {/* Move Pages Dialog */}
+      <Dialog open={showMoveDialog} onOpenChange={setShowMoveDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Move {selectedPageIds.size} page{selectedPageIds.size > 1 ? "s" : ""}</DialogTitle>
+            <DialogDescription>
+              Select a notebook and section to move the selected pages to.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1 max-h-[400px] overflow-auto">
+            {notebooks.map((notebook) => (
+              <MoveDialogNotebookItem
+                key={notebook.id}
+                notebook={notebook}
+                isCurrentNotebook={notebook.id === selectedNotebookId}
+                onSelectSection={(sectionId) => handleBulkMove(sectionId, notebook.id)}
+              />
+            ))}
+            {notebooks.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No notebooks available.
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 });
@@ -407,6 +573,10 @@ interface NotebookItemProps {
   onReorderSection: (sectionId: number, newPosition: number) => void;
   onReorderPage: (pageId: number, newPosition: number) => void;
   onDeleteNotebook: () => void;
+  // Multi-select props
+  isSelectMode: boolean;
+  selectedPageIds: Set<number>;
+  onTogglePageSelection: (pageId: number) => void;
 }
 
 function NotebookItem({
@@ -431,6 +601,9 @@ function NotebookItem({
   onReorderSection,
   onReorderPage,
   onDeleteNotebook,
+  isSelectMode,
+  selectedPageIds,
+  onTogglePageSelection,
 }: NotebookItemProps) {
   const sections = selectedNotebook?.sections ?? [];
   const sensors = createDndSensors();
@@ -541,6 +714,9 @@ function NotebookItem({
                   onDeletePage={onDeletePage}
                   onTogglePin={onTogglePin}
                   onReorderPage={onReorderPage}
+                  isSelectMode={isSelectMode}
+                  selectedPageIds={selectedPageIds}
+                  onTogglePageSelection={onTogglePageSelection}
                 />
               ))}
             </div>
@@ -602,6 +778,10 @@ interface SectionItemProps {
   onTogglePin: (pageId: number) => void;
   onReorderPage?: (pageId: number, newPosition: number) => void;
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
+  // Multi-select props
+  isSelectMode: boolean;
+  selectedPageIds: Set<number>;
+  onTogglePageSelection: (pageId: number) => void;
 }
 
 function SectionItem({
@@ -621,6 +801,9 @@ function SectionItem({
   onTogglePin,
   onReorderPage,
   dragHandleProps,
+  isSelectMode,
+  selectedPageIds,
+  onTogglePageSelection,
 }: SectionItemProps) {
   const pages = section.pages ?? [];
 
@@ -709,6 +892,9 @@ function SectionItem({
               onSelect={() => onSelectPage(page.id)}
               onDelete={() => onDeletePage(page.id)}
               onTogglePin={() => onTogglePin(page.id)}
+              isSelectMode={isSelectMode}
+              isChecked={selectedPageIds.has(page.id)}
+              onToggleSelection={() => onTogglePageSelection(page.id)}
             />
           ))}
         </div>
@@ -735,47 +921,81 @@ interface PageItemProps {
   onSelect: () => void;
   onDelete: () => void;
   onTogglePin: () => void;
+  // Multi-select props
+  isSelectMode: boolean;
+  isChecked: boolean;
+  onToggleSelection: () => void;
 }
 
-function PageItem({ page, isSelected, onSelect, onDelete, onTogglePin }: PageItemProps) {
+function PageItem({
+  page,
+  isSelected,
+  onSelect,
+  onDelete,
+  onTogglePin,
+  isSelectMode,
+  isChecked,
+  onToggleSelection,
+}: PageItemProps) {
+  const handleClick = (e: React.MouseEvent) => {
+    if (isSelectMode) {
+      e.preventDefault();
+      onToggleSelection();
+    } else {
+      onSelect();
+    }
+  };
+
   return (
     <div
       className={cn(
         "flex items-center gap-1 px-2 py-0.5 cursor-pointer hover:bg-muted/50 rounded-sm group",
-        isSelected && "bg-primary/10"
+        isSelected && !isSelectMode && "bg-primary/10",
+        isChecked && "bg-primary/20"
       )}
-      onClick={onSelect}
+      onClick={handleClick}
     >
-      {page.is_pinned ? (
+      {/* Checkbox in select mode */}
+      {isSelectMode ? (
+        <Checkbox
+          checked={isChecked}
+          onCheckedChange={() => onToggleSelection()}
+          onClick={(e) => e.stopPropagation()}
+          className="h-3.5 w-3.5 shrink-0"
+        />
+      ) : page.is_pinned ? (
         <Pin className="h-3 w-3 shrink-0 text-primary" />
       ) : (
         <FileText className="h-3 w-3 shrink-0 text-muted-foreground" />
       )}
       <span className="text-xs truncate flex-1">{page.title}</span>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-5 w-5 opacity-0 group-hover:opacity-100"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <MoreHorizontal className="h-3 w-3" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={onTogglePin}>
-            <Pin className="h-4 w-4 mr-2" />
-            {page.is_pinned ? "Unpin" : "Pin"}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={onDelete} className="text-destructive">
-            <Trash2 className="h-4 w-4 mr-2" />
-            Delete
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {/* Hide menu in select mode */}
+      {!isSelectMode && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5 opacity-0 group-hover:opacity-100"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MoreHorizontal className="h-3 w-3" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={onTogglePin}>
+              <Pin className="h-4 w-4 mr-2" />
+              {page.is_pinned ? "Unpin" : "Pin"}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onDelete} className="text-destructive">
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </div>
   );
 }
@@ -816,6 +1036,76 @@ function SearchResultItem({ page, isSelected, onSelect }: SearchResultItemProps)
         <p className="text-xs text-muted-foreground ml-5 line-clamp-1">
           {page.preview}
         </p>
+      )}
+    </div>
+  );
+}
+
+// Component for Move Dialog - shows notebook with expandable sections
+interface MoveDialogNotebookItemProps {
+  notebook: NotebookType;
+  isCurrentNotebook: boolean;
+  onSelectSection: (sectionId: number) => void;
+}
+
+function MoveDialogNotebookItem({
+  notebook,
+  isCurrentNotebook,
+  onSelectSection,
+}: MoveDialogNotebookItemProps) {
+  const [isExpanded, setIsExpanded] = React.useState(isCurrentNotebook);
+  const { notebook: notebookWithSections } = useNotebook(isExpanded ? notebook.id : null);
+
+  const sections = notebookWithSections?.sections ?? [];
+
+  return (
+    <div className="border rounded-md overflow-hidden">
+      {/* Notebook Header */}
+      <button
+        className={cn(
+          "flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-muted/50",
+          isCurrentNotebook && "bg-muted/30"
+        )}
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        {isExpanded ? (
+          <ChevronDown className="h-4 w-4 shrink-0" />
+        ) : (
+          <ChevronRight className="h-4 w-4 shrink-0" />
+        )}
+        <Notebook
+          className="h-4 w-4 shrink-0"
+          style={{ color: notebook.color || undefined }}
+        />
+        <span className="text-sm font-medium truncate flex-1">{notebook.name}</span>
+        {isCurrentNotebook && (
+          <span className="text-xs text-muted-foreground">(current)</span>
+        )}
+      </button>
+
+      {/* Sections */}
+      {isExpanded && (
+        <div className="border-t bg-muted/20">
+          {sections.length > 0 ? (
+            sections.map((section) => (
+              <button
+                key={section.id}
+                className="flex items-center gap-2 w-full px-3 py-1.5 pl-9 text-left hover:bg-muted/50 text-sm"
+                onClick={() => onSelectSection(section.id)}
+              >
+                <FolderPlus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <span className="truncate">{section.name}</span>
+                <span className="text-xs text-muted-foreground ml-auto">
+                  {section.page_count} page{section.page_count !== 1 ? "s" : ""}
+                </span>
+              </button>
+            ))
+          ) : (
+            <p className="text-xs text-muted-foreground px-3 py-2 pl-9">
+              No sections in this notebook
+            </p>
+          )}
+        </div>
       )}
     </div>
   );
