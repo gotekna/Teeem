@@ -49,6 +49,7 @@ import { getColumnTypeEmoji, getColumnTypes, getTypeDefinition } from "@/lib/col
 import type { TableColumn } from "./types";
 import { useSetAtom } from "jotai";
 import { invalidateColumnsCacheAtom } from "@/lib/column-state-atoms";
+import { isLookupColumn } from "@/lib/constants/column-types";
 
 interface ColumnEditorModalProps {
   isOpen: boolean;
@@ -859,7 +860,7 @@ export function ColumnEditorModal({
                           <Label className="text-xs text-muted-foreground">Lookup columns in this table</Label>
                           <div className="flex flex-wrap gap-1">
                             {allColumns
-                              .filter(c => c.column_type === "lookup" || c.column_type === "multiple_lookups")
+                              .filter(c => isLookupColumn(c.column_type))
                               .map((col) => (
                                 <Badge
                                   key={col.key}
@@ -875,7 +876,7 @@ export function ColumnEditorModal({
                                   🔗 {col.label || col.key}
                                 </Badge>
                               ))}
-                            {allColumns.filter(c => c.column_type === "lookup" || c.column_type === "multiple_lookups").length === 0 && (
+                            {allColumns.filter(c => isLookupColumn(c.column_type)).length === 0 && (
                               <p className="text-xs text-muted-foreground">No lookup columns in this table</p>
                             )}
                           </div>

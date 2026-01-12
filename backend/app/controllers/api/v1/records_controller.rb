@@ -84,7 +84,7 @@ module Api
               # - lookup columns: store integer IDs, not searchable text
               array_columns = model.columns.select(&:array).map(&:name)
               tsvector_columns = model.columns.select { |c| c.type == :tsvector }.map(&:name)
-              lookup_columns = @foundation.columns.where(column_type: 'lookup').pluck(:column_name)
+              lookup_columns = @foundation.columns.where(column_type: Column::LOOKUP_COLUMN_TYPES).pluck(:column_name)
               excluded_columns = array_columns + tsvector_columns + lookup_columns
               foundation_searchable.reject { |col| excluded_columns.include?(col) }
             elsif @foundation.table_type == "system"

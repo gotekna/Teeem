@@ -93,6 +93,7 @@ import { SortableSortByItem } from "./SortableSortByItem";
 import { SortableGroupByItem } from "./SortableGroupByItem";
 import { useEntityTypes } from "@/hooks/useEntityTypes";
 import { useContactChoices } from "@/hooks/useContactChoices";
+import { isLookupColumn as checkIsLookup, isChoiceColumn as checkIsChoice } from "@/lib/constants/column-types";
 
 // Column interface for view manager
 interface Column {
@@ -812,8 +813,8 @@ export function ViewManagerSheet({
     }
 
     const columnType = column.column_type?.toLowerCase() || '';
-    const isLookupColumn = columnType === 'lookup' || columnType === 'relation' || columnType === 'multiple_lookups';
-    const isChoiceColumn = columnType === 'choice';
+    const isLookup = checkIsLookup(columnType) || columnType === 'relation';
+    const isChoice = checkIsChoice(columnType);
     const isBooleanColumn = columnType === 'boolean';
 
     if (isBooleanColumn) {
@@ -864,7 +865,7 @@ export function ViewManagerSheet({
 
     const hasAvailableChoices = column.available_choices && column.available_choices.length > 0;
 
-    if (isChoiceColumn || hasAvailableChoices) {
+    if (isChoice || hasAvailableChoices) {
       const choices = column.available_choices || [];
       if (choices.length > 0) {
         const choiceItems: ComboboxItem[] = choices.map((choice) => {
@@ -884,7 +885,7 @@ export function ViewManagerSheet({
             />
           </div>
         );
-      } else if (isChoiceColumn) {
+      } else if (isChoice) {
         return (
           <Input
             value={String(filter.value || "")}
@@ -902,7 +903,7 @@ export function ViewManagerSheet({
     const effectiveLookupFoundationId = column.lookup_foundation_id;
     const effectiveDisplayColumn = column.lookup_display_column || knownMapping?.displayColumn || 'name';
 
-    if (isLookupColumn) {
+    if (isLookup) {
       if (effectiveLookupFoundationId) {
         const cacheKey = `${effectiveLookupFoundationId}`;
         const options = lookupOptionsCache[cacheKey] || [];

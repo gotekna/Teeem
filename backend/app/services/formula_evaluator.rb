@@ -26,7 +26,7 @@ class FormulaEvaluator
         # Find the lookup column
         lookup_column = @table.columns.find { |c| c.name == lookup_column_name }
 
-        if lookup_column && lookup_column.column_type.in?([ "lookup", "multiple_lookups" ]) && record_instance
+        if lookup_column && lookup_column.column_type.in?(Column::LOOKUP_COLUMN_TYPES) && record_instance
           # Get the related record
           begin
             related_record_id = record_data[lookup_column.column_name]

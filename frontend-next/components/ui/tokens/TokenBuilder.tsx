@@ -205,7 +205,7 @@ export function TokenBuilder({
   className,
   error,
   helpText,
-  defaultExpanded = true,
+  defaultExpanded = false,
   separator = " ",
 }: TokenBuilderProps) {
   const [customText, setCustomText] = React.useState("");
@@ -231,13 +231,22 @@ export function TokenBuilder({
   }, [allPlaceholders, search]);
 
   // Parse current value into tokens with unique IDs
+  // When separator is "/" (folder paths), hide separator-only text tokens
+  const isFolderPathMode = separator === "/";
+
   const tokens: TokenItem[] = React.useMemo(() => {
     const parsed = parseTemplate(value);
-    return parsed.map((token, index) => ({
+
+    // In folder path mode, filter out separator-only text tokens
+    const filtered = isFolderPathMode
+      ? parsed.filter(token => !(token.type === "text" && token.value.trim() === "/"))
+      : parsed;
+
+    return filtered.map((token, index) => ({
       ...token,
       id: `token-${index}-${token.value}`,
     }));
-  }, [value]);
+  }, [value, isFolderPathMode]);
 
   // Find active item for drag overlay
   const activeItem = React.useMemo(
@@ -276,7 +285,14 @@ export function TokenBuilder({
   // Remove a token at index
   const removeToken = (index: number) => {
     const newTokens = tokens.filter((_, i) => i !== index);
-    onChange(buildTemplate(newTokens.map(({ type, value }) => ({ type, value }))));
+
+    // In folder path mode, rebuild by joining placeholders with separator
+    if (isFolderPathMode) {
+      const newValue = newTokens.map(t => t.value).join(separator);
+      onChange(newValue);
+    } else {
+      onChange(buildTemplate(newTokens.map(({ type, value }) => ({ type, value }))));
+    }
   };
 
   // Add custom text
@@ -310,7 +326,14 @@ export function TokenBuilder({
       const oldIndex = tokens.findIndex((t) => t.id === active.id);
       const newIndex = tokens.findIndex((t) => t.id === over.id);
       const reordered = arrayMove(tokens, oldIndex, newIndex);
-      onChange(buildTemplate(reordered.map(({ type, value }) => ({ type, value }))));
+
+      // In folder path mode, rebuild by joining with separator
+      if (isFolderPathMode) {
+        const newValue = reordered.map(t => t.value).join(separator);
+        onChange(newValue);
+      } else {
+        onChange(buildTemplate(reordered.map(({ type, value }) => ({ type, value }))));
+      }
     }
   };
 

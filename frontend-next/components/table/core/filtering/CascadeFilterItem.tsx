@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
+import { isLookupColumn as checkIsLookup, isChoiceColumn as checkIsChoice } from "@/lib/constants/column-types";
 import type { CascadeFilter, TableColumn } from "../../types";
 
 interface CascadeFilterItemProps {
@@ -36,17 +37,18 @@ export const CascadeFilterItem = memo(function CascadeFilterItem({
   const column = columns.find((c) => c.key === filter.column);
 
   // Fetch lookup options when column changes to a lookup type
+  const colType = column?.column_type;
   useEffect(() => {
-    if (column && (column.column_type === 'lookup' || column.column_type === 'relation') &&
+    if (column && (checkIsLookup(colType) || colType === 'relation') &&
         column.lookup_foundation_id && onFetchLookupOptions) {
       onFetchLookupOptions(column);
     }
-  }, [column, onFetchLookupOptions]);
+  }, [column, colType, onFetchLookupOptions]);
 
   // Determine if this column should show a dropdown for values
-  const isLookupColumn = column?.column_type === 'lookup' || column?.column_type === 'relation';
-  const isChoiceColumn = column?.column_type === 'choice';
-  const isBooleanColumn = column?.column_type === 'boolean';
+  const isLookupColumn = checkIsLookup(colType) || colType === 'relation';
+  const isChoiceColumn = checkIsChoice(colType);
+  const isBooleanColumn = colType === 'boolean';
   const options = lookupOptions?.[filter.column] || [];
   const isLoading = lookupLoading?.[filter.column] || false;
 

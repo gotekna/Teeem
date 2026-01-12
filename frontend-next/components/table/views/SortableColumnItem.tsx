@@ -18,6 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useDroppable } from "@dnd-kit/core";
 import { Badge } from "@/components/ui/badge";
+import { isLookupColumn, isChoiceColumn } from "@/lib/constants/column-types";
 import type { ColumnPriority } from "@/lib/column-priority";
 import { getColumnTypeLabel, getColumnTypeIcon } from "@/lib/column-type-registry";
 
@@ -137,10 +138,10 @@ export function SortableColumnItem({
         {/* Column type and lookup info */}
         <div className="flex items-center gap-1 ml-4 text-[10px] text-muted-foreground">
           <span className="truncate">{getColumnTypeLabel(column.column_type)}</span>
-          {(column.column_type === 'lookup' || column.column_type === 'multiple_lookups') && lookupFoundationName && (
+          {isLookupColumn(column.column_type) && lookupFoundationName && (
             <span className="truncate">→ {lookupFoundationName}</span>
           )}
-          {column.column_type === 'choice' && column.available_choices && (
+          {isChoiceColumn(column.column_type) && column.available_choices && (
             <span className="truncate">({Array.isArray(column.available_choices) ? column.available_choices.length : 0} options)</span>
           )}
         </div>
