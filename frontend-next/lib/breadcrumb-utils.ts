@@ -49,9 +49,10 @@ const ROUTE_DISPLAY_NAMES: Record<string, string> = {
   "/documents": "File Warehouse",
   "/documents/templates": "Templates",
 
-  // Admin
-  "/admin": "Admin",
-  "/admin/system": "System Settings",
+  // Admin (legacy paths - display as Settings for consistency)
+  "/admin": "Settings",
+  "/admin/system": "Operations",
+  "/admin/system/schedule-master": "Schedule Master",
   "/admin/users": "Users",
   "/admin/resources": "Resources",
 

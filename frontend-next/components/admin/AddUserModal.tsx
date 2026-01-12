@@ -56,7 +56,7 @@ export function AddUserModal({ isOpen, onClose, onUserAdded }: AddUserModalProps
   useEffect(() => {
     const fetchRoles = async () => {
       try {
-        const response = await api.get<{ data: Array<{ value: string; label: string }> }>("/roles");
+        const response = await api.get<{ data: Array<{ value: string; label: string }> }>("/api/v1/roles");
         setRoles(response.data || []);
       } catch (error) {
         console.error("Failed to fetch roles:", error);

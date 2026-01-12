@@ -28,7 +28,7 @@ export interface GanttApiConfig {
  */
 export function getGanttApiConfig(
   mode: GanttMode,
-  options: { templateId?: number; jobId?: number; showAllPOTasks?: boolean }
+  options: { templateId?: number; jobId?: number; showAllPOTasks?: boolean; showClaims?: boolean }
 ): GanttApiConfig {
   if (mode === 'template') {
     if (!options.templateId) {
@@ -37,9 +37,11 @@ export function getGanttApiConfig(
     const baseUrl = `/api/v1/sm_schedule_master_templates/${options.templateId}`;
     // SSoT: Use gantt_data endpoint for proper date calculation (topological sort handles forward refs)
     // show_all_po=true shows PO required tasks without suppliers (useful for template editing)
+    // show_claims=true shows claim tasks (hidden by default in templates)
     const showAllPO = options.showAllPOTasks ? '&show_all_po=true' : '';
+    const showClaims = options.showClaims ? '&show_claims=true' : '';
     return {
-      fetchUrl: `${baseUrl}/gantt_data?for=gantt${showAllPO}`,
+      fetchUrl: `${baseUrl}/gantt_data?for=gantt${showAllPO}${showClaims}`,
       updateUrl: (taskId) => `${baseUrl}/rows/${taskId}`,
       validateDatesUrl: `${baseUrl}/validate_dates`,
       payloadWrapper: 'row',

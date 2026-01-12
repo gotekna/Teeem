@@ -35,6 +35,9 @@ class GanttDataService
     @filter_invisible = options[:filter_invisible] || false
     # filter_po_tasks (templates): filter by po_supplier_id.blank? - task requires PO but no supplier configured
     @filter_po_tasks = options[:filter_po_tasks] || false
+    # filter_claim_tasks (templates): filter out claim tasks (is_claim_task=true)
+    # Claims in templates are hidden by default since they only become visible when invoiced
+    @filter_claim_tasks = options[:filter_claim_tasks] || false
     # date_overrides: Hash of task_number => { start_date: Date, end_date: Date }
     # Used for templates where dates are calculated from dependencies, not stored
     # SSoT: Calculated by GanttDateCalculationService using topological sort
@@ -99,9 +102,10 @@ class GanttDataService
   # - filter_invisible (jobs): po_required=true but no PO linked (has_linked_po?)
   # - filter_invisible (jobs): is_claim_task? but no claim linked (has_linked_claim?)
   # - filter_po_tasks (templates): po_required=true but no supplier configured (po_supplier_id.blank?)
+  # - filter_claim_tasks (templates): is_claim_task=true (claims hidden by default in templates)
   # Returns [visible_records, invisible_ids_set]
   def filter_records
-    return [@records, Set.new] unless @filter_invisible || @filter_po_tasks
+    return [@records, Set.new] unless @filter_invisible || @filter_po_tasks || @filter_claim_tasks
 
     invisible_ids = Set.new
     visible_records = []
@@ -122,7 +126,14 @@ class GanttDataService
         end
       end
 
-      # Claim task filtering (job mode only)
+      # Claim task filtering (template mode)
+      # Hide claim tasks in templates (they only become visible when invoiced on jobs)
+      if @filter_claim_tasks && !should_hide
+        is_claim = record.respond_to?(:is_claim_task) ? record.is_claim_task : false
+        should_hide = is_claim
+      end
+
+      # Claim task filtering (job mode)
       # Hide claim tasks that don't have a linked claim stage
       if @filter_invisible && !should_hide
         is_claim = record.respond_to?(:is_claim_task?) ? record.is_claim_task? : false

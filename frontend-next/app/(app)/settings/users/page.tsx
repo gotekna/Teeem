@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
@@ -16,6 +16,11 @@ import { TableRow } from "@/components/table/types";
  * SSoT: This is THE ONE location for user management.
  * Part of the Settings/Admin merge - Organization section.
  * Admin role required (enforced by layout).
+ *
+ * Uses autoFetchRecords for:
+ * - SSR hydration (faster initial load)
+ * - Built-in caching (instant back navigation)
+ * - Server-side search
  */
 
 interface User {
@@ -30,64 +35,16 @@ interface User {
 }
 
 export default function UsersSettingsPage() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showDetailSheet, setShowDetailSheet] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const { toast } = useToast();
 
-  useEffect(() => {
-    loadUsers();
+  // Trigger table refresh after mutations
+  const triggerRefresh = useCallback(() => {
+    setRefreshKey(k => k + 1);
   }, []);
-
-  const loadUsers = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get<{ users: User[] }>("/api/v1/users");
-      setUsers(response?.users || []);
-      setError(null);
-    } catch (err) {
-      console.error("Failed to load users:", err);
-      setError("Failed to load users");
-      setUsers([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleEdit = async (row: TableRow) => {
-    const user = row as User;
-    try {
-      const response = await api.patch<{ success: boolean }>(
-        `/api/v1/users/${user.id}`,
-        {
-          user: {
-            name: user.name,
-            email: user.email,
-            role: user.role,
-            assigned_role: user.assigned_role || "",
-          },
-        }
-      );
-
-      if (response?.success) {
-        toast({
-          title: "Success",
-          description: "User updated successfully",
-        });
-        loadUsers();
-      }
-    } catch (error: unknown) {
-      console.error("Update error:", error);
-      toast({
-        title: "Error",
-        description: "Failed to update user",
-        variant: "destructive",
-      });
-    }
-  };
 
   const handleDelete = async (row: TableRow) => {
     const user = row as User;
@@ -108,7 +65,7 @@ export default function UsersSettingsPage() {
           title: "Success",
           description: "User removed successfully",
         });
-        loadUsers();
+        triggerRefresh();
       }
     } catch (err) {
       console.error("Failed to remove user:", err);
@@ -135,7 +92,7 @@ export default function UsersSettingsPage() {
         title: "Success",
         description: `${ids.length} user(s) removed successfully`,
       });
-      loadUsers();
+      triggerRefresh();
     } catch (err) {
       console.error("Failed to remove users:", err);
       toast({
@@ -146,22 +103,6 @@ export default function UsersSettingsPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-muted-foreground">Loading users...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="text-center py-12">
-        <div className="text-destructive">{error}</div>
-      </div>
-    );
-  }
-
   const handleRowDoubleClick = (row: TableRow) => {
     const user = row as User;
     setSelectedUser(user);
@@ -171,21 +112,19 @@ export default function UsersSettingsPage() {
   return (
     <div className="flex flex-col h-full -mx-4">
       <TeeemTableView
-        category="users"
+        key={refreshKey}
         foundationId="user-management"
-        tableName="Users"
-        entries={users}
-        onEdit={handleEdit}
+        autoFetchRecords={true}
         onDelete={handleDelete}
         onBulkDelete={handleBulkDelete}
         onRowDoubleClick={handleRowDoubleClick}
+        onRefresh={triggerRefresh}
         leftActions={
           <Button onClick={() => setShowAddModal(true)}>
             <UserPlus className="h-4 w-4 mr-2" />
             Add User
           </Button>
         }
-        hideFooter={true}
       />
 
       <AddUserModal
@@ -193,7 +132,7 @@ export default function UsersSettingsPage() {
         onClose={() => setShowAddModal(false)}
         onUserAdded={() => {
           setShowAddModal(false);
-          loadUsers();
+          triggerRefresh();
           toast({
             title: "Success",
             description: "User added successfully",
@@ -208,7 +147,7 @@ export default function UsersSettingsPage() {
           setShowDetailSheet(false);
           setSelectedUser(null);
         }}
-        onSave={loadUsers}
+        onSave={triggerRefresh}
       />
     </div>
   );
