@@ -12,7 +12,8 @@
 #
 class EntityTab < ApplicationRecord
   # Valid scopes (xero tabs are children of corporate_entity/xero tab)
-  SCOPES = %w[corporate_entity people job document contact].freeze
+  # System scopes (email, warehouse) are read-only in UI - is_system_tab: true
+  SCOPES = %w[corporate_entity people job document contact email warehouse xero].freeze
 
   # Valid tab groups
   # - overview: Main features and data display
@@ -20,7 +21,8 @@ class EntityTab < ApplicationRecord
   # - reports: Xero reports (P&L, Balance Sheet, etc.)
   # - data: Xero data views (Accounts, Contacts, etc.)
   # - setup: Configuration tabs (Connection, Settings)
-  TAB_GROUPS = %w[overview documents reports data setup main].freeze
+  # - system: System-managed tabs (email storage, warehousing) - read-only in UI
+  TAB_GROUPS = %w[overview documents reports data setup main system].freeze
 
   # Display modes for tabs (SSoT: how tabs render in UI)
   # - both: Show icon + text (default)
@@ -171,11 +173,26 @@ class EntityTab < ApplicationRecord
     end
   end
 
-  # Get the inherited template from StorageConfiguration (global config)
-  # This is what would be used if uses_custom_path is false
+  # Get the inherited template (default template based on scope)
+  # SSoT: EntityTab owns folder paths, this returns a sensible default
   def inherited_template
     return nil unless has_storage_folder
-    StorageConfiguration.instance&.template_for(scope_for_template)
+
+    # Default templates per scope (if no custom path is set)
+    case scope_for_template
+    when "job", "jobs"
+      "{{JobCode}}/{{TabName}}"
+    when "corporate", "company"
+      "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}"
+    when "contact", "people"
+      "{{ContactName}}/{{TabName}}"
+    when "email"
+      "emails/eml/{{OrgName}}/{{Year}}/{{Month}}"
+    when "warehouse"
+      "Warehousing/{{TabName}}"
+    else
+      "{{TabName}}"
+    end
   rescue => e
     Rails.logger.warn "[EntityTab] Failed to get inherited template: #{e.message}"
     nil

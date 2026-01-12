@@ -45,7 +45,9 @@ class StorageConfiguration < ApplicationRecord
     "account" => "Accounts",
     "accounts" => "Accounts",
     "email" => "emails",
-    "emails" => "emails"
+    "emails" => "emails",
+    "warehouse" => "Warehousing",
+    "warehousing" => "Warehousing"
   }.freeze
 
   # Validations

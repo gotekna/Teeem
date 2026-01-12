@@ -132,14 +132,19 @@ export default function ScheduleMasterPage() {
     return parts[0] || "overview";
   }, [pathname]);
 
-  // Redirect to default tab if no tab in URL
+  // Redirect all /schedule-master routes to /settings/operations (Schedule Master config)
   useEffect(() => {
-    if (!pathname.includes("/schedule-master/")) {
-      router.replace("/schedule-master/overview", { scroll: false });
+    if (pathname.startsWith("/schedule-master")) {
+      router.replace("/settings/operations");
     }
   }, [pathname, router]);
 
   const handleTabChange = useCallback((tabId: string) => {
+    // "tasks" tab should open the data-view in admin system
+    if (tabId === "tasks") {
+      router.push("/admin/system/schedule-master/data-view");
+      return;
+    }
     router.push(`/schedule-master/${tabId}`, { scroll: false });
   }, [router]);
 

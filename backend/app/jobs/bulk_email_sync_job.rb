@@ -363,7 +363,9 @@ class BulkEmailSyncJob < ApplicationJob
     month = email.received_at.strftime("%m")
     # SSoT: Use centralized SharePoint path sanitization
     org_name = SharePoint::FilenameSanitizer.sanitize_path_segment(@credential.name)
-    folder_path = "emails/eml/#{org_name}/#{year}/#{month}"
+
+    # SSoT: Get email storage path from EntityTab (system-managed)
+    folder_path = email_storage_path(org_name, year, month)
     filename = "#{email.id}.eml"
 
     result = if mime_content.bytesize >= 4 * 1024 * 1024
@@ -415,6 +417,24 @@ class BulkEmailSyncJob < ApplicationJob
     Rails.logger.info "Emails uploaded to SharePoint: #{@progress['emails_uploaded_to_sharepoint']}"
     Rails.logger.info "Errors: #{@progress['errors'].count}"
     Rails.logger.info "=" * 60
+  end
+
+  # SSoT: Get email storage path from EntityTab (system-managed)
+  # Resolves the template: "emails/eml/{{OrgName}}/{{Year}}/{{Month}}"
+  # Falls back to hardcoded path if EntityTab doesn't exist
+  def email_storage_path(org_name, year, month)
+    email_tab = EntityTab.find_by(scope: "email", tab_key: "email-storage")
+
+    if email_tab&.storage_folder_path.present?
+      # Resolve placeholders in the template
+      email_tab.storage_folder_path
+        .gsub("{{OrgName}}", org_name.to_s)
+        .gsub("{{Year}}", year.to_s)
+        .gsub("{{Month}}", month.to_s.rjust(2, "0"))
+    else
+      # Fallback if EntityTab doesn't exist (shouldn't happen in production)
+      "emails/eml/#{org_name}/#{year}/#{month}"
+    end
   end
 
   # Skip signature/embedded images that aren't real attachments

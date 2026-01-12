@@ -17,17 +17,10 @@ import {
   Cloud,
   CheckCircle2,
   AlertCircle,
-  FolderTree,
   Save,
   RefreshCw,
   ExternalLink,
   Info,
-  FileCode,
-  Briefcase,
-  Building2,
-  Users,
-  ClipboardList,
-  Folder,
   Settings,
   HardDrive,
   Database,
@@ -35,17 +28,7 @@ import {
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
-import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
-import { TokenBuilder } from "@/components/ui/tokens";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import { Search, RotateCcw } from "lucide-react";
 
 // SSoT: Provider types match StorageConfiguration.PROVIDER_TYPES
 type ProviderType = "sharepoint" | "s3" | "wasabi" | "local";
@@ -57,6 +40,8 @@ const PROVIDER_OPTIONS: { value: ProviderType; label: string; icon: React.Elemen
   { value: "local", label: "Local Storage", icon: HardDrive, description: "Local file system (development only)" },
 ];
 
+// SSoT: StorageConfiguration handles CONNECTION only
+// Folder paths are managed per-tab in EntityTab (Entity Configurator)
 interface StorageConfig {
   configured: boolean;
   provider_type: ProviderType;
@@ -70,22 +55,8 @@ interface StorageConfig {
   endpoint: string | null;
   bucket: string | null;
   region: string | null;
-  // Paths (provider-agnostic)
+  // Root path only - folder paths are in EntityTab (Entity Configurator)
   root_path: string;
-  paths: {
-    jobs: string;
-    tasks: string;
-    people: string;
-    corporate: string;
-    contacts: string;
-  };
-  templates: {
-    job: string;
-    task: string;
-    corporate: string;
-    people: string;
-    contacts: string;
-  };
 }
 
 export function SharePointTab() {
@@ -94,8 +65,6 @@ export function SharePointTab() {
   const [saving, setSaving] = React.useState(false);
   const [testing, setTesting] = React.useState(false);
   const [config, setConfig] = React.useState<StorageConfig | null>(null);
-  const [showBrowser, setShowBrowser] = React.useState<"root" | "jobs" | "tasks" | "company" | "people" | "contacts" | null>(null);
-  const [resetting, setResetting] = React.useState(false);
   const [formData, setFormData] = React.useState({
     // Provider type (SSoT)
     provider_type: "sharepoint" as ProviderType,
@@ -108,19 +77,8 @@ export function SharePointTab() {
     s3_endpoint: "",
     s3_bucket: "",
     s3_region: "",
-    // Folder paths - root path empty by default (SSoT: paths are relative to drive root)
+    // Root path only - folder structure is managed in Entity Configurator
     sharepoint_root_path: "",
-    sharepoint_jobs_path: "Jobs",
-    sharepoint_tasks_path: "Tasks",
-    sharepoint_people_path: "Corporate/People",
-    sharepoint_company_path: "Corporate",
-    sharepoint_contacts_path: "Contacts",
-    // Path templates
-    sharepoint_job_template: "{{JobCode}}/{{Category}}",
-    sharepoint_task_template: "Task-{{TaskId}}/{{Category}}",
-    sharepoint_company_template: "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
-    sharepoint_people_template: "{{ContactName}}/{{Category}}",
-    sharepoint_contacts_template: "{{ContactName}}/{{Category}}",
   });
 
   // Load storage config on mount
@@ -148,18 +106,8 @@ export function SharePointTab() {
           s3_endpoint: response.data.endpoint || "",
           s3_bucket: response.data.bucket || "",
           s3_region: response.data.region || "",
-          // SSoT: root path defaults to empty (drive root)
+          // Root path only - folder paths are managed in Entity Configurator
           sharepoint_root_path: response.data.root_path || "",
-          sharepoint_jobs_path: response.data.paths?.jobs || "Jobs",
-          sharepoint_tasks_path: response.data.paths?.tasks || "Tasks",
-          sharepoint_people_path: response.data.paths?.people || "Corporate/People",
-          sharepoint_company_path: response.data.paths?.corporate || "Corporate",
-          sharepoint_contacts_path: response.data.paths?.contacts || "Contacts",
-          sharepoint_job_template: response.data.templates?.job || "{{JobCode}}/{{Category}}",
-          sharepoint_task_template: response.data.templates?.task || "Task-{{TaskId}}/{{Category}}",
-          sharepoint_company_template: response.data.templates?.corporate || "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
-          sharepoint_people_template: response.data.templates?.people || "{{ContactName}}/{{Category}}",
-          sharepoint_contacts_template: response.data.templates?.contacts || "{{ContactName}}/{{Category}}",
         });
       }
     } catch (error) {
@@ -198,10 +146,11 @@ export function SharePointTab() {
           description: `${providerLabel} configuration updated successfully`,
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { message?: string };
       toast({
         title: "Error",
-        description: error?.message || "Failed to save storage configuration",
+        description: err?.message || "Failed to save storage configuration",
         variant: "destructive",
       });
     } finally {
@@ -227,10 +176,11 @@ export function SharePointTab() {
           variant: "destructive",
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { message?: string };
       toast({
         title: "Connection Failed",
-        description: error?.message || "Could not connect to storage",
+        description: err?.message || "Could not connect to storage",
         variant: "destructive",
       });
     } finally {
@@ -238,52 +188,8 @@ export function SharePointTab() {
     }
   };
 
-  const handleResetAllPaths = async () => {
-    if (!confirm("This will reset ALL tabs to use the default SSoT path templates. Tabs with custom paths will be updated to inherit from the template. Continue?")) {
-      return;
-    }
-    try {
-      setResetting(true);
-      const response = await api.post<{ success: boolean; updated_count: number }>("/api/v1/entity_tabs/reset_paths");
-      if (response?.success) {
-        toast({
-          title: "Paths Reset",
-          description: `${response.updated_count} tabs updated to use default paths`,
-        });
-      }
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error?.message || "Failed to reset paths",
-        variant: "destructive",
-      });
-    } finally {
-      setResetting(false);
-    }
-  };
-
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-  };
-
-  // Build full path preview
-  const getFullPath = (subPath: string, template?: string) => {
-    const root = formData.sharepoint_root_path.replace(/\/$/, "");
-    const sub = subPath.replace(/^\//, "").replace(/\/$/, "");
-    const tmpl = template ? `/${template.replace(/^\//, "")}` : "";
-    return `${root}/${sub}${tmpl}`.replace(/\/+/g, "/");
-  };
-
-  // Resolve template preview with example values
-  const resolveTemplatePreview = (template: string) => {
-    return template
-      .replace("{{JobCode}}", "JOB-001")
-      .replace("{{TaskId}}", "2236")
-      .replace("{{Category}}", "Responses")
-      .replace("{{CompanyGroup}}", "Tekna Group")
-      .replace("{{CompanyCode}}", "TEK")
-      .replace("{{TabName}}", "ASIC")
-      .replace("{{ContactName}}", "John Smith");
   };
 
   if (loading) {
@@ -296,7 +202,6 @@ export function SharePointTab() {
 
   // Get current provider info
   const currentProvider = PROVIDER_OPTIONS.find(p => p.value === formData.provider_type) || PROVIDER_OPTIONS[0];
-  const ProviderIcon = currentProvider.icon;
 
   return (
     <div className="space-y-6">
@@ -305,7 +210,7 @@ export function SharePointTab() {
         <div>
           <h2 className="text-lg font-semibold">Storage Configuration</h2>
           <p className="text-sm text-muted-foreground">
-            Single Source of Truth for all document storage paths
+            Configure storage provider connection settings
           </p>
         </div>
         <Badge
@@ -556,439 +461,59 @@ export function SharePointTab() {
         </Card>
       )}
 
-      {/* Document Paths - Two Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* LEFT COLUMN: Full List of All Paths */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <FolderTree className="h-4 w-4" />
-              All Paths (Full List)
-            </CardTitle>
-            <CardDescription>
-              Quick reference of all configured storage paths
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3 font-mono text-sm">
-              {/* Root */}
-              <div className="p-2 bg-muted/50 rounded border">
-                <div className="text-xs text-muted-foreground mb-1">Root Path</div>
-                <div className="text-foreground">{formData.sharepoint_root_path || "(drive root)"}</div>
-              </div>
-
-              {/* Jobs */}
-              <div className="flex items-start gap-2 p-2 rounded hover:bg-muted/30">
-                <Briefcase className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs text-muted-foreground">Jobs</div>
-                  <div className="text-foreground truncate">{getFullPath(formData.sharepoint_jobs_path)}</div>
-                </div>
-              </div>
-
-              {/* Tasks */}
-              <div className="flex items-start gap-2 p-2 rounded hover:bg-muted/30">
-                <ClipboardList className="h-4 w-4 text-cyan-500 mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs text-muted-foreground">Tasks</div>
-                  <div className="text-foreground truncate">{getFullPath(formData.sharepoint_tasks_path)}</div>
-                </div>
-              </div>
-
-              {/* Company */}
-              <div className="flex items-start gap-2 p-2 rounded hover:bg-muted/30">
-                <Building2 className="h-4 w-4 text-purple-500 mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs text-muted-foreground">Corporate</div>
-                  <div className="text-foreground truncate">{getFullPath(formData.sharepoint_company_path)}</div>
-                </div>
-              </div>
-
-              {/* People */}
-              <div className="flex items-start gap-2 p-2 rounded hover:bg-muted/30">
-                <Users className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs text-muted-foreground">Corporate People</div>
-                  <div className="text-foreground truncate">{getFullPath(formData.sharepoint_people_path)}</div>
-                </div>
-              </div>
-
-              {/* Contacts */}
-              <div className="flex items-start gap-2 p-2 rounded hover:bg-muted/30">
-                <Users className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs text-muted-foreground">Contacts</div>
-                  <div className="text-foreground truncate">{getFullPath(formData.sharepoint_contacts_path)}</div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* RIGHT COLUMN: Folder Structure Tree */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <FolderTree className="h-4 w-4" />
-              Folder Structure (Tree View)
-            </CardTitle>
-            <CardDescription>
-              Visual representation of folder hierarchy
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="font-mono text-sm space-y-1">
-              {/* Root */}
-              <div className="flex items-center gap-1">
-                <Folder className="h-4 w-4 text-yellow-600" />
-                <span className="font-medium">{formData.sharepoint_root_path || "/"}</span>
-              </div>
-
-              {/* Jobs branch */}
-              <div className="ml-4 border-l border-muted pl-3 space-y-1">
-                <div className="flex items-center gap-1 text-orange-600 dark:text-orange-400">
-                  <span className="text-muted-foreground">├─</span>
-                  <Briefcase className="h-3.5 w-3.5" />
-                  <span>{formData.sharepoint_jobs_path}</span>
-                </div>
-                <div className="ml-4 text-xs text-muted-foreground">
-                  <span className="text-muted-foreground/50">│  └─</span> {"{{JobCode}}/{{Category}}"}
-                </div>
-              </div>
-
-              {/* Tasks branch */}
-              <div className="ml-4 border-l border-muted pl-3 space-y-1">
-                <div className="flex items-center gap-1 text-cyan-600 dark:text-cyan-400">
-                  <span className="text-muted-foreground">├─</span>
-                  <ClipboardList className="h-3.5 w-3.5" />
-                  <span>{formData.sharepoint_tasks_path}</span>
-                </div>
-                <div className="ml-4 text-xs text-muted-foreground">
-                  <span className="text-muted-foreground/50">│  └─</span> Task-{"{{TaskId}}"}/{"{{Category}}"}
-                </div>
-              </div>
-
-              {/* Corporate branch */}
-              <div className="ml-4 border-l border-muted pl-3 space-y-1">
-                <div className="flex items-center gap-1 text-purple-600 dark:text-purple-400">
-                  <span className="text-muted-foreground">├─</span>
-                  <Building2 className="h-3.5 w-3.5" />
-                  <span>{formData.sharepoint_company_path}</span>
-                </div>
-                <div className="ml-4 text-xs text-muted-foreground">
-                  <span className="text-muted-foreground/50">│  └─</span> {"{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}"}
-                </div>
-
-                {/* People sub-branch (under Corporate) */}
-                {formData.sharepoint_people_path.startsWith(formData.sharepoint_company_path) && (
-                  <div className="ml-4 flex items-center gap-1 text-green-600 dark:text-green-400">
-                    <span className="text-muted-foreground/50">│  ├─</span>
-                    <Users className="h-3.5 w-3.5" />
-                    <span>People</span>
-                  </div>
-                )}
-              </div>
-
-              {/* People branch (if not under Corporate) */}
-              {!formData.sharepoint_people_path.startsWith(formData.sharepoint_company_path) && (
-                <div className="ml-4 border-l border-muted pl-3 space-y-1">
-                  <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
-                    <span className="text-muted-foreground">├─</span>
-                    <Users className="h-3.5 w-3.5" />
-                    <span>{formData.sharepoint_people_path}</span>
-                  </div>
-                  <div className="ml-4 text-xs text-muted-foreground">
-                    <span className="text-muted-foreground/50">│  └─</span> {"{{ContactName}}/{{Category}}"}
-                  </div>
-                </div>
-              )}
-
-              {/* Contacts branch */}
-              <div className="ml-4 border-l border-muted pl-3 space-y-1">
-                <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
-                  <span className="text-muted-foreground">└─</span>
-                  <Users className="h-3.5 w-3.5" />
-                  <span>{formData.sharepoint_contacts_path}</span>
-                </div>
-                <div className="ml-4 text-xs text-muted-foreground">
-                  <span className="text-muted-foreground/50">   └─</span> {"{{ContactName}}/{{Category}}"}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Path Configuration (Editable) */}
+      {/* Root Path Configuration */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Settings className="h-4 w-4" />
-            Edit Paths
+            Root Path
           </CardTitle>
           <CardDescription>
-            Configure base folders for each document type. All paths are relative to the root.
+            Base path in the storage provider. All folder paths are relative to this root.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Root Path */}
-          <div className="space-y-2 p-4 bg-muted/50 rounded-lg border">
-            <Label htmlFor="root_path" className="text-sm font-medium">
-              Root Path
-            </Label>
-            <div className="flex gap-2">
-              <Input
-                id="root_path"
-                value={formData.sharepoint_root_path}
-                onChange={(e) => handleChange("sharepoint_root_path", e.target.value)}
-                placeholder="/Shared Documents"
-                className="font-mono flex-1"
-              />
-              <Button variant="outline" size="icon" onClick={() => setShowBrowser("root")}>
-                <Search className="h-4 w-4" />
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <Info className="h-3 w-3" />
-              All paths below are relative to this root
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="root_path">Root Path</Label>
+            <Input
+              id="root_path"
+              value={formData.sharepoint_root_path}
+              onChange={(e) => handleChange("sharepoint_root_path", e.target.value)}
+              placeholder="/ (drive root)"
+              className="font-mono"
+            />
+            <p className="text-xs text-muted-foreground">
+              Leave empty for drive root. For SharePoint, typically &quot;/Shared Documents&quot;.
             </p>
-          </div>
-
-          {/* Sub-paths */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="jobs_path" className="flex items-center gap-1">
-                <Briefcase className="h-3 w-3 text-orange-500" />
-                Job Documents
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  id="jobs_path"
-                  value={formData.sharepoint_jobs_path}
-                  onChange={(e) => handleChange("sharepoint_jobs_path", e.target.value)}
-                  placeholder="Jobs"
-                  className="flex-1"
-                />
-                <Button variant="outline" size="icon" onClick={() => setShowBrowser("jobs")}>
-                  <Search className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="tasks_path" className="flex items-center gap-1">
-                <ClipboardList className="h-3 w-3 text-cyan-500" />
-                Task Documents
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  id="tasks_path"
-                  value={formData.sharepoint_tasks_path}
-                  onChange={(e) => handleChange("sharepoint_tasks_path", e.target.value)}
-                  placeholder="Tasks"
-                  className="flex-1"
-                />
-                <Button variant="outline" size="icon" onClick={() => setShowBrowser("tasks")}>
-                  <Search className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="company_path" className="flex items-center gap-1">
-                <Building2 className="h-3 w-3 text-purple-500" />
-                Company Documents
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  id="company_path"
-                  value={formData.sharepoint_company_path}
-                  onChange={(e) => handleChange("sharepoint_company_path", e.target.value)}
-                  placeholder="Corporate"
-                  className="flex-1"
-                />
-                <Button variant="outline" size="icon" onClick={() => setShowBrowser("company")}>
-                  <Search className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="people_path" className="flex items-center gap-1">
-                <Users className="h-3 w-3 text-green-500" />
-                Corporate People
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  id="people_path"
-                  value={formData.sharepoint_people_path}
-                  onChange={(e) => handleChange("sharepoint_people_path", e.target.value)}
-                  placeholder="Corporate/People"
-                  className="flex-1"
-                />
-                <Button variant="outline" size="icon" onClick={() => setShowBrowser("people")}>
-                  <Search className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="contacts_path" className="flex items-center gap-1">
-                <Users className="h-3 w-3 text-blue-500" />
-                Contacts
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  id="contacts_path"
-                  value={formData.sharepoint_contacts_path}
-                  onChange={(e) => handleChange("sharepoint_contacts_path", e.target.value)}
-                  placeholder="Contacts"
-                  className="flex-1"
-                />
-                <Button variant="outline" size="icon" onClick={() => setShowBrowser("contacts")}>
-                  <Search className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Path Templates */}
+      {/* Folder Paths Note */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <FileCode className="h-4 w-4" />
-            Path Templates (SSoT)
+            <Info className="h-4 w-4 text-blue-500" />
+            Folder Paths
           </CardTitle>
-          <CardDescription>
-            Dynamic path templates using placeholders. Click tokens below to add them, drag to reorder.
-          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Templates */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <div className="flex items-center gap-1 text-sm font-medium">
-                <Briefcase className="h-3 w-3 text-orange-500" />
-                Job Template
-              </div>
-              <TokenBuilder
-                value={formData.sharepoint_job_template}
-                onChange={(value) => handleChange("sharepoint_job_template", value)}
-                scope="sharepoint"
-                showPreview={false}
-                placeholder="Click tokens below to build path..."
-              />
-              <div className="text-xs space-y-1">
-                <p className="text-muted-foreground">Full path preview:</p>
-                <p className="font-mono text-green-600 dark:text-green-400 break-all">
-                  {getFullPath(formData.sharepoint_jobs_path, resolveTemplatePreview(formData.sharepoint_job_template))}
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center gap-1 text-sm font-medium">
-                <ClipboardList className="h-3 w-3 text-cyan-500" />
-                Task Template
-              </div>
-              <TokenBuilder
-                value={formData.sharepoint_task_template}
-                onChange={(value) => handleChange("sharepoint_task_template", value)}
-                scope="sharepoint"
-                showPreview={false}
-                placeholder="Click tokens below to build path..."
-              />
-              <div className="text-xs space-y-1">
-                <p className="text-muted-foreground">Full path preview:</p>
-                <p className="font-mono text-green-600 dark:text-green-400 break-all">
-                  {getFullPath(formData.sharepoint_tasks_path, resolveTemplatePreview(formData.sharepoint_task_template))}
-                </p>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                For standalone tasks (tasks without a job)
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center gap-1 text-sm font-medium">
-                <Building2 className="h-3 w-3 text-purple-500" />
-                Company Template
-              </div>
-              <TokenBuilder
-                value={formData.sharepoint_company_template}
-                onChange={(value) => handleChange("sharepoint_company_template", value)}
-                scope="sharepoint"
-                showPreview={false}
-                placeholder="Click tokens below to build path..."
-              />
-              <div className="text-xs space-y-1">
-                <p className="text-muted-foreground">Full path preview:</p>
-                <p className="font-mono text-green-600 dark:text-green-400 break-all">
-                  {getFullPath(formData.sharepoint_company_path, resolveTemplatePreview(formData.sharepoint_company_template))}
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center gap-1 text-sm font-medium">
-                <Users className="h-3 w-3 text-green-500" />
-                Corporate People Template
-              </div>
-              <TokenBuilder
-                value={formData.sharepoint_people_template}
-                onChange={(value) => handleChange("sharepoint_people_template", value)}
-                scope="sharepoint"
-                showPreview={false}
-                placeholder="Click tokens below to build path..."
-              />
-              <div className="text-xs space-y-1">
-                <p className="text-muted-foreground">Full path preview:</p>
-                <p className="font-mono text-green-600 dark:text-green-400 break-all">
-                  {getFullPath(formData.sharepoint_people_path, resolveTemplatePreview(formData.sharepoint_people_template))}
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center gap-1 text-sm font-medium">
-                <Users className="h-3 w-3 text-blue-500" />
-                Contacts Template
-              </div>
-              <TokenBuilder
-                value={formData.sharepoint_contacts_template}
-                onChange={(value) => handleChange("sharepoint_contacts_template", value)}
-                scope="sharepoint"
-                showPreview={false}
-                placeholder="Click tokens below to build path..."
-              />
-              <div className="text-xs space-y-1">
-                <p className="text-muted-foreground">Full path preview:</p>
-                <p className="font-mono text-green-600 dark:text-green-400 break-all">
-                  {getFullPath(formData.sharepoint_contacts_path, resolveTemplatePreview(formData.sharepoint_contacts_template))}
-                </p>
-              </div>
-            </div>
+        <CardContent>
+          <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <p className="text-sm text-blue-800 dark:text-blue-200">
+              <strong>Folder paths are configured per-tab in the Entity Configurator.</strong>
+            </p>
+            <p className="text-sm text-blue-700 dark:text-blue-300 mt-2">
+              Go to <strong>Admin → System → Entity Configurator</strong> to edit folder paths and templates for each entity type (Jobs, Contacts, Corporate, etc.).
+            </p>
+            <p className="text-xs text-blue-600 dark:text-blue-400 mt-3">
+              SSoT: EntityTab owns folder structure, StorageConfiguration owns connection only.
+            </p>
           </div>
         </CardContent>
       </Card>
 
       {/* Action Buttons */}
-      <div className="flex justify-between">
-        <Button variant="outline" onClick={handleResetAllPaths} disabled={resetting}>
-          {resetting ? (
-            <>
-              <Spinner size={16} className="mr-2" />
-              Resetting...
-            </>
-          ) : (
-            <>
-              <RotateCcw className="mr-2 h-4 w-4" />
-              Reset All Tabs to Default Paths
-            </>
-          )}
-        </Button>
+      <div className="flex justify-end">
         <Button onClick={handleSave} disabled={saving}>
           {saving ? (
             <>
@@ -1003,60 +528,6 @@ export function SharePointTab() {
           )}
         </Button>
       </div>
-
-      {/* SharePoint Folder Browser Sheet */}
-      {showBrowser && (
-        <Sheet open={true} onOpenChange={() => setShowBrowser(null)}>
-          <SheetContent side="right" className="w-[500px] sm:max-w-xl">
-            <SheetHeader>
-              <SheetTitle>
-                Select {showBrowser === "root" ? "Root" : showBrowser === "jobs" ? "Jobs" : showBrowser === "tasks" ? "Tasks" : showBrowser === "company" ? "Company" : showBrowser === "people" ? "People" : "Contacts"} Folder
-              </SheetTitle>
-              <SheetDescription>
-                Browse SharePoint to select a folder
-              </SheetDescription>
-            </SheetHeader>
-            <div className="mt-4 h-[calc(100vh-200px)] overflow-auto">
-              <SharePointFolderBrowser
-                onSelect={(folder, path) => {
-                  if (!path) return;
-                  if (showBrowser === "root") {
-                    handleChange("sharepoint_root_path", path);
-                  } else if (showBrowser === "jobs") {
-                    // Remove root path prefix if present
-                    const relativePath = path.startsWith(formData.sharepoint_root_path)
-                      ? path.slice(formData.sharepoint_root_path.length + 1)
-                      : path;
-                    handleChange("sharepoint_jobs_path", relativePath);
-                  } else if (showBrowser === "tasks") {
-                    const relativePath = path.startsWith(formData.sharepoint_root_path)
-                      ? path.slice(formData.sharepoint_root_path.length + 1)
-                      : path;
-                    handleChange("sharepoint_tasks_path", relativePath);
-                  } else if (showBrowser === "company") {
-                    const relativePath = path.startsWith(formData.sharepoint_root_path)
-                      ? path.slice(formData.sharepoint_root_path.length + 1)
-                      : path;
-                    handleChange("sharepoint_company_path", relativePath);
-                  } else if (showBrowser === "people") {
-                    const relativePath = path.startsWith(formData.sharepoint_root_path)
-                      ? path.slice(formData.sharepoint_root_path.length + 1)
-                      : path;
-                    handleChange("sharepoint_people_path", relativePath);
-                  } else if (showBrowser === "contacts") {
-                    const relativePath = path.startsWith(formData.sharepoint_root_path)
-                      ? path.slice(formData.sharepoint_root_path.length + 1)
-                      : path;
-                    handleChange("sharepoint_contacts_path", relativePath);
-                  }
-                  setShowBrowser(null);
-                }}
-                rootFolder=""
-              />
-            </div>
-          </SheetContent>
-        </Sheet>
-      )}
     </div>
   );
 }
