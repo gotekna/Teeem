@@ -398,9 +398,16 @@ export function EntityTabsConfig({
   const [attachmentsFileNameTemplate, setAttachmentsFileNameTemplate] = React.useState<string>("{{OriginalFileName}}");
   const [warehouseFileNameTemplates, setWarehouseFileNameTemplates] = React.useState<Record<string, string>>({});
 
+  // SSoT: Auto-save templates when they change (debounced)
+  // Track whether we've finished initial data load (to avoid saving on mount)
+  const isInitialLoadRef = React.useRef(true);
+
   // Initialize folder path template when scope or storageConfig changes
   React.useEffect(() => {
     if (showSharePointPaths && storageConfig) {
+      // Mark as initial load so auto-save effect skips
+      isInitialLoadRef.current = true;
+
       // Try to get from scope_templates in storageConfig, fallback to getDefaultTemplate
       // Use ?? to allow empty string (user intentionally cleared the template)
       const savedTemplate = storageConfig?.scope_templates?.[scope];
@@ -435,9 +442,6 @@ export function EntityTabsConfig({
       }
     }
   }, [scope, storageConfig, showSharePointPaths, getDefaultTemplate]);
-
-  // SSoT: Auto-save templates when they change (debounced)
-  const isInitialLoadRef = React.useRef(true);
   const saveTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const [saveStatus, setSaveStatus] = React.useState<'idle' | 'saving' | 'saved'>('idle');
 
@@ -448,11 +452,13 @@ export function EntityTabsConfig({
       {saveStatus === 'saving' && (
         <span className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400">
           <Loader2 className="h-3 w-3 animate-spin" />
+          <span className="text-xs">saving...</span>
         </span>
       )}
       {saveStatus === 'saved' && (
         <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400">
           <Check className="h-3 w-3" />
+          <span className="text-xs">saved</span>
         </span>
       )}
     </span>
@@ -494,6 +500,7 @@ export function EntityTabsConfig({
         });
       }
 
+      console.log('[EntityTabsConfig] Setting status to saving...');
       setSaveStatus('saving');
       await api.patch('/api/v1/corporate_company_settings/sharepoint', {
         sharepoint: {
@@ -502,9 +509,9 @@ export function EntityTabsConfig({
         }
       });
 
-      // Show green tick for 2 seconds
+      // Show green tick - stays until page closes or next change
+      console.log('[EntityTabsConfig] Setting status to saved...');
       setSaveStatus('saved');
-      setTimeout(() => setSaveStatus('idle'), 2000);
       console.log('[EntityTabsConfig] Auto-saved templates');
     } catch (err) {
       console.error('[EntityTabsConfig] Failed to auto-save templates:', err);
