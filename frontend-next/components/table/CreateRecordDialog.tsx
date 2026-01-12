@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import {
   DndContext,
   closestCenter,
@@ -195,6 +195,9 @@ export function CreateRecordDialog({
   const [linkedDocumentTypes, setLinkedDocumentTypes] = useState<LinkedDocumentType[]>([]);
   const [availableDocumentTypes, setAvailableDocumentTypes] = useState<DocumentType[]>([]);
 
+  // SSoT: localStorage key for persisting field preferences per foundation
+  const storageKey = `teeem-modal-fields-${foundationId}`;
+
   // Detect if this is a Schedule Master foundation (supports document type linking)
   const isScheduleMaster = useMemo(() => {
     const nameCheck = tableName.toLowerCase().includes("schedule master");
@@ -256,7 +259,37 @@ export function CreateRecordDialog({
   // Initialize visible fields and order on first render or when columns change
   React.useEffect(() => {
     if (filteredColumns.length > 0 && visibleFields.size === 0) {
-      // Find required fields - they MUST be visible
+      // Try to load saved field preferences from localStorage
+      try {
+        const saved = localStorage.getItem(storageKey);
+        if (saved) {
+          const { visible, order } = JSON.parse(saved);
+          // Validate that saved fields still exist in current columns
+          const validVisible = new Set<string>();
+          const columnKeys = new Set(filteredColumns.map(c => c.key));
+          (visible || []).forEach((key: string) => {
+            if (columnKeys.has(key)) validVisible.add(key);
+          });
+          // Also add any required fields that might be missing from saved preferences
+          const requiredFields = filteredColumns.filter((col) => col.required);
+          requiredFields.forEach((col) => validVisible.add(col.key));
+          // Only use saved if we have valid visible fields
+          if (validVisible.size > 0) {
+            setVisibleFields(validVisible);
+            // Merge saved order with current columns (new columns get high order)
+            const mergedOrder: Record<string, number> = {};
+            filteredColumns.forEach((col, idx) => {
+              mergedOrder[col.key] = order?.[col.key] ?? (idx + 100);
+            });
+            setFieldOrder(mergedOrder);
+            return; // Skip default initialization
+          }
+        }
+      } catch (e) {
+        // Ignore localStorage errors
+      }
+
+      // Default: Find required fields - they MUST be visible
       const requiredFields = filteredColumns.filter((col) => col.required);
 
       // Show first 8 fields by default, but always include required fields
@@ -281,7 +314,22 @@ export function CreateRecordDialog({
       });
       setFieldOrder(initialOrder);
     }
-  }, [filteredColumns, visibleFields.size]);
+  }, [filteredColumns, visibleFields.size, storageKey]);
+
+  // Save field preferences to localStorage when they change
+  useEffect(() => {
+    if (visibleFields.size > 0) {
+      try {
+        const data = {
+          visible: Array.from(visibleFields),
+          order: fieldOrder,
+        };
+        localStorage.setItem(storageKey, JSON.stringify(data));
+      } catch (e) {
+        // Ignore localStorage errors
+      }
+    }
+  }, [visibleFields, fieldOrder, storageKey]);
 
   // Update visible fields when entity_type changes (Contacts only)
   React.useEffect(() => {

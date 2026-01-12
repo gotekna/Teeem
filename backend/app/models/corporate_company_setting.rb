@@ -158,6 +158,7 @@ class CorporateCompanySetting < ApplicationRecord
       "Use StorageConfiguration.for_organization(org).to_config_hash instead."
     )
     setting = instance
+    config = StorageConfiguration.instance
     {
       configured: setting.sharepoint_site_id.present? && setting.sharepoint_drive_id.present?,
       site_url: setting.sharepoint_site_url,
@@ -172,12 +173,13 @@ class CorporateCompanySetting < ApplicationRecord
         company: setting.sharepoint_company_path.presence || "Corporate",
         contacts: setting.sharepoint_contacts_path.presence || "Contacts"
       },
+      # SSoT: Templates now come from StorageConfiguration
       templates: {
-        job: setting.sharepoint_job_template.presence || "{{JobCode}}/{{Category}}",
-        task: setting.sharepoint_task_template.presence || "Task-{{TaskId}}/{{Category}}",
-        company: setting.sharepoint_company_template.presence || "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
-        people: setting.sharepoint_people_template.presence || "{{ContactName}}/{{Category}}",
-        contacts: setting.sharepoint_contacts_template.presence || "{{ContactName}}/{{Category}}"
+        job: config.template_for(:job) || "{{JobCode}}/{{Category}}",
+        task: config.template_for(:task) || "Task-{{TaskId}}/{{Category}}",
+        company: config.template_for(:corporate_entity) || "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
+        people: config.template_for(:people) || "{{ContactName}}/{{Category}}",
+        contacts: config.template_for(:contacts) || "{{ContactName}}/{{Category}}"
       }
     }
   end
@@ -198,24 +200,24 @@ class CorporateCompanySetting < ApplicationRecord
   # ========================================
 
   # DEPRECATED: Use EntityTab.find_by(scope: scope).storage_folder_path instead
-  # SSoT: EntityTab owns folder paths, StorageConfiguration owns connection only
+  # SSoT: EntityTab owns folder paths, StorageConfiguration owns templates
   def self.sharepoint_template(scope)
     Rails.deprecator.warn(
       "CorporateCompanySetting.sharepoint_template is deprecated. " \
-      "SSoT: EntityTab owns folder paths. Use EntityTab.find_by(scope: scope).storage_folder_path."
+      "SSoT: Use StorageConfiguration.instance.template_for(scope)."
     )
-    setting = instance
+    config = StorageConfiguration.instance
     case scope.to_sym
     when :jobs, :job
-      setting.sharepoint_job_template.presence || "{{JobCode}}/{{Category}}"
+      config.template_for(:job) || "{{JobCode}}/{{Category}}"
     when :tasks, :task
-      setting.sharepoint_task_template.presence || "Task-{{TaskId}}/{{Category}}"
+      config.template_for(:task) || "Task-{{TaskId}}/{{Category}}"
     when :people
-      setting.sharepoint_people_template.presence || "{{ContactName}}/{{Category}}"
+      config.template_for(:people) || "{{ContactName}}/{{Category}}"
     when :company
-      setting.sharepoint_company_template.presence || "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}"
+      config.template_for(:corporate_entity) || "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}"
     when :contacts
-      setting.sharepoint_contacts_template.presence || "{{ContactName}}/{{Category}}"
+      config.template_for(:contacts) || "{{ContactName}}/{{Category}}"
     else
       raise ArgumentError, "Unknown SharePoint scope: #{scope}"
     end

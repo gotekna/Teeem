@@ -2,10 +2,7 @@
 
 import * as React from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -21,11 +18,9 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
-  Plus,
   Building2,
   Briefcase,
   Users,
-  FolderOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -35,12 +30,9 @@ import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 import { Spinner } from "@/components/ui/spinner";
 import { convertColumnsToTEEEMFormat, type ApiColumn } from "@/lib/corporate/column-utils";
-import { DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
 
 // SSoT: Use slug for Foundation lookup - numeric IDs differ per environment
 const DOCUMENT_TYPES_FOUNDATION_SLUG = "document_types";
-
-// SSoT: DOCUMENT_FOLDER_OPTIONS imported from @/lib/constants/document-types
 
 interface FolderOption {
   id: number;
@@ -246,16 +238,7 @@ export function DocumentTypesTab() {
   const [loading, setLoading] = React.useState(true);
   const [documentTypes, setDocumentTypes] = React.useState<DocumentType[]>([]);
   const [columns, setColumns] = React.useState<TableColumn[]>([]);
-  const [showAddForm, setShowAddForm] = React.useState(false);
-  const [saving, setSaving] = React.useState(false);
-  const [newDocType, setNewDocType] = React.useState({
-    name: "",
-    abbreviation: "",
-    file_name: "{CompanyCode} {Description} {Date}",
-    folder: "GENERAL",
-    primary_tab: "GENERAL",
-    active: true
-  });
+  // SSoT: Add form handled by TeeemTableView's built-in "Add Record" modal
   const [availableFolders, setAvailableFolders] = React.useState<FolderOption[]>([]);
 
   // Filter document types by scope
@@ -405,32 +388,7 @@ export function DocumentTypesTab() {
     }
   };
 
-  const handleAddDocType = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      setSaving(true);
-      await api.post("/api/v1/document_types", {
-        document_type: {
-          ...newDocType,
-          tabs: [newDocType.primary_tab]
-        }
-      });
-      setShowAddForm(false);
-      setNewDocType({
-        name: "",
-        abbreviation: "",
-        file_name: "{CompanyCode} {Description} {Date}",
-        folder: "GENERAL",
-        primary_tab: "GENERAL",
-        active: true
-      });
-      await loadData();
-    } catch (error) {
-      console.error("Failed to create document type:", error);
-    } finally {
-      setSaving(false);
-    }
-  };
+  // SSoT: Add handled by TeeemTableView's built-in add modal via Foundation API
 
   // Handle row click - navigate to detail page
   const handleRowClick = React.useCallback((row: DocumentType) => {
@@ -589,75 +547,8 @@ export function DocumentTypesTab() {
         </TabsList>
 
         <TabsContent value={scopeFilter} className="mt-6 space-y-6">
-
-
-
-      {/* Add Form */}
-      {showAddForm && (
-        <Card>
-          <CardContent className="p-4">
-            <form onSubmit={handleAddDocType} className="flex items-end gap-4 flex-wrap">
-              <div className="space-y-1">
-                <Label htmlFor="abbreviation">Code</Label>
-                <Input
-                  id="abbreviation"
-                  value={newDocType.abbreviation}
-                  onChange={(e) => setNewDocType({ ...newDocType, abbreviation: e.target.value.toUpperCase() })}
-                  placeholder="CTR"
-                  className="w-20"
-                />
-              </div>
-              <div className="flex-1 min-w-[200px] space-y-1">
-                <Label htmlFor="name">Document Type Name *</Label>
-                <Input
-                  id="name"
-                  value={newDocType.name}
-                  onChange={(e) => setNewDocType({ ...newDocType, name: e.target.value })}
-                  placeholder="CTR - Company Tax Return"
-                  required
-                />
-              </div>
-              <div className="flex-1 min-w-[200px] space-y-1">
-                <Label htmlFor="file_name">File Name</Label>
-                <Input
-                  id="file_name"
-                  value={newDocType.file_name}
-                  onChange={(e) => setNewDocType({ ...newDocType, file_name: e.target.value })}
-                  placeholder="{CompanyCode} CTR FY{YY}"
-                  className="font-mono text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Folder</Label>
-                <Select
-                  value={newDocType.folder}
-                  onValueChange={(value) => setNewDocType({ ...newDocType, folder: value, primary_tab: value })}
-                >
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DOCUMENT_FOLDER_OPTIONS.map(f => (
-                      <SelectItem key={f} value={f}>{f}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex gap-2">
-                <Button type="submit" disabled={saving}>
-                  {saving ? <Spinner size={16} className="mr-2" /> : null}
-                  Add
-                </Button>
-                <Button type="button" variant="outline" onClick={() => setShowAddForm(false)}>
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Table - SSoT: Use slug, TeeemTableView resolves numeric ID */}
+      {/* Add Record uses TeeemTableView's built-in modal via Foundation API */}
       <TeeemTableView
           foundationId="document_types"
           tableName={`Document Types (${filteredDocTypes.length}${scopeFilter !== "all" ? ` - ${scopeFilter}` : ""})`}
@@ -669,17 +560,13 @@ export function DocumentTypesTab() {
           onRowDoubleClick={handleRowDoubleClick}
           onDelete={handleDelete}
           onBulkDelete={handleBulkDelete}
+          onRefresh={loadData}  // SSoT: Refresh local data when records are added/deleted via built-in modal
           enableExport={true}
           enableSchemaEditor={true}
           customCellRenderer={customCellRenderer}
           onColumnUpdate={fetchColumns}
           initialGroupByColumn="primary_tab"
-          leftActions={
-            <Button onClick={() => router.push(`/admin/system/document-types/new${scopeFilter !== "all" ? `?scope=${scopeFilter}` : ""}`)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Document Type
-            </Button>
-          }
+          // SSoT: Use TeeemTableView's built-in "Add Record" button (no custom leftActions needed)
         />
 
         </TabsContent>

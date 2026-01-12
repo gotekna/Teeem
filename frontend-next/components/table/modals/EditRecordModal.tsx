@@ -177,6 +177,9 @@ export function EditRecordModal({
   const [visibleFields, setVisibleFields] = useState<Set<string>>(new Set());
   const [fieldOrder, setFieldOrder] = useState<Record<string, number>>({});
 
+  // SSoT: localStorage key for persisting field preferences per foundation
+  const storageKey = `teeem-modal-fields-${foundationId}`;
+
   // Filter columns to show in form
   const editableColumns = useMemo(() => {
     return columns.filter((col) => {
@@ -198,7 +201,34 @@ export function EditRecordModal({
       });
       setFormData(initialData);
 
-      // Initialize visible fields - show first 8 non-system columns by default
+      // Try to load saved field preferences from localStorage
+      try {
+        const saved = localStorage.getItem(storageKey);
+        if (saved) {
+          const { visible, order } = JSON.parse(saved);
+          // Validate that saved fields still exist in current columns
+          const validVisible = new Set<string>();
+          const columnKeys = new Set(editableColumns.map(c => c.key));
+          (visible || []).forEach((key: string) => {
+            if (columnKeys.has(key)) validVisible.add(key);
+          });
+          // Only use saved if we have valid visible fields
+          if (validVisible.size > 0) {
+            setVisibleFields(validVisible);
+            // Merge saved order with current columns (new columns get high order)
+            const mergedOrder: Record<string, number> = {};
+            editableColumns.forEach((col, idx) => {
+              mergedOrder[col.key] = order?.[col.key] ?? (idx + 100);
+            });
+            setFieldOrder(mergedOrder);
+            return; // Skip default initialization
+          }
+        }
+      } catch (e) {
+        // Ignore localStorage errors
+      }
+
+      // Default: show first 8 non-system columns
       const defaultVisible = new Set<string>();
       let count = 0;
       for (const col of editableColumns) {
@@ -216,7 +246,22 @@ export function EditRecordModal({
       });
       setFieldOrder(initialOrder);
     }
-  }, [record, open, editableColumns]);
+  }, [record, open, editableColumns, storageKey]);
+
+  // Save field preferences to localStorage when they change
+  useEffect(() => {
+    if (open && visibleFields.size > 0) {
+      try {
+        const data = {
+          visible: Array.from(visibleFields),
+          order: fieldOrder,
+        };
+        localStorage.setItem(storageKey, JSON.stringify(data));
+      } catch (e) {
+        // Ignore localStorage errors
+      }
+    }
+  }, [visibleFields, fieldOrder, storageKey, open]);
 
   // DnD sensors
   const sensors = useSensors(

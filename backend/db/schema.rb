@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_12_220001) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_12_220002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1940,10 +1940,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_220001) do
     t.string "sharepoint_people_path", default: "Corporate/People"
     t.string "sharepoint_company_path", default: "00 TEEEM PRIVATE"
     t.string "sharepoint_contacts_path", default: "Contacts"
-    t.string "sharepoint_job_template", default: "{{JobCode}}/{{Category}}"
-    t.string "sharepoint_company_template", default: "{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}"
-    t.string "sharepoint_people_template", default: "{{ContactName}}/{{Category}}"
-    t.string "sharepoint_contacts_template", default: "{{ContactName}}/{{Category}}"
     t.string "postcode"
     t.jsonb "corporate_entity_types", default: ["Company", "Trust", "Superfund", "Charity", "Corporate Trustee", "Sole Trader"], null: false
     t.date "gl_lock_date"
@@ -1953,7 +1949,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_220001) do
     t.string "bank_account_number"
     t.string "bank_account_name"
     t.string "sharepoint_tasks_path"
-    t.string "sharepoint_task_template"
     t.string "internal_email_domains", default: "tekna.com.au,teeem.au,teeem.com", comment: "Comma-separated list of internal email domains"
     t.string "monitored_mailbox_pay", default: "Pay@tekna.com.au", comment: "Mailbox for incoming invoices/bills"
     t.string "monitored_mailbox_newtask", default: "newtask@tekna.com.au", comment: "Mailbox for creating new tasks from emails"

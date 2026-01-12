@@ -774,10 +774,14 @@ export default function AllDocumentsPage() {
 
       // Gallery mode for images within tree
       if (treeDisplayMode === "gallery" && file.isImage) {
+        const isGallerySelected = previewDocument?.id === file.id && previewDocument?.source === file.source;
         return (
           <div
             key={node.id}
-            className="relative group cursor-pointer"
+            className={cn(
+              "relative group cursor-pointer",
+              isGallerySelected && "ring-2 ring-primary rounded-lg"
+            )}
             onClick={() => openFileInPopup(file)}
             onDoubleClick={() => openFileInNewWindow(file)}
           >
@@ -801,10 +805,14 @@ export default function AllDocumentsPage() {
       }
 
       // List mode file
+      const isSelected = previewDocument?.id === file.id && previewDocument?.source === file.source;
       return (
         <div
           key={node.id}
-          className="flex items-center gap-2 py-2 px-3 hover:bg-muted/50 rounded-md group cursor-pointer"
+          className={cn(
+            "flex items-center gap-2 py-2 px-3 hover:bg-muted/50 rounded-md group cursor-pointer",
+            isSelected && "bg-primary/10 hover:bg-primary/15"
+          )}
           style={{ paddingLeft: `${paddingLeft + 12}px` }}
           onClick={() => openFileInPopup(file)}
           onDoubleClick={() => openFileInNewWindow(file)}
@@ -886,10 +894,15 @@ export default function AllDocumentsPage() {
               // Gallery view within folder
               <div className="p-4" style={{ paddingLeft: `${paddingLeft + 32}px` }}>
                 <div className="grid grid-cols-6 gap-2 mb-4">
-                  {images.slice(0, 12).map(img => (
+                  {images.slice(0, 12).map(img => {
+                    const isImgSelected = previewDocument?.id === img.id && previewDocument?.source === img.source;
+                    return (
                     <div
                       key={img.id}
-                      className="relative group cursor-pointer"
+                      className={cn(
+                        "relative group cursor-pointer",
+                        isImgSelected && "ring-2 ring-primary rounded-lg"
+                      )}
                       onClick={() => openFileInPopup(img)}
                       onDoubleClick={() => openFileInNewWindow(img)}
                     >
@@ -908,7 +921,7 @@ export default function AllDocumentsPage() {
                         )}
                       </div>
                     </div>
-                  ))}
+                  );})}
                   {images.length > 12 && (
                     <div className="aspect-square bg-muted rounded-lg flex items-center justify-center text-sm text-muted-foreground">
                       +{images.length - 12} more
@@ -1092,191 +1105,216 @@ export default function AllDocumentsPage() {
         </div>
       )}
 
-      {/* Content */}
-      <div className="flex-1 overflow-auto px-4 py-4">
-        {loading ? (
-          <div className="space-y-2">
-            {Array.from({ length: 10 }).map((_, i) => (
-              <Skeleton key={i} className="h-10 w-full" />
-            ))}
-          </div>
-        ) : viewMode === "tree" ? (
-          // Tree View
-          <div className="space-y-1">
-            {treeData.map(node => renderTreeNode(node, 0))}
-          </div>
-        ) : viewMode === "list" ? (
-          // Flat List View
-          <div className="space-y-1">
-            {allDocumentsFlat.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                No documents found
-              </div>
-            ) : (
-              allDocumentsFlat.map(doc => (
-                <div
-                  key={`${doc.source}-${doc.id}`}
-                  className="flex items-center gap-3 py-2 px-3 hover:bg-muted/50 rounded-md cursor-pointer group"
-                  onClick={() => openFileInPopup(doc)}
-                  onDoubleClick={() => openFileInNewWindow(doc)}
-                >
-                  {doc.isImage ? (
-                    <ImageIcon className="h-4 w-4 text-blue-500 shrink-0" />
-                  ) : (
-                    <File className="h-4 w-4 text-muted-foreground shrink-0" />
-                  )}
-                  <span className="flex-1 truncate">{doc.displayName || doc.fileName}</span>
-                  <Badge variant="outline" className="text-xs shrink-0">
-                    {doc.source === "job" && doc.jobNumber && `Job ${doc.jobNumber}`}
-                    {doc.source === "corporate" && doc.companyName}
-                    {doc.source === "people" && doc.contactName}
-                  </Badge>
-                  {doc.storageProvider === "s3_compatible" && (
-                    <Badge variant="secondary" className="text-xs shrink-0">S3</Badge>
-                  )}
-                  {doc.fileSize > 0 && (
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      {formatFileSize(doc.fileSize)}
-                    </span>
-                  )}
-                  <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0" />
+      {/* Content - Split Pane Layout */}
+      <div className="flex-1 flex min-h-0">
+        {/* Left Panel - File Browser */}
+        <div className={cn(
+          "flex-1 overflow-auto px-4 py-4 border-r",
+          previewDocument && "max-w-[50%]"
+        )}>
+          {loading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <Skeleton key={i} className="h-10 w-full" />
+              ))}
+            </div>
+          ) : viewMode === "tree" ? (
+            // Tree View
+            <div className="space-y-1">
+              {treeData.map(node => renderTreeNode(node, 0))}
+            </div>
+          ) : viewMode === "list" ? (
+            // Flat List View
+            <div className="space-y-1">
+              {allDocumentsFlat.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  No documents found
                 </div>
-              ))
-            )}
-          </div>
-        ) : (
-          // Gallery View (images only)
-          <div>
-            {allImages.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                No images found
-              </div>
-            ) : (
-              <div className="grid grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-3">
-                {allImages.map(doc => (
+              ) : (
+                allDocumentsFlat.map(doc => (
                   <div
-                    key={`gallery-${doc.source}-${doc.id}`}
-                    className="group cursor-pointer"
+                    key={`${doc.source}-${doc.id}`}
+                    className={cn(
+                      "flex items-center gap-3 py-2 px-3 hover:bg-muted/50 rounded-md cursor-pointer group",
+                      previewDocument?.id === doc.id && previewDocument?.source === doc.source && "bg-primary/10 hover:bg-primary/15"
+                    )}
                     onClick={() => openFileInPopup(doc)}
                     onDoubleClick={() => openFileInNewWindow(doc)}
                   >
-                    <div className="aspect-square bg-muted rounded-lg overflow-hidden border hover:border-primary transition-colors">
-                      {doc.fileUrl ? (
-                        <img
-                          src={doc.fileUrl}
-                          alt={doc.displayName}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <ImageIcon className="h-8 w-8 text-muted-foreground" />
-                        </div>
-                      )}
-                    </div>
-                    <p className="mt-1 text-xs truncate text-center">{doc.displayName}</p>
+                    {doc.isImage ? (
+                      <ImageIcon className="h-4 w-4 text-blue-500 shrink-0" />
+                    ) : (
+                      <File className="h-4 w-4 text-muted-foreground shrink-0" />
+                    )}
+                    <span className="flex-1 truncate">{doc.displayName || doc.fileName}</span>
+                    <Badge variant="outline" className="text-xs shrink-0">
+                      {doc.source === "job" && doc.jobNumber && `Job ${doc.jobNumber}`}
+                      {doc.source === "corporate" && doc.companyName}
+                      {doc.source === "people" && doc.contactName}
+                    </Badge>
+                    {doc.storageProvider === "s3_compatible" && (
+                      <Badge variant="secondary" className="text-xs shrink-0">S3</Badge>
+                    )}
+                    {doc.fileSize > 0 && (
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        {formatFileSize(doc.fileSize)}
+                      </span>
+                    )}
+                    <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0" />
                   </div>
-                ))}
+                ))
+              )}
+            </div>
+          ) : (
+            // Gallery View (images only)
+            <div>
+              {allImages.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  No images found
+                </div>
+              ) : (
+                <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
+                  {allImages.map(doc => (
+                    <div
+                      key={`gallery-${doc.source}-${doc.id}`}
+                      className={cn(
+                        "group cursor-pointer",
+                        previewDocument?.id === doc.id && previewDocument?.source === doc.source && "ring-2 ring-primary rounded-lg"
+                      )}
+                      onClick={() => openFileInPopup(doc)}
+                      onDoubleClick={() => openFileInNewWindow(doc)}
+                    >
+                      <div className="aspect-square bg-muted rounded-lg overflow-hidden border hover:border-primary transition-colors">
+                        {doc.fileUrl ? (
+                          <img
+                            src={doc.fileUrl}
+                            alt={doc.displayName}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                          </div>
+                        )}
+                      </div>
+                      <p className="mt-1 text-xs truncate text-center">{doc.displayName}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Right Panel - Preview Panel */}
+        {previewDocument && (
+          <div className="w-1/2 flex flex-col min-h-0 bg-muted/30 dark:bg-background/50">
+            {/* Preview Header */}
+            <div className="px-4 py-3 border-b bg-background shrink-0">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-medium truncate">
+                    {previewDocument.displayName || previewDocument.fileName}
+                  </h3>
+                  <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                    {previewDocument.source === "job" && previewDocument.jobNumber && (
+                      <Badge variant="outline" className="text-xs">Job {previewDocument.jobNumber}</Badge>
+                    )}
+                    {previewDocument.source === "corporate" && previewDocument.companyName && (
+                      <Badge variant="outline" className="text-xs">{previewDocument.companyName}</Badge>
+                    )}
+                    {previewDocument.source === "people" && previewDocument.contactName && (
+                      <Badge variant="outline" className="text-xs">{previewDocument.contactName}</Badge>
+                    )}
+                    {previewDocument.storageProvider === "s3_compatible" && (
+                      <Badge variant="secondary" className="text-xs">S3</Badge>
+                    )}
+                    {previewDocument.fileSize > 0 && (
+                      <span>{formatFileSize(previewDocument.fileSize)}</span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  {previewDocument.fileUrl && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => window.open(previewDocument.fileUrl!, "_blank")}
+                        title="Open in new tab"
+                      >
+                        <Maximize2 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => {
+                          const link = document.createElement('a');
+                          link.href = previewDocument.fileUrl!;
+                          link.download = previewDocument.displayName || previewDocument.fileName;
+                          link.click();
+                        }}
+                        title="Download"
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setPreviewDocument(null)}
+                    title="Close preview"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-            )}
+            </div>
+
+            {/* Preview Content */}
+            <div className="flex-1 min-h-0 overflow-auto">
+              {previewDocument.fileUrl ? (
+                previewDocument.isImage ? (
+                  // Image preview
+                  <div className="h-full w-full flex items-center justify-center p-4">
+                    <img
+                      src={previewDocument.fileUrl}
+                      alt={previewDocument.displayName}
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  </div>
+                ) : previewDocument.mimeType?.includes("pdf") ? (
+                  // PDF preview
+                  <PDFViewer url={previewDocument.fileUrl} className="h-full" />
+                ) : (
+                  // Other file types - show preview placeholder
+                  <div className="h-full flex flex-col items-center justify-center p-8 text-center">
+                    <File className="h-16 w-16 text-muted-foreground mb-4" />
+                    <p className="text-lg font-medium mb-2">{previewDocument.displayName || previewDocument.fileName}</p>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Preview not available for this file type
+                    </p>
+                    <Button onClick={() => window.open(previewDocument.fileUrl!, "_blank")}>
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Open File
+                    </Button>
+                  </div>
+                )
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+                  <File className="h-16 w-16 mb-4 opacity-50" />
+                  <p>No file available</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
-
-      {/* Document Preview Modal */}
-      <Dialog open={!!previewDocument} onOpenChange={(open) => !open && setPreviewDocument(null)}>
-        <DialogContent className="max-w-5xl h-[85vh] flex flex-col p-0 overflow-hidden">
-          <DialogHeader className="px-6 py-4 border-b shrink-0">
-            <div className="flex items-center justify-between">
-              <DialogTitle className="truncate pr-4">
-                {previewDocument?.displayName || previewDocument?.fileName}
-              </DialogTitle>
-              <div className="flex items-center gap-2">
-                {previewDocument?.fileUrl && (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => previewDocument?.fileUrl && window.open(previewDocument.fileUrl, "_blank")}
-                    >
-                      <Maximize2 className="h-4 w-4 mr-1" />
-                      Full Screen
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (previewDocument?.fileUrl) {
-                          const link = document.createElement('a');
-                          link.href = previewDocument.fileUrl;
-                          link.download = previewDocument.displayName || previewDocument.fileName;
-                          link.click();
-                        }
-                      }}
-                    >
-                      <Download className="h-4 w-4 mr-1" />
-                      Download
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
-            {/* Document metadata */}
-            <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
-              {previewDocument?.source === "job" && previewDocument?.jobNumber && (
-                <Badge variant="outline" className="text-xs">Job {previewDocument.jobNumber}</Badge>
-              )}
-              {previewDocument?.source === "corporate" && previewDocument?.companyName && (
-                <Badge variant="outline" className="text-xs">{previewDocument.companyName}</Badge>
-              )}
-              {previewDocument?.source === "people" && previewDocument?.contactName && (
-                <Badge variant="outline" className="text-xs">{previewDocument.contactName}</Badge>
-              )}
-              {previewDocument?.storageProvider === "s3_compatible" && (
-                <Badge variant="secondary" className="text-xs">S3</Badge>
-              )}
-              {previewDocument?.fileSize && previewDocument.fileSize > 0 && (
-                <span>{formatFileSize(previewDocument.fileSize)}</span>
-              )}
-            </div>
-          </DialogHeader>
-          <div className="flex-1 min-h-0 overflow-auto bg-muted dark:bg-background">
-            {previewDocument?.fileUrl ? (
-              previewDocument.isImage ? (
-                // Image preview
-                <div className="h-full w-full flex items-center justify-center p-4">
-                  <img
-                    src={previewDocument.fileUrl}
-                    alt={previewDocument.displayName}
-                    className="max-h-full max-w-full object-contain"
-                  />
-                </div>
-              ) : previewDocument.mimeType?.includes("pdf") ? (
-                // PDF preview
-                <PDFViewer url={previewDocument.fileUrl} className="h-full" />
-              ) : (
-                // Other file types - show download option
-                <div className="h-full flex flex-col items-center justify-center p-8">
-                  <File className="h-16 w-16 text-muted-foreground mb-4" />
-                  <p className="text-lg font-medium mb-2">{previewDocument.displayName || previewDocument.fileName}</p>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Preview not available for this file type
-                  </p>
-                  <Button onClick={() => window.open(previewDocument.fileUrl!, "_blank")}>
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Open File
-                  </Button>
-                </div>
-              )
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
-                <File className="h-16 w-16 mb-4 opacity-50" />
-                <p>No file available</p>
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Desktop Sync Settings Modal */}
       <Dialog open={showSyncSettings} onOpenChange={setShowSyncSettings}>

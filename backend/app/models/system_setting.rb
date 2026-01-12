@@ -81,30 +81,33 @@ class SystemSetting < ApplicationRecord
     parts.join("/")
   end
 
-  # DEPRECATED: Use CorporateCompanySetting API PATCH /api/v1/corporate_company_settings/sharepoint
+  # DEPRECATED: Use StorageConfiguration.instance.update(templates: {...}) instead
   def self.update_sharepoint_path_templates(templates)
-    Rails.logger.warn "[DEPRECATED] SystemSetting.update_sharepoint_path_templates is deprecated. Use CorporateCompanySetting instead."
-    # For backwards compatibility, update CorporateCompanySetting
+    Rails.logger.warn "[DEPRECATED] SystemSetting.update_sharepoint_path_templates is deprecated. Use StorageConfiguration instead."
+    # SSoT: Update StorageConfiguration.templates (not CorporateCompanySetting)
+    config = StorageConfiguration.instance
     setting = CorporateCompanySetting.instance
+    updated_templates = config.templates || {}
 
     # Extract base path and template parts from full paths
     if templates[:company]
       base_path, template_part = extract_path_parts(templates[:company])
       setting.sharepoint_company_path = base_path if base_path.present?
-      setting.sharepoint_company_template = template_part if template_part.present?
+      updated_templates["corporate_entity"] = template_part if template_part.present?
     end
     if templates[:job]
       base_path, template_part = extract_path_parts(templates[:job])
       setting.sharepoint_jobs_path = base_path if base_path.present?
-      setting.sharepoint_job_template = template_part if template_part.present?
+      updated_templates["job"] = template_part if template_part.present?
     end
     if templates[:people]
       base_path, template_part = extract_path_parts(templates[:people])
       setting.sharepoint_people_path = base_path if base_path.present?
-      setting.sharepoint_people_template = template_part if template_part.present?
+      updated_templates["people"] = template_part if template_part.present?
     end
 
     setting.save!
+    config.update!(templates: updated_templates)
   end
 
   # Helper to extract base path and template from a full path
