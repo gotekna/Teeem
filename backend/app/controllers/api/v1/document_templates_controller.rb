@@ -568,9 +568,10 @@ class Api::V1::DocumentTemplatesController < ApplicationController
     end
 
     begin
-      # SSoT: Use MicrosoftCredential.sharepoint_credential
+      # SSoT: Use MicrosoftCredential for auth, StorageConfiguration for drive_id
       cred = MicrosoftCredential.sharepoint_credential
-      unless cred
+      storage_config = StorageConfiguration.instance
+      unless cred && storage_config&.connected?
         return render json: {
           success: false,
           error: "SharePoint not configured. Please connect in Admin > System > Connections."
@@ -578,15 +579,16 @@ class Api::V1::DocumentTemplatesController < ApplicationController
       end
 
       client = MicrosoftAppGraphClient.new(cred)
+      drive_id = storage_config.drive_id
 
       # Get file content
       content = client.get_drive_item_content(
-        drive_id: cred.sharepoint_drive_id,
+        drive_id: drive_id,
         item_id: item_id
       )
 
       # Get file info for the name
-      item_info = client.get("/drives/#{cred.sharepoint_drive_id}/items/#{item_id}")
+      item_info = client.get("/drives/#{drive_id}/items/#{item_id}")
       filename = item_info["name"] || "download.pdf"
 
       send_data content,

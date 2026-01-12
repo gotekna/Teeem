@@ -47,6 +47,8 @@ class MigrateMicrosoftCredentialsJob < ApplicationJob
         next
       end
 
+      # Note: sharepoint_* columns removed from MicrosoftCredential in Phase 5
+      # SSoT: SharePoint config now lives in StorageConfiguration
       attrs = {
         credential_type: "app",
         name: old.name,
@@ -61,9 +63,6 @@ class MigrateMicrosoftCredentialsJob < ApplicationJob
         error_message: old.last_error,
         admin_consent_granted_at: old.admin_consent_granted_at,
         admin_consent_granted_by: old.admin_consent_granted_by,
-        sharepoint_site_id: old.sharepoint_site_id,
-        sharepoint_drive_id: old.sharepoint_drive_id,
-        sharepoint_drive_name: old.sharepoint_drive_name,
         sync_config: old.sync_config || {},
         bulk_sync_progress: old.bulk_sync_progress || {},
         last_sync_at: old.last_sync_at,
