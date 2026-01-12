@@ -31,8 +31,8 @@ const PATH_REDIRECTS: Record<string, string> = {
   // Navigation deep links → System tab
   "system/navigation": "/settings/system?tab=navigation",
 
-  // Schedule Master deep links → Operations tab
-  "system/schedule-master": "/settings/operations?tab=schedule-master",
+  // Schedule Master deep links → Admin System (correct location)
+  "system/schedule-master": "/admin/system/schedule-master/data-view",
 
   // Legacy admin-style paths
   "admin": "/settings/users",

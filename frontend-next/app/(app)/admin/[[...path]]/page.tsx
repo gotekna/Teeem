@@ -52,8 +52,9 @@ const URL_MAP: Record<string, string> = {
   "system/company/holidays": "/settings/company/holidays",
   "system/company/workflows": "/settings/company/workflows",
 
-  // Schedule Master
-  "system/schedule-master": "/settings/operations/schedule-master",
+  // Schedule Master - keep in /admin/system (NOT in settings)
+  // Note: This is a fallback; /admin/system/[...slug] should catch first
+  "system/schedule-master": "/admin/system/schedule-master/data-view",
 
   // Navigation
   "system/navigation": "/settings/system/navigation",
