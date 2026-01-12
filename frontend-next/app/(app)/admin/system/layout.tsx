@@ -137,23 +137,21 @@ export default function SystemAdminLayout({
       {/* Main Tab Navigation - hidden for compact tabs */}
       {!isCompactTab && (
         <Tabs value={currentTab} onValueChange={handleTabChange} className="shrink-0 mb-4">
-          <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent pb-2">
-            <TabsList className="h-auto gap-1 w-max">
-              {MAIN_TABS.map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <TabsTrigger
-                    key={tab.id}
-                    value={tab.id}
-                    className="text-xs sm:text-sm flex items-center gap-1.5"
-                  >
-                    <Icon className="h-4 w-4" />
-                    <span>{tab.label}</span>
-                  </TabsTrigger>
-                );
-              })}
-            </TabsList>
-          </div>
+          <TabsList className="flex flex-wrap h-auto gap-1 justify-start">
+            {MAIN_TABS.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <TabsTrigger
+                  key={tab.id}
+                  value={tab.id}
+                  className="text-xs sm:text-sm flex items-center gap-1.5"
+                >
+                  <Icon className="h-4 w-4" />
+                  <span>{tab.label}</span>
+                </TabsTrigger>
+              );
+            })}
+          </TabsList>
         </Tabs>
       )}
 
