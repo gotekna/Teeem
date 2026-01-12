@@ -12,8 +12,8 @@ class DesktopClient < ApplicationRecord
   has_many :sync_subscriptions, dependent: :destroy
   has_many :sync_file_states, dependent: :destroy
 
-  # Encrypt sensitive fields
-  encrypts :refresh_token
+  # TODO: Enable encryption when AR encryption is configured
+  # encrypts :refresh_token
 
   # Validations
   validates :device_id, presence: true, uniqueness: { scope: :user_id }

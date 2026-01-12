@@ -9114,8 +9114,20 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_100013) do
   end
 
   create_table "sync_exclusion_rules", force: :cascade do |t|
+    t.bigint "organization_id"
+    t.bigint "user_id"
+    t.string "rule_type", null: false
+    t.string "value", null: false
+    t.string "action", default: "skip", null: false
+    t.string "description"
+    t.boolean "is_default", default: false
+    t.integer "priority", default: 0
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["is_default"], name: "index_sync_exclusion_rules_on_is_default"
+    t.index ["organization_id"], name: "index_sync_exclusion_rules_on_organization_id"
+    t.index ["rule_type", "value"], name: "index_sync_exclusion_rules_on_rule_type_and_value"
+    t.index ["user_id"], name: "index_sync_exclusion_rules_on_user_id"
   end
 
   create_table "sync_file_states", force: :cascade do |t|
@@ -10972,6 +10984,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_100013) do
   add_foreign_key "subcontractor_invoices", "accounting_integrations"
   add_foreign_key "subcontractor_invoices", "contacts"
   add_foreign_key "subcontractor_invoices", "purchase_orders"
+  add_foreign_key "sync_exclusion_rules", "organizations"
+  add_foreign_key "sync_exclusion_rules", "users"
   add_foreign_key "sync_file_states", "desktop_clients"
   add_foreign_key "sync_file_states", "sync_subscriptions"
   add_foreign_key "sync_subscriptions", "desktop_clients"

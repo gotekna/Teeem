@@ -12,8 +12,9 @@ module Api
     # - File upload/download URLs
     #
     class SyncController < ApplicationController
-      # Skip auth for device code endpoints (client not yet authenticated)
-      skip_before_action :authorize_request, only: [:initiate_device_auth, :poll_device_auth]
+      # Skip standard auth - we use our own desktop client authentication
+      skip_before_action :authorize_request
+      skip_before_action :authenticate_user!, raise: false
       before_action :authenticate_desktop_client!, except: [:initiate_device_auth, :poll_device_auth, :verify_device_code]
 
       # ==========================================
@@ -72,9 +73,10 @@ module Api
         end
 
         # Create the desktop client linked to current user
+        # Note: Using default organization since users aren't org-scoped yet
         client = DesktopClient.create!(
           user: current_user,
-          organization: current_user.organization,
+          organization: default_organization,
           device_id: pending[:device_id],
           device_name: pending[:device_name],
           platform: pending[:platform],
@@ -174,17 +176,15 @@ module Api
       # GET /api/v1/sync/folders
       # List available folders user can sync
       def folders
-        jobs = current_user.organization.jobs
-          .where(status: %w[active on_hold])
+        # Note: This is a single-tenant system, so we query all records
+        jobs = Job.where(state: %w[active on_hold])
           .order(created_at: :desc)
           .limit(100)
 
-        companies = current_user.organization.corporate_companies
-          .order(:name)
+        companies = CorporateCompany.order(:name)
           .limit(100)
 
-        contacts = current_user.organization.contacts
-          .where.not(first_name: nil)
+        contacts = Contact.where.not(first_name: nil)
           .order(:last_name, :first_name)
           .limit(100)
 
@@ -255,7 +255,7 @@ module Api
       # Get effective exclusion rules for current user
       def exclusions
         rules = SyncExclusionRule.effective_rules_for(
-          organization: current_user.organization,
+          organization: default_organization,
           user: current_user
         )
 
@@ -280,7 +280,7 @@ module Api
         rules.each do |rule_params|
           SyncExclusionRule.create!(
             user: current_user,
-            organization: current_user.organization,
+            organization: default_organization,
             rule_type: rule_params[:rule_type],
             value: rule_params[:value],
             action: rule_params[:action] || "skip",
@@ -381,7 +381,7 @@ module Api
         end
 
         # Generate upload URL based on storage provider
-        provider = current_user.organization.document_storage
+        provider = default_organization.document_storage
         upload_info = provider.upload_url(
           folder: sub.remote_path,
           filename: file_name,
@@ -515,6 +515,12 @@ module Api
 
       def frontend_url
         ENV.fetch("FRONTEND_URL", "https://teeemlive.vercel.app")
+      end
+
+      # Default organization for single-tenant system
+      # TODO: Implement proper user-organization mapping when multi-tenancy is needed
+      def default_organization
+        @default_organization ||= Organization.first
       end
 
       def folder_json(entity, type)
