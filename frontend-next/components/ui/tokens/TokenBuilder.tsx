@@ -87,6 +87,8 @@ export interface TokenBuilderProps {
   helpText?: string;
   /** Whether palette is expanded by default */
   defaultExpanded?: boolean;
+  /** Separator between tokens. Use "/" for folder paths, " " for text. Default: " " */
+  separator?: string;
 }
 
 // Token item with unique ID for drag-and-drop
@@ -204,6 +206,7 @@ export function TokenBuilder({
   error,
   helpText,
   defaultExpanded = true,
+  separator = " ",
 }: TokenBuilderProps) {
   const [customText, setCustomText] = React.useState("");
   const [activeId, setActiveId] = React.useState<string | null>(null);
@@ -256,15 +259,16 @@ export function TokenBuilder({
     return resolveWithExamples(value, previewUseLong);
   }, [value, showPreview, previewData, previewUseLong]);
 
-  // Insert a token at the end (auto-add space if needed)
+  // Insert a token at the end (auto-add separator if needed)
   const insertToken = (code: string) => {
     if (!value) {
       onChange(code);
     } else {
-      // Auto-add space unless value ends with space or separator
+      // Auto-add separator unless value ends with a separator character
       const lastChar = value.slice(-1);
-      const noSpaceNeeded = lastChar === " " || lastChar === "-" || lastChar === "_" || lastChar === "/" || lastChar === "(";
-      const newValue = noSpaceNeeded ? `${value}${code}` : `${value} ${code}`;
+      const separators = [" ", "-", "_", "/", "("];
+      const noSeparatorNeeded = separators.includes(lastChar);
+      const newValue = noSeparatorNeeded ? `${value}${code}` : `${value}${separator}${code}`;
       onChange(newValue);
     }
   };

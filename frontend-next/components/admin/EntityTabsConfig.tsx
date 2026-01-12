@@ -1604,6 +1604,7 @@ export function EntityTabsConfig({
                     placeholder="Click tokens below to add..."
                     disabled={false}
                     defaultExpanded={true}
+                    separator="/"
                   />
 
                   {/* Full path preview */}
