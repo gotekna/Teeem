@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_12_100006) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_12_100013) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1559,6 +1559,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_100006) do
     t.boolean "is_customer_cached", default: false, null: false
     t.boolean "is_supplier_cached", default: false, null: false
     t.boolean "is_director_cached", default: false, null: false
+    t.string "stripe_customer_id"
     t.index "lower(TRIM(BOTH FROM display_name))", name: "idx_contacts_unique_company_name", unique: true, where: "(((entity_type)::text = 'company'::text) AND (is_active = true))"
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["acn"], name: "index_contacts_on_acn"
@@ -1583,6 +1584,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_100006) do
     t.index ["referrer_status"], name: "index_contacts_on_referrer_status"
     t.index ["saas_status"], name: "index_contacts_on_saas_status"
     t.index ["searchable"], name: "idx_contacts_searchable_gin", using: :gin
+    t.index ["stripe_customer_id"], name: "index_contacts_on_stripe_customer_id", unique: true, where: "(stripe_customer_id IS NOT NULL)"
     t.index ["support_contact_id"], name: "index_contacts_on_support_contact_id"
     t.index ["upline_contact_id"], name: "index_contacts_on_upline_contact_id"
     t.index ["xero_contact_number"], name: "index_contacts_on_xero_contact_number"
@@ -2638,6 +2640,85 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_100006) do
     t.index ["user_id"], name: "index_email_labels_on_user_id"
   end
 
+  create_table "email_mailboxes", force: :cascade do |t|
+    t.bigint "email_subscription_id", null: false
+    t.bigint "contact_id"
+    t.string "email_address", null: false
+    t.string "display_name"
+    t.string "mailbox_type", default: "user", null: false
+    t.string "status", default: "pending", null: false
+    t.integer "storage_quota_gb", default: 50
+    t.decimal "storage_used_gb", precision: 10, scale: 2
+    t.string "polaris_mailbox_id"
+    t.datetime "provisioned_at"
+    t.datetime "last_sync_at"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_email_mailboxes_on_contact_id"
+    t.index ["email_address"], name: "index_email_mailboxes_on_email_address", unique: true
+    t.index ["email_subscription_id"], name: "index_email_mailboxes_on_email_subscription_id"
+    t.index ["mailbox_type"], name: "index_email_mailboxes_on_mailbox_type"
+    t.index ["polaris_mailbox_id"], name: "index_email_mailboxes_on_polaris_mailbox_id"
+    t.index ["status"], name: "index_email_mailboxes_on_status"
+  end
+
+  create_table "email_migration_invites", force: :cascade do |t|
+    t.bigint "email_subscription_id", null: false
+    t.bigint "contact_id", null: false
+    t.bigint "created_by_id"
+    t.string "token", null: false
+    t.string "status", default: "pending", null: false
+    t.decimal "total_monthly", precision: 10, scale: 2
+    t.jsonb "mailboxes_data", default: []
+    t.datetime "expires_at"
+    t.datetime "viewed_at"
+    t.integer "view_count", default: 0
+    t.datetime "payment_completed_at"
+    t.datetime "migration_started_at"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_email_migration_invites_on_contact_id"
+    t.index ["created_by_id"], name: "index_email_migration_invites_on_created_by_id"
+    t.index ["email_subscription_id"], name: "index_email_migration_invites_on_email_subscription_id"
+    t.index ["expires_at"], name: "index_email_migration_invites_on_expires_at"
+    t.index ["status"], name: "index_email_migration_invites_on_status"
+    t.index ["token"], name: "index_email_migration_invites_on_token", unique: true
+  end
+
+  create_table "email_migrations", force: :cascade do |t|
+    t.bigint "email_subscription_id", null: false
+    t.bigint "email_mailbox_id"
+    t.bigint "initiated_by_id"
+    t.bigint "microsoft_credential_id"
+    t.string "migration_type", null: false
+    t.string "status", default: "pending", null: false
+    t.string "source_email"
+    t.string "source_tenant_id"
+    t.integer "total_items", default: 0
+    t.integer "processed_items", default: 0
+    t.integer "failed_items", default: 0
+    t.bigint "total_bytes", default: 0
+    t.bigint "processed_bytes", default: 0
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.datetime "failed_at"
+    t.text "error_message"
+    t.jsonb "migration_log", default: {}
+    t.jsonb "options", default: {}
+    t.boolean "is_self_service", default: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["email_mailbox_id"], name: "index_email_migrations_on_email_mailbox_id"
+    t.index ["email_subscription_id"], name: "index_email_migrations_on_email_subscription_id"
+    t.index ["initiated_by_id"], name: "index_email_migrations_on_initiated_by_id"
+    t.index ["is_self_service"], name: "index_email_migrations_on_is_self_service"
+    t.index ["microsoft_credential_id"], name: "index_email_migrations_on_microsoft_credential_id"
+    t.index ["migration_type"], name: "index_email_migrations_on_migration_type"
+    t.index ["status"], name: "index_email_migrations_on_status"
+  end
+
   create_table "email_recipients", force: :cascade do |t|
     t.bigint "email_warehouse_id", null: false
     t.bigint "user_id"
@@ -2686,6 +2767,57 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_100006) do
     t.index ["snooze_until", "is_active"], name: "idx_email_snoozes_pending_wakeup", where: "(is_active = true)"
     t.index ["user_id", "is_active"], name: "idx_email_snoozes_user_active", where: "(is_active = true)"
     t.index ["user_id"], name: "index_email_snoozes_on_user_id"
+  end
+
+  create_table "email_subscription_invoices", force: :cascade do |t|
+    t.bigint "email_subscription_id", null: false
+    t.bigint "gl_invoice_id"
+    t.date "billing_period_start", null: false
+    t.date "billing_period_end", null: false
+    t.decimal "retail_amount", precision: 10, scale: 2
+    t.decimal "wholesale_amount", precision: 10, scale: 2
+    t.string "stripe_invoice_id"
+    t.string "status", default: "pending", null: false
+    t.datetime "paid_at"
+    t.string "failure_reason"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["billing_period_start", "billing_period_end"], name: "idx_email_invoices_period"
+    t.index ["email_subscription_id"], name: "index_email_subscription_invoices_on_email_subscription_id"
+    t.index ["gl_invoice_id"], name: "index_email_subscription_invoices_on_gl_invoice_id"
+    t.index ["status"], name: "index_email_subscription_invoices_on_status"
+    t.index ["stripe_invoice_id"], name: "index_email_subscription_invoices_on_stripe_invoice_id"
+  end
+
+  create_table "email_subscriptions", force: :cascade do |t|
+    t.bigint "contact_id", null: false
+    t.bigint "organization_id", null: false
+    t.string "polaris_account_id"
+    t.string "domain", null: false
+    t.string "status", default: "pending", null: false
+    t.string "billing_interval", default: "monthly", null: false
+    t.decimal "retail_price", precision: 10, scale: 2
+    t.decimal "wholesale_cost", precision: 10, scale: 2
+    t.string "stripe_subscription_id"
+    t.string "stripe_customer_id"
+    t.string "stripe_payment_method_id"
+    t.date "next_billing_date"
+    t.date "current_period_start"
+    t.date "current_period_end"
+    t.integer "mailbox_count", default: 0
+    t.integer "total_storage_gb", default: 0
+    t.jsonb "metadata", default: {}
+    t.datetime "started_at"
+    t.datetime "cancelled_at"
+    t.string "cancellation_reason"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id", "organization_id"], name: "index_email_subscriptions_on_contact_id_and_organization_id", unique: true
+    t.index ["contact_id"], name: "index_email_subscriptions_on_contact_id"
+    t.index ["domain"], name: "index_email_subscriptions_on_domain"
+    t.index ["organization_id"], name: "index_email_subscriptions_on_organization_id"
+    t.index ["status"], name: "index_email_subscriptions_on_status"
+    t.index ["stripe_subscription_id"], name: "index_email_subscriptions_on_stripe_subscription_id", unique: true
   end
 
   create_table "email_sync_statuses", force: :cascade do |t|
@@ -7248,6 +7380,24 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_100006) do
     t.index ["uploaded_by_id"], name: "index_plan_uploads_on_uploaded_by_id"
   end
 
+  create_table "polaris_credentials", force: :cascade do |t|
+    t.bigint "organization_id", null: false
+    t.text "api_key"
+    t.text "api_secret"
+    t.string "reseller_id"
+    t.string "status", default: "pending", null: false
+    t.boolean "is_active", default: true, null: false
+    t.text "error_message"
+    t.datetime "last_connected_at"
+    t.datetime "last_error_at"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["organization_id", "is_active"], name: "idx_polaris_credentials_active_org", unique: true, where: "(is_active = true)"
+    t.index ["organization_id"], name: "index_polaris_credentials_on_organization_id"
+    t.index ["status"], name: "index_polaris_credentials_on_status"
+  end
+
   create_table "portal_access_logs", force: :cascade do |t|
     t.bigint "portal_user_id", null: false
     t.string "action"
@@ -10201,11 +10351,24 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_100006) do
   add_foreign_key "email_label_assignments", "email_labels"
   add_foreign_key "email_label_assignments", "email_warehouses"
   add_foreign_key "email_labels", "users"
+  add_foreign_key "email_mailboxes", "contacts"
+  add_foreign_key "email_mailboxes", "email_subscriptions"
+  add_foreign_key "email_migration_invites", "contacts"
+  add_foreign_key "email_migration_invites", "email_subscriptions"
+  add_foreign_key "email_migration_invites", "users", column: "created_by_id"
+  add_foreign_key "email_migrations", "email_mailboxes"
+  add_foreign_key "email_migrations", "email_subscriptions"
+  add_foreign_key "email_migrations", "microsoft_credentials"
+  add_foreign_key "email_migrations", "users", column: "initiated_by_id"
   add_foreign_key "email_rules", "imap_credentials"
   add_foreign_key "email_rules", "microsoft_credentials", on_delete: :cascade
   add_foreign_key "email_rules", "users"
   add_foreign_key "email_snoozes", "email_warehouses"
   add_foreign_key "email_snoozes", "users"
+  add_foreign_key "email_subscription_invoices", "email_subscriptions"
+  add_foreign_key "email_subscription_invoices", "gl_invoices"
+  add_foreign_key "email_subscriptions", "contacts"
+  add_foreign_key "email_subscriptions", "organizations"
   add_foreign_key "email_templates", "users"
   add_foreign_key "email_user_states", "email_warehouses"
   add_foreign_key "email_user_states", "users"
@@ -10643,6 +10806,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_100006) do
   add_foreign_key "plan_uploads", "job_plan_tabs"
   add_foreign_key "plan_uploads", "jobs"
   add_foreign_key "plan_uploads", "users", column: "uploaded_by_id"
+  add_foreign_key "polaris_credentials", "organizations"
   add_foreign_key "portal_access_logs", "portal_users"
   add_foreign_key "portal_users", "contacts"
   add_foreign_key "price_histories", "contacts", column: "supplier_id", name: "fk_rails_price_histories_contact"

@@ -56,15 +56,15 @@
     }
   },
   "dependencies": {
-    "better-sqlite3": "^9.4.3",
     "electron-store": "^8.1.0",
     "electron-updater": "^6.1.7",
+    "sql.js": "^1.10.2",
     "uuid": "^9.0.1",
     "xxhash-wasm": "^1.0.2"
   },
   "devDependencies": {
     "@electron/rebuild": "^3.6.0",
-    "@types/better-sqlite3": "^7.6.8",
+    "@types/sql.js": "^1.4.9",
     "@types/node": "^20.11.16",
     "@types/react": "^18.2.52",
     "@types/uuid": "^9.0.7",
