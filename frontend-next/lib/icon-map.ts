@@ -120,6 +120,42 @@ import {
   AlertTriangle,
   CheckCircle,
   XCircle,
+  // Data/Storage icons
+  Database,
+  HardDrive,
+  Archive,
+  Box,
+  // Social/Engagement icons
+  Heart,
+  ThumbsUp,
+  ThumbsDown,
+  Share2,
+  Bell,
+  // Search/Filter icons
+  Search,
+  Filter,
+  SlidersHorizontal,
+  // People icons
+  User,
+  UserPlus,
+  UserMinus,
+  // Building icons
+  Building,
+  Factory,
+  Store,
+  // Chart icons
+  GanttChartSquare,
+  PieChart,
+  LineChart,
+  BarChart2,
+  // Food/Misc
+  ChefHat,
+  Coffee,
+  UtensilsCrossed,
+  // Lock/Security
+  Lock,
+  Unlock,
+  Key,
   type LucideIcon,
 } from "lucide-react";
 
@@ -246,6 +282,42 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   AlertTriangle,
   CheckCircle,
   XCircle,
+  // Data/Storage icons
+  Database,
+  HardDrive,
+  Archive,
+  Box,
+  // Social/Engagement icons
+  Heart,
+  ThumbsUp,
+  ThumbsDown,
+  Share2,
+  Bell,
+  // Search/Filter icons
+  Search,
+  Filter,
+  SlidersHorizontal,
+  // People icons
+  User,
+  UserPlus,
+  UserMinus,
+  // Building icons
+  Building,
+  Factory,
+  Store,
+  // Chart icons
+  GanttChartSquare,
+  PieChart,
+  LineChart,
+  BarChart2,
+  // Food/Misc
+  ChefHat,
+  Coffee,
+  UtensilsCrossed,
+  // Lock/Security
+  Lock,
+  Unlock,
+  Key,
 };
 
 // List of available icons for the icon picker

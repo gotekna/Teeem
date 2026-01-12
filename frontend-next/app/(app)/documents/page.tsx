@@ -111,6 +111,10 @@ interface TreeNode {
   file?: DocumentItem;
   icon?: React.ReactNode;
   fileCount?: number;
+  // SSoT: Full folder path from Entity Config
+  fullPath?: string;
+  // SSoT: Folder path template (e.g., "{{CompanyGroup}}/{{CompanyCode}}")
+  pathTemplate?: string;
 }
 
 type ViewMode = "tree" | "list" | "gallery";
@@ -201,7 +205,9 @@ const SCOPE_ICONS: Record<string, React.ReactNode> = {
 // This dynamically generates the tree from StorageConfiguration.scope_folders
 const buildScopeTree = (
   scopes: Record<string, string>,
-  counts: Record<string, number>
+  counts: Record<string, number>,
+  templates: Record<string, string> = {},
+  rootPath: string = "/Shared Documents"
 ): TreeNode[] => {
   const tree: TreeNode[] = [];
   const parentMap: Record<string, TreeNode> = {};
@@ -302,6 +308,13 @@ const buildScopeTree = (
       : key === "pricebook_photos" ? "pricebook_images"
       : key;
 
+    // Get template for this scope (SSoT from Entity Config)
+    const template = templates[key] || "";
+    // Build full path: rootPath + scopePath + template
+    const fullPath = template
+      ? `${rootPath}/${path}/${template}`
+      : `${rootPath}/${path}`;
+
     const node: TreeNode = {
       id: key,
       name: displayName,
@@ -309,6 +322,8 @@ const buildScopeTree = (
       icon: SCOPE_ICONS[key] || <Folder className="h-4 w-4" />,
       fileCount: counts[countKey] || 0,
       children: [],
+      fullPath: fullPath,
+      pathTemplate: template || undefined,
     };
 
     if (parts.length === 1) {
@@ -367,6 +382,12 @@ export default function AllDocumentsPage() {
     contact: "Contacts",
   });
 
+  // SSoT: Folder path templates from Entity Config
+  const [scopeTemplates, setScopeTemplates] = useState<Record<string, string>>({});
+
+  // SSoT: Root path from StorageConfiguration
+  const [rootPath, setRootPath] = useState<string>("/Shared Documents");
+
   // SSoT: All configured folders from Entity Configurator
   const [entityFolders, setEntityFolders] = useState<{
     job: EntityTabFolder[];
@@ -382,22 +403,34 @@ export default function AllDocumentsPage() {
   const [subscriptions, setSubscriptions] = useState<SyncSubscription[]>([]);
   const [userOverrides, setUserOverrides] = useState<Record<string, boolean>>({});
 
-  // SSoT: Fetch scope folder names from StorageConfiguration
+  // SSoT: Fetch storage config from StorageConfiguration (scope folders, templates, root path)
   useEffect(() => {
-    const fetchScopeFolders = async () => {
+    const fetchStorageConfig = async () => {
       try {
         const response = await api.get<{
           success: boolean;
-          data: { scope_folders?: ScopeFolders };
+          data: {
+            scope_folders?: ScopeFolders;
+            scope_templates?: Record<string, string>;
+            root_path?: string;
+          };
         }>("/api/v1/corporate_company_settings/sharepoint");
-        if (response?.success && response.data?.scope_folders) {
-          setScopeFolders(prev => ({ ...prev, ...response.data.scope_folders }));
+        if (response?.success && response.data) {
+          if (response.data.scope_folders) {
+            setScopeFolders(prev => ({ ...prev, ...response.data.scope_folders }));
+          }
+          if (response.data.scope_templates) {
+            setScopeTemplates(response.data.scope_templates);
+          }
+          if (response.data.root_path) {
+            setRootPath(response.data.root_path);
+          }
         }
       } catch (err) {
-        console.error("Failed to fetch scope folders:", err);
+        console.error("Failed to fetch storage config:", err);
       }
     };
-    fetchScopeFolders();
+    fetchStorageConfig();
   }, []);
 
   // SSoT: Fetch all configured folders from Entity Configurator
@@ -589,6 +622,8 @@ export default function AllDocumentsPage() {
           type: "folder" as const,
           fileCount: tab.document_count ?? childFileCount,
           children: childNodes,
+          // SSoT: Include storage folder path from EntityTab
+          fullPath: tab.storage_folder_path || undefined,
         };
       });
     };
@@ -599,7 +634,8 @@ export default function AllDocumentsPage() {
     const definedScopes = Object.fromEntries(
       Object.entries(scopeFolders).filter((entry): entry is [string, string] => entry[1] !== undefined)
     );
-    const dynamicTree = buildScopeTree(definedScopes, counts);
+    // Pass templates and rootPath from Entity Config (SSoT)
+    const dynamicTree = buildScopeTree(definedScopes, counts, scopeTemplates, rootPath);
 
     // Enhance specific nodes with EntityTab-based sub-folders
     // (Jobs, Corporate, People have EntityTab configurations for their internal folder structure)
@@ -626,7 +662,7 @@ export default function AllDocumentsPage() {
       }
       return node;
     });
-  }, [filteredDocuments, entityFolders, scopeFolders, counts]);
+  }, [filteredDocuments, entityFolders, scopeFolders, scopeTemplates, rootPath, counts]);
 
   // Toggle folder expansion
   const toggleFolder = useCallback((folderId: string) => {
@@ -762,6 +798,7 @@ export default function AllDocumentsPage() {
           )}
           style={{ paddingLeft: `${paddingLeft + 12}px` }}
           onClick={() => toggleFolder(node.id)}
+          title={node.fullPath || undefined}
         >
           {hasChildren && (
             <ChevronRight
@@ -775,7 +812,15 @@ export default function AllDocumentsPage() {
           {node.type !== "category" && (
             <Folder className="h-4 w-4 text-yellow-500" />
           )}
-          <span className="flex-1">{node.name}</span>
+          <div className="flex-1 min-w-0">
+            <span>{node.name}</span>
+            {/* Show folder path template for scope folders */}
+            {node.type === "category" && node.pathTemplate && (
+              <span className="ml-2 text-xs font-normal text-muted-foreground font-mono truncate">
+                {node.pathTemplate}
+              </span>
+            )}
+          </div>
           <Badge variant="secondary" className="text-xs">
             {fileCount} {fileCount === 1 ? "file" : "files"}
           </Badge>
