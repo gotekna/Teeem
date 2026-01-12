@@ -23,6 +23,7 @@ class User < ApplicationRecord
   has_many :followed_tasks, through: :task_followers, source: :sm_task
   has_many :teeem_spreadsheets, dependent: :destroy
   has_many :teeem_documents, dependent: :destroy
+  has_many :teeem_presentations, dependent: :destroy
 
   # Digital signature for certificates (Form 43, contracts, etc.)
   has_one_attached :signature

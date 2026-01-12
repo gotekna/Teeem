@@ -90,6 +90,27 @@ echo ""
 echo "--- Hardcoded model arrays (should query schema) ---"
 grep -rn "%w\[.*Job.*Contact\|%w\[.*jobs.*contacts" backend/app --include="*.rb" | head -5
 
+# Hardcoded column type strings (should use Column::LOOKUP_COLUMN_TYPES etc)
+echo ""
+echo "--- Hardcoded column type strings (use constants) ---"
+echo "Backend:"
+backend_violations=$(grep -rn "== 'lookup'\|== 'choice'\|== 'relation'\|\.in?.*'lookup'\|\.in?.*'choice'" backend/app --include="*.rb" 2>/dev/null | grep -v "COLUMN_TYPE\|column_type:" | wc -l | tr -d ' ')
+echo "  Found: $backend_violations instances"
+[ "$backend_violations" -gt 0 ] && grep -rn "== 'lookup'\|== 'choice'\|== 'relation'" backend/app --include="*.rb" 2>/dev/null | grep -v "COLUMN_TYPE\|column_type:" | head -3
+
+echo "Frontend:"
+frontend_violations=$(grep -rn "=== 'lookup'\|=== 'choice'\|=== 'relation'\|=== 'multiple_lookups'" frontend-next/components frontend-next/app --include="*.ts" --include="*.tsx" 2>/dev/null | grep -v "column-types.ts\|isLookupColumn\|isChoiceColumn" | wc -l | tr -d ' ')
+echo "  Found: $frontend_violations instances"
+[ "$frontend_violations" -gt 0 ] && grep -rn "=== 'lookup'\|=== 'choice'\|=== 'relation'" frontend-next/components frontend-next/app --include="*.ts" --include="*.tsx" 2>/dev/null | grep -v "column-types.ts" | head -3
+
+total_type_violations=$((backend_violations + frontend_violations))
+if [ "$total_type_violations" -eq 0 ]; then
+  echo "✅ All column type checks use constants"
+else
+  echo "❌ Found $total_type_violations hardcoded column type strings"
+  echo "   Use: Column::LOOKUP_COLUMN_TYPES (backend) or isLookupColumn() (frontend)"
+fi
+
 # Missing system columns
 echo ""
 echo "--- Foundations missing system columns ---"

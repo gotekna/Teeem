@@ -357,8 +357,8 @@ export function TableHeaderSection({
             const colMeta = getColumnMeta(column.key) || column;
             const colType = colMeta.column_type || '';
             const isBoolean = colType === 'boolean';
-            const isLookup = colType === 'lookup' || colType === 'relation';
-            const isChoice = colType === 'choice' || colType === 'single_select';
+            const isLookup = isLookupColumn(colType);
+            const isChoice = colType === 'choice';
             const hasChoices = colMeta.choices && colMeta.choices.length > 0;
             const options = lookupOptions[column.key] || [];
             const isLoading = lookupLoading[column.key] || false;

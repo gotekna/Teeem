@@ -137,6 +137,13 @@ Rails.application.routes.draw do
         end
       end
 
+      # TeeemPowerPoint Presentations - user-created presentations
+      resources :teeem_presentations, only: [ :index, :show, :create, :update, :destroy ] do
+        member do
+          get :export  # GET /api/v1/teeem_presentations/:id/export - export data for PPTX
+        end
+      end
+
       # Units of Measure (lookup table for pricebook, recipes, etc.)
       resources :units_of_measure, only: [ :index ]
 

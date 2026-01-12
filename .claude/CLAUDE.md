@@ -153,12 +153,30 @@ When discovering duplicates:
 |----------|---------------|
 | `ASSIGNABLE_ROLES` | `User::ASSIGNABLE_ROLES` |
 | `COLUMN_TYPES` | `column_type_definitions` table (34 types, API: `/api/v1/column_type_definitions`) |
+| `LOOKUP_COLUMN_TYPES` | Backend: `Column::LOOKUP_COLUMN_TYPES`, Frontend: `lib/constants/column-types.ts` |
+| `CHOICE_COLUMN_TYPES` | Backend: `Column::CHOICE_COLUMN_TYPES`, Frontend: `lib/constants/column-types.ts` |
 | System columns | `lib/constants/system-columns.ts` |
 | Document types | `lib/constants/document-types.ts` |
+| Column types | `lib/constants/column-types.ts` (frontend helpers: `isLookupColumn()`, `isChoiceColumn()`) |
 | UI components | `lib/component-registry.ts` |
 | Storage paths | `StorageConfiguration` model (paths, templates, provider config) |
 
 **Rule:** Search `lib/constants/` before creating ANY constant.
+
+### Column Type Checks
+
+```ruby
+# Backend - use constants
+column.column_type.in?(Column::LOOKUP_COLUMN_TYPES)  # ✅
+column.column_type == 'lookup'                        # ❌ Missing multiple_lookups
+```
+
+```typescript
+// Frontend - use helpers from lib/constants/column-types.ts
+import { isLookupColumn, isChoiceColumn } from '@/lib/constants/column-types';
+isLookupColumn(column.column_type)  // ✅
+column.column_type === 'lookup'      // ❌ Missing multiple_lookups
+```
 
 ## 🔴 SSoT - State (Jotai Atoms)
 

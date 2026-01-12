@@ -1603,7 +1603,7 @@ export function EntityTabsConfig({
                     showPreview={true}
                     placeholder="Click tokens below to add..."
                     disabled={false}
-                    defaultExpanded={true}
+                    defaultExpanded={false}
                     separator="/"
                   />
 
@@ -1642,7 +1642,7 @@ export function EntityTabsConfig({
                     showPreview={true}
                     placeholder="Click tokens below to add..."
                     disabled={false}
-                    defaultExpanded={true}
+                    defaultExpanded={false}
                   />
                   <div className="text-xs bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded px-2 py-1.5 font-mono">
                     <span className="text-blue-600 dark:text-blue-400 font-medium">Example: </span>
@@ -1691,7 +1691,7 @@ export function EntityTabsConfig({
                       showPreview={true}
                       placeholder="Click tokens below to add..."
                       disabled={false}
-                      defaultExpanded={true}
+                      defaultExpanded={false}
                     />
 
                     {/* Full path preview for attachments */}
@@ -1726,7 +1726,7 @@ export function EntityTabsConfig({
                       showPreview={true}
                       placeholder="Click tokens below to add..."
                       disabled={false}
-                      defaultExpanded={true}
+                      defaultExpanded={false}
                     />
                     <div className="text-xs bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded px-2 py-1.5 font-mono">
                       <span className="text-blue-600 dark:text-blue-400 font-medium">Example: </span>
@@ -1773,7 +1773,7 @@ export function EntityTabsConfig({
                         showPreview={true}
                         placeholder="Click tokens below to add..."
                         disabled={false}
-                        defaultExpanded={true}
+                        defaultExpanded={false}
                       />
                       <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono">
                         <span className="text-green-600 dark:text-green-400 font-medium">Full Path: </span>
@@ -1786,7 +1786,7 @@ export function EntityTabsConfig({
                         placeholders={SHAREPOINT_PLACEHOLDERS}
                         showPreview={true}
                         disabled={false}
-                        defaultExpanded={true}
+                        defaultExpanded={false}
                       />
                     </div>
 
@@ -1812,7 +1812,7 @@ export function EntityTabsConfig({
                         placeholders={SHAREPOINT_PLACEHOLDERS}
                         showPreview={true}
                         disabled={false}
-                        defaultExpanded={true}
+                        defaultExpanded={false}
                       />
                       <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono">
                         <span className="text-green-600 dark:text-green-400 font-medium">Full Path: </span>
@@ -1825,7 +1825,7 @@ export function EntityTabsConfig({
                         placeholders={SHAREPOINT_PLACEHOLDERS}
                         showPreview={true}
                         disabled={false}
-                        defaultExpanded={true}
+                        defaultExpanded={false}
                       />
                     </div>
 
@@ -1851,7 +1851,7 @@ export function EntityTabsConfig({
                         placeholders={SHAREPOINT_PLACEHOLDERS}
                         showPreview={true}
                         disabled={false}
-                        defaultExpanded={true}
+                        defaultExpanded={false}
                       />
                       <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono">
                         <span className="text-green-600 dark:text-green-400 font-medium">Full Path: </span>
@@ -1864,7 +1864,7 @@ export function EntityTabsConfig({
                         placeholders={SHAREPOINT_PLACEHOLDERS}
                         showPreview={true}
                         disabled={false}
-                        defaultExpanded={true}
+                        defaultExpanded={false}
                       />
                     </div>
 
@@ -1890,7 +1890,7 @@ export function EntityTabsConfig({
                         placeholders={SHAREPOINT_PLACEHOLDERS}
                         showPreview={true}
                         disabled={false}
-                        defaultExpanded={true}
+                        defaultExpanded={false}
                       />
                       <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono">
                         <span className="text-green-600 dark:text-green-400 font-medium">Full Path: </span>
@@ -1903,7 +1903,7 @@ export function EntityTabsConfig({
                         placeholders={SHAREPOINT_PLACEHOLDERS}
                         showPreview={true}
                         disabled={false}
-                        defaultExpanded={true}
+                        defaultExpanded={false}
                       />
                     </div>
 
@@ -1929,7 +1929,7 @@ export function EntityTabsConfig({
                         placeholders={SHAREPOINT_PLACEHOLDERS}
                         showPreview={true}
                         disabled={false}
-                        defaultExpanded={true}
+                        defaultExpanded={false}
                       />
                       <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono">
                         <span className="text-green-600 dark:text-green-400 font-medium">Full Path: </span>
@@ -1942,7 +1942,7 @@ export function EntityTabsConfig({
                         placeholders={SHAREPOINT_PLACEHOLDERS}
                         showPreview={true}
                         disabled={false}
-                        defaultExpanded={true}
+                        defaultExpanded={false}
                       />
                     </div>
                   </>
