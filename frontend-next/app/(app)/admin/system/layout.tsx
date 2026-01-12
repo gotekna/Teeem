@@ -145,7 +145,7 @@ export default function SystemAdminLayout({
                   <TabsTrigger
                     key={tab.id}
                     value={tab.id}
-                    className="text-xs sm:text-sm whitespace-nowrap flex items-center gap-1.5 rounded-md px-3 py-1.5 text-foreground/70 hover:text-foreground hover:bg-background/50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+                    className="text-xs sm:text-sm flex items-center gap-1.5"
                   >
                     <Icon className="h-4 w-4" />
                     <span>{tab.label}</span>

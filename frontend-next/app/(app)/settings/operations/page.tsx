@@ -9,6 +9,7 @@ import { ContactTypesTab } from "@/app/(app)/admin/system/components/ContactType
 import { MeetingTypesTab } from "@/app/(app)/admin/system/components/MeetingTypesTab";
 import { SupervisorChecklistTab } from "@/app/(app)/admin/system/components/SupervisorChecklistTab";
 import { SMTasksTab } from "@/app/(app)/admin/system/components/SMTasksTab";
+import { CostTab } from "@/app/(app)/admin/system/components/CostTab";
 
 /**
  * Operations Settings Page - Organization Settings
@@ -24,6 +25,7 @@ const OPERATIONS_TABS = [
   { id: "contacts", label: "Contact Types" },
   { id: "meetings", label: "Meeting Types" },
   { id: "supervisor", label: "Supervisor Checklist" },
+  { id: "cost", label: "Cost" },
 ];
 
 export default function OperationsSettingsPage() {
@@ -66,6 +68,9 @@ export default function OperationsSettingsPage() {
           </TabsContent>
           <TabsContent value="supervisor">
             <SupervisorChecklistTab />
+          </TabsContent>
+          <TabsContent value="cost">
+            <CostTab />
           </TabsContent>
         </div>
       </Tabs>
