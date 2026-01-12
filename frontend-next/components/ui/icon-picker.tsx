@@ -57,7 +57,7 @@ const ICON_CATEGORIES: Record<string, string[]> = {
   "Plans": ["Ruler", "PenTool", "Compass", "LayoutDashboard", "House", "LandPlot", "MapPin", "Landmark"],
   "Schedule": ["Calendar", "CalendarClock", "CalendarDays", "CalendarCheck", "CalendarRange", "Clock", "Timer", "Hourglass", "AlarmClock"],
   "Tasks": ["ListTodo", "ListChecks", "CheckSquare", "SquareCheck", "CircleCheck", "ListOrdered", "ClipboardList", "ClipboardCheck"],
-  "Construction": ["HardHat", "Hammer", "Construction", "Truck"],
+  "Construction": ["HardHat", "Hammer", "Construction", "Truck", "Warehouse"],
   "Finance": ["DollarSign", "TrendingUp", "Receipt", "Wallet", "CreditCard", "PiggyBank", "Calculator", "Banknote"],
   "Communication": ["Mail", "Phone", "Video", "Send", "Inbox", "MessageSquare"],
   "Navigation": ["Home", "Map", "Target", "ExternalLink"],

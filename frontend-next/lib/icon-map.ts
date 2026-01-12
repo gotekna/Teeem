@@ -86,6 +86,7 @@ import {
   Hammer,
   Construction,
   Truck,
+  Warehouse,
   // Finance icons
   Receipt,
   Wallet,
@@ -211,6 +212,7 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   Hammer,
   Construction,
   Truck,
+  Warehouse,
   // Finance icons
   Receipt,
   Wallet,
