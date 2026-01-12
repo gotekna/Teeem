@@ -148,11 +148,17 @@ module Api
         }
         update_attrs[:root_path] = sp[:sharepoint_root_path] if sp.key?(:sharepoint_root_path)
         update_attrs[:scope_folders] = sp[:scope_folders] if sp.key?(:scope_folders)
+
+        # SSoT: Track old templates BEFORE update for automatic file reorganization
+        old_templates = storage_config.templates&.deep_dup || {}
+
         # SSoT: Folder path templates (auto-saved from Entity Config)
         # MERGE with existing templates to avoid losing other scopes' templates
+        new_templates = nil
         if sp.key?(:scope_templates)
           existing_templates = storage_config.templates || {}
-          update_attrs[:templates] = existing_templates.merge(sp[:scope_templates].to_h)
+          new_templates = existing_templates.merge(sp[:scope_templates].to_h)
+          update_attrs[:templates] = new_templates
         end
         if sp.key?(:file_name_templates)
           existing_file_templates = storage_config.file_name_templates || {}
@@ -160,6 +166,9 @@ module Api
         end
 
         if storage_config.update(update_attrs)
+          # SSoT: Automatically reorganize files when folder templates change
+          enqueue_folder_reorganization_jobs(old_templates, new_templates) if new_templates
+
           render json: {
             success: true,
             data: storage_config.to_config_hash
@@ -473,6 +482,44 @@ module Api
           :logo_mobile,
           :logo_dark
         )
+      end
+
+      # SSoT: Automatically enqueue file reorganization jobs when folder templates change
+      # This is the automatic file reorganization that syncs storage with Entity Config
+      def enqueue_folder_reorganization_jobs(old_templates, new_templates)
+        return unless old_templates.is_a?(Hash) && new_templates.is_a?(Hash)
+
+        changed_scopes = []
+
+        # Find scopes where template changed
+        new_templates.each do |scope, new_template|
+          old_template = old_templates[scope.to_s]
+
+          # Skip if template is unchanged
+          next if old_template == new_template
+
+          # Skip if this is a new template (no old one to compare)
+          next if old_template.blank?
+
+          changed_scopes << {
+            scope: scope.to_s,
+            old_template: old_template,
+            new_template: new_template
+          }
+        end
+
+        # Enqueue jobs for each changed scope
+        changed_scopes.each do |change|
+          Rails.logger.info "[FolderReorg] Template changed for scope '#{change[:scope]}': '#{change[:old_template]}' -> '#{change[:new_template]}'"
+
+          FolderTemplateReorganizationJob.perform_later(
+            scope: change[:scope],
+            old_template: change[:old_template],
+            new_template: change[:new_template]
+          )
+        end
+
+        Rails.logger.info "[FolderReorg] Enqueued #{changed_scopes.count} reorganization jobs" if changed_scopes.any?
       end
     end
   end

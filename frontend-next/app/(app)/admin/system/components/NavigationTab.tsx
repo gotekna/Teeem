@@ -523,11 +523,11 @@ export function NavigationTab() {
 
       {/* New Item Dialog */}
       <Dialog open={showNewItem} onOpenChange={setShowNewItem}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>New Navigation Item</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-4 overflow-y-auto flex-1 pr-2">
             {/* Name & URL */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -710,11 +710,11 @@ export function NavigationTab() {
 
       {/* Edit Item Dialog */}
       <Dialog open={!!editingItem} onOpenChange={() => setEditingItem(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Edit Navigation Item</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-4 overflow-y-auto flex-1 pr-2">
             {/* Name & URL */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
