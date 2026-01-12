@@ -1,25 +1,20 @@
 # frozen_string_literal: true
 
-# StorageConfiguration - SSoT for all document storage configuration
+# StorageConfiguration - SSoT for storage CONNECTION configuration
 #
-# This is THE ONE place for:
+# This model handles CONNECTION ONLY:
 # - Which storage provider to use (SharePoint, S3, Wasabi, local)
 # - Connection config (site IDs, buckets, endpoints)
-# - Path configuration for all document scopes
-# - Path templates with placeholders
+# - Root path for the storage location
 #
-# Previously this config was scattered across:
-# - CorporateCompanySetting (sharepoint_* columns)
-# - MicrosoftCredential (sharepoint_site_id, sharepoint_drive_id)
-# - Organization (document_provider)
+# FOLDER STRUCTURE is handled by EntityTab (SSoT for paths per tab)
+# Each EntityTab defines its own storage_folder_path template.
 #
 # Usage:
 #   config = StorageConfiguration.for_organization(org)
-#   config.resolve_path(:job, JobCode: "J-001", Category: "Plans")
-#   # => "/Shared Documents/Jobs/J-001/Plans"
-#
-#   config.resolve_path(:contacts, ContactName: "ATO", Category: "BILLS")
-#   # => "/Shared Documents/Contacts/ATO/BILLS"
+#   config.provider_type  # => "wasabi"
+#   config.root_path      # => "/"
+#   config.bucket         # => "teeem-docs"
 #
 class StorageConfiguration < ApplicationRecord
   # Associations
@@ -32,25 +27,25 @@ class StorageConfiguration < ApplicationRecord
   # Connection statuses
   STATUSES = %w[disconnected connected error].freeze
 
-  # Default paths for each scope
-  DEFAULT_PATHS = {
+  # Base folder names for each scope (used by EntityTab.storage_base_path)
+  # These map scope names to folder names in storage
+  # SSoT: EntityTab owns the full path template, this just provides base folder
+  # Note: EntityTab.scope_for_template may return different values (people, company)
+  SCOPE_FOLDERS = {
+    "job" => "Jobs",
     "jobs" => "Jobs",
     "corporate" => "Corporate",
-    "people" => "People",
+    "corporate_entity" => "Corporate",
+    "company" => "Company",           # EntityTab.scope_for_template returns this
+    "people" => "People",             # EntityTab.scope_for_template returns this
+    "contact" => "Contacts",
     "contacts" => "Contacts",
+    "task" => "Tasks",
     "tasks" => "Tasks",
+    "account" => "Accounts",
     "accounts" => "Accounts",
-    "emails" => "Emails"
-  }.freeze
-
-  # Default templates for each scope
-  DEFAULT_TEMPLATES = {
-    "job" => "{{JobCode}}/{{Category}}",
-    "corporate" => "{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}",
-    "people" => "{{ContactName}}/{{Category}}",
-    "contacts" => "{{ContactName}}/{{Category}}",
-    "task" => "Task-{{TaskId}}/{{Category}}",
-    "account" => "{{Source}}/{{ContactName}}/{{Category}}"
+    "email" => "emails",
+    "emails" => "emails"
   }.freeze
 
   # Validations
@@ -58,8 +53,6 @@ class StorageConfiguration < ApplicationRecord
   validates :provider_type, presence: true, inclusion: { in: PROVIDER_TYPES }
   validates :status, presence: true, inclusion: { in: STATUSES }
   validates :root_path, presence: true
-  validates :paths, presence: true
-  validates :templates, presence: true
 
   # Scopes
   scope :connected, -> { where(status: "connected") }
@@ -88,9 +81,7 @@ class StorageConfiguration < ApplicationRecord
       organization: org,
       provider_type: org.document_provider || "sharepoint",
       status: "disconnected",
-      root_path: "/Shared Documents",
-      paths: DEFAULT_PATHS,
-      templates: DEFAULT_TEMPLATES
+      root_path: "/Shared Documents"
     )
   rescue ActiveRecord::RecordNotUnique
     # Handle race condition
@@ -98,113 +89,22 @@ class StorageConfiguration < ApplicationRecord
   end
 
   # ========================================
-  # Path Resolution (SSoT)
+  # Scope Folder Lookup (for EntityTab)
   # ========================================
 
-  # Resolve a full path for any document scope
+  # Get base folder name for a scope
+  # Used by EntityTab.storage_base_path to build: root_path + scope_folder
   #
-  # @param scope [Symbol, String] The document scope (:job, :contacts, :corporate, etc.)
-  # @param values [Hash] Placeholder values to substitute in template
-  # @return [String] The resolved full path
+  # @param scope [String, Symbol] The scope name (job, corporate, contact, etc.)
+  # @return [String] The folder name for that scope
   #
   # Examples:
-  #   resolve_path(:job, JobCode: "J-001", Category: "Plans")
-  #   # => "/Shared Documents/Jobs/J-001/Plans"
-  #
-  #   resolve_path(:contacts, ContactName: "ATO", Category: "BILLS")
-  #   # => "/Shared Documents/Contacts/ATO/BILLS"
-  #
-  def resolve_path(scope, **values)
-    scope_key = scope.to_s
-    base_path = path_for(scope_key)
-    template = template_for(scope_key)
-
-    # Resolve template placeholders
-    resolved = resolve_template(template, values)
-
-    # Build full path
-    parts = [root_path, base_path, resolved].reject(&:blank?)
-    File.join(*parts)
-  end
-
-  # Get base path for a scope (without template resolution)
-  #
-  # @param scope [String, Symbol] The scope name
-  # @return [String] The base path for that scope
-  #
-  # Note: Handles both singular (job) and plural (jobs) scope names
+  #   path_for(:job)        # => "Jobs"
+  #   path_for(:corporate)  # => "Corporate"
+  #   path_for(:contact)    # => "Contacts"
   #
   def path_for(scope)
-    key = scope.to_s
-    # Try exact match, then plural, then singular
-    paths[key] ||
-      paths["#{key}s"] ||
-      paths[key.chomp("s")] ||
-      DEFAULT_PATHS[key] ||
-      DEFAULT_PATHS["#{key}s"] ||
-      key.titleize
-  end
-
-  # Get template for a scope
-  #
-  # @param scope [String, Symbol] The scope name
-  # @return [String] The template string with placeholders
-  #
-  def template_for(scope)
-    templates[scope.to_s] || DEFAULT_TEMPLATES[scope.to_s] || "{{Name}}"
-  end
-
-  # Resolve template placeholders with provided values
-  #
-  # @param template [String] Template with {{Placeholder}} syntax
-  # @param values [Hash] Key-value pairs to substitute
-  # @return [String] Resolved template
-  #
-  def resolve_template(template, values)
-    result = template.dup
-
-    values.each do |key, value|
-      # Support both symbol and string keys
-      placeholder = "{{#{key}}}"
-      result.gsub!(placeholder, value.to_s) if result.include?(placeholder)
-    end
-
-    # Remove any unresolved placeholders
-    result.gsub(/\{\{[^}]+\}\}/, "").gsub(%r{//+}, "/").gsub(%r{/$}, "")
-  end
-
-  # ========================================
-  # Full Path Methods (Convenience)
-  # ========================================
-
-  # Get full path for a job document
-  def job_path(job_code, category = nil)
-    resolve_path(:job, JobCode: job_code, Category: category)
-  end
-
-  # Get full path for a contact document
-  def contacts_path(contact_name, category = nil)
-    resolve_path(:contacts, ContactName: contact_name, Category: category)
-  end
-
-  # Get full path for a corporate document
-  def corporate_path(company_group: nil, company_code: nil, folder: nil)
-    resolve_path(:corporate, CompanyGroup: company_group, CompanyCode: company_code, Folder: folder)
-  end
-
-  # Get full path for a people document
-  def people_path(contact_name, category = nil)
-    resolve_path(:people, ContactName: contact_name, Category: category)
-  end
-
-  # Get full path for a task document
-  def task_path(task_id, category = nil)
-    resolve_path(:task, TaskId: task_id, Category: category)
-  end
-
-  # Get full path for an account document (Xero/MYOB/QuickBooks)
-  def account_path(source, contact_name, category = nil)
-    resolve_path(:account, Source: source, ContactName: contact_name, Category: category)
+    SCOPE_FOLDERS[scope.to_s] || scope.to_s.titleize
   end
 
   # ========================================
@@ -393,8 +293,8 @@ class StorageConfiguration < ApplicationRecord
   # ========================================
 
   # Returns config in format expected by SharePointTab.tsx frontend
-  # SSoT: StorageConfiguration IS the source of truth for paths/templates
-  # (Data migrated from CorporateCompanySetting via migration 20260112120003)
+  # SSoT: StorageConfiguration handles CONNECTION only
+  # Folder paths are managed by EntityTab (Entity Configurator)
   def to_config_hash
     actual_provider = detected_provider_type
     actual_connected = detected_connected?
@@ -404,7 +304,7 @@ class StorageConfiguration < ApplicationRecord
       configured: actual_connected,
       provider_type: actual_provider,
       status: actual_connected ? "connected" : "disconnected",
-      # Connection details from active credential (flat, not nested)
+      # Connection details from active credential
       site_url: actual_connection["site_url"] || site_url,
       site_id: actual_connection["site_id"] || site_id,
       drive_id: actual_connection["drive_id"] || drive_id,
@@ -413,10 +313,8 @@ class StorageConfiguration < ApplicationRecord
       endpoint: actual_connection["endpoint"] || endpoint,
       bucket: actual_connection["bucket"] || bucket,
       region: actual_connection["region"] || region,
-      # Paths - SSoT: StorageConfiguration is THE source of truth
-      root_path: root_path,
-      paths: paths,
-      templates: templates
+      # Root path only - folder structure is in EntityTab
+      root_path: root_path
     }
   end
 end
