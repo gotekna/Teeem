@@ -1,47 +1,33 @@
-import { redirect } from "next/navigation";
-
 /**
  * Settings System Catch-All Route
  *
- * SSoT: Handles invalid/legacy paths under /settings/system/* that don't
- * have explicit pages. Without this, Next.js would fall through to the
- * root [slug] route and try to load "settings" as a Foundation.
+ * SSoT: Handles both:
+ * 1. Tab navigation: /settings/system/navigation, /settings/system/agents, etc.
+ * 2. Legacy redirects: /settings/system/entity-config/* → /admin/system/entity-config/*
  *
- * Path mappings:
- * - /settings/system/entity-config/* → /admin/system/entity-config/*
- * - /settings/system/schedule-master/* → /admin/system/schedule-master/*
- * - Other paths → /settings/system (main system settings page)
+ * Tab navigation re-exports the parent page, allowing URL-based tab state.
  */
 
-// Map paths to their correct locations
-// NOTE: Base paths should NOT include default sub-paths like /data-view
-// because getRedirectUrl() appends additional path segments
-const PATH_REDIRECTS: Record<string, string> = {
-  // Entity configuration still lives under admin (developer tools)
-  "entity-config": "/admin/system/entity-config",
+import { redirect } from "next/navigation";
+import SystemSettingsPage from "../page";
 
-  // Schedule Master stays under admin (default to data-view if no sub-path)
+// Valid tab IDs that should render the system settings page
+const VALID_TABS = [
+  "navigation",
+  "agents",
+  "scheduled-jobs",
+  "email-accounts",
+  "ai-processing",
+  "health",
+  "user-manual",
+  "inspiring-quotes",
+];
+
+// Legacy paths that should redirect to admin
+const PATH_REDIRECTS: Record<string, string> = {
+  "entity-config": "/admin/system/entity-config",
   "schedule-master": "/admin/system/schedule-master",
 };
-
-function getRedirectUrl(pathSegments: string[]): string {
-  if (pathSegments.length === 0) {
-    return "/settings/system";
-  }
-
-  const firstSegment = pathSegments[0];
-
-  // Check for known paths that should go to admin
-  if (PATH_REDIRECTS[firstSegment]) {
-    // Preserve any additional path segments
-    const additionalPath = pathSegments.slice(1).join("/");
-    const basePath = PATH_REDIRECTS[firstSegment];
-    return additionalPath ? `${basePath}/${additionalPath}` : basePath;
-  }
-
-  // Unknown path - go to system settings root
-  return "/settings/system";
-}
 
 interface SystemCatchAllProps {
   params: Promise<{ subcatchall: string[] }>;
@@ -50,7 +36,21 @@ interface SystemCatchAllProps {
 export default async function SystemSettingsCatchAll({ params }: SystemCatchAllProps) {
   const resolvedParams = await params;
   const pathSegments = resolvedParams.subcatchall || [];
-  const targetUrl = getRedirectUrl(pathSegments);
+  const firstSegment = pathSegments[0];
 
-  redirect(targetUrl);
+  // If it's a valid tab, render the system settings page (URL is SSoT for tab state)
+  if (firstSegment && VALID_TABS.includes(firstSegment)) {
+    return <SystemSettingsPage />;
+  }
+
+  // Handle legacy redirects to admin pages
+  if (firstSegment && PATH_REDIRECTS[firstSegment]) {
+    const additionalPath = pathSegments.slice(1).join("/");
+    const basePath = PATH_REDIRECTS[firstSegment];
+    const targetUrl = additionalPath ? `${basePath}/${additionalPath}` : basePath;
+    redirect(targetUrl);
+  }
+
+  // Unknown path - redirect to system settings root
+  redirect("/settings/system");
 }

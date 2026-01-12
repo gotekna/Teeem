@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useMemo, useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,6 +27,8 @@ import CompanyInfoTab from "@/app/(app)/admin/system/components/CompanyInfoTab";
  * SSoT: This is THE ONE location for company configuration.
  * Part of the Settings/Admin merge - Organization section.
  * Admin role required (enforced by layout).
+ *
+ * URL is SSoT for tab state: /settings/company/[tab]
  */
 
 const COMPANY_TABS = [
@@ -43,13 +46,30 @@ const COMPANY_TABS = [
   { id: "workflow-config", label: "Workflow Config" },
 ];
 
-export default function CompanySettingsPage() {
-  const router = useRouter();
-  const [activeTab, setActiveTab] = React.useState("info");
+const DEFAULT_TAB = "info";
 
-  const handleTabChange = (value: string) => {
-    setActiveTab(value);
-  };
+export default function CompanySettingsPage() {
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // URL is SSoT for tab state (path-based navigation)
+  const activeTab = useMemo(() => {
+    const parts = pathname.replace("/settings/company", "").split("/").filter(Boolean);
+    const tab = parts[0] || DEFAULT_TAB;
+    // Validate tab exists
+    return COMPANY_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB;
+  }, [pathname]);
+
+  // Redirect to default tab if no tab in URL
+  useEffect(() => {
+    if (!pathname.includes("/settings/company/")) {
+      router.replace(`/settings/company/${DEFAULT_TAB}`, { scroll: false });
+    }
+  }, [pathname, router]);
+
+  const handleTabChange = useCallback((tabId: string) => {
+    router.push(`/settings/company/${tabId}`, { scroll: false });
+  }, [router]);
 
   return (
     <div className="space-y-6">

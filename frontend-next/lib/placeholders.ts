@@ -408,6 +408,12 @@ export const SHAREPOINT_PLACEHOLDERS: PlaceholderToken[] = [
     description: "Job code for SharePoint paths",
   },
   {
+    code: "{{TaskId}}",
+    example: "T-001",
+    color: "orange",
+    description: "Task identifier for SharePoint paths",
+  },
+  {
     code: "{{Category}}",
     example: "Plans",
     color: "orange",

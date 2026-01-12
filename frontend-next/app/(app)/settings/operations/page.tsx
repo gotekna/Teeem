@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { useCallback, useMemo, useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Import operations-related tab components from admin
@@ -17,6 +19,8 @@ import { CostTab } from "@/app/(app)/admin/system/components/CostTab";
  * SSoT: This is THE ONE location for operations configuration.
  * Part of the Settings/Admin merge - Organization section.
  * Admin role required (enforced by layout).
+ *
+ * URL is SSoT for tab state: /settings/operations/[tab]
  */
 
 const OPERATIONS_TABS = [
@@ -28,8 +32,30 @@ const OPERATIONS_TABS = [
   { id: "cost", label: "Cost" },
 ];
 
+const DEFAULT_TAB = "schedule-master";
+
 export default function OperationsSettingsPage() {
-  const [activeTab, setActiveTab] = React.useState("schedule-master");
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // URL is SSoT for tab state (path-based navigation)
+  const activeTab = useMemo(() => {
+    const parts = pathname.replace("/settings/operations", "").split("/").filter(Boolean);
+    const tab = parts[0] || DEFAULT_TAB;
+    // Validate tab exists
+    return OPERATIONS_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB;
+  }, [pathname]);
+
+  // Redirect to default tab if no tab in URL
+  useEffect(() => {
+    if (!pathname.includes("/settings/operations/")) {
+      router.replace(`/settings/operations/${DEFAULT_TAB}`, { scroll: false });
+    }
+  }, [pathname, router]);
+
+  const handleTabChange = useCallback((tabId: string) => {
+    router.push(`/settings/operations/${tabId}`, { scroll: false });
+  }, [router]);
 
   return (
     <div className="space-y-6">
@@ -40,7 +66,7 @@ export default function OperationsSettingsPage() {
         </p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1">
           {OPERATIONS_TABS.map((tab) => (
             <TabsTrigger

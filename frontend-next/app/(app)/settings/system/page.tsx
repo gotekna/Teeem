@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { useCallback, useMemo, useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Import system-related tab components from admin
@@ -19,6 +21,8 @@ import { InspiringQuotesTab } from "@/app/(app)/admin/system/components/Inspirin
  * SSoT: This is THE ONE location for system-level configuration.
  * Part of the Settings/Admin merge - Organization section.
  * Admin role required (enforced by layout).
+ *
+ * URL is SSoT for tab state: /settings/system/[tab]
  */
 
 const SYSTEM_TABS = [
@@ -32,8 +36,30 @@ const SYSTEM_TABS = [
   { id: "inspiring-quotes", label: "Inspiring Quotes" },
 ];
 
+const DEFAULT_TAB = "navigation";
+
 export default function SystemSettingsPage() {
-  const [activeTab, setActiveTab] = React.useState("navigation");
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // URL is SSoT for tab state (path-based navigation)
+  const activeTab = useMemo(() => {
+    const parts = pathname.replace("/settings/system", "").split("/").filter(Boolean);
+    const tab = parts[0] || DEFAULT_TAB;
+    // Validate tab exists
+    return SYSTEM_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB;
+  }, [pathname]);
+
+  // Redirect to default tab if no tab in URL
+  useEffect(() => {
+    if (!pathname.includes("/settings/system/")) {
+      router.replace(`/settings/system/${DEFAULT_TAB}`, { scroll: false });
+    }
+  }, [pathname, router]);
+
+  const handleTabChange = useCallback((tabId: string) => {
+    router.push(`/settings/system/${tabId}`, { scroll: false });
+  }, [router]);
 
   return (
     <div className="space-y-6">
@@ -44,7 +70,7 @@ export default function SystemSettingsPage() {
         </p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1">
           {SYSTEM_TABS.map((tab) => (
             <TabsTrigger
