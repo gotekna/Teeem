@@ -37,17 +37,19 @@ class StorageConfiguration < ApplicationRecord
     "corporate" => "Corporate",
     "corporate_entity" => "Corporate",
     "company" => "Company",           # EntityTab.scope_for_template returns this
-    "people" => "People",             # EntityTab.scope_for_template returns this
+    "people" => "Corporate/People",   # Nested under Corporate (confidential employee data)
     "contact" => "Contacts",
     "contacts" => "Contacts",
     "task" => "Tasks",
     "tasks" => "Tasks",
     "account" => "Accounts",
     "accounts" => "Accounts",
-    "email" => "emails",
-    "emails" => "emails",
+    "email" => "Emails/eml",            # Raw .eml files from email warehouse
+    "emails" => "Emails/eml",
     "warehouse" => "Warehousing",
-    "warehousing" => "Warehousing"
+    "warehousing" => "Warehousing",
+    "attachments" => "Emails/attachments",  # Email attachments & Active Storage files
+    "chat" => "Emails/attachments"
   }.freeze
 
   # Validations
@@ -95,6 +97,7 @@ class StorageConfiguration < ApplicationRecord
   # ========================================
 
   # Get base folder name for a scope
+  # SSoT: Reads from database column `scope_folders`, falls back to SCOPE_FOLDERS constant
   # Used by EntityTab.storage_base_path to build: root_path + scope_folder
   #
   # @param scope [String, Symbol] The scope name (job, corporate, contact, etc.)
@@ -106,7 +109,13 @@ class StorageConfiguration < ApplicationRecord
   #   path_for(:contact)    # => "Contacts"
   #
   def path_for(scope)
-    SCOPE_FOLDERS[scope.to_s] || scope.to_s.titleize
+    # SSoT: Database column first, then hardcoded fallback
+    scope_folders&.dig(scope.to_s) || SCOPE_FOLDERS[scope.to_s] || scope.to_s.titleize
+  end
+
+  # Get all scope folders (for UI editing)
+  def effective_scope_folders
+    SCOPE_FOLDERS.merge(scope_folders || {})
   end
 
   # Default templates for path generation
@@ -341,8 +350,9 @@ class StorageConfiguration < ApplicationRecord
       endpoint: actual_connection["endpoint"] || endpoint,
       bucket: actual_connection["bucket"] || bucket,
       region: actual_connection["region"] || region,
-      # Root path only - folder structure is in EntityTab
-      root_path: root_path
+      # Root path and scope folders
+      root_path: root_path,
+      scope_folders: effective_scope_folders
     }
   end
 end

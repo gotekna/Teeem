@@ -140,13 +140,14 @@ module Api
           "disconnected"
         end
 
-        # Update StorageConfiguration (connection only)
+        # Update StorageConfiguration (connection + paths)
         update_attrs = {
           provider_type: provider_type,
           connection_config: connection_config,
           status: new_status
         }
         update_attrs[:root_path] = sp[:sharepoint_root_path] if sp.key?(:sharepoint_root_path)
+        update_attrs[:scope_folders] = sp[:scope_folders] if sp.key?(:scope_folders)
 
         if storage_config.update(update_attrs)
           render json: {
@@ -429,19 +430,10 @@ module Api
           :s3_endpoint,
           :s3_bucket,
           :s3_region,
-          # Folder paths (relative to root)
+          # Root path
           :sharepoint_root_path,
-          :sharepoint_jobs_path,
-          :sharepoint_tasks_path,
-          :sharepoint_people_path,
-          :sharepoint_company_path,
-          :sharepoint_contacts_path,
-          # Path templates (with placeholders)
-          :sharepoint_job_template,
-          :sharepoint_task_template,
-          :sharepoint_company_template,
-          :sharepoint_people_template,
-          :sharepoint_contacts_template
+          # Scope folders (SSoT: configurable base folder per scope)
+          scope_folders: [:job, :corporate, :people, :contact, :email, :warehouse, :task, :attachments]
         )
       end
 

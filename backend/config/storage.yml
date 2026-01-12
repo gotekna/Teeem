@@ -33,10 +33,17 @@ local:
 #   primary: local
 #   mirrors: [ amazon, google, microsoft ]
 
-# SharePoint storage via Microsoft Graph API
+# SharePoint storage via Microsoft Graph API (DEPRECATED - use wasabi instead)
 # Uses the TEEEM SharePoint site for file storage
 # Files are stored in: TEEEM site / Documents / ActiveStorage / [key_prefix] / [key]
 sharepoint:
   service: SharePoint
   site_name: TEEEM
   base_folder: ActiveStorage
+
+# Wasabi storage (S3-compatible) - SSoT for all document storage
+# Credentials are read from S3CompatibleCredential.active (database)
+# Files stored in: [bucket]/Attachments/[key_prefix]/[key]
+wasabi:
+  service: Wasabi
+  folder: Attachments

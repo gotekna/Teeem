@@ -24,6 +24,7 @@ import {
   Settings,
   HardDrive,
   Database,
+  FolderTree,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -40,8 +41,19 @@ const PROVIDER_OPTIONS: { value: ProviderType; label: string; icon: React.Elemen
   { value: "local", label: "Local Storage", icon: HardDrive, description: "Local file system (development only)" },
 ];
 
-// SSoT: StorageConfiguration handles CONNECTION only
-// Folder paths are managed per-tab in EntityTab (Entity Configurator)
+// SSoT: StorageConfiguration handles CONNECTION + root path + scope folders
+// Individual tab folder paths are managed in EntityTab (Entity Configurator)
+interface ScopeFolders {
+  job: string;
+  corporate: string;
+  people: string;
+  contact: string;
+  email: string;
+  warehouse: string;
+  task: string;
+  attachments: string;
+}
+
 interface StorageConfig {
   configured: boolean;
   provider_type: ProviderType;
@@ -55,8 +67,9 @@ interface StorageConfig {
   endpoint: string | null;
   bucket: string | null;
   region: string | null;
-  // Root path only - folder paths are in EntityTab (Entity Configurator)
+  // Root path and scope folders
   root_path: string;
+  scope_folders: ScopeFolders;
 }
 
 export function SharePointTab() {
@@ -77,8 +90,19 @@ export function SharePointTab() {
     s3_endpoint: "",
     s3_bucket: "",
     s3_region: "",
-    // Root path only - folder structure is managed in Entity Configurator
+    // Root path
     sharepoint_root_path: "",
+    // Scope folders (base folder per scope)
+    scope_folders: {
+      job: "Jobs",
+      corporate: "Corporate",
+      people: "Corporate/People",
+      contact: "Contacts",
+      email: "Emails/eml",
+      warehouse: "Warehousing",
+      task: "Tasks",
+      attachments: "Emails/attachments",
+    } as ScopeFolders,
   });
 
   // Load storage config on mount
@@ -106,8 +130,18 @@ export function SharePointTab() {
           s3_endpoint: response.data.endpoint || "",
           s3_bucket: response.data.bucket || "",
           s3_region: response.data.region || "",
-          // Root path only - folder paths are managed in Entity Configurator
+          // Root path
           sharepoint_root_path: response.data.root_path || "",
+          // Scope folders
+          scope_folders: response.data.scope_folders || {
+            job: "Jobs",
+            corporate: "Corporate",
+            people: "People",
+            contact: "Contacts",
+            email: "emails",
+            warehouse: "Warehousing",
+            task: "Tasks",
+          },
         });
       }
     } catch (error) {
@@ -489,24 +523,64 @@ export function SharePointTab() {
         </CardContent>
       </Card>
 
+      {/* Scope Folders - Base folder name per scope */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <FolderTree className="h-4 w-4" />
+            Scope Folders
+          </CardTitle>
+          <CardDescription>
+            Base folder name for each entity type. Combined with Root Path to form the full base path.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[
+              { key: "job", label: "Jobs", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.job}` },
+              { key: "corporate", label: "Corporate", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.corporate}`, hint: "Sensitive company data" },
+              { key: "people", label: "People", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.people}`, hint: "Confidential employee data (within Corporate)" },
+              { key: "contact", label: "Contacts", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.contact}`, hint: "External contacts, Xero invoices/bills" },
+              { key: "email", label: "Email EML", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.email}`, hint: "Raw .eml files" },
+              { key: "attachments", label: "Email Attachments", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.attachments}`, hint: "Email & chat file attachments" },
+              { key: "warehouse", label: "Warehouse", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.warehouse}` },
+              { key: "task", label: "Tasks", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.task}` },
+            ].map(({ key, label, preview, hint }) => (
+              <div key={key} className="space-y-1">
+                <Label htmlFor={`scope_${key}`} className="text-xs">{label}</Label>
+                <Input
+                  id={`scope_${key}`}
+                  value={formData.scope_folders[key as keyof ScopeFolders] || ""}
+                  onChange={(e) => setFormData(prev => ({
+                    ...prev,
+                    scope_folders: { ...prev.scope_folders, [key]: e.target.value }
+                  }))}
+                  className="font-mono text-sm h-8"
+                />
+                <p className="text-[10px] text-muted-foreground font-mono truncate" title={preview}>
+                  → {preview.replace(/\/+/g, "/")}
+                </p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Folder Paths Note */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Info className="h-4 w-4 text-blue-500" />
-            Folder Paths
+            Tab Folder Paths
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
             <p className="text-sm text-blue-800 dark:text-blue-200">
-              <strong>Folder paths are configured per-tab in the Entity Configurator.</strong>
+              <strong>Individual tab folder paths are configured in the Entity Configurator.</strong>
             </p>
             <p className="text-sm text-blue-700 dark:text-blue-300 mt-2">
-              Go to <strong>Admin → System → Entity Configurator</strong> to edit folder paths and templates for each entity type (Jobs, Contacts, Corporate, etc.).
-            </p>
-            <p className="text-xs text-blue-600 dark:text-blue-400 mt-3">
-              SSoT: EntityTab owns folder structure, StorageConfiguration owns connection only.
+              Use the scope tabs above (Jobs, Corporate, Contacts, etc.) to edit folder paths and templates for each tab.
             </p>
           </div>
         </CardContent>
