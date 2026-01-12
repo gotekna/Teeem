@@ -61,7 +61,7 @@ class BackgroundJobProgress < ApplicationRecord
       processed_items: 0,
       success_count: 0,
       error_count: 0,
-      errors: [],
+      error_details: [],
       metadata: metadata,
       started_at: Time.current
     )
@@ -145,7 +145,7 @@ class BackgroundJobProgress < ApplicationRecord
     else
       updates[:error_count] = error_count + 1
       if error.present?
-        updates[:errors] = (errors || []) + [{ message: error, at: Time.current.iso8601 }]
+        updates[:error_details] = (error_details || []) + [{ message: error, at: Time.current.iso8601 }]
       end
     end
 
@@ -199,7 +199,7 @@ class BackgroundJobProgress < ApplicationRecord
       progress_percent: progress_percent,
       current_item: current_item,
       message: message,
-      errors: errors&.last(5),  # Only return last 5 errors
+      errors: error_details&.last(5),  # Only return last 5 errors
       metadata: metadata,
       started_at: started_at&.iso8601,
       completed_at: completed_at&.iso8601,
