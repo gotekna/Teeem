@@ -19,6 +19,12 @@ module ActiveStorage
       # Upload content to Wasabi
       # Folder path read from StorageConfiguration.path_for(:attachments) - SSoT
 
+      attr_reader :config
+
+      def initialize(**config)
+        @config = config
+      end
+
       # Upload content to Wasabi
       def upload(key, io, checksum: nil, **)
         instrument :upload, key: key, checksum: checksum do

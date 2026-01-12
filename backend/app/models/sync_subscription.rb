@@ -27,17 +27,22 @@ class SyncSubscription < ApplicationRecord
   delegate :user, :organization, to: :desktop_client
 
   # Get the remote path for this subscription based on syncable type
+  # SSoT: Uses StorageConfiguration for base paths
   def remote_path
+    config = StorageConfiguration.instance
     case syncable_type
     when "Job"
       job = syncable
-      "/Jobs/#{job.job_number} - #{job.title}".gsub(/[<>:"\/\\|?*]/, "_")
+      base = config&.path_for(:job) || "Jobs"
+      "/#{base}/#{job.job_number} - #{job.title}".gsub(/[<>:"\/\\|?*]/, "_")
     when "CorporateCompany"
       company = syncable
-      "/Companies/#{company.name}".gsub(/[<>:"\/\\|?*]/, "_")
+      base = config&.path_for(:corporate) || "Corporate"
+      "/#{base}/#{company.name}".gsub(/[<>:"\/\\|?*]/, "_")
     when "Contact"
       contact = syncable
-      "/People/#{contact.full_name}".gsub(/[<>:"\/\\|?*]/, "_")
+      base = config&.path_for(:contact) || "Contacts"
+      "/#{base}/#{contact.full_name}".gsub(/[<>:"\/\\|?*]/, "_")
     end
   end
 

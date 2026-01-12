@@ -554,35 +554,40 @@ module Api
         @default_organization ||= Organization.first
       end
 
+      # SSoT: Uses StorageConfiguration for base paths
       def folder_json(entity, type)
+        config = StorageConfiguration.instance
         case type
         when "Job"
+          base = config&.path_for(:job) || "Jobs"
           {
             id: "job:#{entity.id}",
             type: "Job",
             syncable_id: entity.id,
             name: "#{entity.job_number} - #{entity.title}",
-            path: "/Jobs/#{entity.job_number}",
+            path: "/#{base}/#{entity.job_number}",
             document_count: entity.job_documents.count,
             has_sharepoint_folder: entity.sharepoint_folder_id.present?
           }
         when "CorporateCompany"
+          base = config&.path_for(:corporate) || "Corporate"
           {
             id: "company:#{entity.id}",
             type: "CorporateCompany",
             syncable_id: entity.id,
             name: entity.name,
-            path: "/Companies/#{entity.name}",
+            path: "/#{base}/#{entity.name}",
             document_count: entity.corporate_company_documents.count,
             has_sharepoint_folder: entity.respond_to?(:sharepoint_folder_id) && entity.sharepoint_folder_id.present?
           }
         when "Contact"
+          base = config&.path_for(:contact) || "Contacts"
           {
             id: "contact:#{entity.id}",
             type: "Contact",
             syncable_id: entity.id,
             name: entity.full_name,
-            path: "/People/#{entity.full_name}",
+            path: "/#{base}/#{entity.full_name}",
             document_count: 0  # Contacts don't have direct document associations yet
           }
         end

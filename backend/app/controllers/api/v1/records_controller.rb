@@ -417,9 +417,19 @@ module Api
                     ["#{quoted_column} ILIKE ?", "%#{value}"]
                   end
                 when "is_empty"
-                  ["#{quoted_column} IS NULL OR #{quoted_column} = ''"]
+                  # Handle JSONB arrays specially - empty array is '[]', not ''
+                  if [:jsonb, :json].include?(db_column_type)
+                    ["#{quoted_column} IS NULL OR #{quoted_column} = '[]'::jsonb"]
+                  else
+                    ["#{quoted_column} IS NULL OR #{quoted_column} = ''"]
+                  end
                 when "is_not_empty"
-                  ["#{quoted_column} IS NOT NULL AND #{quoted_column} != ''"]
+                  # Handle JSONB arrays specially - non-empty means has at least one element
+                  if [:jsonb, :json].include?(db_column_type)
+                    ["#{quoted_column} IS NOT NULL AND #{quoted_column} != '[]'::jsonb"]
+                  else
+                    ["#{quoted_column} IS NOT NULL AND #{quoted_column} != ''"]
+                  end
                 when "array_contains"
                   # For JSONB/array columns - check if array contains value
                   # PostgreSQL @> operator: [1,2,3] @> '[2]' is true

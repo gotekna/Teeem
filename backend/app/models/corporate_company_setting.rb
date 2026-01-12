@@ -64,13 +64,14 @@ class CorporateCompanySetting < ApplicationRecord
   # The sharepoint_* columns are THE SSoT - configured at /admin/system/entity-config/sharepoint_config
   def self.base_path_for_scope(scope)
     setting = instance
+    storage_config = StorageConfiguration.instance
     case scope.to_s
     when "company", "both"
-      setting.sharepoint_company_path.presence || "Corporate"
+      setting.sharepoint_company_path.presence || storage_config&.path_for(:corporate) || "Corporate"
     when "people"
-      setting.sharepoint_people_path.presence || "Corporate/People"
+      setting.sharepoint_people_path.presence || storage_config&.path_for(:people) || "Corporate/People"
     when "job"
-      setting.sharepoint_jobs_path.presence || "Jobs"
+      setting.sharepoint_jobs_path.presence || storage_config&.path_for(:job) || "Jobs"
     else
       raise ArgumentError, "Unknown scope: #{scope}"
     end

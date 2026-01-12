@@ -285,7 +285,8 @@ class OrganizationMicrosoftAppCredential < ApplicationRecord
   end
 
   def attachment_root_path
-    # SSoT: Use centralized SharePoint path sanitization
-    "emails/attachments/#{SharePoint::FilenameSanitizer.sanitize_path_segment(name)}"
+    # SSoT: Get base path from StorageConfiguration
+    base_path = StorageConfiguration.instance&.path_for(:email_attachments) || "Emails/attachments"
+    "#{base_path}/#{SharePoint::FilenameSanitizer.sanitize_path_segment(name)}"
   end
 end

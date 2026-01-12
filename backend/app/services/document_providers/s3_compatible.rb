@@ -376,7 +376,9 @@ module DocumentProviders
     # @return [Hash] The created job folder
     def create_job_folder_structure(job, _template = nil)
       job_folder_name = "#{job.id.to_s.rjust(3, '0')} - #{sanitize_filename(job.title)}"
-      job_folder_path = "/Jobs/#{job_folder_name}"
+      # SSoT: Get Jobs base path from StorageConfiguration
+      jobs_base = StorageConfiguration.instance&.path_for(:job) || "Jobs"
+      job_folder_path = "/#{jobs_base}/#{job_folder_name}"
 
       # Create main job folder
       job_folder = create_folder(job_folder_path)
@@ -418,7 +420,9 @@ module DocumentProviders
     # @return [Hash, nil] The folder info or nil if not found
     def find_job_folder(job)
       job_folder_name = "#{job.id.to_s.rjust(3, '0')} - #{sanitize_filename(job.title)}"
-      job_folder_path = "/Jobs/#{job_folder_name}"
+      # SSoT: Get Jobs base path from StorageConfiguration
+      jobs_base = StorageConfiguration.instance&.path_for(:job) || "Jobs"
+      job_folder_path = "/#{jobs_base}/#{job_folder_name}"
 
       return nil unless folder_exists?(job_folder_path)
 

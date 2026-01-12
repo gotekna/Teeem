@@ -16,7 +16,10 @@ class PricebookImageFetcherService
   GOOGLE_CX = ENV["GOOGLE_CX"]
   ANTHROPIC_API_KEY = ENV["ANTHROPIC_API_KEY"]
 
-  SHAREPOINT_TEST_FOLDER = "Warehousing/Photo Test"
+  # SSoT: Get test folder from StorageConfiguration (falls back to pricebook path)
+  def self.sharepoint_test_folder
+    StorageConfiguration.instance&.path_for(:pricebook) || "Warehousing/Pricebook Photos"
+  end
 
   # Maximum file size for compressed images
   MAX_FILE_SIZE = 900 * 1024  # 900 KB in bytes
@@ -53,7 +56,7 @@ class PricebookImageFetcherService
     # Ensure test folder exists
     unless dry_run
       ensure_test_folder_exists
-      results[:test_folder_url] = "#{teeem_site[:web_url]}/Shared%20Documents/#{SHAREPOINT_TEST_FOLDER.gsub('/', '%20')}"
+      results[:test_folder_url] = "#{teeem_site[:web_url]}/Shared%20Documents/#{self.class.sharepoint_test_folder.gsub('/', '%20')}"
     end
 
     items.each_with_index do |item, index|
@@ -131,7 +134,7 @@ class PricebookImageFetcherService
         notes: [ item.notes, "Test image uploaded to SharePoint: #{Time.current}" ].compact.join("\n")
       )
 
-      { success: true, image_url: sharepoint_url, sharepoint_path: "#{SHAREPOINT_TEST_FOLDER}/#{filename}" }
+      { success: true, image_url: sharepoint_url, sharepoint_path: "#{self.class.sharepoint_test_folder}/#{filename}" }
     ensure
       temp_file.close! if temp_file
       processed_file.close! if processed_file
@@ -405,7 +408,7 @@ class PricebookImageFetcherService
     result = @graph_client.upload_file_content(
       @site_id,
       @drive_id,
-      SHAREPOINT_TEST_FOLDER,
+      self.class.sharepoint_test_folder,
       filename,
       content
     )
