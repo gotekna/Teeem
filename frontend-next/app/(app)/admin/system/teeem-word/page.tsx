@@ -63,6 +63,8 @@ import {
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useLayoutMode } from "@/contexts/LayoutModeContext";
+import { importDocx, exportDocx } from "@/lib/teeem-word";
+import { useToast } from "@/components/ui/use-toast";
 
 // Types
 interface DocumentData {
@@ -133,6 +135,8 @@ export default function TeeemWordPage() {
   const searchParams = useSearchParams();
   const documentId = searchParams.get("id");
   const { setMode } = useLayoutMode();
+  const { toast } = useToast();
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Enable fullscreen mode (hide sidebar/breadcrumbs)
   React.useEffect(() => {
@@ -143,6 +147,8 @@ export default function TeeemWordPage() {
   // State
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
+  const [importing, setImporting] = React.useState(false);
+  const [exporting, setExporting] = React.useState(false);
   const [document, setDocument] = React.useState<TeeemDocument | null>(null);
   const [name, setName] = React.useState("Untitled Document");
   const [hasChanges, setHasChanges] = React.useState(false);
@@ -336,8 +342,86 @@ export default function TeeemWordPage() {
     }
   };
 
-  // Export to HTML (basic export for now)
-  const handleExport = () => {
+  // Import DOCX file
+  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !editor) return;
+
+    // Validate file type
+    if (!file.name.toLowerCase().endsWith(".docx")) {
+      toast({
+        title: "Invalid file type",
+        description: "Please select a .docx file",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const result = await importDocx(file);
+      editor.commands.setContent(result.html);
+      setHasChanges(true);
+
+      // Update document name to file name (without extension)
+      const fileName = file.name.replace(/\.docx$/i, "");
+      setName(fileName);
+
+      toast({
+        title: "Document imported",
+        description: result.messages.length > 0
+          ? `Imported with ${result.messages.length} warning(s)`
+          : "Document imported successfully",
+      });
+
+      // Log any warnings
+      if (result.messages.length > 0) {
+        console.log("Import warnings:", result.messages);
+      }
+    } catch (error) {
+      console.error("Failed to import:", error);
+      toast({
+        title: "Import failed",
+        description: "Failed to import the document. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setImporting(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  // Export to DOCX
+  const handleExportDocx = async () => {
+    if (!editor || !document) return;
+
+    setExporting(true);
+    try {
+      const content = editor.getHTML();
+      const filename = name.replace(/[^a-z0-9]/gi, "_");
+      await exportDocx(content, filename);
+
+      toast({
+        title: "Document exported",
+        description: "Your document has been downloaded",
+      });
+    } catch (error) {
+      console.error("Failed to export:", error);
+      toast({
+        title: "Export failed",
+        description: "Failed to export the document. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // Export to HTML (fallback)
+  const handleExportHtml = () => {
     if (!editor || !document) return;
     const content = editor.getHTML();
     const blob = new Blob([content], { type: "text/html" });
@@ -502,6 +586,31 @@ export default function TeeemWordPage() {
             Save
           </Button>
 
+          {/* Import button */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importing}
+          >
+            {importing ? (
+              <Spinner size={14} className="mr-2" />
+            ) : (
+              <Upload className="h-3.5 w-3.5 mr-2" />
+            )}
+            Import
+          </Button>
+
+          {/* Hidden file input for import */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".docx"
+            onChange={handleImport}
+            className="hidden"
+          />
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -509,7 +618,16 @@ export default function TeeemWordPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleExport}>
+              <DropdownMenuItem onClick={handleExportDocx} disabled={exporting}>
+                {exporting ? (
+                  <Spinner size={14} className="mr-2" />
+                ) : (
+                  <Download className="h-4 w-4 mr-2" />
+                )}
+                Export as Word (.docx)
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleExportHtml}>
                 <Download className="h-4 w-4 mr-2" />
                 Export as HTML
               </DropdownMenuItem>

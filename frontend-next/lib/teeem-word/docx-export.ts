@@ -424,7 +424,6 @@ async function createImageFromDataUrl(dataUrl: string): Promise<ImageRun | null>
         width: 400,
         height: 300,
       },
-      type: "png",
     });
   } catch (e) {
     console.warn("Failed to create image:", e);

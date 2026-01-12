@@ -20,7 +20,68 @@ class TeeemSpreadsheet < ApplicationRecord
   scope :for_job, ->(job_id) { where(job_id: job_id) }
   scope :unattached, -> { where(job_id: nil) }
 
+  # ========================================
+  # Warehouse Path (for File Warehouse storage)
+  # ========================================
+
+  # Compute the warehouse path for this spreadsheet
+  # SSoT: Uses StorageConfiguration for base path and template
+  #
+  # If attached to a job, path is: "Jobs/{JobCode}/Excel/{filename}.xlsx"
+  # Otherwise: "Warehousing/Excel/{UserName}/{Year}/{filename}.xlsx"
+  #
+  def warehouse_path
+    if job.present?
+      # Job-attached spreadsheet goes to job folder
+      "Jobs/#{job.job_code}/Excel/#{safe_filename}.xlsx".gsub(%r{/+}, "/")
+    else
+      # Standalone spreadsheet goes to warehouse
+      config = StorageConfiguration.instance
+      base = config.path_for(:excel_documents)
+      template = config.template_for(:excel_documents)
+
+      resolved = resolve_template(template, {
+        "UserName" => user&.display_name || "Unknown",
+        "Year" => created_at&.year&.to_s || Time.current.year.to_s,
+        "Month" => created_at&.strftime("%m") || Time.current.strftime("%m")
+      })
+
+      "#{base}/#{resolved}/#{safe_filename}.xlsx".gsub(%r{/+}, "/")
+    end
+  end
+
+  # Folder path (without filename)
+  def warehouse_folder_path
+    if job.present?
+      "Jobs/#{job.job_code}/Excel".gsub(%r{/+}, "/")
+    else
+      config = StorageConfiguration.instance
+      base = config.path_for(:excel_documents)
+      template = config.template_for(:excel_documents)
+
+      resolved = resolve_template(template, {
+        "UserName" => user&.display_name || "Unknown",
+        "Year" => created_at&.year&.to_s || Time.current.year.to_s,
+        "Month" => created_at&.strftime("%m") || Time.current.strftime("%m")
+      })
+
+      "#{base}/#{resolved}".gsub(%r{/+}, "/")
+    end
+  end
+
+  # Safe filename (remove special characters)
+  def safe_filename
+    name.gsub(/[^a-zA-Z0-9\s\-_]/, "").strip.presence || "Untitled"
+  end
+
   private
+
+  def resolve_template(template, values)
+    result = template.dup
+    values.each { |key, value| result.gsub!("{{#{key}}}", value.to_s) }
+    result
+  end
+
 
   def set_default_data
     self.data ||= default_spreadsheet_data

@@ -35,7 +35,19 @@ module Api
         # Active Storage files (Rails attachments)
         active_storage_count = ActiveStorage::Blob.count rescue 0
 
-        total = job_count + corp_count + people_count + email_eml_count + email_attachment_count + task_doc_count + template_count + pricebook_image_count
+        # Notes attachments (notebook page files)
+        notes_count = NotebookPageAttachment.count rescue 0
+
+        # Excel spreadsheets (TeeemXL)
+        excel_count = TeeemSpreadsheet.count rescue 0
+
+        # Word documents (placeholder - model TBD)
+        word_count = 0
+
+        # PowerPoint presentations (placeholder - model TBD)
+        powerpoint_count = 0
+
+        total = job_count + corp_count + people_count + email_eml_count + email_attachment_count + task_doc_count + template_count + pricebook_image_count + notes_count + excel_count
 
         render json: {
           success: true,
@@ -70,6 +82,11 @@ module Api
             templates: template_count,
             bank_statements: 0,
             contracts: 0,
+            # Document creation tools
+            notes: notes_count,
+            excel_documents: excel_count,
+            word_documents: word_count,
+            powerpoint_documents: powerpoint_count,
             # System storage
             active_storage: active_storage_count,
             # Total

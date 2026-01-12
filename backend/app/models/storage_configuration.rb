@@ -50,6 +50,10 @@ class StorageConfiguration < ApplicationRecord
     "bill_inbox" => "Warehousing/BillInbox",
     "pricebook_photos" => "Warehousing/Pricebook Photos",
     "chat" => "Warehousing/Chat",
+    "notes" => "Warehousing/Notes",
+    "excel_documents" => "Warehousing/Excel",
+    "word_documents" => "Warehousing/Word",
+    "powerpoint_documents" => "Warehousing/PowerPoint",
     # Template scopes
     "templates" => "Warehousing/Templates",
     "bank_statements" => "Warehousing/Templates/Bank Statements",
@@ -142,7 +146,12 @@ class StorageConfiguration < ApplicationRecord
     "account" => "{{Source}}/{{ContactName}}/{{Category}}",
     "accounts" => "{{Source}}/{{ContactName}}/{{Category}}",
     "email" => "{{Year}}/{{Month}}",
-    "emails" => "{{Year}}/{{Month}}"
+    "emails" => "{{Year}}/{{Month}}",
+    # Warehouse document scopes
+    "notes" => "{{UserName}}/{{Year}}",
+    "excel_documents" => "{{UserName}}/{{Year}}",
+    "word_documents" => "{{UserName}}/{{Year}}",
+    "powerpoint_documents" => "{{UserName}}/{{Year}}"
   }.freeze
 
   # Get template for a scope
