@@ -360,7 +360,7 @@ module Api
       def choices
         column = find_column_by_id_or_name(params[:id])
 
-        unless column.column_type.in?([ "single_select", "multi_select", "choice", "dropdown", "select" ])
+        unless column.column_type.in?(Column::CHOICE_COLUMN_TYPES)
           return render json: { error: "Not a choice column" }, status: :bad_request
         end
 
@@ -423,7 +423,7 @@ module Api
           return render json: { error: "value is required" }, status: :bad_request
         end
 
-        unless column.column_type.in?([ "single_select", "multi_select", "choice", "dropdown", "select" ])
+        unless column.column_type.in?(Column::CHOICE_COLUMN_TYPES)
           return render json: { error: "Not a choice column" }, status: :bad_request
         end
 
@@ -458,7 +458,7 @@ module Api
           return render json: { error: "order array is required" }, status: :bad_request
         end
 
-        unless column.column_type.in?([ "single_select", "multi_select", "choice", "dropdown", "select" ])
+        unless column.column_type.in?(Column::CHOICE_COLUMN_TYPES)
           return render json: { error: "Not a choice column" }, status: :bad_request
         end
 

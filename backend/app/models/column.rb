@@ -70,9 +70,13 @@ class Column < ApplicationRecord
   # Reserved column names that conflict with Rails auto-generated columns
   RESERVED_COLUMN_NAMES = %w[id created_at updated_at].freeze
 
+  # SSoT: Column type constants for validation
+  CHOICE_COLUMN_TYPES = %w[choice].freeze
+  LOOKUP_COLUMN_TYPES = %w[lookup multiple_lookups].freeze
+
   before_validation :generate_column_name, if: -> { column_name.blank? }
   before_validation :detect_cross_table_refs, if: -> { column_type == "computed" }
-  validate :lookup_configuration_valid, if: -> { column_type.in?([ "lookup", "multiple_lookups" ]) }
+  validate :lookup_configuration_valid, if: -> { column_type.in?(LOOKUP_COLUMN_TYPES) }
   validate :column_name_not_reserved
 
   # SSoT: Ensure critical properties are never NULL
@@ -361,7 +365,7 @@ class Column < ApplicationRecord
       unless column_type.in?(%w[lookup multiple_lookups relation])
         self.column_type = is_multiple ? "multiple_lookups" : "lookup"
       end
-    elsif column_type.in?(%w[lookup multiple_lookups]) && lookup_foundation_id.blank?
+    elsif column_type.in?(LOOKUP_COLUMN_TYPES) && lookup_foundation_id.blank?
       # If column_type is lookup but no foundation, revert to string
       # This catches the case where lookup_foundation_id was cleared
       self.column_type = "single_line_text"

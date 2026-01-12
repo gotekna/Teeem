@@ -367,7 +367,13 @@ class BulkEmailSyncJob < ApplicationJob
     org_name = SharePoint::FilenameSanitizer.sanitize_path_segment(@credential.name)
 
     # SSoT: Get email storage path from EntityTab (system-managed)
-    folder_path = email_storage_path(org_name, year, month)
+    folder_path = email_storage_path(
+      org_name: org_name,
+      year: year,
+      month: month,
+      mailbox: email.mailbox_owner_email,
+      date: email.received_at
+    )
     filename = "#{email.id}.eml"
 
     result = if mime_content.bytesize >= 4 * 1024 * 1024
@@ -422,17 +428,35 @@ class BulkEmailSyncJob < ApplicationJob
   end
 
   # SSoT: Get email storage path from EntityTab (system-managed)
-  # Resolves the template: "emails/eml/{{OrgName}}/{{Year}}/{{Month}}"
+  # Resolves templates like: "{{UserName}}/{{Year}}/{{Date}}" or "{{Mailbox}}/{{Year}}/{{Month}}"
   # Falls back to hardcoded path if EntityTab doesn't exist
-  def email_storage_path(org_name, year, month)
+  #
+  # Available placeholders:
+  #   {{OrgName}}  - Organization name (sanitized)
+  #   {{Year}}     - 4-digit year (e.g., "2025")
+  #   {{Month}}    - 2-digit month (e.g., "01")
+  #   {{Date}}     - Date in d-m-yy format (e.g., "9-12-25")
+  #   {{Mailbox}}  - Email mailbox address (e.g., "robert@tekna.com.au")
+  #   {{UserName}} - User's display name from mailbox (e.g., "Robert Harder")
+  def email_storage_path(org_name:, year:, month:, mailbox: nil, date: nil)
     email_tab = EntityTab.find_by(scope: "email", tab_key: "email-storage")
 
     if email_tab&.storage_folder_path.present?
+      # Derive user name from mailbox email
+      user = mailbox.present? ? User.find_by("LOWER(email) = ?", mailbox.downcase) : nil
+      user_name = user&.display_name || mailbox&.split("@")&.first&.titleize || "Unknown"
+
+      # Format date as d-m-yy (e.g., "9-12-25") to match frontend preview
+      formatted_date = date.present? ? date.strftime("%-d-%-m-%y") : ""
+
       # Resolve placeholders in the template
       email_tab.storage_folder_path
         .gsub("{{OrgName}}", org_name.to_s)
         .gsub("{{Year}}", year.to_s)
         .gsub("{{Month}}", month.to_s.rjust(2, "0"))
+        .gsub("{{Date}}", formatted_date)
+        .gsub("{{Mailbox}}", SharePoint::FilenameSanitizer.sanitize_path_segment(mailbox.to_s))
+        .gsub("{{UserName}}", SharePoint::FilenameSanitizer.sanitize_path_segment(user_name))
     else
       # Fallback if EntityTab doesn't exist - use StorageConfiguration SSoT
       base_path = StorageConfiguration.instance&.path_for(:email) || "Emails/eml"

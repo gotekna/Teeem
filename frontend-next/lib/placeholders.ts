@@ -498,6 +498,12 @@ export const SHAREPOINT_PLACEHOLDERS: PlaceholderToken[] = [
     color: "gray",
     description: "Full user name",
   },
+  {
+    code: "{{Mailbox}}",
+    example: "robert@tekna.com.au",
+    color: "gray",
+    description: "Email mailbox address",
+  },
 ];
 
 // =============================================================================
