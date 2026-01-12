@@ -169,6 +169,8 @@ class EntityTab < ApplicationRecord
     when 'people', 'contact'
       # SSoT: For contacts, allow choosing between corporate (people) or contacts path
       storage_path_type == 'contacts' ? :contacts : :people
+    when 'email' then :email
+    when 'warehouse' then :warehouse
     else :job  # Default fallback
     end
   end
@@ -179,7 +181,8 @@ class EntityTab < ApplicationRecord
     return nil unless has_storage_folder
 
     # Default templates per scope (if no custom path is set)
-    case scope_for_template
+    # Note: scope_for_template returns a symbol, convert to string
+    case scope_for_template.to_s
     when "job", "jobs"
       "{{JobCode}}/{{TabName}}"
     when "corporate", "company"
@@ -213,12 +216,12 @@ class EntityTab < ApplicationRecord
   alias_method :sharepoint_base_path, :storage_base_path
 
   # Get the EFFECTIVE storage path for this tab (for UI display)
-  # SSoT: Child tabs INHERIT from parent's path, not from global template directly
+  # SSoT: EntityTab owns folder paths. Child tabs INHERIT from parent.
   #
   # Inheritance chain:
-  #   StorageConfiguration.template_for(:job) → "{{JobCode}} {{TabName}}"
-  #   Photo (root tab) → "{{JobCode}} Photo"
-  #   Site Photo (child) → "{{JobCode}} Photo/Site Photo"  ← inherits parent + adds own name
+  #   inherited_template → "{{JobCode}}/{{TabName}}"  (default per scope)
+  #   Photo (root tab) → "{{JobCode}}/Photo"
+  #   Site Photo (child) → "{{JobCode}}/Photo/Site Photo"  ← inherits parent + adds own name
   def effective_storage_path
     return nil unless has_storage_folder
 

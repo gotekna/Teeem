@@ -109,6 +109,32 @@ class StorageConfiguration < ApplicationRecord
     SCOPE_FOLDERS[scope.to_s] || scope.to_s.titleize
   end
 
+  # Default templates for path generation
+  # SSoT: These are fallback defaults. EntityTab.storage_folder_path is the true SSoT.
+  SCOPE_TEMPLATES = {
+    "job" => "{{JobCode}}/{{TabName}}",
+    "jobs" => "{{JobCode}}/{{TabName}}",
+    "task" => "{{TaskId}}/{{Category}}",
+    "tasks" => "{{TaskId}}/{{Category}}",
+    "corporate" => "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
+    "corporate_entity" => "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
+    "company" => "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
+    "people" => "{{ContactName}}/{{TabName}}",
+    "contact" => "{{ContactName}}/{{TabName}}",
+    "contacts" => "{{ContactName}}/{{TabName}}",
+    "account" => "{{Source}}/{{ContactName}}/{{Category}}",
+    "accounts" => "{{Source}}/{{ContactName}}/{{Category}}",
+    "email" => "{{Year}}/{{Month}}",
+    "emails" => "{{Year}}/{{Month}}"
+  }.freeze
+
+  # Get template for a scope
+  # @param scope [String, Symbol] The scope name
+  # @return [String] The template string for path generation
+  def template_for(scope)
+    SCOPE_TEMPLATES[scope.to_s] || "{{Name}}/{{Category}}"
+  end
+
   # ========================================
   # Connection Config Accessors
   # ========================================

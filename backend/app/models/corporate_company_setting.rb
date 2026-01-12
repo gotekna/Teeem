@@ -196,11 +196,12 @@ class CorporateCompanySetting < ApplicationRecord
   # These methods will be removed in a future release.
   # ========================================
 
-  # DEPRECATED: Use StorageConfiguration.for_organization(org).template_for(scope) instead
+  # DEPRECATED: Use EntityTab.find_by(scope: scope).storage_folder_path instead
+  # SSoT: EntityTab owns folder paths, StorageConfiguration owns connection only
   def self.sharepoint_template(scope)
     Rails.deprecator.warn(
       "CorporateCompanySetting.sharepoint_template is deprecated. " \
-      "Use StorageConfiguration.for_organization(org).template_for(scope) instead."
+      "SSoT: EntityTab owns folder paths. Use EntityTab.find_by(scope: scope).storage_folder_path."
     )
     setting = instance
     case scope.to_sym

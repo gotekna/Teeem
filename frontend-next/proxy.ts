@@ -366,11 +366,9 @@ export function proxy(request: NextRequest) {
   }
 
   // === Schedule Master Routes ===
-  if (pathname === "/schedule-master") {
-    const tab = searchParams.get("tab");
-    if (tab) {
-      redirectPath = `/schedule-master/${tab}`;
-    }
+  // Redirect old /schedule-master to new location
+  if (pathname.startsWith("/schedule-master")) {
+    redirectPath = "/admin/system/schedule-master/data-view";
   }
 
   // === Workflows Processes Routes ===
