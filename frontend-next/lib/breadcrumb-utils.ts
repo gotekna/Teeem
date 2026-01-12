@@ -45,8 +45,8 @@ const ROUTE_DISPLAY_NAMES: Record<string, string> = {
   "/whs/incidents": "Incidents",
   "/whs/inspections": "Inspections",
 
-  // Documents
-  "/documents": "Documents",
+  // File Warehouse (formerly Documents)
+  "/documents": "File Warehouse",
   "/documents/templates": "Templates",
 
   // Admin
@@ -83,7 +83,7 @@ const ROUTE_ICONS: Record<string, string> = {
   "/financial": "DollarSign",
   "/corporate": "Building",
   "/whs": "Shield",
-  "/documents": "FileText",
+  "/documents": "Warehouse",
   "/admin": "Settings",
   "/settings": "Settings",
   "/xero": "Link",

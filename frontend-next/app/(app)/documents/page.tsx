@@ -35,6 +35,7 @@ import {
   Settings2,
   Check,
   Loader2,
+  Warehouse,
 } from "lucide-react";
 import {
   Dialog,
@@ -141,6 +142,18 @@ interface ScopeFolders {
   [key: string]: string | undefined;
 }
 
+// SSoT: Entity Tab structure from Entity Configurator
+interface EntityTabFolder {
+  id: number;
+  display_name: string;
+  scope: string;
+  storage_folder_path: string | null;
+  icon: string | null;
+  is_enabled: boolean;
+  document_count?: number;
+  children?: EntityTabFolder[];
+}
+
 export default function AllDocumentsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("tree");
   const [treeDisplayMode, setTreeDisplayMode] = useState<TreeDisplayMode>("list");
@@ -165,6 +178,13 @@ export default function AllDocumentsPage() {
     people: "People",
     contact: "Contacts",
   });
+
+  // SSoT: All configured folders from Entity Configurator
+  const [entityFolders, setEntityFolders] = useState<{
+    job: EntityTabFolder[];
+    corporate: EntityTabFolder[];
+    contact: EntityTabFolder[];
+  }>({ job: [], corporate: [], contact: [] });
 
   // Sync settings state
   const [showSyncSettings, setShowSyncSettings] = useState(false);
@@ -192,6 +212,29 @@ export default function AllDocumentsPage() {
     fetchScopeFolders();
   }, []);
 
+  // SSoT: Fetch all configured folders from Entity Configurator
+  useEffect(() => {
+    const fetchEntityFolders = async () => {
+      try {
+        // Fetch folders for all scopes in parallel
+        const [jobRes, corpRes, contactRes] = await Promise.all([
+          api.get<{ success: boolean; data: { tabs: EntityTabFolder[] } }>("/api/v1/entity_tabs?scope=job&include_disabled=false"),
+          api.get<{ success: boolean; data: { tabs: EntityTabFolder[] } }>("/api/v1/entity_tabs?scope=corporate_entity&include_disabled=false"),
+          api.get<{ success: boolean; data: { tabs: EntityTabFolder[] } }>("/api/v1/entity_tabs?scope=contact&include_disabled=false"),
+        ]);
+
+        setEntityFolders({
+          job: jobRes?.success && jobRes.data?.tabs ? jobRes.data.tabs : [],
+          corporate: corpRes?.success && corpRes.data?.tabs ? corpRes.data.tabs : [],
+          contact: contactRes?.success && contactRes.data?.tabs ? contactRes.data.tabs : [],
+        });
+      } catch (err) {
+        console.error("Failed to fetch entity folders:", err);
+      }
+    };
+    fetchEntityFolders();
+  }, []);
+
   // Fetch all documents
   const fetchDocuments = useCallback(async () => {
     setLoading(true);
@@ -217,16 +260,23 @@ export default function AllDocumentsPage() {
   }, [fetchDocuments]);
 
   // Fetch sync settings when modal opens
+  // Note: These endpoints require desktop client auth (not web auth)
+  // We use skipAuthRedirect to prevent 401 from logging the user out
+  // A 401 here means "no desktop app connected", not "session expired"
   const fetchSyncSettings = useCallback(async () => {
     setSyncLoading(true);
     try {
       // Fetch exclusion rules
-      const exclusionsRes = await api.get<{ success: boolean; data: SyncExclusionRule[] }>("/api/v1/sync/exclusions");
-      if (exclusionsRes.success && exclusionsRes.data) {
-        setExclusionRules(exclusionsRes.data);
+      // skipAuthRedirect: 401 means no desktop client, not session expired
+      const exclusionsRes = await api.get<{ success: boolean; data: { rules?: SyncExclusionRule[] } }>(
+        "/api/v1/sync/exclusions",
+        { skipAuthRedirect: true }
+      );
+      if (exclusionsRes?.success && exclusionsRes.data?.rules) {
+        setExclusionRules(exclusionsRes.data.rules);
         // Build user overrides map
         const overrides: Record<string, boolean> = {};
-        exclusionsRes.data.forEach((rule) => {
+        exclusionsRes.data.rules.forEach((rule) => {
           if (!rule.isDefault) {
             overrides[`${rule.ruleType}:${rule.value}`] = rule.action === "include";
           }
@@ -235,18 +285,21 @@ export default function AllDocumentsPage() {
       }
 
       // Fetch subscriptions (what folders are being synced)
-      const subsRes = await api.get<{ success: boolean; data: SyncSubscription[] }>("/api/v1/sync/subscriptions");
-      if (subsRes.success && subsRes.data) {
+      const subsRes = await api.get<{ success: boolean; data: SyncSubscription[] }>(
+        "/api/v1/sync/subscriptions",
+        { skipAuthRedirect: true }
+      );
+      if (subsRes?.success && subsRes.data) {
         setSubscriptions(subsRes.data);
       }
 
-      // Fetch desktop clients
-      const clientsRes = await api.get<{ success: boolean; data: DesktopClient[] }>("/api/v1/sync/clients");
-      if (clientsRes.success && clientsRes.data) {
-        setDesktopClients(clientsRes.data);
-      }
+      // Note: /api/v1/sync/clients endpoint doesn't exist yet
+      // Desktop clients would need a web-accessible endpoint
+      // For now, we leave desktopClients empty and show "No clients" message
     } catch (error) {
-      console.error("Failed to fetch sync settings:", error);
+      // Expected to fail if no desktop app connected (401)
+      // Just log and continue - the UI will show empty state
+      console.log("Sync settings not available (no desktop app connected):", error);
     } finally {
       setSyncLoading(false);
     }
@@ -308,143 +361,93 @@ export default function AllDocumentsPage() {
     };
   }, [documents, searchQuery]);
 
-  // Build tree structure from documents
+  // Build tree structure from Entity Configurator folders (SSoT)
+  // Shows ALL configured folders even if empty, with file counts
   const treeData = useMemo((): TreeNode[] => {
-    // Jobs category
-    const jobsByParent = new Map<string, DocumentItem[]>();
-    filteredDocuments.jobs.forEach(doc => {
-      const key = `${doc.jobId}-${doc.jobNumber || "unknown"}`;
-      if (!jobsByParent.has(key)) {
-        jobsByParent.set(key, []);
-      }
-      jobsByParent.get(key)!.push(doc);
-    });
+    // Helper to recursively build folder tree from EntityTab
+    const buildFolderTree = (
+      tabs: EntityTabFolder[],
+      docs: DocumentItem[],
+      scopePrefix: string
+    ): TreeNode[] => {
+      return tabs.map(tab => {
+        // Count files matching this folder path
+        const folderPath = tab.storage_folder_path || tab.display_name;
+        const matchingDocs = docs.filter(d =>
+          d.folderPath === folderPath ||
+          d.folderPath === tab.display_name ||
+          d.documentTypeName === tab.display_name
+        );
+
+        // Build children if any
+        const childNodes = tab.children && tab.children.length > 0
+          ? buildFolderTree(tab.children, docs, scopePrefix)
+          : matchingDocs.map(file => ({
+              id: `${scopePrefix}-file-${file.id}`,
+              name: file.displayName || file.fileName,
+              type: "file" as const,
+              file,
+            }));
+
+        // Calculate total file count including children
+        const childFileCount = tab.children && tab.children.length > 0
+          ? childNodes.reduce((sum, c) => sum + (c.fileCount || 0), 0)
+          : matchingDocs.length;
+
+        return {
+          id: `${scopePrefix}-folder-${tab.id}`,
+          name: tab.display_name,
+          type: "folder" as const,
+          fileCount: tab.document_count ?? childFileCount,
+          children: childNodes,
+        };
+      });
+    };
+
+    // Jobs category - shows all configured job folders
+    const jobFolders = entityFolders.job.length > 0
+      ? buildFolderTree(entityFolders.job, filteredDocuments.jobs, "job")
+      : [];
 
     const jobsNode: TreeNode = {
       id: "jobs",
-      name: scopeFolders.job || "Jobs",  // SSoT: from StorageConfiguration
+      name: scopeFolders.job || "Jobs",
       type: "category",
       icon: <Briefcase className="h-4 w-4" />,
-      fileCount: filteredDocuments.jobs.length,
-      children: Array.from(jobsByParent.entries()).map(([key, docs]) => {
-        const firstDoc = docs[0];
-        // Group by folder path within each job
-        const byFolder = new Map<string, DocumentItem[]>();
-        docs.forEach(doc => {
-          const folder = doc.folderPath || "Documents";
-          if (!byFolder.has(folder)) {
-            byFolder.set(folder, []);
-          }
-          byFolder.get(folder)!.push(doc);
-        });
-
-        return {
-          id: `job-${key}`,
-          name: firstDoc.jobNumber
-            ? `Job ${firstDoc.jobNumber}${firstDoc.jobTitle ? ` - ${firstDoc.jobTitle}` : ""}`
-            : `Job ${firstDoc.jobId}`,
-          type: "parent" as const,
-          fileCount: docs.length,
-          children: Array.from(byFolder.entries()).map(([folder, files]) => ({
-            id: `job-${key}-folder-${folder}`,
-            name: folder,
-            type: "folder" as const,
-            fileCount: files.length,
-            children: files.map(file => ({
-              id: `job-file-${file.id}`,
-              name: file.displayName || file.fileName,
-              type: "file" as const,
-              file,
-            })),
-          })),
-        };
-      }).sort((a, b) => a.name.localeCompare(b.name)),
+      fileCount: counts.jobs,
+      children: jobFolders,
     };
 
-    // Corporate category
-    const corpByParent = new Map<string, DocumentItem[]>();
-    filteredDocuments.corporate.forEach(doc => {
-      const key = doc.companyId?.toString() || "unknown";
-      if (!corpByParent.has(key)) {
-        corpByParent.set(key, []);
-      }
-      corpByParent.get(key)!.push(doc);
-    });
+    // Corporate category - shows all configured corporate folders
+    const corpFolders = entityFolders.corporate.length > 0
+      ? buildFolderTree(entityFolders.corporate, filteredDocuments.corporate, "corp")
+      : [];
 
     const corporateNode: TreeNode = {
       id: "corporate",
-      name: scopeFolders.corporate || "Corporate",  // SSoT: from StorageConfiguration
+      name: scopeFolders.corporate || "Corporate",
       type: "category",
       icon: <Building2 className="h-4 w-4" />,
-      fileCount: filteredDocuments.corporate.length,
-      children: Array.from(corpByParent.entries()).map(([key, docs]) => {
-        const firstDoc = docs[0];
-        // Group by folder
-        const byFolder = new Map<string, DocumentItem[]>();
-        docs.forEach(doc => {
-          const folder = doc.folderPath || "Documents";
-          if (!byFolder.has(folder)) {
-            byFolder.set(folder, []);
-          }
-          byFolder.get(folder)!.push(doc);
-        });
-
-        return {
-          id: `corp-${key}`,
-          name: firstDoc.companyName || `Company ${key}`,
-          type: "parent" as const,
-          fileCount: docs.length,
-          children: Array.from(byFolder.entries()).map(([folder, files]) => ({
-            id: `corp-${key}-folder-${folder}`,
-            name: folder,
-            type: "folder" as const,
-            fileCount: files.length,
-            children: files.map(file => ({
-              id: `corp-file-${file.id}`,
-              name: file.displayName || file.fileName,
-              type: "file" as const,
-              file,
-            })),
-          })),
-        };
-      }).sort((a, b) => a.name.localeCompare(b.name)),
+      fileCount: counts.corporate,
+      children: corpFolders,
     };
 
-    // People category
-    const peopleByParent = new Map<string, DocumentItem[]>();
-    filteredDocuments.people.forEach(doc => {
-      const key = doc.contactId?.toString() || "unknown";
-      if (!peopleByParent.has(key)) {
-        peopleByParent.set(key, []);
-      }
-      peopleByParent.get(key)!.push(doc);
-    });
+    // People category - shows all configured contact folders
+    const peopleFolders = entityFolders.contact.length > 0
+      ? buildFolderTree(entityFolders.contact, filteredDocuments.people, "people")
+      : [];
 
     const peopleNode: TreeNode = {
       id: "people",
-      name: scopeFolders.people || "People",  // SSoT: from StorageConfiguration
+      name: scopeFolders.people || scopeFolders.contact || "People",
       type: "category",
       icon: <Users className="h-4 w-4" />,
-      fileCount: filteredDocuments.people.length,
-      children: Array.from(peopleByParent.entries()).map(([key, docs]) => {
-        const firstDoc = docs[0];
-        return {
-          id: `person-${key}`,
-          name: firstDoc.contactName || `Contact ${key}`,
-          type: "parent" as const,
-          fileCount: docs.length,
-          children: docs.map(file => ({
-            id: `people-file-${file.id}`,
-            name: file.displayName || file.fileName,
-            type: "file" as const,
-            file,
-          })),
-        };
-      }).sort((a, b) => a.name.localeCompare(b.name)),
+      fileCount: counts.people,
+      children: peopleFolders,
     };
 
     return [jobsNode, corporateNode, peopleNode];
-  }, [filteredDocuments]);
+  }, [filteredDocuments, entityFolders, scopeFolders, counts]);
 
   // Toggle folder expansion
   const toggleFolder = useCallback((folderId: string) => {
@@ -675,9 +678,9 @@ export default function AllDocumentsPage() {
           <div className="flex items-center gap-4">
             <BackButton fallbackHref="/dashboard" />
             <div>
-              <h1 className="text-2xl font-bold">All Documents</h1>
+              <h1 className="text-2xl font-bold">File Warehouse</h1>
               <p className="text-sm text-muted-foreground">
-                {counts.total.toLocaleString()} documents across all sources
+                {counts.total.toLocaleString()} files across all storage locations
               </p>
             </div>
           </div>

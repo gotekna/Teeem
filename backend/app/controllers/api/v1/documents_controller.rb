@@ -25,6 +25,12 @@ module Api
                                     .order(created_at: :desc)
                                     .limit(1000)
 
+        # TRUE counts (without limits) - used for display
+        # SSoT: These should match Data Warehouse stats
+        job_count = JobDocument.where.not(file_name: nil).count
+        corp_count = CorporateCompanyDocument.where.not(file_name: nil).count
+        people_count = PeopleDocument.where.not(title: nil).count
+
         render json: {
           success: true,
           data: {
@@ -33,10 +39,10 @@ module Api
             people_documents: people_docs.map { |d| serialize_people_doc(d) }
           },
           counts: {
-            jobs: job_docs.size,
-            corporate: corp_docs.size,
-            people: people_docs.size,
-            total: job_docs.size + corp_docs.size + people_docs.size
+            jobs: job_count,
+            corporate: corp_count,
+            people: people_count,
+            total: job_count + corp_count + people_count
           }
         }
       end

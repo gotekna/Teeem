@@ -378,9 +378,21 @@ module Api
         company_setting = CorporateCompanySetting.first
 
         # Document statistics (all company_documents)
+        # SSoT: Count documents WITH files (matches Documents page definition)
         documents = CorporateCompanyDocument.all
+        documents_with_files = documents.where.not(file_name: [nil, ""])
+
+        # SSoT: Total documents across ALL tables (matches Documents page)
+        job_doc_count = defined?(JobDocument) ? JobDocument.where.not(file_name: [nil, ""]).count : 0
+        people_doc_count = defined?(PeopleDocument) ? PeopleDocument.where.not(title: [nil, ""]).count : 0
+        all_docs_total = documents_with_files.count + job_doc_count + people_doc_count
+
         doc_stats = {
-          total_documents: documents.count,
+          total_documents: all_docs_total,  # SSoT: Grand total across all document tables
+          corporate_documents: documents_with_files.count,  # CorporateCompanyDocument only
+          job_documents_count: job_doc_count,  # JobDocument only
+          people_documents_count: people_doc_count,  # PeopleDocument only
+          total_records: documents.count,  # Full CorporateCompanyDocument count (admin)
           by_source: documents.group(:source).count,
           by_folder: documents.group(:folder).count,
           by_ai_status: documents.group(:ai_verification_status).count,
