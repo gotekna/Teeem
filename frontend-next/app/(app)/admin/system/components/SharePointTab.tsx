@@ -47,11 +47,22 @@ interface ScopeFolders {
   job: string;
   corporate: string;
   people: string;
+  users: string;
+  user_photos: string;
+  user_contracts: string;
+  my_docs: string;
   contact: string;
   email: string;
+  email_attachments: string;
   warehouse: string;
   task: string;
-  attachments: string;
+  billinbox: string;
+  pricebook: string;
+  chat: string;
+  active_storage: string;
+  templates: string;
+  bank_statements: string;
+  contracts: string;
 }
 
 interface StorageConfig {
@@ -97,11 +108,22 @@ export function SharePointTab() {
       job: "Jobs",
       corporate: "Corporate",
       people: "Corporate/People",
+      users: "Users",
+      user_photos: "Users/Photos",
+      user_contracts: "Users/Contracts",
+      my_docs: "Users/MyDocs",
       contact: "Contacts",
       email: "Emails/eml",
+      email_attachments: "Emails/attachments",
       warehouse: "Warehousing",
-      task: "Tasks",
-      attachments: "Emails/attachments",
+      task: "Warehousing/Tasks",
+      billinbox: "Warehousing/BillInbox",
+      pricebook: "Warehousing/Pricebook Photos",
+      chat: "Warehousing/Chat",
+      active_storage: "ActiveStorage",
+      templates: "Warehousing/Templates",
+      bank_statements: "Warehousing/Templates/Bank Statements",
+      contracts: "Warehousing/Templates/Contracts",
     } as ScopeFolders,
   });
 
@@ -539,12 +561,23 @@ export function SharePointTab() {
             {[
               { key: "job", label: "Jobs", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.job}` },
               { key: "corporate", label: "Corporate", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.corporate}`, hint: "Sensitive company data" },
-              { key: "people", label: "People", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.people}`, hint: "Confidential employee data (within Corporate)" },
+              { key: "people", label: "People", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.people}`, hint: "Confidential employee data" },
+              { key: "users", label: "Users", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.users}` },
+              { key: "user_photos", label: "User Photos", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.user_photos}`, hint: "Profile photos/icons" },
+              { key: "user_contracts", label: "User Contracts", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.user_contracts}`, hint: "Employment contracts" },
+              { key: "my_docs", label: "MyDocs", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.my_docs}`, hint: "Personal document storage" },
               { key: "contact", label: "Contacts", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.contact}`, hint: "External contacts, Xero invoices/bills" },
               { key: "email", label: "Email EML", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.email}`, hint: "Raw .eml files" },
-              { key: "attachments", label: "Email Attachments", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.attachments}`, hint: "Email & chat file attachments" },
-              { key: "warehouse", label: "Warehouse", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.warehouse}` },
+              { key: "email_attachments", label: "Email Attachments", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.email_attachments}`, hint: "Email file attachments" },
+              { key: "warehouse", label: "Warehousing", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.warehouse}` },
               { key: "task", label: "Tasks", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.task}` },
+              { key: "billinbox", label: "Bill Inbox", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.billinbox}`, hint: "AP invoices" },
+              { key: "pricebook", label: "Pricebook Photos", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.pricebook}` },
+              { key: "chat", label: "Chat", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.chat}`, hint: "Chat message files" },
+              { key: "active_storage", label: "Active Storage", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.active_storage}`, hint: "Rails file uploads" },
+              { key: "templates", label: "Templates", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.templates}` },
+              { key: "bank_statements", label: "Bank Statements", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.bank_statements}` },
+              { key: "contracts", label: "Contracts", preview: `${formData.sharepoint_root_path}/${formData.scope_folders.contracts}` },
             ].map(({ key, label, preview, hint }) => (
               <div key={key} className="space-y-1">
                 <Label htmlFor={`scope_${key}`} className="text-xs">{label}</Label>

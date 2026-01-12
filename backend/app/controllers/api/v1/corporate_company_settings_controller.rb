@@ -433,7 +433,7 @@ module Api
           # Root path
           :sharepoint_root_path,
           # Scope folders (SSoT: configurable base folder per scope)
-          scope_folders: [:job, :corporate, :people, :contact, :email, :warehouse, :task, :attachments]
+          scope_folders: [:job, :corporate, :people, :users, :user_photos, :user_contracts, :my_docs, :contact, :email, :email_attachments, :warehouse, :task, :billinbox, :pricebook, :chat, :active_storage, :templates, :bank_statements, :contracts]
         )
       end
 

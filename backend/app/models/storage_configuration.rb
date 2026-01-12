@@ -38,18 +38,31 @@ class StorageConfiguration < ApplicationRecord
     "corporate_entity" => "Corporate",
     "company" => "Company",           # EntityTab.scope_for_template returns this
     "people" => "Corporate/People",   # Nested under Corporate (confidential employee data)
+    "users" => "Users",
+    "user_photos" => "Users/Photos",
+    "user_contracts" => "Users/Contracts",
+    "my_docs" => "Users/MyDocs",
     "contact" => "Contacts",
     "contacts" => "Contacts",
-    "task" => "Tasks",
-    "tasks" => "Tasks",
+    "task" => "Warehousing/Tasks",
+    "tasks" => "Warehousing/Tasks",
     "account" => "Accounts",
     "accounts" => "Accounts",
     "email" => "Emails/eml",            # Raw .eml files from email warehouse
     "emails" => "Emails/eml",
+    "email_attachments" => "Emails/attachments",
     "warehouse" => "Warehousing",
     "warehousing" => "Warehousing",
-    "attachments" => "Emails/attachments",  # Email attachments & Active Storage files
-    "chat" => "Emails/attachments"
+    "billinbox" => "Warehousing/BillInbox",
+    "bill_inbox" => "Warehousing/BillInbox",
+    "pricebook" => "Warehousing/Pricebook Photos",
+    "pricebook_photos" => "Warehousing/Pricebook Photos",
+    "chat" => "Warehousing/Chat",       # Chat file attachments
+    "active_storage" => "ActiveStorage", # Rails Active Storage files
+    "attachments" => "ActiveStorage",    # Alias for Active Storage
+    "templates" => "Warehousing/Templates",
+    "bank_statements" => "Warehousing/Templates/Bank Statements",
+    "contracts" => "Warehousing/Templates/Contracts"
   }.freeze
 
   # Validations

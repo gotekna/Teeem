@@ -11,11 +11,22 @@ class AddScopeFoldersToStorageConfiguration < ActiveRecord::Migration[8.0]
       "job" => "Jobs",
       "corporate" => "Corporate",
       "people" => "Corporate/People",
+      "users" => "Users",
+      "user_photos" => "Users/Photos",
+      "user_contracts" => "Users/Contracts",
+      "my_docs" => "Users/MyDocs",
       "contact" => "Contacts",
       "email" => "Emails/eml",
+      "email_attachments" => "Emails/attachments",
       "warehouse" => "Warehousing",
-      "task" => "Tasks",
-      "attachments" => "Emails/attachments"
+      "task" => "Warehousing/Tasks",
+      "billinbox" => "Warehousing/BillInbox",
+      "pricebook" => "Warehousing/Pricebook Photos",
+      "chat" => "Warehousing/Chat",
+      "active_storage" => "ActiveStorage",
+      "templates" => "Warehousing/Templates",
+      "bank_statements" => "Warehousing/Templates/Bank Statements",
+      "contracts" => "Warehousing/Templates/Contracts"
     }
 
     StorageConfiguration.update_all(scope_folders: default_folders)

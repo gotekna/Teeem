@@ -16,13 +16,8 @@ module ActiveStorage
     # Files are stored as: [bucket]/[folder]/[key[0..1]]/[key[2..3]]/[key]
     #
     class WasabiService < Service
-      attr_reader :folder
-
-      def initialize(folder: "Attachments")
-        @folder = folder
-        @client = nil
-        @bucket = nil
-      end
+      # Upload content to Wasabi
+      # Folder path read from StorageConfiguration.path_for(:attachments) - SSoT
 
       # Upload content to Wasabi
       def upload(key, io, checksum: nil, **)
@@ -168,9 +163,15 @@ module ActiveStorage
       end
 
       # Generate object key with folder structure for organization
+      # SSoT: Reads folder from StorageConfiguration.path_for(:attachments)
       # Pattern: [folder]/[key[0..1]]/[key[2..3]]/[key]
       def object_key_for(key)
         "#{folder}/#{key[0..1]}/#{key[2..3]}/#{key}"
+      end
+
+      # Get folder path from StorageConfiguration (SSoT)
+      def folder
+        @folder ||= StorageConfiguration.instance&.path_for(:attachments) || "Warehousing/Chat"
       end
 
       # Stream file content in chunks
