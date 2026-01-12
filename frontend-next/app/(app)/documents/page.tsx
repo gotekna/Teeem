@@ -39,6 +39,7 @@ import {
   Mail,
   Paperclip,
   ClipboardList,
+  FileText,
 } from "lucide-react";
 import {
   Dialog,
@@ -95,6 +96,8 @@ interface AllDocumentsResponse {
     emails: number;
     attachments: number;
     tasks: number;
+    templates: number;
+    pricebook_images: number;
     total: number;
   };
 }
@@ -171,7 +174,7 @@ export default function AllDocumentsPage() {
     corporate: DocumentItem[];
     people: DocumentItem[];
   }>({ jobs: [], corporate: [], people: [] });
-  const [counts, setCounts] = useState({ jobs: 0, corporate: 0, people: 0, emails: 0, attachments: 0, tasks: 0, total: 0 });
+  const [counts, setCounts] = useState({ jobs: 0, corporate: 0, people: 0, emails: 0, attachments: 0, tasks: 0, templates: 0, pricebook_images: 0, total: 0 });
   // Document preview popup state
   const [previewDocument, setPreviewDocument] = useState<DocumentItem | null>(null);
   // Click timer for single/double click differentiation
@@ -252,7 +255,8 @@ export default function AllDocumentsPage() {
           corporate: response.data.corporate_documents || [],
           people: response.data.people_documents || [],
         });
-        setCounts(response.counts || { jobs: 0, corporate: 0, people: 0, emails: 0, attachments: 0, tasks: 0, total: 0 });
+        const defaultCounts = { jobs: 0, corporate: 0, people: 0, emails: 0, attachments: 0, tasks: 0, templates: 0, pricebook_images: 0, total: 0 };
+        setCounts(Object.assign({}, defaultCounts, response.counts));
       }
     } catch (error) {
       console.error("Failed to fetch documents:", error);
@@ -488,7 +492,27 @@ export default function AllDocumentsPage() {
       children: [],
     };
 
-    return [jobsNode, corporateNode, peopleNode, emailsNode, attachmentsNode, tasksNode];
+    // Templates category - Document templates (Word/Excel)
+    const templatesNode: TreeNode = {
+      id: "templates",
+      name: "Templates",
+      type: "category",
+      icon: <FileText className="h-4 w-4" />,
+      fileCount: counts.templates || 0,
+      children: [],
+    };
+
+    // Pricebook Images category - Product photos
+    const pricebookImagesNode: TreeNode = {
+      id: "pricebook-images",
+      name: "Pricebook Images",
+      type: "category",
+      icon: <ImageIcon className="h-4 w-4" />,
+      fileCount: counts.pricebook_images || 0,
+      children: [],
+    };
+
+    return [jobsNode, corporateNode, peopleNode, emailsNode, attachmentsNode, tasksNode, templatesNode, pricebookImagesNode];
   }, [filteredDocuments, entityFolders, scopeFolders, counts]);
 
   // Toggle folder expansion

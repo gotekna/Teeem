@@ -469,7 +469,13 @@ class GanttDataService
     # PHASE 4: Identify top-level items (Level 1 headers + orphan tasks)
     # Tasks with parents will be grouped under their headers
     level1_headers = header_by_task_number.values.select { |h| get_parent_task_number(h).nil? }
-    orphan_tasks = records.reject { |r| is_header?(r) || get_parent_task_number(r) }
+    # Orphan tasks: not a header AND (no parent OR parent not in this template)
+    # FRC fix: tasks with header_gantt pointing to non-existent parent must be treated as orphans
+    orphan_tasks = records.select { |r|
+      next false if is_header?(r)  # Skip headers
+      parent_num = get_parent_task_number(r)
+      parent_num.nil? || !header_task_numbers.include?(parent_num)
+    }
 
     # Sort Level 1 headers and orphan tasks together
     top_level_items = (level1_headers + orphan_tasks).sort_by(&sort_key)

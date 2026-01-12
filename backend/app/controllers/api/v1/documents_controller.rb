@@ -25,7 +25,13 @@ module Api
         # These are CorporateCompanyDocuments linked via SmTaskAttachment
         task_doc_count = SmTaskAttachment.where(attachable_type: 'CorporateCompanyDocument').distinct.count(:attachable_id) rescue 0
 
-        total = job_count + corp_count + people_count + email_eml_count + email_attachment_count + task_doc_count
+        # Document templates (Word/Excel templates stored in SharePoint)
+        template_count = DocumentTemplate.where.not(sharepoint_path: [nil, ""]).count rescue 0
+
+        # Pricebook images (product photos)
+        pricebook_image_count = Pricebook.where.not(image_file_id: nil).count rescue 0
+
+        total = job_count + corp_count + people_count + email_eml_count + email_attachment_count + task_doc_count + template_count + pricebook_image_count
 
         render json: {
           success: true,
@@ -41,6 +47,8 @@ module Api
             emails: email_eml_count,
             attachments: email_attachment_count,
             tasks: task_doc_count,
+            templates: template_count,
+            pricebook_images: pricebook_image_count,
             total: total
           }
         }
