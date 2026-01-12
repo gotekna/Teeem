@@ -1187,6 +1187,80 @@ export default function TeeemPowerPointPage() {
     input.click();
   };
 
+  // Add table element
+  const addTableElement = (rows: TableRow[]) => {
+    const newElement: TableElement = {
+      id: generateElementId("table", currentSlide.id),
+      type: "table",
+      rows,
+      x: 1,
+      y: 1.5,
+      w: 6,
+      h: 2,
+    };
+    updateCurrentSlide({ elements: [...currentSlide.elements, newElement] });
+    setSelectedElementId(newElement.id);
+    setShowTableDialog(false);
+    setEditingTableElement(null);
+  };
+
+  // Add chart element
+  const addChartElement = (chartType: ChartType, chartData: ChartData[], title: string) => {
+    const newElement: ChartElement = {
+      id: generateElementId("chart", currentSlide.id),
+      type: "chart",
+      chartType,
+      data: chartData,
+      x: 1,
+      y: 1.5,
+      w: 6,
+      h: 3.5,
+      options: {
+        showLegend: true,
+        showTitle: !!title,
+        title,
+      },
+    };
+    updateCurrentSlide({ elements: [...currentSlide.elements, newElement] });
+    setSelectedElementId(newElement.id);
+    setShowChartDialog(false);
+    setEditingChartElement(null);
+  };
+
+  // Handle table save (update existing or create new)
+  const handleTableSave = (rows: TableRow[]) => {
+    if (editingTableElement) {
+      // Update existing table
+      updateElement(editingTableElement.id, { rows });
+      setEditingTableElement(null);
+      setShowTableDialog(false);
+    } else {
+      // Create new table
+      addTableElement(rows);
+    }
+  };
+
+  // Handle chart save (update existing or create new)
+  const handleChartSave = (chartType: ChartType, chartData: ChartData[], title: string) => {
+    if (editingChartElement) {
+      // Update existing chart
+      updateElement(editingChartElement.id, {
+        chartType,
+        data: chartData,
+        options: {
+          ...editingChartElement.options,
+          showTitle: !!title,
+          title,
+        },
+      });
+      setEditingChartElement(null);
+      setShowChartDialog(false);
+    } else {
+      // Create new chart
+      addChartElement(chartType, chartData, title);
+    }
+  };
+
   // Delete selected element
   const deleteSelectedElement = () => {
     if (!selectedElementId) return;
@@ -1573,6 +1647,22 @@ export default function TeeemPowerPointPage() {
           </DropdownMenuContent>
         </DropdownMenu>
 
+        {/* Insert table */}
+        <ToolbarButton
+          onClick={() => setShowTableDialog(true)}
+          title="Add table"
+        >
+          <Table2 className="h-4 w-4" />
+        </ToolbarButton>
+
+        {/* Insert chart */}
+        <ToolbarButton
+          onClick={() => setShowChartDialog(true)}
+          title="Add chart"
+        >
+          <BarChart3 className="h-4 w-4" />
+        </ToolbarButton>
+
         <ToolbarSeparator />
 
         {/* Delete selected */}
@@ -1638,11 +1728,17 @@ export default function TeeemPowerPointPage() {
                   setSelectedElementId(element.id);
                 }}
                 onUpdate={(updates) => updateElement(element.id, updates)}
-                onDoubleClick={
-                  element.type === "text"
-                    ? () => setEditingTextElement(element as TextElement)
-                    : undefined
-                }
+                onDoubleClick={() => {
+                  if (element.type === "text") {
+                    setEditingTextElement(element as TextElement);
+                  } else if (element.type === "table") {
+                    setEditingTableElement(element as TableElement);
+                    setShowTableDialog(true);
+                  } else if (element.type === "chart") {
+                    setEditingChartElement(element as ChartElement);
+                    setShowChartDialog(true);
+                  }
+                }}
               />
             ))}
           </div>
@@ -1655,6 +1751,30 @@ export default function TeeemPowerPointPage() {
           element={editingTextElement}
           onSave={handleTextSave}
           onClose={() => setEditingTextElement(null)}
+        />
+      )}
+
+      {/* Table editor dialog */}
+      {showTableDialog && (
+        <TableEditorDialog
+          element={editingTableElement}
+          onSave={handleTableSave}
+          onClose={() => {
+            setShowTableDialog(false);
+            setEditingTableElement(null);
+          }}
+        />
+      )}
+
+      {/* Chart editor dialog */}
+      {showChartDialog && (
+        <ChartEditorDialog
+          element={editingChartElement}
+          onSave={handleChartSave}
+          onClose={() => {
+            setShowChartDialog(false);
+            setEditingChartElement(null);
+          }}
         />
       )}
     </div>

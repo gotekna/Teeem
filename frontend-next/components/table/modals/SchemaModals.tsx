@@ -309,7 +309,7 @@ export function SchemaModals({
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant="secondary" className="text-xs">
-                      {col.column_type || "text"}
+                      {col.column_type || "single_line_text"}
                     </Badge>
                     {col.key === "id" || col.key === "created_at" || col.key === "updated_at" ? (
                       <Badge variant="outline" className="text-xs text-muted-foreground">

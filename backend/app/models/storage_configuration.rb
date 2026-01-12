@@ -2,6 +2,19 @@
 
 # StorageConfiguration - SSoT for storage CONNECTION configuration
 #
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  SSoT: provider_type is DERIVED from active credentials           ║
+# ║                                                                   ║
+# ║  The active credential (S3CompatibleCredential or                 ║
+# ║  MicrosoftCredential) determines the provider, NOT the stored     ║
+# ║  column. This prevents config drift when switching providers.     ║
+# ║                                                                   ║
+# ║  Priority:                                                        ║
+# ║    1. S3CompatibleCredential.active.connected → wasabi/s3         ║
+# ║    2. MicrosoftCredential.connected → sharepoint                  ║
+# ║    3. Stored column (fallback only)                               ║
+# ╚═══════════════════════════════════════════════════════════════════╝
+#
 # This model handles CONNECTION ONLY:
 # - Which storage provider to use (SharePoint, S3, Wasabi, local)
 # - Connection config (site IDs, buckets, endpoints)
@@ -12,7 +25,7 @@
 #
 # Usage:
 #   config = StorageConfiguration.for_organization(org)
-#   config.provider_type  # => "wasabi"
+#   config.provider_type  # => "wasabi" (derived from active credential)
 #   config.root_path      # => "/"
 #   config.bucket         # => "teeem-docs"
 #
@@ -65,10 +78,19 @@ class StorageConfiguration < ApplicationRecord
   }.freeze
 
   # Validations
+  # Note: provider_type is now DERIVED from active credentials (SSoT)
+  # The stored column is just a fallback default, so we validate it exists but don't require it to be "correct"
   validates :organization, presence: true, uniqueness: true
-  validates :provider_type, presence: true, inclusion: { in: PROVIDER_TYPES }
+  validate :stored_provider_type_valid
   validates :status, presence: true, inclusion: { in: STATUSES }
   validates :root_path, presence: true
+
+  def stored_provider_type_valid
+    stored = read_attribute(:provider_type)
+    if stored.present? && !PROVIDER_TYPES.include?(stored)
+      errors.add(:provider_type, "must be one of: #{PROVIDER_TYPES.join(', ')}")
+    end
+  end
 
   # Scopes
   scope :connected, -> { where(status: "connected") }
@@ -258,7 +280,22 @@ class StorageConfiguration < ApplicationRecord
   end
 
   # ========================================
-  # Provider Helpers
+  # Provider Type (SSoT: Derived from active credential)
+  # ========================================
+
+  # SSoT: provider_type is DERIVED from which credential is active
+  # The stored column is only a fallback when no credentials exist
+  def provider_type
+    detected_provider_type
+  end
+
+  # Access the raw stored value (for migrations/debugging only)
+  def stored_provider_type
+    read_attribute(:provider_type)
+  end
+
+  # ========================================
+  # Provider Helpers (use derived provider_type)
   # ========================================
 
   def sharepoint?
@@ -277,12 +314,13 @@ class StorageConfiguration < ApplicationRecord
     provider_type == "local"
   end
 
+  # SSoT: connected? is DERIVED from active credential status
   def connected?
-    status == "connected"
+    detected_connected?
   end
 
   def disconnected?
-    status == "disconnected"
+    !connected?
   end
 
   # ========================================

@@ -24,6 +24,7 @@ class User < ApplicationRecord
   has_many :teeem_spreadsheets, dependent: :destroy
   has_many :teeem_documents, dependent: :destroy
   has_many :teeem_presentations, dependent: :destroy
+  has_many :teeem_pdfs, dependent: :destroy
 
   # Digital signature for certificates (Form 43, contracts, etc.)
   has_one_attached :signature

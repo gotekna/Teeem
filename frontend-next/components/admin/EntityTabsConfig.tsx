@@ -103,6 +103,47 @@ import type {
   ReorderTabParams,
 } from "@/lib/types/entity-tabs";
 import { SCOPE_LABELS, GROUP_LABELS } from "@/lib/types/entity-tabs";
+import { ExpandChevron } from "@/components/ui/expand-chevron";
+
+// SSoT: Warehouse Sub-Scope Configuration
+// All warehouse sub-scopes defined once, used for both initialization and rendering
+export interface WarehouseScopeConfig {
+  id: string;
+  label: string;
+  color: string;
+  defaultTemplate: string;
+  previewReplacements: Record<string, string>;
+}
+
+export const WAREHOUSE_SCOPE_CONFIGS: WarehouseScopeConfig[] = [
+  { id: 'primary', label: 'Warehousing', color: 'blue', defaultTemplate: '{{Category}}', previewReplacements: { '{{Category}}': 'General' } },
+  { id: 'bill_inbox', label: 'Bill Inbox', color: 'orange', defaultTemplate: '{{TabName}}', previewReplacements: { '{{TabName}}': 'Invoices' } },
+  { id: 'pricebook_photos', label: 'Pricebook Photos', color: 'purple', defaultTemplate: '{{TabName}}', previewReplacements: { '{{TabName}}': 'Products' } },
+  { id: 'chat', label: 'Chat', color: 'green', defaultTemplate: '{{UserCode}}', previewReplacements: { '{{UserCode}}': 'RH' } },
+  { id: 'templates', label: 'Templates', color: 'cyan', defaultTemplate: '{{TabName}}', previewReplacements: { '{{TabName}}': 'Contracts' } },
+  { id: 'custom', label: 'Custom', color: 'gray', defaultTemplate: '{{Category}}', previewReplacements: { '{{Category}}': 'Misc' } },
+  { id: 'pdf', label: 'PDF Documents', color: 'red', defaultTemplate: '{{TabName}}', previewReplacements: { '{{TabName}}': 'Reports' } },
+  { id: 'word', label: 'Word Documents', color: 'blue', defaultTemplate: '{{TabName}}', previewReplacements: { '{{TabName}}': 'Documents' } },
+  { id: 'excel', label: 'Excel Documents', color: 'green', defaultTemplate: '{{TabName}}', previewReplacements: { '{{TabName}}': 'Spreadsheets' } },
+  { id: 'notes', label: 'Notes', color: 'yellow', defaultTemplate: '{{TabName}}', previewReplacements: { '{{TabName}}': 'Notes' } },
+  { id: 'powerpoint', label: 'PowerPoint Documents', color: 'orange', defaultTemplate: '{{TabName}}', previewReplacements: { '{{TabName}}': 'Presentations' } },
+  { id: 'bank_statements', label: 'Bank Statements', color: 'emerald', defaultTemplate: '{{TabName}}', previewReplacements: { '{{TabName}}': 'Statements' } },
+  { id: 'contracts', label: 'Contracts', color: 'indigo', defaultTemplate: '{{TabName}}', previewReplacements: { '{{TabName}}': 'Agreements' } },
+];
+
+// Color classes for warehouse scope badges (Tailwind colors)
+const WAREHOUSE_SCOPE_COLORS: Record<string, { bg: string; text: string }> = {
+  blue: { bg: 'bg-blue-100 dark:bg-blue-900', text: 'text-blue-700 dark:text-blue-300' },
+  orange: { bg: 'bg-orange-100 dark:bg-orange-900', text: 'text-orange-700 dark:text-orange-300' },
+  purple: { bg: 'bg-purple-100 dark:bg-purple-900', text: 'text-purple-700 dark:text-purple-300' },
+  green: { bg: 'bg-green-100 dark:bg-green-900', text: 'text-green-700 dark:text-green-300' },
+  cyan: { bg: 'bg-cyan-100 dark:bg-cyan-900', text: 'text-cyan-700 dark:text-cyan-300' },
+  gray: { bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-700 dark:text-gray-300' },
+  red: { bg: 'bg-red-100 dark:bg-red-900', text: 'text-red-700 dark:text-red-300' },
+  yellow: { bg: 'bg-yellow-100 dark:bg-yellow-900', text: 'text-yellow-700 dark:text-yellow-300' },
+  emerald: { bg: 'bg-emerald-100 dark:bg-emerald-900', text: 'text-emerald-700 dark:text-emerald-300' },
+  indigo: { bg: 'bg-indigo-100 dark:bg-indigo-900', text: 'text-indigo-700 dark:text-indigo-300' },
+};
 
 // Hook to fetch used icons for a scope
 function useUsedIcons(scope: EntityTabScope) {
@@ -308,6 +349,10 @@ export function EntityTabsConfig({
   // Local state for expanded items
   const [expandedItems, setExpandedItemsState] = React.useState<Set<string>>(new Set());
   const [expandedDocTypes, setExpandedDocTypesState] = React.useState<Set<string>>(new Set());
+  // Expanded warehouse sections (collapsed by default)
+  const [expandedWarehouseSections, setExpandedWarehouseSections] = React.useState<Set<string>>(new Set());
+  // Warehouse scope order (for drag-and-drop reordering)
+  const [warehouseScopeOrder, setWarehouseScopeOrder] = React.useState<WarehouseScopeConfig[]>(WAREHOUSE_SCOPE_CONFIGS);
 
   // Derive values from local state
   const isDialogOpen = dialogAction === "create" || dialogAction === "edit";
@@ -425,17 +470,18 @@ export function EntityTabsConfig({
         setAttachmentsFileNameTemplate(savedAttachmentsFileName ?? '{{OriginalFileName}}');
       }
 
-      // Initialize warehouse sub-scope templates
+      // Initialize warehouse sub-scope templates (SSoT: WAREHOUSE_SCOPE_CONFIGS)
       if (scope === 'warehouse') {
-        const warehouseScopes = ['bill_inbox', 'pricebook_photos', 'chat', 'templates', 'custom'];
         const templates: Record<string, string> = {};
         const fileNameTemplates: Record<string, string> = {};
-        warehouseScopes.forEach(subScope => {
-          const saved = storageConfig?.scope_templates?.[subScope];
+        WAREHOUSE_SCOPE_CONFIGS.forEach(config => {
+          // Skip 'primary' - it uses the main scope template
+          if (config.id === 'primary') return;
+          const saved = storageConfig?.scope_templates?.[config.id];
           // Use ?? to allow empty string (user intentionally cleared the template)
-          templates[subScope] = saved ?? '{{TabName}}';
-          const savedFileName = storageConfig?.file_name_templates?.[subScope];
-          fileNameTemplates[subScope] = savedFileName ?? '{{OriginalFileName}}';
+          templates[config.id] = saved ?? config.defaultTemplate;
+          const savedFileName = storageConfig?.file_name_templates?.[config.id];
+          fileNameTemplates[config.id] = savedFileName ?? '{{OriginalFileName}}';
         });
         setWarehouseTemplates(templates);
         setWarehouseFileNameTemplates(fileNameTemplates);
@@ -659,6 +705,60 @@ export function EntityTabsConfig({
       }
       return next;
     });
+  };
+
+  // Toggle warehouse section expansion (for Bill Inbox, Pricebook Photos, etc.)
+  const toggleWarehouseSection = (sectionKey: string) => {
+    setExpandedWarehouseSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(sectionKey)) {
+        next.delete(sectionKey);
+      } else {
+        next.add(sectionKey);
+      }
+      return next;
+    });
+  };
+
+  // Handle warehouse scope reorder (drag-and-drop)
+  const handleWarehouseScopeReorder = (newOrder: WarehouseScopeConfig[]) => {
+    setWarehouseScopeOrder(newOrder);
+    // Note: Order could be persisted to backend in future if needed
+  };
+
+  // Helper to get template value for a warehouse scope
+  const getWarehouseScopeTemplate = (scopeId: string): string => {
+    if (scopeId === 'primary') {
+      return folderPathTemplate ?? getDefaultTemplate(scope);
+    }
+    const config = WAREHOUSE_SCOPE_CONFIGS.find(c => c.id === scopeId);
+    return warehouseTemplates[scopeId] ?? config?.defaultTemplate ?? '{{TabName}}';
+  };
+
+  // Helper to set template value for a warehouse scope
+  const setWarehouseScopeTemplate = (scopeId: string, value: string) => {
+    if (scopeId === 'primary') {
+      setFolderPathTemplate(value);
+    } else {
+      setWarehouseTemplates(prev => ({ ...prev, [scopeId]: value }));
+    }
+  };
+
+  // Helper to get file name template for a warehouse scope
+  const getWarehouseScopeFileNameTemplate = (scopeId: string): string => {
+    if (scopeId === 'primary') {
+      return fileNameTemplate;
+    }
+    return warehouseFileNameTemplates[scopeId] ?? '{{OriginalFileName}}';
+  };
+
+  // Helper to set file name template for a warehouse scope
+  const setWarehouseScopeFileNameTemplate = (scopeId: string, value: string) => {
+    if (scopeId === 'primary') {
+      setFileNameTemplate(value);
+    } else {
+      setWarehouseFileNameTemplates(prev => ({ ...prev, [scopeId]: value }));
+    }
   };
 
   // Handle drag-and-drop reorder
@@ -1575,377 +1675,294 @@ export function EntityTabsConfig({
             {/* SSoT: Storage Configuration for system scopes (task, email, warehouse) - always visible */}
             {showSharePointPaths && (
               <div className="space-y-6 mb-6">
-                {/* EML Files Configuration (or primary scope for non-email) */}
-                <div className="space-y-3">
-                  {scope === 'email' && (
-                    <h4 className="text-sm font-medium flex items-center gap-2">
+                {/* Primary scope configuration (EML Files for email, Warehousing for warehouse, etc.) */}
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => toggleWarehouseSection('primary')}
+                    className="w-full flex items-center justify-between text-sm font-medium hover:bg-muted/50 rounded px-2 py-1.5 -mx-2 transition-colors"
+                  >
+                    <span className="flex items-center gap-2">
                       <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-xs font-bold">1</span>
-                      EML Files
-                    </h4>
-                  )}
-                  {/* Base path from StorageConfiguration (read-only) */}
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Base Path (from Admin → System → Storage Config)</Label>
-                    <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
-                      <span className="inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border bg-muted dark:bg-slate-800 text-foreground dark:text-muted-foreground border-border dark:border-border">
-                        {getBasePath(scope)}
-                      </span>
-                      <span className="text-muted-foreground">/</span>
-                    </div>
-                  </div>
-
-                  {/* Folder Path template with token builder - drag and drop enabled */}
-                  <TokenBuilder
-                    label={labelWithStatus("Folder Path")}
-                    value={folderPathTemplate ?? getDefaultTemplate(scope)}
-                    onChange={setFolderPathTemplate}
-                    placeholders={SHAREPOINT_PLACEHOLDERS}
-                    showPreview={true}
-                    placeholder="Click tokens below to add..."
-                    disabled={false}
-                    defaultExpanded={false}
-                    separator="/"
-                  />
-
-                  {/* Full path preview */}
-                  {(() => {
-                    const basePath = getBasePath(scope);
-                    // Replace tokens with example values only if template exists
-                    const resolvedPath = folderPathTemplate
-                      ? `/${folderPathTemplate
-                          .replace(/\{\{TaskId\}\}/g, "T-001")
-                          .replace(/\{\{Category\}\}/g, "Responses")
-                          .replace(/\{\{TabName\}\}/g, "Responses")
-                          .replace(/\{\{Year\}\}/g, "2025")
-                          .replace(/\{\{Month\}\}/g, "01")
-                          .replace(/\{\{UserCode\}\}/g, "RH")
-                          .replace(/\{\{UserName\}\}/g, "Robert Harder")
-                          .replace(/\{\{JobCode\}\}/g, "J069")
-                          .replace(/\{\{CompanyCode\}\}/g, "TH")
-                          .replace(/\{\{ContactName\}\}/g, "John Smith")}`
-                      : '';
-                    const fullPath = `${basePath}${resolvedPath}`;
-                    return (
-                      <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono" title={fullPath}>
-                        <span className="text-green-600 dark:text-green-400 font-medium">Full Path: </span>
-                        <span className="text-green-700 dark:text-green-300">{fullPath}</span>
-                      </div>
-                    );
-                  })()}
-
-                  {/* File Name template */}
-                  <TokenBuilder
-                    label={labelWithStatus("File Name")}
-                    value={fileNameTemplate}
-                    onChange={setFileNameTemplate}
-                    placeholders={SHAREPOINT_PLACEHOLDERS}
-                    showPreview={true}
-                    placeholder="Click tokens below to add..."
-                    disabled={false}
-                    defaultExpanded={false}
-                  />
-                  <div className="text-xs bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded px-2 py-1.5 font-mono">
-                    <span className="text-blue-600 dark:text-blue-400 font-medium">Example: </span>
-                    <span className="text-blue-700 dark:text-blue-300">
-                      {fileNameTemplate
-                        .replace(/\{\{OriginalFileName\}\}/g, "Invoice.pdf")
-                        .replace(/\{\{Date\}\}/g, "2025-01-12")
-                        .replace(/\{\{TaskId\}\}/g, "T-001")
-                        .replace(/\{\{Year\}\}/g, "2025")
-                        .replace(/\{\{Month\}\}/g, "01")
-                        .replace(/\{\{UploadedBy\}\}/g, "RH")
-                        .replace(/\{\{Sequence\}\}/g, "001")
-                        .replace(/\{\{Category\}\}/g, "Documents")
-                        .replace(/\{\{UserCode\}\}/g, "RH")
-                          .replace(/\{\{UserName\}\}/g, "Robert Harder")
-                        .replace(/\{\{JobCode\}\}/g, "J069")
-                        .replace(/\{\{ContactName\}\}/g, "John Smith")}
+                      {scope === 'email' ? 'EML Files' : scope === 'warehouse' ? 'Warehousing' : scope === 'task' ? 'Tasks' : 'Primary'}
                     </span>
-                  </div>
-                </div>
-
-                {/* Email Attachments Configuration (only for email scope) */}
-                {scope === 'email' && (
-                  <div className="space-y-3 pt-4 border-t">
-                    <h4 className="text-sm font-medium flex items-center gap-2">
-                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 text-xs font-bold">2</span>
-                      Attachments
-                    </h4>
-                    {/* Base path for attachments */}
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Base Path (from Admin → System → Storage Config)</Label>
-                      <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
-                        <span className="inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border bg-muted dark:bg-slate-800 text-foreground dark:text-muted-foreground border-border dark:border-border">
-                          {getBasePath('email_attachments')}
-                        </span>
-                        <span className="text-muted-foreground">/</span>
-                      </div>
-                    </div>
-
-                    {/* Attachments Folder Path template */}
-                    <TokenBuilder
-                      label={labelWithStatus("Folder Path")}
-                      value={attachmentsPathTemplate ?? getDefaultTemplate('email')}
-                      onChange={setAttachmentsPathTemplate}
-                      placeholders={SHAREPOINT_PLACEHOLDERS}
-                      showPreview={true}
-                      placeholder="Click tokens below to add..."
-                      disabled={false}
-                      defaultExpanded={false}
-                    />
-
-                    {/* Full path preview for attachments */}
-                    {(() => {
-                      const basePath = getBasePath('email_attachments');
-                      // Replace tokens with example values only if template exists
-                      const resolvedPath = attachmentsPathTemplate
-                        ? `/${attachmentsPathTemplate
-                            .replace(/\{\{Year\}\}/g, "2025")
-                            .replace(/\{\{Month\}\}/g, "01")
-                            .replace(/\{\{Category\}\}/g, "Attachments")
-                            .replace(/\{\{UserCode\}\}/g, "RH")
-                          .replace(/\{\{UserName\}\}/g, "Robert Harder")
-                            .replace(/\{\{JobCode\}\}/g, "J069")
-                            .replace(/\{\{ContactName\}\}/g, "John Smith")}`
-                        : '';
-                      const fullPath = `${basePath}${resolvedPath}`;
-                      return (
-                        <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono" title={fullPath}>
-                          <span className="text-green-600 dark:text-green-400 font-medium">Full Path: </span>
-                          <span className="text-green-700 dark:text-green-300">{fullPath}</span>
-                        </div>
-                      );
-                    })()}
-
-                    {/* File Name template for attachments */}
-                    <TokenBuilder
-                      label={labelWithStatus("File Name")}
-                      value={attachmentsFileNameTemplate}
-                      onChange={setAttachmentsFileNameTemplate}
-                      placeholders={SHAREPOINT_PLACEHOLDERS}
-                      showPreview={true}
-                      placeholder="Click tokens below to add..."
-                      disabled={false}
-                      defaultExpanded={false}
-                    />
-                    <div className="text-xs bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded px-2 py-1.5 font-mono">
-                      <span className="text-blue-600 dark:text-blue-400 font-medium">Example: </span>
-                      <span className="text-blue-700 dark:text-blue-300">
-                        {attachmentsFileNameTemplate
-                          .replace(/\{\{OriginalFileName\}\}/g, "Report.xlsx")
-                          .replace(/\{\{Date\}\}/g, "2025-01-12")
-                          .replace(/\{\{Year\}\}/g, "2025")
-                          .replace(/\{\{Month\}\}/g, "01")
-                          .replace(/\{\{UploadedBy\}\}/g, "RH")
-                          .replace(/\{\{Sequence\}\}/g, "001")
-                          .replace(/\{\{UserCode\}\}/g, "RH")
-                          .replace(/\{\{UserName\}\}/g, "Robert Harder")
-                          .replace(/\{\{JobCode\}\}/g, "J069")
-                          .replace(/\{\{ContactName\}\}/g, "John Smith")}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Warehouse Sub-Scopes Configuration (only for warehouse scope) */}
-                {scope === 'warehouse' && (
-                  <>
-                    {/* Bill Inbox */}
-                    <div className="space-y-3 pt-4 border-t">
-                      <h4 className="text-sm font-medium flex items-center gap-2">
-                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 text-xs font-bold">2</span>
-                        Bill Inbox
-                      </h4>
+                    {expandedWarehouseSections.has('primary') ? (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </button>
+                  {expandedWarehouseSections.has('primary') && (
+                    <div className="space-y-3 mt-3">
+                      {/* Base path from StorageConfiguration (read-only) */}
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Base Path</Label>
+                        <Label className="text-xs text-muted-foreground">Base Path (from Admin → System → Storage Config)</Label>
                         <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
                           <span className="inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border bg-muted dark:bg-slate-800 text-foreground dark:text-muted-foreground border-border dark:border-border">
-                            {getBasePath('bill_inbox')}
+                            {getBasePath(scope)}
                           </span>
                           <span className="text-muted-foreground">/</span>
                         </div>
                       </div>
+
+                      {/* Folder Path template with token builder - drag and drop enabled */}
                       <TokenBuilder
                         label={labelWithStatus("Folder Path")}
-                        value={warehouseTemplates.bill_inbox ?? '{{TabName}}'}
-                        onChange={(val) => setWarehouseTemplates(prev => ({ ...prev, bill_inbox: val }))}
+                        value={folderPathTemplate ?? getDefaultTemplate(scope)}
+                        onChange={setFolderPathTemplate}
+                        placeholders={SHAREPOINT_PLACEHOLDERS}
+                        showPreview={true}
+                        placeholder="Click tokens below to add..."
+                        disabled={false}
+                        defaultExpanded={false}
+                        separator="/"
+                      />
+
+                      {/* Full path preview */}
+                      {(() => {
+                        const basePath = getBasePath(scope);
+                        // Replace tokens with example values only if template exists
+                        const resolvedPath = folderPathTemplate
+                          ? `/${folderPathTemplate
+                              .replace(/\{\{TaskId\}\}/g, "T-001")
+                              .replace(/\{\{Category\}\}/g, "Responses")
+                              .replace(/\{\{TabName\}\}/g, "Responses")
+                              .replace(/\{\{Year\}\}/g, "2025")
+                              .replace(/\{\{Month\}\}/g, "01")
+                              .replace(/\{\{UserCode\}\}/g, "RH")
+                              .replace(/\{\{UserName\}\}/g, "Robert Harder")
+                              .replace(/\{\{JobCode\}\}/g, "J069")
+                              .replace(/\{\{CompanyCode\}\}/g, "TH")
+                              .replace(/\{\{ContactName\}\}/g, "John Smith")}`
+                          : '';
+                        const fullPath = `${basePath}${resolvedPath}`;
+                        return (
+                          <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono" title={fullPath}>
+                            <span className="text-green-600 dark:text-green-400 font-medium">Full Path: </span>
+                            <span className="text-green-700 dark:text-green-300">{fullPath}</span>
+                          </div>
+                        );
+                      })()}
+
+                      {/* File Name template */}
+                      <TokenBuilder
+                        label={labelWithStatus("File Name")}
+                        value={fileNameTemplate}
+                        onChange={setFileNameTemplate}
                         placeholders={SHAREPOINT_PLACEHOLDERS}
                         showPreview={true}
                         placeholder="Click tokens below to add..."
                         disabled={false}
                         defaultExpanded={false}
                       />
-                      <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono">
-                        <span className="text-green-600 dark:text-green-400 font-medium">Full Path: </span>
-                        <span className="text-green-700 dark:text-green-300">{getBasePath('bill_inbox')}{warehouseTemplates.bill_inbox ? `/${warehouseTemplates.bill_inbox.replace(/\{\{TabName\}\}/g, 'Invoices')}` : ''}</span>
+                      <div className="text-xs bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded px-2 py-1.5 font-mono">
+                        <span className="text-blue-600 dark:text-blue-400 font-medium">Example: </span>
+                        <span className="text-blue-700 dark:text-blue-300">
+                          {fileNameTemplate
+                            .replace(/\{\{OriginalFileName\}\}/g, "Invoice.pdf")
+                            .replace(/\{\{Date\}\}/g, "2025-01-12")
+                            .replace(/\{\{TaskId\}\}/g, "T-001")
+                            .replace(/\{\{Year\}\}/g, "2025")
+                            .replace(/\{\{Month\}\}/g, "01")
+                            .replace(/\{\{UploadedBy\}\}/g, "RH")
+                            .replace(/\{\{Sequence\}\}/g, "001")
+                            .replace(/\{\{Category\}\}/g, "Documents")
+                            .replace(/\{\{UserCode\}\}/g, "RH")
+                              .replace(/\{\{UserName\}\}/g, "Robert Harder")
+                            .replace(/\{\{JobCode\}\}/g, "J069")
+                            .replace(/\{\{ContactName\}\}/g, "John Smith")}
+                        </span>
                       </div>
-                      <TokenBuilder
-                        label={labelWithStatus("File Name")}
-                        value={warehouseFileNameTemplates.bill_inbox ?? '{{OriginalFileName}}'}
-                        onChange={(val) => setWarehouseFileNameTemplates(prev => ({ ...prev, bill_inbox: val }))}
-                        placeholders={SHAREPOINT_PLACEHOLDERS}
-                        showPreview={true}
-                        disabled={false}
-                        defaultExpanded={false}
-                      />
                     </div>
+                  )}
+                </div>
 
-                    {/* Pricebook Photos */}
-                    <div className="space-y-3 pt-4 border-t">
-                      <h4 className="text-sm font-medium flex items-center gap-2">
-                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 text-xs font-bold">3</span>
-                        Pricebook Photos
-                      </h4>
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Base Path</Label>
-                        <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
-                          <span className="inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border bg-muted dark:bg-slate-800 text-foreground dark:text-muted-foreground border-border dark:border-border">
-                            {getBasePath('pricebook_photos')}
+                {/* Email Attachments Configuration (only for email scope) */}
+                {scope === 'email' && (
+                  <div className="pt-4 border-t">
+                    <button
+                      type="button"
+                      onClick={() => toggleWarehouseSection('attachments')}
+                      className="w-full flex items-center justify-between text-sm font-medium hover:bg-muted/50 rounded px-2 py-1.5 -mx-2 transition-colors"
+                    >
+                      <span className="flex items-center gap-2">
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 text-xs font-bold">2</span>
+                        Attachments
+                      </span>
+                      {expandedWarehouseSections.has('attachments') ? (
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </button>
+                    {expandedWarehouseSections.has('attachments') && (
+                      <div className="space-y-3 mt-3">
+                        {/* Base path for attachments */}
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Base Path (from Admin → System → Storage Config)</Label>
+                          <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
+                            <span className="inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border bg-muted dark:bg-slate-800 text-foreground dark:text-muted-foreground border-border dark:border-border">
+                              {getBasePath('email_attachments')}
+                            </span>
+                            <span className="text-muted-foreground">/</span>
+                          </div>
+                        </div>
+
+                        {/* Attachments Folder Path template */}
+                        <TokenBuilder
+                          label={labelWithStatus("Folder Path")}
+                          value={attachmentsPathTemplate ?? getDefaultTemplate('email')}
+                          onChange={setAttachmentsPathTemplate}
+                          placeholders={SHAREPOINT_PLACEHOLDERS}
+                          showPreview={true}
+                          placeholder="Click tokens below to add..."
+                          disabled={false}
+                          defaultExpanded={false}
+                        />
+
+                        {/* Full path preview for attachments */}
+                        {(() => {
+                          const basePath = getBasePath('email_attachments');
+                          // Replace tokens with example values only if template exists
+                          const resolvedPath = attachmentsPathTemplate
+                            ? `/${attachmentsPathTemplate
+                                .replace(/\{\{Year\}\}/g, "2025")
+                                .replace(/\{\{Month\}\}/g, "01")
+                                .replace(/\{\{Category\}\}/g, "Attachments")
+                                .replace(/\{\{UserCode\}\}/g, "RH")
+                              .replace(/\{\{UserName\}\}/g, "Robert Harder")
+                                .replace(/\{\{JobCode\}\}/g, "J069")
+                                .replace(/\{\{ContactName\}\}/g, "John Smith")}`
+                            : '';
+                          const fullPath = `${basePath}${resolvedPath}`;
+                          return (
+                            <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono" title={fullPath}>
+                              <span className="text-green-600 dark:text-green-400 font-medium">Full Path: </span>
+                              <span className="text-green-700 dark:text-green-300">{fullPath}</span>
+                            </div>
+                          );
+                        })()}
+
+                        {/* File Name template for attachments */}
+                        <TokenBuilder
+                          label={labelWithStatus("File Name")}
+                          value={attachmentsFileNameTemplate}
+                          onChange={setAttachmentsFileNameTemplate}
+                          placeholders={SHAREPOINT_PLACEHOLDERS}
+                          showPreview={true}
+                          placeholder="Click tokens below to add..."
+                          disabled={false}
+                          defaultExpanded={false}
+                        />
+                        <div className="text-xs bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded px-2 py-1.5 font-mono">
+                          <span className="text-blue-600 dark:text-blue-400 font-medium">Example: </span>
+                          <span className="text-blue-700 dark:text-blue-300">
+                            {attachmentsFileNameTemplate
+                              .replace(/\{\{OriginalFileName\}\}/g, "Report.xlsx")
+                              .replace(/\{\{Date\}\}/g, "2025-01-12")
+                              .replace(/\{\{Year\}\}/g, "2025")
+                              .replace(/\{\{Month\}\}/g, "01")
+                              .replace(/\{\{UploadedBy\}\}/g, "RH")
+                              .replace(/\{\{Sequence\}\}/g, "001")
+                              .replace(/\{\{UserCode\}\}/g, "RH")
+                              .replace(/\{\{UserName\}\}/g, "Robert Harder")
+                              .replace(/\{\{JobCode\}\}/g, "J069")
+                              .replace(/\{\{ContactName\}\}/g, "John Smith")}
                           </span>
-                          <span className="text-muted-foreground">/</span>
                         </div>
                       </div>
-                      <TokenBuilder
-                        label={labelWithStatus("Folder Path")}
-                        value={warehouseTemplates.pricebook_photos ?? '{{TabName}}'}
-                        onChange={(val) => setWarehouseTemplates(prev => ({ ...prev, pricebook_photos: val }))}
-                        placeholders={SHAREPOINT_PLACEHOLDERS}
-                        showPreview={true}
-                        disabled={false}
-                        defaultExpanded={false}
-                      />
-                      <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono">
-                        <span className="text-green-600 dark:text-green-400 font-medium">Full Path: </span>
-                        <span className="text-green-700 dark:text-green-300">{getBasePath('pricebook_photos')}{warehouseTemplates.pricebook_photos ? `/${warehouseTemplates.pricebook_photos.replace(/\{\{TabName\}\}/g, 'Products')}` : ''}</span>
-                      </div>
-                      <TokenBuilder
-                        label={labelWithStatus("File Name")}
-                        value={warehouseFileNameTemplates.pricebook_photos ?? '{{OriginalFileName}}'}
-                        onChange={(val) => setWarehouseFileNameTemplates(prev => ({ ...prev, pricebook_photos: val }))}
-                        placeholders={SHAREPOINT_PLACEHOLDERS}
-                        showPreview={true}
-                        disabled={false}
-                        defaultExpanded={false}
-                      />
-                    </div>
+                    )}
+                  </div>
+                )}
 
-                    {/* Chat */}
-                    <div className="space-y-3 pt-4 border-t">
-                      <h4 className="text-sm font-medium flex items-center gap-2">
-                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 text-xs font-bold">4</span>
-                        Chat
-                      </h4>
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Base Path</Label>
-                        <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
-                          <span className="inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border bg-muted dark:bg-slate-800 text-foreground dark:text-muted-foreground border-border dark:border-border">
-                            {getBasePath('chat')}
-                          </span>
-                          <span className="text-muted-foreground">/</span>
-                        </div>
-                      </div>
-                      <TokenBuilder
-                        label={labelWithStatus("Folder Path")}
-                        value={warehouseTemplates.chat ?? '{{UserCode}}'}
-                        onChange={(val) => setWarehouseTemplates(prev => ({ ...prev, chat: val }))}
-                        placeholders={SHAREPOINT_PLACEHOLDERS}
-                        showPreview={true}
-                        disabled={false}
-                        defaultExpanded={false}
-                      />
-                      <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono">
-                        <span className="text-green-600 dark:text-green-400 font-medium">Full Path: </span>
-                        <span className="text-green-700 dark:text-green-300">{getBasePath('chat')}{warehouseTemplates.chat ? `/${warehouseTemplates.chat.replace(/\{\{UserCode\}\}/g, 'RH')}` : ''}</span>
-                      </div>
-                      <TokenBuilder
-                        label={labelWithStatus("File Name")}
-                        value={warehouseFileNameTemplates.chat ?? '{{OriginalFileName}}'}
-                        onChange={(val) => setWarehouseFileNameTemplates(prev => ({ ...prev, chat: val }))}
-                        placeholders={SHAREPOINT_PLACEHOLDERS}
-                        showPreview={true}
-                        disabled={false}
-                        defaultExpanded={false}
-                      />
-                    </div>
+                {/* Warehouse Sub-Scopes Configuration (only for warehouse scope) - uses SortableList for drag-and-drop */}
+                {scope === 'warehouse' && (
+                  <SortableList
+                    items={warehouseScopeOrder.filter(c => c.id !== 'primary')}
+                    onReorder={handleWarehouseScopeReorder}
+                    className="space-y-2"
+                  >
+                    {warehouseScopeOrder.filter(c => c.id !== 'primary').map((config, index) => {
+                      const colorClasses = WAREHOUSE_SCOPE_COLORS[config.color] || WAREHOUSE_SCOPE_COLORS.gray;
+                      const isExpanded = expandedWarehouseSections.has(config.id);
+                      const template = getWarehouseScopeTemplate(config.id);
+                      const fileNameTpl = getWarehouseScopeFileNameTemplate(config.id);
+                      const basePath = getBasePath(config.id);
 
-                    {/* Templates */}
-                    <div className="space-y-3 pt-4 border-t">
-                      <h4 className="text-sm font-medium flex items-center gap-2">
-                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-cyan-100 dark:bg-cyan-900 text-cyan-700 dark:text-cyan-300 text-xs font-bold">5</span>
-                        Templates
-                      </h4>
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Base Path</Label>
-                        <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
-                          <span className="inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border bg-muted dark:bg-slate-800 text-foreground dark:text-muted-foreground border-border dark:border-border">
-                            {getBasePath('templates')}
-                          </span>
-                          <span className="text-muted-foreground">/</span>
-                        </div>
-                      </div>
-                      <TokenBuilder
-                        label={labelWithStatus("Folder Path")}
-                        value={warehouseTemplates.templates ?? '{{TabName}}'}
-                        onChange={(val) => setWarehouseTemplates(prev => ({ ...prev, templates: val }))}
-                        placeholders={SHAREPOINT_PLACEHOLDERS}
-                        showPreview={true}
-                        disabled={false}
-                        defaultExpanded={false}
-                      />
-                      <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono">
-                        <span className="text-green-600 dark:text-green-400 font-medium">Full Path: </span>
-                        <span className="text-green-700 dark:text-green-300">{getBasePath('templates')}{warehouseTemplates.templates ? `/${warehouseTemplates.templates.replace(/\{\{TabName\}\}/g, 'Contracts')}` : ''}</span>
-                      </div>
-                      <TokenBuilder
-                        label={labelWithStatus("File Name")}
-                        value={warehouseFileNameTemplates.templates ?? '{{OriginalFileName}}'}
-                        onChange={(val) => setWarehouseFileNameTemplates(prev => ({ ...prev, templates: val }))}
-                        placeholders={SHAREPOINT_PLACEHOLDERS}
-                        showPreview={true}
-                        disabled={false}
-                        defaultExpanded={false}
-                      />
-                    </div>
+                      // Build preview path with replacements
+                      let previewPath = template;
+                      Object.entries(config.previewReplacements).forEach(([key, value]) => {
+                        previewPath = previewPath.replace(new RegExp(key.replace(/[{}]/g, '\\$&'), 'g'), value);
+                      });
 
-                    {/* Custom */}
-                    <div className="space-y-3 pt-4 border-t">
-                      <h4 className="text-sm font-medium flex items-center gap-2">
-                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-xs font-bold">6</span>
-                        Custom
-                      </h4>
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Base Path</Label>
-                        <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
-                          <span className="inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border bg-muted dark:bg-slate-800 text-foreground dark:text-muted-foreground border-border dark:border-border">
-                            {getBasePath('custom')}
-                          </span>
-                          <span className="text-muted-foreground">/</span>
-                        </div>
-                      </div>
-                      <TokenBuilder
-                        label={labelWithStatus("Folder Path")}
-                        value={warehouseTemplates.custom ?? '{{Category}}'}
-                        onChange={(val) => setWarehouseTemplates(prev => ({ ...prev, custom: val }))}
-                        placeholders={SHAREPOINT_PLACEHOLDERS}
-                        showPreview={true}
-                        disabled={false}
-                        defaultExpanded={false}
-                      />
-                      <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono">
-                        <span className="text-green-600 dark:text-green-400 font-medium">Full Path: </span>
-                        <span className="text-green-700 dark:text-green-300">{getBasePath('custom')}{warehouseTemplates.custom ? `/${warehouseTemplates.custom.replace(/\{\{Category\}\}/g, 'Misc')}` : ''}</span>
-                      </div>
-                      <TokenBuilder
-                        label={labelWithStatus("File Name")}
-                        value={warehouseFileNameTemplates.custom ?? '{{OriginalFileName}}'}
-                        onChange={(val) => setWarehouseFileNameTemplates(prev => ({ ...prev, custom: val }))}
-                        placeholders={SHAREPOINT_PLACEHOLDERS}
-                        showPreview={true}
-                        disabled={false}
-                        defaultExpanded={false}
-                      />
-                    </div>
-                  </>
+                      return (
+                        <SortableItem
+                          key={config.id}
+                          id={config.id}
+                          position={index + 2}
+                          badgeColor={config.color as any}
+                          variant="card"
+                          className="border rounded"
+                        >
+                          <div className="flex-1">
+                            <button
+                              type="button"
+                              onClick={() => toggleWarehouseSection(config.id)}
+                              className="w-full flex items-center justify-between py-1"
+                            >
+                              <span className="text-sm font-medium">{config.label}</span>
+                              <ExpandChevron expanded={isExpanded} size={16} />
+                            </button>
+
+                            {isExpanded && (
+                              <div className="space-y-3 mt-3 pt-3 border-t">
+                                {/* Base Path */}
+                                <div className="space-y-1">
+                                  <Label className="text-xs text-muted-foreground">Base Path</Label>
+                                  <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
+                                    <span className="inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border bg-muted dark:bg-slate-800 text-foreground dark:text-muted-foreground border-border dark:border-border">
+                                      {basePath}
+                                    </span>
+                                    <span className="text-muted-foreground">/</span>
+                                  </div>
+                                </div>
+
+                                {/* Folder Path Template */}
+                                <TokenBuilder
+                                  label={labelWithStatus("Folder Path")}
+                                  value={template}
+                                  onChange={(val) => setWarehouseScopeTemplate(config.id, val)}
+                                  placeholders={SHAREPOINT_PLACEHOLDERS}
+                                  showPreview={true}
+                                  placeholder="Click tokens below to add..."
+                                  disabled={false}
+                                  defaultExpanded={false}
+                                  separator="/"
+                                />
+
+                                {/* Full Path Preview */}
+                                <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono">
+                                  <span className="text-green-600 dark:text-green-400 font-medium">Full Path: </span>
+                                  <span className="text-green-700 dark:text-green-300">{basePath}{template ? `/${previewPath}` : ''}</span>
+                                </div>
+
+                                {/* File Name Template */}
+                                <TokenBuilder
+                                  label={labelWithStatus("File Name")}
+                                  value={fileNameTpl}
+                                  onChange={(val) => setWarehouseScopeFileNameTemplate(config.id, val)}
+                                  placeholders={SHAREPOINT_PLACEHOLDERS}
+                                  showPreview={true}
+                                  disabled={false}
+                                  defaultExpanded={false}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </SortableItem>
+                      );
+                    })}
+                  </SortableList>
                 )}
               </div>
             )}

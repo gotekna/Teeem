@@ -200,10 +200,14 @@ export function ColumnEditorModal({
       const newLookupTableId = column.lookup_foundation_id || null;
       console.log('[ColumnEditorModal] Setting lookup_table_id to:', newLookupTableId);
 
+      // SSoT: column_type should always be set - log error if missing
+      if (!column.column_type) {
+        console.error(`[SSoT] Column "${column.key}" missing column_type - defaulting to single_line_text`);
+      }
       setEditedColumn({
         name: column.label || "",
         column_name: column.key || "",
-        data_type: column.column_type || "text",
+        data_type: column.column_type || "single_line_text",
         header_align: (column as any).header_align || "left",
         data_align: (column as any).data_align || "left",
         column_group: (column as any).column_group || "",
@@ -212,7 +216,7 @@ export function ColumnEditorModal({
         lookup_table_id: newLookupTableId,
         lookup_display_column: column.lookup_display_column || "",
       });
-      setNewColumnType(column.column_type || "text");
+      setNewColumnType(column.column_type || "single_line_text");
     }
   }, [column]);
 
@@ -382,8 +386,8 @@ export function ColumnEditorModal({
                   Formula
                 </TabsTrigger>
               )}
-              {/* Show Choices tab for choice/dropdown columns */}
-              {(editedColumn.data_type === "choice" || editedColumn.data_type === "dropdown") && (
+              {/* Show Choices tab for choice columns */}
+              {editedColumn.data_type === "choice" && (
                 <TabsTrigger value="choices" className="gap-2">
                   <List className="h-4 w-4" />
                   Choices
@@ -1196,7 +1200,7 @@ export function ColumnEditorModal({
                         [{col.key}]
                       </div>
                       <div className="text-xs text-muted-foreground truncate">
-                        {col.column_type || "text"}
+                        {col.column_type || "single_line_text"}
                       </div>
                     </div>
                   ))}

@@ -835,7 +835,6 @@ function displayCellLegacy(
     case "choice":
       return displayChoice(value);
     case "lookup":
-    case "relation":
     case "user":
       return displayLookup(value);
     case "multiple_lookups":

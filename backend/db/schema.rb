@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_13_100002) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_13_120001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9418,6 +9418,24 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_13_100002) do
     t.index ["user_id"], name: "index_teeem_documents_on_user_id"
   end
 
+  create_table "teeem_pdfs", force: :cascade do |t|
+    t.string "name", default: "Untitled PDF", null: false
+    t.jsonb "data", default: {}, null: false
+    t.bigint "user_id", null: false
+    t.bigint "job_id"
+    t.boolean "is_template", default: false, null: false
+    t.text "description"
+    t.integer "page_count", default: 1, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_template"], name: "index_teeem_pdfs_on_is_template"
+    t.index ["job_id", "updated_at"], name: "index_teeem_pdfs_on_job_id_and_updated_at"
+    t.index ["job_id"], name: "index_teeem_pdfs_on_job_id"
+    t.index ["name"], name: "index_teeem_pdfs_on_name"
+    t.index ["user_id", "updated_at"], name: "index_teeem_pdfs_on_user_id_and_updated_at"
+    t.index ["user_id"], name: "index_teeem_pdfs_on_user_id"
+  end
+
   create_table "teeem_presentations", force: :cascade do |t|
     t.string "name", default: "Untitled Presentation", null: false
     t.jsonb "data", default: {}, null: false
@@ -11157,6 +11175,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_13_100002) do
   add_foreign_key "task_viewers", "users"
   add_foreign_key "teeem_documents", "jobs"
   add_foreign_key "teeem_documents", "users"
+  add_foreign_key "teeem_pdfs", "jobs"
+  add_foreign_key "teeem_pdfs", "users"
   add_foreign_key "teeem_presentations", "jobs"
   add_foreign_key "teeem_presentations", "users"
   add_foreign_key "teeem_spreadsheets", "jobs"

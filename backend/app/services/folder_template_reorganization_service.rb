@@ -48,7 +48,21 @@ class FolderTemplateReorganizationService
     @new_template = new_template
     @dry_run = dry_run
     @stats = { moved: 0, skipped: 0, errors: [], total: 0 }
+    @stats_mutex = Mutex.new  # Thread-safe stats updates
     @progress = progress  # Optional BackgroundJobProgress instance
+  end
+
+  # Thread-safe stat incrementers
+  def increment_moved!
+    @stats_mutex.synchronize { @stats[:moved] += 1 }
+  end
+
+  def increment_skipped!
+    @stats_mutex.synchronize { @stats[:skipped] += 1 }
+  end
+
+  def add_error!(error_hash)
+    @stats_mutex.synchronize { @stats[:errors] << error_hash }
   end
 
   def execute
@@ -130,17 +144,68 @@ class FolderTemplateReorganizationService
     @stats[:total] = documents.count
 
     Rails.logger.info "[FolderReorg] Processing #{@stats[:total]} documents"
+    Rails.logger.info "[FolderReorg] Provider: #{@storage_config.provider_type}"
 
     # Set total items for progress tracking
     @progress&.set_total!(@stats[:total])
 
-    documents.find_each.with_index do |doc, index|
-      # Update progress with current item
-      @progress&.processing!(get_document_name(doc))
+    # S3/Wasabi: Use parallel processing (moves are instant metadata ops)
+    # SharePoint: Sequential (API rate limits)
+    if @storage_config.wasabi? || @storage_config.s3?
+      process_documents_parallel(documents)
+    else
+      process_documents_sequential(documents)
+    end
+  end
 
+  # Parallel processing for S3/Wasabi (fast metadata operations)
+  def process_documents_parallel(documents)
+    require 'concurrent'
+
+    # Thread pool with 20 concurrent workers (S3 handles this easily)
+    pool = Concurrent::FixedThreadPool.new(20)
+    mutex = Mutex.new
+    processed = Concurrent::AtomicFixnum.new(0)
+
+    # Load all document IDs first (faster than find_each for parallel)
+    doc_ids = documents.pluck(:id)
+
+    Rails.logger.info "[FolderReorg] Starting parallel processing with 20 threads"
+
+    futures = doc_ids.map do |doc_id|
+      Concurrent::Future.execute(executor: pool) do
+        # Each thread gets its own DB connection
+        ActiveRecord::Base.connection_pool.with_connection do
+          doc = @document_model.find_by(id: doc_id)
+          next unless doc
+
+          process_document(doc)
+
+          count = processed.increment
+          if count % 500 == 0
+            Rails.logger.info "[FolderReorg] Progress: #{count}/#{@stats[:total]}"
+            mutex.synchronize do
+              @progress&.update!(processed_count: count)
+            end
+          end
+        end
+      end
+    end
+
+    # Wait for all to complete
+    futures.each(&:wait)
+    pool.shutdown
+    pool.wait_for_termination
+
+    Rails.logger.info "[FolderReorg] Parallel processing complete"
+  end
+
+  # Sequential processing for SharePoint (rate limited)
+  def process_documents_sequential(documents)
+    documents.find_each.with_index do |doc, index|
+      @progress&.processing!(get_document_name(doc))
       process_document(doc)
 
-      # Log progress every 100 documents
       if (index + 1) % 100 == 0
         Rails.logger.info "[FolderReorg] Progress: #{index + 1}/#{@stats[:total]}"
       end
@@ -196,7 +261,7 @@ class FolderTemplateReorganizationService
 
     # Skip if paths are the same
     if normalize_path(old_path) == normalize_path(new_path)
-      @stats[:skipped] += 1
+      increment_skipped!
       @progress&.increment!(success: true)
       return
     end
@@ -204,13 +269,13 @@ class FolderTemplateReorganizationService
     # Move the file
     move_document(doc, old_path, new_path, context)
   rescue => e
-    @stats[:errors] << { document_id: doc.id, error: e.message }
+    add_error!(document_id: doc.id, error: e.message)
     @progress&.increment!(success: false, error: "Document #{doc.id}: #{e.message}")
     Rails.logger.warn "[FolderReorg] Error processing document #{doc.id}: #{e.message}"
   end
 
   def skip_document(doc, reason)
-    @stats[:skipped] += 1
+    increment_skipped!
     @progress&.increment!(success: true)  # Skipped counts as success
     Rails.logger.debug "[FolderReorg] Skipping document #{doc.id}: #{reason}"
   end
@@ -342,7 +407,7 @@ class FolderTemplateReorganizationService
     storage_reference = get_storage_reference(doc)
 
     if storage_reference.blank?
-      @stats[:skipped] += 1
+      increment_skipped!
       @progress&.increment!(success: true)
       Rails.logger.debug "[FolderReorg] No storage reference for document #{doc.id}"
       return
@@ -353,22 +418,24 @@ class FolderTemplateReorganizationService
     full_old_path = File.join(@storage_config.root_path, base_folder, old_path)
     full_new_path = File.join(@storage_config.root_path, base_folder, new_path)
 
-    Rails.logger.info "[FolderReorg] Moving document #{doc.id}: #{old_path} -> #{new_path}"
+    Rails.logger.debug "[FolderReorg] Moving document #{doc.id}: #{old_path} -> #{new_path}"
 
     if @dry_run
       Rails.logger.info "[FolderReorg] DRY RUN - Would move: #{full_old_path} -> #{full_new_path}"
-      @stats[:moved] += 1
+      increment_moved!
       @progress&.increment!(success: true)
       return
     end
 
-    # Create destination folder if needed
-    begin
-      ensure_folder_exists(File.dirname(full_new_path))
-    rescue => e
-      @stats[:errors] << { document_id: doc.id, error: "Failed to create folder: #{e.message}" }
-      @progress&.increment!(success: false, error: "Failed to create folder: #{e.message}")
-      return
+    # Create destination folder if needed (S3 auto-creates, but SharePoint needs this)
+    unless @storage_config.wasabi? || @storage_config.s3?
+      begin
+        ensure_folder_exists(File.dirname(full_new_path))
+      rescue => e
+        add_error!(document_id: doc.id, error: "Failed to create folder: #{e.message}")
+        @progress&.increment!(success: false, error: "Failed to create folder: #{e.message}")
+        return
+      end
     end
 
     # Move the file in storage
@@ -378,14 +445,14 @@ class FolderTemplateReorganizationService
       # File doesn't exist in storage - update DB path anyway
       Rails.logger.warn "[FolderReorg] File not found in storage for document #{doc.id}"
     rescue => e
-      @stats[:errors] << { document_id: doc.id, error: "Move failed: #{e.message}" }
+      add_error!(document_id: doc.id, error: "Move failed: #{e.message}")
       @progress&.increment!(success: false, error: "Move failed: #{e.message}")
       return
     end
 
     # Update database record
     update_document_path(doc, new_path)
-    @stats[:moved] += 1
+    increment_moved!
     @progress&.increment!(success: true)
   end
 

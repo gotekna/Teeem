@@ -751,7 +751,6 @@ export function CreateRecordDialog({
         );
 
       case "choice":
-      case "single_select":
         // Handle choice columns with predefined options (searchable)
         if (col.choices && col.choices.length > 0) {
           const selectedChoice = col.choices.find(c => c === value);

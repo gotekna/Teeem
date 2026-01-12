@@ -144,7 +144,7 @@ export default function ImportPage() {
         setColumnMappings(
           data.headers.map((header: string) => ({
             header,
-            type: data.suggested_types[header] || "text",
+            type: data.suggested_types[header] || "single_line_text",
             include: true,
           }))
         );

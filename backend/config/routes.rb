@@ -144,6 +144,9 @@ Rails.application.routes.draw do
         end
       end
 
+      # TeeemPDF - user-created PDF documents
+      resources :teeem_pdfs, only: [ :index, :show, :create, :update, :destroy ]
+
       # Units of Measure (lookup table for pricebook, recipes, etc.)
       resources :units_of_measure, only: [ :index ]
 

@@ -53,6 +53,10 @@ interface ESignaturePdfEditorProps {
   onSelectSigner: (signer: Signer | null) => void;
   fields: SignatureField[];
   onFieldsChange: (fields: SignatureField[]) => void;
+  // Optional signer management callbacks
+  onAddSigner?: (email: string, name?: string) => void;
+  onRemoveSigner?: (signerId: string) => void;
+  onReorderSigners?: (signers: Signer[]) => void;
 }
 
 const FIELD_TOOLS: { type: SignatureFieldType; icon: React.ReactNode; label: string }[] = [
@@ -69,6 +73,9 @@ export function ESignaturePdfEditor({
   onSelectSigner,
   fields,
   onFieldsChange,
+  onAddSigner,
+  onRemoveSigner,
+  onReorderSigners,
 }: ESignaturePdfEditorProps) {
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -410,10 +417,10 @@ export function ESignaturePdfEditor({
       <SignerPanel
         signers={signers}
         selectedSigner={selectedSigner}
-        onAddSigner={() => {}}
-        onRemoveSigner={() => {}}
+        onAddSigner={onAddSigner || (() => {})}
+        onRemoveSigner={onRemoveSigner || (() => {})}
         onSelectSigner={onSelectSigner}
-        onReorderSigners={() => {}}
+        onReorderSigners={onReorderSigners || (() => {})}
         fields={fields}
       />
     </div>

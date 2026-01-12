@@ -206,7 +206,11 @@ export function useSchemaHandlers(props: UseSchemaHandlersProps): UseSchemaHandl
     if (col) {
       setEditingColumnKey(columnKey);
       setEditColumnName(col.label);
-      setEditColumnType(col.column_type || "text");
+      // SSoT: column_type should always be set - log error if missing
+      if (!col.column_type) {
+        console.error(`[SSoT] Column "${col.key}" missing column_type - defaulting to single_line_text`);
+      }
+      setEditColumnType(col.column_type || "single_line_text");
       setShowEditColumnModal(true);
     }
   }, [COLUMNS, setEditingColumnKey, setEditColumnName, setEditColumnType, setShowEditColumnModal]);

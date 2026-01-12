@@ -359,6 +359,20 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             </div>
           </a>
 
+          {/* TeeemPDF - PDF Editor (opens in new tab, fullscreen) */}
+          <a
+            href="/admin/system/teeem-pdf"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-1.5 text-muted-foreground hover:text-red-500 dark:hover:text-red-400 rounded-md"
+            title="TeeemPDF - New PDF Document (opens in new tab)"
+          >
+            <span className="sr-only">TeeemPDF</span>
+            <div className="h-4 w-4 flex items-center justify-center font-bold text-[8px] border border-current rounded bg-current/5">
+              PDF
+            </div>
+          </a>
+
           {/* Workflow Tasks */}
           <Link prefetch={false}
             href="/tasks/workflow"
