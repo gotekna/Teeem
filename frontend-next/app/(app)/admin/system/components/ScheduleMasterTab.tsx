@@ -977,7 +977,7 @@ export function ScheduleMasterTab() {
       const response = await api.get<{ total: number }>("/api/v1/foundations/sm-schedule-master/records", {
         params: {
           per_page: 1,
-          "filter[sm_template_ids][op]": "is_empty",
+          filters: JSON.stringify([{ column: "sm_template_ids", operator: "is_empty" }]),
         },
       });
       setNoTemplateCount(response.total || 0);
