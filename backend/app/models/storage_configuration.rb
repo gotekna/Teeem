@@ -332,26 +332,87 @@ class StorageConfiguration < ApplicationRecord
   end
 
   # ========================================
+  # Provider Detection (SSoT: credentials are source of truth)
+  # ========================================
+
+  # Detect the actual provider from credentials
+  # SSoT: Credentials determine which provider is active, not the stored provider_type
+  def detected_provider_type
+    s3_credential = S3CompatibleCredential.active.first rescue nil
+    ms_credential = MicrosoftCredential.connected.first rescue nil
+
+    if s3_credential&.status == "connected"
+      s3_credential.provider_type == "wasabi" ? "wasabi" : "s3"
+    elsif ms_credential&.status == "connected"
+      "sharepoint"
+    else
+      provider_type # Fall back to stored value if no credentials
+    end
+  end
+
+  # Detect if actually connected based on credentials
+  def detected_connected?
+    s3_credential = S3CompatibleCredential.active.first rescue nil
+    ms_credential = MicrosoftCredential.connected.first rescue nil
+
+    case detected_provider_type
+    when "wasabi", "s3" then s3_credential&.status == "connected"
+    when "sharepoint" then ms_credential&.status == "connected"
+    else false
+    end
+  end
+
+  # Get connection info from the active credential
+  def detected_connection_info
+    s3_credential = S3CompatibleCredential.active.first rescue nil
+    ms_credential = MicrosoftCredential.connected.first rescue nil
+
+    case detected_provider_type
+    when "wasabi", "s3"
+      return {} unless s3_credential
+      {
+        "endpoint" => s3_credential.endpoint,
+        "bucket" => s3_credential.bucket,
+        "region" => s3_credential.region
+      }.compact
+    when "sharepoint"
+      return {} unless ms_credential
+      {
+        "site_url" => ms_credential.respond_to?(:site_url) ? ms_credential.site_url : nil,
+        "site_id" => ms_credential.sharepoint_site_id,
+        "drive_id" => ms_credential.sharepoint_drive_id,
+        "drive_name" => ms_credential.respond_to?(:drive_name) ? ms_credential.drive_name : "Shared Documents"
+      }.compact
+    else
+      {}
+    end
+  end
+
+  # ========================================
   # Configuration Export (for API/UI)
   # ========================================
 
   # Returns config in format expected by SharePointTab.tsx frontend
-  # Flat structure with connection details at top level
+  # SSoT: Uses detected provider from credentials, not stored provider_type
   def to_config_hash
+    actual_provider = detected_provider_type
+    actual_connected = detected_connected?
+    actual_connection = detected_connection_info
+
     {
-      configured: connected?,
-      provider_type: provider_type,
-      status: status,
-      # Connection details (flat, not nested)
-      site_url: site_url,
-      site_id: site_id,
-      drive_id: drive_id,
-      drive_name: drive_name,
-      # S3/Wasabi details
-      endpoint: endpoint,
-      bucket: bucket,
-      region: region,
-      # Paths
+      configured: actual_connected,
+      provider_type: actual_provider,
+      status: actual_connected ? "connected" : "disconnected",
+      # Connection details from active credential (flat, not nested)
+      site_url: actual_connection["site_url"] || site_url,
+      site_id: actual_connection["site_id"] || site_id,
+      drive_id: actual_connection["drive_id"] || drive_id,
+      drive_name: actual_connection["drive_name"] || drive_name,
+      # S3/Wasabi details from active credential
+      endpoint: actual_connection["endpoint"] || endpoint,
+      bucket: actual_connection["bucket"] || bucket,
+      region: actual_connection["region"] || region,
+      # Paths (from stored config)
       root_path: root_path,
       paths: paths,
       templates: templates

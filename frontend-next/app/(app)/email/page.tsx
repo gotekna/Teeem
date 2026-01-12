@@ -73,6 +73,7 @@ import { ThreadCountBadge } from "@/components/emails/ThreadCountBadge";
 import { QuickEmailActions } from "@/components/emails/QuickEmailActions";
 import { EmailContextMenu } from "@/components/emails/EmailContextMenu";
 import { EmailSummary } from "@/components/emails/EmailSummary";
+import { AttachmentList } from "@/components/emails/AttachmentList";
 import { useEmailKeyboardShortcuts } from "@/hooks/useEmailKeyboardShortcuts";
 import { useEmailSelection } from "@/hooks/useEmailSelection";
 import { useEmailBulkActions } from "@/hooks/useEmailBulkActions";
@@ -1030,6 +1031,17 @@ export default function EmailPage() {
 
   // Toggle mailbox favorite status
   const toggleMailboxFavorite = useCallback(async (accountId: string) => {
+    // Find the account to get its current state for optimistic update
+    const account = accounts.find(a => String(a.id) === accountId);
+    const currentFavorite = account?.is_favorite ?? false;
+
+    // Optimistic update - immediately toggle the UI
+    setAccounts(prev => prev.map(a =>
+      String(a.id) === accountId
+        ? { ...a, is_favorite: !currentFavorite }
+        : a
+    ));
+
     try {
       const response = await api.post<{ success: boolean; data: { account_id: string; is_favorite: boolean } }>(
         "/api/v1/imap_credentials/toggle_mailbox_favorite",
@@ -1037,17 +1049,31 @@ export default function EmailPage() {
       );
       const isFavorite = response?.data?.is_favorite;
       if (isFavorite !== undefined) {
-        // Update accounts state with new favorite status
+        // Confirm with server state (in case of any discrepancy)
         setAccounts(prev => prev.map(a =>
           String(a.id) === accountId
             ? { ...a, is_favorite: isFavorite }
             : a
         ));
+        toast({
+          title: isFavorite ? "Added to favorites" : "Removed from favorites",
+          description: account?.email_address || account?.name,
+        });
       }
     } catch (error) {
+      // Revert optimistic update on error
+      setAccounts(prev => prev.map(a =>
+        String(a.id) === accountId
+          ? { ...a, is_favorite: currentFavorite }
+          : a
+      ));
       console.error("Failed to toggle mailbox favorite:", error);
+      toast({
+        title: "Failed to update favorite",
+        variant: "destructive",
+      });
     }
-  }, []);
+  }, [accounts, toast]);
 
   // Handle URL account param changes (e.g., clicking different mailbox in nav)
   useEffect(() => {
@@ -2092,14 +2118,10 @@ To: ${email.to_emails?.join(", ") || ""}
             {/* Attachments */}
             {selectedEmail.attachments && selectedEmail.attachments.length > 0 && (
               <div className="px-4 py-2 border-b bg-muted/30 shrink-0">
-                <div className="flex flex-wrap gap-2">
-                  {selectedEmail.attachments.map((att) => (
-                    <Badge key={att.id} variant="secondary" className="flex items-center gap-1">
-                      <Paperclip className="h-3 w-3" />
-                      {att.name}
-                    </Badge>
-                  ))}
-                </div>
+                <AttachmentList
+                  attachments={selectedEmail.attachments}
+                  emailId={selectedEmail.id}
+                />
               </div>
             )}
 
@@ -2266,14 +2288,10 @@ To: ${email.to_emails?.join(", ") || ""}
               {/* Attachments */}
               {popoutEmail.attachments && popoutEmail.attachments.length > 0 && (
                 <div className="py-2 border-b bg-muted/30 shrink-0">
-                  <div className="flex flex-wrap gap-2">
-                    {popoutEmail.attachments.map((att) => (
-                      <Badge key={att.id} variant="secondary" className="flex items-center gap-1">
-                        <Paperclip className="h-3 w-3" />
-                        {att.name}
-                      </Badge>
-                    ))}
-                  </div>
+                  <AttachmentList
+                    attachments={popoutEmail.attachments}
+                    emailId={popoutEmail.id}
+                  />
                 </div>
               )}
 

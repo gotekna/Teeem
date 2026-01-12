@@ -3,22 +3,40 @@
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useSettingsAccess } from "@/lib/hooks/useSettingsAccess";
 import {
   User,
   Bell,
   Shield,
+  Sliders,
+  Users,
+  ShieldCheck,
+  Building,
   Link2,
-  Wrench,
-  GraduationCap,
+  FileText,
+  Settings2,
+  Server,
+  Code,
 } from "lucide-react";
 
-const SETTINGS_TABS = [
+// Personal tabs - visible to all authenticated users
+const PERSONAL_TABS = [
   { id: "profile", label: "Profile", icon: User },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "security", label: "Security", icon: Shield },
+  { id: "preferences", label: "Preferences", icon: Sliders },
+];
+
+// Organization tabs - visible to admin users only
+const ORGANIZATION_TABS = [
+  { id: "users", label: "Users", icon: Users },
+  { id: "roles", label: "Roles", icon: ShieldCheck },
+  { id: "company", label: "Company", icon: Building },
   { id: "integrations", label: "Integrations", icon: Link2 },
-  { id: "system", label: "System", icon: Wrench },
-  { id: "training", label: "Training", icon: GraduationCap },
+  { id: "documents", label: "Documents", icon: FileText },
+  { id: "operations", label: "Operations", icon: Settings2 },
+  { id: "system", label: "System", icon: Server },
+  { id: "developer", label: "Developer", icon: Code },
 ];
 
 export default function SettingsLayout({
@@ -28,16 +46,25 @@ export default function SettingsLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { isAdmin } = useSettingsAccess();
 
   // Extract current tab from path
   // /settings/profile → "profile"
   // /settings/integrations/xero → "integrations"
+  // /settings/company/info → "company"
   const pathParts = pathname.replace("/settings", "").split("/").filter(Boolean);
   const currentTab = pathParts[0] || "profile";
+
+  // Determine which section the current tab belongs to
+  const isPersonalTab = PERSONAL_TABS.some((t) => t.id === currentTab);
+  const isOrgTab = ORGANIZATION_TABS.some((t) => t.id === currentTab);
 
   const handleTabChange = (value: string) => {
     router.push(`/settings/${value}`);
   };
+
+  // All tabs for value matching
+  const allTabs = [...PERSONAL_TABS, ...(isAdmin ? ORGANIZATION_TABS : [])];
 
   return (
     <div className="space-y-6">
@@ -49,23 +76,47 @@ export default function SettingsLayout({
         </p>
       </div>
 
-      {/* Tab Navigation */}
+      {/* Tab Navigation with Sections */}
       <Tabs value={currentTab} onValueChange={handleTabChange}>
-        <TabsList>
-          {SETTINGS_TABS.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <TabsTrigger
-                key={tab.id}
-                value={tab.id}
-                className="gap-2"
-              >
-                <Icon className="h-4 w-4" />
-                {tab.label}
-              </TabsTrigger>
-            );
-          })}
-        </TabsList>
+        <div className="space-y-4">
+          {/* Personal Section */}
+          <div>
+            <h3 className="text-xs font-medium uppercase text-muted-foreground mb-2 tracking-wider">
+              Personal
+            </h3>
+            <TabsList>
+              {PERSONAL_TABS.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <TabsTrigger key={tab.id} value={tab.id} className="gap-2">
+                    <Icon className="h-4 w-4" />
+                    <span className="hidden sm:inline">{tab.label}</span>
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+          </div>
+
+          {/* Organization Section - Admin Only */}
+          {isAdmin && (
+            <div>
+              <h3 className="text-xs font-medium uppercase text-muted-foreground mb-2 tracking-wider">
+                Organization
+              </h3>
+              <TabsList className="flex-wrap h-auto gap-1">
+                {ORGANIZATION_TABS.map((tab) => {
+                  const Icon = tab.icon;
+                  return (
+                    <TabsTrigger key={tab.id} value={tab.id} className="gap-2">
+                      <Icon className="h-4 w-4" />
+                      <span className="hidden sm:inline">{tab.label}</span>
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+            </div>
+          )}
+        </div>
       </Tabs>
 
       {/* Content */}
