@@ -388,52 +388,13 @@ class StorageConfiguration < ApplicationRecord
     end
   end
 
-  # Get effective paths from CorporateCompanySetting
-  # SSoT: Reads actual configured paths, falling back to StorageConfiguration defaults
-  def effective_paths
-    ccs = CorporateCompanySetting.instance rescue nil
-    return paths unless ccs
-
-    # Merge CorporateCompanySetting paths with defaults
-    # Priority: CorporateCompanySetting sharepoint_* paths > StorageConfiguration paths > defaults
-    {
-      "jobs" => ccs.sharepoint_jobs_path.presence || paths["jobs"] || DEFAULT_PATHS["jobs"],
-      "tasks" => ccs.sharepoint_tasks_path.presence || paths["tasks"] || DEFAULT_PATHS["tasks"],
-      "corporate" => ccs.sharepoint_company_path.presence || paths["corporate"] || DEFAULT_PATHS["corporate"],
-      "people" => ccs.sharepoint_people_path.presence || paths["people"] || DEFAULT_PATHS["people"],
-      "contacts" => ccs.sharepoint_contacts_path.presence || paths["contacts"] || DEFAULT_PATHS["contacts"],
-      "emails" => paths["emails"] || DEFAULT_PATHS["emails"],
-      "accounts" => paths["accounts"] || DEFAULT_PATHS["accounts"]
-    }
-  end
-
-  # Get effective templates from CorporateCompanySetting
-  def effective_templates
-    ccs = CorporateCompanySetting.instance rescue nil
-    return templates unless ccs
-
-    {
-      "job" => ccs.sharepoint_job_template.presence || templates["job"] || DEFAULT_TEMPLATES["job"],
-      "task" => ccs.sharepoint_task_template.presence || templates["task"] || DEFAULT_TEMPLATES["task"],
-      "corporate" => ccs.sharepoint_company_template.presence || templates["corporate"] || DEFAULT_TEMPLATES["corporate"],
-      "people" => ccs.sharepoint_people_template.presence || templates["people"] || DEFAULT_TEMPLATES["people"],
-      "contacts" => ccs.sharepoint_contacts_template.presence || templates["contacts"] || DEFAULT_TEMPLATES["contacts"],
-      "account" => templates["account"] || DEFAULT_TEMPLATES["account"]
-    }
-  end
-
-  # Get effective root path
-  def effective_root_path
-    ccs = CorporateCompanySetting.instance rescue nil
-    ccs&.sharepoint_root_path.presence || root_path || "/Shared Documents"
-  end
-
   # ========================================
   # Configuration Export (for API/UI)
   # ========================================
 
   # Returns config in format expected by SharePointTab.tsx frontend
-  # SSoT: Uses detected provider from credentials and actual paths from CorporateCompanySetting
+  # SSoT: StorageConfiguration IS the source of truth for paths/templates
+  # (Data migrated from CorporateCompanySetting via migration 20260112120003)
   def to_config_hash
     actual_provider = detected_provider_type
     actual_connected = detected_connected?
@@ -452,10 +413,10 @@ class StorageConfiguration < ApplicationRecord
       endpoint: actual_connection["endpoint"] || endpoint,
       bucket: actual_connection["bucket"] || bucket,
       region: actual_connection["region"] || region,
-      # Paths - SSoT: reads from CorporateCompanySetting
-      root_path: effective_root_path,
-      paths: effective_paths,
-      templates: effective_templates
+      # Paths - SSoT: StorageConfiguration is THE source of truth
+      root_path: root_path,
+      paths: paths,
+      templates: templates
     }
   end
 end
