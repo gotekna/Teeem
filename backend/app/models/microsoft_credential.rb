@@ -396,6 +396,17 @@ class MicrosoftCredential < ApplicationRecord
     StorageConfiguration.instance&.connected?
   end
 
+  # Delegate drive_id to StorageConfiguration (SSoT)
+  # Required for backward compatibility with code that calls credential.drive_id
+  def drive_id
+    StorageConfiguration.instance&.drive_id
+  end
+
+  # Delegate site_id to StorageConfiguration (SSoT)
+  def site_id
+    StorageConfiguration.instance&.site_id
+  end
+
   # Test the connection by making a simple API call
   # IMPORTANT: App credentials (client_credentials) cannot call /me - no user context
   # Use different endpoints based on credential type
