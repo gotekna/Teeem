@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useEffect, useRef, useCallback, useMemo } from "react";
+import { useEffect, useRef, useCallback, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { GripVertical } from "lucide-react";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
@@ -24,9 +24,12 @@ interface PositionedTextBoxProps {
   onUpdate: (id: string, content: string) => void;
   onBlur: (id: string, content: string) => void;
   onDragStart: (e: React.MouseEvent) => void;
+  onResize?: (id: string, width_percent: number, height_px: number) => void;
   onFocus?: (editor: Editor) => void;
   autoFocus?: boolean;
   isDragging?: boolean;
+  isResizing?: boolean;
+  containerRef?: React.RefObject<HTMLDivElement | null>;
   className?: string;
 }
 
@@ -35,12 +38,16 @@ export function PositionedTextBox({
   onUpdate,
   onBlur,
   onDragStart,
+  onResize,
   onFocus,
   autoFocus = false,
   isDragging = false,
+  isResizing = false,
+  containerRef: externalContainerRef,
   className,
 }: PositionedTextBoxProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [isFocused, setIsFocused] = useState(false);
 
   // Memoize extensions to prevent TipTap duplicate extension warnings
   const extensions = useMemo(() => [
@@ -48,7 +55,7 @@ export function PositionedTextBox({
       heading: false,
     }),
     Placeholder.configure({
-      placeholder: "Type here...",
+      placeholder: box.isMainContent ? "Start writing..." : "Type here...",
     }),
     Underline,
     TextStyle,
@@ -78,7 +85,7 @@ export function PositionedTextBox({
       },
       nested: true,
     }),
-  ], []);
+  ], [box.isMainContent]);
 
   const editor = useEditor({
     extensions,
@@ -93,14 +100,21 @@ export function PositionedTextBox({
       onUpdate(box.id, editor.getHTML());
     },
     onFocus: ({ editor }) => {
+      setIsFocused(true);
       registerFocusedEditor(editor);
       onFocus?.(editor);
     },
     onBlur: ({ editor }) => {
+      setIsFocused(false);
       const content = editor.getHTML();
       // Check if content is empty (just empty paragraph tags)
       const isEmpty = content === "<p></p>" || content === "" || !editor.getText().trim();
-      onBlur(box.id, isEmpty ? "" : content);
+      // Don't remove main content box when empty
+      if (box.isMainContent) {
+        onBlur(box.id, content);
+      } else {
+        onBlur(box.id, isEmpty ? "" : content);
+      }
     },
   });
 
@@ -126,40 +140,140 @@ export function PositionedTextBox({
     }
   }, [editor]);
 
+  // Resize handler for bottom-right corner
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!boxRef.current || !externalContainerRef?.current || !onResize) return;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startWidth = boxRef.current.offsetWidth;
+    const startHeight = boxRef.current.offsetHeight;
+    const containerRect = externalContainerRef.current.getBoundingClientRect();
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const deltaY = moveEvent.clientY - startY;
+
+      const newWidth = Math.max(100, startWidth + deltaX);
+      const newHeight = Math.max(50, startHeight + deltaY);
+
+      // Convert width to percentage of container
+      const widthPercent = (newWidth / containerRect.width) * 100;
+
+      onResize(box.id, widthPercent, newHeight);
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  }, [box.id, externalContainerRef, onResize]);
+
+  // Resize handler for right edge (width only)
+  const handleResizeWidthStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!boxRef.current || !externalContainerRef?.current || !onResize) return;
+
+    const startX = e.clientX;
+    const startWidth = boxRef.current.offsetWidth;
+    const containerRect = externalContainerRef.current.getBoundingClientRect();
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const newWidth = Math.max(100, startWidth + deltaX);
+      const widthPercent = (newWidth / containerRect.width) * 100;
+      onResize(box.id, widthPercent, box.height_px || boxRef.current!.offsetHeight);
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  }, [box.id, box.height_px, externalContainerRef, onResize]);
+
+  // Resize handler for bottom edge (height only)
+  const handleResizeHeightStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!boxRef.current || !externalContainerRef?.current || !onResize) return;
+
+    const startY = e.clientY;
+    const startHeight = boxRef.current.offsetHeight;
+    const containerRect = externalContainerRef.current.getBoundingClientRect();
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaY = moveEvent.clientY - startY;
+      const newHeight = Math.max(50, startHeight + deltaY);
+      const currentWidthPercent = box.width_percent || (boxRef.current!.offsetWidth / containerRect.width) * 100;
+      onResize(box.id, currentWidthPercent, newHeight);
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  }, [box.id, box.width_percent, externalContainerRef, onResize]);
+
+  const showBorder = isFocused || isDragging || isResizing;
+
   return (
     <div
-      ref={containerRef}
+      ref={boxRef}
       data-positioned-box
       className={cn(
         "absolute flex items-start group",
         isDragging && "opacity-70 cursor-grabbing",
+        isResizing && "select-none",
         className
       )}
       style={{
         left: `${box.x_percent}%`,
         top: `${box.y_percent}%`,
+        width: box.width_percent ? `${box.width_percent}%` : undefined,
+        minWidth: box.isMainContent ? "300px" : "80px",
+        minHeight: box.isMainContent && !box.height_px ? "400px" : undefined,
+        height: box.height_px ? `${box.height_px}px` : undefined,
       }}
       onKeyDown={handleKeyDown}
     >
-      {/* Drag handle */}
+      {/* Drag handle - only show when focused/clicked */}
       <div
         className={cn(
           "flex items-center justify-center w-5 h-6 cursor-grab shrink-0",
-          "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity",
+          "opacity-0 transition-opacity",
           "text-muted-foreground hover:text-foreground",
-          isDragging && "opacity-100 cursor-grabbing"
+          (isDragging || showBorder) && "opacity-100",
+          isDragging && "cursor-grabbing"
         )}
         onMouseDown={onDragStart}
       >
         <GripVertical className="h-4 w-4" />
       </div>
-      {/* Editable content */}
+
+      {/* Editable content with border - only show border when focused/clicked */}
       <div
         className={cn(
-          "min-w-[80px] px-2 py-1",
-          "border border-transparent rounded-sm",
+          "flex-1 h-full px-2 py-1",
+          "border rounded-sm",
           "bg-transparent",
-          "focus-within:border-black/50 focus-within:dark:border-white/50",
+          showBorder
+            ? "border-black/50 dark:border-white/50"
+            : "border-transparent",
           "[&_.ProseMirror]:outline-none",
           "[&_.ProseMirror_p.is-editor-empty:first-child]:before:content-[attr(data-placeholder)]",
           "[&_.ProseMirror_p.is-editor-empty:first-child]:before:text-muted-foreground/50",
@@ -176,9 +290,41 @@ export function PositionedTextBox({
           "[&_.task-item>label]:flex [&_.task-item>label]:items-center [&_.task-item>label]:shrink-0",
           "[&_.task-item>div]:flex-1 [&_.task-item>div]:min-w-0"
         )}
+        style={{
+          overflow: box.height_px ? "auto" : undefined,
+          minHeight: "20px",
+        }}
       >
         <EditorContent editor={editor} />
       </div>
+
+      {/* Resize handles - only show when focused/clicked, positioned on outer container */}
+      {onResize && showBorder && (
+        <>
+          {/* Right edge resize handle */}
+          <div
+            className="absolute top-0 right-0 w-2 h-full cursor-ew-resize hover:bg-blue-500/20"
+            onMouseDown={handleResizeWidthStart}
+          />
+
+          {/* Bottom edge resize handle */}
+          <div
+            className="absolute bottom-0 left-0 w-full h-2 cursor-ns-resize hover:bg-blue-500/20"
+            onMouseDown={handleResizeHeightStart}
+          />
+
+          {/* Bottom-right corner resize handle */}
+          <div
+            className={cn(
+              "absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize hover:bg-blue-500/20",
+              "after:absolute after:bottom-0.5 after:right-0.5",
+              "after:w-2 after:h-2 after:border-r-2 after:border-b-2",
+              "after:border-muted-foreground/50"
+            )}
+            onMouseDown={handleResizeStart}
+          />
+        </>
+      )}
     </div>
   );
 }

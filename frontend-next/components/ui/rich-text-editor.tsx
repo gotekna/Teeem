@@ -292,7 +292,30 @@ function ToolbarButton({
 }
 
 // Exported for external use (e.g., notebook editor header toolbar)
-export function EditorToolbar({ editor, showWritingChecker, transparent }: { editor: Editor | null; showWritingChecker?: boolean; transparent?: boolean }) {
+export function EditorToolbar({
+  editor,
+  showWritingChecker,
+  transparent,
+  onExternalImageUpload,
+  onExternalUndo,
+  onExternalRedo,
+  canExternalUndo,
+  canExternalRedo,
+}: {
+  editor: Editor | null;
+  showWritingChecker?: boolean;
+  transparent?: boolean;
+  /** Called when image is uploaded but no editor is focused - for inserting as positioned element */
+  onExternalImageUpload?: (base64: string) => void;
+  /** Called when undo is clicked and no editor is focused - for undoing positioned box changes */
+  onExternalUndo?: () => void;
+  /** Called when redo is clicked and no editor is focused - for redoing positioned box changes */
+  onExternalRedo?: () => void;
+  /** Whether external undo is available */
+  canExternalUndo?: boolean;
+  /** Whether external redo is available */
+  canExternalRedo?: boolean;
+}) {
   const [linkUrl, setLinkUrl] = React.useState("");
   const [linkOpen, setLinkOpen] = React.useState(false);
   const [fontSizeInput, setFontSizeInput] = React.useState("");
@@ -309,10 +332,8 @@ export function EditorToolbar({ editor, showWritingChecker, transparent }: { edi
     e.preventDefault();
   };
 
-  if (!editor) return null;
-
   // Check if editor view is available (prevents errors during mount/unmount)
-  const isEditorReady = editor.view && !editor.isDestroyed;
+  const isEditorReady = editor?.view && !editor?.isDestroyed;
 
   // Safe wrapper for isActive to prevent errors during mount/unmount
   const safeIsActive = (name: string) => {
@@ -326,10 +347,12 @@ export function EditorToolbar({ editor, showWritingChecker, transparent }: { edi
 
   // Get current font size from selection
   const getCurrentFontSize = () => {
-    if (!isEditorReady) return "";
+    const targetEditor = getTargetEditor();
+    if (!targetEditor?.view || targetEditor.isDestroyed) return "";
     try {
-      const attrs = editor.getAttributes("textStyle");
-      return attrs.fontSize ? attrs.fontSize.replace("px", "") : "";
+      const attrs = targetEditor.getAttributes("textStyle");
+      // Return explicit font size if set, otherwise return default (14px is the TipTap default)
+      return attrs.fontSize ? attrs.fontSize.replace("px", "") : "14";
     } catch {
       return "";
     }
@@ -362,7 +385,16 @@ export function EditorToolbar({ editor, showWritingChecker, transparent }: { edi
     const reader = new FileReader();
     reader.onload = () => {
       const base64 = reader.result as string;
-      getTargetEditor()?.chain().focus().setImage({ src: base64 }).run();
+      const targetEditor = getTargetEditor();
+
+      // If no editor is focused and we have external handler, use that
+      // This allows images to be inserted as positioned boxes in notebook canvas
+      if ((!targetEditor || !targetEditor.isFocused) && onExternalImageUpload) {
+        onExternalImageUpload(base64);
+      } else {
+        // Insert into the focused editor
+        targetEditor?.chain().focus().setImage({ src: base64 }).run();
+      }
     };
     reader.readAsDataURL(file);
 
@@ -393,12 +425,13 @@ export function EditorToolbar({ editor, showWritingChecker, transparent }: { edi
     >
       {/* Font Size - Editable input with dropdown */}
       <Popover open={fontSizeOpen} onOpenChange={setFontSizeOpen}>
-        <div className="flex items-center border rounded-sm bg-background">
+        <div className={cn("flex items-center border rounded-sm bg-background", !isEditorReady && "opacity-50")}>
           <input
             ref={fontSizeInputRef}
             type="text"
             value={fontSizeInput || getCurrentFontSize()}
             onChange={(e) => setFontSizeInput(e.target.value)}
+            disabled={!isEditorReady}
             onFocus={(e) => {
               e.target.select();
               setFontSizeInput(getCurrentFontSize());
@@ -425,7 +458,8 @@ export function EditorToolbar({ editor, showWritingChecker, transparent }: { edi
           <PopoverTrigger asChild>
             <button
               type="button"
-              className="h-6 px-0.5 border-l hover:bg-muted/50 flex items-center justify-center"
+              disabled={!isEditorReady}
+              className="h-6 px-0.5 border-l hover:bg-muted/50 flex items-center justify-center disabled:opacity-50"
               title="Font size presets"
               onMouseDown={(e) => e.preventDefault()}
             >
@@ -459,6 +493,7 @@ export function EditorToolbar({ editor, showWritingChecker, transparent }: { edi
       <ToolbarButton
         onClick={() => getTargetEditor()?.chain().focus().toggleBold().run()}
         isActive={safeIsActive("bold")}
+        disabled={!isEditorReady}
         title="Bold (Cmd+B)"
       >
         <Bold className="h-4 w-4" />
@@ -466,6 +501,7 @@ export function EditorToolbar({ editor, showWritingChecker, transparent }: { edi
       <ToolbarButton
         onClick={() => getTargetEditor()?.chain().focus().toggleItalic().run()}
         isActive={safeIsActive("italic")}
+        disabled={!isEditorReady}
         title="Italic (Cmd+I)"
       >
         <Italic className="h-4 w-4" />
@@ -473,6 +509,7 @@ export function EditorToolbar({ editor, showWritingChecker, transparent }: { edi
       <ToolbarButton
         onClick={() => getTargetEditor()?.chain().focus().toggleUnderline().run()}
         isActive={safeIsActive("underline")}
+        disabled={!isEditorReady}
         title="Underline (Cmd+U)"
       >
         <UnderlineIcon className="h-4 w-4" />
@@ -480,6 +517,7 @@ export function EditorToolbar({ editor, showWritingChecker, transparent }: { edi
       <ToolbarButton
         onClick={() => getTargetEditor()?.chain().focus().toggleStrike().run()}
         isActive={safeIsActive("strike")}
+        disabled={!isEditorReady}
         title="Strikethrough"
       >
         <Strikethrough className="h-4 w-4" />
@@ -491,6 +529,7 @@ export function EditorToolbar({ editor, showWritingChecker, transparent }: { edi
       <ToolbarButton
         onClick={() => getTargetEditor()?.chain().focus().toggleBulletList().run()}
         isActive={safeIsActive("bulletList")}
+        disabled={!isEditorReady}
         title="Bullet list"
       >
         <List className="h-4 w-4" />
@@ -498,6 +537,7 @@ export function EditorToolbar({ editor, showWritingChecker, transparent }: { edi
       <ToolbarButton
         onClick={() => getTargetEditor()?.chain().focus().toggleOrderedList().run()}
         isActive={safeIsActive("orderedList")}
+        disabled={!isEditorReady}
         title="Numbered list"
       >
         <ListOrdered className="h-4 w-4" />
@@ -505,6 +545,7 @@ export function EditorToolbar({ editor, showWritingChecker, transparent }: { edi
       <ToolbarButton
         onClick={() => getTargetEditor()?.chain().focus().toggleTaskList().run()}
         isActive={safeIsActive("taskList")}
+        disabled={!isEditorReady}
         title="Checklist"
       >
         <ListTodo className="h-4 w-4" />
@@ -520,6 +561,7 @@ export function EditorToolbar({ editor, showWritingChecker, transparent }: { edi
             variant="ghost"
             size="sm"
             title="Add link"
+            disabled={!isEditorReady}
             onMouseDown={(e) => e.preventDefault()}
             className={cn(
               "h-7 w-7 p-0",
@@ -567,6 +609,7 @@ export function EditorToolbar({ editor, showWritingChecker, transparent }: { edi
       />
       <ToolbarButton
         onClick={() => imageInputRef.current?.click()}
+        disabled={!isEditorReady}
         title="Insert image"
       >
         <ImageIcon className="h-4 w-4" />
@@ -576,15 +619,33 @@ export function EditorToolbar({ editor, showWritingChecker, transparent }: { edi
 
       {/* Undo/Redo */}
       <ToolbarButton
-        onClick={() => getTargetEditor()?.chain().focus().undo().run()}
-        disabled={!isEditorReady || !editor.can().undo()}
+        onClick={() => {
+          const targetEditor = getTargetEditor();
+          // If editor is focused and can undo, use editor's undo
+          if (targetEditor?.isFocused && targetEditor.can().undo()) {
+            targetEditor.chain().focus().undo().run();
+          } else if (onExternalUndo) {
+            // Otherwise use external undo (for positioned boxes)
+            onExternalUndo();
+          }
+        }}
+        disabled={!(isEditorReady && editor?.can().undo()) && !canExternalUndo}
         title="Undo (Cmd+Z)"
       >
         <Undo className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
-        onClick={() => getTargetEditor()?.chain().focus().redo().run()}
-        disabled={!isEditorReady || !editor.can().redo()}
+        onClick={() => {
+          const targetEditor = getTargetEditor();
+          // If editor is focused and can redo, use editor's redo
+          if (targetEditor?.isFocused && targetEditor.can().redo()) {
+            targetEditor.chain().focus().redo().run();
+          } else if (onExternalRedo) {
+            // Otherwise use external redo (for positioned boxes)
+            onExternalRedo();
+          }
+        }}
+        disabled={!(isEditorReady && editor?.can().redo()) && !canExternalRedo}
         title="Redo (Cmd+Shift+Z)"
       >
         <Redo className="h-4 w-4" />

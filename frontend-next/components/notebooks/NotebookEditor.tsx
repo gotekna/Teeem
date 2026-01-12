@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { RichTextEditor, EditorToolbar, type Editor } from "@/components/ui/rich-text-editor";
+import { EditorToolbar, type Editor } from "@/components/ui/rich-text-editor";
 import {
   useNotebookPage,
   attachmentActions,
@@ -26,7 +26,26 @@ import {
   Image,
   File,
   X,
+  Share2,
+  Copy,
 } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import MultipleSelector, { type Option } from "@/components/ui/multiple-selector";
+import { api } from "@/lib/api";
+
+// Constants for the main content box - must match NotebookCanvas
+const MAIN_CONTENT_ID = "main-content";
 
 interface NotebookEditorProps {
   pageId: number | null;
@@ -48,6 +67,63 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
     saveNow,
   } = useNotebookPage(pageId, notebookId);
 
+  // All state declarations MUST come before callbacks that use them
+  const [title, setTitle] = useState("");
+  const [attachments, setAttachments] = useState<NotebookPageAttachment[]>([]);
+  const [positionedBoxes, setPositionedBoxes] = useState<PositionedBoxData[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [showAttachments, setShowAttachments] = useState(false);
+  const [activeEditor, setActiveEditor] = useState<Editor | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Undo/redo history for positioned boxes (images and text boxes)
+  const [boxesHistory, setBoxesHistory] = useState<PositionedBoxData[][]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const isUndoRedoRef = useRef(false); // Track if change is from undo/redo
+
+  // Share state
+  const [selectedUsers, setSelectedUsers] = useState<Option[]>([]);
+  const [shareAccess, setShareAccess] = useState<"read" | "edit">("read");
+  const [shareLinkCopied, setShareLinkCopied] = useState(false);
+  const [userOptions, setUserOptions] = useState<Option[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+
+  // Undo function for positioned boxes
+  const undoBoxes = useCallback(() => {
+    if (historyIndex > 0) {
+      isUndoRedoRef.current = true;
+      const newIndex = historyIndex - 1;
+      const previousBoxes = boxesHistory[newIndex];
+      setHistoryIndex(newIndex);
+      setPositionedBoxes(previousBoxes);
+      updateContentMetadata({ positioned_boxes: previousBoxes });
+
+      // Also update legacy content field if main content box exists
+      const mainBox = previousBoxes.find(b => b.id === MAIN_CONTENT_ID);
+      if (mainBox) {
+        updateContent(mainBox.content);
+      }
+    }
+  }, [historyIndex, boxesHistory, updateContentMetadata, updateContent]);
+
+  // Redo function for positioned boxes
+  const redoBoxes = useCallback(() => {
+    if (historyIndex < boxesHistory.length - 1) {
+      isUndoRedoRef.current = true;
+      const newIndex = historyIndex + 1;
+      const nextBoxes = boxesHistory[newIndex];
+      setHistoryIndex(newIndex);
+      setPositionedBoxes(nextBoxes);
+      updateContentMetadata({ positioned_boxes: nextBoxes });
+
+      // Also update legacy content field if main content box exists
+      const mainBox = nextBoxes.find(b => b.id === MAIN_CONTENT_ID);
+      if (mainBox) {
+        updateContent(mainBox.content);
+      }
+    }
+  }, [historyIndex, boxesHistory, updateContentMetadata, updateContent]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -58,45 +134,121 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
           saveNow();
         }
       }
+
+      // Ctrl/Cmd + Z to undo (only when not in text editor)
+      // Check if active element is a TipTap editor (it has its own undo)
+      const activeEl = document.activeElement;
+      const isInTipTap = activeEl?.closest('.ProseMirror') !== null;
+
+      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey && !isInTipTap) {
+        e.preventDefault();
+        undoBoxes();
+      }
+
+      // Ctrl/Cmd + Shift + Z or Ctrl/Cmd + Y to redo (only when not in text editor)
+      if ((e.ctrlKey || e.metaKey) && (e.key === "z" && e.shiftKey || e.key === "y") && !isInTipTap) {
+        e.preventDefault();
+        redoBoxes();
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [pageId, hasUnsavedChanges, saveNow]);
+  }, [pageId, hasUnsavedChanges, saveNow, undoBoxes, redoBoxes]);
 
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
-  const [attachments, setAttachments] = useState<NotebookPageAttachment[]>([]);
-  const [positionedBoxes, setPositionedBoxes] = useState<PositionedBoxData[]>([]);
-  const [isUploading, setIsUploading] = useState(false);
-  const [showAttachments, setShowAttachments] = useState(false);
-  const [mainEditor, setMainEditor] = useState<Editor | null>(null);
-  const [activeEditor, setActiveEditor] = useState<Editor | null>(null);
-  const activeEditorRef = useRef<Editor | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Helper to set active editor (updates both ref and state)
-  const updateActiveEditor = useCallback((editor: Editor | null) => {
-    activeEditorRef.current = editor;
-    setActiveEditor(editor);
+  // Load users for sharing
+  useEffect(() => {
+    const loadUsers = async () => {
+      setLoadingUsers(true);
+      try {
+        const response = await api.get<{ users: { id: number; name: string }[] }>('/api/v1/users/for_select');
+        if (response?.users) {
+          setUserOptions(response.users.map(u => ({
+            value: String(u.id),
+            label: u.name,
+          })));
+        }
+      } catch (err) {
+        console.error('Failed to load users:', err);
+      } finally {
+        setLoadingUsers(false);
+      }
+    };
+    loadUsers();
   }, []);
 
-  // Calculate word and character counts from local content (real-time)
+  // Generate share link
+  const shareLink = useMemo(() => {
+    if (typeof window === "undefined") return "";
+    const baseUrl = window.location.origin;
+    if (pageId && notebookId) {
+      return `${baseUrl}/notebooks/${notebookId}/pages/${pageId}`;
+    }
+    if (notebookId) {
+      return `${baseUrl}/notebooks/${notebookId}`;
+    }
+    return "";
+  }, [pageId, notebookId]);
+
+  const handleCopyLink = useCallback(() => {
+    if (shareLink) {
+      navigator.clipboard.writeText(shareLink);
+      setShareLinkCopied(true);
+      setTimeout(() => setShareLinkCopied(false), 2000);
+    }
+  }, [shareLink]);
+
+  const handleShare = useCallback(() => {
+    if (selectedUsers.length === 0) return;
+    // TODO: Implement actual share API call
+    console.log("Sharing with:", {
+      userIds: selectedUsers.map(u => u.value),
+      access: shareAccess,
+      pageId,
+      notebookId,
+    });
+    // Reset form
+    setSelectedUsers([]);
+    setShareAccess("read");
+  }, [selectedUsers, shareAccess, pageId, notebookId]);
+
+  // Calculate word and character counts from all boxes content
   const { wordCount, charCount } = useMemo(() => {
-    // Strip HTML tags to get plain text
-    const plainText = content.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    const allContent = positionedBoxes.map(b => b.content).join(" ");
+    const plainText = allContent.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
     const chars = plainText.length;
     const words = plainText ? plainText.split(/\s+/).filter(Boolean).length : 0;
     return { wordCount: words, charCount: chars };
-  }, [content]);
+  }, [positionedBoxes]);
 
   // Sync local state with fetched page data
   useEffect(() => {
     if (page) {
       setTitle(page.title);
-      setContent(page.content || "");
       setAttachments(page.attachments || []);
-      setPositionedBoxes(page.content_metadata?.positioned_boxes || []);
+
+      // Load positioned boxes from content_metadata
+      // If there's legacy content without positioned_boxes, create main box with that content
+      const boxes = page.content_metadata?.positioned_boxes || [];
+      let initialBoxes: PositionedBoxData[];
+      if (boxes.length === 0 && page.content) {
+        // Migrate legacy content to main content box
+        initialBoxes = [{
+          id: MAIN_CONTENT_ID,
+          x_percent: 5,
+          y_percent: 2,
+          width_percent: 85,
+          content: page.content,
+          isMainContent: true,
+        }];
+      } else {
+        initialBoxes = boxes;
+      }
+      setPositionedBoxes(initialBoxes);
+
+      // Initialize history with the loaded state
+      setBoxesHistory([initialBoxes]);
+      setHistoryIndex(0);
     }
   }, [page]);
 
@@ -156,17 +308,62 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
     updateTitle(newTitle);
   };
 
-  const handleContentChange = (newContent: string) => {
-    setContent(newContent);
-    updateContent(newContent);
-  };
-
   const handlePositionedBoxesChange = useCallback(
-    (boxes: PositionedBoxData[]) => {
+    (boxes: PositionedBoxData[], skipHistory?: boolean) => {
       setPositionedBoxes(boxes);
+
+      // Find main content box and sync to legacy content field for compatibility
+      const mainBox = boxes.find(b => b.id === MAIN_CONTENT_ID);
+      if (mainBox) {
+        updateContent(mainBox.content);
+      }
+
+      // Save all boxes to content_metadata
       updateContentMetadata({ positioned_boxes: boxes });
+
+      // Skip history tracking during live resize/drag operations
+      if (skipHistory) {
+        return;
+      }
+
+      // Track history for undo/redo (skip if this change came from undo/redo)
+      if (isUndoRedoRef.current) {
+        isUndoRedoRef.current = false;
+        return;
+      }
+
+      // Add to history, discarding any "future" states if we're not at the end
+      setBoxesHistory((prev) => {
+        const newHistory = prev.slice(0, historyIndex + 1);
+        // Limit history to 50 states to avoid memory issues
+        const limitedHistory = newHistory.length >= 50
+          ? newHistory.slice(-49)
+          : newHistory;
+        return [...limitedHistory, boxes];
+      });
+      setHistoryIndex((prev) => Math.min(prev + 1, 49));
     },
-    [updateContentMetadata]
+    [updateContent, updateContentMetadata, historyIndex]
+  );
+
+  // Handle external image upload - creates a positioned image box
+  const handleExternalImageUpload = useCallback(
+    (base64: string) => {
+      // Create image box at a default position (slightly offset from center)
+      const newImageBox: PositionedBoxData = {
+        id: crypto.randomUUID(),
+        x_percent: 10,
+        y_percent: 10 + (positionedBoxes.filter(b => b.type === "image").length * 5), // Stack new images slightly lower
+        width_percent: 30, // Default width
+        content: "",
+        type: "image",
+        imageUrl: base64,
+      };
+
+      // Use handlePositionedBoxesChange so it tracks history for undo/redo
+      handlePositionedBoxesChange([...positionedBoxes, newImageBox]);
+    },
+    [positionedBoxes, handlePositionedBoxesChange]
   );
 
   if (!pageId) {
@@ -197,53 +394,150 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
 
   return (
     <div className={cn("flex flex-col h-full", className)}>
-      {/* Header with toolbar (left) and save status/attachments (right) */}
-      <div className="flex items-center justify-between gap-2 py-1 border-b px-4">
-        {/* Toolbar on the left - fixed position, doesn't move with slider */}
-        <div className="flex-1">
-          <EditorToolbar editor={activeEditor} transparent />
-        </div>
+      {/* Toolbar header */}
+      <div className="border-b px-4 py-2">
+        <div className="flex items-center justify-between gap-2">
+          <EditorToolbar
+            editor={activeEditor}
+            transparent
+            onExternalImageUpload={handleExternalImageUpload}
+            onExternalUndo={undoBoxes}
+            onExternalRedo={redoBoxes}
+            canExternalUndo={historyIndex > 0}
+            canExternalRedo={historyIndex < boxesHistory.length - 1}
+          />
 
-        {/* Save status and attachments on the right */}
-        <div className="flex items-center gap-2 shrink-0">
-          <SaveStatus
-            isSaving={isSaving}
-            hasUnsavedChanges={hasUnsavedChanges}
-            lastSaved={lastSaved}
-          />
-          <input
-            ref={fileInputRef}
-            type="file"
-            className="hidden"
-            onChange={handleFileUpload}
-          />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            className="relative"
-          >
-            {isUploading ? (
-              <Spinner className="h-4 w-4" />
-            ) : (
-              <Paperclip className="h-4 w-4" />
-            )}
-            {attachments.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                {attachments.length}
-              </span>
-            )}
-          </Button>
-          {attachments.length > 0 && (
+          {/* Save status and attachments */}
+          <div className="flex items-center gap-2 shrink-0">
+            <SaveStatus
+              isSaving={isSaving}
+              hasUnsavedChanges={hasUnsavedChanges}
+              lastSaved={lastSaved}
+            />
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
             <Button
-              variant={showAttachments ? "secondary" : "ghost"}
+              variant="ghost"
               size="sm"
-              onClick={() => setShowAttachments(!showAttachments)}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="relative"
             >
-              Attachments
+              {isUploading ? (
+                <Spinner className="h-4 w-4" />
+              ) : (
+                <Paperclip className="h-4 w-4" />
+              )}
+              {attachments.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full h-4 w-4 flex items-center justify-center">
+                  {attachments.length}
+                </span>
+              )}
             </Button>
-          )}
+            {attachments.length > 0 && (
+              <Button
+                variant={showAttachments ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setShowAttachments(!showAttachments)}
+              >
+                Attachments
+              </Button>
+            )}
+
+            {/* Share button */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="sm">
+                  <Share2 className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80" align="end">
+                <div className="space-y-4">
+                  <h4 className="font-medium text-sm">Share this page</h4>
+
+                  {/* User selector */}
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground">
+                      Share with team members
+                    </label>
+                    <MultipleSelector
+                      value={selectedUsers}
+                      onChange={setSelectedUsers}
+                      defaultOptions={userOptions}
+                      placeholder="Search users..."
+                      emptyIndicator={
+                        loadingUsers ? (
+                          <p className="text-center text-sm text-muted-foreground py-2">Loading...</p>
+                        ) : (
+                          <p className="text-center text-sm text-muted-foreground py-2">No users found</p>
+                        )
+                      }
+                      className="min-h-[36px]"
+                      badgeClassName="bg-primary/10 text-primary hover:bg-primary/20"
+                    />
+                    <div className="flex items-center gap-2">
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <Select
+                          value={shareAccess}
+                          onValueChange={(v: "read" | "edit") => setShareAccess(v)}
+                        >
+                          <SelectTrigger className="w-28 h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="read">Can view</SelectItem>
+                            <SelectItem value="edit">Can edit</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={handleShare}
+                        disabled={selectedUsers.length === 0}
+                        className="flex-1 h-8"
+                      >
+                        Share
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="border-t" />
+
+                  {/* Share link */}
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground">
+                      Or copy link
+                    </label>
+                    <div className="flex gap-2">
+                      <Input
+                        readOnly
+                        value={shareLink}
+                        className="flex-1 h-8 text-xs bg-muted"
+                        onClick={(e) => (e.target as HTMLInputElement).select()}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleCopyLink}
+                        className="h-8 px-3"
+                      >
+                        {shareLinkCopied ? (
+                          <Check className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
       </div>
 
@@ -274,26 +568,20 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
         </div>
       )}
 
-      {/* Editor */}
-      <div className="flex-1 overflow-auto">
-        <NotebookCanvas
-          boxes={positionedBoxes}
-          onBoxesChange={handlePositionedBoxesChange}
-          onActiveEditorChange={updateActiveEditor}
-          className="min-h-full"
-        >
-          <div style={{ paddingLeft: 78, paddingRight: 24, paddingTop: 45, paddingBottom: 16 }}>
-            {/* Title */}
+      {/* Page content area */}
+      <div className="flex-1 overflow-auto bg-background">
+        <div className="bg-background min-h-full">
+          {/* Page header */}
+          <div className="pl-[78px] pr-6 pt-4 pb-2">
             <Input
               value={title}
               onChange={handleTitleChange}
               placeholder="Untitled"
               className="text-2xl font-semibold border-none shadow-none focus-visible:ring-0 px-0 h-auto"
             />
-            <div className="border-b border-border mb-1" />
-            {/* Created date */}
+            <div className="w-3/4 h-px bg-muted-foreground/30 my-2" />
             {page?.created_at && (
-              <p className="text-sm text-muted-foreground mb-4">
+              <p className="text-sm text-muted-foreground">
                 {new Date(page.created_at).toLocaleDateString("en-AU", {
                   weekday: "long",
                   day: "numeric",
@@ -308,28 +596,16 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
                 })}
               </p>
             )}
-            {/* Content */}
-            <RichTextEditor
-              value={content}
-              onChange={handleContentChange}
-              placeholder="Start writing..."
-              minHeight={400}
-              hideToolbar={true}
-              onEditorReady={(editor) => {
-                setMainEditor(editor);
-                updateActiveEditor(editor);
-              }}
-              onFocus={() => {
-                // Always set main editor as active when it receives focus
-                // The positioned textbox will set itself as active when focused
-                if (mainEditor) {
-                  updateActiveEditor(mainEditor);
-                }
-              }}
-              className="prose prose-sm dark:prose-invert max-w-none border-none shadow-none focus-within:ring-0 [&_.ProseMirror]:px-0"
-            />
           </div>
-        </NotebookCanvas>
+
+          {/* Canvas with all text boxes */}
+          <NotebookCanvas
+            boxes={positionedBoxes}
+            onBoxesChange={handlePositionedBoxesChange}
+            onActiveEditorChange={setActiveEditor}
+            className="min-h-[500px]"
+          />
+        </div>
       </div>
 
       {/* Footer with metadata */}

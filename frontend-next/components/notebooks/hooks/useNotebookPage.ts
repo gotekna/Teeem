@@ -15,12 +15,17 @@ export interface NotebookPageAttachment {
   is_image: boolean;
 }
 
-// Content metadata for positioned text boxes
+// Content metadata for positioned text boxes and images
 export interface PositionedBoxData {
   id: string;
   x_percent: number;
   y_percent: number;
+  width_percent?: number;  // Optional width as percentage of container
+  height_px?: number;      // Optional height in pixels (auto if not set)
   content: string;
+  isMainContent?: boolean; // True for the main content box
+  type?: "text" | "image"; // Box type - defaults to "text"
+  imageUrl?: string;       // For image boxes - the image source URL
 }
 
 export interface ContentMetadata {
