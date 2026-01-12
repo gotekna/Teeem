@@ -132,6 +132,15 @@ interface SyncSubscription {
   lastSyncAt?: string;
 }
 
+// SSoT: Scope folder names from StorageConfiguration
+interface ScopeFolders {
+  job?: string;
+  corporate?: string;
+  people?: string;
+  contact?: string;
+  [key: string]: string | undefined;
+}
+
 export default function AllDocumentsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("tree");
   const [treeDisplayMode, setTreeDisplayMode] = useState<TreeDisplayMode>("list");
@@ -149,6 +158,14 @@ export default function AllDocumentsPage() {
   // Click timer for single/double click differentiation
   const clickTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // SSoT: Scope folder names from StorageConfiguration
+  const [scopeFolders, setScopeFolders] = useState<ScopeFolders>({
+    job: "Jobs",
+    corporate: "Corporate",
+    people: "People",
+    contact: "Contacts",
+  });
+
   // Sync settings state
   const [showSyncSettings, setShowSyncSettings] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
@@ -156,6 +173,24 @@ export default function AllDocumentsPage() {
   const [exclusionRules, setExclusionRules] = useState<SyncExclusionRule[]>([]);
   const [subscriptions, setSubscriptions] = useState<SyncSubscription[]>([]);
   const [userOverrides, setUserOverrides] = useState<Record<string, boolean>>({});
+
+  // SSoT: Fetch scope folder names from StorageConfiguration
+  useEffect(() => {
+    const fetchScopeFolders = async () => {
+      try {
+        const response = await api.get<{
+          success: boolean;
+          data: { scope_folders?: ScopeFolders };
+        }>("/api/v1/corporate_company_settings/sharepoint");
+        if (response?.success && response.data?.scope_folders) {
+          setScopeFolders(prev => ({ ...prev, ...response.data.scope_folders }));
+        }
+      } catch (err) {
+        console.error("Failed to fetch scope folders:", err);
+      }
+    };
+    fetchScopeFolders();
+  }, []);
 
   // Fetch all documents
   const fetchDocuments = useCallback(async () => {
@@ -287,7 +322,7 @@ export default function AllDocumentsPage() {
 
     const jobsNode: TreeNode = {
       id: "jobs",
-      name: "Jobs",
+      name: scopeFolders.job || "Jobs",  // SSoT: from StorageConfiguration
       type: "category",
       icon: <Briefcase className="h-4 w-4" />,
       fileCount: filteredDocuments.jobs.length,
@@ -338,7 +373,7 @@ export default function AllDocumentsPage() {
 
     const corporateNode: TreeNode = {
       id: "corporate",
-      name: "Corporate",
+      name: scopeFolders.corporate || "Corporate",  // SSoT: from StorageConfiguration
       type: "category",
       icon: <Building2 className="h-4 w-4" />,
       fileCount: filteredDocuments.corporate.length,
@@ -387,7 +422,7 @@ export default function AllDocumentsPage() {
 
     const peopleNode: TreeNode = {
       id: "people",
-      name: "People",
+      name: scopeFolders.people || "People",  // SSoT: from StorageConfiguration
       type: "category",
       icon: <Users className="h-4 w-4" />,
       fileCount: filteredDocuments.people.length,
