@@ -1641,6 +1641,8 @@ To: ${email.to_emails?.join(", ") || ""}
               setSelectedAccount("all");
               setSelectedFolder("Inbox");
               setSelectedFolderId("ALL_INBOX");
+              // Update URL to be bookmarkable (remove account param for "all")
+              router.push("/email", { scroll: false });
             }}
             className={cn(
               "w-full flex items-center gap-2 px-1 py-1.5 text-sm hover:bg-muted/50 rounded-sm font-medium",
@@ -1706,6 +1708,8 @@ To: ${email.to_emails?.join(", ") || ""}
                       setSelectedFolderId("");  // Clear old folder ID
                       setExpandedAccounts(new Set([accountId]));
                       fetchFolders(accountId, account, true);  // forceSelectInbox to update folder ID
+                      // Update URL to be bookmarkable
+                      router.push(`/email?account=${accountId}`, { scroll: false });
                     }}
                     onDoubleClick={() => {
                       // Open mailbox in a new dedicated fullscreen tab
