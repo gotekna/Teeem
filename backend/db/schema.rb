@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_12_120001) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_12_120002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2521,6 +2521,20 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_120001) do
     t.index ["e_signature_request_id"], name: "index_e_signature_signers_on_e_signature_request_id"
     t.index ["email"], name: "index_e_signature_signers_on_email"
     t.index ["status"], name: "index_e_signature_signers_on_status"
+  end
+
+  create_table "email_aliases", force: :cascade do |t|
+    t.bigint "email_subscription_id", null: false
+    t.string "alias_address", null: false
+    t.string "target_address", null: false
+    t.string "alias_type", default: "alias"
+    t.boolean "is_active", default: true
+    t.string "polaris_alias_id"
+    t.datetime "provisioned_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["email_subscription_id", "alias_address"], name: "index_email_aliases_on_email_subscription_id_and_alias_address", unique: true
+    t.index ["email_subscription_id"], name: "index_email_aliases_on_email_subscription_id"
   end
 
   create_table "email_attachments", id: :bigint, default: nil, force: :cascade do |t|
@@ -10418,6 +10432,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_12_120001) do
   add_foreign_key "e_signature_requests", "users", column: "created_by_id"
   add_foreign_key "e_signature_signers", "contacts"
   add_foreign_key "e_signature_signers", "e_signature_requests"
+  add_foreign_key "email_aliases", "email_subscriptions"
   add_foreign_key "email_drafts", "imap_credentials"
   add_foreign_key "email_drafts", "organizations"
   add_foreign_key "email_drafts", "users"

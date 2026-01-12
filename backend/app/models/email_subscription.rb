@@ -24,6 +24,7 @@ class EmailSubscription < ApplicationRecord
   has_many :email_migrations, dependent: :destroy
   has_many :email_subscription_invoices, dependent: :destroy
   has_many :email_migration_invites, dependent: :destroy
+  has_many :email_aliases, dependent: :destroy
 
   # Constants
   STATUSES = %w[pending active suspended cancelled].freeze

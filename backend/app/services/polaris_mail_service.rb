@@ -19,6 +19,7 @@ class PolarisMailService
   class ApiError < StandardError; end
   class AuthenticationError < StandardError; end
   class NotConnectedError < StandardError; end
+  class RateLimitError < StandardError; end
 
   # PolarisMail Admin API endpoint
   API_BASE = "https://cfcp.emailarray.com/admin"
