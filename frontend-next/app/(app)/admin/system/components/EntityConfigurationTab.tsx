@@ -7,7 +7,7 @@ import { EntityTabsConfig } from "@/components/admin/EntityTabsConfig";
 import { DocumentTypesTab } from "./DocumentTypesTab";
 import { SharePointTab } from "./SharePointTab";
 import { EmailConfigTab } from "./EmailConfigTab";
-import { Building2, Users, Briefcase, X, FileText, Settings, Contact2, Mail, Warehouse, Lock } from "lucide-react";
+import { Building2, Users, Briefcase, X, FileText, Settings, Contact2, Mail, Warehouse, Lock, ClipboardList } from "lucide-react";
 import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
@@ -74,6 +74,17 @@ const scopes = [
     id: "warehouse",
     label: "Warehouse",
     icon: Warehouse,
+    showEntityFilters: false,
+    showSharePointPaths: true,
+    showDocumentTypes: false,
+    isEntityTab: true,
+    showTabGroups: false,
+    isSystemScope: true,  // System-managed tabs - read-only paths
+  },
+  {
+    id: "task",
+    label: "Task",
+    icon: ClipboardList,
     showEntityFilters: false,
     showSharePointPaths: true,
     showDocumentTypes: false,
@@ -217,7 +228,7 @@ export function EntityConfigurationTab({ onClose, scope }: EntityConfigurationTa
             <TabsContent key={scope.id} value={scope.id} className="mt-0 h-full">
               {scope.isEntityTab ? (
                 <EntityTabsConfig
-                  scope={scope.id as "corporate_entity" | "job" | "contact" | "email" | "warehouse"}
+                  scope={scope.id as "corporate_entity" | "job" | "contact" | "email" | "warehouse" | "task"}
                   showEntityFilters={scope.showEntityFilters}
                   showSharePointPaths={scope.showSharePointPaths}
                   showDocumentTypes={scope.showDocumentTypes}

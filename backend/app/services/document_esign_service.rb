@@ -164,10 +164,15 @@ class DocumentEsignService
 
   def build_job_folder_path
     # Build path like: "Jobs/123 - Smith Residence/Documents"
-    # SSoT: Uses StorageConfiguration for jobs path
+    # SSoT: EntityTab owns folder names, StorageConfiguration owns base path
     base_path = StorageConfiguration.instance.path_for(:jobs)
     job_folder = job.sharepoint_folder_name || "#{job.id} - #{job.name}"
-    "#{base_path}/#{job_folder}/Documents"
+
+    # SSoT: Use EntityTab for folder name instead of hardcoding
+    documents_tab = EntityTab.find_by(scope: "job", tab_key: "documents")
+    folder_name = documents_tab&.display_name || "Documents"
+
+    "#{base_path}/#{job_folder}/#{folder_name}"
   end
 
   def create_esign_request(uploaded_file, document_filename)

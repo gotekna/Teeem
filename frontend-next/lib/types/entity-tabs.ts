@@ -1,7 +1,7 @@
 // EntityTab types - SSoT for unified tab configuration
 // Matches backend EntityTab model exactly
 
-export type EntityTabScope = 'corporate_entity' | 'people' | 'job' | 'contact' | 'email' | 'warehouse' | 'xero';
+export type EntityTabScope = 'corporate_entity' | 'people' | 'job' | 'contact' | 'email' | 'warehouse' | 'task' | 'xero';
 
 // Tab groups - matches backend EntityTab::TAB_GROUPS
 // 'system' is for system-managed tabs (email storage, warehousing) - read-only in UI
@@ -133,6 +133,7 @@ export const SCOPE_LABELS: Record<EntityTabScope, string> = {
   contact: 'Contact',
   email: 'Email',
   warehouse: 'Warehouse',
+  task: 'Task',
   xero: 'Xero',
 };
 

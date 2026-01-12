@@ -12,8 +12,8 @@
 #
 class EntityTab < ApplicationRecord
   # Valid scopes (xero tabs are children of corporate_entity/xero tab)
-  # System scopes (email, warehouse) are read-only in UI - is_system_tab: true
-  SCOPES = %w[corporate_entity people job document contact email warehouse xero].freeze
+  # System scopes (email, warehouse, task) are read-only in UI - is_system_tab: true
+  SCOPES = %w[corporate_entity people job document contact email warehouse task xero].freeze
 
   # Valid tab groups
   # - overview: Main features and data display
@@ -171,6 +171,7 @@ class EntityTab < ApplicationRecord
       storage_path_type == 'contacts' ? :contacts : :people
     when 'email' then :email
     when 'warehouse' then :warehouse
+    when 'task' then :task
     else :job  # Default fallback
     end
   end
@@ -193,6 +194,8 @@ class EntityTab < ApplicationRecord
       "emails/eml/{{OrgName}}/{{Year}}/{{Month}}"
     when "warehouse"
       "Warehousing/{{TabName}}"
+    when "task"
+      "Tasks/Task-{{TaskId}}/{{Category}}"
     else
       "{{TabName}}"
     end
