@@ -49,15 +49,12 @@ module Api
         powerpoint_count = TeeemPresentation.count rescue 0
 
         # User files from S3 (MyDocs folder)
+        # SSoT: Path matches StorageConfiguration.SCOPE_FOLDERS["my_docs"] = "Users/MyDocs"
         my_docs_count = begin
-          if current_user
-            organization = Organization.first
-            provider = DocumentProviders::S3Compatible.for_organization(organization)
-            result = provider.list_folder("Users/#{current_user.id}/My Documents", recursive: false) rescue { files: [] }
-            (result[:files] || []).size
-          else
-            0
-          end
+          organization = Organization.first
+          provider = DocumentProviders::S3Compatible.for_organization(organization)
+          result = provider.list_folder("Users/MyDocs", recursive: false) rescue { files: [] }
+          (result[:files] || []).size
         rescue => e
           Rails.logger.warn "[Documents] Could not count MyDocs: #{e.message}"
           0
@@ -168,19 +165,22 @@ module Api
       # Upload a file to the user's document folder in S3
       # Params:
       #   file: The file to upload (multipart)
-      #   folder: Optional folder path (default: "My Documents")
+      #   folder: Optional folder path (default: "MyDocs")
+      # SSoT: Paths match StorageConfiguration.SCOPE_FOLDERS (Users/MyDocs, Users/Photos, etc.)
       def create
         unless params[:file].present?
           return render json: { success: false, error: "No file provided" }, status: :bad_request
         end
 
         file = params[:file]
-        folder = params[:folder].presence || "My Documents"
+        # SSoT: Folder names match StorageConfiguration.SCOPE_FOLDERS
+        folder = params[:folder].presence || "MyDocs"
         user = current_user
 
-        # Build S3 path: Users/{user_id}/{folder}/{filename}
+        # Build S3 path: Users/MyDocs/{filename}
+        # Note: Files are organized by folder, not by user ID (shared namespace)
         safe_filename = file.original_filename.gsub(/[^\w\.\-]/, "_")
-        s3_key = "Users/#{user.id}/#{folder}/#{safe_filename}"
+        s3_key = "Users/#{folder}/#{safe_filename}"
 
         begin
           # Upload to S3
@@ -188,7 +188,7 @@ module Api
           provider = DocumentProviders::S3Compatible.for_organization(organization)
 
           result = provider.upload_file(
-            "Users/#{user.id}/#{folder}",
+            "Users/#{folder}",
             file.read,
             safe_filename,
             content_type: file.content_type,
@@ -220,12 +220,13 @@ module Api
       end
 
       # GET /api/v1/documents/user_files
-      # Lists files in the current user's folder from S3
+      # Lists files in user folder from S3
       # Used by File Warehouse "MyDocs" section
+      # SSoT: Paths match StorageConfiguration.SCOPE_FOLDERS
       def user_files
-        user = current_user
-        folder = params[:folder].presence || "My Documents"
-        s3_path = "Users/#{user.id}/#{folder}"
+        # SSoT: Folder names match StorageConfiguration.SCOPE_FOLDERS
+        folder = params[:folder].presence || "MyDocs"
+        s3_path = "Users/#{folder}"
 
         begin
           organization = Organization.first
