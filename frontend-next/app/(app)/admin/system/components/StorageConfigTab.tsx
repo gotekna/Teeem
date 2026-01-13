@@ -973,9 +973,9 @@ export function StorageConfigTab() {
   ) => {
     try {
       const response = await api.patch<{ success: boolean; data: StorageConfig }>(
-        "/api/v1/corporate_company_settings/sharepoint",
+        "/api/v1/storage_configuration",
         {
-          sharepoint: {
+          storage: {
             scope_templates: { [scopeKey]: folderTemplate },
             file_name_templates: { [scopeKey]: filenameTemplate },
             config_links: { [scopeKey]: configLink }, // null removes the link
@@ -1041,7 +1041,7 @@ export function StorageConfigTab() {
     try {
       setLoading(true);
       const response = await api.get<{ success: boolean; data: StorageConfig }>(
-        "/api/v1/corporate_company_settings/sharepoint"
+        "/api/v1/storage_configuration"
       );
       if (response?.success && response.data) {
         setConfig(response.data);
@@ -1085,14 +1085,14 @@ export function StorageConfigTab() {
       setSaving(true);
       // Include provider_type and S3/Wasabi fields in save
       const response = await api.patch<{ success: boolean; data: StorageConfig }>(
-        "/api/v1/corporate_company_settings/sharepoint",
+        "/api/v1/storage_configuration",
         {
-          sharepoint: {
+          storage: {
             ...formData,
             // Map S3/Wasabi fields to backend expected names
-            s3_endpoint: formData.s3_endpoint,
-            s3_bucket: formData.s3_bucket,
-            s3_region: formData.s3_region,
+            endpoint: formData.s3_endpoint,
+            bucket: formData.s3_bucket,
+            region: formData.s3_region,
           }
         }
       );
@@ -1119,13 +1119,13 @@ export function StorageConfigTab() {
   const handleTest = async () => {
     try {
       setTesting(true);
-      const response = await api.post<{ success: boolean; message?: string; error?: string; site?: { name: string; web_url: string } }>(
-        "/api/v1/corporate_company_settings/sharepoint/test"
+      const response = await api.post<{ success: boolean; message?: string; error?: string; provider?: string; details?: { name?: string; web_url?: string } }>(
+        "/api/v1/storage_configuration/test"
       );
       if (response?.success) {
         toast({
           title: "Connection Successful",
-          description: `Connected to ${response.site?.name || "cloud storage"}`,
+          description: `Connected to ${response.details?.name || "cloud storage"}`,
         });
       } else {
         toast({

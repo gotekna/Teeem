@@ -300,7 +300,7 @@ export function EntityTabsConfig({
             scope_templates?: Record<string, string>;
             file_name_templates?: Record<string, string>;
           };
-        }>("/api/v1/corporate_company_settings/sharepoint");
+        }>("/api/v1/storage_configuration");
         if (response?.success && response.data) {
           setStorageConfig(response.data);
         }
@@ -548,8 +548,8 @@ export function EntityTabsConfig({
 
       console.log('[EntityTabsConfig] Setting status to saving...');
       setSaveStatus('saving');
-      await api.patch('/api/v1/corporate_company_settings/sharepoint', {
-        sharepoint: {
+      await api.patch('/api/v1/storage_configuration', {
+        storage: {
           scope_templates: scopeTemplates,
           file_name_templates: fileNameTemplatesPayload,
         }

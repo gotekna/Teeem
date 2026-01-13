@@ -227,7 +227,7 @@ export function ComboboxDropdown<T extends ComboboxItem>({
                     disabled={item.disabled}
                     className={cn(
                       "cursor-pointer whitespace-nowrap",
-                      isHighlighted && "bg-accent",
+                      isHighlighted && "bg-blue-100 dark:bg-blue-900/40",
                       className
                     )}
                     key={item.id}

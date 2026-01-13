@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -53,6 +54,7 @@ const PAYMENT_STATUS_CONFIG: Record<
  * - Payment status badge
  */
 export function ExpensePORow({ po, depth, className }: ExpensePORowProps) {
+  const router = useRouter();
   const total = Number(po.total) || 0;
   const paid = Number(po.xero_amount_paid) || 0;
   const paymentStatus = po.payment_status || "pending";
@@ -65,16 +67,25 @@ export function ExpensePORow({ po, depth, className }: ExpensePORowProps) {
   // Calculate indent based on depth (level 2 is depth 2, so 3 levels of indent)
   const indentPx = (depth + 1) * 24;
 
+  // Double-click to open PO detail page
+  const handleDoubleClick = () => {
+    // Navigate to PO detail page - use PO number without "PO-" prefix or id
+    const slug = po.po_number?.replace("PO-", "") || po.id;
+    router.push(`/purchase_orders/${slug}`);
+  };
+
   return (
     <div
       className={cn(
-        "flex items-center gap-4 py-2 px-3 text-sm",
+        "flex items-center gap-4 py-2 px-3 text-sm cursor-pointer",
         "border-b border-border dark:border-border",
         "hover:bg-muted dark:hover:bg-muted/50",
         "transition-colors",
         className
       )}
       style={{ paddingLeft: `${indentPx}px` }}
+      onDoubleClick={handleDoubleClick}
+      title="Double-click to open PO"
     >
       {/* Tree connector line */}
       <div className="flex items-center gap-2 text-muted-foreground">

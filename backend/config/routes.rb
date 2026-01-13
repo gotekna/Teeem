@@ -1395,12 +1395,19 @@ Rails.application.routes.draw do
         post :test_twilio, on: :collection
       end
 
-      # Corporate Company Settings (document paths, SharePoint, Email SSoT)
+      # Storage Configuration (Provider-agnostic SSoT)
+      # SSoT: Use these endpoints for ALL storage providers (SharePoint, S3, Wasabi, local)
+      resource :storage_configuration, only: [:show, :update] do
+        post :test, on: :collection, action: :test_connection
+      end
+
+      # Corporate Company Settings (document paths, Email SSoT)
       resource :corporate_company_settings, only: [] do
         get :document_paths, on: :collection
         patch :document_paths, on: :collection, action: :update_document_paths
 
-        # SharePoint SSoT Configuration
+        # DEPRECATED: Use /api/v1/storage_configuration instead
+        # Kept for backward compatibility - redirects to new controller
         get :sharepoint, on: :collection
         patch :sharepoint, on: :collection, action: :update_sharepoint
         post "sharepoint/test", on: :collection, action: :test_sharepoint

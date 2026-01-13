@@ -80,14 +80,15 @@ class EmailSharePointMigrationService # rubocop:disable Naming/ClassAndModuleCam
     cred = MicrosoftCredential.sharepoint_credential
     return nil unless cred
 
-    provider = DocumentProviders::SharePoint.new(cred)
+    # Verify StorageConfiguration has drive_id (SSoT)
+    storage_config = StorageConfiguration.instance
+    unless storage_config&.drive_id.present?
+      Rails.logger.error "[SharePointMigration] StorageConfiguration missing drive_id"
+      return nil
+    end
 
-    # Switch to TEEEM site's Documents drive
-    # This is required because email files are stored in the TEEEM SharePoint site,
-    # not in the default drive the credential might be connected to
-    Rails.logger.info "[SharePointMigration] Switching to TEEEM site: #{TEEEM_SITE_ID}"
-    provider.use_site(TEEEM_SITE_ID)
-    Rails.logger.info "[SharePointMigration] Connected to drive: #{cred.reload.drive_name}"
+    provider = DocumentProviders::SharePoint.new(cred)
+    Rails.logger.info "[SharePointMigration] Using drive: #{storage_config.drive_name} (#{storage_config.drive_id})"
 
     provider
   rescue => e

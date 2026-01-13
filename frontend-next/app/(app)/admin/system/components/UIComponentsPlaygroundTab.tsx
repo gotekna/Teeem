@@ -109,7 +109,6 @@ import { TokenBadge, TokenPalette, TokenBuilder } from "@/components/ui/tokens";
 import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { PDFEditor } from "@/components/ui/pdf-editor";
 import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
-import { SharePointPathConfigurator } from "@/components/ui/sharepoint-path-configurator";
 
 // Note: These require specific data/context to function:
 // - TeeemTableView: needs foundationId and entries
@@ -844,37 +843,6 @@ function SharePointFolderBrowserDemo() {
   );
 }
 
-function SharePointPathConfiguratorDemo() {
-  return (
-    <div className="space-y-2">
-      <p className="text-xs text-muted-foreground">
-        Configure folder path templates with placeholders for SharePoint.
-      </p>
-      <div className="border rounded p-4 bg-muted/30">
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Badge variant="outline">Scope: Job</Badge>
-            <span className="text-xs text-muted-foreground">Path template:</span>
-          </div>
-          <div className="flex items-center gap-1 flex-wrap">
-            <span className="text-sm">/Documents/</span>
-            <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
-              {"{{JobCode}}"}
-            </Badge>
-            <span className="text-sm">/</span>
-            <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-              {"{{Category}}"}
-            </Badge>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Preview: /Documents/JOB-001/Plans
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function TeeemTableViewDemo() {
   return (
     <div className="space-y-2">
@@ -1037,7 +1005,6 @@ const COMPONENT_DEMOS: Record<string, () => React.ReactNode> = {
   "pdf-viewer": PDFViewerDemo,
   "pdf-editor": PDFEditorDemo,
   "sharepoint-folder-browser": SharePointFolderBrowserDemo,
-  "sharepoint-path-configurator": SharePointPathConfiguratorDemo,
   "teeem-table-view": TeeemTableViewDemo,
   "bills-invoice-viewer": BillsInvoiceViewerDemo,
   "document-preview-modal": DocumentPreviewModalDemo,

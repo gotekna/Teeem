@@ -382,7 +382,7 @@ export default function AllDocumentsPage() {
             scope_templates?: Record<string, string>;
             root_path?: string;
           };
-        }>("/api/v1/corporate_company_settings/sharepoint");  // TODO: Rename to /storage_configuration
+        }>("/api/v1/storage_configuration");
         if (response?.success && response.data) {
           // SSoT: Use scope_folders from StorageConfiguration.SCOPE_FOLDERS
           if (response.data.scope_folders) {

@@ -697,18 +697,6 @@ const TIER_4_COMPONENTS: StandardComponent[] = [
     usageCount: 7,
   },
   {
-    id: "sharepoint-path-configurator",
-    name: "SharePointPathConfigurator",
-    displayName: "SharePoint Path Config",
-    category: "integration",
-    tier: 4,
-    status: "standard",
-    importPath: "@/components/ui/sharepoint-path-configurator",
-    description: "Configure SharePoint path templates with placeholders",
-    whenToUse: "Set up SharePoint folder paths with {{placeholders}}",
-    usageCount: 7,
-  },
-  {
     id: "bills-invoice-viewer",
     name: "BillsInvoiceViewer",
     displayName: "Invoice Viewer",

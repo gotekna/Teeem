@@ -51,7 +51,6 @@ import {
   Building2,
   ImageIcon,
   DollarSign,
-  FolderTree,
   Copy,
   X,
   LayoutList,
@@ -84,7 +83,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { SharePointPathConfigurator } from "@/components/ui/sharepoint-path-configurator";
 import { UIComponentsPlaygroundTab } from "./UIComponentsPlaygroundTab";
 import { ColumnTypeDefinitionsTab } from "./ColumnTypeDefinitionsTab";
 import { SortableList, SortableItem, DragHandle, ItemBadge } from "@/components/ui/dnd";
@@ -1270,39 +1268,6 @@ function GoldStandardBillsInvoiceTab() {
   );
 }
 
-// Gold SharePoint Path Viewer Tab - Uses the SSoT SharePointPathConfigurator component
-function GoldSharePointPathViewerTab() {
-  return (
-    <div className="space-y-4">
-      {/* SSoT Component - loads/saves from backend API */}
-      <SharePointPathConfigurator
-        defaultScope="job"
-        showAllScopes={true}
-        showBrowser={true}
-        showSaveButton={true}
-      />
-
-      {/* Info Box */}
-      <Card className="bg-muted/50">
-        <CardContent className="flex gap-3 pt-6">
-          <Info className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
-          <div className="text-sm text-muted-foreground">
-            <p className="font-medium text-foreground mb-1">SSoT Architecture:</p>
-            <ul className="list-disc list-inside space-y-1">
-              <li>This is THE ONE component for SharePoint path configuration</li>
-              <li>Data stored in <code className="text-xs bg-muted px-1 rounded">CorporateCompanySetting</code> (SSoT)</li>
-              <li>API: <code className="text-xs bg-muted px-1 rounded">GET/PATCH /api/v1/corporate_company_settings/sharepoint</code></li>
-              <li>Backend methods: <code className="text-xs bg-muted px-1 rounded">CorporateCompanySetting.job_path</code>, <code className="text-xs bg-muted px-1 rounded">.company_path</code>, etc.</li>
-              <li>Component: <code className="text-xs bg-muted px-1 rounded">components/ui/sharepoint-path-configurator.tsx</code></li>
-              <li>Admin Config: <code className="text-xs bg-muted px-1 rounded">Admin &gt; System &gt; Company &gt; SharePoint tab</code></li>
-            </ul>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
 // Gold Document Types Tab - Shows the document type editor component
 function GoldDocumentTypesTab() {
   return <GoldDocumentTypeEditor />;
@@ -2365,10 +2330,6 @@ export function GoldStandardTab({ subtab }: GoldStandardTabProps) {
           <Receipt className="h-4 w-4" />
           Gold Bills/Invoice Viewer
         </TabsTrigger>
-        <TabsTrigger value="sharepoint-paths" className="flex items-center gap-2">
-          <FolderTree className="h-4 w-4" />
-          Gold SharePoint Path Viewer
-        </TabsTrigger>
         <TabsTrigger value="column-info" className="flex items-center gap-2">
           <FileText className="h-4 w-4" />
           Column Info
@@ -2405,10 +2366,6 @@ export function GoldStandardTab({ subtab }: GoldStandardTabProps) {
 
       <TabsContent value="invoice" className="mt-0">
         <GoldStandardBillsInvoiceTab />
-      </TabsContent>
-
-      <TabsContent value="sharepoint-paths" className="mt-0">
-        <GoldSharePointPathViewerTab />
       </TabsContent>
 
       <TabsContent value="column-info" className="mt-0">

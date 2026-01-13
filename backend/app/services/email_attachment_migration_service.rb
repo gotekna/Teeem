@@ -75,12 +75,15 @@ class EmailAttachmentMigrationService
     cred = MicrosoftCredential.sharepoint_credential
     return nil unless cred
 
-    provider = DocumentProviders::SharePoint.new(cred)
+    # Verify StorageConfiguration has drive_id (SSoT)
+    storage_config = StorageConfiguration.instance
+    unless storage_config&.drive_id.present?
+      Rails.logger.error "[AttachmentMigration] StorageConfiguration missing drive_id"
+      return nil
+    end
 
-    # Switch to TEEEM site's Documents drive
-    Rails.logger.info "[AttachmentMigration] Switching to TEEEM site"
-    provider.use_site(TEEEM_SITE_ID)
-    Rails.logger.info "[AttachmentMigration] Connected to drive: #{cred.reload.drive_name}"
+    provider = DocumentProviders::SharePoint.new(cred)
+    Rails.logger.info "[AttachmentMigration] Using drive: #{storage_config.drive_name} (#{storage_config.drive_id})"
 
     provider
   rescue => e
