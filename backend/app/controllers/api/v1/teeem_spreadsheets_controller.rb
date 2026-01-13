@@ -3,7 +3,7 @@
 module Api
   module V1
     class TeeemSpreadsheetsController < ApplicationController
-      before_action :set_spreadsheet, only: [:show, :update, :destroy, :export]
+      before_action :set_spreadsheet, only: [:show, :update, :destroy, :export, :save_to_warehouse]
 
       # GET /api/v1/teeem_spreadsheets
       # Optional params:
@@ -69,6 +69,56 @@ module Api
       def destroy
         @spreadsheet.destroy
         render json: { success: true }
+      end
+
+      # POST /api/v1/teeem_spreadsheets/:id/save_to_warehouse
+      # Saves spreadsheet to File Warehouse (S3) as XLSX
+      def save_to_warehouse
+        # Generate XLSX using same logic as export
+        workbook = TeeemXl::Models::Workbook.new
+
+        @spreadsheet.data["sheets"]&.each do |sheet_data|
+          sheet = workbook.add_sheet(sheet_data["name"] || "Sheet1")
+          cells = sheet_data["cells"] || {}
+          rows = cells_to_rows(cells)
+          rows.each { |row| sheet.add_row(row) }
+        end
+
+        temp_file = Tempfile.new(["spreadsheet", ".xlsx"])
+        begin
+          TeeemXl.write(workbook, temp_file.path)
+          temp_file.rewind
+
+          # Upload to S3 using SSoT warehouse_path
+          organization = Organization.first
+          provider = DocumentProviders::S3Compatible.for_organization(organization)
+
+          folder_path = @spreadsheet.warehouse_folder_path
+          filename = "#{@spreadsheet.safe_filename}.xlsx"
+
+          result = provider.upload_file(
+            folder_path,
+            File.read(temp_file.path),
+            filename,
+            content_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            overwrite: true
+          )
+
+          # TODO: Add migration to track storage_path on teeem_spreadsheets
+          # @spreadsheet.update_columns(storage_path: "#{folder_path}/#{filename}")
+
+          render json: {
+            success: true,
+            message: "Saved to File Warehouse",
+            path: "#{folder_path}/#{filename}"
+          }
+        rescue StandardError => e
+          Rails.logger.error "[TeeemSpreadsheet] Save to warehouse failed: #{e.message}"
+          render json: { success: false, error: e.message }, status: :unprocessable_entity
+        ensure
+          temp_file&.close
+          temp_file&.unlink
+        end
       end
 
       # GET /api/v1/teeem_spreadsheets/:id/export

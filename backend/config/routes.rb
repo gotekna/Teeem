@@ -130,7 +130,8 @@ Rails.application.routes.draw do
       # TeeemXL Spreadsheets - user-created spreadsheets
       resources :teeem_spreadsheets, only: [ :index, :show, :create, :update, :destroy ] do
         member do
-          get :export  # GET /api/v1/teeem_spreadsheets/:id/export - download as XLSX
+          get :export              # GET /api/v1/teeem_spreadsheets/:id/export - download as XLSX
+          post :save_to_warehouse  # POST /api/v1/teeem_spreadsheets/:id/save_to_warehouse - save to S3
         end
       end
 

@@ -429,7 +429,7 @@ export default function TeeemXLPage() {
     return () => grid.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Save spreadsheet
+  // Save spreadsheet (to database AND to File Warehouse)
   const saveSpreadsheet = async () => {
     if (!spreadsheet) return;
 
@@ -443,6 +443,7 @@ export default function TeeemXLPage() {
         frozenCols: 0,
       };
 
+      // 1. Save to database
       await api.patch(`/api/v1/teeem_spreadsheets/${spreadsheet.id}`, {
         teeem_spreadsheet: {
           name,
@@ -451,6 +452,15 @@ export default function TeeemXLPage() {
           data,
         },
       });
+
+      // 2. Save to File Warehouse (S3)
+      try {
+        await api.post(`/api/v1/teeem_spreadsheets/${spreadsheet.id}/save_to_warehouse`);
+      } catch (warehouseError) {
+        console.warn("Failed to save to warehouse:", warehouseError);
+        // Don't fail the whole save - database save succeeded
+      }
+
       setHasChanges(false);
     } catch (error) {
       console.error("Failed to save:", error);

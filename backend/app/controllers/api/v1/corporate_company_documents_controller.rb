@@ -154,32 +154,25 @@ module Api
       end
 
       # GET /api/v1/company_documents/:id/content
-      # Serves document content from SharePoint (primary), S3-compatible (Wasabi), or Active Storage (fallback)
-      # SSoT self-healing: verifies SharePoint filename matches before serving
+      # SSoT: Delegates to DocumentStorageService for all storage providers
       def content
         # Set CORS headers for frontend access
         response.headers["Access-Control-Allow-Origin"] = request.headers["Origin"] || "*"
         response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
 
-        # Priority 1: S3-compatible storage (Wasabi)
-        if @document.storage_provider == "s3_compatible" && @document.storage_path.present?
-          serve_from_s3_compatible
+        # SSoT: DocumentStorageService handles S3, SharePoint, and ActiveStorage
+        service = DocumentStorageService.new
+        result = service.download(@document)
 
-        # Priority 2: SharePoint file (SSoT for synced documents)
-        elsif @document.sharepoint_file_id.present?
-          serve_from_sharepoint
-
-        # Priority 3: Active Storage blob (for manual uploads)
-        elsif @document.file.attached?
-          serve_from_active_storage
-
-        # No file available
+        if result[:success]
+          send_data result[:content],
+            type: result[:content_type],
+            disposition: "inline",
+            filename: result[:filename]
         else
-          render json: {
-            success: false,
-            error: "No file available - document has no storage path, SharePoint ID, or uploaded file"
-          }, status: :not_found
+          render json: { success: false, error: result[:error] },
+            status: result[:status] || :internal_server_error
         end
       end
 
@@ -769,120 +762,8 @@ module Api
         end
       end
 
-      # Serve document content from SharePoint with SSoT self-healing
-      def serve_from_sharepoint
-        credential = MicrosoftCredential.sharepoint_credential
-        unless credential
-          return render json: {
-            success: false,
-            error: "OneDrive credentials not available in this environment"
-          }, status: :service_unavailable
-        end
-
-        client = MicrosoftGraphClient.new(credential)
-
-        # === SSoT SELF-HEALING ===
-        # Verify SharePoint file matches before serving content
-        begin
-          sp_file = client.get_file(@document.sharepoint_file_id)
-          sp_filename = sp_file["name"]
-
-          if sp_filename != @document.file_name
-            Rails.logger.warn "[SSoT SELF-HEAL] Document #{@document.id} mismatch: " \
-              "DB='#{@document.file_name}', SharePoint='#{sp_filename}'"
-
-            # Search for correct file in company's SharePoint folder
-            correct_file_id = find_correct_sharepoint_file(client, @document)
-
-            if correct_file_id && correct_file_id != @document.sharepoint_file_id
-              old_id = @document.sharepoint_file_id
-              @document.update!(sharepoint_file_id: correct_file_id)
-              Rails.logger.info "[SSoT SELF-HEAL] Fixed document #{@document.id}: " \
-                "#{old_id} -> #{correct_file_id}"
-            end
-          end
-        rescue MicrosoftGraphClient::APIError => e
-          # File may not exist - log and continue, download will fail gracefully
-          Rails.logger.warn "[SSoT SELF-HEAL] Cannot verify #{@document.id}: #{e.message}"
-        end
-        # === END SELF-HEALING ===
-
-        file_content = client.download_file(@document.sharepoint_file_id)
-        content_type = determine_content_type(@document.file_name)
-
-        send_data file_content,
-          type: content_type,
-          disposition: "inline",
-          filename: @document.file_name
-      rescue MicrosoftGraphClient::APIError => e
-        render json: {
-          success: false,
-          error: "Failed to fetch file from SharePoint: #{e.message}"
-        }, status: :bad_gateway
-      rescue StandardError => e
-        Rails.logger.error "Document content fetch error: #{e.message}"
-        render json: {
-          success: false,
-          error: "Failed to fetch document content"
-        }, status: :internal_server_error
-      end
-
-      # Serve document content from Active Storage (for manual uploads)
-      def serve_from_active_storage
-        content_type = @document.file.content_type || determine_content_type(@document.file_name)
-
-        send_data @document.file.download,
-          type: content_type,
-          disposition: "inline",
-          filename: @document.file_name
-      rescue ActiveStorage::FileNotFoundError => e
-        Rails.logger.error "Active Storage file not found for document #{@document.id}: #{e.message}"
-        render json: {
-          success: false,
-          error: "File not found in storage"
-        }, status: :not_found
-      rescue StandardError => e
-        Rails.logger.error "Active Storage download error for document #{@document.id}: #{e.message}"
-        render json: {
-          success: false,
-          error: "Failed to download file"
-        }, status: :internal_server_error
-      end
-
-      # Serve document content from S3-compatible storage (Wasabi)
-      def serve_from_s3_compatible
-        s3_key = @document.storage_path.sub(%r{^/}, "") # Remove leading slash if present
-
-        begin
-          organization = Organization.first # Single-tenant
-          provider = DocumentProviders::S3Compatible.for_organization(organization)
-          file_content = provider.download_file(s3_key)
-          content_type = determine_content_type(@document.file_name)
-
-          send_data file_content,
-            type: content_type,
-            disposition: "inline",
-            filename: @document.file_name
-        rescue DocumentProviders::NotFoundError => e
-          Rails.logger.error "S3 file not found for document #{@document.id}: #{e.message}"
-          render json: {
-            success: false,
-            error: "File not found in S3 storage"
-          }, status: :not_found
-        rescue DocumentProviders::NotConnectedError => e
-          Rails.logger.error "S3 storage not configured: #{e.message}"
-          render json: {
-            success: false,
-            error: "S3 storage not configured"
-          }, status: :service_unavailable
-        rescue StandardError => e
-          Rails.logger.error "S3 download error for document #{@document.id}: #{e.message}"
-          render json: {
-            success: false,
-            error: "Failed to download file from S3 storage: #{e.message}"
-          }, status: :internal_server_error
-        end
-      end
+      # NOTE: serve_from_sharepoint, serve_from_active_storage, serve_from_s3_compatible
+      # have been consolidated into DocumentStorageService.download (SSoT)
     end
   end
 end

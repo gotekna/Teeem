@@ -1,13 +1,13 @@
 # frozen_string_literal: true
 
-# DocumentStorageService - THE ONE SSoT for uploading documents to storage
+# DocumentStorageService - THE ONE SSoT for document storage operations
 #
 # Uses StorageConfiguration to determine paths and provider.
 # Works with ANY document model that has a storage_path column.
 #
 # ╔═══════════════════════════════════════════════════════════════════╗
 # ║  SSoT: StorageConfiguration determines WHERE files go             ║
-# ║  This service is THE ONE way to upload documents                  ║
+# ║  This service is THE ONE way to upload AND download documents     ║
 # ╚═══════════════════════════════════════════════════════════════════╝
 #
 # Usage:
@@ -30,6 +30,14 @@
 #     tokens: { CompanyGroup: "Promise", CompanyCode: "TEE", TabName: "ASIC" }
 #   )
 #   # => { success: true, path: "Corporate/Promise/TEE/ASIC/certificate.pdf" }
+#
+#   # Download a document (works with ANY document model)
+#   result = service.download(corporate_document)
+#   # => { success: true, content: binary_data, content_type: "...", filename: "..." }
+#
+#   # Generate presigned download URL
+#   result = service.download_url(job_document)
+#   # => { success: true, url: "https://..." }
 #
 # Supported scopes (from StorageConfiguration):
 #   :job, :corporate, :people, :contact, :task, :email, :email_attachments, etc.
@@ -128,6 +136,74 @@ class DocumentStorageService
       root_path: @storage_config.root_path,
       available_scopes: StorageConfiguration::SCOPE_FOLDERS.keys
     }
+  end
+
+  # ============================================================================
+  # DOWNLOAD METHODS - SSoT for retrieving documents from any storage provider
+  # ============================================================================
+
+  # Download file content from storage
+  # Works with ANY document model (JobDocument, CorporateCompanyDocument, etc.)
+  #
+  # @param record [ActiveRecord::Base] Document with storage_path/storage_provider or sharepoint_file_id
+  # @return [Hash] { success: true, content: binary, content_type: "...", filename: "..." }
+  #                or { success: false, error: "...", status: :symbol }
+  def download(record)
+    return error_result("No record provided", status: :bad_request) unless record
+
+    # Priority 1: S3-compatible (Wasabi)
+    if record.respond_to?(:storage_provider) && record.storage_provider == "s3_compatible" && record.storage_path.present?
+      download_from_s3(record)
+    # Priority 2: SharePoint
+    elsif has_sharepoint_id?(record)
+      download_from_sharepoint(record)
+    # Priority 3: ActiveStorage
+    elsif record.respond_to?(:file) && record.file.attached?
+      download_from_active_storage(record)
+    else
+      error_result("No file available - document has no storage path, SharePoint ID, or uploaded file", status: :not_found)
+    end
+  end
+
+  # Generate presigned download URL (no binary transfer)
+  # For S3: returns presigned URL with expiry
+  # For SharePoint: returns web_url or download URL
+  #
+  # @param record [ActiveRecord::Base] Document model
+  # @param expires_in [Integer] URL expiry in seconds (default: 3600)
+  # @return [Hash] { success: true, url: "..." }
+  def download_url(record, expires_in: 3600)
+    return error_result("No record provided", status: :bad_request) unless record
+
+    # Priority 1: S3-compatible (Wasabi)
+    if record.respond_to?(:storage_provider) && record.storage_provider == "s3_compatible" && record.storage_path.present?
+      s3_key = record.storage_path.sub(%r{^/}, "")
+      begin
+        provider = s3_provider
+        return error_result("S3 storage not configured", status: :service_unavailable) unless provider
+
+        url = provider.download_url(s3_key, expires_in: expires_in)
+        { success: true, url: url }
+      rescue DocumentProviders::NotFoundError
+        error_result("File not found in S3 storage", status: :not_found)
+      rescue DocumentProviders::NotConnectedError
+        error_result("S3 storage not configured", status: :service_unavailable)
+      rescue => e
+        Rails.logger.error "[DocumentStorage] S3 URL error: #{e.message}"
+        error_result("Failed to generate S3 URL: #{e.message}", status: :internal_server_error)
+      end
+    # Priority 2: SharePoint
+    elsif has_sharepoint_id?(record)
+      # SharePoint web_url is already a usable URL
+      url = record.respond_to?(:web_url) ? record.web_url : record.file_url
+      if url.present?
+        { success: true, url: url }
+      else
+        error_result("No SharePoint URL available", status: :not_found)
+      end
+    else
+      error_result("No storage URL available", status: :not_found)
+    end
   end
 
   private
@@ -241,7 +317,84 @@ class DocumentStorageService
     name.gsub(/[<>:"\/\\|?*]/, "_")
   end
 
-  def error_result(message)
-    { success: false, error: message }
+  def error_result(message, status: nil)
+    result = { success: false, error: message }
+    result[:status] = status if status
+    result
+  end
+
+  # ============================================================================
+  # DOWNLOAD HELPERS (Private)
+  # ============================================================================
+
+  def download_from_s3(record)
+    s3_key = record.storage_path.sub(%r{^/}, "")
+    provider = s3_provider
+    return error_result("S3 storage not configured", status: :service_unavailable) unless provider
+
+    content = provider.download_file(s3_key)
+    {
+      success: true,
+      content: content,
+      content_type: detect_content_type(record.file_name),
+      filename: record.file_name
+    }
+  rescue DocumentProviders::NotFoundError
+    error_result("File not found in S3 storage", status: :not_found)
+  rescue DocumentProviders::NotConnectedError
+    error_result("S3 storage not configured", status: :service_unavailable)
+  rescue => e
+    Rails.logger.error "[DocumentStorage] S3 download error for #{record.class.name}##{record.id}: #{e.message}"
+    error_result("Failed to download file from S3: #{e.message}", status: :internal_server_error)
+  end
+
+  def download_from_sharepoint(record)
+    credential = MicrosoftCredential.sharepoint_credential
+    return error_result("SharePoint not configured", status: :service_unavailable) unless credential
+
+    client = MicrosoftGraphClient.new(credential)
+    file_id = record.respond_to?(:sharepoint_file_id) ? record.sharepoint_file_id : nil
+    file_id ||= record.respond_to?(:sharepoint_item_id) ? record.sharepoint_item_id : nil
+    return error_result("No SharePoint file ID", status: :not_found) unless file_id
+
+    content = client.download_file(file_id)
+    {
+      success: true,
+      content: content,
+      content_type: detect_content_type(record.file_name),
+      filename: record.file_name
+    }
+  rescue MicrosoftGraphClient::APIError => e
+    Rails.logger.error "[DocumentStorage] SharePoint download error for #{record.class.name}##{record.id}: #{e.message}"
+    error_result("SharePoint download failed: #{e.message}", status: :bad_gateway)
+  rescue => e
+    Rails.logger.error "[DocumentStorage] SharePoint error: #{e.message}"
+    error_result("SharePoint error: #{e.message}", status: :internal_server_error)
+  end
+
+  def download_from_active_storage(record)
+    {
+      success: true,
+      content: record.file.download,
+      content_type: record.file.content_type || detect_content_type(record.file_name),
+      filename: record.file_name || record.file.filename.to_s
+    }
+  rescue ActiveStorage::FileNotFoundError
+    error_result("File not found in storage", status: :not_found)
+  rescue => e
+    Rails.logger.error "[DocumentStorage] ActiveStorage error for #{record.class.name}##{record.id}: #{e.message}"
+    error_result("Failed to download file: #{e.message}", status: :internal_server_error)
+  end
+
+  def has_sharepoint_id?(record)
+    (record.respond_to?(:sharepoint_file_id) && record.sharepoint_file_id.present?) ||
+      (record.respond_to?(:sharepoint_item_id) && record.sharepoint_item_id.present?)
+  end
+
+  def s3_provider
+    @s3_provider ||= begin
+      credential = S3CompatibleCredential.active.connected.first
+      DocumentProviders::S3Compatible.new(credential) if credential
+    end
   end
 end
