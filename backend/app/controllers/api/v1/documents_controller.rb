@@ -454,12 +454,19 @@ module Api
       def generate_download_url(doc)
         return nil unless doc.present?
 
-        if doc.storage_provider == 's3_compatible' && doc.storage_item_id.present?
+        if doc.storage_provider == 's3_compatible'
           # Generate presigned S3 URL (1 hour expiry)
+          # SSoT: Use storage_path (the actual S3 key), not storage_item_id (legacy)
+          # storage_path may have leading slash, strip it for S3 key
+          s3_key = doc.storage_path.presence || doc.storage_item_id
+          return nil unless s3_key.present?
+
+          s3_key = s3_key.sub(%r{^/}, '') # Remove leading slash if present
+
           begin
             organization = Organization.first # Single-tenant
             provider = DocumentProviders::S3Compatible.for_organization(organization)
-            provider.download_url(doc.storage_item_id, expires_in: 3600)
+            provider.download_url(s3_key, expires_in: 3600)
           rescue => e
             Rails.logger.warn "[Documents] Failed to generate S3 URL for #{doc.class.name}##{doc.id}: #{e.message}"
             nil
