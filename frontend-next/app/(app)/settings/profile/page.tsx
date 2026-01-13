@@ -103,17 +103,13 @@ export default function ProfileSettingsPage() {
 
   // Initialize profile form when user data is available
   React.useEffect(() => {
-    console.log("[Profile] useEffect triggered, user:", user);
-    console.log("[Profile] user.photo_url:", (user as any)?.photo_url);
     if (user) {
       setProfileName(user.name || "");
       setProfileEmail(user.email || "");
       setProfilePhone((user as any).mobile_phone || "");
       setProfileJobTitle((user as any).job_title || "");
       // Profile photo
-      const newPhotoUrl = (user as any).photo_url || null;
-      console.log("[Profile] Setting photoUrl to:", newPhotoUrl);
-      setPhotoUrl(newPhotoUrl);
+      setPhotoUrl((user as any).photo_url || null);
       // QBCC/Signature fields
       setQbccLicenceNumber((user as any).qbcc_licence_number || "");
       setQbccLicenceClass((user as any).qbcc_licence_class || "");
@@ -162,9 +158,9 @@ export default function ProfileSettingsPage() {
         alert("Please select an image file (PNG, JPG, etc.)");
         return;
       }
-      // Validate file size (max 2MB)
-      if (file.size > 2 * 1024 * 1024) {
-        alert("Photo must be less than 2MB");
+      // Validate file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        alert("Photo must be less than 10MB");
         return;
       }
       setPhotoFile(file);
@@ -233,19 +229,15 @@ export default function ProfileSettingsPage() {
           body: formData,
         });
         const data = await response.json();
-        console.log("[Profile] Save response:", data);
-        console.log("[Profile] Photo URL in response:", data?.user?.photo_url);
 
         if (data?.success) {
           setPhotoFile(null);
           setPhotoPreview(null);
           setSignatureFile(null);
           setSignaturePreview(null);
-          console.log("[Profile] Calling refreshUser...");
           if (refreshUser) {
             await refreshUser();
           }
-          console.log("[Profile] After refreshUser, user:", user);
           alert("Profile saved successfully!");
         } else {
           alert(`Failed to save: ${data?.errors?.join("; ") || "Unknown error"}`);
@@ -321,7 +313,7 @@ export default function ProfileSettingsPage() {
               <Upload className="h-4 w-4 mr-2" />
               Upload Photo
             </Button>
-            <p className="text-xs text-muted-foreground mt-1">JPG, PNG or GIF. Max 2MB.</p>
+            <p className="text-xs text-muted-foreground mt-1">JPG, PNG or GIF. Max 10MB.</p>
           </div>
         </div>
 
