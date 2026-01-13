@@ -390,12 +390,8 @@ export function DocumentTypesTab() {
 
   // SSoT: Add handled by TeeemTableView's built-in add modal via Foundation API
 
-  // Handle row click - navigate to detail page
-  const handleRowClick = React.useCallback((row: DocumentType) => {
-    router.push(`/admin/system/document-types/${row.id}`);
-  }, [router]);
-
-  // Handle row double-click
+  // Handle row double-click - navigate to detail page
+  // Single-click selects row (default behavior), double-click opens detail
   const handleRowDoubleClick = React.useCallback((row: DocumentType) => {
     router.push(`/admin/system/document-types/${row.id}`);
   }, [router]);
@@ -556,7 +552,6 @@ export function DocumentTypesTab() {
           // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
           onEdit={handleEdit}
           onRowUpdate={handleRowUpdate}
-          onRowClick={handleRowClick}
           onRowDoubleClick={handleRowDoubleClick}
           onDelete={handleDelete}
           onBulkDelete={handleBulkDelete}
