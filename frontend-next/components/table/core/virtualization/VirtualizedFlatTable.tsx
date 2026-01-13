@@ -214,11 +214,7 @@ export const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
                       onDoubleClick={() => {
                         // Double click opens detail/edit
                         if (!isEditMode && !editingRowIds.has(row.id)) {
-                          if (onRowClick) {
-                            onRowClick(row);
-                          } else {
-                            onRowDoubleClick?.(row);
-                          }
+                          onRowDoubleClick?.(row);
                         }
                       }}
                       onMouseEnter={() => handleRowMouseEnter(row.id, rowIndex)}
