@@ -180,26 +180,22 @@ module Api
             overwrite: true
           )
 
-          # Create document record
-          # Note: company_id is optional for user-uploaded documents
-          # Uses existing columns: storage_type, file_url, external_id
-          document = CorporateCompanyDocument.create!(
-            file_name: file.original_filename,
-            display_name: file.original_filename,
-            document_type: "user_upload",
-            mime_type: file.content_type,
-            file_size: file.size,
-            folder: folder,
-            storage_type: "s3_compatible",
-            file_url: "/#{s3_key}",
-            external_id: result[:id],
-            filed_by: user.name || user.email,
-            uploaded_at: Time.current
-          )
-
+          # For user "My Documents" uploads, we store in S3 but don't create a
+          # CorporateCompanyDocument record (which requires company/contact/job/task owner).
+          # Files are accessible directly via S3 path: Users/{user_id}/{folder}/{filename}
           render json: {
             success: true,
-            document: serialize_corp_doc(document),
+            document: {
+              id: result[:id],
+              file_name: file.original_filename,
+              display_name: file.original_filename,
+              mime_type: file.content_type,
+              file_size: file.size,
+              folder: folder,
+              storage_path: "/#{s3_key}",
+              filed_by: user.name || user.email,
+              uploaded_at: Time.current.iso8601
+            },
             message: "File uploaded successfully"
           }
         rescue StandardError => e
