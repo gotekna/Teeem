@@ -1,11 +1,15 @@
 # frozen_string_literal: true
 
 # EmailAttachmentMigrationJob - Migrate single attachment from SharePoint to Wasabi
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  SSoT: Uses DocumentProviderAware for storage abstraction         ║
+# ║  Downloads from SharePoint using provider abstraction             ║
+# ╚═══════════════════════════════════════════════════════════════════╝
 #
 # Designed for parallel execution via SolidQueue. Each job handles ONE attachment,
 # allowing multiple workers to process attachments concurrently.
 #
-# SharePoint API rate limit: ~10,000 requests per 10 minutes
+# Storage API rate limit: ~10,000 requests per 10 minutes
 # Safe concurrency: 5-10 workers (with retries)
 #
 # Usage:
@@ -19,6 +23,8 @@
 #   EmailAttachmentMigrationJob.migration_status
 #
 class EmailAttachmentMigrationJob < ApplicationJob
+  include DocumentProviderAware
+
   queue_as :default
 
   # Retry on transient SharePoint errors
@@ -85,12 +91,15 @@ class EmailAttachmentMigrationJob < ApplicationJob
       end
     end
 
-    # Get SharePoint provider
-    provider = get_sharepoint_provider
-    raise "Failed to get SharePoint provider" unless provider
+    # SSoT: Setup document provider (specifically SharePoint for migration)
+    begin
+      setup_sharepoint_provider_for_migration!
+    rescue DocumentProviders::NotConnectedError => e
+      raise "Failed to get storage provider: #{e.message}"
+    end
 
-    # Download from SharePoint (try path variations)
-    content = download_from_sharepoint(provider, attachment)
+    # Download from storage (try path variations)
+    content = download_from_storage(attachment)
     raise "Could not download attachment #{attachment_id} from SharePoint" unless content
 
     # Store with deduplication
@@ -101,23 +110,28 @@ class EmailAttachmentMigrationJob < ApplicationJob
 
   private
 
-  def get_sharepoint_provider
+  # For migration jobs, we specifically need SharePoint since we're migrating FROM it
+  def setup_sharepoint_provider_for_migration!
     cred = MicrosoftCredential.sharepoint_credential
-    return nil unless cred
+    raise DocumentProviders::NotConnectedError, "No SharePoint credential configured" unless cred
 
     storage_config = StorageConfiguration.instance
-    return nil unless storage_config&.drive_id.present?
+    raise DocumentProviders::NotConnectedError, "No storage configuration" unless storage_config&.drive_id.present?
 
-    DocumentProviders::SharePoint.new(cred)
+    @document_provider = DocumentProviders::SharePoint.new(cred)
+    @organization = Organization.first
+    @storage_config = storage_config
   end
 
-  def download_from_sharepoint(provider, attachment)
+  def download_from_storage(attachment)
     path_variations = generate_path_variations(attachment.sharepoint_path)
 
     path_variations.each do |path|
       begin
-        content = provider.download_file(path)
+        content = document_provider.download_file(path)
         return content if content.present?
+      rescue DocumentProviders::Error => e
+        Rails.logger.debug "[AttachmentMigrationJob] Path #{path} failed: #{e.message}"
       rescue => e
         Rails.logger.debug "[AttachmentMigrationJob] Path #{path} failed: #{e.message}"
       end

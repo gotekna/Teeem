@@ -1,23 +1,28 @@
-# Background job to create SharePoint folder structure for a construction/job
+# frozen_string_literal: true
+
+# Background job to create storage folder structure for a construction/job
+#
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  SSoT: Uses DocumentProviderAware for storage abstraction         ║
+# ║  Creates folders in Wasabi, SharePoint, or S3                     ║
+# ╚═══════════════════════════════════════════════════════════════════╝
 #
 # This job is automatically enqueued when a new construction is created with
 # `create_sharepoint_folders: true` parameter.
 #
 # The job:
-# - Uses the organization-wide SharePoint credential
+# - Uses the organization's configured storage provider
 # - Creates a job-specific folder (e.g., "001 - Project Name")
-# - Creates subfolders based on the folder template
+# - Creates subfolders based on EntityTab hierarchy
 # - Updates the construction's storage_folder_status
 # - Is idempotent (won't recreate folders if they already exist)
 #
 # @param construction_id [Integer] The ID of the construction to create folders for
-# @param template_id [Integer, nil] Optional folder template ID (uses default if nil)
+# @param template_id [Integer, nil] DEPRECATED - ignored
 class CreateJobFoldersJob < ApplicationJob
-  queue_as :default
+  include DocumentProviderAware
 
-  # Retry with exponential backoff on API errors
-  retry_on MicrosoftGraphClient::APIError, wait: :exponentially_longer, attempts: 3
-  retry_on MicrosoftGraphClient::AuthenticationError, wait: 5.seconds, attempts: 2
+  queue_as :default
 
   def perform(construction_id, template_id = nil)
     construction = Job.find(construction_id)
@@ -25,57 +30,94 @@ class CreateJobFoldersJob < ApplicationJob
     # Mark as processing
     construction.update!(storage_folder_status: "processing")
 
-    # Get organization SharePoint credential
-    credential = MicrosoftCredential.sharepoint_credential
-
-    unless credential&.valid_credential?
+    # SSoT: Setup document provider using StorageConfiguration
+    begin
+      setup_default_provider!
+    rescue DocumentProviders::NotConnectedError => e
       construction.update!(storage_folder_status: "failed")
-      Rails.logger.error "CreateJobFoldersJob failed: SharePoint not connected"
+      Rails.logger.error "[CreateJobFoldersJob] No storage provider configured: #{e.message}"
       return
     end
 
-    # SSoT: Folder structure comes from EntityTab hierarchy (no longer uses FolderTemplate)
-    # template_id parameter is deprecated and ignored
-
     begin
-      client = MicrosoftGraphClient.new(credential)
+      # Build job folder path
+      job_folder_path = build_job_folder_path(construction)
 
       # Check if job folder already exists (idempotent)
-      existing_folder = client.find_job_folder(construction)
-
-      if existing_folder
+      if folder_exists_in_provider?(job_folder_path)
         # Folders already exist, mark as completed
         construction.update!(storage_folder_status: "completed")
-        Rails.logger.info "CreateJobFoldersJob: Folders already exist for Construction ##{construction_id}"
+        Rails.logger.info "[CreateJobFoldersJob] Folders already exist for Job ##{construction_id}"
         return
       end
 
       # Create folder structure for this job (SSoT: uses EntityTab hierarchy)
-      job_folder = client.create_job_folder_structure(construction)
-
-      # Mark credential as synced
-      credential.mark_synced!
+      create_job_folder_structure(construction, job_folder_path)
 
       # Mark construction as completed
       construction.update!(storage_folder_status: "completed")
 
-      Rails.logger.info "CreateJobFoldersJob succeeded: Created folders for Construction ##{construction_id}"
+      Rails.logger.info "[CreateJobFoldersJob] Succeeded: Created folders for Job ##{construction_id} (provider: #{current_provider_type})"
 
-    rescue MicrosoftGraphClient::AuthenticationError => e
+    rescue DocumentProviders::AuthenticationError => e
       construction.update!(storage_folder_status: "failed")
-      Rails.logger.error "CreateJobFoldersJob authentication failed for Construction ##{construction_id}: #{e.message}"
-      raise # Re-raise to trigger retry
+      Rails.logger.error "[CreateJobFoldersJob] Auth failed for Job ##{construction_id}: #{e.message}"
 
-    rescue MicrosoftGraphClient::APIError => e
+    rescue DocumentProviders::Error => e
       construction.update!(storage_folder_status: "failed")
-      Rails.logger.error "CreateJobFoldersJob API error for Construction ##{construction_id}: #{e.message}"
-      raise # Re-raise to trigger retry
+      Rails.logger.error "[CreateJobFoldersJob] Provider error for Job ##{construction_id}: #{e.message}"
 
     rescue StandardError => e
       construction.update!(storage_folder_status: "failed")
-      Rails.logger.error "CreateJobFoldersJob failed for Construction ##{construction_id}: #{e.message}"
+      Rails.logger.error "[CreateJobFoldersJob] Failed for Job ##{construction_id}: #{e.message}"
       Rails.logger.error e.backtrace.join("\n")
-      # Don't re-raise for unexpected errors - just mark as failed
+    end
+  end
+
+  private
+
+  def build_job_folder_path(job)
+    # SSoT: Get Jobs base path from StorageConfiguration
+    base_folder = scope_folder_path(:job)
+    job_folder_name = "#{job.id.to_s.rjust(3, '0')} - #{sanitize_folder_name(job.title)}"
+    "/#{base_folder}/#{job_folder_name}"
+  end
+
+  def sanitize_folder_name(name)
+    name.to_s.gsub(/[<>:"|?*\\]/, "_").strip
+  end
+
+  def create_job_folder_structure(job, job_folder_path)
+    # Create main job folder
+    get_or_create_folder_path(job_folder_path)
+
+    # SSoT: Create subfolders from EntityTab hierarchy
+    create_subfolders_from_entity_tabs(job_folder_path)
+
+    Rails.logger.info "[CreateJobFoldersJob] Created folder structure at #{job_folder_path}"
+  end
+
+  def create_subfolders_from_entity_tabs(parent_path)
+    root_tabs = EntityTab.for_jobs
+                         .where(has_storage_folder: true)
+                         .enabled
+                         .root_tabs
+                         .ordered
+                         .includes(children: { children: :children })
+
+    root_tabs.each do |tab|
+      create_entity_tab_folder_recursive(tab, parent_path)
+    end
+  end
+
+  def create_entity_tab_folder_recursive(tab, parent_path)
+    folder_path = "#{parent_path}/#{tab.display_name}"
+    get_or_create_folder_path(folder_path)
+
+    Rails.logger.info "[CreateJobFoldersJob] Created folder: #{folder_path}"
+
+    tab.children.where(has_storage_folder: true).enabled.ordered.each do |child|
+      create_entity_tab_folder_recursive(child, folder_path)
     end
   end
 end

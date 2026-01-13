@@ -1,8 +1,16 @@
 # frozen_string_literal: true
 
 # Processes a single scanned plan file
-# Downloads from SharePoint, runs AI identification, creates JobPlan
+# Downloads from storage, runs AI identification, creates JobPlan
+#
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  SSoT: Uses DocumentProviderAware for storage abstraction         ║
+# ║  Downloads from Wasabi, SharePoint, or S3                         ║
+# ╚═══════════════════════════════════════════════════════════════════╝
+#
 class PlanFolderProcessJob < ApplicationJob
+  include DocumentProviderAware
+
   queue_as :default
 
   def perform(scan_id)
@@ -14,13 +22,12 @@ class PlanFolderProcessJob < ApplicationJob
 
     begin
       job = scan.job
-      credential = MicrosoftCredential.sharepoint_credential
-      raise "No active SharePoint credential" unless credential
 
-      client = MicrosoftGraphClient.new(credential)
+      # SSoT: Setup document provider using StorageConfiguration
+      setup_default_provider!
 
       # Download the file
-      content = client.download_file(scan.sharepoint_file_id)
+      content = download_from_provider(scan.sharepoint_file_id)
       raise "Failed to download file" unless content
 
       # Run AI identification
@@ -54,14 +61,13 @@ class PlanFolderProcessJob < ApplicationJob
         )
       end
 
-      # Get file metadata for revision
-      file_info = client.get_file_metadata(scan.sharepoint_file_id)
-      web_url = file_info&.dig("webUrl")
+      # Get file metadata for revision (try to get URL)
+      file_path = scan.sharepoint_file_id  # Could be path or ID depending on provider
 
-      # Create the revision with the SharePoint file link
+      # Create the revision with the storage file link
       job_plan.add_revision!(
         sharepoint_file_id: scan.sharepoint_file_id,
-        sharepoint_web_url: web_url,
+        sharepoint_web_url: file_path,
         file_name: scan.file_name,
         file_size: scan.file_size,
         revision_date: scan.file_modified_at&.to_date || Date.current
@@ -72,9 +78,15 @@ class PlanFolderProcessJob < ApplicationJob
 
       Rails.logger.info(
         "[PlanFolderProcessJob] Processed #{scan.file_name} -> " \
-        "#{job_plan.computed_display_name} (confidence: #{result.confidence}%)"
+        "#{job_plan.computed_display_name} (confidence: #{result.confidence}%, provider: #{current_provider_type})"
       )
 
+    rescue DocumentProviders::NotConnectedError => e
+      Rails.logger.error "[PlanFolderProcessJob] No storage provider configured: #{e.message}"
+      scan.mark_error!(e.message)
+    rescue DocumentProviders::Error => e
+      Rails.logger.error "[PlanFolderProcessJob] Storage error: #{e.message}"
+      scan.mark_error!(e.message)
     rescue StandardError => e
       Rails.logger.error "[PlanFolderProcessJob] Error processing scan #{scan_id}: #{e.message}"
       scan.mark_error!(e.message)

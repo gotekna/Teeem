@@ -3,18 +3,25 @@
 # =============================================================================
 # PlanReextractionJob - Batch re-extraction of plans with naming templates
 # =============================================================================
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  SSoT: Uses DocumentProviderAware for storage abstraction         ║
+# ║  Downloads from Wasabi, SharePoint, or S3                         ║
+# ╚═══════════════════════════════════════════════════════════════════╝
+#
 # This job coordinates re-extraction of all plans for a job:
-# 1. Downloads each PDF from SharePoint
+# 1. Downloads each PDF from storage
 # 2. Identifies plan type via PlanIdentificationService (SSoT)
 # 3. Applies naming templates from PlanType (SSoT)
-# 4. Updates display_name and renames SharePoint file
+# 4. Updates display_name and renames storage file
 #
 # SSoT Compliance:
 # - Uses PlanIdentificationService for ALL plan type matching
-# - Uses PlanType.resolve_short_name (SharePoint filename) / resolve_long_name (Display name)
-# - Uses MicrosoftGraphClient for SharePoint operations
+# - Uses PlanType.resolve_short_name (filename) / resolve_long_name (Display name)
+# - Uses DocumentProviderAware for storage operations
 # =============================================================================
 class PlanReextractionJob < ApplicationJob
+  include DocumentProviderAware
+
   queue_as :default
 
   def perform(reextraction_id)
@@ -26,7 +33,15 @@ class PlanReextractionJob < ApplicationJob
 
     Rails.logger.info "[PlanReextractionJob] Starting re-extraction for job #{@job.id}"
 
-    # Get plans with SharePoint files
+    # SSoT: Setup document provider using StorageConfiguration
+    begin
+      setup_default_provider!
+    rescue DocumentProviders::NotConnectedError => e
+      @reextraction.mark_failed!("No storage provider configured: #{e.message}")
+      return
+    end
+
+    # Get plans with storage files
     plans = @job.job_plans.includes(:current_revision, :plan_type)
                  .joins(:current_revision)
                  .where.not(job_plan_revisions: { sharepoint_file_id: nil })
@@ -42,7 +57,7 @@ class PlanReextractionJob < ApplicationJob
     end
 
     @reextraction.mark_completed!
-    Rails.logger.info "[PlanReextractionJob] Completed re-extraction for job #{@job.id}"
+    Rails.logger.info "[PlanReextractionJob] Completed re-extraction for job #{@job.id} (provider: #{current_provider_type})"
   rescue => e
     Rails.logger.error "[PlanReextractionJob] Job failed: #{e.message}"
     @reextraction&.mark_failed!(e.message)
@@ -64,12 +79,8 @@ class PlanReextractionJob < ApplicationJob
     old_display_name = plan.display_name
     old_filename = revision.file_name
 
-    # Download the file from SharePoint
-    credential = MicrosoftCredential.sharepoint_credential
-    return unless credential
-
-    client = MicrosoftGraphClient.new(credential)
-    content = client.download_file(revision.sharepoint_file_id)
+    # Download the file from storage
+    content = download_from_provider(revision.sharepoint_file_id)
     return unless content
 
     # Use PlanIdentificationService (SSoT for plan identification)
@@ -93,7 +104,7 @@ class PlanReextractionJob < ApplicationJob
       template_values = build_template_values(plan, result, variant_suffix)
 
       # Resolve templates (SSoT: PlanType model)
-      # Short name = SharePoint filename, Long name = Display name
+      # Short name = filename, Long name = Display name
       new_filename = sanitize_filename(result.plan_type.resolve_short_name(template_values)) + ".pdf"
       new_display_name = result.plan_type.resolve_long_name(template_values)
 
@@ -110,9 +121,9 @@ class PlanReextractionJob < ApplicationJob
         is_combined_pdf: is_combined
       )
 
-      # Rename SharePoint file if different
+      # Rename storage file if different
       if old_filename != new_filename
-        rename_sharepoint_file!(revision, new_filename, client)
+        rename_storage_file!(revision, new_filename)
       end
 
       # Record successful update
@@ -158,20 +169,23 @@ class PlanReextractionJob < ApplicationJob
   end
 
   def sanitize_filename(name)
-    # Remove characters invalid for SharePoint filenames
-    # Invalid chars: < > : " / \ | ? *
+    # Remove characters invalid for storage filenames
     name.gsub(%r{[<>:"/\\|?*]}, "-").gsub(/\s+/, " ").strip
   end
 
-  def rename_sharepoint_file!(revision, new_filename, client)
-    Rails.logger.info "[PlanReextractionJob] Renaming SharePoint file: #{revision.file_name} -> #{new_filename}"
+  def rename_storage_file!(revision, new_filename)
+    Rails.logger.info "[PlanReextractionJob] Renaming storage file: #{revision.file_name} -> #{new_filename}"
 
-    client.rename_file(revision.sharepoint_file_id, new_filename)
+    # Use the provider's rename capability
+    document_provider.rename_file(revision.sharepoint_file_id, new_filename)
     revision.update!(file_name: new_filename)
 
-    Rails.logger.info "[PlanReextractionJob] SharePoint file renamed successfully"
+    Rails.logger.info "[PlanReextractionJob] Storage file renamed successfully"
+  rescue DocumentProviders::Error => e
+    Rails.logger.error "[PlanReextractionJob] Failed to rename storage file: #{e.message}"
+    @reextraction.add_rename_error!(revision.file_name, e.message)
   rescue => e
-    Rails.logger.error "[PlanReextractionJob] Failed to rename SharePoint file: #{e.message}"
+    Rails.logger.error "[PlanReextractionJob] Failed to rename storage file: #{e.message}"
     @reextraction.add_rename_error!(revision.file_name, e.message)
   end
 end

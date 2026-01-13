@@ -3,6 +3,11 @@
 # =============================================================================
 # PlanStagingCleanupJob - Clean up orphaned staging files
 # =============================================================================
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  SSoT: Uses DocumentProviderAware for storage abstraction         ║
+# ║  Cleans up Wasabi, SharePoint, or S3 staging folders              ║
+# ╚═══════════════════════════════════════════════════════════════════╝
+#
 # This job runs daily to delete staging files that were not cleaned up
 # after plan upload completion/failure.
 #
@@ -10,6 +15,8 @@
 #
 # =============================================================================
 class PlanStagingCleanupJob < ApplicationJob
+  include DocumentProviderAware
+
   queue_as :default
 
   def perform
@@ -23,54 +30,56 @@ class PlanStagingCleanupJob < ApplicationJob
       Rails.logger.warn "[PlanStagingCleanupJob] Errors during cleanup: #{result[:errors].inspect}"
     end
 
-    # Also clean up the staging folder in SharePoint if it's empty or has old files
-    cleanup_sharepoint_staging_folder
+    # Also clean up the staging folder in storage if it's empty or has old files
+    cleanup_storage_staging_folder
 
     Rails.logger.info "[PlanStagingCleanupJob] Completed"
   end
 
   private
 
-  def cleanup_sharepoint_staging_folder
-    credential = MicrosoftCredential.sharepoint_credential
-    return unless credential
+  def cleanup_storage_staging_folder
+    # SSoT: Setup document provider using StorageConfiguration
+    begin
+      setup_default_provider!
+    rescue DocumentProviders::NotConnectedError => e
+      Rails.logger.warn "[PlanStagingCleanupJob] No storage provider configured: #{e.message}"
+      return
+    end
 
-    client = MicrosoftGraphClient.new(credential)
     staging_folder_name = PlanUpload.staging_folder_name
+    staging_folder_path = "/#{staging_folder_name}"
 
     begin
-      # Find staging folder
-      drive_path = credential.drive_id.present? ? "/drives/#{credential.drive_id}" : "/me/drive"
-      response = client.get("#{drive_path}/root/children")
-      folders = response["value"] || []
-      staging_folder = folders.find { |f| f["name"] == staging_folder_name && f["folder"] }
-
-      return unless staging_folder
+      # Check if staging folder exists
+      return unless folder_exists_in_provider?(staging_folder_path)
 
       # List items in staging folder
-      items_response = client.get("#{drive_path}/items/#{staging_folder["id"]}/children")
-      items = items_response["value"] || []
+      items = list_folder_in_provider(staging_folder_path)
 
       # Delete files older than 24 hours
       cutoff = 24.hours.ago
       deleted = 0
 
       items.each do |item|
-        created_at = Time.parse(item["createdDateTime"]) rescue nil
+        next unless item[:type] == :file
+        created_at = item[:created_at] || item[:modified_at]
         next unless created_at && created_at < cutoff
 
         begin
-          client.delete("#{drive_path}/items/#{item["id"]}")
+          delete_from_provider(item[:id])
           deleted += 1
-        rescue => e
-          Rails.logger.warn "[PlanStagingCleanupJob] Failed to delete #{item["name"]}: #{e.message}"
+        rescue DocumentProviders::Error => e
+          Rails.logger.warn "[PlanStagingCleanupJob] Failed to delete #{item[:name]}: #{e.message}"
         end
       end
 
-      Rails.logger.info "[PlanStagingCleanupJob] Deleted #{deleted} old files from SharePoint staging folder"
+      Rails.logger.info "[PlanStagingCleanupJob] Deleted #{deleted} old files from staging folder (provider: #{current_provider_type})"
 
-    rescue => e
-      Rails.logger.warn "[PlanStagingCleanupJob] Error cleaning SharePoint staging: #{e.message}"
+    rescue DocumentProviders::NotFoundError
+      Rails.logger.debug "[PlanStagingCleanupJob] Staging folder not found, nothing to clean"
+    rescue DocumentProviders::Error => e
+      Rails.logger.warn "[PlanStagingCleanupJob] Error cleaning staging folder: #{e.message}"
     end
   end
 end

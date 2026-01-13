@@ -1,7 +1,17 @@
-# One-time job to backfill sharepoint_file_id for existing Xero documents
-# These documents were uploaded to SharePoint before v423, so they exist on SharePoint
-# but don't have their sharepoint_file_id tracked in the database
+# frozen_string_literal: true
+
+# One-time job to backfill storage_file_id for existing Xero documents
+# These documents were uploaded to storage before tracking, so they exist
+# but don't have their file ID tracked in the database
+#
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  SSoT: Uses DocumentProviderAware for storage abstraction         ║
+# ║  Searches Wasabi, SharePoint, or S3 based on StorageConfiguration ║
+# ╚═══════════════════════════════════════════════════════════════════╝
+#
 class XeroDocumentBackfillJob < ApplicationJob
+  include DocumentProviderAware
+
   queue_as :low
 
   # Run with: XeroDocumentBackfillJob.perform_now(limit: 100, dry_run: true)
@@ -9,13 +19,23 @@ class XeroDocumentBackfillJob < ApplicationJob
     start_time = Time.current
     stats = {
       total_processed: 0,
-      found_on_sharepoint: 0,
+      found_on_storage: 0,
       not_found: 0,
       already_has_id: 0,
-      errors: 0
+      errors: 0,
+      provider: nil
     }
 
     Rails.logger.info("[XeroDocumentBackfill] Starting backfill job (dry_run: #{dry_run}, limit: #{limit})")
+
+    # SSoT: Setup document provider using StorageConfiguration
+    begin
+      setup_default_provider!
+      stats[:provider] = current_provider_type.to_s
+    rescue DocumentProviders::NotConnectedError => e
+      Rails.logger.error("[XeroDocumentBackfill] No storage provider configured: #{e.message}")
+      return stats
+    end
 
     # Find documents that need backfilling
     scope = CorporateCompanyDocument
@@ -27,43 +47,37 @@ class XeroDocumentBackfillJob < ApplicationJob
     scope = scope.limit(limit) if limit.present?
 
     total_count = scope.count
-    Rails.logger.info("[XeroDocumentBackfill] Found #{total_count} documents to process")
+    Rails.logger.info("[XeroDocumentBackfill] Found #{total_count} documents to process (provider: #{stats[:provider]})")
 
-    return if total_count.zero?
+    return stats if total_count.zero?
 
-    # Get SharePoint client
-    credential = MicrosoftCredential.sharepoint_credential
-    unless credential
-      Rails.logger.error("[XeroDocumentBackfill] No active SharePoint credential found")
-      return
-    end
-
-    graph_client = MicrosoftGraphClient.new(credential)
+    # SSoT: Get contacts folder path from StorageConfiguration
+    base_folder_name = scope_folder_path(:contact)
 
     scope.find_each.with_index do |doc, index|
       stats[:total_processed] += 1
 
       begin
-        # Try to find the file on SharePoint by path
-        file_info = find_file_on_sharepoint(graph_client, doc)
+        # Try to find the file on storage by path
+        file_info = find_file_on_storage(doc, base_folder_name)
 
         if file_info && file_info[:id]
-          stats[:found_on_sharepoint] += 1
+          stats[:found_on_storage] += 1
 
           if dry_run
-            Rails.logger.info("[XeroDocumentBackfill] [DRY RUN] Would update document #{doc.id} (#{doc.title}) with SharePoint ID: #{file_info[:id]}")
+            Rails.logger.info("[XeroDocumentBackfill] [DRY RUN] Would update document #{doc.id} (#{doc.title}) with file ID: #{file_info[:id]}")
           else
             doc.update!(sharepoint_file_id: file_info[:id])
-            Rails.logger.info("[XeroDocumentBackfill] Updated document #{doc.id} (#{doc.title}) with SharePoint ID: #{file_info[:id]}")
+            Rails.logger.info("[XeroDocumentBackfill] Updated document #{doc.id} (#{doc.title}) with file ID: #{file_info[:id]}")
           end
         else
           stats[:not_found] += 1
-          Rails.logger.warn("[XeroDocumentBackfill] File not found on SharePoint: #{doc.expected_sharepoint_path}")
+          Rails.logger.warn("[XeroDocumentBackfill] File not found on storage: #{doc.expected_sharepoint_path}")
         end
 
         # Progress logging every 10 documents
         if (index + 1) % 10 == 0
-          Rails.logger.info("[XeroDocumentBackfill] Progress: #{index + 1}/#{total_count} (#{stats[:found_on_sharepoint]} found)")
+          Rails.logger.info("[XeroDocumentBackfill] Progress: #{index + 1}/#{total_count} (#{stats[:found_on_storage]} found)")
         end
 
       rescue StandardError => e
@@ -83,40 +97,28 @@ class XeroDocumentBackfillJob < ApplicationJob
 
   private
 
-  def find_file_on_sharepoint(graph_client, document)
+  def find_file_on_storage(document, base_folder_name)
     # The expected_sharepoint_path is like: "Contacts/1497 - Southern Star Windows/BILLS/1497-PO-000100.pdf"
-    # We need to search for this file in SharePoint
+    # We need to search for this file in storage
 
-    # Strategy: Use the expected path to find the file
     # Split path into folder path + filename
     path_parts = document.expected_sharepoint_path.split("/")
     filename = path_parts.last
-    folder_path = path_parts[0..-2].join("/")
+    folder_path = path_parts[1..-2].join("/")  # Skip "Contacts" prefix
 
-    # Try to find the folder first
+    # Build the full folder path
+    full_folder_path = "/#{base_folder_name}/#{folder_path}"
+
     begin
-      # SSoT: Get contacts folder path from StorageConfiguration
-      storage_config = StorageConfiguration.instance
-      base_folder_name = storage_config&.path_for(:contacts) || "Contacts"
-
-      # Start from base folder
-      current_folder = graph_client.find_folder_in_drive_root(base_folder_name)
-      return nil unless current_folder
-
-      # Navigate through subfolders
-      path_parts[1..-2].each do |folder_name|
-        items = graph_client.list_folder_contents(current_folder[:id])
-        current_folder = items.find { |item| item[:name] == folder_name && item[:folder] }
-        return nil unless current_folder
-      end
-
-      # Now search for the file in the current folder
-      items = graph_client.list_folder_contents(current_folder[:id])
-      file = items.find { |item| item[:name] == filename && !item[:folder] }
-
+      # List folder contents and find the file
+      items = list_folder_in_provider(full_folder_path)
+      file = items.find { |item| item[:name] == filename && item[:type] == :file }
       file
-    rescue MicrosoftGraphClient::APIError => e
-      Rails.logger.warn("[XeroDocumentBackfill] SharePoint API error for #{document.expected_sharepoint_path}: #{e.message}")
+    rescue DocumentProviders::NotFoundError
+      Rails.logger.debug("[XeroDocumentBackfill] Folder not found: #{full_folder_path}")
+      nil
+    rescue DocumentProviders::Error => e
+      Rails.logger.warn("[XeroDocumentBackfill] Storage error for #{document.expected_sharepoint_path}: #{e.message}")
       nil
     rescue StandardError => e
       Rails.logger.error("[XeroDocumentBackfill] Unexpected error finding file: #{e.message}")
