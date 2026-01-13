@@ -298,6 +298,60 @@ module Api
         end
       end
 
+      # POST /api/v1/purchase_orders/toggle_budget_lock
+      # Toggle budget lock for multiple POs - locks unlocked ones, unlocks locked ones
+      # Unlocking requires admin permission
+      def toggle_budget_lock
+        ids = params[:ids]
+        return render json: { success: false, error: "No PO IDs provided" }, status: :bad_request if ids.blank?
+
+        purchase_orders = PurchaseOrder.where(id: ids)
+
+        if purchase_orders.count != ids.count
+          return render json: { success: false, error: "Some PO IDs not found" }, status: :not_found
+        end
+
+        locked_pos = purchase_orders.select(&:budget_locked?)
+        unlocked_pos = purchase_orders.reject(&:budget_locked?)
+
+        # Determine action based on majority or all same state
+        if locked_pos.empty?
+          # All unlocked -> lock them
+          action = :lock
+        elsif unlocked_pos.empty?
+          # All locked -> unlock them (admin only)
+          action = :unlock
+        else
+          # Mixed state - lock the unlocked ones
+          action = :lock
+          purchase_orders = unlocked_pos
+        end
+
+        # Admin check for unlock
+        if action == :unlock && !current_user&.admin?
+          return render json: { success: false, error: "Only admins can unlock budgets" }, status: :forbidden
+        end
+
+        ActiveRecord::Base.transaction do
+          purchase_orders.each do |po|
+            if action == :lock
+              po.lock_budget!(current_user)
+            else
+              po.unlock_budget!(current_user, reason: "Bulk unlock from PO list")
+            end
+          end
+        end
+
+        render json: {
+          success: true,
+          action: action,
+          message: "#{purchase_orders.count} PO budget(s) #{action == :lock ? 'locked' : 'unlocked'}",
+          count: purchase_orders.count
+        }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { success: false, error: "Failed to #{action} budgets: #{e.message}" }, status: :unprocessable_entity
+      end
+
       # POST /api/v1/purchase_orders/bulk_lock_budget
       # Lock budgets for multiple POs in a single transaction (all or nothing)
       def bulk_lock_budget

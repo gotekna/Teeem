@@ -21,7 +21,6 @@ import {
   CornerDownRight,
   ExternalLink,
   Lock,
-  Unlock,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
@@ -323,8 +322,9 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     }
   };
 
-  // Handle bulk lock budget for selected POs (all or nothing transaction)
-  const handleBulkLock = async () => {
+  // Handle toggle budget lock for selected POs
+  // Backend intelligently locks unlocked POs or unlocks locked POs
+  const handleToggleBudgetLock = async () => {
     if (selectedRowIds.size === 0 || lockingBudgets) return;
 
     try {
@@ -332,51 +332,21 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
       setError(null);
       const ids = Array.from(selectedRowIds);
 
-      const response = await api.post<{ success: boolean; message?: string; error?: string; count?: number }>(
-        "/api/v1/purchase_orders/bulk_lock_budget",
+      const response = await api.post<{ success: boolean; message?: string; error?: string; count?: number; action?: string }>(
+        "/api/v1/purchase_orders/toggle_budget_lock",
         { ids }
       );
 
       if (response?.success) {
-        console.log(`Budget lock: ${response.count} POs locked`);
+        console.log(`Budget ${response.action}: ${response.count} POs`);
         setRefreshKey((k) => k + 1);
         clearSelection();
       } else {
-        setError(response?.error || "Failed to lock budgets");
+        setError(response?.error || "Failed to toggle budget lock");
       }
     } catch (err) {
-      console.error("Failed to lock budgets:", err);
-      setError("Failed to lock budgets");
-    } finally {
-      setLockingBudgets(false);
-    }
-  };
-
-  // Handle bulk unlock budget for selected POs (all or nothing transaction, admin only)
-  const handleBulkUnlock = async () => {
-    if (selectedRowIds.size === 0 || lockingBudgets) return;
-
-    try {
-      setLockingBudgets(true);
-      setError(null);
-      const ids = Array.from(selectedRowIds);
-      const reason = "Bulk unlock from PO list";
-
-      const response = await api.post<{ success: boolean; message?: string; error?: string; count?: number }>(
-        "/api/v1/purchase_orders/bulk_unlock_budget",
-        { ids, reason }
-      );
-
-      if (response?.success) {
-        console.log(`Budget unlock: ${response.count} POs unlocked`);
-        setRefreshKey((k) => k + 1);
-        clearSelection();
-      } else {
-        setError(response?.error || "Failed to unlock budgets");
-      }
-    } catch (err) {
-      console.error("Failed to unlock budgets:", err);
-      setError("Failed to unlock budgets");
+      console.error("Failed to toggle budget lock:", err);
+      setError("Failed to toggle budget lock");
     } finally {
       setLockingBudgets(false);
     }
@@ -400,36 +370,20 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
         onRowUpdate={handleRowUpdate}
         onAddRow={handleOpenCreateModal}
         leftActions={
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleBulkLock}
-              disabled={selectedRowIds.size === 0 || lockingBudgets}
-              className="gap-1"
-            >
-              {lockingBudgets ? (
-                <Spinner size={14} />
-              ) : (
-                <Lock className="h-4 w-4" />
-              )}
-              Lock Budget {selectedRowIds.size > 0 && `(${selectedRowIds.size})`}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleBulkUnlock}
-              disabled={selectedRowIds.size === 0 || lockingBudgets}
-              className="gap-1 text-amber-600 hover:text-amber-700"
-            >
-              {lockingBudgets ? (
-                <Spinner size={14} />
-              ) : (
-                <Unlock className="h-4 w-4" />
-              )}
-              Unlock {selectedRowIds.size > 0 && `(${selectedRowIds.size})`}
-            </Button>
-          </>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleToggleBudgetLock}
+            disabled={selectedRowIds.size === 0 || lockingBudgets}
+            className="gap-1"
+          >
+            {lockingBudgets ? (
+              <Spinner size={14} />
+            ) : (
+              <Lock className="h-4 w-4" />
+            )}
+            Lock/Unlock {selectedRowIds.size > 0 && `(${selectedRowIds.size})`}
+          </Button>
         }
       />
 

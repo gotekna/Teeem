@@ -707,6 +707,7 @@ Rails.application.routes.draw do
           post :bulk_create
           post :bulk_lock_budget
           post :bulk_unlock_budget
+          post :toggle_budget_lock
         end
         member do
           post :approve
