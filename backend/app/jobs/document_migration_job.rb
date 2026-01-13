@@ -236,13 +236,30 @@ class DocumentMigrationJob < ApplicationJob
       "jobs/#{job.id}/#{subfolder}/#{filename}"
 
     when 'CorporateCompanyDocument'
-      # SSoT: Task documents go to Tasks/{Year}/{TaskId}/ folder
+      # SSoT: Task documents use EntityTab storage_folder_path template
       task_attachment = document.sm_task_attachments.first
       if task_attachment&.sm_task
         task = task_attachment.sm_task
-        year = (document.created_at || task.created_at || Time.current).year
         filename = slugify_filename(document.file_name)
-        "Tasks/#{year}/#{task.id}/#{filename}"
+
+        # SSoT: Get path from EntityTab (scope: task) + StorageConfiguration
+        entity_tab = EntityTab.find_by(scope: 'task')
+        base_folder = StorageConfiguration.instance.path_for(:task) # "Tasks"
+
+        if entity_tab&.storage_folder_path.present?
+          # Resolve template with task values
+          year = (document.created_at || task.created_at || Time.current).year
+          template = entity_tab.storage_folder_path
+          resolved_path = CorporateCompanySetting.resolve_template(template, {
+            "Year" => year.to_s,
+            "TaskId" => task.id.to_s,
+            "OriginalFileName" => filename
+          })
+          "#{base_folder}/#{resolved_path}"
+        else
+          # Fallback if no EntityTab config
+          "#{base_folder}/#{task.id}/#{filename}"
+        end
       elsif document.corporate_company
         company = document.corporate_company
         folder = slugify_path(document.folder.presence || "documents")
