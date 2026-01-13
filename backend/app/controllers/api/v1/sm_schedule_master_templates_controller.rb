@@ -745,12 +745,59 @@ module Api
           end
         end
 
+        # ACTUALLY SAVE THE CALCULATED DATES (this was missing!)
+        updated_count = 0
+        debug_updates = []
+
+        rows.each do |row|
+          dates = date_map[row.task_number]
+          next unless dates
+
+          old_start = row.start_date
+          old_end = row.end_date
+          new_start = dates[:start_date]
+          new_end = dates[:end_date]
+
+          # Only update if dates changed
+          if old_start != new_start || old_end != new_end
+            row.update!(
+              start_date: new_start,
+              end_date: new_end
+            )
+            updated_count += 1
+
+            # Debug info
+            reason = if row.hold && row.hold_date.present?
+              "held"
+            elsif all_deps[row.task_number]&.any?
+              "cascade from predecessors: #{all_deps[row.task_number].join(', ')}"
+            else
+              "no predecessors - starts at project start"
+            end
+
+            debug_updates << {
+              task_number: row.task_number,
+              name: row.name,
+              old_start: old_start&.to_s || "nil",
+              new_start: new_start.to_s,
+              reason: reason
+            }
+          end
+        end
+
+        Rails.logger.info "[validate_dates] Updated #{updated_count} rows for template #{@template.id}"
+
         render json: {
           success: true,
-          message: "Validated #{date_map.size} rows (single pass)",
-          updated: date_map.size,
+          message: "Validated and saved #{updated_count} rows",
+          updated: updated_count,
           start_date: start_date,
-          date_map: date_map.transform_values { |v| { start_date: v[:start_date].to_s, end_date: v[:end_date].to_s } }
+          date_map: date_map.transform_values { |v| { start_date: v[:start_date].to_s, end_date: v[:end_date].to_s } },
+          debug: {
+            tasks_processed: rows.size,
+            tasks_with_predecessors: all_deps.count { |_k, v| v.any? },
+            cascade_updates: debug_updates
+          }
         }
       rescue ArgumentError => e
         render json: { success: false, error: "Invalid date: #{e.message}" }, status: :unprocessable_entity
