@@ -177,6 +177,14 @@ export function BreadcrumbProvider({ children }: { children: ReactNode }) {
         timestamp: Date.now(),
       };
 
+      // SAFETY: Prevent duplicate pathnames in trail
+      // This guards against edge cases where the same page could be added twice
+      const hasDuplicate = prev.some((item) => item.pathname === pathname);
+      if (hasDuplicate) {
+        // Instead of adding duplicate, rebuild from URL
+        return buildBreadcrumbsFromUrl(pathname, searchParams);
+      }
+
       // Enforce max length
       const updated = [...prev, newItem];
       return updated.slice(-MAX_TRAIL_LENGTH);

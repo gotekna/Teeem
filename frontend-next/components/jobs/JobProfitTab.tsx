@@ -402,7 +402,7 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
                 {formatCurrency(cashIn)}
               </div>
               <div className="text-xs text-muted-foreground mt-1">
-                {claimsSummary?.paid_percentage?.toFixed(0) || 0}% collected
+                {(Number(claimsSummary?.paid_percentage) || 0).toFixed(0)}% collected
               </div>
             </div>
             {/* Cash Out */}

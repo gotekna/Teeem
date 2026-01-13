@@ -65,29 +65,108 @@ import { api } from "@/lib/api";
 import { DEBOUNCE_SEARCH_MS } from "@/lib/constants/timeout-constants";
 import { safePercent } from "@/lib/utils";
 import dynamic from "next/dynamic";
-import { JobActivityTab } from "@/components/jobs/JobActivityTab";
-import { JobContractTab } from "@/components/jobs/JobContractTab";
-import { JobPeopleTab } from "@/components/jobs/JobPeopleTab";
-import { RainLogTab } from "@/components/jobs/RainLogTab";
-import { JobDocumentsTab } from "@/components/jobs/JobDocumentsTab";
-import { JobPlansTab } from "@/components/jobs/JobPlansTab";
-import { JobPurchaseOrdersTab } from "@/components/jobs/JobPurchaseOrdersTab";
-import { JobEstimatorTab } from "@/components/jobs/JobEstimatorTab";
-import { JobBudgetTab } from "@/components/jobs/JobBudgetTab";
-import { JobBOQTab } from "@/components/jobs/JobBOQTab";
-import { JobCommunicationsTab } from "@/components/jobs/JobCommunicationsTab";
-import { JobProfitTab } from "@/components/jobs/JobProfitTab";
-import { JobClaimStagesTab } from "@/components/jobs/JobClaimStagesTab";
-import { JobExpensesTab } from "@/components/jobs/JobExpensesTab";
-import { JobScheduleTab } from "@/components/jobs/JobScheduleTab";
-import { JobSitePresenceTab } from "@/components/jobs/JobSitePresenceTab";
-import { RevitTab } from "@/components/jobs/RevitTab";
-import { ColourSelectionBuilder } from "@/components/colours/ColourSelectionBuilder";
-import { SpecificationBuilder } from "@/components/specifications/SpecificationBuilder";
-import { JobSpreadsheetsSection } from "@/components/jobs/JobSpreadsheetsSection";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { JobSpreadsheetsSection } from "@/components/jobs/JobSpreadsheetsSection";
 import type { EntityTab } from "@/lib/types/entity-tabs";
+
+// =============================================================================
+// LAZY LOADED TAB COMPONENTS - Performance optimization
+// =============================================================================
+// Tab components are loaded on-demand when the tab is first activated.
+// This significantly reduces initial bundle size and improves page load time.
+// Each component is code-split into its own chunk.
+// =============================================================================
+const JobActivityTab = dynamic(() => import("@/components/jobs/JobActivityTab").then(m => m.JobActivityTab), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobContractTab = dynamic(() => import("@/components/jobs/JobContractTab").then(m => m.JobContractTab), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobPeopleTab = dynamic(() => import("@/components/jobs/JobPeopleTab").then(m => m.JobPeopleTab), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const RainLogTab = dynamic(() => import("@/components/jobs/RainLogTab").then(m => m.RainLogTab), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobDocumentsTab = dynamic(() => import("@/components/jobs/JobDocumentsTab").then(m => m.JobDocumentsTab), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobPlansTab = dynamic(() => import("@/components/jobs/JobPlansTab").then(m => m.JobPlansTab), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobPurchaseOrdersTab = dynamic(() => import("@/components/jobs/JobPurchaseOrdersTab").then(m => m.JobPurchaseOrdersTab), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobEstimatorTab = dynamic(() => import("@/components/jobs/JobEstimatorTab").then(m => m.JobEstimatorTab), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobBudgetTab = dynamic(() => import("@/components/jobs/JobBudgetTab").then(m => m.JobBudgetTab), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobBOQTab = dynamic(() => import("@/components/jobs/JobBOQTab").then(m => m.JobBOQTab), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobCommunicationsTab = dynamic(() => import("@/components/jobs/JobCommunicationsTab").then(m => m.JobCommunicationsTab), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobProfitTab = dynamic(() => import("@/components/jobs/JobProfitTab").then(m => m.JobProfitTab), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobClaimStagesTab = dynamic(() => import("@/components/jobs/JobClaimStagesTab").then(m => m.JobClaimStagesTab), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobExpensesTab = dynamic(() => import("@/components/jobs/JobExpensesTab").then(m => m.JobExpensesTab), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobScheduleTab = dynamic(() => import("@/components/jobs/JobScheduleTab").then(m => m.JobScheduleTab), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobSitePresenceTab = dynamic(() => import("@/components/jobs/JobSitePresenceTab").then(m => m.JobSitePresenceTab), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const RevitTab = dynamic(() => import("@/components/jobs/RevitTab").then(m => m.RevitTab), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const ColourSelectionBuilder = dynamic(() => import("@/components/colours/ColourSelectionBuilder").then(m => m.ColourSelectionBuilder), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const SpecificationBuilder = dynamic(() => import("@/components/specifications/SpecificationBuilder").then(m => m.SpecificationBuilder), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+
+// Loading skeleton shown while tab component loads
+function TabLoadingSkeleton() {
+  return (
+    <div className="space-y-4 p-4">
+      <Skeleton className="h-8 w-48" />
+      <div className="grid grid-cols-2 gap-4">
+        <Skeleton className="h-32" />
+        <Skeleton className="h-32" />
+      </div>
+      <Skeleton className="h-48" />
+    </div>
+  );
+}
 
 // =============================================================================
 // REQUEST DEDUPLICATION - Prevents duplicate API calls that cause screen flashing
