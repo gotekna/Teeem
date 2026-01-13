@@ -433,6 +433,18 @@ module Api
           with_direction = EmailWarehouse.where.not(direction: nil).count
           with_body_preview = EmailWarehouse.where("body_preview IS NOT NULL AND body_preview != ''").count
 
+          # Email Storage Upload Progress (SSoT: storage_path is new, sharepoint_email_path is legacy)
+          with_storage = EmailWarehouse.where("storage_path IS NOT NULL AND storage_path != ''").count
+          uploadable = EmailWarehouse.where.not(outlook_id: [nil, ""])
+                                     .where.not(mailbox_owner_email: [nil, ""])
+                                     .count
+          remaining_to_upload = uploadable - with_storage
+
+          # Email Attachments Storage Progress
+          attachment_count = defined?(EmailAttachment) ? EmailAttachment.count : 0
+          attachments_with_blob = defined?(EmailAttachment) ? EmailAttachment.where.not(storage_blob_id: nil).count : 0
+          attachments_legacy = defined?(EmailAttachment) ? EmailAttachment.where(storage_blob_id: nil).where("sharepoint_path IS NOT NULL AND sharepoint_path != ''").count : 0
+
           {
             total_emails: total_count,
             total_size: total_size,
@@ -464,6 +476,19 @@ module Api
               with_body_preview: with_body_preview,
               direction_rate: total_count > 0 ? ((with_direction.to_f / total_count) * 100).round(1) : 0,
               body_preview_rate: total_count > 0 ? ((with_body_preview.to_f / total_count) * 100).round(1) : 0
+            },
+            # Email Storage Upload Progress (NEW)
+            storage_upload: {
+              uploaded: with_storage,
+              uploadable: uploadable,
+              remaining: remaining_to_upload,
+              upload_rate: uploadable > 0 ? ((with_storage.to_f / uploadable) * 100).round(1) : 0,
+              attachments: {
+                total: attachment_count,
+                with_blob: attachments_with_blob,
+                legacy_sharepoint: attachments_legacy,
+                migration_rate: attachment_count > 0 ? ((attachments_with_blob.to_f / attachment_count) * 100).round(1) : 0
+              }
             }
           }
         else

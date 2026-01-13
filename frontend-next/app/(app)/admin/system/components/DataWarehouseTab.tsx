@@ -134,6 +134,18 @@ interface OrgDataStats {
       direction_rate: number;
       body_preview_rate: number;
     };
+    storage_upload?: {
+      uploaded: number;
+      uploadable: number;
+      remaining: number;
+      upload_rate: number;
+      attachments: {
+        total: number;
+        with_blob: number;
+        legacy_sharepoint: number;
+        migration_rate: number;
+      };
+    };
   };
   storage: {
     provider_type: string;
@@ -1538,6 +1550,69 @@ export function DataWarehouseTab() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Email Storage Upload Progress */}
+      {stats.emails.storage_upload && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Cloud className="h-4 w-4" />
+              Email Storage Upload to Wasabi
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* .eml Upload Progress */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium">Email Files (.eml)</span>
+                <span className="text-sm text-muted-foreground">
+                  {stats.emails.storage_upload.upload_rate}% uploaded
+                </span>
+              </div>
+              <Progress value={stats.emails.storage_upload.upload_rate} className="h-2 mb-3" />
+              <div className="grid grid-cols-3 gap-3">
+                <div className="text-center p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                  <p className="text-xl font-bold text-green-600">{stats.emails.storage_upload.uploaded.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">Uploaded</p>
+                </div>
+                <div className="text-center p-3 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+                  <p className="text-xl font-bold text-orange-600">{stats.emails.storage_upload.remaining.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">Remaining</p>
+                </div>
+                <div className="text-center p-3 bg-muted rounded-lg">
+                  <p className="text-xl font-bold">{stats.emails.storage_upload.uploadable.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">Total Uploadable</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Attachments Deduplication Progress */}
+            <div className="pt-4 border-t">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium">Attachment Deduplication (StorageBlob)</span>
+                <span className="text-sm text-muted-foreground">
+                  {stats.emails.storage_upload.attachments.migration_rate}% migrated
+                </span>
+              </div>
+              <Progress value={stats.emails.storage_upload.attachments.migration_rate} className="h-2 mb-3" />
+              <div className="grid grid-cols-3 gap-3">
+                <div className="text-center p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                  <p className="text-xl font-bold text-green-600">{stats.emails.storage_upload.attachments.with_blob.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">Deduplicated</p>
+                </div>
+                <div className="text-center p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                  <p className="text-xl font-bold text-blue-600">{stats.emails.storage_upload.attachments.legacy_sharepoint.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">Legacy (SharePoint)</p>
+                </div>
+                <div className="text-center p-3 bg-muted rounded-lg">
+                  <p className="text-xl font-bold">{stats.emails.storage_upload.attachments.total.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">Total Attachments</p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Email Warehouse Breakdown */}
       <Card>
