@@ -2830,6 +2830,7 @@ Rails.application.routes.draw do
         collection do
           get :tabs
           get :dwelling_types
+          get :suggest  # Smart filename-to-type matching with confidence scores
         end
         member do
           post :duplicate

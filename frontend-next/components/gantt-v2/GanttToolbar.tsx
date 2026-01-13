@@ -215,17 +215,18 @@ export function GanttToolbar({
           </Button>
         )}
 
-        {/* Rollover Button - SSoT: moves past-due tasks forward */}
+        {/* Rollover Button - SSoT: recalculates task dates based on dependencies */}
         {onRollover && (
           <Button
-            variant="ghost"
-            size="icon"
+            variant="outline"
+            size="sm"
             onClick={onRollover}
             disabled={isRollingOver}
-            title="Rollover: Move past-due tasks to today"
-            className="h-8 w-8"
+            title="Rollover: Recalculate all task dates based on dependencies"
+            className="h-8 gap-1.5 px-2.5"
           >
-            <FastForward className={`h-4 w-4 ${isRollingOver ? 'animate-pulse' : ''}`} />
+            <RefreshCw className={`h-3.5 w-3.5 ${isRollingOver ? 'animate-spin' : ''}`} />
+            <span className="text-xs">Rollover</span>
           </Button>
         )}
 

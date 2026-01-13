@@ -94,14 +94,27 @@ class DocumentTypeMatcher
   end
 
   # Strategy 2: Alias match (90% confidence)
+  # Uses word boundary matching to prevent false positives like "CT" matching "Directors"
   def try_alias_match(document_type)
     aliases = document_type.aliases || []
     aliases += DocumentType::DEFAULT_ALIASES[document_type.name] || [] if defined?(DocumentType::DEFAULT_ALIASES)
 
     aliases.each do |alias_term|
       alias_normalized = normalize(alias_term)
-      if @normalized_filename.include?(alias_normalized)
-        return { confidence: 90, match_type: "alias", matched_term: alias_term }
+      next if alias_normalized.empty?
+
+      # For short aliases (1-3 chars), require exact word match
+      # For longer aliases, allow substring matching
+      if alias_normalized.length <= 3
+        # Must match as a complete word
+        if @normalized_filename.split(" ").include?(alias_normalized)
+          return { confidence: 90, match_type: "alias", matched_term: alias_term }
+        end
+      else
+        # Longer aliases can match as substring
+        if @normalized_filename.include?(alias_normalized)
+          return { confidence: 90, match_type: "alias", matched_term: alias_term }
+        end
       end
     end
 
