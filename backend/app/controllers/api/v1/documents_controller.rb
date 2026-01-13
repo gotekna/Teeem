@@ -149,6 +149,62 @@ module Api
         }
       end
 
+      # POST /api/v1/documents
+      # Upload a file to the user's document folder in S3
+      # Params:
+      #   file: The file to upload (multipart)
+      #   folder: Optional folder path (default: "My Documents")
+      def create
+        unless params[:file].present?
+          return render json: { success: false, error: "No file provided" }, status: :bad_request
+        end
+
+        file = params[:file]
+        folder = params[:folder].presence || "My Documents"
+        user = current_user
+
+        # Build S3 path: Users/{user_id}/{folder}/{filename}
+        safe_filename = file.original_filename.gsub(/[^\w\.\-]/, "_")
+        s3_key = "Users/#{user.id}/#{folder}/#{safe_filename}"
+
+        begin
+          # Upload to S3
+          organization = Organization.first
+          provider = DocumentProviders::S3Compatible.for_organization(organization)
+
+          result = provider.upload_file(
+            "Users/#{user.id}/#{folder}",
+            file.read,
+            safe_filename,
+            content_type: file.content_type,
+            overwrite: true
+          )
+
+          # Create document record
+          document = CorporateCompanyDocument.create!(
+            file_name: file.original_filename,
+            display_name: file.original_filename,
+            mime_type: file.content_type,
+            file_size: file.size,
+            folder: folder,
+            storage_provider: "s3_compatible",
+            storage_path: "/#{s3_key}",
+            storage_item_id: result[:id],
+            user_id: user.id,
+            corporate_company_id: organization.corporate_company_id
+          )
+
+          render json: {
+            success: true,
+            document: serialize_corp_doc(document),
+            message: "File uploaded successfully"
+          }
+        rescue StandardError => e
+          Rails.logger.error "[Documents] Upload failed: #{e.message}"
+          render json: { success: false, error: e.message }, status: :unprocessable_entity
+        end
+      end
+
       # GET /api/v1/documents/:id
       def show
         render json: {

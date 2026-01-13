@@ -375,6 +375,12 @@ export default function AllDocumentsPage() {
     };
   } | null>(null);
 
+  // Drag-and-drop upload state
+  const [isDragging, setIsDragging] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
+  const dragCounterRef = useRef(0);
+
   // SSoT: Fetch storage config from StorageConfiguration (scope folders, templates, root path)
   // This uses the same endpoint as StorageConfigTab to ensure consistency
   // NOTE: Endpoint name "sharepoint" is legacy - it returns provider-agnostic config from StorageConfiguration
@@ -491,6 +497,69 @@ export default function AllDocumentsPage() {
 
     return () => clearInterval(interval);
   }, [activeJob, fetchDocuments]);
+
+  // Drag-and-drop upload handlers
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragging(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) {
+      setIsDragging(false);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    dragCounterRef.current = 0;
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+
+    setIsUploading(true);
+    setUploadProgress(`Uploading ${files.length} file${files.length > 1 ? "s" : ""}...`);
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        setUploadProgress(`Uploading ${i + 1}/${files.length}: ${file.name}`);
+
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("folder", "My Documents");
+
+        await api.postFormData("/api/v1/documents", formData);
+      }
+
+      setUploadProgress("Upload complete!");
+      // Refresh document list
+      await fetchDocuments();
+
+      // Clear message after 2 seconds
+      setTimeout(() => setUploadProgress(null), 2000);
+    } catch (err) {
+      console.error("Upload failed:", err);
+      setUploadProgress(`Upload failed: ${err instanceof Error ? err.message : "Unknown error"}`);
+      setTimeout(() => setUploadProgress(null), 3000);
+    } finally {
+      setIsUploading(false);
+    }
+  }, [fetchDocuments]);
 
   // Fetch sync settings when modal opens
   // Note: These endpoints require desktop client auth (not web auth)
@@ -970,7 +1039,36 @@ export default function AllDocumentsPage() {
   }, [allDocumentsFlat]);
 
   return (
-    <div className="flex flex-col h-full -mx-4">
+    <div
+      className="flex flex-col h-full -mx-4 relative"
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      {/* Drag-and-drop overlay */}
+      {isDragging && (
+        <div className="absolute inset-0 z-50 bg-primary/10 border-2 border-dashed border-primary rounded-lg flex items-center justify-center">
+          <div className="text-center">
+            <Download className="h-12 w-12 text-primary mx-auto mb-2" />
+            <p className="text-lg font-medium text-primary">Drop files to upload</p>
+            <p className="text-sm text-muted-foreground">Files will be saved to My Documents</p>
+          </div>
+        </div>
+      )}
+
+      {/* Upload progress toast */}
+      {uploadProgress && (
+        <div className="absolute top-4 right-4 z-50 bg-background border rounded-lg shadow-lg p-4 flex items-center gap-3">
+          {isUploading ? (
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          ) : (
+            <Check className="h-5 w-5 text-green-500" />
+          )}
+          <span className="text-sm">{uploadProgress}</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="px-4 py-4 border-b shrink-0">
         <div className="flex items-center justify-between gap-4">

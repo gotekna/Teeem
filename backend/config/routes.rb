@@ -381,7 +381,7 @@ Rails.application.routes.draw do
       delete "job_status_stages/:id", to: "job_status_stages#destroy"
 
       # Documents (simple alias for company documents)
-      resources :documents, only: [ :index, :show, :update, :destroy ] do
+      resources :documents, only: [ :index, :create, :show, :update, :destroy ] do
         member do
           get :download  # Human-readable download URL (redirects to S3)
           get :preview   # Universal document preview (Excel/Word/PDF)
