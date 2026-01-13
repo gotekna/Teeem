@@ -3135,6 +3135,14 @@ export default function TeeemTableView({
   // NOTE: This function is now simplified - atoms handle the atomic state updates
   const loadViewState = useCallback(
     (view: SavedView, skipUrlUpdate = false, isUserAction = false) => {
+      console.log('[loadViewState] Called with:', {
+        viewId: view.id,
+        viewName: view.name,
+        skipUrlUpdate,
+        isUserAction,
+        foundationSlug,
+      });
+
       // Mark that user has made a view selection - prevents default view from overriding
       // This fixes race condition where async loadSavedViews completion could override user's selection
       if (isUserAction) {
@@ -3344,6 +3352,13 @@ export default function TeeemTableView({
             // This ensures breadcrumbs and URL show the active view
             const skipUrlUpdate = !!urlViewExistsForFoundation;
             const shouldUpdateUrl = !urlViewExistsForFoundation;
+            console.log('[loadSavedViews] About to call loadViewState with:', {
+              viewId: defaultView.id,
+              viewName: defaultView.name,
+              viewSlug: defaultView.slug,
+              skipUrlUpdate,
+              shouldUpdateUrl,
+            });
             loadViewState(defaultView, skipUrlUpdate, shouldUpdateUrl);
           } else if (explicitlyNoView) {
             // ⚠️ v2706: CLEAR view filters when defaultViewSlug === null
@@ -5601,7 +5616,19 @@ export default function TeeemTableView({
   };
 
   // Get active view name
-  const activeView = savedViews.find((v) => v.id === activeViewId);
+  // Use loose comparison to handle string/number ID mismatches from API
+  const activeView = savedViews.find((v) => String(v.id) === String(activeViewId));
+
+  // Debug logging for view selection
+  if (savedViews.length > 0) {
+    console.log('[TeeemTableView] View selection debug:', {
+      activeViewId,
+      activeViewIdType: typeof activeViewId,
+      foundActiveView: !!activeView,
+      savedViewsCount: savedViews.length,
+      savedViewIds: savedViews.map(v => ({ id: v.id, type: typeof v.id, name: v.name })),
+    });
+  }
 
   // NOTE: onViewChange is called from loadViewState when isUserAction=true
   // This prevents URL auto-updates on initial page load (confusing UX)

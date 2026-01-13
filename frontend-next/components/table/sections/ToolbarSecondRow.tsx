@@ -258,7 +258,7 @@ export function ToolbarSecondRow({
           {effectiveSavedViews.map((view) => (
             <Button
               key={view.id}
-              variant={effectiveActiveViewId === view.id ? "default" : "outline"}
+              variant={String(effectiveActiveViewId) === String(view.id) ? "default" : "outline"}
               size="sm"
               onClick={() => handleLoadView?.(view)}
               title={view.is_global ? `Global view: ${view.name}` : `Personal view: ${view.name}`}

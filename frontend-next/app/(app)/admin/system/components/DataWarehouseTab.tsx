@@ -262,6 +262,7 @@ interface MicrosoftOrgStats {
   admin_consent_granted_by?: string;
   stats: {
     emails: number;
+    attachments: number;  // SSoT: total attachment count from API
     email_storage_bytes: number;
     linked_to_job: number;
     size_by_job: number;
@@ -1084,12 +1085,11 @@ export function DataWarehouseTab() {
                             );
                           })()}
 
-                          {/* Attachment Storage Progress - SSoT: sum attachment_count from per_mailbox */}
+                          {/* Attachment Storage Progress - SSoT: org.stats.attachments from API */}
                           {(() => {
+                            const totalAttachments = org.stats.attachments;  // SSoT: total from API
                             const wasabiCount = org.stats.storage_location.attachments.wasabi.count;
                             const sharepointCount = org.stats.storage_location.attachments.sharepoint.count;
-                            // Total attachments = sum of attachment_count from all mailboxes
-                            const totalAttachments = org.stats.per_mailbox?.reduce((sum, mb) => sum + mb.attachment_count, 0) || (wasabiCount + sharepointCount);
                             const wasabiPercent = totalAttachments > 0 ? Math.round((wasabiCount / totalAttachments) * 100) : 0;
                             const sharepointPercent = totalAttachments > 0 ? Math.round((sharepointCount / totalAttachments) * 100) : 0;
                             return (

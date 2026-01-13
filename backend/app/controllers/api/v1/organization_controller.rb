@@ -55,11 +55,11 @@ module Api
             linked_to_job = emails.where.not(job_id: nil).count
             size_by_job = emails.where.not(job_id: nil).sum("COALESCE(LENGTH(body_text), 0) + COALESCE(LENGTH(body_html), 0)") || 0
 
-            # Per-mailbox (per-person) stats - base data first, enhanced later with attachments/storage
+            # Per-mailbox (per-person) stats - include ALL mailboxes, even unknown
+            # SSoT: EmailWarehouse is the source of truth for all email data
             per_mailbox_base = emails
-              .where.not(mailbox_owner_email: [ nil, "" ])
-              .group(:mailbox_owner_email)
-              .select("mailbox_owner_email, COUNT(*) as email_count, MAX(last_synced_at) as last_sync, MAX(received_at) as last_email_received")
+              .select("COALESCE(NULLIF(mailbox_owner_email, ''), 'Unknown') as mailbox_owner_email, COUNT(*) as email_count, MAX(last_synced_at) as last_sync, MAX(received_at) as last_email_received")
+              .group("COALESCE(NULLIF(mailbox_owner_email, ''), 'Unknown')")
               .order("email_count DESC")
 
             # AI Classification breakdown (same as data_stats)
@@ -87,9 +87,10 @@ module Api
                                            .where("sharepoint_email_path IS NOT NULL AND sharepoint_email_path != ''")
                                            .sum("COALESCE(LENGTH(body_text), 0) + COALESCE(LENGTH(body_html), 0)") || 0
 
-            # Attachment storage breakdown
+            # Attachment storage breakdown - SSoT: EmailAttachment linked to EmailWarehouse
             email_ids = emails.pluck(:id)
             attachments = EmailAttachment.where(email_warehouse_id: email_ids)
+            total_attachments = attachments.count  # SSoT: total attachment count
             wasabi_attachments = attachments.where.not(storage_blob_id: nil).count
             sharepoint_attachments = attachments.where(storage_blob_id: nil)
                                                 .where("sharepoint_path IS NOT NULL AND sharepoint_path != ''")
@@ -108,54 +109,48 @@ module Api
               0
             end
 
-            # Per-mailbox attachment counts (single query for efficiency)
+            # Per-mailbox attachment counts - include ALL mailboxes
             per_mailbox_attachment_counts = attachments
               .joins("INNER JOIN email_warehouses ON email_warehouses.id = email_attachments.email_warehouse_id")
-              .where.not("email_warehouses.mailbox_owner_email" => [nil, ""])
-              .group("email_warehouses.mailbox_owner_email")
+              .group("COALESCE(NULLIF(email_warehouses.mailbox_owner_email, ''), 'Unknown')")
               .count
 
-            # Shared attachments per mailbox (attachments pointing to blobs with reference_count > 1)
+            # Shared attachments per mailbox - include ALL mailboxes
             shared_per_mailbox = if defined?(StorageBlob)
               attachments
                 .joins("INNER JOIN email_warehouses ON email_warehouses.id = email_attachments.email_warehouse_id")
                 .joins("INNER JOIN storage_blobs ON storage_blobs.id = email_attachments.storage_blob_id")
                 .where("storage_blobs.reference_count > 1")
-                .where.not("email_warehouses.mailbox_owner_email" => [nil, ""])
-                .group("email_warehouses.mailbox_owner_email")
+                .group("COALESCE(NULLIF(email_warehouses.mailbox_owner_email, ''), 'Unknown')")
                 .count
             else
               {}
             end
 
-            # Per-mailbox email storage counts (actual numbers, not status)
+            # Per-mailbox email storage counts - include ALL mailboxes
             per_mailbox_wasabi_counts = emails
               .where("storage_path IS NOT NULL AND storage_path != ''")
-              .where.not(mailbox_owner_email: [nil, ""])
-              .group(:mailbox_owner_email)
+              .group("COALESCE(NULLIF(mailbox_owner_email, ''), 'Unknown')")
               .count
 
             per_mailbox_sharepoint_counts = emails
               .where("(storage_path IS NULL OR storage_path = '')")
               .where("sharepoint_email_path IS NOT NULL AND sharepoint_email_path != ''")
-              .where.not(mailbox_owner_email: [nil, ""])
-              .group(:mailbox_owner_email)
+              .group("COALESCE(NULLIF(mailbox_owner_email, ''), 'Unknown')")
               .count
 
-            # Per-mailbox attachment storage counts
+            # Per-mailbox attachment storage counts - include ALL mailboxes
             per_mailbox_att_wasabi = attachments
               .joins("INNER JOIN email_warehouses ON email_warehouses.id = email_attachments.email_warehouse_id")
               .where.not(storage_blob_id: nil)
-              .where.not("email_warehouses.mailbox_owner_email" => [nil, ""])
-              .group("email_warehouses.mailbox_owner_email")
+              .group("COALESCE(NULLIF(email_warehouses.mailbox_owner_email, ''), 'Unknown')")
               .count
 
             per_mailbox_att_sharepoint = attachments
               .joins("INNER JOIN email_warehouses ON email_warehouses.id = email_attachments.email_warehouse_id")
               .where(storage_blob_id: nil)
               .where("email_attachments.sharepoint_path IS NOT NULL AND email_attachments.sharepoint_path != ''")
-              .where.not("email_warehouses.mailbox_owner_email" => [nil, ""])
-              .group("email_warehouses.mailbox_owner_email")
+              .group("COALESCE(NULLIF(email_warehouses.mailbox_owner_email, ''), 'Unknown')")
               .count
 
             # Document storage breakdown (Tekna tenant only - org-wide)
@@ -206,6 +201,7 @@ module Api
               admin_consent_granted_by: credential.admin_consent_granted_by,
               stats: {
                 emails: total_count,
+                attachments: total_attachments,  # SSoT: total attachment count
                 email_storage_bytes: total_size,
                 linked_to_job: linked_to_job,
                 size_by_job: size_by_job,
