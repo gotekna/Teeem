@@ -1,4 +1,10 @@
 class PeopleDocument < ApplicationRecord
+  include StorableDocument
+
+  # SSoT: Storage scope for this document type
+  # Determines path: /Corporate/People/{ContactName}/{TabName}/filename
+  storage_scope :people
+
   # Associations
   belongs_to :contact
   belongs_to :document_type_record, class_name: "DocumentType", foreign_key: "document_type_id", optional: true
@@ -151,6 +157,15 @@ class PeopleDocument < ApplicationRecord
   end
 
   private
+
+  # SSoT: Default tokens for storage path template
+  # Template: /Corporate/People/{ContactName}/{TabName}/filename
+  def default_storage_tokens
+    {
+      ContactName: contact&.display_name || "Unknown",
+      TabName: folder || document_type&.titleize || "Identity"
+    }
+  end
 
   def must_be_identity_document
     return if document_type.blank?

@@ -1,6 +1,11 @@
 class CorporateCompanyDocument < ApplicationRecord
   include DocumentTemplatable
   include Searchable
+  include StorableDocument
+
+  # SSoT: Storage scope for this document type
+  # Determines path: /Corporate/{GroupName}/{CompanyCode}/{TabName}/filename
+  storage_scope :corporate
 
   # Searchable columns for full-text search (GIN index)
   searchable_columns :file_name, :display_name, :description, :folder
@@ -260,6 +265,18 @@ class CorporateCompanyDocument < ApplicationRecord
   end
 
   private
+
+  # SSoT: Default tokens for storage path template
+  # Template: /Corporate/{GroupName}/{CompanyCode}/{TabName}/filename
+  def default_storage_tokens
+    {
+      CompanyGroup: corporate_company&.corporate_group&.name || "Ungrouped",
+      GroupName: corporate_company&.corporate_group&.name || "Ungrouped",
+      CompanyCode: corporate_company&.code || corporate_company&.name&.first(3)&.upcase || "UNK",
+      CompanyName: corporate_company&.name || "Unknown",
+      TabName: folder || document_type&.titleize || "Documents"
+    }
+  end
 
   # Automatically set focus based on associations
   # Priority: people > job > company

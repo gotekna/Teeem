@@ -1,4 +1,10 @@
 class JobDocument < ApplicationRecord
+  include StorableDocument
+
+  # SSoT: Storage scope for this document type
+  # Determines path: /Jobs/{JobCode}/{TabName}/filename
+  storage_scope :job
+
   belongs_to :job
   belongs_to :document_type, optional: true
   belongs_to :ai_suggested_type, class_name: "DocumentType", optional: true
@@ -319,6 +325,15 @@ class JobDocument < ApplicationRecord
   end
 
   private
+
+  # SSoT: Default tokens for storage path template
+  # Template: /Jobs/{JobCode}/{TabName}/filename
+  def default_storage_tokens
+    {
+      JobCode: job&.job_code || "UNKNOWN",
+      TabName: folder_path&.split("/")&.first || document_type&.name || "Documents"
+    }
+  end
 
   def set_file_extension
     return if file_extension.present? || file_name.blank?
