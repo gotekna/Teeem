@@ -286,7 +286,7 @@ function TreeNode({
             className="h-5 px-1.5 ml-2 text-[10px] text-muted-foreground"
           >
             <Pencil className="h-3 w-3 mr-1" />
-            Edit Path
+            Edit
           </Button>
         )}
 
@@ -367,6 +367,55 @@ function TreeNode({
           </span>
         )}
       </div>
+
+      {/* Editing panel for simple scope children */}
+      {isSimpleScopeChild && isEditing && (
+        <div
+          className="bg-blue-50 dark:bg-blue-900/20 border-l-2 border-blue-400 py-3 px-4 my-1"
+          style={{ marginLeft: `${level * 16 + 28}px` }}
+        >
+          <div className="space-y-3">
+            {/* Folder Path */}
+            <div>
+              <TokenBuilder
+                label={<span className="text-xs font-medium">Folder Path</span>}
+                value={editValue}
+                onChange={setEditValue}
+                scope="sharepoint"
+                showPreview={true}
+                separator="/"
+                placeholder="Build folder path with tokens..."
+                defaultExpanded={false}
+              />
+            </div>
+
+            {/* Note about filename template */}
+            <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+              <strong>Note:</strong> Filename templates require entity_tabs to be created for this scope.
+              Contact admin to enable template editing.
+            </div>
+
+            {/* Save/Cancel buttons */}
+            <div className="flex gap-2 pt-1">
+              <Button
+                size="sm"
+                onClick={() => onSaveEdit(node.scopeKey!, editValue)}
+                className="h-7 text-xs"
+              >
+                Save
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={onCancelEdit}
+                className="h-7 text-xs"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Expanded content: Children OR Tabs (tabs take priority for scopes) */}
       {isExpanded && hasExpandableContent && (

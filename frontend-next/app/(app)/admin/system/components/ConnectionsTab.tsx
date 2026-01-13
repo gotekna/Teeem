@@ -666,7 +666,11 @@ function S3StorageConnection() {
       const data = await api.get<{ success: boolean; data: S3Credential[] }>("/api/v1/s3_credentials");
       setCredentials(data.data || []);
     } catch (error) {
-      console.error("Failed to load S3 credentials:", error);
+      // Silence decryption errors - expected in local dev when keys don't match production
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (!errorMessage.includes('Decryption')) {
+        console.error("Failed to load S3 credentials:", error);
+      }
     } finally {
       setLoading(false);
     }
@@ -991,7 +995,11 @@ function DocumentStorageProvider() {
       const data = await api.get<{ success: boolean; data: S3Credential[] }>("/api/v1/s3_credentials");
       setS3Credentials(data.data || []);
     } catch (error) {
-      console.error("Failed to load S3 credentials:", error);
+      // Silence decryption errors - expected in local dev when keys don't match production
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (!errorMessage.includes('Decryption')) {
+        console.error("Failed to load S3 credentials:", error);
+      }
     }
   };
 
