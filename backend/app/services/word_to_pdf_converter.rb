@@ -15,13 +15,25 @@
 #   result = converter.convert(docx_content, filename: "document.docx")
 #   result[:pdf]  # => PDF binary content
 #
-#   # With company seal:
-#   converter = WordToPdfConverter.new(add_company_seal: true)
+#   # Auto-add signature if missing:
+#   converter = WordToPdfConverter.new(add_signature_if_missing: true)
 #   result = converter.convert(docx_content, filename: "certificate.docx")
 #
 class WordToPdfConverter
+  # Patterns that indicate a signature is present in the document
+  SIGNATURE_PATTERNS = [
+    /signed\s*by/i,
+    /director/i,
+    /secretary/i,
+    /signature/i,
+    /authorised\s*(signatory|officer)/i,
+    /executed\s*by/i,
+    /witness/i
+  ].freeze
+
   def initialize(options = {})
     @add_company_seal = options[:add_company_seal] || false
+    @add_signature_if_missing = options[:add_signature_if_missing] || false
     @seal_position = options[:seal_position] || :bottom_right
   end
 
@@ -46,9 +58,18 @@ class WordToPdfConverter
     # Convert HTML to PDF via Grover
     pdf = Grover.new(html, **grover_options).to_pdf
 
-    # Optionally stamp company seal
-    if @add_company_seal
-      pdf = stamp_company_seal(pdf)
+    # Check if signature is needed and missing
+    signature_added = false
+    if @add_signature_if_missing || @add_company_seal
+      has_signature = document_has_signature?(pdf)
+
+      if !has_signature
+        pdf = stamp_company_signature(pdf)
+        signature_added = true
+        Rails.logger.info "[WordToPdfConverter] Signature added (none detected in document)"
+      else
+        Rails.logger.info "[WordToPdfConverter] Signature detected, skipping stamp"
+      end
     end
 
     # Generate output filename
@@ -61,7 +82,8 @@ class WordToPdfConverter
       pdf: pdf,
       filename: pdf_filename,
       pages: count_pages(pdf),
-      original_paragraphs: word_data[:paragraph_count]
+      original_paragraphs: word_data[:paragraph_count],
+      signature_added: signature_added
     }
   rescue StandardError => e
     Rails.logger.error "[WordToPdfConverter] Conversion failed: #{e.message}"
@@ -92,47 +114,88 @@ class WordToPdfConverter
     }
   end
 
-  # Stamp company seal onto PDF using HexaPDF
-  def stamp_company_seal(pdf_content)
+  # Check if the PDF already contains a signature
+  # Looks for signature-related text patterns
+  def document_has_signature?(pdf_content)
+    # Extract text from PDF using HexaPDF
+    document = HexaPDF::Document.new(io: StringIO.new(pdf_content))
+    text = ""
+
+    document.pages.each do |page|
+      processor = HexaPDF::Content::Processor.new(page)
+      processor.on_text_string = ->(str) { text << str << " " }
+      processor.process(page.contents) rescue nil
+    end
+
+    # Check for signature patterns
+    SIGNATURE_PATTERNS.any? { |pattern| text.match?(pattern) }
+  rescue => e
+    Rails.logger.warn "[WordToPdfConverter] Error checking for signature: #{e.message}"
+    false # Assume no signature if we can't read the PDF
+  end
+
+  # Stamp company signature onto PDF using HexaPDF
+  def stamp_company_signature(pdf_content)
     document = HexaPDF::Document.new(io: StringIO.new(pdf_content))
 
-    # Get last page for seal
+    # Get last page for signature
     page = document.pages.last
     return pdf_content unless page
 
     box = page.box
     canvas = page.canvas(type: :overlay)
 
-    # Calculate position based on seal_position
-    seal_size = 80
-    case @seal_position
-    when :bottom_right
-      x = box.width - seal_size - 40
-      y = 40
-    when :bottom_left
-      x = 40
-      y = 40
-    when :top_right
-      x = box.width - seal_size - 40
-      y = box.height - seal_size - 40
-    else
-      x = box.width - seal_size - 40
-      y = 40
-    end
+    # Try to find signature image
+    signature_path = find_signature_image
 
-    # Add company seal image if exists
-    seal_path = Rails.root.join("app", "assets", "images", "company_seal.png")
-    if File.exist?(seal_path)
-      image = document.images.add(seal_path.to_s)
-      canvas.image(image, at: [x, y], width: seal_size, height: seal_size)
-      Rails.logger.info "[WordToPdfConverter] Company seal stamped at #{@seal_position}"
+    if signature_path && File.exist?(signature_path)
+      # Stamp signature image (bottom right)
+      sig_width = 150
+      sig_height = 60
+      x = box.width - sig_width - 50
+      y = 60
+
+      image = document.images.add(signature_path.to_s)
+      canvas.image(image, at: [x, y], width: sig_width, height: sig_height)
+
+      # Add "Director" text below signature
+      canvas.font("Helvetica", size: 10)
+      canvas.fill_color("000000")
+      canvas.text("Director", at: [x + 40, y - 12])
     else
-      Rails.logger.warn "[WordToPdfConverter] Company seal image not found: #{seal_path}"
+      # No signature image - add text signature block
+      x = box.width - 200
+      y = 80
+
+      # Draw signature line
+      canvas.stroke_color("000000")
+      canvas.line(x, y + 30, x + 150, y + 30)
+      canvas.stroke
+
+      # Add text
+      canvas.font("Helvetica", size: 10)
+      canvas.fill_color("000000")
+      canvas.text("Authorised Signatory", at: [x + 20, y + 15])
+      canvas.text("Director", at: [x + 55, y])
+
+      Rails.logger.info "[WordToPdfConverter] Added signature placeholder (no image found)"
     end
 
     output = StringIO.new
     document.write(output)
     output.string
+  end
+
+  # Find signature image in standard locations
+  def find_signature_image
+    paths = [
+      Rails.root.join("app", "assets", "images", "company_signature.png"),
+      Rails.root.join("app", "assets", "images", "director_signature.png"),
+      Rails.root.join("app", "assets", "images", "company_seal.png"),
+      Rails.root.join("storage", "signatures", "default.png")
+    ]
+
+    paths.find { |p| File.exist?(p) }
   end
 
   def count_pages(pdf_content)

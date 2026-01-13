@@ -803,8 +803,9 @@ module Api
       end
 
       # Convert Word document to PDF using WordToPdfConverter
+      # Checks for signature and adds one if missing
       def convert_word_to_pdf(content, filename)
-        converter = WordToPdfConverter.new
+        converter = WordToPdfConverter.new(add_signature_if_missing: true)
         converter.convert(content, filename: filename)
       end
 
