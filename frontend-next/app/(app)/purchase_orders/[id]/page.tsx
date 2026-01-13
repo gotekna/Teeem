@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { TASK_STATUS } from "@/lib/constants/task-status";
 import { Button } from "@/components/ui/button";
@@ -328,6 +328,10 @@ export default function PurchaseOrderDetailPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Performance: Track last fetch time and abort controller for deduplication
+  const lastFetchTimeRef = useRef<number>(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   // Local SmTasks for this job (for task/description lookup)
   const [taskItems, setTaskItems] = useState<TaskComboboxItem[]>([]);
   const [loadingTasks, setLoadingTasks] = useState(false);
@@ -368,29 +372,41 @@ export default function PurchaseOrderDetailPage() {
   // Load purchase order
   useEffect(() => {
     loadPurchaseOrder();
-     
+
+    // Cleanup: abort pending requests on unmount or recordId change
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [recordId]);
 
-  // Refetch data when window regains focus (e.g., switching back from pricebook tab)
+  // Performance: Only refetch on window focus if it's been > 5 minutes since last fetch
+  // This prevents slow page loads when switching tabs frequently
   useEffect(() => {
+    const STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+
     const handleFocus = () => {
-      console.log('[PO Detail] Window focused - reloading data');
-      loadPurchaseOrder();
+      const timeSinceLastFetch = Date.now() - lastFetchTimeRef.current;
+      if (timeSinceLastFetch > STALE_THRESHOLD_MS) {
+        console.log('[PO Detail] Window focused after stale period - reloading data');
+        loadPurchaseOrder();
+      }
     };
 
     window.addEventListener('focus', handleFocus);
     return () => {
       window.removeEventListener('focus', handleFocus);
     };
-     
+
   }, [recordId]);
 
-  // Load SmTasks when purchaseOrder is loaded (for task dropdown)
+  // Fallback: Load SmTasks if not already loaded (parallel fetch in loadPurchaseOrder is primary)
   useEffect(() => {
-    if (purchaseOrder?.job_id) {
-      loadSmTasks();
+    if (purchaseOrder?.job_id && taskItems.length === 0) {
+      loadSmTasksForJob(purchaseOrder.job_id);
     }
-  }, [purchaseOrder?.job_id]);
+  }, [purchaseOrder?.job_id, taskItems.length]);
 
   // SSoT: Auto-populate required date from linked task
   // This runs after taskItems are loaded, since loadPurchaseOrder runs before tasks load
@@ -415,10 +431,32 @@ export default function PurchaseOrderDetailPage() {
   }, [taskItems, selectedTaskId, requiredDate, purchaseOrder?.sm_tasks]);
 
   const loadPurchaseOrder = async () => {
+    // Performance: Cancel any pending request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     try {
       setLoading(true);
+
+      // Performance: Track fetch time for stale data checks
+      lastFetchTimeRef.current = Date.now();
+
       const response = await api.get<PurchaseOrder>(`/api/v1/purchase_orders/${recordId}`);
+
+      // Check if request was aborted
+      if (abortControllerRef.current?.signal.aborted) {
+        return;
+      }
+
       setPurchaseOrder(response);
+
+      // Performance: Start loading tasks immediately if we have job_id (parallel fetch)
+      if (response.job_id && taskItems.length === 0) {
+        // Fire and forget - don't await, let it load in background
+        loadSmTasksForJob(response.job_id);
+      }
 
       // Initialize editable fields
       const desc = response.description || "";
@@ -475,16 +513,15 @@ export default function PurchaseOrderDetailPage() {
     }
   };
 
-  // Load local SmTasks for this job (for task/description lookup)
+  // Performance: Load SmTasks with job_id parameter (allows parallel fetch)
   // Uses lightweight endpoint (?for=select) for fast dropdown loading
-  const loadSmTasks = async () => {
-    if (!purchaseOrder?.job_id) return;
-    if (taskItems.length > 0) return;
+  const loadSmTasksForJob = async (jobId: number) => {
+    if (taskItems.length > 0) return; // Already loaded
     try {
       setLoadingTasks(true);
       // Fetch SmTasks for this specific job - use lightweight endpoint for dropdown
       const response = await api.get<{ sm_tasks: Array<{ id: number; name: string; task_number: number; start_date?: string }> }>(
-        `/api/v1/jobs/${purchaseOrder.job_id}/sm_tasks?for=select`
+        `/api/v1/jobs/${jobId}/sm_tasks?for=select`
       );
       // Convert to ComboboxItem format - SSoT: Use SmTask.id as the key
       const items: TaskComboboxItem[] = (response?.sm_tasks || []).map((task) => ({
@@ -498,6 +535,13 @@ export default function PurchaseOrderDetailPage() {
       console.error("Failed to load SmTasks:", err);
     } finally {
       setLoadingTasks(false);
+    }
+  };
+
+  // Legacy wrapper for backward compatibility
+  const loadSmTasks = () => {
+    if (purchaseOrder?.job_id) {
+      loadSmTasksForJob(purchaseOrder.job_id);
     }
   };
 

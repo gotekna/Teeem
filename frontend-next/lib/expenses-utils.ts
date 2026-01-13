@@ -24,6 +24,12 @@ export interface PurchaseOrderRecord {
   stage_from_task?: string | number | null;
   trade_from_task?: string | number | null;
   status?: string | null;
+  // Additional fields for redesigned Expenses tab
+  total_billed?: number | null;
+  xero_complete?: boolean | null;
+  task_category?: string | null;
+  sm_task_id?: number | null;
+  sm_task?: { id: number; display?: string; name?: string } | null;
   [key: string]: unknown;
 }
 
@@ -273,4 +279,46 @@ export function getSupplierName(po: PurchaseOrderRecord): string {
     return po.supplier.display || po.supplier.name || `Supplier #${po.supplier.id}`;
   }
   return '(No Supplier)';
+}
+
+/**
+ * Get task display name from PO record
+ */
+export function getTaskName(po: PurchaseOrderRecord): string {
+  if (po.task_category) return String(po.task_category);
+  if (po.sm_task) {
+    if (typeof po.sm_task === 'object') {
+      return po.sm_task.display || po.sm_task.name || `Task #${po.sm_task.id}`;
+    }
+  }
+  return '-';
+}
+
+/**
+ * Format overrun value (negative = over budget, positive = under budget)
+ */
+export function formatOverrun(value: number | null | undefined): string {
+  if (value == null) return '-';
+  const num = Number(value);
+  if (num === 0) return '-';
+  // Display absolute value with sign indicator
+  return formatCurrency(num);
+}
+
+/**
+ * Check if PO is over-billed (billed more than PO total)
+ */
+export function isOverBilled(po: PurchaseOrderRecord): boolean {
+  const billed = Number(po.total_billed) || 0;
+  const total = Number(po.total) || 0;
+  return billed > total && total > 0;
+}
+
+/**
+ * Calculate cost to complete (PO total minus what's been paid)
+ */
+export function getCostToComplete(po: PurchaseOrderRecord): number {
+  const total = Number(po.total) || 0;
+  const paid = Number(po.xero_amount_paid) || 0;
+  return Math.max(0, total - paid);
 }
