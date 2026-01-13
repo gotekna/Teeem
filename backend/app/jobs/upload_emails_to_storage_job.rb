@@ -28,6 +28,18 @@ class UploadEmailsToStorageJob < ApplicationJob
     result = service.upload_missing_emails(batch_size: batch_size)
 
     Rails.logger.info "[UploadEmailsToStorageJob] Completed: uploaded=#{result[:uploaded]}, skipped=#{result[:skipped]}, errors=#{result[:errors]&.count || 0}"
+
+    # Auto-continue: queue next batch if there are more emails to process
+    if batch_size.present? && result[:uploaded].to_i > 0
+      remaining = Email.where(storage_path: nil).count
+      if remaining > 0
+        Rails.logger.info "[UploadEmailsToStorageJob] #{remaining} emails remaining, queuing next batch in 5 seconds..."
+        UploadEmailsToStorageJob.set(wait: 5.seconds).perform_later(batch_size: batch_size)
+      else
+        Rails.logger.info "[UploadEmailsToStorageJob] All emails migrated!"
+      end
+    end
+
     result
   rescue StandardError => e
     Rails.logger.error "[UploadEmailsToStorageJob] Failed: #{e.message}"
