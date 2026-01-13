@@ -541,7 +541,7 @@ export default function AllDocumentsPage() {
 
         const formData = new FormData();
         formData.append("file", file);
-        formData.append("folder", "My Documents");
+        formData.append("folder", "MyDocs");
 
         await api.postFormData("/api/v1/documents", formData);
       }
