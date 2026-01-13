@@ -10,7 +10,7 @@
 #   result = service.migrate_emails(batch_size: 100)
 #   # => { migrated: 50, skipped: 10, errors: [] }
 #
-class EmailSharePointMigrationService
+class EmailSharePointMigrationService # rubocop:disable Naming/ClassAndModuleCamelCase
   attr_reader :stats
 
   def initialize(progress: nil)
