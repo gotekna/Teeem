@@ -331,7 +331,8 @@ module DocumentProviders
 
     # Get file by path
     def get_file_by_path(path)
-      encoded_path = path.sub(/^\//, "").split("/").map { |s| CGI.escape(s) }.join("/")
+      # Use %20 for spaces (not +) - required by Microsoft Graph API
+      encoded_path = path.sub(/^\//, "").split("/").map { |s| CGI.escape(s).gsub("+", "%20") }.join("/")
       @client.get("#{@client.send(:drive_path)}/root:/#{encoded_path}")
     rescue MicrosoftGraphClient::APIError => e
       return nil if e.message.include?("itemNotFound")

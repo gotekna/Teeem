@@ -77,7 +77,7 @@ import type { EntityTab } from "@/lib/types/entity-tabs";
 // This significantly reduces initial bundle size and improves page load time.
 // Each component is code-split into its own chunk.
 // =============================================================================
-const JobActivityTab = dynamic(() => import("@/components/jobs/JobActivityTab").then(m => m.JobActivityTab), {
+const JobActivityTab = dynamic(() => import("@/components/jobs/JobActivityTab").then(m => m.default), {
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
@@ -85,15 +85,15 @@ const JobContractTab = dynamic(() => import("@/components/jobs/JobContractTab").
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
-const JobPeopleTab = dynamic(() => import("@/components/jobs/JobPeopleTab").then(m => m.JobPeopleTab), {
+const JobPeopleTab = dynamic(() => import("@/components/jobs/JobPeopleTab").then(m => m.default), {
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
-const RainLogTab = dynamic(() => import("@/components/jobs/RainLogTab").then(m => m.RainLogTab), {
+const RainLogTab = dynamic(() => import("@/components/jobs/RainLogTab").then(m => m.default), {
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
-const JobDocumentsTab = dynamic(() => import("@/components/jobs/JobDocumentsTab").then(m => m.JobDocumentsTab), {
+const JobDocumentsTab = dynamic(() => import("@/components/jobs/JobDocumentsTab").then(m => m.default), {
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
@@ -101,23 +101,23 @@ const JobPlansTab = dynamic(() => import("@/components/jobs/JobPlansTab").then(m
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
-const JobPurchaseOrdersTab = dynamic(() => import("@/components/jobs/JobPurchaseOrdersTab").then(m => m.JobPurchaseOrdersTab), {
+const JobPurchaseOrdersTab = dynamic(() => import("@/components/jobs/JobPurchaseOrdersTab").then(m => m.default), {
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
-const JobEstimatorTab = dynamic(() => import("@/components/jobs/JobEstimatorTab").then(m => m.JobEstimatorTab), {
+const JobEstimatorTab = dynamic(() => import("@/components/jobs/JobEstimatorTab").then(m => m.default), {
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
-const JobBudgetTab = dynamic(() => import("@/components/jobs/JobBudgetTab").then(m => m.JobBudgetTab), {
+const JobBudgetTab = dynamic(() => import("@/components/jobs/JobBudgetTab").then(m => m.default), {
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
-const JobBOQTab = dynamic(() => import("@/components/jobs/JobBOQTab").then(m => m.JobBOQTab), {
+const JobBOQTab = dynamic(() => import("@/components/jobs/JobBOQTab").then(m => m.default), {
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
-const JobCommunicationsTab = dynamic(() => import("@/components/jobs/JobCommunicationsTab").then(m => m.JobCommunicationsTab), {
+const JobCommunicationsTab = dynamic(() => import("@/components/jobs/JobCommunicationsTab").then(m => m.default), {
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
