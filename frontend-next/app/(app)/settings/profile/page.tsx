@@ -185,12 +185,11 @@ export default function ProfileSettingsPage() {
         formData.append("user[qbcc_licence_class]", qbccLicenceClass);
         formData.append("user[signature]", signatureFile);
 
-        const response = await fetch(`/api/v1/users/${user.id}`, {
-          method: "PATCH",
-          body: formData,
-          credentials: "include",
-        });
-        const data = await response.json();
+        // Use api.patch which handles FormData and adds auth header
+        const data = await api.patch<{ success: boolean; user: any; errors?: string[] }>(
+          `/api/v1/users/${user.id}`,
+          formData
+        );
 
         if (data?.success) {
           setSignatureFile(null);
