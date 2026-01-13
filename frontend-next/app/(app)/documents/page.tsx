@@ -1297,8 +1297,10 @@ export default function AllDocumentsPage() {
                       className="max-h-full max-w-full object-contain"
                     />
                   </div>
-                ) : previewDocument.mimeType?.includes("pdf") ? (
-                  // PDF preview
+                ) : previewDocument.mimeType?.includes("pdf") ||
+                  previewDocument.fileName?.toLowerCase().endsWith(".pdf") ||
+                  previewDocument.displayName?.toLowerCase().endsWith(".pdf") ? (
+                  // PDF preview (check mime type OR file extension)
                   <PDFViewer url={previewDocument.fileUrl} className="h-full" />
                 ) : (
                   // Other file types - show preview placeholder

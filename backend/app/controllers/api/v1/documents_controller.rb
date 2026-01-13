@@ -3,7 +3,7 @@
 module Api
   module V1
     class DocumentsController < ApplicationController
-      before_action :set_document, only: [ :show, :update, :destroy, :preview ]
+      before_action :set_document, only: [ :show, :update, :destroy, :download, :preview ]
 
       # GET /api/v1/documents/all
       # Returns file counts for the entire warehouse (fast)
@@ -176,6 +176,19 @@ module Api
       def destroy
         @document.destroy
         render json: { success: true, message: "Document deleted successfully" }
+      end
+
+      # GET /api/v1/documents/:id/download
+      # Human-readable download endpoint - redirects to S3 presigned URL
+      # URL: /api/v1/documents/123/download → 302 redirect to S3
+      def download
+        url = generate_download_url(@document)
+
+        unless url.present?
+          return render json: { success: false, error: "File not available" }, status: :not_found
+        end
+
+        redirect_to url, allow_other_host: true
       end
 
       # GET /api/v1/documents/:id/preview

@@ -383,7 +383,8 @@ Rails.application.routes.draw do
       # Documents (simple alias for company documents)
       resources :documents, only: [ :index, :show, :update, :destroy ] do
         member do
-          get :preview  # Universal document preview (Excel/Word/PDF)
+          get :download  # Human-readable download URL (redirects to S3)
+          get :preview   # Universal document preview (Excel/Word/PDF)
         end
         collection do
           post :analyze
