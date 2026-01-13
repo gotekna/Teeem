@@ -5,12 +5,18 @@
 # Handles emails that have sharepoint_email_file_id but files still in SharePoint.
 # Fixes case mismatches (emails/eml vs Emails/eml) automatically.
 #
+# IMPORTANT: This service uses the TEEEM SharePoint site's Documents drive.
+# The email files are stored at: gotekna.sharepoint.com/sites/TEEEM/Shared Documents/Emails/eml/
+#
 # Usage:
 #   service = EmailSharePointMigrationService.new
 #   result = service.migrate_emails(batch_size: 100)
 #   # => { migrated: 50, skipped: 10, errors: [] }
 #
 class EmailSharePointMigrationService # rubocop:disable Naming/ClassAndModuleCamelCase
+  # TEEEM SharePoint site ID (discovered via Graph API)
+  TEEEM_SITE_ID = "gotekna.sharepoint.com,d551d458-8c0e-4e22-98b0-434ba9b0e85d,5892a9c8-67f7-4d87-92ca-b1c9a6dd327c"
+
   attr_reader :stats
 
   def initialize(progress: nil)
@@ -74,9 +80,19 @@ class EmailSharePointMigrationService # rubocop:disable Naming/ClassAndModuleCam
     cred = MicrosoftCredential.sharepoint_credential
     return nil unless cred
 
-    DocumentProviders::SharePoint.new(cred)
+    provider = DocumentProviders::SharePoint.new(cred)
+
+    # Switch to TEEEM site's Documents drive
+    # This is required because email files are stored in the TEEEM SharePoint site,
+    # not in the default drive the credential might be connected to
+    Rails.logger.info "[SharePointMigration] Switching to TEEEM site: #{TEEEM_SITE_ID}"
+    provider.use_site(TEEEM_SITE_ID)
+    Rails.logger.info "[SharePointMigration] Connected to drive: #{cred.reload.drive_name}"
+
+    provider
   rescue => e
     Rails.logger.error "[SharePointMigration] Failed to get SharePoint provider: #{e.message}"
+    Rails.logger.error e.backtrace.first(5).join("\n")
     nil
   end
 
