@@ -200,9 +200,9 @@ const SCOPE_ICONS: Record<string, React.ReactNode> = {
   contracts: <PenTool className="h-4 w-4" />,
 };
 
-// Build hierarchical tree from scope folders
-// e.g., "Users/Photos" becomes child of "Users"
-// This dynamically generates the tree from StorageConfiguration.scope_folders
+// SSoT: Build hierarchical tree from StorageConfiguration.scope_folders
+// This matches the tree structure shown in SharePointTab (Storage Configurator)
+// Both components use the same backend data source for consistency
 const buildScopeTree = (
   scopes: Record<string, string>,
   counts: Record<string, number>,
@@ -210,141 +210,92 @@ const buildScopeTree = (
   rootPath: string = "/Shared Documents"
 ): TreeNode[] => {
   const tree: TreeNode[] = [];
-  const parentMap: Record<string, TreeNode> = {};
-  const seenPaths = new Set<string>();
 
-  // Preferred keys when there are duplicates (canonical name for each path)
-  const preferredKeys: Record<string, string> = {
-    "Jobs": "job",
-    "Corporate": "corporate",
-    "Contacts": "contact",
-    "Warehousing/Tasks": "task",
-    "Warehousing/BillInbox": "bill_inbox",
-    "Warehousing/Pricebook Photos": "pricebook_photos",
-    "Emails/eml": "email",
-    "Emails/attachments": "email_attachments",
-    "ActiveStorage": "active_storage",
-    "Accounts": "account",
-  };
+  // Sort entries by path for consistent tree building (shorter paths first)
+  const entries = Object.entries(scopes).sort(([, a], [, b]) => a.localeCompare(b));
 
-  // Keys to skip - legacy aliases that may still exist in some database records
-  // Backend SCOPE_FOLDERS is now clean, but database scope_folders may have old keys
-  const skipKeys = new Set([
-    "jobs", "emails", "contacts", "tasks", "attachments", "warehousing",
-    "pricebook_images", "billinbox", "pricebook", "accounts", "account",
-    "company", "corporate_entity"
-  ]);
+  // Build tree structure - paths like "Users/Photos" become children of "Users"
+  entries.forEach(([scopeKey, path]) => {
+    if (!path) return;
 
-  // First pass: collect unique paths and determine which key to use
-  const pathToKey: Record<string, string> = {};
-  for (const [key, path] of Object.entries(scopes)) {
-    if (skipKeys.has(key)) continue;
-    // Use preferred key if available, otherwise first one wins
-    if (!pathToKey[path] || preferredKeys[path] === key) {
-      pathToKey[path] = key;
-    }
-  }
+    const parts = path.split('/').filter(Boolean);
+    let current = tree;
+    let currentPath = '';
 
-  // Get unique entries sorted by depth (parents before children)
-  const uniqueEntries = Object.entries(pathToKey)
-    .map(([path, key]) => [key, path] as [string, string])
-    .sort((a, b) => {
-      const depthA = a[1].split("/").length;
-      const depthB = b[1].split("/").length;
-      if (depthA !== depthB) return depthA - depthB;
-      return a[1].localeCompare(b[1]);
-    });
+    parts.forEach((part, index) => {
+      currentPath = currentPath ? `${currentPath}/${part}` : part;
+      const isLeaf = index === parts.length - 1;
 
-  // Create parent folders that don't exist (e.g., "Emails" for "Emails/eml")
-  const ensureParentExists = (path: string) => {
-    const parts = path.split("/");
-    if (parts.length <= 1) return;
+      // Look for existing node at this level
+      let node = current.find(n => n.name === part);
 
-    let currentPath = "";
-    for (let i = 0; i < parts.length - 1; i++) {
-      currentPath = currentPath ? `${currentPath}/${parts[i]}` : parts[i];
-      if (!parentMap[currentPath]) {
-        // Create synthetic parent node
-        const parentNode: TreeNode = {
-          id: `parent-${currentPath.replace(/\//g, "-").toLowerCase()}`,
-          name: parts[i],
-          type: "category",
-          icon: <Folder className="h-4 w-4" />,
-          fileCount: 0,
+      if (!node) {
+        // Map scope key to count key for proper count display
+        const countKey = isLeaf ? (
+          scopeKey === "job" ? "jobs"
+          : scopeKey === "corporate" ? "corporate"
+          : scopeKey === "email" ? "emails"
+          : scopeKey === "email_attachments" ? "email_attachments"
+          : scopeKey === "task" ? "tasks"
+          : scopeKey === "pricebook_photos" ? "pricebook_images"
+          : scopeKey
+        ) : null;
+
+        // Get template for this scope (SSoT from Entity Config)
+        const template = isLeaf ? templates[scopeKey] || "" : "";
+        // Build full path: rootPath + scopePath + template
+        const fullPath = template
+          ? `${rootPath}/${currentPath}/${template}`
+          : `${rootPath}/${currentPath}`;
+
+        node = {
+          id: isLeaf ? scopeKey : `parent-${currentPath.replace(/\//g, "-").toLowerCase()}`,
+          name: part,
+          type: "category" as const,
+          icon: isLeaf ? (SCOPE_ICONS[scopeKey] || <Folder className="h-4 w-4" />) : <Folder className="h-4 w-4" />,
+          fileCount: countKey ? (counts[countKey] || 0) : 0,
           children: [],
+          fullPath: isLeaf ? fullPath : `${rootPath}/${currentPath}`,
+          pathTemplate: isLeaf && template ? template : undefined,
         };
+        current.push(node);
+      } else if (isLeaf && node.id.startsWith('parent-')) {
+        // This path is a scope folder but was created as intermediate parent - upgrade it
+        const countKey = scopeKey === "job" ? "jobs"
+          : scopeKey === "corporate" ? "corporate"
+          : scopeKey === "email" ? "emails"
+          : scopeKey === "email_attachments" ? "email_attachments"
+          : scopeKey === "task" ? "tasks"
+          : scopeKey === "pricebook_photos" ? "pricebook_images"
+          : scopeKey;
+        const template = templates[scopeKey] || "";
+        const fullPath = template
+          ? `${rootPath}/${currentPath}/${template}`
+          : `${rootPath}/${currentPath}`;
 
-        if (i === 0) {
-          tree.push(parentNode);
-        } else {
-          const grandParentPath = parts.slice(0, i).join("/");
-          const grandParent = parentMap[grandParentPath];
-          if (grandParent?.children) {
-            grandParent.children.push(parentNode);
-          }
-        }
-        parentMap[currentPath] = parentNode;
+        node.id = scopeKey;
+        node.icon = SCOPE_ICONS[scopeKey] || node.icon;
+        node.fileCount = counts[countKey] || 0;
+        node.fullPath = fullPath;
+        node.pathTemplate = template || undefined;
       }
-    }
+
+      current = node.children || [];
+    });
+  });
+
+  // Second pass: aggregate child counts to parents
+  const aggregateCounts = (nodes: TreeNode[]): number => {
+    return nodes.reduce((sum, node) => {
+      const childCount = node.children ? aggregateCounts(node.children) : 0;
+      // Only aggregate if this is a parent folder (not a scope with its own count)
+      if (node.id.startsWith('parent-')) {
+        node.fileCount = childCount;
+      }
+      return sum + (node.fileCount || 0);
+    }, 0);
   };
-
-  for (const [key, path] of uniqueEntries) {
-    // Skip if we've already processed this path
-    if (seenPaths.has(path)) continue;
-    seenPaths.add(path);
-
-    const parts = path.split("/");
-    const displayName = parts[parts.length - 1];
-
-    // Ensure parent folders exist
-    ensureParentExists(path);
-
-    // Map scope key to count key
-    const countKey = key === "job" ? "jobs"
-      : key === "corporate" ? "corporate"
-      : key === "email" ? "emails"
-      : key === "email_attachments" ? "email_attachments"
-      : key === "task" ? "tasks"
-      : key === "pricebook_photos" ? "pricebook_images"
-      : key;
-
-    // Get template for this scope (SSoT from Entity Config)
-    const template = templates[key] || "";
-    // Build full path: rootPath + scopePath + template
-    const fullPath = template
-      ? `${rootPath}/${path}/${template}`
-      : `${rootPath}/${path}`;
-
-    const node: TreeNode = {
-      id: key,
-      name: displayName,
-      type: "category",
-      icon: SCOPE_ICONS[key] || <Folder className="h-4 w-4" />,
-      fileCount: counts[countKey] || 0,
-      children: [],
-      fullPath: fullPath,
-      pathTemplate: template || undefined,
-    };
-
-    if (parts.length === 1) {
-      // Root level scope
-      tree.push(node);
-      parentMap[path] = node;
-    } else {
-      // Nested scope - find parent
-      const parentPath = parts.slice(0, -1).join("/");
-      const parent = parentMap[parentPath];
-      if (parent?.children) {
-        parent.children.push(node);
-        // Update parent's file count to include children
-        parent.fileCount = (parent.fileCount || 0) + (node.fileCount || 0);
-      } else {
-        // Parent not found, add to root
-        tree.push(node);
-      }
-      parentMap[path] = node;
-    }
-  }
+  aggregateCounts(tree);
 
   return tree;
 };
@@ -375,12 +326,8 @@ export default function AllDocumentsPage() {
   const clickTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // SSoT: Scope folder names from StorageConfiguration
-  const [scopeFolders, setScopeFolders] = useState<ScopeFolders>({
-    job: "Jobs",
-    corporate: "Corporate",
-    people: "People",
-    contact: "Contacts",
-  });
+  // Start empty - API will provide all scopes from StorageConfiguration.SCOPE_FOLDERS
+  const [scopeFolders, setScopeFolders] = useState<ScopeFolders>({});
 
   // SSoT: Folder path templates from Entity Config
   const [scopeTemplates, setScopeTemplates] = useState<Record<string, string>>({});
@@ -423,6 +370,7 @@ export default function AllDocumentsPage() {
   } | null>(null);
 
   // SSoT: Fetch storage config from StorageConfiguration (scope folders, templates, root path)
+  // This uses the same endpoint as SharePointTab to ensure consistency
   useEffect(() => {
     const fetchStorageConfig = async () => {
       try {
@@ -435,8 +383,9 @@ export default function AllDocumentsPage() {
           };
         }>("/api/v1/corporate_company_settings/sharepoint");
         if (response?.success && response.data) {
+          // SSoT: Use scope_folders from StorageConfiguration.SCOPE_FOLDERS
           if (response.data.scope_folders) {
-            setScopeFolders(prev => ({ ...prev, ...response.data.scope_folders }));
+            setScopeFolders(response.data.scope_folders);
           }
           if (response.data.scope_templates) {
             setScopeTemplates(response.data.scope_templates);

@@ -557,6 +557,103 @@ class Contact < ApplicationRecord
   scope :l2_eligible_referrers, -> { where(referrer_status: "eligible_l2") }
   scope :trained_referrers, -> { where.not(referrer_training_completed_at: nil) }
 
+  # ============================================
+  # SSoT: Relevance-Based Contact Search
+  # ============================================
+  # Standard search method for contacts with intelligent relevance ordering.
+  # Use this instead of simple ILIKE queries when user-facing search is needed.
+  #
+  # @param term [String] Search term
+  # @param options [Hash] Search options
+  #   - :include_employee_matches [Boolean] Include companies of matching employees (default: false)
+  #   - :suppliers_only [Boolean] Filter to suppliers only, prioritize suppliers in ordering (default: false)
+  #   - :companies_only [Boolean] Filter to companies/trusts only (default: false)
+  #   - :exclude_employees [Boolean] Exclude people with primary_company_id (default: false)
+  #
+  # @return [ActiveRecord::Relation] Ordered contacts with relevance priority:
+  #   1. Prefix match + supplier (name starts with term, is_supplier_cached=true)
+  #   2. Prefix match (name starts with term)
+  #   3. Contains match + supplier (name contains term, is_supplier_cached=true)
+  #   4. Contains match (name contains term)
+  #   5. Employee-derived (company of matching employee, if include_employee_matches)
+  #   Then alphabetical within each group
+  #
+  # @example Basic search
+  #   Contact.search_by_relevance("dam")
+  #   # => Dam Quality Plasterboard, Damian..., Adam..., Angelo Adamo...
+  #
+  # @example Supplier search with employee matching
+  #   Contact.search_by_relevance("troy", include_employee_matches: true, suppliers_only: true)
+  #   # => Troy's Company, then companies where Troy works
+  #
+  def self.search_by_relevance(term, options = {})
+    return none if term.blank?
+
+    include_employee_matches = options[:include_employee_matches] || false
+    suppliers_only = options[:suppliers_only] || false
+    companies_only = options[:companies_only] || false
+    exclude_employees = options[:exclude_employees] || false
+
+    prefix_term = "#{term}%"
+    contains_term = "%#{term}%"
+
+    # Base query: active contacts matching the search term
+    base_scope = active.where("display_name ILIKE ?", contains_term)
+
+    # Filter to companies/trusts if requested
+    if companies_only || exclude_employees
+      base_scope = base_scope.where("entity_type IN ('company', 'trust') OR primary_company_id IS NULL")
+    end
+
+    # Filter to suppliers only if requested (but still include potential suppliers)
+    if suppliers_only
+      # Get direct matches (may or may not be suppliers)
+      direct_match_ids = base_scope.pluck(:id)
+
+      # Optionally include employer companies of matching employees
+      employee_derived_ids = []
+      if include_employee_matches
+        # Find employees matching the search term
+        matching_employees = where(entity_type: "person")
+          .where("display_name ILIKE ? OR first_name ILIKE ? OR last_name ILIKE ?",
+                 contains_term, contains_term, contains_term)
+          .select(:id, :primary_company_id)
+
+        # Get employer IDs from primary_company_id
+        employer_ids = matching_employees.pluck(:primary_company_id).compact
+
+        # Also check ContactRelationship for employee_of relationships
+        if matching_employees.any?
+          relationship_employer_ids = ContactRelationship
+            .active
+            .where(relationship_type: "employee_of")
+            .where(source_contact_id: matching_employees.pluck(:id))
+            .pluck(:related_contact_id)
+          employer_ids = (employer_ids + relationship_employer_ids).uniq
+        end
+
+        employee_derived_ids = where(id: employer_ids, is_active: true).pluck(:id) if employer_ids.any?
+      end
+
+      all_ids = (direct_match_ids + employee_derived_ids).uniq
+      base_scope = where(id: all_ids, is_active: true)
+    end
+
+    # Apply relevance-based ordering
+    base_scope.order(
+      Arel.sql(sanitize_sql_array([
+        "CASE
+          WHEN display_name ILIKE ? AND is_supplier_cached = true THEN 1
+          WHEN display_name ILIKE ? THEN 2
+          WHEN display_name ILIKE ? AND is_supplier_cached = true THEN 3
+          WHEN display_name ILIKE ? THEN 4
+          ELSE 5
+        END, display_name ASC",
+        prefix_term, prefix_term, contains_term, contains_term
+      ]))
+    )
+  end
+
   # Instance methods
   # computed_display_name: Generates a display-friendly name based on entity type
   # Note: display_name is now a database column (SSoT), this method computes the value

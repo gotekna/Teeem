@@ -116,6 +116,10 @@ module Api
             # where an EMPLOYEE matches the search term (e.g., search "troy" finds "Pre Hung Doors"
             # if Troy Wilson works there and Pre Hung Doors is a supplier)
             # The matched employee names are returned in `matched_employees` for UI display
+            #
+            # NOTE: For simpler search scenarios without employee match tracking, use:
+            #   Contact.search_by_relevance(term, suppliers_only: true, include_employee_matches: true)
+            # This controller has extended logic for UI display of matched employee names.
             if params[:search].present?
               search_term = "%#{params[:search]}%"
 
@@ -158,22 +162,26 @@ module Api
               valid_employer_ids = employer_company_ids.any? ?
                 Contact.where(id: employer_company_ids, is_active: true).pluck(:id) : []
 
-              # Build final result: direct supplier matches + employer companies of matching employees
+              # Build final result:
+              # 1. Direct supplier matches (name matches + is_supplier_cached=true)
+              # 2. Direct name matches (company name matches, regardless of is_supplier_cached)
+              #    This is critical: allows finding "Dam Plasterboard" even before first PO
+              # 3. Employer companies of matching employees (potential suppliers via employee)
+              #
               # Exclude employees (people with primary_company_id) - show their company instead
               direct_supplier_ids = @contacts.where(is_supplier_cached: true)
                                              .where("contacts.entity_type IN ('company', 'trust') OR contacts.primary_company_id IS NULL")
                                              .pluck(:id)
 
-              all_supplier_ids = (direct_supplier_ids + valid_employer_ids).uniq
+              # Include ALL companies whose name matches the search term (potential suppliers by company name)
+              # This ensures "Dam Plasterboard" appears in results even with is_supplier_cached=false
+              direct_name_match_ids = @contacts.where("contacts.entity_type IN ('company', 'trust') OR contacts.primary_company_id IS NULL")
+                                               .pluck(:id)
+
+              all_supplier_ids = (direct_supplier_ids + direct_name_match_ids + valid_employer_ids).uniq
               @contacts = Contact.where(id: all_supplier_ids).where(is_active: true)
 
-              # Store IDs for relevance-based ordering:
-              # 1. Direct name matches (company name contains search term) → highest priority
-              # 2. Employee-derived matches (company included via employee name match) → lower priority
-              # This ensures "Dam Plasterboard" appears before "H Design" when searching "dam"
-              # (even if "Adam" at H Design matches the search)
-              @direct_match_ids = direct_supplier_ids
-              @employee_derived_ids = valid_employer_ids - direct_supplier_ids
+              # Store search term for relevance-based ordering
               @supplier_search_term = params[:search]
             else
               # No search term - show all suppliers (excluding employees who have employer companies)
@@ -252,24 +260,28 @@ module Api
         end
 
         # Relevance-based ordering for supplier search:
-        # Prioritize direct name matches over employee-derived matches
-        # This ensures "Dam Plasterboard" appears before "H Design" when searching "dam"
-        # (even if "Adam" at H Design matches the search term)
+        # Prioritize prefix matches over contains matches, and suppliers over non-suppliers
+        # This ensures "Dam Plasterboard" appears before "Adam" when searching "dam"
         if @supplier_search_term.present?
-          search_term = "%#{@supplier_search_term}%"
+          prefix_term = "#{@supplier_search_term}%"      # Starts with
+          contains_term = "%#{@supplier_search_term}%"   # Contains anywhere
           # Order by:
-          # 1. Direct name match + is_supplier (company name contains search term and is supplier)
-          # 2. Name match only (company name contains search term)
-          # 3. Employee-derived matches (company found via employee name match)
-          # 4. Alphabetical within each group
+          # 1. Prefix match + is_supplier (name STARTS with search term and is supplier) → highest
+          # 2. Prefix match (name STARTS with search term) → high
+          # 3. Contains match + is_supplier (name CONTAINS search term and is supplier) → medium
+          # 4. Contains match (name CONTAINS search term) → lower
+          # 5. Everything else (employee-derived matches) → lowest
+          # 6. Alphabetical within each group
           @contacts = @contacts.order(
             Arel.sql(Contact.sanitize_sql_array([
               "CASE
                 WHEN display_name ILIKE ? AND is_supplier_cached = true THEN 1
                 WHEN display_name ILIKE ? THEN 2
-                ELSE 3
+                WHEN display_name ILIKE ? AND is_supplier_cached = true THEN 3
+                WHEN display_name ILIKE ? THEN 4
+                ELSE 5
               END, display_name ASC",
-              search_term, search_term
+              prefix_term, prefix_term, contains_term, contains_term
             ]))
           )
         else
