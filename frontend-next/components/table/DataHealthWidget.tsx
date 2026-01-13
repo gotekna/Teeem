@@ -106,8 +106,12 @@ export function DataHealthWidget({
       const data = await api.get<HealthData>(url);
       setHealthData(data);
     } catch (err) {
-      console.error("Failed to load health data:", err);
-      setError(err instanceof Error ? err.message : "Failed to load health data");
+      // Don't spam console for expected "Foundation not found" errors
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      if (!errorMessage.includes('Foundation not found')) {
+        console.error("Failed to load health data:", err);
+      }
+      setError(errorMessage);
       setHealthData(null);
     } finally {
       setLoading(false);
@@ -496,7 +500,11 @@ export function HealthIndicatorButton({
       );
       setHealthData(data);
     } catch (err) {
-      console.error("Failed to load health data:", err);
+      // Don't spam console for expected "Foundation not found" errors
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      if (!errorMessage.includes('Foundation not found')) {
+        console.error("Failed to load health data:", err);
+      }
       setHealthData(null);
     } finally {
       setLoading(false);

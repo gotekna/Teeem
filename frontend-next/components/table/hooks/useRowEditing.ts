@@ -245,8 +245,9 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
         const column = columns.find(c => c.key === columnKey);
         if (!column) continue;
 
-        // SSoT: column_type should always be set - log error if missing
-        if (!column.column_type) {
+        // SSoT: column_type should always be set - log error if missing (skip system columns)
+        const systemColumns = ['id', 'created_at', 'updated_at'];
+        if (!column.column_type && !systemColumns.includes(columnKey)) {
           console.error(`[SSoT] Column "${columnKey}" missing column_type`);
         }
         const result = validateCellValue(value, column.column_type || 'single_line_text');

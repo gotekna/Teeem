@@ -206,8 +206,9 @@ export function useSchemaHandlers(props: UseSchemaHandlersProps): UseSchemaHandl
     if (col) {
       setEditingColumnKey(columnKey);
       setEditColumnName(col.label);
-      // SSoT: column_type should always be set - log error if missing
-      if (!col.column_type) {
+      // SSoT: column_type should always be set - log error if missing (skip system columns)
+      const systemColumns = ['id', 'created_at', 'updated_at'];
+      if (!col.column_type && !systemColumns.includes(col.key)) {
         console.error(`[SSoT] Column "${col.key}" missing column_type - defaulting to single_line_text`);
       }
       setEditColumnType(col.column_type || "single_line_text");

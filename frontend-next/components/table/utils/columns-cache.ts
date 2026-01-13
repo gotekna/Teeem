@@ -175,7 +175,11 @@ export async function fetchColumnsForFoundation(
 
       return result;
     } catch (error) {
-      console.error(`[columns-cache] Failed to fetch columns for ${foundationId}:`, error);
+      // Don't spam console for expected "Foundation not found" errors (e.g., demo tables)
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (!errorMessage.includes('Foundation not found')) {
+        console.error(`[columns-cache] Failed to fetch columns for ${foundationId}:`, error);
+      }
       return null;
     } finally {
       // Clean up in-flight promise

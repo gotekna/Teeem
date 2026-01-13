@@ -216,6 +216,7 @@ function GoldStandardDataTab() {
     available_choices?: string[];
   }>>([]);
   const [loading, setLoading] = React.useState(true);
+  const [foundationNotFound, setFoundationNotFound] = React.useState(false);
   const [showAddDialog, setShowAddDialog] = React.useState(false);
   const [showEditDialog, setShowEditDialog] = React.useState(false);
   const [editingEntry, setEditingEntry] = React.useState<TableRowType | null>(null);
@@ -521,12 +522,20 @@ function GoldStandardDataTab() {
         // Don't fail the whole load if views fail
       }
     } catch (error) {
-      console.error("Failed to load gold standard data:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load gold standard data",
-        variant: "destructive",
-      });
+      // Check if it's a "Foundation not found" error - this is expected if the demo table doesn't exist
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('Foundation not found')) {
+        console.warn('[GoldStandardTab] gold_standard_table foundation not found - this is a demo table');
+        setFoundationNotFound(true);
+        // No toast for expected missing foundation
+      } else {
+        console.error("Failed to load gold standard data:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load gold standard data",
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -833,6 +842,23 @@ function GoldStandardDataTab() {
     return (
       <div className="flex items-center justify-center h-64">
         <Spinner size={32} className="text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (foundationNotFound) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <Database className="h-12 w-12 text-muted-foreground" />
+        <div className="text-center">
+          <h3 className="font-medium text-lg">Demo Foundation Not Found</h3>
+          <p className="text-muted-foreground text-sm mt-1">
+            The <code className="bg-muted px-1 rounded">gold_standard_table</code> foundation doesn&apos;t exist.
+          </p>
+          <p className="text-muted-foreground text-sm mt-1">
+            Create it in the database to demo table features here.
+          </p>
+        </div>
       </div>
     );
   }

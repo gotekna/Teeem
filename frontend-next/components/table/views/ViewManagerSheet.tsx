@@ -1100,8 +1100,9 @@ export function ViewManagerSheet({
 
   // Get default width for a column based on its type
   const getDefaultColumnWidth = (col: Column): number => {
-    // SSoT: column_type should always be set - log error if missing
-    if (!col.column_type) {
+    // SSoT: column_type should always be set - log error if missing (skip system columns)
+    const systemColumns = ['id', 'created_at', 'updated_at'];
+    if (!col.column_type && !systemColumns.includes(col.column_name)) {
       console.error(`[SSoT] Column "${col.column_name}" missing column_type`);
     }
     const type = col.column_type?.toLowerCase() || 'single_line_text';

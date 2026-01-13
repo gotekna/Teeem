@@ -66,8 +66,9 @@ export function RowEditingCell({
 }: RowEditingCellProps) {
   const { toast } = useToast();
 
-  // SSoT: column_type should always be set - log error if missing
-  if (!column.column_type) {
+  // SSoT: column_type should always be set - log error if missing (skip system columns)
+  const systemColumns = ['id', 'created_at', 'updated_at'];
+  if (!column.column_type && !systemColumns.includes(column.key)) {
     console.error(`[SSoT] Column "${column.key}" missing column_type - defaulting to single_line_text`);
   }
   const columnType = column.column_type || 'single_line_text';

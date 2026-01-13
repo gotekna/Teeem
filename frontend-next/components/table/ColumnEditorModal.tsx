@@ -200,8 +200,9 @@ export function ColumnEditorModal({
       const newLookupTableId = column.lookup_foundation_id || null;
       console.log('[ColumnEditorModal] Setting lookup_table_id to:', newLookupTableId);
 
-      // SSoT: column_type should always be set - log error if missing
-      if (!column.column_type) {
+      // SSoT: column_type should always be set - log error if missing (skip system columns)
+      const systemColumns = ['id', 'created_at', 'updated_at'];
+      if (!column.column_type && !systemColumns.includes(column.key)) {
         console.error(`[SSoT] Column "${column.key}" missing column_type - defaulting to single_line_text`);
       }
       setEditedColumn({

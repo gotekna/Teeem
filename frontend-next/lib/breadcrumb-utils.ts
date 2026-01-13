@@ -56,11 +56,20 @@ const ROUTE_DISPLAY_NAMES: Record<string, string> = {
   "/admin/users": "Users",
   "/admin/resources": "Resources",
 
-  // Settings
+  // Settings - Main sections
   "/settings": "Settings",
   "/settings/profile": "Profile",
   "/settings/notifications": "Notifications",
   "/settings/security": "Security",
+  "/settings/preferences": "Preferences",
+  "/settings/users": "Users",
+  "/settings/roles": "Roles",
+  "/settings/company": "Company",
+  "/settings/integrations": "Integrations",
+  "/settings/documents": "Documents",
+  "/settings/operations": "Operations",
+  "/settings/system": "System",
+  "/settings/developer": "Developer",
 
   // Other
   "/xero": "Xero",
@@ -110,6 +119,7 @@ const ENTITY_LABELS: Record<string, string> = {
  * Known tab display names for better formatting
  */
 const TAB_DISPLAY_NAMES: Record<string, string> = {
+  // General tabs
   "overview": "Overview",
   "competitor": "Competitor Comparison",
   "details": "Details",
@@ -143,6 +153,30 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "site-presence": "Site Presence",
   "colours": "Colours",
   "specifications": "Specifications",
+
+  // Settings > Company tabs
+  "info": "Info",
+  "brand-colors": "Brand Colors",
+  "brand-guidelines": "Brand Guidelines",
+  "doc-templates": "Doc Templates",
+  "security": "Security",
+  "corporate": "Corporate",
+  "holidays": "Holidays",
+  "workflows": "Workflows",
+  "connections": "Connections",
+  "job-setup": "Job Setup",
+  "workflow-config": "Workflow Config",
+
+  // Settings > Developer tabs
+  "api-keys": "API Keys",
+  "webhooks": "Webhooks",
+  "logs": "Logs",
+  "components": "Components",
+
+  // Settings > Operations tabs
+  "job-types": "Job Types",
+  "categories": "Categories",
+  "statuses": "Statuses",
 };
 
 /**

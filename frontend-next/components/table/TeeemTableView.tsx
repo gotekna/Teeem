@@ -1188,7 +1188,11 @@ export default function TeeemTableView({
           isBackgroundRefreshRef.current = false;
         }
       } catch (error) {
-        console.error(`[TeeemTableView] Failed to fetch records for Foundation ${effectiveFoundationId}:`, error);
+        // Don't spam console for expected "Foundation not found" errors
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (!errorMessage.includes('Foundation not found')) {
+          console.error(`[TeeemTableView] Failed to fetch records for Foundation ${effectiveFoundationId}:`, error);
+        }
         isBackgroundRefreshRef.current = false; // Reset on error too
       } finally {
         if (!isBackground) {
@@ -4192,8 +4196,9 @@ export default function TeeemTableView({
     if (!search || !propSearchMode) return false;
 
     // Check if column type supports highlighting
-    // SSoT: column_type should always be set - log error if missing
-    if (!column.column_type) {
+    // SSoT: column_type should always be set - log error if missing (skip system columns)
+    const systemColumns = ['id', 'created_at', 'updated_at'];
+    if (!column.column_type && !systemColumns.includes(column.key)) {
       console.error(`[SSoT] Column "${column.key}" missing column_type - defaulting to single_line_text`);
     }
     const columnType = column.column_type || 'single_line_text';
@@ -6289,8 +6294,9 @@ export default function TeeemTableView({
           columns={COLUMNS
             .filter(col => col.key !== 'select' && col.key !== 'actions')
             .map((col, index) => {
-              // SSoT: column_type should always be set
-              if (!col.column_type) {
+              // SSoT: column_type should always be set (skip system columns)
+              const systemColumns = ['id', 'created_at', 'updated_at'];
+              if (!col.column_type && !systemColumns.includes(col.key)) {
                 console.error(`[SSoT] Column "${col.key}" missing column_type`);
               }
               return {

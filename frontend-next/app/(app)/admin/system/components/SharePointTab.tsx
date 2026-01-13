@@ -334,32 +334,11 @@ function TreeNode({
         )}
       </div>
 
-      {/* Expanded content: Children and Tabs */}
+      {/* Expanded content: Children OR Tabs (tabs take priority for scopes) */}
       {isExpanded && hasExpandableContent && (
         <div>
-          {/* Child folders */}
-          {node.children.map((child) => (
-            <TreeNode
-              key={child.path}
-              node={child}
-              level={level + 1}
-              expandedPaths={expandedPaths}
-              onToggle={onToggle}
-              editingKey={editingKey}
-              onStartEdit={onStartEdit}
-              onSaveEdit={onSaveEdit}
-              onCancelEdit={onCancelEdit}
-              currentPath={currentPath}
-              rootPath={rootPath}
-              editingTabId={editingTabId}
-              onStartTabEdit={onStartTabEdit}
-              onSaveTabEdit={onSaveTabEdit}
-              onCancelTabEdit={onCancelTabEdit}
-            />
-          ))}
-
-          {/* Tabs under this scope */}
-          {hasTabs && node.scopeKey && (
+          {/* For scopes with tabs: show tabs instead of folder children */}
+          {hasTabs && node.scopeKey ? (
             <div className="ml-1">
               {node.tabs!.map((tab) => (
                 <TabNode
@@ -375,6 +354,27 @@ function TreeNode({
                 />
               ))}
             </div>
+          ) : (
+            /* For non-scope folders: show child folders */
+            node.children.map((child) => (
+              <TreeNode
+                key={child.path}
+                node={child}
+                level={level + 1}
+                expandedPaths={expandedPaths}
+                onToggle={onToggle}
+                editingKey={editingKey}
+                onStartEdit={onStartEdit}
+                onSaveEdit={onSaveEdit}
+                onCancelEdit={onCancelEdit}
+                currentPath={currentPath}
+                rootPath={rootPath}
+                editingTabId={editingTabId}
+                onStartTabEdit={onStartTabEdit}
+                onSaveTabEdit={onSaveTabEdit}
+                onCancelTabEdit={onCancelTabEdit}
+              />
+            ))
           )}
         </div>
       )}

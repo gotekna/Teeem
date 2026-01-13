@@ -364,8 +364,9 @@ export function EditRecordModal({
 
   // Convert TableColumn to ColumnDefinition for RecordFormField
   const toColumnDefinition = useCallback((col: TableColumn): ColumnDefinition => {
-    // SSoT: column_type should always be set - log error if missing
-    if (!col.column_type) {
+    // SSoT: column_type should always be set - log error if missing (skip system columns)
+    const systemColumns = ['id', 'created_at', 'updated_at'];
+    if (!col.column_type && !systemColumns.includes(col.key)) {
       console.error(`[SSoT] Column "${col.key}" missing column_type - defaulting to single_line_text`);
     }
     return {
