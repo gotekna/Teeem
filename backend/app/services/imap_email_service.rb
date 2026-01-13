@@ -563,6 +563,7 @@ class ImapEmailService
       internet_message_id: mail.message_id.gsub(/[<>]/, ""),
       source_type: "imap",
       imap_credential: credential,
+      mailbox_owner_email: credential.email_address,  # SSoT: Required for filtering by mailbox
       subject: mail.subject,
       body_text: mail.text_part&.decoded || mail.body.to_s,
       body_html: mail.html_part&.decoded,
@@ -572,7 +573,7 @@ class ImapEmailService
       cc_emails: Array(mail.cc),
       received_at: Time.current,
       sent_at: Time.current,
-      folder_name: "Sent",
+      folder_name: "Sent Items",  # SSoT: Use standard name, in_folder scope handles variations
       first_synced_at: Time.current,
       last_synced_at: Time.current,
       synced_by_user: credential.user

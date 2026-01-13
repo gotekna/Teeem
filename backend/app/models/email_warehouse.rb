@@ -106,10 +106,20 @@ class EmailWarehouse < ApplicationRecord
   # Gmail uses INBOX, Outlook uses Inbox, others may use inbox - this handles all cases
   # Match folder by name - supports both full path (e.g., "Inbox/Investments") and folder name only
   # This allows matching emails synced before full path support was added
+  # Also handles Sent folder variations: "Sent", "Sent Items", "Sent Mail", "INBOX.Sent"
+  SENT_FOLDER_VARIANTS = ["sent", "sent items", "sent mail", "inbox.sent"].freeze
+
   scope :in_folder, ->(name) {
     # Extract just the folder name (last part of path) for matching legacy emails
     folder_name_only = name.to_s.split("/").last
-    where("LOWER(folder_name) = LOWER(?) OR LOWER(folder_name) = LOWER(?)", name, folder_name_only)
+    normalized_name = name.to_s.downcase
+
+    # Handle Sent folder variations - match all sent variants if searching for any sent folder
+    if SENT_FOLDER_VARIANTS.include?(normalized_name)
+      where("LOWER(folder_name) IN (?)", SENT_FOLDER_VARIANTS)
+    else
+      where("LOWER(folder_name) = LOWER(?) OR LOWER(folder_name) = LOWER(?)", name, folder_name_only)
+    end
   }
 
   # Full-text search scope
