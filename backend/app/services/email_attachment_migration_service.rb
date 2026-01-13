@@ -133,27 +133,17 @@ class EmailAttachmentMigrationService
   end
 
   def download_from_sharepoint(attachment)
-    # Try by file ID first
-    if attachment.sharepoint_file_id.present?
+    # Download using path with case correction
+    return nil unless attachment.sharepoint_path.present?
+
+    path_variations = generate_path_variations(attachment.sharepoint_path)
+
+    path_variations.each do |path|
       begin
-        content = @sharepoint_provider.download_file(attachment.sharepoint_file_id)
+        content = @sharepoint_provider.download_file(path)
         return content if content.present?
       rescue => e
-        Rails.logger.warn "[AttachmentMigration] Download by ID failed for #{attachment.id}: #{e.message}"
-      end
-    end
-
-    # Fall back to path-based download with case correction
-    if attachment.sharepoint_path.present?
-      path_variations = generate_path_variations(attachment.sharepoint_path)
-
-      path_variations.each do |path|
-        begin
-          content = @sharepoint_provider.download_file(path)
-          return content if content.present?
-        rescue => e
-          Rails.logger.debug "[AttachmentMigration] Path #{path} failed: #{e.message}"
-        end
+        Rails.logger.debug "[AttachmentMigration] Path #{path} failed: #{e.message}"
       end
     end
 
