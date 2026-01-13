@@ -1,13 +1,13 @@
 module Api
   module V1
-    # StorageConfigurationController - Provider-agnostic storage configuration
+    # StorageConfigurationsController - Provider-agnostic storage configuration
     #
     # SSoT: This controller manages StorageConfiguration settings for ANY storage provider
     # (SharePoint, S3, Wasabi, local). Use this instead of the legacy sharepoint endpoints.
     #
     # Replaces: /api/v1/corporate_company_settings/sharepoint
     # New endpoint: /api/v1/storage_configuration
-    class StorageConfigurationController < ApplicationController
+    class StorageConfigurationsController < ApplicationController
       before_action :require_admin, only: %i[update test_connection]
 
       # GET /api/v1/storage_configuration
