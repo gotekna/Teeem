@@ -21,6 +21,7 @@ import {
   CornerDownRight,
   ExternalLink,
   Lock,
+  LockOpen,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
@@ -352,6 +353,27 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     }
   };
 
+  // Custom cell renderer - shows lock icon next to PO number
+  const customCellRenderer = useCallback((entry: TableRow, columnKey: string) => {
+    // Attach lock icon to PO number column so it's always visible
+    if (columnKey === "purchase_order_number") {
+      const isLocked = !!entry.budget_locked_at || entry.budget_locked === true;
+      const poNumber = entry.purchase_order_number as string || "";
+
+      return (
+        <span className="flex items-center gap-1.5">
+          {isLocked ? (
+            <Lock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+          ) : (
+            <LockOpen className="h-3.5 w-3.5 text-muted-foreground/30 shrink-0" />
+          )}
+          <span>{poNumber}</span>
+        </span>
+      );
+    }
+    return null; // Use default renderer for other columns
+  }, []);
+
   return (
     <div className="flex flex-col h-full -mx-4">
       {/* TeeemTableView with server-side filtering by job_id */}
@@ -369,6 +391,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
         onRowDoubleClick={handleRowClick}
         onRowUpdate={handleRowUpdate}
         onAddRow={handleOpenCreateModal}
+        customCellRenderer={customCellRenderer}
         leftActions={
           <Button
             variant="outline"
