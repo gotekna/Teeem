@@ -465,7 +465,9 @@ module Api
           # SSoT: Folder path templates (auto-saved from Entity Config)
           scope_templates: {},
           # SSoT: File name templates (auto-saved from Entity Config)
-          file_name_templates: {}
+          file_name_templates: {},
+          # SSoT: Config links for scope folders (URL to external config page)
+          config_links: {}
         )
       end
 

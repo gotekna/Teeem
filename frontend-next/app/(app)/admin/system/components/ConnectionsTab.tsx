@@ -1372,6 +1372,20 @@ interface MigrationStatus {
   };
 }
 
+// Email Storage Upload Progress
+interface StorageUploadProgress {
+  uploaded: number;
+  uploadable: number;
+  remaining: number;
+  upload_rate: number;
+  attachments: {
+    total: number;
+    with_blob: number;
+    legacy_sharepoint: number;
+    migration_rate: number;
+  };
+}
+
 interface MigrationEstimate {
   document_count: number;
   total_size_bytes: number;
@@ -1385,6 +1399,7 @@ function DocumentMigration() {
   const { toast } = useToast();
   const [status, setStatus] = React.useState<MigrationStatus | null>(null);
   const [estimate, setEstimate] = React.useState<MigrationEstimate | null>(null);
+  const [storageUpload, setStorageUpload] = React.useState<StorageUploadProgress | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [starting, setStarting] = React.useState(false);
   const [cancelling, setCancelling] = React.useState(false);
@@ -1397,6 +1412,7 @@ function DocumentMigration() {
   React.useEffect(() => {
     loadStatus();
     loadEstimate();
+    loadStorageUpload();
 
     return () => {
       if (refreshIntervalRef.current) {
@@ -1442,6 +1458,17 @@ function DocumentMigration() {
       }
     } catch (error) {
       console.error("Failed to load migration estimate:", error);
+    }
+  };
+
+  const loadStorageUpload = async () => {
+    try {
+      const response = await api.get<{ success: boolean; data: { storage_upload?: StorageUploadProgress } }>("/api/v1/organization/data_stats");
+      if (response.data?.storage_upload) {
+        setStorageUpload(response.data.storage_upload);
+      }
+    } catch (error) {
+      console.error("Failed to load storage upload progress:", error);
     }
   };
 
@@ -1557,6 +1584,51 @@ function DocumentMigration() {
               status.additional_files.email_attachments > 0 && `${status.additional_files.email_attachments.toLocaleString()} attachments`,
               status.additional_files.task_attachments > 0 && `${status.additional_files.task_attachments.toLocaleString()} task files`,
             ].filter(Boolean).join(" + ")}
+          </div>
+        )}
+
+        {/* Email Storage Upload Progress */}
+        {storageUpload && storageUpload.uploadable > 0 && (
+          <div className="p-3 rounded-lg border bg-blue-50 dark:bg-blue-900/20 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Email Storage Upload</p>
+              <Badge variant="outline" className="text-xs">
+                {storageUpload.upload_rate}%
+              </Badge>
+            </div>
+
+            {/* .eml Files Progress */}
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">.eml files to Wasabi</span>
+                <span className="font-medium">
+                  {storageUpload.uploaded.toLocaleString()} / {storageUpload.uploadable.toLocaleString()}
+                </span>
+              </div>
+              <Progress value={storageUpload.upload_rate} className="h-2" />
+              {storageUpload.remaining > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {storageUpload.remaining.toLocaleString()} remaining
+                </p>
+              )}
+            </div>
+
+            {/* Attachments Deduplication Progress */}
+            {storageUpload.attachments.total > 0 && (
+              <div className="space-y-1 pt-2 border-t border-blue-200 dark:border-blue-800">
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Attachment deduplication</span>
+                  <span className="font-medium">
+                    {storageUpload.attachments.with_blob.toLocaleString()} / {storageUpload.attachments.total.toLocaleString()}
+                  </span>
+                </div>
+                <Progress value={storageUpload.attachments.migration_rate} className="h-2" />
+                <div className="flex gap-3 text-xs text-muted-foreground">
+                  <span>Legacy SharePoint: {storageUpload.attachments.legacy_sharepoint.toLocaleString()}</span>
+                  <span>Deduplicated: {storageUpload.attachments.with_blob.toLocaleString()}</span>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1677,7 +1749,7 @@ function DocumentMigration() {
               Cancel Migration
             </Button>
           )}
-          <Button variant="ghost" size="sm" onClick={() => { loadStatus(); loadEstimate(); }}>
+          <Button variant="ghost" size="sm" onClick={() => { loadStatus(); loadEstimate(); loadStorageUpload(); }}>
             <RefreshCw className="h-4 w-4" />
           </Button>
         </div>

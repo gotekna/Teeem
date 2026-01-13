@@ -379,14 +379,23 @@ function TreeNode({
         )}
 
         {/* Config link - shown when checkbox is enabled and URL is set */}
-        {hasConfigLink && configLinkUrl && !isEditing && (
-          <Link
-            href={configLinkUrl}
-            className="ml-2 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline flex items-center gap-1"
-          >
-            Configure <ExternalLink className="h-3 w-3" />
-          </Link>
-        )}
+        {hasConfigLink && configLinkUrl && !isEditing && (() => {
+          // Get tab name from URL
+          const getTabName = (url: string) => {
+            if (url.includes('corporate_entity')) return 'Corporate tab';
+            if (url.includes('/job')) return 'Jobs tab';
+            if (url.includes('/contact')) return 'Contacts tab';
+            return 'Configure';
+          };
+          return (
+            <Link
+              href={configLinkUrl}
+              className="ml-2 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline flex items-center gap-1"
+            >
+              {getTabName(configLinkUrl)} <ExternalLink className="h-3 w-3" />
+            </Link>
+          );
+        })()}
 
         {/* Tab count badge */}
         {hasTabs && (
@@ -472,18 +481,31 @@ function TreeNode({
                 </label>
               </div>
               {hasConfigLink && (
-                <div className="ml-6">
-                  <Input
-                    value={configLinkUrl}
-                    onChange={(e) => {
-                      setConfigLinkUrl(e.target.value);
+                <div className="ml-6 space-y-2">
+                  <Select
+                    value={configLinkUrl || ""}
+                    onValueChange={(value) => {
+                      setConfigLinkUrl(value);
                       hasModified.current = true;
                     }}
-                    placeholder="/admin/system/entity-config/contact"
-                    className="h-8 text-xs font-mono"
-                  />
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    URL to show as &quot;Configure →&quot; link next to this scope
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Select target tab..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="/admin/system/entity-config/corporate_entity">
+                        Corporate tab
+                      </SelectItem>
+                      <SelectItem value="/admin/system/entity-config/job">
+                        Jobs tab
+                      </SelectItem>
+                      <SelectItem value="/admin/system/entity-config/contact">
+                        Contacts tab
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[10px] text-muted-foreground">
+                    Shows &quot;Configure →&quot; link next to this scope
                   </p>
                 </div>
               )}
