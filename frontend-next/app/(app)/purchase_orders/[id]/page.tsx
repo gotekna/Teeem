@@ -48,6 +48,7 @@ import {
   CheckCircle2,
   XCircle,
   Lock,
+  Unlock,
   ListTodo,
   ExternalLink,
   Clock,
@@ -241,6 +242,10 @@ interface PurchaseOrder {
   is_labour_po?: boolean;
   labour_budget?: number;
   labour_actual?: number;
+  // Budget lockdown
+  budget_locked?: boolean;
+  budget_locked_by_name?: string;
+  budget_locked_at?: string;
 }
 
 const STATUS_OPTIONS = [
@@ -354,6 +359,12 @@ export default function PurchaseOrderDetailPage() {
   const [notes, setNotes] = useState("");
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
+
+  // Budget lockdown state
+  const [budgetLocked, setBudgetLocked] = useState(false);
+  const [budgetLockedBy, setBudgetLockedBy] = useState<string | null>(null);
+  const [budgetLockedAt, setBudgetLockedAt] = useState<string | null>(null);
+  const [lockingBudget, setLockingBudget] = useState(false);
 
   // Original state for change tracking
   const [originalState, setOriginalState] = useState<{

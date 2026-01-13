@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_13_120002) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_13_120003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7779,8 +7779,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_13_120002) do
     t.decimal "labour_budget", precision: 12, scale: 2
     t.decimal "labour_actual", precision: 12, scale: 2, default: "0.0"
     t.boolean "is_labour_po", default: false
+    t.datetime "budget_locked_at"
+    t.bigint "budget_locked_by_id"
+    t.datetime "budget_unlocked_at"
+    t.bigint "budget_unlocked_by_id"
+    t.string "budget_unlock_reason"
     t.index ["approved_by_id"], name: "index_purchase_orders_on_approved_by_id"
     t.index ["arrived_at"], name: "index_purchase_orders_on_arrived_at"
+    t.index ["budget_locked_at"], name: "index_purchase_orders_on_budget_locked_at"
     t.index ["completed_at"], name: "index_purchase_orders_on_completed_at"
     t.index ["created_by_id"], name: "index_purchase_orders_on_created_by_id"
     t.index ["creates_schedule_tasks"], name: "index_purchase_orders_on_creates_schedule_tasks"
@@ -11027,6 +11033,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_13_120002) do
   add_foreign_key "purchase_orders", "estimates"
   add_foreign_key "purchase_orders", "jobs"
   add_foreign_key "purchase_orders", "quote_responses"
+  add_foreign_key "purchase_orders", "users", column: "budget_locked_by_id"
+  add_foreign_key "purchase_orders", "users", column: "budget_unlocked_by_id"
   add_foreign_key "quote_request_contacts", "contacts"
   add_foreign_key "quote_request_contacts", "quote_requests"
   add_foreign_key "quote_requests", "jobs"

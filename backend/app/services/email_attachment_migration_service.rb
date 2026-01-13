@@ -165,7 +165,19 @@ class EmailAttachmentMigrationService
       variations << path.sub(/^Emails/, "emails")
     end
 
-    variations.uniq
+    # CRITICAL: Some files were stored with + instead of spaces in filenames
+    # Add variations with spaces replaced by + in filename portion
+    plus_variations = variations.map do |v|
+      parts = v.split("/")
+      filename = parts.last
+      if filename.include?(" ")
+        parts[0..-2].join("/") + "/" + filename.gsub(" ", "+")
+      else
+        nil
+      end
+    end.compact
+
+    (variations + plus_variations).uniq
   end
 
   def increment_migrated!

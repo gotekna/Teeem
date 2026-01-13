@@ -715,6 +715,8 @@ Rails.application.routes.draw do
           get :generate_pdf
           get :schedule_sync_preview
           post :schedule_sync
+          post :lock_budget
+          post :unlock_budget
         end
         # Payments nested under purchase orders
         resources :payments, only: [ :index, :create ]

@@ -1,7 +1,7 @@
 module Api
   module V1
     class PurchaseOrdersController < ApplicationController
-      before_action :set_purchase_order, only: [ :show, :update, :destroy, :approve, :send_to_supplier, :mark_received, :attach_documents, :available_documents, :generate_pdf, :schedule_sync_preview, :schedule_sync ]
+      before_action :set_purchase_order, only: [ :show, :update, :destroy, :approve, :send_to_supplier, :mark_received, :attach_documents, :available_documents, :generate_pdf, :schedule_sync_preview, :schedule_sync, :lock_budget, :unlock_budget ]
 
       # GET /api/v1/purchase_orders
       # Params: construction_id, supplier_id, status, search, sort_by, sort_direction, page, per_page
@@ -254,6 +254,47 @@ module Api
           render json: @purchase_order
         else
           render json: { errors: @purchase_order.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/purchase_orders/:id/lock_budget
+      # Lock the budget from the current PO total
+      def lock_budget
+        if @purchase_order.budget_locked?
+          return render json: { success: false, error: "Budget is already locked" }, status: :unprocessable_entity
+        end
+
+        if @purchase_order.lock_budget!(current_user)
+          render json: {
+            success: true,
+            data: @purchase_order.as_json(include: :line_items),
+            message: "Budget locked at #{helpers.number_to_currency(@purchase_order.budget)}"
+          }
+        else
+          render json: { success: false, error: "Failed to lock budget" }, status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/purchase_orders/:id/unlock_budget
+      # Unlock the budget (admin only)
+      def unlock_budget
+        unless current_user&.admin?
+          return render json: { success: false, error: "You don't have permission to unlock budgets" }, status: :forbidden
+        end
+
+        unless @purchase_order.budget_locked?
+          return render json: { success: false, error: "Budget is not locked" }, status: :unprocessable_entity
+        end
+
+        reason = params[:reason]
+        if @purchase_order.unlock_budget!(current_user, reason: reason)
+          render json: {
+            success: true,
+            data: @purchase_order.as_json(include: :line_items),
+            message: "Budget unlocked"
+          }
+        else
+          render json: { success: false, error: "Failed to unlock budget" }, status: :unprocessable_entity
         end
       end
 
