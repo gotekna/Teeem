@@ -31,7 +31,9 @@ import {
   ChevronDown,
   Pencil,
   FileText,
+  Link2,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -113,6 +115,8 @@ interface StorageConfig {
   // SSoT: Templates for folder paths and filenames per scope
   scope_templates: Record<string, string>;
   file_name_templates: Record<string, string>;
+  // SSoT: Config links for scope folders (URL to external config page)
+  config_links: Record<string, string>;
 }
 
 // Tree node structure for folder hierarchy
@@ -209,7 +213,8 @@ interface TreeNodeProps {
   // SSoT: Templates for auto-save
   scopeTemplates: Record<string, string>;
   fileNameTemplates: Record<string, string>;
-  onSaveTemplates: (scopeKey: string, folderTemplate: string, filenameTemplate: string) => Promise<void>;
+  configLinks: Record<string, string>;
+  onSaveTemplates: (scopeKey: string, folderTemplate: string, filenameTemplate: string, configLink: string | null) => Promise<void>;
 }
 
 function TreeNode({
@@ -230,6 +235,7 @@ function TreeNode({
   parentScopeKey,
   scopeTemplates,
   fileNameTemplates,
+  configLinks,
   onSaveTemplates,
 }: TreeNodeProps) {
   const hasChildren = node.children.length > 0;
@@ -245,6 +251,11 @@ function TreeNode({
   const [filenameTemplate, setFilenameTemplate] = React.useState(
     node.scopeKey ? fileNameTemplates[node.scopeKey] || '{{OriginalFileName}}' : '{{OriginalFileName}}'
   );
+  // Config link: checkbox + URL for linking to external config page
+  // SSoT: Initialize from configLinks prop (loaded from backend)
+  const initialConfigLink = node.scopeKey ? configLinks[node.scopeKey] || '' : '';
+  const [hasConfigLink, setHasConfigLink] = React.useState(!!initialConfigLink);
+  const [configLinkUrl, setConfigLinkUrl] = React.useState(initialConfigLink);
   const [isSaving, setIsSaving] = React.useState(false);
   const [lastSaved, setLastSaved] = React.useState<Date | null>(null);
   const saveTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -252,7 +263,7 @@ function TreeNode({
   const hasModified = React.useRef(false);
 
   // Auto-save function with debounce - calls actual API
-  const autoSave = React.useCallback(async (folder: string, filename: string) => {
+  const autoSave = React.useCallback(async (folder: string, filename: string, configLink: string | null) => {
     if (!node.scopeKey || !hasModified.current) return;
 
     if (saveTimeoutRef.current) {
@@ -261,7 +272,7 @@ function TreeNode({
     saveTimeoutRef.current = setTimeout(async () => {
       setIsSaving(true);
       try {
-        await onSaveTemplates(node.scopeKey!, folder, filename);
+        await onSaveTemplates(node.scopeKey!, folder, filename, configLink);
         setLastSaved(new Date());
       } catch (error) {
         console.error('Failed to save templates:', error);
@@ -271,17 +282,19 @@ function TreeNode({
     }, 1000); // 1 second debounce
   }, [node.scopeKey, onSaveTemplates]);
 
-  // Trigger auto-save when templates change
+  // Trigger auto-save when templates or config link change
   React.useEffect(() => {
     if (isEditing && hasModified.current) {
-      autoSave(folderTemplate, filenameTemplate);
+      // Pass null for configLink if checkbox is unchecked (to remove it)
+      const linkToSave = hasConfigLink ? configLinkUrl : null;
+      autoSave(folderTemplate, filenameTemplate, linkToSave);
     }
     return () => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [folderTemplate, filenameTemplate, isEditing, autoSave]);
+  }, [folderTemplate, filenameTemplate, hasConfigLink, configLinkUrl, isEditing, autoSave]);
 
   // Handle template changes - mark as modified
   const handleFolderTemplateChange = (value: string) => {
@@ -365,13 +378,13 @@ function TreeNode({
           </Badge>
         )}
 
-        {/* Complex scopes: Link to separate tab */}
-        {node.scopeKey && COMPLEX_SCOPES.includes(node.scopeKey) && (
+        {/* Config link - shown when checkbox is enabled and URL is set */}
+        {hasConfigLink && configLinkUrl && !isEditing && (
           <Link
-            href={`/admin/system/entity-config/${node.scopeKey}`}
-            className="ml-2 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
+            href={configLinkUrl}
+            className="ml-2 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline flex items-center gap-1"
           >
-            Configure in {SCOPE_LABELS[node.scopeKey] || getScopeLabel(node.scopeKey)} tab →
+            Configure <ExternalLink className="h-3 w-3" />
           </Link>
         )}
 
@@ -402,7 +415,7 @@ function TreeNode({
               <label className="text-xs font-medium text-muted-foreground">Base Path</label>
               <div className="flex items-center gap-2">
                 <span className="font-mono text-sm bg-muted px-2 py-1 rounded">
-                  /{rootPath ? `${rootPath}/` : ''}{node.path}
+                  {rootPath ? `/${rootPath}` : ''}/{node.path}
                 </span>
                 <span className="text-muted-foreground">/</span>
               </div>
@@ -424,7 +437,7 @@ function TreeNode({
             <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded px-3 py-2">
               <span className="text-xs text-muted-foreground">Full Path: </span>
               <span className="font-mono text-sm text-green-700 dark:text-green-400">
-                /{rootPath ? `${rootPath}/` : ''}{node.path}/{folderTemplate || ''}
+                {rootPath ? `/${rootPath}` : ''}/{node.path}/{folderTemplate || ''}
               </span>
             </div>
 
@@ -438,6 +451,43 @@ function TreeNode({
               placeholder="Click tokens to build filename..."
               defaultExpanded={true}
             />
+
+            {/* Config Link - checkbox + URL */}
+            <div className="space-y-2 pt-2 border-t">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id={`config-link-${node.scopeKey}`}
+                  checked={hasConfigLink}
+                  onCheckedChange={(checked) => {
+                    setHasConfigLink(checked === true);
+                    hasModified.current = true;
+                  }}
+                />
+                <label
+                  htmlFor={`config-link-${node.scopeKey}`}
+                  className="text-xs font-medium cursor-pointer flex items-center gap-1.5"
+                >
+                  <Link2 className="h-3.5 w-3.5" />
+                  Link to configuration page
+                </label>
+              </div>
+              {hasConfigLink && (
+                <div className="ml-6">
+                  <Input
+                    value={configLinkUrl}
+                    onChange={(e) => {
+                      setConfigLinkUrl(e.target.value);
+                      hasModified.current = true;
+                    }}
+                    placeholder="/admin/system/entity-config/contact"
+                    className="h-8 text-xs font-mono"
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    URL to show as &quot;Configure →&quot; link next to this scope
+                  </p>
+                </div>
+              )}
+            </div>
 
             {/* Auto-save status and close */}
             <div className="flex items-center justify-between pt-2 border-t mt-3">
@@ -514,6 +564,7 @@ function TreeNode({
                 parentScopeKey={node.scopeKey || parentScopeKey}
                 scopeTemplates={scopeTemplates}
                 fileNameTemplates={fileNameTemplates}
+                configLinks={configLinks}
                 onSaveTemplates={onSaveTemplates}
               />
             ))
@@ -714,6 +765,8 @@ export function SharePointTab() {
     // SSoT: Templates for folder paths and filenames per scope
     scope_templates: {} as Record<string, string>,
     file_name_templates: {} as Record<string, string>,
+    // SSoT: Config links for scope folders
+    config_links: {} as Record<string, string>,
   });
   // Tree view state
   const [expandedPaths, setExpandedPaths] = React.useState<Set<string>>(new Set());
@@ -844,7 +897,8 @@ export function SharePointTab() {
   const saveScopeTemplates = React.useCallback(async (
     scopeKey: string,
     folderTemplate: string,
-    filenameTemplate: string
+    filenameTemplate: string,
+    configLink: string | null
   ) => {
     try {
       const response = await api.patch<{ success: boolean; data: StorageConfig }>(
@@ -853,16 +907,26 @@ export function SharePointTab() {
           sharepoint: {
             scope_templates: { [scopeKey]: folderTemplate },
             file_name_templates: { [scopeKey]: filenameTemplate },
+            config_links: { [scopeKey]: configLink }, // null removes the link
           }
         }
       );
       if (response?.success) {
         // Update local state to reflect saved values
-        setFormData(prev => ({
-          ...prev,
-          scope_templates: { ...prev.scope_templates, [scopeKey]: folderTemplate },
-          file_name_templates: { ...prev.file_name_templates, [scopeKey]: filenameTemplate },
-        }));
+        setFormData(prev => {
+          const newConfigLinks = { ...prev.config_links };
+          if (configLink) {
+            newConfigLinks[scopeKey] = configLink;
+          } else {
+            delete newConfigLinks[scopeKey];
+          }
+          return {
+            ...prev,
+            scope_templates: { ...prev.scope_templates, [scopeKey]: folderTemplate },
+            file_name_templates: { ...prev.file_name_templates, [scopeKey]: filenameTemplate },
+            config_links: newConfigLinks,
+          };
+        });
       } else {
         throw new Error('Failed to save templates');
       }
@@ -929,6 +993,8 @@ export function SharePointTab() {
           // SSoT: Templates from StorageConfiguration
           scope_templates: response.data.scope_templates || {},
           file_name_templates: response.data.file_name_templates || {},
+          // SSoT: Config links from StorageConfiguration
+          config_links: response.data.config_links || {},
         });
       }
     } catch (error) {
@@ -1363,6 +1429,7 @@ export function SharePointTab() {
                     onCancelTabEdit={() => setEditingTabId(null)}
                     scopeTemplates={formData.scope_templates}
                     fileNameTemplates={formData.file_name_templates}
+                    configLinks={formData.config_links}
                     onSaveTemplates={saveScopeTemplates}
                   />
                 ))}

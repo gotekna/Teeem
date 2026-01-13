@@ -410,7 +410,9 @@ class StorageConfiguration < ApplicationRecord
       scope_folders: effective_scope_folders,
       # Templates for Entity Config auto-save
       scope_templates: templates || {},
-      file_name_templates: file_name_templates || {}
+      file_name_templates: file_name_templates || {},
+      # Config links for scope folders (URL to external config page)
+      config_links: config_links || {}
     }
   end
 end

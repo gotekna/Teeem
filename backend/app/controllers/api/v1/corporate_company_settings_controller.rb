@@ -164,6 +164,15 @@ module Api
           existing_file_templates = storage_config.file_name_templates || {}
           update_attrs[:file_name_templates] = existing_file_templates.merge(sp[:file_name_templates].to_h)
         end
+        # SSoT: Config links for scope folders (URL to external config page)
+        # Format: { "contact": "/admin/system/entity-config/contact" } or { "contact": null } to remove
+        if sp.key?(:config_links)
+          existing_config_links = storage_config.config_links || {}
+          new_config_links = sp[:config_links].to_h
+          # Merge, but remove keys with null/empty values
+          merged_links = existing_config_links.merge(new_config_links).reject { |_, v| v.blank? }
+          update_attrs[:config_links] = merged_links
+        end
 
         if storage_config.update(update_attrs)
           # SSoT: Automatically reorganize files when folder templates change
