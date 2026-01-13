@@ -53,11 +53,15 @@ export default function CompanySettingsPage() {
   const router = useRouter();
 
   // URL is SSoT for tab state (path-based navigation)
-  const activeTab = useMemo(() => {
+  const { activeTab, subTab } = useMemo(() => {
     const parts = pathname.replace("/settings/company", "").split("/").filter(Boolean);
     const tab = parts[0] || DEFAULT_TAB;
+    const sub = parts[1] || undefined;
     // Validate tab exists
-    return COMPANY_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB;
+    return {
+      activeTab: COMPANY_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB,
+      subTab: sub,
+    };
   }, [pathname]);
 
   // Redirect to default tab if no tab in URL
@@ -85,7 +89,7 @@ export default function CompanySettingsPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1">
+        <TabsList className="flex-wrap h-auto gap-1">
           {COMPANY_TABS.map((tab) => (
             <TabsTrigger
               key={tab.id}
@@ -123,7 +127,7 @@ export default function CompanySettingsPage() {
             <WorkflowsTab />
           </TabsContent>
           <TabsContent value="connections">
-            <ConnectionsTab />
+            <ConnectionsTab subTab={subTab} />
           </TabsContent>
           <TabsContent value="job-setup">
             <JobSetupTab />

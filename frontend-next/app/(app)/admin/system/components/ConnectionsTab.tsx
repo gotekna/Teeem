@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1999,20 +2000,33 @@ function DocumentMigrationCard() {
   );
 }
 
+// Sub-tab definitions for connections
+const CONNECTIONS_SUB_TABS = [
+  { id: "provider", label: "Storage Provider" },
+  { id: "migration", label: "Migration" },
+  { id: "costs", label: "Cost Comparison" },
+];
+
 // Main Connections Tab
-export function ConnectionsTab({ innerTab }: { innerTab?: string }) {
+export function ConnectionsTab({ subTab }: { subTab?: string }) {
+  const router = useRouter();
+
+  // Validate and default the sub-tab
+  const activeSubTab = CONNECTIONS_SUB_TABS.some((t) => t.id === subTab) ? subTab : "provider";
+
+  const handleSubTabChange = (tabId: string) => {
+    // Navigate to sub-tab URL
+    router.push(`/settings/company/connections/${tabId}`, { scroll: false });
+  };
+
   return (
-    <Tabs defaultValue={innerTab || "provider"} className="space-y-4">
-      <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1">
-        <TabsTrigger value="provider" className="text-sm">
-          Storage Provider
-        </TabsTrigger>
-        <TabsTrigger value="migration" className="text-sm">
-          Migration
-        </TabsTrigger>
-        <TabsTrigger value="costs" className="text-sm">
-          Cost Comparison
-        </TabsTrigger>
+    <Tabs value={activeSubTab} onValueChange={handleSubTabChange} className="space-y-4">
+      <TabsList className="flex-wrap h-auto gap-1">
+        {CONNECTIONS_SUB_TABS.map((tab) => (
+          <TabsTrigger key={tab.id} value={tab.id} className="text-sm">
+            {tab.label}
+          </TabsTrigger>
+        ))}
       </TabsList>
 
       <TabsContent value="provider">
