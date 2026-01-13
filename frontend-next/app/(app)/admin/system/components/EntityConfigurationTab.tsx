@@ -168,12 +168,12 @@ export function EntityConfigurationTab({ onClose, scope }: EntityConfigurationTa
     };
   }, []);
 
-  // Handle close - navigate back to admin system page
+  // Handle close - navigate back to previous page
   const handleClose = React.useCallback(() => {
     if (onClose) {
       onClose();
     } else {
-      router.push("/admin/system");
+      router.back();
     }
   }, [onClose, router]);
 

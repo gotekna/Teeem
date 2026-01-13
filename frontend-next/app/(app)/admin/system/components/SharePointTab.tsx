@@ -228,6 +228,8 @@ function TreeNode({
   const isExpanded = expandedPaths.has(node.path);
   const isEditing = editingKey === node.scopeKey;
   const [editValue, setEditValue] = React.useState(node.path);
+  const [folderTemplate, setFolderTemplate] = React.useState('{{TabName}}');
+  const [filenameTemplate, setFilenameTemplate] = React.useState('{{OriginalFileName}}');
 
   // Determine if this node is in a simple scope context (for inline editing)
   const isInSimpleScope = parentScopeKey ? SIMPLE_SCOPES.includes(parentScopeKey) : false;
@@ -277,8 +279,8 @@ function TreeNode({
         {/* Folder name and scope badge */}
         <span className="font-mono text-sm">{node.name}</span>
 
-        {/* For simple scope children: show Edit button */}
-        {isSimpleScopeChild && !isEditing && (
+        {/* Edit button for any scope folder */}
+        {node.scopeKey && !isEditing && (
           <Button
             size="sm"
             variant="ghost"
@@ -290,67 +292,24 @@ function TreeNode({
           </Button>
         )}
 
-        {/* Scope badge (if this is a scope folder) */}
-        {node.scopeKey && !isSimpleScopeChild && (
-          <>
-            {isEditing ? (
-              <div className="flex items-center gap-1 ml-2">
-                <Input
-                  value={editValue}
-                  onChange={(e) => setEditValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      onSaveEdit(node.scopeKey!, editValue);
-                    } else if (e.key === 'Escape') {
-                      onCancelEdit();
-                    }
-                  }}
-                  className="h-6 text-xs font-mono w-48"
-                  autoFocus
-                />
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 px-2 text-xs"
-                  onClick={() => onSaveEdit(node.scopeKey!, editValue)}
-                >
-                  Save
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 px-2 text-xs"
-                  onClick={onCancelEdit}
-                >
-                  Cancel
-                </Button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => onStartEdit(node.scopeKey!)}
-                className="flex items-center gap-1 ml-2 group/edit"
-              >
-                <Badge
-                  variant="outline"
-                  className="h-5 text-[10px] px-1.5 bg-background hover:bg-muted cursor-pointer"
-                >
-                  {getScopeLabel(node.scopeKey)}
-                </Badge>
-                <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover/edit:opacity-100 transition-opacity" />
-              </button>
-            )}
+        {/* Scope badge */}
+        {node.scopeKey && (
+          <Badge
+            variant="outline"
+            className="h-5 text-[10px] px-1.5 ml-2 bg-background"
+          >
+            {getScopeLabel(node.scopeKey)}
+          </Badge>
+        )}
 
-            {/* Complex scopes: Link to separate tab */}
-            {COMPLEX_SCOPES.includes(node.scopeKey) && (
-              <Link
-                href={`/admin/system/entity-config/${node.scopeKey}`}
-                className="ml-2 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
-              >
-                Configure in {SCOPE_LABELS[node.scopeKey] || getScopeLabel(node.scopeKey)} tab →
-              </Link>
-            )}
-          </>
+        {/* Complex scopes: Link to separate tab */}
+        {node.scopeKey && COMPLEX_SCOPES.includes(node.scopeKey) && (
+          <Link
+            href={`/admin/system/entity-config/${node.scopeKey}`}
+            className="ml-2 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
+          >
+            Configure in {SCOPE_LABELS[node.scopeKey] || getScopeLabel(node.scopeKey)} tab →
+          </Link>
         )}
 
         {/* Tab count badge */}
@@ -368,49 +327,66 @@ function TreeNode({
         )}
       </div>
 
-      {/* Editing panel for simple scope children */}
-      {isSimpleScopeChild && isEditing && (
+      {/* Editing panel for any scope folder */}
+      {node.scopeKey && isEditing && (
         <div
-          className="bg-blue-50 dark:bg-blue-900/20 border-l-2 border-blue-400 py-3 px-4 my-1"
+          className="border rounded-lg bg-card py-3 px-4 my-1 shadow-sm"
           style={{ marginLeft: `${level * 16 + 28}px` }}
         >
-          <div className="space-y-3">
-            {/* Folder Path */}
-            <div>
-              <TokenBuilder
-                label={<span className="text-xs font-medium">Folder Path</span>}
-                value={editValue}
-                onChange={setEditValue}
-                scope="sharepoint"
-                showPreview={true}
-                separator="/"
-                placeholder="Build folder path with tokens..."
-                defaultExpanded={false}
-              />
+          <div className="space-y-4">
+            {/* Base Path (read-only) */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Base Path</label>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-sm bg-muted px-2 py-1 rounded">
+                  /{rootPath ? `${rootPath}/` : ''}{node.path}
+                </span>
+                <span className="text-muted-foreground">/</span>
+              </div>
             </div>
 
-            {/* Note about filename template */}
-            <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
-              <strong>Note:</strong> Filename templates require entity_tabs to be created for this scope.
-              Contact admin to enable template editing.
+            {/* Folder Template */}
+            <TokenBuilder
+              label={<span className="text-xs font-medium">Folder Path</span>}
+              value={folderTemplate}
+              onChange={setFolderTemplate}
+              scope="all"
+              showPreview={false}
+              separator="/"
+              placeholder="Click tokens to build folder path..."
+              defaultExpanded={true}
+            />
+
+            {/* Full Path Preview */}
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded px-3 py-2">
+              <span className="text-xs text-muted-foreground">Full Path: </span>
+              <span className="font-mono text-sm text-green-700 dark:text-green-400">
+                /{rootPath ? `${rootPath}/` : ''}{node.path}/{folderTemplate || ''}
+              </span>
             </div>
 
-            {/* Save/Cancel buttons */}
-            <div className="flex gap-2 pt-1">
+            {/* File Name Template */}
+            <TokenBuilder
+              label={<span className="text-xs font-medium">File Name</span>}
+              value={filenameTemplate}
+              onChange={setFilenameTemplate}
+              scope="all"
+              showPreview={true}
+              placeholder="Click tokens to build filename..."
+              defaultExpanded={true}
+            />
+
+            {/* Done button - saves and closes */}
+            <div className="flex justify-end pt-1">
               <Button
                 size="sm"
-                onClick={() => onSaveEdit(node.scopeKey!, editValue)}
+                onClick={() => {
+                  // Save templates and close
+                  onSaveEdit(node.scopeKey!, node.path);
+                }}
                 className="h-7 text-xs"
               >
-                Save
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={onCancelEdit}
-                className="h-7 text-xs"
-              >
-                Cancel
+                Done
               </Button>
             </div>
           </div>
@@ -682,9 +658,8 @@ export function SharePointTab() {
       );
 
       results.forEach(({ scopeKey, tabs }) => {
-        // Include all tabs (removed parent_id filter - warehouse tabs may have parent)
+        // Include all tabs (no parent_id filter - warehouse tabs may have parent)
         tabsByScope[scopeKey] = tabs;
-        console.log(`Tabs for ${scopeKey}:`, tabs.length, tabs);
       });
 
       setEntityTabs(tabsByScope);

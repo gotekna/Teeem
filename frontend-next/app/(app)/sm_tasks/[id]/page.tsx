@@ -97,7 +97,7 @@ function TaskDetailContent() {
   return (
     <TaskFullscreenView
       task={task}
-      onClose={() => router.push('/tasks')}
+      onClose={() => router.back()}
     />
   );
 }
