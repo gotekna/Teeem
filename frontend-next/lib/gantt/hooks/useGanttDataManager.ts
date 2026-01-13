@@ -899,19 +899,38 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       const year = newStartDate.getFullYear();
       const month = String(newStartDate.getMonth() + 1).padStart(2, '0');
       const day = String(newStartDate.getDate()).padStart(2, '0');
-      const holdDateStr = `${year}-${month}-${day}`;
-      console.log('[GanttDataManager] Executing drag move - setting hold=true, hold_date=', holdDateStr);
+      const dateStr = `${year}-${month}-${day}`;
+      console.log('[GanttDataManager] Executing drag move via /move endpoint, new_start_date=', dateStr);
 
-      await api.patch(
-        apiConfig.updateUrl(task.id),
-        wrapPayload(apiConfig, {
-          hold: true,
-          hold_date: holdDateStr,
-        })
-      );
+      // Use /move endpoint which auto-cascades unlocked successors
+      // This is the SSoT for task movement with dependency cascade
+      const result = await api.post<{
+        success: boolean;
+        needs_confirmation?: boolean;
+        message?: string;
+        cascade_results?: {
+          updated_count: number;
+          updated_task_ids: number[];
+        };
+      }>(`/api/v1/sm_tasks/${task.id}/move`, {
+        new_start_date: dateStr,
+      });
 
-      console.log('[GanttDataManager] Drag move saved successfully');
-      toast({ title: 'Task Moved', description: `Moved to ${newStartDate.toLocaleDateString('en-AU')} (held)` });
+      if (result?.needs_confirmation) {
+        // Shouldn't happen since we pre-filter locked successors, but handle it
+        console.warn('[GanttDataManager] Move returned needs_confirmation - showing cascade dialog');
+        toast({ title: 'Cascade Required', description: 'Please resolve locked successor conflicts', variant: 'destructive' });
+        return;
+      }
+
+      const cascadeCount = (result?.cascade_results?.updated_count || 1) - 1;
+      console.log('[GanttDataManager] Drag move saved successfully, cascaded:', cascadeCount);
+
+      const description = cascadeCount > 0
+        ? `Moved to ${newStartDate.toLocaleDateString('en-AU')} (+ ${cascadeCount} successor${cascadeCount > 1 ? 's' : ''} cascaded)`
+        : `Moved to ${newStartDate.toLocaleDateString('en-AU')}`;
+
+      toast({ title: 'Task Moved', description });
       loadData({ silent: true });
     } catch (err) {
       console.error('[GanttDataManager] Drag move failed:', err);
