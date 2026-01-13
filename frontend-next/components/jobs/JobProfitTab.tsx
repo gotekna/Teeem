@@ -33,6 +33,11 @@ interface ClaimsSummary {
   total_retainage_held: number;
   total_retainage_released: number;
   net_receivable: number;
+  // Variation fields
+  approved_variations: number;
+  unapproved_variations: number;
+  revised_contract_value: number;
+  variation_count: number;
 }
 
 interface ClaimsResponse {
@@ -140,6 +145,10 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
           total_retainage_held: 0,
           total_retainage_released: 0,
           net_receivable: 0,
+          approved_variations: 0,
+          unapproved_variations: 0,
+          revised_contract_value: 0,
+          variation_count: 0,
         });
       }
 
@@ -225,8 +234,9 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
 
   // Contract vs actual
   const contractValue = claimsSummary?.contract_value || 0;
+  const revisedContractValue = claimsSummary?.revised_contract_value || contractValue;
   const budgetedCosts = expensesTotals?.totalBudget || 0;
-  const expectedProfit = contractValue - budgetedCosts;
+  const expectedProfit = revisedContractValue - budgetedCosts;
   const profitVariance = grossProfit - expectedProfit;
 
   return (
@@ -305,6 +315,28 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
               <span className="text-muted-foreground">Contract Value</span>
               <span className="font-medium">{formatCurrency(contractValue)}</span>
             </div>
+            {(claimsSummary?.approved_variations || 0) > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">+ Approved Variations</span>
+                <span className="font-medium text-green-600 dark:text-green-400">
+                  {formatCurrency(claimsSummary?.approved_variations)}
+                </span>
+              </div>
+            )}
+            {(claimsSummary?.unapproved_variations || 0) > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Pending Variations</span>
+                <span className="font-medium text-amber-600 dark:text-amber-400">
+                  {formatCurrency(claimsSummary?.unapproved_variations)}
+                </span>
+              </div>
+            )}
+            {(claimsSummary?.approved_variations || 0) > 0 && (
+              <div className="flex justify-between text-sm border-t pt-2">
+                <span className="text-muted-foreground font-medium">Revised Contract</span>
+                <span className="font-bold">{formatCurrency(claimsSummary?.revised_contract_value || contractValue)}</span>
+              </div>
+            )}
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Remaining to Invoice</span>
               <span className="font-medium text-amber-600 dark:text-amber-400">
@@ -315,11 +347,15 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
               <div className="flex justify-between text-sm mb-1">
                 <span className="text-muted-foreground">Invoiced Progress</span>
                 <span className="font-medium">
-                  {contractValue > 0 ? Math.round((revenue / contractValue) * 100) : 0}%
+                  {(claimsSummary?.revised_contract_value || contractValue) > 0
+                    ? Math.round((revenue / (claimsSummary?.revised_contract_value || contractValue)) * 100)
+                    : 0}%
                 </span>
               </div>
               <Progress
-                value={contractValue > 0 ? (revenue / contractValue) * 100 : 0}
+                value={(claimsSummary?.revised_contract_value || contractValue) > 0
+                  ? (revenue / (claimsSummary?.revised_contract_value || contractValue)) * 100
+                  : 0}
                 className="h-2"
               />
             </div>

@@ -8,7 +8,7 @@ module Api
 
       # GET /api/v1/jobs/:job_id/claim_stages
       def index
-        stages = @job.job_claim_stages.includes(:external_invoice).ordered
+        stages = @job.job_claim_stages.includes(:external_invoice, :sm_task).ordered
 
         # Summary calculations (handle nil values)
         # SSoT: contract_price is THE ONE
@@ -18,6 +18,19 @@ module Api
         total_paid = stages.sum { |s| s.amount_paid.to_d }
         total_retainage_held = JobClaimStage.total_retainage_held_for_job(@job.id)
         total_retainage_released = stages.sum { |s| s.retainage_released? ? s.retainage_amount.to_d : 0 }
+
+        # Variation calculations
+        # A variation is a claim stage where the linked sm_task has is_variation = true
+        variation_stages = stages.select { |s| s.sm_task&.is_variation? }
+        non_variation_stages = stages.reject { |s| s.sm_task&.is_variation? }
+
+        # Approved variations = variations that have been invoiced (matched to an invoice)
+        approved_variations = variation_stages.select(&:matched?).sum { |s| s.amount_invoiced.to_d }
+        # Unapproved variations = variations not yet invoiced (expected amount)
+        unapproved_variations = variation_stages.reject(&:matched?).sum { |s| s.expected_amount.to_d }
+
+        # Revised contract = base contract + approved variations
+        revised_contract = contract + approved_variations
 
         render json: {
           success: true,
@@ -29,12 +42,17 @@ module Api
               total_expected: total_expected.to_f,
               total_invoiced: total_invoiced.to_f,
               total_paid: total_paid.to_f,
-              remaining: (contract - total_paid).to_f,
-              paid_percentage: contract.positive? ? ((total_paid / contract) * 100).round(1) : 0,
+              remaining: (revised_contract - total_paid).to_f,
+              paid_percentage: revised_contract.positive? ? ((total_paid / revised_contract) * 100).round(1) : 0,
               # Retainage summary
               total_retainage_held: total_retainage_held.to_f,
               total_retainage_released: total_retainage_released.to_f,
-              net_receivable: (total_invoiced - total_paid - total_retainage_held).to_f
+              net_receivable: (total_invoiced - total_paid - total_retainage_held).to_f,
+              # Variation summary
+              approved_variations: approved_variations.to_f,
+              unapproved_variations: unapproved_variations.to_f,
+              revised_contract_value: revised_contract.to_f,
+              variation_count: variation_stages.count
             },
             available_invoices: available_invoices_json
           }
@@ -580,6 +598,7 @@ module Api
           sequence_order: stage.sequence_order,
           description: stage.description,
           is_custom: stage.is_custom,
+          is_variation: stage.sm_task&.is_variation || false,
 
           # Matching
           match_status: stage.match_status,
