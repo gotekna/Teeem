@@ -866,13 +866,16 @@ export default function AllDocumentsPage() {
           onClick={() => toggleFolder(node.id)}
           title={node.fullPath || undefined}
         >
-          {hasChildren && (
+          {/* Show chevron if has children OR has files (expandable) */}
+          {(hasChildren || fileCount > 0) ? (
             <ChevronRight
               className={cn(
-                "h-4 w-4 text-muted-foreground transition-transform",
+                "h-4 w-4 text-muted-foreground transition-transform shrink-0",
                 isExpanded && "rotate-90"
               )}
             />
+          ) : (
+            <div className="w-4 shrink-0" /> // Spacer for alignment
           )}
           {node.type === "category" && node.icon}
           {node.type !== "category" && (
