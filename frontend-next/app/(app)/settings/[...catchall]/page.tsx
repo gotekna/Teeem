@@ -18,6 +18,7 @@ import { redirect } from "next/navigation";
  */
 
 // Map legacy/deep paths to their correct settings locations
+// SSoT: All redirects use path-based URLs (not query params)
 const PATH_REDIRECTS: Record<string, string> = {
   // Entity Configuration deep links → Admin System (where EntityConfigurationTab lives)
   // These need to go to admin/system, not settings/developer
@@ -25,12 +26,12 @@ const PATH_REDIRECTS: Record<string, string> = {
   "system/entity-configuration": "/admin/system/entity-config/corporate_entity",
   "developer/entity-config": "/admin/system/entity-config/corporate_entity",
 
-  // Component deep links → Developer tab
-  "system/components": "/settings/developer?tab=components",
-  "developer/components": "/settings/developer?tab=components",
+  // Component deep links → Developer tab (path-based)
+  "system/components": "/settings/developer/components",
+  "developer/components": "/settings/developer/components",
 
-  // Navigation deep links → System tab
-  "system/navigation": "/settings/system?tab=navigation",
+  // Navigation deep links → System tab (path-based)
+  "system/navigation": "/settings/system/navigation",
 
   // Schedule Master deep links → Admin System (correct location)
   "system/schedule-master": "/admin/system/schedule-master/data-view",

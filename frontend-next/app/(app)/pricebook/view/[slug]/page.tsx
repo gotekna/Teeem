@@ -1,33 +1,32 @@
-import { redirect } from "next/navigation";
 import { fetchFoundationForSSR } from "@/lib/server/foundation-api";
-import ContactsPageClient from "../../contacts-page-client";
+import PricebookPageClient from "../../pricebook-page-client";
 
-interface ContactsViewPageProps {
+interface PricebookViewPageProps {
   params: Promise<{ slug: string }>;
 }
 
 /**
- * Contacts View Page - Path-Based View URL
+ * Pricebook View Page - Path-Based View URL
  *
- * SSoT URL Pattern: /contacts/view/company_role (path-based, human-readable)
+ * SSoT URL Pattern: /pricebook/view/by_category (path-based, human-readable)
  *
  * This is the preferred URL format per component-registry.ts URL PATTERNS standard.
  * Legacy ?view=slug URLs are redirected here by the parent page.
  *
- * @example /contacts/view/company_role → View grouped by company role
- * @example /contacts/view/all → Default flat view
+ * @example /pricebook/view/by_category → View grouped by category
+ * @example /pricebook/view/all → Default flat view
  */
-export default async function ContactsViewPage({ params }: ContactsViewPageProps) {
+export default async function PricebookViewPage({ params }: PricebookViewPageProps) {
   const { slug } = await params;
 
   // Fetch with view applied on server for fast LCP + no CLS
-  const { columns, records, hasMore, totalCount, view, views, groupCounts } = await fetchFoundationForSSR("contacts", {
+  const { columns, records, hasMore, totalCount, view, views, groupCounts } = await fetchFoundationForSSR("pricebook-items", {
     limit: 20,
     viewSlug: slug,
   });
 
   return (
-    <ContactsPageClient
+    <PricebookPageClient
       initialColumns={columns}
       initialRecords={records}
       initialHasMore={hasMore}
@@ -35,7 +34,6 @@ export default async function ContactsViewPage({ params }: ContactsViewPageProps
       initialView={view}
       initialViews={views}
       initialGroupCounts={groupCounts}
-      viewSlug={slug}
     />
   );
 }

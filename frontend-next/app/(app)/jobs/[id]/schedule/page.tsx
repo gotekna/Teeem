@@ -1343,7 +1343,7 @@ export default function SchedulePage() {
                 variant={selectedGanttTask?.jobClaimStageId ? "default" : "outline"}
                 size="sm"
                 className="h-7 px-2 text-xs"
-                onClick={() => window.open(`/jobs/${jobId}?tab=claims`, '_blank')}
+                onClick={() => window.open(`/jobs/${jobId}/claims`, '_blank')}
               >
                 Claims
               </Button>
@@ -1438,7 +1438,7 @@ export default function SchedulePage() {
             <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/purchase-orders`, '_blank')}>
               PO
             </Button>
-            <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}?tab=claims`, '_blank')}>
+            <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/claims`, '_blank')}>
               Claims
             </Button>
             <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/site`, '_blank')}>

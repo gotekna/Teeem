@@ -6,23 +6,24 @@ interface JobsViewPageProps {
 }
 
 /**
- * Jobs View Page - SSR Optimized
+ * Jobs View Page - Path-Based View URL
  *
- * Handles URLs like /jobs/view/live, /jobs/view/completed
- * The view slug determines which saved view configuration to apply.
+ * SSoT URL Pattern: /jobs/view/live (path-based, human-readable)
  *
- * SSR fetches the view config and initial records so the page
- * renders immediately with the correct grouping/filters applied.
+ * This is the preferred URL format per component-registry.ts URL PATTERNS standard.
+ * Legacy ?view=slug URLs are redirected here by the parent page.
+ *
+ * @example /jobs/view/live → View filtered to live jobs
+ * @example /jobs/view/completed → View filtered to completed jobs
  */
 export default async function JobsViewPage({ params }: JobsViewPageProps) {
   const { slug } = await params;
 
-  // Fetch records with view configuration applied
-  const { columns, records, hasMore, view, views, groupCounts } =
-    await fetchFoundationForSSR("jobs", {
-      limit: 20,
-      viewSlug: slug,
-    });
+  // Fetch with view applied on server for fast LCP + no CLS
+  const { columns, records, hasMore, view, views, groupCounts } = await fetchFoundationForSSR("jobs", {
+    limit: 20,
+    viewSlug: slug,
+  });
 
   return (
     <JobsPageClient
@@ -32,7 +33,6 @@ export default async function JobsViewPage({ params }: JobsViewPageProps) {
       initialView={view}
       initialViews={views}
       initialGroupCounts={groupCounts}
-      viewSlug={slug}
     />
   );
 }
