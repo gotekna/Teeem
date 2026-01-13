@@ -957,6 +957,7 @@ export default function AllDocumentsPage() {
       ...filteredDocuments.jobs,
       ...filteredDocuments.corporate,
       ...filteredDocuments.people,
+      ...filteredDocuments.tasks,
     ];
   }, [filteredDocuments]);
 
@@ -1155,6 +1156,7 @@ export default function AllDocumentsPage() {
                       {doc.source === "job" && doc.jobNumber && `Job ${doc.jobNumber}`}
                       {doc.source === "corporate" && doc.companyName}
                       {doc.source === "people" && doc.contactName}
+                      {doc.source === "task" && doc.taskName}
                     </Badge>
                     {doc.storageProvider === "s3_compatible" && (
                       <Badge variant="secondary" className="text-xs shrink-0">S3</Badge>
@@ -1230,6 +1232,9 @@ export default function AllDocumentsPage() {
                     )}
                     {previewDocument.source === "people" && previewDocument.contactName && (
                       <Badge variant="outline" className="text-xs">{previewDocument.contactName}</Badge>
+                    )}
+                    {previewDocument.source === "task" && previewDocument.taskName && (
+                      <Badge variant="outline" className="text-xs">{previewDocument.taskName}</Badge>
                     )}
                     {previewDocument.storageProvider === "s3_compatible" && (
                       <Badge variant="secondary" className="text-xs">S3</Badge>
