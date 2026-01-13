@@ -54,6 +54,21 @@ const SCOPE_LABELS: Record<string, string> = {
   contact: 'Contacts',
 };
 
+// SSoT: Default folder templates per scope (matches backend SCOPE_TEMPLATES)
+const DEFAULT_FOLDER_TEMPLATES: Record<string, string> = {
+  job: '{{JobCode}}/{{TabName}}',
+  task: '{{TaskId}}',
+  corporate_entity: '{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}',
+  corporate: '{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}',
+  contact: '{{ContactName}}/{{TabName}}',
+  people: '{{ContactName}}/{{TabName}}',
+  email: '{{Year}}/{{Month}}',
+  notes: '{{UserName}}/{{Year}}',
+  excel_documents: '{{UserName}}/{{Year}}',
+  word_documents: '{{UserName}}/{{Year}}',
+  powerpoint_documents: '{{UserName}}/{{Year}}',
+};
+
 // SSoT: Provider types match StorageConfiguration.PROVIDER_TYPES
 type ProviderType = "sharepoint" | "s3" | "wasabi" | "local";
 
@@ -240,13 +255,13 @@ function TreeNode({
 }: TreeNodeProps) {
   const hasChildren = node.children.length > 0;
   const hasTabs = node.tabs && node.tabs.length > 0;
-  const hasExpandableContent = hasChildren || hasTabs;
-  const isExpanded = expandedPaths.has(node.path);
   const isEditing = editingKey === node.scopeKey;
   const [editValue, setEditValue] = React.useState(node.path);
-  // SSoT: Initialize templates from props (loaded from backend)
+  // SSoT: Initialize templates from props (loaded from backend), fallback to defaults
   const [folderTemplate, setFolderTemplate] = React.useState(
-    node.scopeKey ? scopeTemplates[node.scopeKey] || '{{TabName}}' : '{{TabName}}'
+    node.scopeKey
+      ? scopeTemplates[node.scopeKey] || DEFAULT_FOLDER_TEMPLATES[node.scopeKey] || '{{TabName}}'
+      : '{{TabName}}'
   );
   const [filenameTemplate, setFilenameTemplate] = React.useState(
     node.scopeKey ? fileNameTemplates[node.scopeKey] || '{{OriginalFileName}}' : '{{OriginalFileName}}'
@@ -255,6 +270,11 @@ function TreeNode({
   // SSoT: Initialize from configLinks prop (loaded from backend)
   const initialConfigLink = node.scopeKey ? configLinks[node.scopeKey] || '' : '';
   const [hasConfigLink, setHasConfigLink] = React.useState(!!initialConfigLink);
+
+  // SSoT: Simple scopes without config link can expand to show folder template preview
+  const hasTemplatePreview = node.scopeKey && folderTemplate && !hasConfigLink;
+  const hasExpandableContent = hasChildren || hasTabs || hasTemplatePreview;
+  const isExpanded = expandedPaths.has(node.path);
   const [configLinkUrl, setConfigLinkUrl] = React.useState(initialConfigLink);
   const [isSaving, setIsSaving] = React.useState(false);
   const [lastSaved, setLastSaved] = React.useState<Date | null>(null);
@@ -424,7 +444,7 @@ function TreeNode({
               <label className="text-xs font-medium text-muted-foreground">Base Path</label>
               <div className="flex items-center gap-2">
                 <span className="font-mono text-sm bg-muted px-2 py-1 rounded">
-                  {rootPath ? `/${rootPath}` : ''}/{node.path}
+                  {[rootPath, node.path].filter(Boolean).join('/').replace(/\/+/g, '/')}
                 </span>
                 <span className="text-muted-foreground">/</span>
               </div>
@@ -439,14 +459,14 @@ function TreeNode({
               showPreview={false}
               separator="/"
               placeholder="Click tokens to build folder path..."
-              defaultExpanded={true}
+              defaultExpanded={false}
             />
 
             {/* Full Path Preview */}
             <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded px-3 py-2">
               <span className="text-xs text-muted-foreground">Full Path: </span>
               <span className="font-mono text-sm text-green-700 dark:text-green-400">
-                {rootPath ? `/${rootPath}` : ''}/{node.path}/{folderTemplate || ''}
+                {[rootPath, node.path, folderTemplate].filter(Boolean).join('/').replace(/\/+/g, '/')}
               </span>
             </div>
 
@@ -458,7 +478,7 @@ function TreeNode({
               scope="all"
               showPreview={true}
               placeholder="Click tokens to build filename..."
-              defaultExpanded={true}
+              defaultExpanded={false}
             />
 
             {/* Config Link - checkbox + URL */}
@@ -547,7 +567,36 @@ function TreeNode({
       {/* Expanded content: Children OR Tabs (tabs take priority for scopes) */}
       {isExpanded && hasExpandableContent && (
         <div>
-          {/* For scopes with tabs: show tabs instead of folder children */}
+          {/* For simple scopes WITHOUT config link: show folder template preview */}
+          {/* Complex scopes with config links have their folder structure defined in entity tabs (SSoT) */}
+          {node.scopeKey && folderTemplate && !isEditing && !hasConfigLink && (
+            <div className="ml-1">
+              {/* Render folder template as nested preview folders */}
+              {(() => {
+                const parts = folderTemplate.split('/').filter(Boolean);
+                let currentLevel = level + 1;
+                return parts.map((part, idx) => (
+                  <div
+                    key={`template-${idx}`}
+                    className="flex items-center gap-1 py-0.5 px-1"
+                    style={{ paddingLeft: `${currentLevel++ * 16 + 4}px` }}
+                  >
+                    <span className="w-5" />
+                    <Folder className="h-3.5 w-3.5 text-amber-500/50 flex-shrink-0" />
+                    <span className="font-mono text-xs text-muted-foreground italic">
+                      {part}
+                    </span>
+                    {idx === parts.length - 1 && filenameTemplate && (
+                      <span className="ml-2 text-[10px] text-muted-foreground/60">
+                        → {filenameTemplate}
+                      </span>
+                    )}
+                  </div>
+                ));
+              })()}
+            </div>
+          )}
+          {/* For scopes with tabs: show tabs */}
           {hasTabs && node.scopeKey ? (
             <div className="ml-1">
               {node.tabs!.map((tab) => (

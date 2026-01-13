@@ -7,7 +7,7 @@ import { EntityTabsConfig } from "@/components/admin/EntityTabsConfig";
 import { DocumentTypesTab } from "./DocumentTypesTab";
 import { SharePointTab } from "./SharePointTab";
 import { EmailConfigTab } from "./EmailConfigTab";
-import { Building2, Users, Briefcase, X, FileText, Settings, Contact2, Mail, Warehouse, Lock, ClipboardList } from "lucide-react";
+import { Building2, Briefcase, X, FileText, Settings, Contact2, Mail } from "lucide-react";
 import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
@@ -59,39 +59,7 @@ const scopes = [
     isEntityTab: true,
     showTabGroups: false,
   },
-  {
-    id: "email",
-    label: "Email",
-    icon: Mail,
-    showEntityFilters: false,
-    showSharePointPaths: true,
-    showDocumentTypes: false,
-    isEntityTab: true,
-    showTabGroups: false,
-    isSystemScope: true,  // System-managed tabs - read-only paths
-  },
-  {
-    id: "warehouse",
-    label: "Warehouse",
-    icon: Warehouse,
-    showEntityFilters: false,
-    showSharePointPaths: true,
-    showDocumentTypes: false,
-    isEntityTab: true,
-    showTabGroups: false,
-    isSystemScope: true,  // System-managed tabs - read-only paths
-  },
-  {
-    id: "task",
-    label: "Task",
-    icon: ClipboardList,
-    showEntityFilters: false,
-    showSharePointPaths: true,
-    showDocumentTypes: false,
-    isEntityTab: true,
-    showTabGroups: false,
-    isSystemScope: true,  // System-managed tabs - read-only paths
-  },
+  // SSoT: Email, Warehouse, Task scopes are configured in Storage Config, not here
   {
     id: "document_types",
     label: "Document Types",
@@ -188,7 +156,6 @@ export function EntityConfigurationTab({ onClose, scope }: EntityConfigurationTa
             <TabsList className="h-8 bg-transparent p-0 gap-1">
               {scopes.map((s) => {
                 const Icon = s.icon;
-                const isSystem = "isSystemScope" in s && s.isSystemScope;
                 return (
                   <TabsTrigger
                     key={s.id}
@@ -198,9 +165,6 @@ export function EntityConfigurationTab({ onClose, scope }: EntityConfigurationTa
                   >
                     <Icon className="h-3.5 w-3.5 mr-1.5" />
                     {s.label}
-                    {isSystem && (
-                      <Lock className="h-3 w-3 ml-1 text-muted-foreground" />
-                    )}
                     {scopeCounts[s.id] > 0 && (
                       <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-4 px-1 text-[10px] font-medium bg-muted rounded">
                         {scopeCounts[s.id]}

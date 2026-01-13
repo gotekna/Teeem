@@ -3,11 +3,12 @@
 # EmailStorageUploadService - SSoT for uploading emails to storage
 #
 # Provider-agnostic: Uses StorageConfiguration to determine Wasabi/S3 vs SharePoint
-# Parallel processing: 20 threads for Wasabi (instant), sequential for SharePoint
+# Parallel processing: 5 threads for Wasabi (instant), sequential for SharePoint
 #
 # Usage:
 #   service = EmailStorageUploadService.new(progress: progress)
-#   result = service.upload_missing_emails
+#   result = service.upload_missing_emails          # Fetch from Outlook → Wasabi
+#   result = service.migrate_from_sharepoint        # Download SharePoint → Wasabi
 #   # => { uploaded: 66489, skipped: 830, errors: [] }
 #
 # Background Job:

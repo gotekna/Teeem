@@ -151,6 +151,14 @@ export const DATE_PLACEHOLDERS: PlaceholderToken[] = [
     description: "Day of month",
   },
   {
+    code: "{Month}",
+    example: "01",
+    longCode: "{MonthLong}",
+    longExample: "January",
+    color: "green",
+    description: "Month (number or name)",
+  },
+  {
     code: "{MonthYear}",
     example: "Oct-25",
     longCode: "{MonthYearLong}",
