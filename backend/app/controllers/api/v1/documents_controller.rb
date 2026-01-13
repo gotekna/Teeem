@@ -182,16 +182,19 @@ module Api
 
           # Create document record
           # Note: company_id is optional for user-uploaded documents
+          # Uses existing columns: storage_type, file_url, external_id
           document = CorporateCompanyDocument.create!(
             file_name: file.original_filename,
             display_name: file.original_filename,
+            document_type: "user_upload",
             mime_type: file.content_type,
             file_size: file.size,
             folder: folder,
-            storage_provider: "s3_compatible",
-            storage_path: "/#{s3_key}",
-            storage_item_id: result[:id],
-            user_id: user.id
+            storage_type: "s3_compatible",
+            file_url: "/#{s3_key}",
+            external_id: result[:id],
+            filed_by: user.display_name || user.email,
+            uploaded_at: Time.current
           )
 
           render json: {
