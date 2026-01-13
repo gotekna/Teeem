@@ -56,6 +56,7 @@ import { useLayoutMode } from "@/contexts/LayoutModeContext";
 import { useToast } from "@/components/ui/use-toast";
 import {
   downloadPptx,
+  exportToPptx,
   importFromPptx,
   createEmptyPresentation,
   createSlideFromLayout,
@@ -999,36 +1000,23 @@ export default function TeeemPowerPointPage() {
     loadOrCreate();
   }, [presentationId, router]);
 
-  // Auto-save on changes (debounced)
+  // Auto-save on changes (debounced) - calls handleSave which saves to both DB and warehouse
   React.useEffect(() => {
     if (!hasChanges || !presentation) return;
 
-    const timeout = setTimeout(async () => {
-      setSaving(true);
-      try {
-        await api.patch(`/api/v1/teeem_presentations/${presentation.id}`, {
-          teeem_presentation: {
-            name,
-            job_id: selectedJobId,
-            data,
-          },
-        });
-        setHasChanges(false);
-      } catch (error) {
-        console.error("Failed to save:", error);
-      } finally {
-        setSaving(false);
-      }
+    const timeout = setTimeout(() => {
+      handleSave();
     }, 2000);
 
     return () => clearTimeout(timeout);
   }, [hasChanges, presentation, name, selectedJobId, data]);
 
-  // Save immediately
+  // Save immediately (to database AND to File Warehouse)
   const handleSave = async () => {
     if (!presentation) return;
     setSaving(true);
     try {
+      // 1. Save to database
       await api.patch(`/api/v1/teeem_presentations/${presentation.id}`, {
         teeem_presentation: {
           name,
@@ -1036,6 +1024,32 @@ export default function TeeemPowerPointPage() {
           data,
         },
       });
+
+      // 2. Save to File Warehouse (S3)
+      try {
+        // Generate PPTX blob client-side
+        const pptxBlob = await exportToPptx(data);
+        const formData = new FormData();
+        formData.append("file", pptxBlob, `${name}.pptx`);
+
+        // Send to backend - use fetch since api.post doesn't handle FormData well
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/teeem_presentations/${presentation.id}/save_to_warehouse`,
+          {
+            method: "POST",
+            body: formData,
+            credentials: "include",
+          }
+        );
+
+        if (!response.ok) {
+          console.warn("Failed to save to warehouse:", await response.text());
+        }
+      } catch (warehouseError) {
+        console.warn("Failed to save to warehouse:", warehouseError);
+        // Don't fail the whole save - database save succeeded
+      }
+
       setHasChanges(false);
     } catch (error) {
       console.error("Failed to save:", error);

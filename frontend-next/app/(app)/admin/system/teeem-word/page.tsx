@@ -280,46 +280,24 @@ export default function TeeemWordPage() {
     }
   }, [editor, document]);
 
-  // Auto-save on changes (debounced)
+  // Auto-save on changes (debounced) - calls handleSave which saves to both DB and warehouse
   React.useEffect(() => {
     if (!hasChanges || !document || !editor) return;
 
-    const timeout = setTimeout(async () => {
-      setSaving(true);
-      try {
-        const content = editor.getHTML();
-        await api.patch(`/api/v1/teeem_documents/${document.id}`, {
-          teeem_document: {
-            name,
-            job_id: selectedJobId,
-            data: {
-              content,
-              version: 1,
-              pageSettings: document.data?.pageSettings || {
-                size: "A4",
-                orientation: "portrait",
-                margins: { top: 1, bottom: 1, left: 1, right: 1 },
-              },
-            },
-          },
-        });
-        setHasChanges(false);
-      } catch (error) {
-        console.error("Failed to save:", error);
-      } finally {
-        setSaving(false);
-      }
+    const timeout = setTimeout(() => {
+      handleSave();
     }, 2000);
 
     return () => clearTimeout(timeout);
   }, [hasChanges, document, name, selectedJobId, editor]);
 
-  // Save immediately
+  // Save immediately (to database AND to File Warehouse)
   const handleSave = async () => {
     if (!document || !editor) return;
     setSaving(true);
     try {
       const content = editor.getHTML();
+      // 1. Save to database
       await api.patch(`/api/v1/teeem_documents/${document.id}`, {
         teeem_document: {
           name,
@@ -335,6 +313,15 @@ export default function TeeemWordPage() {
           },
         },
       });
+
+      // 2. Save to File Warehouse (S3)
+      try {
+        await api.post(`/api/v1/teeem_documents/${document.id}/save_to_warehouse`);
+      } catch (warehouseError) {
+        console.warn("Failed to save to warehouse:", warehouseError);
+        // Don't fail the whole save - database save succeeded
+      }
+
       setHasChanges(false);
     } catch (error) {
       console.error("Failed to save:", error);

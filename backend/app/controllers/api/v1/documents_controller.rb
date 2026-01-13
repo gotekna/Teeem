@@ -249,16 +249,17 @@ module Api
 
       # GET /api/v1/documents/:id/preview
       # Universal document preview - returns structured data for Excel/Word/PDF
+      # SSoT: Uses DocumentStorageService for all storage providers
       def preview
-        unless @document.file_url.present?
-          return render json: { success: false, error: "No file attached" }, status: :not_found
+        # SSoT: Download via DocumentStorageService (handles S3, SharePoint, ActiveStorage)
+        service = DocumentStorageService.new
+        result = service.download(@document)
+
+        unless result[:success]
+          return render json: { success: false, error: result[:error] }, status: result[:status] || :not_found
         end
 
-        # Download file from SharePoint
-        file_content = download_document_content(@document)
-        unless file_content
-          return render json: { success: false, error: "Could not download file" }, status: :unprocessable_entity
-        end
+        file_content = result[:content]
 
         # Use UniversalDocumentReader to parse
         begin
@@ -351,25 +352,6 @@ module Api
           :title,
           :folder
         )
-      end
-
-      def download_document_content(document)
-        # Try file_url (SharePoint) first
-        if document.file_url.present?
-          begin
-            response = HTTParty.get(document.file_url, timeout: 30)
-            return response.body if response.success?
-          rescue => e
-            Rails.logger.warn "[DocumentsController] SharePoint download failed: #{e.message}"
-          end
-        end
-
-        # Fallback to ActiveStorage if available
-        if document.respond_to?(:file) && document.file.attached?
-          return document.file.download
-        end
-
-        nil
       end
 
       def document_to_json(doc)

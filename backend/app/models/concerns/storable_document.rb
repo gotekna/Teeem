@@ -119,21 +119,11 @@ module StorableDocument
   # ========================================
 
   # Get download URL for the stored file
+  # SSoT: Delegates to DocumentStorageService (handles S3, SharePoint, ActiveStorage)
   def storage_url
-    return nil unless storage_path.present?
-
     service = DocumentStorageService.new
-    return nil unless service.provider
-
-    # Generate presigned URL for S3/Wasabi, or web_url for SharePoint
-    case storage_provider
-    when "wasabi", "s3"
-      service.provider.presigned_url(storage_path)
-    when "sharepoint"
-      web_url
-    else
-      nil
-    end
+    result = service.download_url(self)
+    result[:success] ? result[:url] : nil
   end
 
   # ========================================
@@ -191,18 +181,12 @@ module StorableDocument
     {}
   end
 
+  # Download content from current storage provider
+  # SSoT: Delegates to DocumentStorageService (handles S3, SharePoint, ActiveStorage)
   def download_from_sharepoint
-    return nil unless in_sharepoint?
-
-    credential = MicrosoftCredential.sharepoint_credential
-    return nil unless credential
-
-    client = MicrosoftAppGraphClient.new(credential)
-    item_id = sharepoint_item_id || sharepoint_file_id
-    client.download_file(item_id)
-  rescue => e
-    Rails.logger.error "[StorableDocument] SharePoint download failed: #{e.message}"
-    nil
+    service = DocumentStorageService.new
+    result = service.download(self)
+    result[:success] ? result[:content] : nil
   end
 
   def mark_migration_failed!(error_message)

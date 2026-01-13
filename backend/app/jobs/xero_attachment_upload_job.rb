@@ -268,28 +268,18 @@ class XeroAttachmentUploadJob < ApplicationJob
     end
   end
 
-  # Download document content from storage (SSoT - provider abstraction)
+  # Download document content from storage
+  # SSoT: Delegates to DocumentStorageService (handles S3, SharePoint, ActiveStorage)
   def download_document_content(document)
-    unless document.sharepoint_file_id.present?
-      Rails.logger.error("[XeroAttachmentUploadJob] No sharepoint_file_id for document #{document.id}")
-      return nil
-    end
+    service = DocumentStorageService.new
+    result = service.download(document)
 
-    # SSoT: Setup document provider using StorageConfiguration
-    begin
-      setup_default_provider!
-    rescue DocumentProviders::NotConnectedError => e
-      Rails.logger.error("[XeroAttachmentUploadJob] No storage provider configured: #{e.message}")
-      return nil
+    if result[:success]
+      result[:content]
+    else
+      Rails.logger.error("[XeroAttachmentUploadJob] Download failed for document #{document.id}: #{result[:error]}")
+      nil
     end
-
-    download_from_provider(document.sharepoint_file_id)
-  rescue DocumentProviders::Error => e
-    Rails.logger.error("[XeroAttachmentUploadJob] Storage download failed: #{e.message}")
-    nil
-  rescue StandardError => e
-    Rails.logger.error("[XeroAttachmentUploadJob] Error downloading document #{document.id}: #{e.message}")
-    nil
   end
 
   # Download file from a direct URL

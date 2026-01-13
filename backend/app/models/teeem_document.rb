@@ -29,35 +29,29 @@ class TeeemDocument < ApplicationRecord
   # ========================================
 
   def warehouse_path
-    if job.present?
-      "Jobs/#{job.job_code}/Word/#{safe_filename}.docx".gsub(%r{/+}, "/")
-    else
-      config = StorageConfiguration.instance
-      base = config.path_for(:word_documents)
-      template = config.template_for(:word_documents)
-
-      resolved = resolve_template(template, {
-        "UserName" => user&.display_name || "Unknown",
-        "Year" => created_at&.year&.to_s || Time.current.year.to_s
-      })
-
-      "#{base}/#{resolved}/#{safe_filename}.docx".gsub(%r{/+}, "/")
-    end
+    "#{warehouse_folder_path}/#{safe_filename}.html".gsub(%r{/+}, "/")
   end
 
   def warehouse_folder_path
+    config = StorageConfiguration.instance
+
     if job.present?
-      "Jobs/#{job.job_code}/Word".gsub(%r{/+}, "/")
+      # SSoT: StorageConfiguration.path_for(:job) + template_for(:job)
+      base = config.path_for(:job)
+      template = config.template_for(:job)
+      resolved = resolve_template(template, {
+        "JobCode" => job.job_code,
+        "TabName" => "Word"
+      })
+      "#{base}/#{resolved}".gsub(%r{/+}, "/")
     else
-      config = StorageConfiguration.instance
+      # SSoT: StorageConfiguration.path_for(:word_documents) + template
       base = config.path_for(:word_documents)
       template = config.template_for(:word_documents)
-
       resolved = resolve_template(template, {
         "UserName" => user&.display_name || "Unknown",
         "Year" => created_at&.year&.to_s || Time.current.year.to_s
       })
-
       "#{base}/#{resolved}".gsub(%r{/+}, "/")
     end
   end

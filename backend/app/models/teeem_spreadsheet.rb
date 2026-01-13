@@ -27,44 +27,32 @@ class TeeemSpreadsheet < ApplicationRecord
   # Compute the warehouse path for this spreadsheet
   # SSoT: Uses StorageConfiguration for base path and template
   #
-  # If attached to a job, path is: "Jobs/{JobCode}/Excel/{filename}.xlsx"
-  # Otherwise: "Warehousing/Excel/{UserName}/{Year}/{filename}.xlsx"
-  #
   def warehouse_path
-    if job.present?
-      # Job-attached spreadsheet goes to job folder
-      "Jobs/#{job.job_code}/Excel/#{safe_filename}.xlsx".gsub(%r{/+}, "/")
-    else
-      # Standalone spreadsheet goes to warehouse
-      config = StorageConfiguration.instance
-      base = config.path_for(:excel_documents)
-      template = config.template_for(:excel_documents)
-
-      resolved = resolve_template(template, {
-        "UserName" => user&.display_name || "Unknown",
-        "Year" => created_at&.year&.to_s || Time.current.year.to_s,
-        "Month" => created_at&.strftime("%m") || Time.current.strftime("%m")
-      })
-
-      "#{base}/#{resolved}/#{safe_filename}.xlsx".gsub(%r{/+}, "/")
-    end
+    "#{warehouse_folder_path}/#{safe_filename}.xlsx".gsub(%r{/+}, "/")
   end
 
   # Folder path (without filename)
   def warehouse_folder_path
+    config = StorageConfiguration.instance
+
     if job.present?
-      "Jobs/#{job.job_code}/Excel".gsub(%r{/+}, "/")
+      # SSoT: StorageConfiguration.path_for(:job) + template_for(:job)
+      base = config.path_for(:job)
+      template = config.template_for(:job)
+      resolved = resolve_template(template, {
+        "JobCode" => job.job_code,
+        "TabName" => "Excel"
+      })
+      "#{base}/#{resolved}".gsub(%r{/+}, "/")
     else
-      config = StorageConfiguration.instance
+      # SSoT: StorageConfiguration.path_for(:excel_documents) + template
       base = config.path_for(:excel_documents)
       template = config.template_for(:excel_documents)
-
       resolved = resolve_template(template, {
         "UserName" => user&.display_name || "Unknown",
         "Year" => created_at&.year&.to_s || Time.current.year.to_s,
         "Month" => created_at&.strftime("%m") || Time.current.strftime("%m")
       })
-
       "#{base}/#{resolved}".gsub(%r{/+}, "/")
     end
   end
