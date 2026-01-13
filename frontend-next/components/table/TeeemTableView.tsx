@@ -3340,8 +3340,11 @@ export default function TeeemTableView({
               return;
             }
             // No SSR view and no user selection - apply default view now
+            // If no view was in URL, update URL to reflect auto-selected default view
+            // This ensures breadcrumbs and URL show the active view
             const skipUrlUpdate = !!urlViewExistsForFoundation;
-            loadViewState(defaultView, skipUrlUpdate);
+            const shouldUpdateUrl = !urlViewExistsForFoundation;
+            loadViewState(defaultView, skipUrlUpdate, shouldUpdateUrl);
           } else if (explicitlyNoView) {
             // ⚠️ v2706: CLEAR view filters when defaultViewSlug === null
             // ════════════════════════════════════════════════════════════════════

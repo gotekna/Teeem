@@ -575,6 +575,15 @@ export function buildBreadcrumbsFromUrl(
     const isLast = i === segments.length - 1;
     const nextSegment = i < segments.length - 1 ? segments[i + 1] : null;
 
+    // Skip "view" segment and its slug - views are display modes, not navigation destinations
+    // e.g., /settings/users/view/settings → breadcrumbs show Settings > Users
+    // The view is indicated in the UI toolbar, not in breadcrumbs
+    if (segment === 'view') {
+      // Skip this segment and the next one (view slug)
+      i++; // Skip the view slug in next iteration
+      continue;
+    }
+
     // Build path up to this point
     currentPath += '/' + segment;
 

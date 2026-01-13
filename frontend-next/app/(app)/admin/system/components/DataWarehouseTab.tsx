@@ -1047,54 +1047,70 @@ export function DataWarehouseTab() {
                           Storage Location
                         </h4>
                         <div className="space-y-3">
-                          {/* Email Storage Progress */}
+                          {/* Email Storage Progress - SSoT: org.stats.emails is total from warehouse */}
                           {(() => {
+                            const totalEmails = org.stats.emails; // SSoT: total emails in warehouse
                             const wasabiCount = org.stats.storage_location.emails.wasabi.count;
                             const sharepointCount = org.stats.storage_location.emails.sharepoint.count;
-                            const total = wasabiCount + sharepointCount;
-                            const wasabiPercent = total > 0 ? Math.round((wasabiCount / total) * 100) : 0;
+                            const pendingCount = totalEmails - wasabiCount - sharepointCount;
+                            const wasabiPercent = totalEmails > 0 ? Math.round((wasabiCount / totalEmails) * 100) : 0;
+                            const sharepointPercent = totalEmails > 0 ? Math.round((sharepointCount / totalEmails) * 100) : 0;
+                            const pendingPercent = 100 - wasabiPercent - sharepointPercent;
                             return (
                               <div>
                                 <div className="flex items-center justify-between mb-1">
-                                  <span className="text-xs text-muted-foreground">Emails</span>
+                                  <span className="text-xs text-muted-foreground">Emails ({totalEmails.toLocaleString()} total)</span>
                                   <span className="text-xs">
-                                    <span className="text-green-600">{wasabiPercent}% Wasabi</span>
-                                    {sharepointCount > 0 && (
-                                      <span className="text-muted-foreground"> | {100 - wasabiPercent}% Legacy</span>
+                                    <span className="text-green-600 dark:text-green-400">{wasabiPercent}% Wasabi</span>
+                                    {sharepointPercent > 0 && (
+                                      <span className="text-blue-600 dark:text-blue-400"> | {sharepointPercent}% SharePoint</span>
+                                    )}
+                                    {pendingPercent > 0 && (
+                                      <span className="text-muted-foreground"> | {pendingPercent}% Pending</span>
                                     )}
                                   </span>
                                 </div>
-                                <div className="h-2 rounded-full bg-blue-100 dark:bg-blue-900/30 overflow-hidden">
+                                <div className="h-2 rounded-full bg-muted overflow-hidden flex">
                                   <div
                                     className="h-full bg-green-500 transition-all"
                                     style={{ width: `${wasabiPercent}%` }}
+                                  />
+                                  <div
+                                    className="h-full bg-blue-500 transition-all"
+                                    style={{ width: `${sharepointPercent}%` }}
                                   />
                                 </div>
                               </div>
                             );
                           })()}
 
-                          {/* Attachment Storage Progress */}
+                          {/* Attachment Storage Progress - SSoT: sum attachment_count from per_mailbox */}
                           {(() => {
                             const wasabiCount = org.stats.storage_location.attachments.wasabi.count;
                             const sharepointCount = org.stats.storage_location.attachments.sharepoint.count;
-                            const total = wasabiCount + sharepointCount;
-                            const wasabiPercent = total > 0 ? Math.round((wasabiCount / total) * 100) : 0;
+                            // Total attachments = sum of attachment_count from all mailboxes
+                            const totalAttachments = org.stats.per_mailbox?.reduce((sum, mb) => sum + mb.attachment_count, 0) || (wasabiCount + sharepointCount);
+                            const wasabiPercent = totalAttachments > 0 ? Math.round((wasabiCount / totalAttachments) * 100) : 0;
+                            const sharepointPercent = totalAttachments > 0 ? Math.round((sharepointCount / totalAttachments) * 100) : 0;
                             return (
                               <div>
                                 <div className="flex items-center justify-between mb-1">
-                                  <span className="text-xs text-muted-foreground">Attachments</span>
+                                  <span className="text-xs text-muted-foreground">Attachments ({totalAttachments.toLocaleString()} total)</span>
                                   <span className="text-xs">
-                                    <span className="text-green-600">{wasabiPercent}% Wasabi</span>
-                                    {sharepointCount > 0 && (
-                                      <span className="text-muted-foreground"> | {100 - wasabiPercent}% Legacy</span>
+                                    <span className="text-green-600 dark:text-green-400">{wasabiPercent}% Wasabi</span>
+                                    {sharepointPercent > 0 && (
+                                      <span className="text-blue-600 dark:text-blue-400"> | {sharepointPercent}% SharePoint</span>
                                     )}
                                   </span>
                                 </div>
-                                <div className="h-2 rounded-full bg-blue-100 dark:bg-blue-900/30 overflow-hidden">
+                                <div className="h-2 rounded-full bg-muted overflow-hidden flex">
                                   <div
                                     className="h-full bg-green-500 transition-all"
                                     style={{ width: `${wasabiPercent}%` }}
+                                  />
+                                  <div
+                                    className="h-full bg-blue-500 transition-all"
+                                    style={{ width: `${sharepointPercent}%` }}
                                   />
                                 </div>
                               </div>
@@ -1107,23 +1123,28 @@ export function DataWarehouseTab() {
                               const docs = org.stats.storage_location.documents;
                               const wasabiCount = docs.wasabi + docs.s3;
                               const sharepointCount = docs.sharepoint;
-                              const total = wasabiCount + sharepointCount;
-                              const wasabiPercent = total > 0 ? Math.round((wasabiCount / total) * 100) : 0;
+                              const totalDocs = wasabiCount + sharepointCount;
+                              const wasabiPercent = totalDocs > 0 ? Math.round((wasabiCount / totalDocs) * 100) : 0;
+                              const sharepointPercent = 100 - wasabiPercent;
                               return (
                                 <div>
                                   <div className="flex items-center justify-between mb-1">
-                                    <span className="text-xs text-muted-foreground">Documents</span>
+                                    <span className="text-xs text-muted-foreground">Documents ({totalDocs.toLocaleString()} total)</span>
                                     <span className="text-xs">
-                                      <span className="text-green-600">{wasabiPercent}% Wasabi</span>
-                                      {sharepointCount > 0 && (
-                                        <span className="text-muted-foreground"> | {100 - wasabiPercent}% Legacy</span>
+                                      <span className="text-green-600 dark:text-green-400">{wasabiPercent}% Wasabi</span>
+                                      {sharepointPercent > 0 && (
+                                        <span className="text-blue-600 dark:text-blue-400"> | {sharepointPercent}% SharePoint</span>
                                       )}
                                     </span>
                                   </div>
-                                  <div className="h-2 rounded-full bg-blue-100 dark:bg-blue-900/30 overflow-hidden">
+                                  <div className="h-2 rounded-full bg-muted overflow-hidden flex">
                                     <div
                                       className="h-full bg-green-500 transition-all"
                                       style={{ width: `${wasabiPercent}%` }}
+                                    />
+                                    <div
+                                      className="h-full bg-blue-500 transition-all"
+                                      style={{ width: `${sharepointPercent}%` }}
                                     />
                                   </div>
                                 </div>

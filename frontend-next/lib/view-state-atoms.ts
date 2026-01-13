@@ -22,6 +22,7 @@ import { atom } from 'jotai';
 import { atomWithStorage } from 'jotai/utils';
 import type { SavedView, CascadeFilter, FilterGroup, SortColumn } from '@/components/table/types';
 import { CACHE_TTL_VIEWS, CACHE_TTL_LOOKUPS } from './constants/cache-constants';
+import { sortViewsByDisplayOrder } from './view-loading-utils';
 
 // Import the actual atoms for use in applyViewAtom
 import {
@@ -744,17 +745,21 @@ export const loadFoundationViewsAtom = atom(
           } as SavedView;
         });
 
+        // SSoT: Sort views by display_order so first view in list is position 1
+        // This ensures selectDefaultView() picks the correct default view
+        const sortedViews = sortViewsByDisplayOrder(mappedViews);
+
         // Update cache (using extended key for inherited views)
         set(viewsCacheAtom, (prev) => ({
           ...prev,
           [cacheKey]: {
-            views: mappedViews,
+            views: sortedViews,
             timestamp: Date.now(),
           },
         }));
 
-        set(foundationViewsAtom, mappedViews);
-        return { success: true, views: mappedViews, source: 'api' };
+        set(foundationViewsAtom, sortedViews);
+        return { success: true, views: sortedViews, source: 'api' };
       } else {
         throw new Error('Failed to load views');
       }
