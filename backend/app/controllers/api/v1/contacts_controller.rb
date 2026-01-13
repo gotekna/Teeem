@@ -166,6 +166,15 @@ module Api
 
               all_supplier_ids = (direct_supplier_ids + valid_employer_ids).uniq
               @contacts = Contact.where(id: all_supplier_ids).where(is_active: true)
+
+              # Store IDs for relevance-based ordering:
+              # 1. Direct name matches (company name contains search term) → highest priority
+              # 2. Employee-derived matches (company included via employee name match) → lower priority
+              # This ensures "Dam Plasterboard" appears before "H Design" when searching "dam"
+              # (even if "Adam" at H Design matches the search)
+              @direct_match_ids = direct_supplier_ids
+              @employee_derived_ids = valid_employer_ids - direct_supplier_ids
+              @supplier_search_term = params[:search]
             else
               # No search term - show all suppliers (excluding employees who have employer companies)
               @contacts = @contacts.where(is_supplier_cached: true)
@@ -239,7 +248,30 @@ module Api
         # Solution: Resolve DISTINCT via subquery, then order the final results.
         if @contacts.distinct_value || @contacts.to_sql.include?("DISTINCT")
           contact_ids = @contacts.pluck(:id)
-          @contacts = Contact.where(id: contact_ids).order(:display_name)
+          @contacts = Contact.where(id: contact_ids)
+        end
+
+        # Relevance-based ordering for supplier search:
+        # Prioritize direct name matches over employee-derived matches
+        # This ensures "Dam Plasterboard" appears before "H Design" when searching "dam"
+        # (even if "Adam" at H Design matches the search term)
+        if @supplier_search_term.present?
+          search_term = "%#{@supplier_search_term}%"
+          # Order by:
+          # 1. Direct name match + is_supplier (company name contains search term and is supplier)
+          # 2. Name match only (company name contains search term)
+          # 3. Employee-derived matches (company found via employee name match)
+          # 4. Alphabetical within each group
+          @contacts = @contacts.order(
+            Arel.sql(Contact.sanitize_sql_array([
+              "CASE
+                WHEN display_name ILIKE ? AND is_supplier_cached = true THEN 1
+                WHEN display_name ILIKE ? THEN 2
+                ELSE 3
+              END, display_name ASC",
+              search_term, search_term
+            ]))
+          )
         else
           @contacts = @contacts.order(:display_name)
         end
