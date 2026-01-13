@@ -40,10 +40,12 @@ class EmailStorageUploadService
   def upload_missing_emails(batch_size: nil)
     # Find emails that need uploading
     # Must have outlook_id (to fetch from Graph API) and mailbox_owner_email (to know which mailbox)
+    # Order by ID to ensure consistent ordering across batches
     emails = EmailWarehouse
       .where(sharepoint_email_path: [nil, ""])
       .where.not(outlook_id: [nil, ""])
       .where.not(mailbox_owner_email: [nil, ""])
+      .order(:id)
 
     emails = emails.limit(batch_size) if batch_size.present?
 

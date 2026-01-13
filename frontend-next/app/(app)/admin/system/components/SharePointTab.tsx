@@ -170,6 +170,20 @@ function getScopeLabel(key: string): string {
     .join(' ');
 }
 
+// Check if a scopeKey belongs to a simple scope (warehouse, email, task families)
+function isSimpleScopeKey(scopeKey: string | null): boolean {
+  if (!scopeKey) return false;
+  // Direct simple scopes
+  if (SIMPLE_SCOPES.includes(scopeKey)) return true;
+  // Sub-scopes of simple scopes (e.g., bill_inbox is under warehouse)
+  const simpleSubScopes = [
+    'bill_inbox', 'chat', 'excel_documents', 'notes', 'powerpoint_documents',
+    'pricebook_photos', 'templates', 'bank_statements', 'contracts', 'word_documents',
+    'email_attachments'
+  ];
+  return simpleSubScopes.includes(scopeKey);
+}
+
 // TreeNode component for folder hierarchy
 interface TreeNodeProps {
   node: FolderTreeNode;
@@ -187,6 +201,8 @@ interface TreeNodeProps {
   onStartTabEdit: (tabId: number) => void;
   onSaveTabEdit: (tabId: number, path: string, template: string | null, filenameTemplate: string | null) => void;
   onCancelTabEdit: () => void;
+  // Parent scope info for simple scope detection
+  parentScopeKey?: string | null;
 }
 
 function TreeNode({
@@ -204,6 +220,7 @@ function TreeNode({
   onStartTabEdit,
   onSaveTabEdit,
   onCancelTabEdit,
+  parentScopeKey,
 }: TreeNodeProps) {
   const hasChildren = node.children.length > 0;
   const hasTabs = node.tabs && node.tabs.length > 0;
@@ -211,6 +228,10 @@ function TreeNode({
   const isExpanded = expandedPaths.has(node.path);
   const isEditing = editingKey === node.scopeKey;
   const [editValue, setEditValue] = React.useState(node.path);
+
+  // Determine if this node is in a simple scope context (for inline editing)
+  const isInSimpleScope = parentScopeKey ? SIMPLE_SCOPES.includes(parentScopeKey) : false;
+  const isSimpleScopeChild = isInSimpleScope && node.scopeKey && !SIMPLE_SCOPES.includes(node.scopeKey);
 
   // Reset edit value when editing starts
   React.useEffect(() => {
@@ -256,8 +277,21 @@ function TreeNode({
         {/* Folder name and scope badge */}
         <span className="font-mono text-sm">{node.name}</span>
 
+        {/* For simple scope children: show Edit button */}
+        {isSimpleScopeChild && !isEditing && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onStartEdit(node.scopeKey!)}
+            className="h-5 px-1.5 ml-2 text-[10px] text-muted-foreground"
+          >
+            <Pencil className="h-3 w-3 mr-1" />
+            Edit Path
+          </Button>
+        )}
+
         {/* Scope badge (if this is a scope folder) */}
-        {node.scopeKey && (
+        {node.scopeKey && !isSimpleScopeChild && (
           <>
             {isEditing ? (
               <div className="flex items-center gap-1 ml-2">
@@ -373,6 +407,7 @@ function TreeNode({
                 onStartTabEdit={onStartTabEdit}
                 onSaveTabEdit={onSaveTabEdit}
                 onCancelTabEdit={onCancelTabEdit}
+                parentScopeKey={node.scopeKey || parentScopeKey}
               />
             ))
           )}
@@ -604,8 +639,6 @@ export function SharePointTab() {
         );
       });
 
-      console.log('Loaded entity tabs:', tabsByScope);
-
       setEntityTabs(tabsByScope);
     } catch (error) {
       console.error("Failed to load entity tabs:", error);
@@ -631,18 +664,6 @@ export function SharePointTab() {
     };
 
     attachTabs(tree);
-
-    // Debug: log which nodes have tabs
-    const logTabs = (nodes: FolderTreeNode[], prefix = '') => {
-      nodes.forEach(n => {
-        if (n.scopeKey) {
-          console.log(`${prefix}Node: ${n.name}, scopeKey: ${n.scopeKey}, tabs: ${n.tabs?.length || 0}`);
-        }
-        logTabs(n.children, prefix + '  ');
-      });
-    };
-    logTabs(tree);
-
     return tree;
   }, [formData.scope_folders, entityTabs]);
 
