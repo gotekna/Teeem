@@ -24,7 +24,8 @@ module Api
 
         # Task attachment counts - documents uploaded against task IDs
         # These are CorporateCompanyDocuments linked via SmTaskAttachment
-        task_doc_count = SmTaskAttachment.where(attachable_type: 'CorporateCompanyDocument').distinct.count(:attachable_id) rescue 0
+        task_attachment_ids = SmTaskAttachment.where(attachable_type: 'CorporateCompanyDocument').distinct.pluck(:attachable_id) rescue []
+        task_doc_count = task_attachment_ids.size
 
         # Document templates (Word/Excel templates stored in SharePoint)
         template_count = DocumentTemplate.where.not(sharepoint_path: [nil, ""]).count rescue 0
@@ -49,12 +50,24 @@ module Api
 
         total = job_count + corp_count + people_count + email_eml_count + email_attachment_count + task_doc_count + template_count + pricebook_image_count + notes_count + excel_count
 
+        # Fetch task documents with their task associations
+        # SSoT: Task documents are CorporateCompanyDocuments linked via SmTaskAttachment
+        task_documents = if task_attachment_ids.any?
+          CorporateCompanyDocument
+            .where(id: task_attachment_ids)
+            .includes(:corporate_company, sm_task_attachments: :sm_task)
+            .map { |doc| serialize_task_doc(doc) }
+        else
+          []
+        end
+
         render json: {
           success: true,
           data: {
             job_documents: [],
             corporate_documents: [],
-            people_documents: []
+            people_documents: [],
+            task_documents: task_documents
           },
           counts: {
             # Primary document scopes
@@ -394,6 +407,38 @@ module Api
           # Metadata
           expiryDate: doc.expiry_date&.iso8601,
           isExpired: doc.expired?,
+          isImage: image_file?(doc.file_name)
+        }
+      end
+
+      # Serialize task documents (CorporateCompanyDocuments attached to tasks)
+      def serialize_task_doc(doc)
+        # Get the task this document is attached to
+        task_attachment = doc.sm_task_attachments.first
+        task = task_attachment&.sm_task
+
+        {
+          id: doc.id,
+          source: "task",
+          fileName: doc.file_name,
+          displayName: doc.display_name || doc.file_name,
+          mimeType: doc.mime_type || "application/octet-stream",
+          fileSize: doc.file_size || 0,
+          fileUrl: generate_download_url(doc),
+          folderPath: doc.storage_path,
+          storageProvider: doc.storage_provider,
+          createdAt: doc.created_at&.iso8601,
+          # Task info
+          taskId: task&.id,
+          taskName: task&.name,
+          taskNumber: task&.task_number,
+          # Job info (if task is part of a job)
+          jobId: task&.job_id,
+          jobNumber: task&.job&.job_number,
+          # Document type
+          documentTypeId: doc.document_type_id,
+          documentTypeName: doc.document_type_record&.name,
+          # Metadata
           isImage: image_file?(doc.file_name)
         }
       end

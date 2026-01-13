@@ -86,6 +86,10 @@ interface DocumentItem {
   // People-specific
   contactId?: number;
   contactName?: string;
+  // Task-specific
+  taskId?: number;
+  taskName?: string;
+  taskNumber?: number;
   // Metadata
   documentTypeName?: string;
   isImage: boolean;
@@ -97,6 +101,7 @@ interface AllDocumentsResponse {
     job_documents: DocumentItem[];
     corporate_documents: DocumentItem[];
     people_documents: DocumentItem[];
+    task_documents: DocumentItem[];
   };
   // Counts for all scopes - dynamic, extends as new scopes are added
   counts: Record<string, number>;
@@ -310,7 +315,8 @@ export default function AllDocumentsPage() {
     jobs: DocumentItem[];
     corporate: DocumentItem[];
     people: DocumentItem[];
-  }>({ jobs: [], corporate: [], people: [] });
+    tasks: DocumentItem[];
+  }>({ jobs: [], corporate: [], people: [], tasks: [] });
   // Counts for all scopes - matches StorageConfiguration.SCOPE_FOLDERS
   const [counts, setCounts] = useState<Record<string, number>>({
     jobs: 0, corporate: 0, people: 0, contacts: 0,
@@ -435,6 +441,7 @@ export default function AllDocumentsPage() {
           jobs: response.data.job_documents || [],
           corporate: response.data.corporate_documents || [],
           people: response.data.people_documents || [],
+          tasks: response.data.task_documents || [],
         });
         // Merge API counts with defaults - API now returns all scope counts
         setCounts(prev => ({ ...prev, ...response.counts }));
@@ -584,6 +591,11 @@ export default function AllDocumentsPage() {
         d.displayName?.toLowerCase().includes(query) ||
         d.contactName?.toLowerCase().includes(query)
       ),
+      tasks: documents.tasks.filter(d =>
+        d.fileName?.toLowerCase().includes(query) ||
+        d.displayName?.toLowerCase().includes(query) ||
+        d.taskName?.toLowerCase().includes(query)
+      ),
     };
   }, [documents, searchQuery]);
 
@@ -641,6 +653,41 @@ export default function AllDocumentsPage() {
     // Pass templates and rootPath from Entity Config (SSoT)
     const dynamicTree = buildScopeTree(definedScopes, counts, scopeTemplates, rootPath);
 
+    // Build task folder tree - group documents by taskId
+    const buildTaskTree = (docs: DocumentItem[]): TreeNode[] => {
+      // Group documents by taskId
+      const taskGroups = new Map<number, { task: { id: number; name: string; number?: number }; docs: DocumentItem[] }>();
+
+      docs.forEach(doc => {
+        if (doc.taskId) {
+          const existing = taskGroups.get(doc.taskId);
+          if (existing) {
+            existing.docs.push(doc);
+          } else {
+            taskGroups.set(doc.taskId, {
+              task: { id: doc.taskId, name: doc.taskName || `Task ${doc.taskId}`, number: doc.taskNumber },
+              docs: [doc],
+            });
+          }
+        }
+      });
+
+      // Convert to tree nodes
+      return Array.from(taskGroups.values()).map(({ task, docs: taskDocs }) => ({
+        id: `task-folder-${task.id}`,
+        name: task.number ? `${task.number}. ${task.name}` : task.name,
+        type: "folder" as const,
+        fileCount: taskDocs.length,
+        fullPath: `/Tasks/${task.id}`,
+        children: taskDocs.map(doc => ({
+          id: `task-file-${doc.id}`,
+          name: doc.displayName || doc.fileName,
+          type: "file" as const,
+          file: doc,
+        })),
+      }));
+    };
+
     // Enhance specific nodes with EntityTab-based sub-folders
     // (Jobs, Corporate, People have EntityTab configurations for their internal folder structure)
     return dynamicTree.map(node => {
@@ -662,6 +709,13 @@ export default function AllDocumentsPage() {
         return {
           ...node,
           children: buildFolderTree(entityFolders.contact, filteredDocuments.people, "contact"),
+        };
+      }
+      // Tasks: Build tree from task documents grouped by taskId
+      if (node.id === "task" && filteredDocuments.tasks.length > 0) {
+        return {
+          ...node,
+          children: buildTaskTree(filteredDocuments.tasks),
         };
       }
       return node;
