@@ -1,8 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useCallback } from "react";
-// useRouter removed - ConnectionsTab now uses local state for sub-tabs
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,6 +54,7 @@ import { cn } from "@/lib/utils";
 import { StorageCostTab } from "./StorageCostTab";
 import { Progress } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // SharePoint Connection Component
 function SharePointConnection() {
@@ -2002,63 +2001,33 @@ function DocumentMigrationCard() {
 
 // Main Connections Tab
 export function ConnectionsTab({ innerTab }: { innerTab?: string }) {
-  // Use local state for sub-tab switching instead of URL navigation
-  // This component is now used within /settings/company, not standalone admin pages
-  const [activeTab, setActiveTab] = React.useState(innerTab || "provider");
-
-  const handleTabChange = useCallback((tabId: string) => {
-    setActiveTab(tabId);
-  }, []);
-
   return (
-    <div className="space-y-4">
-      {/* Sub-tabs */}
-      <div className="flex gap-1 border-b">
-        <button
-          onClick={() => handleTabChange("provider")}
-          className={cn(
-            "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-            activeTab === "provider"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
+    <Tabs defaultValue={innerTab || "provider"} className="space-y-4">
+      <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1">
+        <TabsTrigger value="provider" className="text-sm">
           Storage Provider
-        </button>
-        <button
-          onClick={() => handleTabChange("migration")}
-          className={cn(
-            "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-            activeTab === "migration"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
+        </TabsTrigger>
+        <TabsTrigger value="migration" className="text-sm">
           Migration
-        </button>
-        <button
-          onClick={() => handleTabChange("costs")}
-          className={cn(
-            "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-            activeTab === "costs"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
+        </TabsTrigger>
+        <TabsTrigger value="costs" className="text-sm">
           Cost Comparison
-        </button>
-      </div>
+        </TabsTrigger>
+      </TabsList>
 
-      {/* Tab Content */}
-      {activeTab === "provider" && <DocumentStorageProvider />}
-      {activeTab === "migration" && (
+      <TabsContent value="provider">
+        <DocumentStorageProvider />
+      </TabsContent>
+      <TabsContent value="migration">
         <div className="space-y-4">
           <EmailMigrationCard />
           <AttachmentDeduplicationCard />
           <DocumentMigrationCard />
         </div>
-      )}
-      {activeTab === "costs" && <StorageCostTab />}
-    </div>
+      </TabsContent>
+      <TabsContent value="costs">
+        <StorageCostTab />
+      </TabsContent>
+    </Tabs>
   );
 }

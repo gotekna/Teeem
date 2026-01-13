@@ -203,8 +203,10 @@ class DocumentMigrationService
       total_with_status = total_counts.values.sum - total_counts[:not_migrated]
 
       # Email, attachment, and task counts (stored but not migration-tracked)
-      email_eml_count = EmailWarehouse.where.not(sharepoint_email_path: [nil, ""]).count rescue 0
-      email_attachment_count = EmailAttachment.where.not(sharepoint_path: [nil, ""]).count rescue 0
+      # Count emails actually in Wasabi (have /Emails/... storage_path)
+      email_eml_count = EmailWarehouse.where("storage_path LIKE ?", "/Emails/%").count rescue 0
+      # Count deduplicated attachments in Wasabi (StorageBlobs)
+      email_attachment_count = StorageBlob.count rescue 0
       task_doc_count = SmTaskAttachment.where(attachable_type: 'CorporateCompanyDocument').distinct.count(:attachable_id) rescue 0
 
       # Add to provider breakdown
