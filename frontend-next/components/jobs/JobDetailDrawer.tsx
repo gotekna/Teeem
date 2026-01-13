@@ -192,7 +192,7 @@ export function JobDetailDrawer({ jobId, open, onOpenChange }: JobDetailDrawerPr
                   <p className="text-xs text-muted-foreground">Profit</p>
                 </div>
                 <div className="text-center p-2 bg-muted/50 rounded">
-                  <p className="text-lg font-bold font-mono">{job.profit_percentage?.toFixed(1) || 0}%</p>
+                  <p className="text-lg font-bold font-mono">{(Number(job.profit_percentage) || 0).toFixed(1)}%</p>
                   <p className="text-xs text-muted-foreground">Margin</p>
                 </div>
                 <div className="text-center p-2 bg-muted/50 rounded">

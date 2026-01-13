@@ -168,8 +168,8 @@ export function JobBudgetTab({ jobId }: JobBudgetTabProps) {
               </p>
               {totals.budgeted > 0 && totals.variance_percentage != null && (
                 <p className={`text-sm ${getVarianceColor(totals.variance)}`}>
-                  ({totals.variance_percentage >= 0 ? "+" : ""}
-                  {totals.variance_percentage.toFixed(2)}%)
+                  ({Number(totals.variance_percentage) >= 0 ? "+" : ""}
+                  {(Number(totals.variance_percentage) || 0).toFixed(2)}%)
                 </p>
               )}
             </div>

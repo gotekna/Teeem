@@ -84,9 +84,10 @@ const formatCurrency = (value: number | null | undefined): string => {
   }).format(value);
 };
 
-const formatPercentage = (value: number | null | undefined): string => {
+const formatPercentage = (value: number | string | null | undefined): string => {
   if (value === null || value === undefined) return "0%";
-  return `${value.toFixed(1)}%`;
+  const num = Number(value);
+  return isNaN(num) ? "0%" : `${num.toFixed(1)}%`;
 };
 
 function toNumber(value: unknown): number {
