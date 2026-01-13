@@ -148,7 +148,7 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
         const foundationId = foundationResponse.data.id;
         const poResponse = await api.get<{
           success: boolean;
-          data: { records: PurchaseOrderRecord[] };
+          records: PurchaseOrderRecord[];
         }>(`/api/v1/foundations/${foundationId}/records`, {
           params: {
             filters: JSON.stringify([{ column: "job_id", operator: "=", value: String(jobId) }]),
@@ -156,8 +156,8 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
           },
         });
 
-        if (poResponse?.success && poResponse.data?.records) {
-          setExpensesTotals(calculateExpensesTotals(poResponse.data.records));
+        if (poResponse?.success && poResponse.records) {
+          setExpensesTotals(calculateExpensesTotals(poResponse.records));
         } else {
           setExpensesTotals({
             totalBudget: 0,
