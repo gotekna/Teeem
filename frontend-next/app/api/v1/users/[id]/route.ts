@@ -68,14 +68,17 @@ export async function PATCH(
       };
     }
 
+    console.log(`[users/${id}] Forwarding PATCH to backend, contentType: ${contentType}`);
     const response = await fetch(`${BACKEND_URL}/api/v1/users/${id}`, fetchOptions);
+    console.log(`[users/${id}] Backend response status: ${response.status}`);
 
     const data = await response.json();
+    console.log(`[users/${id}] Backend response:`, JSON.stringify(data).substring(0, 500));
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error("Failed to update user:", error);
     return NextResponse.json(
-      { success: false, error: "Failed to update user" },
+      { success: false, error: `Failed to update user: ${error instanceof Error ? error.message : String(error)}` },
       { status: 500 }
     );
   }

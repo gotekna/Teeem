@@ -43,7 +43,7 @@ class Api::V1::UsersController < ApplicationController
     if @user.update(update_params)
       render json: {
         success: true,
-        user: @user.as_json
+        user: user_with_presence(@user)
       }
     else
       render json: {

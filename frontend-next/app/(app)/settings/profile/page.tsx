@@ -103,13 +103,17 @@ export default function ProfileSettingsPage() {
 
   // Initialize profile form when user data is available
   React.useEffect(() => {
+    console.log("[Profile] useEffect triggered, user:", user);
+    console.log("[Profile] user.photo_url:", (user as any)?.photo_url);
     if (user) {
       setProfileName(user.name || "");
       setProfileEmail(user.email || "");
       setProfilePhone((user as any).mobile_phone || "");
       setProfileJobTitle((user as any).job_title || "");
       // Profile photo
-      setPhotoUrl((user as any).photo_url || null);
+      const newPhotoUrl = (user as any).photo_url || null;
+      console.log("[Profile] Setting photoUrl to:", newPhotoUrl);
+      setPhotoUrl(newPhotoUrl);
       // QBCC/Signature fields
       setQbccLicenceNumber((user as any).qbcc_licence_number || "");
       setQbccLicenceClass((user as any).qbcc_licence_class || "");
@@ -229,15 +233,19 @@ export default function ProfileSettingsPage() {
           body: formData,
         });
         const data = await response.json();
+        console.log("[Profile] Save response:", data);
+        console.log("[Profile] Photo URL in response:", data?.user?.photo_url);
 
         if (data?.success) {
           setPhotoFile(null);
           setPhotoPreview(null);
           setSignatureFile(null);
           setSignaturePreview(null);
+          console.log("[Profile] Calling refreshUser...");
           if (refreshUser) {
             await refreshUser();
           }
+          console.log("[Profile] After refreshUser, user:", user);
           alert("Profile saved successfully!");
         } else {
           alert(`Failed to save: ${data?.errors?.join("; ") || "Unknown error"}`);
