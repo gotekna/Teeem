@@ -525,9 +525,8 @@ function GoldStandardDataTab() {
       // Check if it's a "Foundation not found" error - this is expected if the demo table doesn't exist
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (errorMessage.includes('Foundation not found')) {
-        console.warn('[GoldStandardTab] gold_standard_table foundation not found - this is a demo table');
         setFoundationNotFound(true);
-        // No toast for expected missing foundation
+        // Silent - no console output for expected missing demo foundation
       } else {
         console.error("Failed to load gold standard data:", error);
         toast({

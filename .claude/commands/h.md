@@ -66,7 +66,8 @@ bin/rails runner "
 deleted_ms = MicrosoftCredential.delete_all
 deleted_sp = OrganizationSharePointCredential.delete_all
 deleted_app = OrganizationMicrosoftAppCredential.delete_all
-puts '🔑 Cleared ' + (deleted_ms + deleted_sp + deleted_app).to_s + ' credentials (encrypted with prod keys)'
+deleted_s3 = S3Credential.delete_all rescue 0
+puts '🔑 Cleared ' + (deleted_ms + deleted_sp + deleted_app + deleted_s3).to_s + ' credentials (encrypted with prod keys)'
 "
 
 # Step 7: Verify data pulled correctly
@@ -101,7 +102,7 @@ echo "👆 Connect SharePoint in the browser to enable document features locally
 | 3 | S3 | local file | `aria2c -x 16` (parallel, ~30s) |
 | 4 | local file | teeem_development | `pg_restore` |
 | 5 | - | - | `db:migrate` + `create_system_foundations` |
-| 6 | - | - | Clear encrypted credentials (prod keys don't work locally) |
+| 6 | - | - | Clear encrypted credentials (MS, SharePoint, S3 - prod keys don't work locally) |
 | 7 | - | - | Verify data counts |
 | 8 | - | localhost:3000 + 3001 | Restart servers (screen) |
 | 9 | - | browser | Open SharePoint connection page |

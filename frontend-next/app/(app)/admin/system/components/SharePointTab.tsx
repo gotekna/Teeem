@@ -682,10 +682,9 @@ export function SharePointTab() {
       );
 
       results.forEach(({ scopeKey, tabs }) => {
-        // Only include root tabs (no parent)
-        tabsByScope[scopeKey] = tabs.filter(
-          (tab) => tab.parent_id === null
-        );
+        // Include all tabs (removed parent_id filter - warehouse tabs may have parent)
+        tabsByScope[scopeKey] = tabs;
+        console.log(`Tabs for ${scopeKey}:`, tabs.length, tabs);
       });
 
       setEntityTabs(tabsByScope);
