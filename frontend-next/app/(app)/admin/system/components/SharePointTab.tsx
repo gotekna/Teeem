@@ -110,6 +110,9 @@ interface StorageConfig {
   // Root path and scope folders
   root_path: string;
   scope_folders: ScopeFolders;
+  // SSoT: Templates for folder paths and filenames per scope
+  scope_templates: Record<string, string>;
+  file_name_templates: Record<string, string>;
 }
 
 // Tree node structure for folder hierarchy
@@ -203,6 +206,10 @@ interface TreeNodeProps {
   onCancelTabEdit: () => void;
   // Parent scope info for simple scope detection
   parentScopeKey?: string | null;
+  // SSoT: Templates for auto-save
+  scopeTemplates: Record<string, string>;
+  fileNameTemplates: Record<string, string>;
+  onSaveTemplates: (scopeKey: string, folderTemplate: string, filenameTemplate: string) => Promise<void>;
 }
 
 function TreeNode({
@@ -221,6 +228,9 @@ function TreeNode({
   onSaveTabEdit,
   onCancelTabEdit,
   parentScopeKey,
+  scopeTemplates,
+  fileNameTemplates,
+  onSaveTemplates,
 }: TreeNodeProps) {
   const hasChildren = node.children.length > 0;
   const hasTabs = node.tabs && node.tabs.length > 0;
@@ -228,8 +238,61 @@ function TreeNode({
   const isExpanded = expandedPaths.has(node.path);
   const isEditing = editingKey === node.scopeKey;
   const [editValue, setEditValue] = React.useState(node.path);
-  const [folderTemplate, setFolderTemplate] = React.useState('{{TabName}}');
-  const [filenameTemplate, setFilenameTemplate] = React.useState('{{OriginalFileName}}');
+  // SSoT: Initialize templates from props (loaded from backend)
+  const [folderTemplate, setFolderTemplate] = React.useState(
+    node.scopeKey ? scopeTemplates[node.scopeKey] || '{{TabName}}' : '{{TabName}}'
+  );
+  const [filenameTemplate, setFilenameTemplate] = React.useState(
+    node.scopeKey ? fileNameTemplates[node.scopeKey] || '{{OriginalFileName}}' : '{{OriginalFileName}}'
+  );
+  const [isSaving, setIsSaving] = React.useState(false);
+  const [lastSaved, setLastSaved] = React.useState<Date | null>(null);
+  const saveTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  // Track if templates have been modified (to avoid saving on initial load)
+  const hasModified = React.useRef(false);
+
+  // Auto-save function with debounce - calls actual API
+  const autoSave = React.useCallback(async (folder: string, filename: string) => {
+    if (!node.scopeKey || !hasModified.current) return;
+
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    saveTimeoutRef.current = setTimeout(async () => {
+      setIsSaving(true);
+      try {
+        await onSaveTemplates(node.scopeKey!, folder, filename);
+        setLastSaved(new Date());
+      } catch (error) {
+        console.error('Failed to save templates:', error);
+      } finally {
+        setIsSaving(false);
+      }
+    }, 1000); // 1 second debounce
+  }, [node.scopeKey, onSaveTemplates]);
+
+  // Trigger auto-save when templates change
+  React.useEffect(() => {
+    if (isEditing && hasModified.current) {
+      autoSave(folderTemplate, filenameTemplate);
+    }
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [folderTemplate, filenameTemplate, isEditing, autoSave]);
+
+  // Handle template changes - mark as modified
+  const handleFolderTemplateChange = (value: string) => {
+    hasModified.current = true;
+    setFolderTemplate(value);
+  };
+
+  const handleFilenameTemplateChange = (value: string) => {
+    hasModified.current = true;
+    setFilenameTemplate(value);
+  };
 
   // Determine if this node is in a simple scope context (for inline editing)
   const isInSimpleScope = parentScopeKey ? SIMPLE_SCOPES.includes(parentScopeKey) : false;
@@ -349,7 +412,7 @@ function TreeNode({
             <TokenBuilder
               label={<span className="text-xs font-medium">Folder Path</span>}
               value={folderTemplate}
-              onChange={setFolderTemplate}
+              onChange={handleFolderTemplateChange}
               scope="all"
               showPreview={false}
               separator="/"
@@ -369,24 +432,40 @@ function TreeNode({
             <TokenBuilder
               label={<span className="text-xs font-medium">File Name</span>}
               value={filenameTemplate}
-              onChange={setFilenameTemplate}
+              onChange={handleFilenameTemplateChange}
               scope="all"
               showPreview={true}
               placeholder="Click tokens to build filename..."
               defaultExpanded={true}
             />
 
-            {/* Done button - saves and closes */}
-            <div className="flex justify-end pt-1">
+            {/* Auto-save status and close */}
+            <div className="flex items-center justify-between pt-2 border-t mt-3">
+              {/* Auto-save indicator */}
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                {isSaving ? (
+                  <>
+                    <Spinner size={12} />
+                    <span>Saving...</span>
+                  </>
+                ) : lastSaved ? (
+                  <>
+                    <CheckCircle2 className="h-3 w-3 text-green-500" />
+                    <span>Auto-saved</span>
+                  </>
+                ) : (
+                  <span className="text-muted-foreground/50">Changes auto-save</span>
+                )}
+              </div>
+
+              {/* Close button */}
               <Button
                 size="sm"
-                onClick={() => {
-                  // Save templates and close
-                  onSaveEdit(node.scopeKey!, node.path);
-                }}
-                className="h-7 text-xs"
+                variant="ghost"
+                onClick={onCancelEdit}
+                className="h-7 px-3 text-xs"
               >
-                Done
+                Close
               </Button>
             </div>
           </div>
@@ -433,6 +512,9 @@ function TreeNode({
                 onSaveTabEdit={onSaveTabEdit}
                 onCancelTabEdit={onCancelTabEdit}
                 parentScopeKey={node.scopeKey || parentScopeKey}
+                scopeTemplates={scopeTemplates}
+                fileNameTemplates={fileNameTemplates}
+                onSaveTemplates={onSaveTemplates}
               />
             ))
           )}
@@ -629,6 +711,9 @@ export function SharePointTab() {
     sharepoint_root_path: "",
     // SSoT: Scope folders loaded from StorageConfiguration.SCOPE_FOLDERS via API
     scope_folders: {} as ScopeFolders,
+    // SSoT: Templates for folder paths and filenames per scope
+    scope_templates: {} as Record<string, string>,
+    file_name_templates: {} as Record<string, string>,
   });
   // Tree view state
   const [expandedPaths, setExpandedPaths] = React.useState<Set<string>>(new Set());
@@ -755,6 +840,43 @@ export function SharePointTab() {
     setEditingTabId(null);
   };
 
+  // SSoT: Save scope templates via API (called by auto-save in TreeNode)
+  const saveScopeTemplates = React.useCallback(async (
+    scopeKey: string,
+    folderTemplate: string,
+    filenameTemplate: string
+  ) => {
+    try {
+      const response = await api.patch<{ success: boolean; data: StorageConfig }>(
+        "/api/v1/corporate_company_settings/sharepoint",
+        {
+          sharepoint: {
+            scope_templates: { [scopeKey]: folderTemplate },
+            file_name_templates: { [scopeKey]: filenameTemplate },
+          }
+        }
+      );
+      if (response?.success) {
+        // Update local state to reflect saved values
+        setFormData(prev => ({
+          ...prev,
+          scope_templates: { ...prev.scope_templates, [scopeKey]: folderTemplate },
+          file_name_templates: { ...prev.file_name_templates, [scopeKey]: filenameTemplate },
+        }));
+      } else {
+        throw new Error('Failed to save templates');
+      }
+    } catch (error) {
+      console.error("Failed to save scope templates:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save templates",
+        variant: "destructive",
+      });
+      throw error; // Re-throw so auto-save can handle it
+    }
+  }, [toast]);
+
   // Expand all nodes initially (folders with children or tabs)
   React.useEffect(() => {
     if (Object.keys(formData.scope_folders).length > 0 && expandedPaths.size === 0) {
@@ -804,6 +926,9 @@ export function SharePointTab() {
           sharepoint_root_path: response.data.root_path || "",
           // SSoT: Scope folders from StorageConfiguration.SCOPE_FOLDERS
           scope_folders: response.data.scope_folders || {},
+          // SSoT: Templates from StorageConfiguration
+          scope_templates: response.data.scope_templates || {},
+          file_name_templates: response.data.file_name_templates || {},
         });
       }
     } catch (error) {
@@ -1236,6 +1361,9 @@ export function SharePointTab() {
                     onStartTabEdit={setEditingTabId}
                     onSaveTabEdit={saveTabFolderPath}
                     onCancelTabEdit={() => setEditingTabId(null)}
+                    scopeTemplates={formData.scope_templates}
+                    fileNameTemplates={formData.file_name_templates}
+                    onSaveTemplates={saveScopeTemplates}
                   />
                 ))}
               </div>

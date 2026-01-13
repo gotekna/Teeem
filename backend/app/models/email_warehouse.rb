@@ -572,6 +572,22 @@ class EmailWarehouse < ApplicationRecord
 
   # SSoT helper methods
 
+  # Get email .eml storage path (provider-agnostic)
+  # Returns storage_path (new) or falls back to sharepoint_email_path (legacy)
+  def email_storage_path
+    storage_path.presence || sharepoint_email_path
+  end
+
+  # Get email storage file ID (provider-agnostic)
+  def email_storage_file_id
+    storage_file_id.presence || sharepoint_email_file_id
+  end
+
+  # Check if email .eml is stored
+  def eml_stored?
+    email_storage_path.present?
+  end
+
   # Determine direction based on folder and user email
   def determine_direction(user_email)
     return "sent" if folder_name&.downcase&.include?("sent")

@@ -2565,6 +2565,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_13_120001) do
     t.string "filename"
     t.string "sharepoint_path"
     t.string "content_hash"
+    t.bigint "storage_blob_id"
+    t.index ["storage_blob_id"], name: "index_email_attachments_on_storage_blob_id"
   end
 
   create_table "email_blacklist_items", id: :bigint, default: nil, force: :cascade do |t|
@@ -2976,6 +2978,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_13_120001) do
     t.bigint "uid"
     t.string "direction"
     t.integer "dismissed_from_job_ids", default: [], array: true
+    t.string "storage_path"
+    t.string "storage_file_id"
     t.index "((email_classification ->> 'email_type'::text))", name: "idx_email_warehouse_classification_type", where: "(email_classification IS NOT NULL)"
     t.index "((email_classification ->> 'email_type'::text))", name: "idx_email_warehouse_email_type"
     t.index ["cc_emails"], name: "idx_email_warehouse_cc_emails_gin", using: :gin
@@ -2994,6 +2998,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_13_120001) do
     t.index ["primary_contact_id"], name: "idx_email_warehouse_primary_contact"
     t.index ["received_at"], name: "idx_email_warehouse_received_at", order: :desc
     t.index ["searchable"], name: "idx_email_warehouse_searchable_gin", using: :gin
+    t.index ["storage_path"], name: "index_email_warehouses_on_storage_path"
     t.index ["synced_by_user_id"], name: "idx_email_warehouse_synced_by_user"
     t.index ["to_emails"], name: "idx_email_warehouse_to_emails_gin", using: :gin
   end
@@ -9057,6 +9062,19 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_13_120001) do
     t.index ["job_type_id"], name: "index_specification_templates_on_job_type_id"
   end
 
+  create_table "storage_blobs", force: :cascade do |t|
+    t.string "content_hash", null: false
+    t.string "storage_path", null: false
+    t.bigint "file_size"
+    t.string "content_type"
+    t.integer "reference_count", default: 0, null: false
+    t.string "original_filename"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["content_hash"], name: "index_storage_blobs_on_content_hash", unique: true
+    t.index ["storage_path"], name: "index_storage_blobs_on_storage_path"
+  end
+
   create_table "storage_configurations", force: :cascade do |t|
     t.bigint "organization_id", null: false
     t.string "provider_type", default: "sharepoint", null: false
@@ -10516,6 +10534,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_13_120001) do
   add_foreign_key "e_signature_signers", "contacts"
   add_foreign_key "e_signature_signers", "e_signature_requests"
   add_foreign_key "email_aliases", "email_subscriptions"
+  add_foreign_key "email_attachments", "storage_blobs"
   add_foreign_key "email_drafts", "imap_credentials"
   add_foreign_key "email_drafts", "organizations"
   add_foreign_key "email_drafts", "users"

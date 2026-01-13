@@ -1,19 +1,77 @@
 # Links email_warehouse records to their attachments
-# Part of SSoT architecture - attachments are stored in SharePoint, linked here
-# Can link to existing company_documents for deduplication
+#
+# SSoT Architecture:
+#   EmailAttachment → StorageBlob (deduplicated storage via content_hash)
+#
+# Deduplication: Same file sent to 100 users = 1 StorageBlob, 100 EmailAttachments
+#
+# Storage is provider-agnostic (Wasabi, S3, SharePoint, Azure) via StorageConfiguration
+#
 class EmailAttachment < ApplicationRecord
   belongs_to :email_warehouse
-  belongs_to :attachment, optional: true  # Link to Attachment model (SharePoint-stored attachments)
-  # NOTE: company_document association removed - column doesn't exist in database
-  # If needed, add migration: add_reference :email_attachments, :company_document
-
-  # Note: filename is optional when linking to an Attachment record (which has the filename)
+  belongs_to :storage_blob, optional: true  # SSoT: Deduplicated file storage
+  belongs_to :attachment, optional: true  # Legacy: Link to Attachment model (deprecated)
 
   # Scopes
   scope :linked_to_document, -> { where(is_existing_doc: true) }
   scope :standalone, -> { where(is_existing_doc: false) }
   scope :synced_to_sharepoint, -> { where.not(sharepoint_file_id: nil) }
   scope :pending_sync, -> { where(sharepoint_file_id: nil) }
+  scope :with_storage_blob, -> { where.not(storage_blob_id: nil) }
+  scope :without_storage_blob, -> { where(storage_blob_id: nil) }
+
+  # SSoT: Store content with deduplication via StorageBlob
+  # Same file = same blob, just increment reference count
+  #
+  # Usage:
+  #   attachment.store_content!(file_content, filename: "invoice.pdf")
+  #
+  def store_content!(content, filename: nil, content_type: nil)
+    # Compute hash for deduplication
+    hash = self.class.compute_hash(content)
+
+    # Update our content_hash
+    self.content_hash = hash
+    self.filename ||= filename
+
+    # Find or create deduplicated blob
+    blob = StorageBlob.find_or_create_for_content!(
+      content,
+      filename: filename,
+      content_type: content_type
+    )
+
+    # Link to blob and increment reference
+    old_blob = storage_blob
+    self.storage_blob = blob
+    save!
+
+    # Increment new blob reference
+    blob.increment_reference!
+
+    # Decrement old blob reference if we had one
+    old_blob&.decrement_reference!
+
+    blob
+  end
+
+  # Get storage path (from blob or legacy sharepoint_path)
+  def storage_path
+    storage_blob&.storage_path || sharepoint_path
+  end
+
+  # Check if file is stored
+  def stored?
+    storage_blob_id.present? || sharepoint_path.present?
+  end
+
+  # Download file content
+  def download
+    return storage_blob.download if storage_blob.present?
+
+    # Legacy: Download from SharePoint path
+    nil
+  end
 
   # Check if this attachment matches an existing company document by content hash
   def find_matching_document
