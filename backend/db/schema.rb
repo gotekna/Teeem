@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_13_170002) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_13_170003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2389,10 +2389,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_13_170002) do
     t.jsonb "form_number_mapping", default: {}
     t.boolean "generates_certificate", default: false
     t.string "certificate_template"
+    t.jsonb "filename_patterns", default: []
     t.index ["active"], name: "index_document_types_on_active"
     t.index ["aliases"], name: "index_document_types_on_aliases", using: :gin
     t.index ["category"], name: "index_document_types_on_category"
     t.index ["file_extensions"], name: "index_document_types_on_file_extensions", using: :gin
+    t.index ["filename_patterns"], name: "index_document_types_on_filename_patterns", using: :gin
     t.index ["folder"], name: "index_document_types_on_folder"
     t.index ["name", "scope"], name: "index_document_types_on_name_and_scope", unique: true
     t.index ["primary_tab"], name: "index_document_types_on_primary_tab"

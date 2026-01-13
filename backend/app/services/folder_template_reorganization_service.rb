@@ -166,6 +166,7 @@ class FolderTemplateReorganizationService
     pool = Concurrent::FixedThreadPool.new(20)
     mutex = Mutex.new
     processed = Concurrent::AtomicFixnum.new(0)
+    cancelled = Concurrent::AtomicBoolean.new(false)
 
     # Load all document IDs first (faster than find_each for parallel)
     doc_ids = documents.pluck(:id)
@@ -174,6 +175,9 @@ class FolderTemplateReorganizationService
 
     futures = doc_ids.map do |doc_id|
       Concurrent::Future.execute(executor: pool) do
+        # Check if cancelled before processing
+        next if cancelled.true?
+
         # Each thread gets its own DB connection
         ActiveRecord::Base.connection_pool.with_connection do
           doc = @document_model.find_by(id: doc_id)
@@ -186,6 +190,11 @@ class FolderTemplateReorganizationService
             Rails.logger.info "[FolderReorg] Progress: #{count}/#{@stats[:total]}"
             mutex.synchronize do
               @progress&.update!(processed_count: count)
+              # Check for cancellation every 500 documents
+              if @progress&.reload&.status == "cancelled"
+                Rails.logger.info "[FolderReorg] Job cancelled, stopping"
+                cancelled.make_true
+              end
             end
           end
         end
@@ -197,18 +206,27 @@ class FolderTemplateReorganizationService
     pool.shutdown
     pool.wait_for_termination
 
-    Rails.logger.info "[FolderReorg] Parallel processing complete"
+    if cancelled.true?
+      Rails.logger.info "[FolderReorg] Parallel processing stopped (cancelled)"
+    else
+      Rails.logger.info "[FolderReorg] Parallel processing complete"
+    end
   end
 
   # Sequential processing for SharePoint (rate limited)
   def process_documents_sequential(documents)
     documents.find_each.with_index do |doc, index|
-      @progress&.processing!(get_document_name(doc))
-      process_document(doc)
-
+      # Check for cancellation every 100 documents
       if (index + 1) % 100 == 0
+        if @progress&.reload&.status == "cancelled"
+          Rails.logger.info "[FolderReorg] Job cancelled, stopping"
+          break
+        end
         Rails.logger.info "[FolderReorg] Progress: #{index + 1}/#{@stats[:total]}"
       end
+
+      @progress&.processing!(get_document_name(doc))
+      process_document(doc)
     end
   end
 
@@ -300,7 +318,7 @@ class FolderTemplateReorganizationService
     when "job", "jobs"
       job = doc.job
       if job
-        context[:job_code] = job.code
+        context[:job_code] = job.job_number
         context[:job_name] = job.name
         context[:job_title] = job.title
         context[:job_address] = job.address

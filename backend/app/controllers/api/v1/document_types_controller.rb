@@ -192,6 +192,48 @@ module Api
         }
       end
 
+      # GET /api/v1/document_types/suggest
+      # Returns suggested DocumentTypes for a given filename with confidence scores
+      #
+      # Params:
+      #   filename: The filename to match (required)
+      #   scope: Optional filter (company, job, contacts, etc.)
+      #   limit: Max results (default: 5)
+      #
+      # Response:
+      #   { suggestions: [{ id, name, confidence, match_type, matched_term }, ...] }
+      def suggest
+        filename = params[:filename]
+
+        unless filename.present?
+          return render json: {
+            success: false,
+            error: "filename parameter is required"
+          }, status: :bad_request
+        end
+
+        suggestions = DocumentTypeMatcher.suggest(
+          filename,
+          scope: params[:scope],
+          limit: (params[:limit] || 5).to_i
+        )
+
+        render json: {
+          success: true,
+          suggestions: suggestions.map do |s|
+            {
+              id: s[:document_type].id,
+              name: s[:document_type].name,
+              display_name: s[:document_type].display_name,
+              folder: s[:document_type].folder,
+              confidence: s[:confidence],
+              match_type: s[:match_type],
+              matched_term: s[:matched_term]
+            }
+          end
+        }
+      end
+
       private
 
       def set_document_type
