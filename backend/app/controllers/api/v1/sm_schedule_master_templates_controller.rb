@@ -699,16 +699,17 @@ module Api
           # Get all predecessors for this task
           all_predecessors = all_deps[row.task_number] || []
 
-          # Find latest predecessor end date
-          latest_pred_end = nil
+          # SS (Start-to-Start): Find latest predecessor START date
+          # Successor starts same day as predecessor starts
+          latest_pred_start = nil
           all_predecessors.each do |pred_id|
             pred_dates = date_map[pred_id]
             next unless pred_dates
-            pred_end = pred_dates[:end_date]
-            latest_pred_end = pred_end if latest_pred_end.nil? || pred_end > latest_pred_end
+            pred_start = pred_dates[:start_date]
+            latest_pred_start = pred_start if latest_pred_start.nil? || pred_start > latest_pred_start
           end
 
-          row_start = latest_pred_end ? calendar.add_working_days(latest_pred_end, 1) : start_date
+          row_start = latest_pred_start || start_date
           row_start = calendar.next_working_day(row_start) unless calendar.working_day?(row_start)
           duration = row.duration_days || 1
           row_end = calendar.add_working_days(row_start, duration - 1)
@@ -745,58 +746,18 @@ module Api
           end
         end
 
-        # ACTUALLY SAVE THE CALCULATED DATES (this was missing!)
-        updated_count = 0
-        debug_updates = []
-
-        rows.each do |row|
-          dates = date_map[row.task_number]
-          next unless dates
-
-          old_start = row.start_date
-          old_end = row.end_date
-          new_start = dates[:start_date]
-          new_end = dates[:end_date]
-
-          # Only update if dates changed
-          if old_start != new_start || old_end != new_end
-            row.update!(
-              start_date: new_start,
-              end_date: new_end
-            )
-            updated_count += 1
-
-            # Debug info
-            reason = if row.hold && row.hold_date.present?
-              "held"
-            elsif all_deps[row.task_number]&.any?
-              "cascade from predecessors: #{all_deps[row.task_number].join(', ')}"
-            else
-              "no predecessors - starts at project start"
-            end
-
-            debug_updates << {
-              task_number: row.task_number,
-              name: row.name,
-              old_start: old_start&.to_s || "nil",
-              new_start: new_start.to_s,
-              reason: reason
-            }
-          end
-        end
-
-        Rails.logger.info "[validate_dates] Updated #{updated_count} rows for template #{@template.id}"
+        # Templates don't persist dates - they're calculated on-demand
+        # Return calculated date_map for frontend to use
+        Rails.logger.info "[validate_dates] Calculated dates for #{rows.size} rows in template #{@template.id}"
 
         render json: {
           success: true,
-          message: "Validated and saved #{updated_count} rows",
-          updated: updated_count,
+          message: "Calculated dates for #{rows.size} rows (SS - Start-to-Start)",
           start_date: start_date,
           date_map: date_map.transform_values { |v| { start_date: v[:start_date].to_s, end_date: v[:end_date].to_s } },
           debug: {
             tasks_processed: rows.size,
-            tasks_with_predecessors: all_deps.count { |_k, v| v.any? },
-            cascade_updates: debug_updates
+            tasks_with_predecessors: all_deps.count { |_k, v| v.any? }
           }
         }
       rescue ArgumentError => e
