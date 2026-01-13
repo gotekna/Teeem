@@ -116,13 +116,16 @@ class EmailStorageUploadService
   end
 
   # Parallel processing for S3/Wasabi (fast metadata operations)
+  # ⚠️ Graph API has MailboxConcurrency limits - use only 2 threads to avoid 429 throttling
   def upload_parallel(emails)
     require "concurrent"
 
-    # Use 5 threads to stay within Heroku's DB connection pool
-    thread_count = 5
+    # Use only 2 threads to stay within Microsoft Graph API's MailboxConcurrency limit
+    # Higher concurrency causes 429 "ApplicationThrottled" errors
+    thread_count = 2
     pool = Concurrent::FixedThreadPool.new(thread_count)
     processed = Concurrent::AtomicFixnum.new(0)
+    cancelled = Concurrent::AtomicBoolean.new(false)
 
     # Load all email IDs first (faster than find_each for parallel)
     email_ids = emails.pluck(:id)
@@ -131,16 +134,28 @@ class EmailStorageUploadService
 
     futures = email_ids.map do |email_id|
       Concurrent::Future.execute(executor: pool) do
+        # Check if cancelled before processing
+        next if cancelled.true?
+
         begin
           # Each thread gets its own DB connection
           ActiveRecord::Base.connection_pool.with_connection do
             upload_single_email(email_id)
 
             count = processed.increment
+
+            # Rate limiting: small delay every 10 emails to avoid bursting Graph API
+            sleep(0.1) if count % 10 == 0
+
             if count % 100 == 0
               Rails.logger.info "[EmailUpload] Progress: #{count}/#{@stats[:total]}"
               @stats_mutex.synchronize do
-                @progress&.update!(processed_count: count)
+                @progress&.update!(processed_items: count)
+                # Check for cancellation
+                if @progress&.reload&.status == "cancelled"
+                  Rails.logger.info "[EmailUpload] Job cancelled, stopping"
+                  cancelled.make_true
+                end
               end
             end
           end
@@ -162,18 +177,27 @@ class EmailStorageUploadService
     pool.shutdown
     pool.wait_for_termination(30) # 30 second timeout
 
-    Rails.logger.info "[EmailUpload] Parallel processing complete. Processed: #{processed.value}/#{email_ids.count}"
+    if cancelled.true?
+      Rails.logger.info "[EmailUpload] Parallel processing stopped (cancelled)"
+    else
+      Rails.logger.info "[EmailUpload] Parallel processing complete. Processed: #{processed.value}/#{email_ids.count}"
+    end
   end
 
   # Sequential processing for SharePoint (rate limited)
   def upload_sequential(emails)
     emails.find_each.with_index do |email, index|
-      @progress&.processing!(email.subject.to_s.truncate(50))
-      upload_single_email(email.id)
-
+      # Check for cancellation every 100 emails
       if (index + 1) % 100 == 0
+        if @progress&.reload&.status == "cancelled"
+          Rails.logger.info "[EmailUpload] Job cancelled, stopping"
+          break
+        end
         Rails.logger.info "[EmailUpload] Progress: #{index + 1}/#{@stats[:total]}"
       end
+
+      @progress&.processing!(email.subject.to_s.truncate(50))
+      upload_single_email(email.id)
     end
   end
 
