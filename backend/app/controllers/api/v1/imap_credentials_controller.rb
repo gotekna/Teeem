@@ -375,7 +375,9 @@ class Api::V1::ImapCredentialsController < ApplicationController
     attachments = build_attachments_from_params
 
     # Use unified EmailSendingService (SSoT)
-    result = EmailSendingService.send(
+    # SSoT: Use send_and_log to immediately store sent email in EmailWarehouse
+    # This ensures sent emails appear in Sent Items without waiting for sync
+    result = EmailSendingService.send_and_log(
       account_type: account_type,
       credential_id: credential_id,
       user: current_user,

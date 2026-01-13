@@ -29,6 +29,8 @@ import type { TableRow } from "@/components/table/types";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { useAtom, useSetAtom } from "jotai";
+import { selectedRowsAtom, clearSelectionAtom } from "@/lib/table-atoms";
 
 // Foundation table name for Purchase Orders
 const PURCHASE_ORDERS_TABLE_NAME = "purchase-orders";
@@ -98,8 +100,9 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   const { user: currentUser } = useAuth();
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // Selection state for bulk operations
-  const [selectedRows, setSelectedRows] = useState<TableRow[]>([]);
+  // Selection state from Jotai atoms (shared with TeeemTableView)
+  const [selectedRowIds] = useAtom(selectedRowsAtom);
+  const clearSelection = useSetAtom(clearSelectionAtom);
   const [lockingBudgets, setLockingBudgets] = useState(false);
 
   // Modal state
@@ -320,57 +323,62 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     }
   };
 
-  // Handle bulk lock/unlock budget for selected POs
-  const handleBulkLockToggle = async () => {
-    if (selectedRows.length === 0 || lockingBudgets) return;
+  // Handle bulk lock budget for selected POs
+  // This locks all selected POs - sets budget from total and prevents editing
+  const handleBulkLock = async () => {
+    if (selectedRowIds.size === 0 || lockingBudgets) return;
 
     try {
       setLockingBudgets(true);
+      const ids = Array.from(selectedRowIds);
 
-      // Process each selected PO
+      // Process each selected PO - try to lock
       const results = await Promise.allSettled(
-        selectedRows.map(async (row) => {
-          const poId = row.id;
-          const isLocked = row.budget_locked === true;
-
-          if (isLocked) {
-            // Unlock - requires admin permission
-            const reason = "Bulk unlock from PO list";
-            return api.post(`/api/v1/purchase_orders/${poId}/unlock_budget`, { reason });
-          } else {
-            // Lock
-            return api.post(`/api/v1/purchase_orders/${poId}/lock_budget`);
-          }
-        })
+        ids.map((poId) => api.post(`/api/v1/purchase_orders/${poId}/lock_budget`))
       );
 
-      // Count successes and failures
-      const succeeded = results.filter(r => r.status === "fulfilled").length;
-      const failed = results.filter(r => r.status === "rejected").length;
-
-      if (failed > 0) {
-        console.warn(`Budget toggle: ${succeeded} succeeded, ${failed} failed`);
-      }
+      // Count successes (some may already be locked, which is fine)
+      const succeeded = results.filter((r) => r.status === "fulfilled").length;
+      console.log(`Budget lock: ${succeeded}/${ids.length} POs processed`);
 
       // Refresh table to show updated lock status
-      setRefreshKey(k => k + 1);
-      setSelectedRows([]);
+      setRefreshKey((k) => k + 1);
+      clearSelection();
     } catch (err) {
-      console.error("Failed to toggle budget locks:", err);
+      console.error("Failed to lock budgets:", err);
     } finally {
       setLockingBudgets(false);
     }
   };
 
-  // Determine button label based on selected rows' lock status
-  const getLockButtonLabel = () => {
-    if (selectedRows.length === 0) return "Lock/Unlock Budget";
-    const lockedCount = selectedRows.filter(r => r.budget_locked === true).length;
-    const unlockedCount = selectedRows.length - lockedCount;
+  // Handle bulk unlock budget for selected POs (admin only)
+  const handleBulkUnlock = async () => {
+    if (selectedRowIds.size === 0 || lockingBudgets) return;
 
-    if (lockedCount === 0) return `Lock Budget (${unlockedCount})`;
-    if (unlockedCount === 0) return `Unlock Budget (${lockedCount})`;
-    return `Toggle Budget (${selectedRows.length})`;
+    try {
+      setLockingBudgets(true);
+      const ids = Array.from(selectedRowIds);
+      const reason = "Bulk unlock from PO list";
+
+      // Process each selected PO - try to unlock
+      const results = await Promise.allSettled(
+        ids.map((poId) =>
+          api.post(`/api/v1/purchase_orders/${poId}/unlock_budget`, { reason })
+        )
+      );
+
+      // Count successes
+      const succeeded = results.filter((r) => r.status === "fulfilled").length;
+      console.log(`Budget unlock: ${succeeded}/${ids.length} POs processed`);
+
+      // Refresh table to show updated lock status
+      setRefreshKey((k) => k + 1);
+      clearSelection();
+    } catch (err) {
+      console.error("Failed to unlock budgets:", err);
+    } finally {
+      setLockingBudgets(false);
+    }
   };
 
   return (
@@ -390,6 +398,38 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
         onRowDoubleClick={handleRowClick}
         onRowUpdate={handleRowUpdate}
         onAddRow={handleOpenCreateModal}
+        leftActions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBulkLock}
+              disabled={selectedRowIds.size === 0 || lockingBudgets}
+              className="gap-1"
+            >
+              {lockingBudgets ? (
+                <Spinner size={14} />
+              ) : (
+                <Lock className="h-4 w-4" />
+              )}
+              Lock Budget {selectedRowIds.size > 0 && `(${selectedRowIds.size})`}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBulkUnlock}
+              disabled={selectedRowIds.size === 0 || lockingBudgets}
+              className="gap-1 text-amber-600 hover:text-amber-700"
+            >
+              {lockingBudgets ? (
+                <Spinner size={14} />
+              ) : (
+                <Unlock className="h-4 w-4" />
+              )}
+              Unlock {selectedRowIds.size > 0 && `(${selectedRowIds.size})`}
+            </Button>
+          </>
+        }
       />
 
       {/* Create PO Modal */}

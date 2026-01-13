@@ -180,23 +180,29 @@ class EmailSendingService
   end
 
   # Log sent email to EmailWarehouse
+  # SSoT: Ensures sent emails appear immediately without waiting for sync
   def log_to_warehouse(result)
     return unless result.success?
+
+    # Determine the from email (used for mailbox_owner_email)
+    from_email_addr = sender_email
 
     EmailWarehouse.create!(
       internet_message_id: result.message_id || SecureRandom.uuid,
       source_type: @account_type,
       imap_credential_id: imap_credential_id,
+      microsoft_credential_id: ms365_credential_id,  # SSoT: Required for MS365 filtering
+      mailbox_owner_email: from_email_addr,          # SSoT: Required for MS365 mailbox filtering
       subject: @params.subject,
       body_html: @params.body,
       body_text: ActionController::Base.helpers.strip_tags(@params.body),
-      from_email: sender_email,
+      from_email: from_email_addr,
       from_name: @params.user&.name,
       to_emails: @params.to_list,
       cc_emails: @params.cc_list,
       received_at: Time.current,
       sent_at: Time.current,
-      folder_name: "Sent",
+      folder_name: "Sent Items",  # SSoT: Match Outlook folder name for consistency
       first_synced_at: Time.current,
       last_synced_at: Time.current,
       synced_by_user: @params.user
