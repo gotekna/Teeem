@@ -236,8 +236,14 @@ class DocumentMigrationJob < ApplicationJob
       "jobs/#{job.id}/#{subfolder}/#{filename}"
 
     when 'CorporateCompanyDocument'
-      company = document.corporate_company
-      if company
+      # SSoT: Task documents go to tasks/ folder, not corporate/
+      task_attachment = document.sm_task_attachments.first
+      if task_attachment&.sm_task
+        task = task_attachment.sm_task
+        filename = slugify_filename(document.file_name)
+        "tasks/#{task.id}/#{filename}"
+      elsif document.corporate_company
+        company = document.corporate_company
         folder = slugify_path(document.folder.presence || "documents")
         filename = slugify_filename(document.file_name)
         "corporate/#{company.id}/#{folder}/#{filename}"

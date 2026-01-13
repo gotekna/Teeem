@@ -23,9 +23,9 @@ class SmCascadeService
     @task = task
     @construction = task.construction
     @options = options
-    # Non-job tasks use CorporateCompanySetting (global), job tasks use job's company_setting
-    company_setting = construction&.company_setting || CorporateCompanySetting.instance
-    @calendar = WorkingDaysCalculator.new(company_setting)
+    # SSoT: CorporateCompanySetting.instance for all working days calculations
+    # (consistent with GanttDateCalculationService, SmTaskCompletionService)
+    @calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
   end
 
   # Preview cascade without making changes

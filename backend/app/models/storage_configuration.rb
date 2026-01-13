@@ -157,8 +157,8 @@ class StorageConfiguration < ApplicationRecord
   SCOPE_TEMPLATES = {
     "job" => "{{JobCode}}/{{TabName}}",
     "jobs" => "{{JobCode}}/{{TabName}}",
-    "task" => "{{TaskId}}/{{Category}}",
-    "tasks" => "{{TaskId}}/{{Category}}",
+    "task" => "{{TaskId}}",
+    "tasks" => "{{TaskId}}",
     "corporate" => "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
     "corporate_entity" => "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
     "company" => "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
@@ -177,10 +177,12 @@ class StorageConfiguration < ApplicationRecord
   }.freeze
 
   # Get template for a scope
+  # SSoT: Database `templates` column first, then hardcoded fallback
   # @param scope [String, Symbol] The scope name
   # @return [String] The template string for path generation
   def template_for(scope)
-    SCOPE_TEMPLATES[scope.to_s] || "{{Name}}/{{Category}}"
+    # SSoT: Check database templates column first
+    templates&.dig(scope.to_s).presence || SCOPE_TEMPLATES[scope.to_s] || "{{Name}}/{{Category}}"
   end
 
   # ========================================
