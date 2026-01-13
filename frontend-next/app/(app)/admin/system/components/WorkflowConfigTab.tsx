@@ -466,12 +466,9 @@ export function WorkflowConfigTab() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold">Workflow Dependencies</h2>
-        <p className="text-sm text-muted-foreground">
-          Configure which statuses are available for each job type, and which stages are available for each status.
-        </p>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        Configure which statuses are available for each job type, and which stages are available for each status.
+      </p>
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Job Types Column */}

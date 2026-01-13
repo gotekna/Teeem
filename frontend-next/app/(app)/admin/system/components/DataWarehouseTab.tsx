@@ -264,6 +264,9 @@ interface MicrosoftOrgStats {
       email_count: number;
       last_sync: string | null;
       last_email_received: string | null;
+      attachment_count: number;
+      shared_attachments: number;
+      storage: 'wasabi' | 'sharepoint' | 'mixed' | 'none';
     }>;
     ai_classification: {
       spam: number;
@@ -279,6 +282,23 @@ interface MicrosoftOrgStats {
       with_body_preview: number;
       direction_rate: number;
       body_preview_rate: number;
+    };
+    storage_location: {
+      emails: {
+        wasabi: { count: number; bytes: number };
+        sharepoint: { count: number; bytes: number };
+      };
+      attachments: {
+        wasabi: { count: number };
+        sharepoint: { count: number };
+        dedup_savings_count: number;
+        dedup_savings_bytes: number;
+      };
+      documents: {
+        wasabi: number;
+        sharepoint: number;
+        s3: number;
+      } | null;
     };
   };
 }
@@ -1006,6 +1026,111 @@ export function DataWarehouseTab() {
                       )}
                     </div>
 
+                    {/* Storage Location Summary */}
+                    {org.stats.storage_location && (
+                      <div className="pt-4 border-t">
+                        <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                          <HardDrive className="h-4 w-4" />
+                          Storage Location
+                        </h4>
+                        <div className="space-y-3">
+                          {/* Email Storage Progress */}
+                          {(() => {
+                            const wasabiCount = org.stats.storage_location.emails.wasabi.count;
+                            const sharepointCount = org.stats.storage_location.emails.sharepoint.count;
+                            const total = wasabiCount + sharepointCount;
+                            const wasabiPercent = total > 0 ? Math.round((wasabiCount / total) * 100) : 0;
+                            return (
+                              <div>
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-xs text-muted-foreground">Emails</span>
+                                  <span className="text-xs">
+                                    <span className="text-green-600">{wasabiPercent}% Wasabi</span>
+                                    {sharepointCount > 0 && (
+                                      <span className="text-muted-foreground"> | {100 - wasabiPercent}% Legacy</span>
+                                    )}
+                                  </span>
+                                </div>
+                                <div className="h-2 rounded-full bg-blue-100 dark:bg-blue-900/30 overflow-hidden">
+                                  <div
+                                    className="h-full bg-green-500 transition-all"
+                                    style={{ width: `${wasabiPercent}%` }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          {/* Attachment Storage Progress */}
+                          {(() => {
+                            const wasabiCount = org.stats.storage_location.attachments.wasabi.count;
+                            const sharepointCount = org.stats.storage_location.attachments.sharepoint.count;
+                            const total = wasabiCount + sharepointCount;
+                            const wasabiPercent = total > 0 ? Math.round((wasabiCount / total) * 100) : 0;
+                            return (
+                              <div>
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-xs text-muted-foreground">Attachments</span>
+                                  <span className="text-xs">
+                                    <span className="text-green-600">{wasabiPercent}% Wasabi</span>
+                                    {sharepointCount > 0 && (
+                                      <span className="text-muted-foreground"> | {100 - wasabiPercent}% Legacy</span>
+                                    )}
+                                  </span>
+                                </div>
+                                <div className="h-2 rounded-full bg-blue-100 dark:bg-blue-900/30 overflow-hidden">
+                                  <div
+                                    className="h-full bg-green-500 transition-all"
+                                    style={{ width: `${wasabiPercent}%` }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          {/* Document Storage Progress - Tekna only */}
+                          {org.stats.storage_location.documents && (
+                            (() => {
+                              const docs = org.stats.storage_location.documents;
+                              const wasabiCount = docs.wasabi + docs.s3;
+                              const sharepointCount = docs.sharepoint;
+                              const total = wasabiCount + sharepointCount;
+                              const wasabiPercent = total > 0 ? Math.round((wasabiCount / total) * 100) : 0;
+                              return (
+                                <div>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-xs text-muted-foreground">Documents</span>
+                                    <span className="text-xs">
+                                      <span className="text-green-600">{wasabiPercent}% Wasabi</span>
+                                      {sharepointCount > 0 && (
+                                        <span className="text-muted-foreground"> | {100 - wasabiPercent}% Legacy</span>
+                                      )}
+                                    </span>
+                                  </div>
+                                  <div className="h-2 rounded-full bg-blue-100 dark:bg-blue-900/30 overflow-hidden">
+                                    <div
+                                      className="h-full bg-green-500 transition-all"
+                                      style={{ width: `${wasabiPercent}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })()
+                          )}
+
+                          {/* Deduplication Savings */}
+                          {org.stats.storage_location.attachments.dedup_savings_count > 0 && (
+                            <p className="text-xs text-muted-foreground pt-1">
+                              <span className="text-green-600 font-medium">
+                                {org.stats.storage_location.attachments.dedup_savings_count.toLocaleString()} attachments
+                              </span>
+                              {" "}deduplicated (saving {formatBytes(org.stats.storage_location.attachments.dedup_savings_bytes)})
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Per-Person Email Stats */}
                     {org.stats.per_mailbox?.length > 0 && (
                       <div className="pt-4 border-t">
@@ -1013,12 +1138,15 @@ export function DataWarehouseTab() {
                           <Users className="h-4 w-4" />
                           Emails by Person ({org.stats.per_mailbox.length})
                         </h4>
-                        <div className="border rounded-lg overflow-hidden">
+                        <div className="border rounded-lg overflow-hidden overflow-x-auto">
                           <Table>
                             <TableHeader>
                               <TableRow>
                                 <TableHead>Mailbox</TableHead>
                                 <TableHead className="text-right">Emails</TableHead>
+                                <TableHead className="text-right">Storage</TableHead>
+                                <TableHead className="text-right">Attachments</TableHead>
+                                <TableHead className="text-right">Shared</TableHead>
                                 <TableHead className="text-right">Last Email</TableHead>
                               </TableRow>
                             </TableHeader>
@@ -1027,6 +1155,32 @@ export function DataWarehouseTab() {
                                 <TableRow key={mb.mailbox}>
                                   <TableCell className="font-medium">{mb.mailbox}</TableCell>
                                   <TableCell className="text-right">{mb.email_count.toLocaleString()}</TableCell>
+                                  <TableCell className="text-right">
+                                    <Badge
+                                      variant="outline"
+                                      className={
+                                        mb.storage === "wasabi"
+                                          ? "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                          : mb.storage === "mixed"
+                                          ? "bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                                          : mb.storage === "sharepoint"
+                                          ? "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                                          : "bg-muted text-muted-foreground"
+                                      }
+                                    >
+                                      {mb.storage === "wasabi"
+                                        ? "Wasabi"
+                                        : mb.storage === "mixed"
+                                        ? "Mixed"
+                                        : mb.storage === "sharepoint"
+                                        ? "Legacy"
+                                        : "-"}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="text-right">{mb.attachment_count.toLocaleString()}</TableCell>
+                                  <TableCell className="text-right text-muted-foreground">
+                                    {mb.shared_attachments > 0 ? mb.shared_attachments.toLocaleString() : "-"}
+                                  </TableCell>
                                   <TableCell className="text-right text-muted-foreground">
                                     {mb.last_email_received ? format(new Date(mb.last_email_received), "PPp") : "Never"}
                                   </TableCell>

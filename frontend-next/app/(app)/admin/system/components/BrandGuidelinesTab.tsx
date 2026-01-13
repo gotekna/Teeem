@@ -32,14 +32,9 @@ export function BrandGuidelinesTab() {
 
   return (
     <div className="space-y-8 pb-32">
-      <div>
-        <h2 className="text-lg font-semibold">Brand Guidelines</h2>
-        <p className="text-sm text-muted-foreground">
-          Comprehensive design system documentation for Teeem.
-        </p>
-      </div>
-
-      <Separator />
+      <p className="text-sm text-muted-foreground">
+        Comprehensive design system documentation for Teeem.
+      </p>
 
       {/* Typography */}
       <section className="space-y-6">

@@ -907,21 +907,30 @@ function GroupsManagementTab() {
 }
 
 // Main Security Tab Component
+// Sub-tab definitions for security
+const SECURITY_SUB_TABS = [
+  { id: "users", label: "Users" },
+  { id: "roles", label: "User Roles" },
+  { id: "groups", label: "Groups" },
+];
+
 interface SecurityTabProps {
-  innertab?: string;
+  subTab?: string;
 }
 
-export function SecurityTab({ innertab }: SecurityTabProps) {
+export function SecurityTab({ subTab }: SecurityTabProps) {
   const router = useRouter();
-  const securityTab = innertab || "users";
+
+  // Validate and default the sub-tab
+  const activeSubTab = SECURITY_SUB_TABS.some((t) => t.id === subTab) ? subTab : "users";
 
   const handleTabChange = React.useCallback((tab: string) => {
-    router.push(`/admin/system/company/security/${tab}`, { scroll: false });
+    router.push(`/settings/company/security/${tab}`, { scroll: false });
   }, [router]);
 
   return (
     <div className="space-y-6">
-      <Tabs value={securityTab} onValueChange={handleTabChange}>
+      <Tabs value={activeSubTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="users" className="gap-2">
             <Users className="h-4 w-4" />

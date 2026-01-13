@@ -55,20 +55,12 @@ module Api
             linked_to_job = emails.where.not(job_id: nil).count
             size_by_job = emails.where.not(job_id: nil).sum("COALESCE(LENGTH(body_text), 0) + COALESCE(LENGTH(body_html), 0)") || 0
 
-            # Per-mailbox (per-person) stats
-            per_mailbox_stats = emails
+            # Per-mailbox (per-person) stats - base data first, enhanced later with attachments/storage
+            per_mailbox_base = emails
               .where.not(mailbox_owner_email: [ nil, "" ])
               .group(:mailbox_owner_email)
               .select("mailbox_owner_email, COUNT(*) as email_count, MAX(last_synced_at) as last_sync, MAX(received_at) as last_email_received")
               .order("email_count DESC")
-              .map do |row|
-                {
-                  mailbox: row.mailbox_owner_email,
-                  email_count: row.email_count,
-                  last_sync: row.last_sync,
-                  last_email_received: row.last_email_received
-                }
-              end
 
             # AI Classification breakdown (same as data_stats)
             classification_counts = emails.group("email_classification->>'email_type'").count
@@ -82,6 +74,115 @@ module Api
             # SSoT migration progress
             with_direction = emails.where.not(direction: nil).count
             with_body_preview = emails.where("body_preview IS NOT NULL AND body_preview != ''").count
+
+            # === Storage Location Transparency ===
+            # Email storage breakdown (Wasabi vs SharePoint legacy)
+            wasabi_emails = emails.where("storage_path IS NOT NULL AND storage_path != ''").count
+            sharepoint_emails = emails.where("(storage_path IS NULL OR storage_path = '')")
+                                      .where("sharepoint_email_path IS NOT NULL AND sharepoint_email_path != ''")
+                                      .count
+            wasabi_email_bytes = emails.where("storage_path IS NOT NULL AND storage_path != ''")
+                                       .sum("COALESCE(LENGTH(body_text), 0) + COALESCE(LENGTH(body_html), 0)") || 0
+            sharepoint_email_bytes = emails.where("(storage_path IS NULL OR storage_path = '')")
+                                           .where("sharepoint_email_path IS NOT NULL AND sharepoint_email_path != ''")
+                                           .sum("COALESCE(LENGTH(body_text), 0) + COALESCE(LENGTH(body_html), 0)") || 0
+
+            # Attachment storage breakdown
+            email_ids = emails.pluck(:id)
+            attachments = EmailAttachment.where(email_warehouse_id: email_ids)
+            wasabi_attachments = attachments.where.not(storage_blob_id: nil).count
+            sharepoint_attachments = attachments.where(storage_blob_id: nil)
+                                                .where("sharepoint_path IS NOT NULL AND sharepoint_path != ''")
+                                                .count
+
+            # Deduplication stats (how many unique blobs vs total references)
+            blob_ids_with_count = attachments.where.not(storage_blob_id: nil).pluck(:storage_blob_id)
+            unique_blob_count = blob_ids_with_count.uniq.count
+            dedup_savings_count = blob_ids_with_count.count - unique_blob_count
+            # Calculate bytes saved by deduplication
+            dedup_savings_bytes = if unique_blob_count > 0 && defined?(StorageBlob)
+              # Get average blob size from the blobs used by these attachments
+              avg_blob_size = StorageBlob.where(id: blob_ids_with_count.uniq).average(:file_size)&.to_i || 0
+              dedup_savings_count * avg_blob_size
+            else
+              0
+            end
+
+            # Per-mailbox attachment counts (single query for efficiency)
+            per_mailbox_attachment_counts = attachments
+              .joins("INNER JOIN email_warehouses ON email_warehouses.id = email_attachments.email_warehouse_id")
+              .where.not("email_warehouses.mailbox_owner_email" => [nil, ""])
+              .group("email_warehouses.mailbox_owner_email")
+              .count
+
+            # Shared attachments per mailbox (attachments pointing to blobs with reference_count > 1)
+            shared_per_mailbox = if defined?(StorageBlob)
+              attachments
+                .joins("INNER JOIN email_warehouses ON email_warehouses.id = email_attachments.email_warehouse_id")
+                .joins("INNER JOIN storage_blobs ON storage_blobs.id = email_attachments.storage_blob_id")
+                .where("storage_blobs.reference_count > 1")
+                .where.not("email_warehouses.mailbox_owner_email" => [nil, ""])
+                .group("email_warehouses.mailbox_owner_email")
+                .count
+            else
+              {}
+            end
+
+            # Per-mailbox storage status (wasabi vs sharepoint vs mixed)
+            per_mailbox_storage = {}
+            emails.where.not(mailbox_owner_email: [nil, ""])
+                  .group(:mailbox_owner_email)
+                  .select("mailbox_owner_email,
+                           SUM(CASE WHEN storage_path IS NOT NULL AND storage_path != '' THEN 1 ELSE 0 END) as wasabi_count,
+                           SUM(CASE WHEN (storage_path IS NULL OR storage_path = '') AND sharepoint_email_path IS NOT NULL AND sharepoint_email_path != '' THEN 1 ELSE 0 END) as sharepoint_count")
+                  .each do |row|
+                    wasabi = row.wasabi_count.to_i
+                    sharepoint = row.sharepoint_count.to_i
+                    status = if wasabi > 0 && sharepoint > 0
+                      "mixed"
+                    elsif wasabi > 0
+                      "wasabi"
+                    elsif sharepoint > 0
+                      "sharepoint"
+                    else
+                      "none"
+                    end
+                    per_mailbox_storage[row.mailbox_owner_email] = status
+                  end
+
+            # Document storage breakdown (Tekna tenant only - org-wide)
+            document_storage = if org_name == "Tekna"
+              doc_by_provider = { "wasabi" => 0, "sharepoint" => 0, "s3" => 0 }
+              [JobDocument, CorporateCompanyDocument, PeopleDocument].each do |klass|
+                next unless defined?(klass)
+                klass.group(:storage_provider).count.each do |provider, count|
+                  normalized = case provider
+                               when "s3_compatible", "wasabi" then "wasabi"
+                               when "sharepoint", nil then "sharepoint"
+                               when "s3" then "s3"
+                               else "sharepoint"
+                               end
+                  doc_by_provider[normalized] += count
+                end
+              end
+              doc_by_provider
+            else
+              nil
+            end
+
+            # Enhance per_mailbox_stats with attachment and storage info
+            per_mailbox_stats = per_mailbox_base.map do |row|
+              mailbox = row.mailbox_owner_email
+              {
+                mailbox: mailbox,
+                email_count: row.email_count,
+                last_sync: row.last_sync,
+                last_email_received: row.last_email_received,
+                attachment_count: per_mailbox_attachment_counts[mailbox] || 0,
+                shared_attachments: shared_per_mailbox[mailbox] || 0,
+                storage: per_mailbox_storage[mailbox] || "none"
+              }
+            end
 
             {
               name: org_name,
@@ -116,6 +217,19 @@ module Api
                   with_body_preview: with_body_preview,
                   direction_rate: total_count > 0 ? ((with_direction.to_f / total_count) * 100).round(1) : 0,
                   body_preview_rate: total_count > 0 ? ((with_body_preview.to_f / total_count) * 100).round(1) : 0
+                },
+                storage_location: {
+                  emails: {
+                    wasabi: { count: wasabi_emails, bytes: wasabi_email_bytes },
+                    sharepoint: { count: sharepoint_emails, bytes: sharepoint_email_bytes }
+                  },
+                  attachments: {
+                    wasabi: { count: wasabi_attachments },
+                    sharepoint: { count: sharepoint_attachments },
+                    dedup_savings_count: dedup_savings_count,
+                    dedup_savings_bytes: dedup_savings_bytes
+                  },
+                  documents: document_storage
                 }
               }
             }
@@ -149,6 +263,19 @@ module Api
                   with_body_preview: 0,
                   direction_rate: 0,
                   body_preview_rate: 0
+                },
+                storage_location: {
+                  emails: {
+                    wasabi: { count: 0, bytes: 0 },
+                    sharepoint: { count: 0, bytes: 0 }
+                  },
+                  attachments: {
+                    wasabi: { count: 0 },
+                    sharepoint: { count: 0 },
+                    dedup_savings_count: 0,
+                    dedup_savings_bytes: 0
+                  },
+                  documents: nil
                 }
               }
             }

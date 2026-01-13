@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { EntityTabsTable } from "./EntityTabsTable";
 import { Card, CardContent } from "@/components/ui/card";
@@ -1219,42 +1220,41 @@ function CompanyTabsSubTab() {
   return <EntityTabsTable />;
 }
 
+// Sub-tab definitions for corporate
+const CORPORATE_SUB_TABS = [
+  { id: "groups", label: "Groups", icon: FolderOpen },
+  { id: "companies", label: "Companies", icon: Building2 },
+  { id: "company-tabs", label: "Entity Tabs", icon: LayoutGrid },
+];
+
 // ===== MAIN CORPORATE TAB =====
-export function CorporateTab() {
-  const [activeSubTab, setActiveSubTab] = React.useState("groups");
+export function CorporateTab({ subTab }: { subTab?: string }) {
+  const router = useRouter();
+
+  // Validate and default the sub-tab
+  const activeSubTab = CORPORATE_SUB_TABS.some((t) => t.id === subTab) ? subTab : "groups";
+
+  const handleSubTabChange = (tabId: string) => {
+    router.push(`/settings/company/corporate/${tabId}`, { scroll: false });
+  };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">Corporate Administration</h2>
-          <p className="text-sm text-muted-foreground">
-            Manage company groups and corporate entities
-          </p>
-        </div>
-        <Link
-          href="/corporate"
-          className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
-        >
-          Go to Corporate Dashboard
-          <ExternalLink className="h-4 w-4" />
-        </Link>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        Manage company groups and corporate entities
+      </p>
 
-      <Tabs value={activeSubTab} onValueChange={setActiveSubTab}>
+      <Tabs value={activeSubTab} onValueChange={handleSubTabChange}>
         <TabsList>
-          <TabsTrigger value="groups" className="flex items-center gap-2">
-            <FolderOpen className="h-4 w-4" />
-            Groups
-          </TabsTrigger>
-          <TabsTrigger value="companies" className="flex items-center gap-2">
-            <Building2 className="h-4 w-4" />
-            Companies
-          </TabsTrigger>
-          <TabsTrigger value="company-tabs" className="flex items-center gap-2">
-            <LayoutGrid className="h-4 w-4" />
-            Entity Tabs
-          </TabsTrigger>
+          {CORPORATE_SUB_TABS.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-2">
+                <Icon className="h-4 w-4" />
+                {tab.label}
+              </TabsTrigger>
+            );
+          })}
         </TabsList>
 
         <div className="mt-6">

@@ -158,14 +158,9 @@ export function BrandColorsTab() {
 
   return (
     <div className="space-y-8 pb-32">
-      <div>
-        <h2 className="text-lg font-semibold">Brand Colors</h2>
-        <p className="text-sm text-muted-foreground">
-          Configure your company brand colors. These colors are applied across the entire UI.
-        </p>
-      </div>
-
-      <Separator />
+      <p className="text-sm text-muted-foreground">
+        Configure your company brand colors. These colors are applied across the entire UI.
+      </p>
 
       {/* Message */}
       {message && (

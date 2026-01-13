@@ -173,6 +173,21 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "logs": "Logs",
   "components": "Components",
 
+  // Settings > Company > Connections sub-tabs
+  "provider": "Storage Provider",
+  "migration": "Migration",
+  "costs": "Cost Comparison",
+
+  // Settings > Company > Security sub-tabs
+  "users": "Users",
+  "roles": "User Roles",
+  // "groups" already defined above
+
+  // Settings > Company > Corporate sub-tabs
+  "groups": "Groups",
+  "companies": "Companies",
+  "company-tabs": "Entity Tabs",
+
   // Settings > Operations tabs
   "job-types": "Job Types",
   "categories": "Categories",
@@ -277,6 +292,14 @@ export function resolveDisplayName(
     return tabName;
   }
 
+  // 4c. Check for Settings nested sub-tab pattern (e.g., /settings/company/connections/migration)
+  // Pattern: /settings/{section}/{tab}/{subtab}
+  if (segments.length === 4 && segments[0] === "settings") {
+    const subtabKey = lastSegment;
+    const subtabName = TAB_DISPLAY_NAMES[subtabKey] || humanizeSegment(subtabKey);
+    return subtabName;
+  }
+
   // 5. Humanize last segment as fallback
   const baseName = humanizeSegment(lastSegment);
   if (effectiveTab) {
@@ -338,9 +361,18 @@ const SETTINGS_TABBED_SECTIONS = [
 ];
 
 /**
+ * Settings tabs that have nested sub-tabs
+ * e.g., /settings/company/connections has sub-tabs: provider, migration, costs
+ */
+const SETTINGS_NESTED_TABS: Record<string, string[]> = {
+  "connections": ["provider", "migration", "costs"],
+};
+
+/**
  * Check if two pathnames are sibling tabs (same parent entity, different tab)
  * e.g., /jobs/123/overview and /jobs/123/plans are siblings
  * e.g., /settings/company/info and /settings/company/connections are siblings
+ * e.g., /settings/company/connections/provider and /settings/company/connections/migration are siblings
  * Used to replace tab in breadcrumb instead of adding new item
  */
 export function isSiblingTab(path1: string, path2: string): boolean {
@@ -349,6 +381,22 @@ export function isSiblingTab(path1: string, path2: string): boolean {
 
   // Both need at least 3 segments
   if (segments1.length < 3 || segments2.length < 3) return false;
+
+  // Check for Settings nested sub-tab pattern: /settings/{section}/{tab}/{subtab}
+  // e.g., /settings/company/connections/provider and /settings/company/connections/migration
+  if (segments1.length === 4 && segments2.length === 4 &&
+      segments1[0] === "settings" && segments2[0] === "settings") {
+    const tab1 = segments1[2];
+    const tab2 = segments2[2];
+    const nestedTabs = SETTINGS_NESTED_TABS[tab1] || SETTINGS_NESTED_TABS[tab2];
+
+    if (nestedTabs && tab1 === tab2) {
+      // Compare parent paths (settings/section/tab)
+      const parent1 = segments1.slice(0, 3).join('/');
+      const parent2 = segments2.slice(0, 3).join('/');
+      return parent1 === parent2;
+    }
+  }
 
   // Check for Settings section/tab pattern: /settings/{section}/{tab}
   const isSettingsTabs1 = segments1[0] === "settings" && SETTINGS_TABBED_SECTIONS.includes(segments1[1]);

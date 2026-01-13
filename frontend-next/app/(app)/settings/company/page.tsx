@@ -3,8 +3,6 @@
 import * as React from "react";
 import { useCallback, useMemo, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import Link from "next/link";
-import { ExternalLink } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Import company-related tab components from admin
@@ -71,23 +69,25 @@ export default function CompanySettingsPage() {
     }
   }, [pathname, router]);
 
+  // Redirect to default sub-tab for tabs with sub-tabs
+  useEffect(() => {
+    if (!subTab) {
+      if (activeTab === "connections") {
+        router.replace("/settings/company/connections/provider", { scroll: false });
+      } else if (activeTab === "security") {
+        router.replace("/settings/company/security/users", { scroll: false });
+      } else if (activeTab === "corporate") {
+        router.replace("/settings/company/corporate/groups", { scroll: false });
+      }
+    }
+  }, [activeTab, subTab, router]);
+
   const handleTabChange = useCallback((tabId: string) => {
     router.push(`/settings/company/${tabId}`, { scroll: false });
   }, [router]);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Company Settings</h2>
-        <Link
-          href="/corporate"
-          className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
-        >
-          Go to Corporate Dashboard
-          <ExternalLink className="h-4 w-4" />
-        </Link>
-      </div>
-
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="flex-wrap h-auto gap-1">
           {COMPANY_TABS.map((tab) => (
@@ -112,13 +112,13 @@ export default function CompanySettingsPage() {
             <BrandGuidelinesTab />
           </TabsContent>
           <TabsContent value="security">
-            <SecurityTab />
+            <SecurityTab subTab={subTab} />
           </TabsContent>
           <TabsContent value="permissions">
             <PermissionsTab />
           </TabsContent>
           <TabsContent value="corporate">
-            <CorporateTab />
+            <CorporateTab subTab={subTab} />
           </TabsContent>
           <TabsContent value="holidays">
             <HolidaysTab />

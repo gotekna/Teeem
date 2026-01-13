@@ -245,7 +245,9 @@ export function WorkflowsTab() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Workflow Definitions</h2>
+        <p className="text-sm text-muted-foreground">
+          Define and manage workflow templates
+        </p>
         <Button onClick={handleOpenAddDialog}>
           <Plus className="h-4 w-4 mr-2" />
           New Workflow
