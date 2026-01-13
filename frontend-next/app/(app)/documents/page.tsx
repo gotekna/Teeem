@@ -381,6 +381,10 @@ export default function AllDocumentsPage() {
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const dragCounterRef = useRef(0);
 
+  // Folder files state - tracks loaded files for each folder path
+  const [folderFiles, setFolderFiles] = useState<Record<string, DocumentItem[]>>({});
+  const [loadingFolders, setLoadingFolders] = useState<Set<string>>(new Set());
+
   // SSoT: Fetch storage config from StorageConfiguration (scope folders, templates, root path)
   // This uses the same endpoint as StorageConfigTab to ensure consistency
   // NOTE: Endpoint name "sharepoint" is legacy - it returns provider-agnostic config from StorageConfiguration
@@ -462,6 +466,59 @@ export default function AllDocumentsPage() {
   useEffect(() => {
     fetchDocuments();
   }, [fetchDocuments]);
+
+  // Fetch files for a specific folder from S3
+  const fetchFolderFiles = useCallback(async (folderPath: string, scopeKey: string) => {
+    // Already loaded or loading
+    if (folderFiles[scopeKey] || loadingFolders.has(scopeKey)) return;
+
+    setLoadingFolders(prev => new Set(prev).add(scopeKey));
+    try {
+      // Use full path parameter for S3 lookup
+      const response = await api.get<{
+        success: boolean;
+        files: Array<{
+          name: string;
+          path: string;
+          size: number;
+          last_modified: string;
+          url: string;
+          content_type: string;
+        }>;
+        folder: string;
+        path: string;
+        count: number;
+      }>(`/api/v1/documents/user_files?path=${encodeURIComponent(folderPath)}`);
+
+      if (response?.success && response.files) {
+        // Convert S3 files to DocumentItem format
+        const docs: DocumentItem[] = response.files.map((file, idx) => ({
+          id: idx + 1,
+          source: "corporate" as const, // Generic source for user files
+          fileName: file.name,
+          displayName: file.name,
+          mimeType: file.content_type || "",
+          fileSize: file.size || 0,
+          fileUrl: file.url,
+          folderPath: file.path,
+          storageProvider: "s3_compatible",
+          createdAt: file.last_modified || new Date().toISOString(),
+          isImage: /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(file.name),
+        }));
+        setFolderFiles(prev => ({ ...prev, [scopeKey]: docs }));
+      }
+    } catch (err) {
+      console.error(`Failed to fetch files for ${folderPath}:`, err);
+      // Set empty array to prevent re-fetching
+      setFolderFiles(prev => ({ ...prev, [scopeKey]: [] }));
+    } finally {
+      setLoadingFolders(prev => {
+        const next = new Set(prev);
+        next.delete(scopeKey);
+        return next;
+      });
+    }
+  }, [folderFiles, loadingFolders]);
 
   // Poll for active background jobs (folder reorganization)
   useEffect(() => {
@@ -547,6 +604,8 @@ export default function AllDocumentsPage() {
       }
 
       setUploadProgress("Upload complete!");
+      // Clear folder files cache so new files show when expanding
+      setFolderFiles({});
       // Refresh document list
       await fetchDocuments();
 
@@ -791,18 +850,22 @@ export default function AllDocumentsPage() {
     });
   }, [filteredDocuments, entityFolders, scopeFolders, scopeTemplates, rootPath, counts]);
 
-  // Toggle folder expansion
-  const toggleFolder = useCallback((folderId: string) => {
+  // Toggle folder expansion and fetch files if needed
+  const toggleFolder = useCallback((folderId: string, folderPath?: string) => {
     setExpandedFolders(prev => {
       const next = new Set(prev);
       if (next.has(folderId)) {
         next.delete(folderId);
       } else {
         next.add(folderId);
+        // Fetch files for this folder if it has a path and is being expanded
+        if (folderPath) {
+          fetchFolderFiles(folderPath, folderId);
+        }
       }
       return next;
     });
-  }, []);
+  }, [fetchFolderFiles]);
 
   // Open file in new window (for double-click)
   const openFileInNewWindow = useCallback((doc: DocumentItem) => {
@@ -924,6 +987,28 @@ export default function AllDocumentsPage() {
 
     const images = treeDisplayMode === "gallery" ? getImagesFromNode(node) : [];
 
+    // Get folder path for S3 lookup - extract from fullPath or use scopeFolders
+    const getFolderPath = (): string | undefined => {
+      if (node.fullPath) {
+        // Extract folder path from fullPath (e.g., "/Shared Documents/Users/MyDocs" -> "Users/MyDocs")
+        const parts = node.fullPath.split('/').filter(Boolean);
+        // Remove "Shared Documents" prefix if present
+        const idx = parts.findIndex(p => p === 'Shared Documents');
+        if (idx >= 0) {
+          return parts.slice(idx + 1).join('/');
+        }
+        return parts.join('/');
+      }
+      // Fallback: use scopeFolders mapping
+      const scopePath = scopeFolders[node.id];
+      return scopePath || undefined;
+    };
+
+    const folderPath = getFolderPath();
+    const isLoading = loadingFolders.has(node.id);
+    const loadedFiles = folderFiles[node.id] || [];
+    const hasLoadedFiles = loadedFiles.length > 0;
+
     return (
       <div key={node.id}>
         <div
@@ -932,17 +1017,21 @@ export default function AllDocumentsPage() {
             node.type === "category" && "font-semibold"
           )}
           style={{ paddingLeft: `${paddingLeft + 12}px` }}
-          onClick={() => toggleFolder(node.id)}
+          onClick={() => toggleFolder(node.id, folderPath)}
           title={node.fullPath || undefined}
         >
           {/* Show chevron if has children OR has files (expandable) */}
           {(hasChildren || fileCount > 0) ? (
-            <ChevronRight
-              className={cn(
-                "h-4 w-4 text-muted-foreground transition-transform shrink-0",
-                isExpanded && "rotate-90"
-              )}
-            />
+            isLoading ? (
+              <Loader2 className="h-4 w-4 text-muted-foreground animate-spin shrink-0" />
+            ) : (
+              <ChevronRight
+                className={cn(
+                  "h-4 w-4 text-muted-foreground transition-transform shrink-0",
+                  isExpanded && "rotate-90"
+                )}
+              />
+            )
           ) : (
             <div className="w-4 shrink-0" /> // Spacer for alignment
           )}
@@ -964,9 +1053,17 @@ export default function AllDocumentsPage() {
           </Badge>
         </div>
 
-        {isExpanded && hasChildren && (
+        {isExpanded && (hasChildren || hasLoadedFiles || isLoading) && (
           <div className={cn(depth > 0 && "border-l border-muted ml-6")}>
-            {treeDisplayMode === "gallery" && images.length > 0 ? (
+            {isLoading ? (
+              // Loading state
+              <div className="py-2 px-3" style={{ paddingLeft: `${paddingLeft + 32}px` }}>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading files...
+                </div>
+              </div>
+            ) : treeDisplayMode === "gallery" && images.length > 0 ? (
               // Gallery view within folder
               <div className="p-4" style={{ paddingLeft: `${paddingLeft + 32}px` }}>
                 <div className="grid grid-cols-6 gap-2 mb-4">
@@ -1014,8 +1111,29 @@ export default function AllDocumentsPage() {
                   .map(child => renderTreeNode(child, depth + 1))}
               </div>
             ) : (
-              // Standard list view
-              node.children?.map(child => renderTreeNode(child, depth + 1))
+              <>
+                {/* Standard list view - render children first */}
+                {node.children?.map(child => renderTreeNode(child, depth + 1))}
+                {/* Then render dynamically loaded files from S3 */}
+                {hasLoadedFiles && loadedFiles.map((file) => {
+                  const fileNode: TreeNode = {
+                    id: `loaded-${node.id}-${file.fileName}`,
+                    name: file.displayName || file.fileName,
+                    type: "file",
+                    file,
+                  };
+                  return renderTreeNode(fileNode, depth + 1);
+                })}
+                {/* Show empty state if no children and no loaded files */}
+                {!hasChildren && !hasLoadedFiles && !isLoading && fileCount === 0 && (
+                  <div
+                    className="py-2 px-3 text-sm text-muted-foreground"
+                    style={{ paddingLeft: `${paddingLeft + 32}px` }}
+                  >
+                    No files in this folder
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}

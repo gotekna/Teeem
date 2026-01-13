@@ -227,8 +227,11 @@ module Api
       # SSoT: Paths match StorageConfiguration.SCOPE_FOLDERS
       def user_files
         # SSoT: Folder names match StorageConfiguration.SCOPE_FOLDERS
+        # Supports two modes:
+        # 1. ?folder=MyDocs (legacy) -> Users/MyDocs
+        # 2. ?path=Users/MyDocs (generic) -> exact path
         folder = params[:folder].presence || "MyDocs"
-        s3_path = "Users/#{folder}"
+        s3_path = params[:path].presence || "Users/#{folder}"
 
         begin
           organization = Organization.first
@@ -236,17 +239,25 @@ module Api
           # Note: list_folder returns an array directly, not a hash
           items = provider.list_folder(s3_path, recursive: false) || []
 
-          # Filter to files only (exclude folders)
+          # Filter to files only (exclude folders) and generate presigned download URLs
           files = items.select { |item| item[:type] == :file }.map do |item|
+            file_key = item[:key] || item[:name]
+            file_name = File.basename(file_key || "")
+
+            # Generate presigned URL for download
+            url = if file_key.present?
+              provider.presigned_url(file_key, expires_in: 3600) rescue item[:web_url]
+            else
+              item[:web_url]
+            end
+
             {
-              id: item[:id] || item[:key],
-              file_name: File.basename(item[:name] || item[:key] || ""),
-              display_name: File.basename(item[:name] || item[:key] || ""),
-              file_size: item[:size],
-              mime_type: item[:content_type],
-              storage_path: item[:key],
+              name: file_name,
+              path: file_key,
+              size: item[:size] || 0,
+              content_type: item[:content_type] || MiniMime.lookup_by_filename(file_name)&.content_type || "application/octet-stream",
               last_modified: item[:last_modified]&.iso8601,
-              download_url: item[:web_url]
+              url: url
             }
           end
 
@@ -254,11 +265,12 @@ module Api
             success: true,
             files: files,
             folder: folder,
+            path: s3_path,
             count: files.size
           }
         rescue StandardError => e
-          Rails.logger.error "[Documents] User files list failed: #{e.message}"
-          render json: { success: false, error: e.message, files: [] }, status: :ok
+          Rails.logger.error "[Documents] User files list failed for '#{s3_path}': #{e.message}"
+          render json: { success: false, error: e.message, files: [], folder: folder, path: s3_path }, status: :ok
         end
       end
 
