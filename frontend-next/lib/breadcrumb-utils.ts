@@ -412,19 +412,16 @@ export function isDefaultView(pathname: string): boolean {
 }
 
 /**
- * Cross-section navigation mappings
- * These define relationships between different URL structures that represent related content
- * e.g., navigating from a job's PO tab to PO detail should preserve context
- *
- * Key: source tab path pattern (within an entity)
- * Value: target section that's related
+ * Entity detail pages that can be navigated to from job detail pages
+ * When navigating from /jobs/{id}/* to any of these, preserve breadcrumb context
  */
-const CROSS_SECTION_RELATIONS: Record<string, string> = {
-  // Job nested tabs → standalone detail pages
-  "purchase-orders": "purchase_orders",  // /jobs/*/purchase-orders → /purchase_orders/*
-  "estimates": "estimates",              // /jobs/*/estimates → /estimates/*
-  // Add more as needed
-};
+const ENTITY_DETAIL_SECTIONS = [
+  'purchase_orders',  // /purchase_orders/{id}
+  'estimates',        // /estimates/{id}
+  'contacts',         // /contacts/{id}
+  'leads',            // /leads/{id}
+  'companies',        // /companies/{id}
+];
 
 /**
  * Check if two paths are related
@@ -432,12 +429,14 @@ const CROSS_SECTION_RELATIONS: Record<string, string> = {
  *
  * A path is considered "related" if:
  * 1. They share the same first-level ancestor (e.g., both under /jobs)
- * 2. Navigation is to a known cross-section target (e.g., job PO tab → PO detail)
+ * 2. Navigating FROM a job detail page TO an entity detail page
+ *    (e.g., /jobs/123/finance/expenses → /purchase_orders/456)
  *
  * @example
- * isRelatedPath('/jobs/123/schedule', '/jobs/456/plans')    // true - both under /jobs
- * isRelatedPath('/jobs/123', '/purchase_orders/456')        // false - different sections
- * isRelatedPath('/jobs/123/purchase-orders', '/purchase_orders/456') // true - cross-section nav
+ * isRelatedPath('/jobs/123/schedule', '/jobs/456/plans')       // true - both under /jobs
+ * isRelatedPath('/jobs/123', '/purchase_orders/456')           // true - job to PO
+ * isRelatedPath('/jobs/123/finance/expenses', '/purchase_orders/456') // true - job tab to PO
+ * isRelatedPath('/contacts/123', '/purchase_orders/456')       // false - different entities
  */
 export function isRelatedPath(path1: string, path2: string): boolean {
   const segments1 = path1.split('/').filter(Boolean);
@@ -449,11 +448,12 @@ export function isRelatedPath(path1: string, path2: string): boolean {
   // Check if first segment matches (e.g., both under /jobs)
   if (segments1[0] === segments2[0]) return true;
 
-  // Check for cross-section navigation (e.g., /jobs/*/purchase-orders → /purchase_orders/*)
-  // This preserves breadcrumb context when navigating from nested tabs to detail pages
-  const lastSegment1 = segments1[segments1.length - 1];
-  const relatedSection = CROSS_SECTION_RELATIONS[lastSegment1];
-  if (relatedSection && segments2[0] === relatedSection) {
+  // Check if navigating FROM a job detail page TO an entity detail page
+  // This preserves breadcrumb context when opening POs, estimates, contacts from job pages
+  const isFromJobDetail = segments1[0] === 'jobs' && segments1.length >= 2 && /^\d+$/.test(segments1[1]);
+  const isToEntityDetail = ENTITY_DETAIL_SECTIONS.includes(segments2[0]) && segments2.length >= 2;
+
+  if (isFromJobDetail && isToEntityDetail) {
     return true;
   }
 

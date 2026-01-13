@@ -119,10 +119,10 @@ class EmailAttachmentMigrationService
     end
 
     # Store with deduplication (this handles upload + blob creation)
+    # Note: content_type is derived from filename by StorageBlob
     attachment.store_content!(
       content,
-      filename: attachment.filename,
-      content_type: attachment.content_type
+      filename: attachment.filename
     )
 
     increment_migrated!
