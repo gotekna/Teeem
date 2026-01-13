@@ -811,7 +811,7 @@ function TabNode({
   );
 }
 
-export function SharePointTab() {
+export function StorageConfigTab() {
   const { toast } = useToast();
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);

@@ -49,7 +49,7 @@ import {
 import { api } from "@/lib/api";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { SharePointTab } from "./SharePointTab";
+import { StorageConfigTab } from "./StorageConfigTab";
 
 interface WarehouseViewStatus {
   key: string;
@@ -908,7 +908,7 @@ export function DataWarehouseTab() {
 
         {/* Storage Config Tab - Embeds the same component from Entity Configurator */}
         <TabsContent value="storage-config" className="space-y-4">
-          <SharePointTab />
+          <StorageConfigTab />
         </TabsContent>
 
         {/* Microsoft 365 Organization Tabs */}

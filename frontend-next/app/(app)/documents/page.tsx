@@ -370,7 +370,8 @@ export default function AllDocumentsPage() {
   } | null>(null);
 
   // SSoT: Fetch storage config from StorageConfiguration (scope folders, templates, root path)
-  // This uses the same endpoint as SharePointTab to ensure consistency
+  // This uses the same endpoint as StorageConfigTab to ensure consistency
+  // NOTE: Endpoint name "sharepoint" is legacy - it returns provider-agnostic config from StorageConfiguration
   useEffect(() => {
     const fetchStorageConfig = async () => {
       try {
@@ -381,7 +382,7 @@ export default function AllDocumentsPage() {
             scope_templates?: Record<string, string>;
             root_path?: string;
           };
-        }>("/api/v1/corporate_company_settings/sharepoint");
+        }>("/api/v1/corporate_company_settings/sharepoint");  // TODO: Rename to /storage_configuration
         if (response?.success && response.data) {
           // SSoT: Use scope_folders from StorageConfiguration.SCOPE_FOLDERS
           if (response.data.scope_folders) {

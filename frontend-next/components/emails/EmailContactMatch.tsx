@@ -98,11 +98,11 @@ export function EmailContactMatch({
     try {
       const response = await api.get<{
         success: boolean;
-        data: ContactInfo[];
-      }>(`/api/v1/contacts/search?q=${encodeURIComponent(query)}&limit=10`);
+        contacts: ContactInfo[];
+      }>(`/api/v1/contacts?search=${encodeURIComponent(query)}&per_page=10`);
 
-      if (response.success && response.data) {
-        setSearchResults(response.data);
+      if (response.success && response.contacts) {
+        setSearchResults(response.contacts);
       }
     } catch (error) {
       console.error("Failed to search contacts:", error);

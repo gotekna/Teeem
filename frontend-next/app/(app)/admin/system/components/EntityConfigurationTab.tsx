@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { EntityTabsConfig } from "@/components/admin/EntityTabsConfig";
 import { DocumentTypesTab } from "./DocumentTypesTab";
-import { SharePointTab } from "./SharePointTab";
+import { StorageConfigTab } from "./StorageConfigTab";
 import { EmailConfigTab } from "./EmailConfigTab";
 import { Building2, Briefcase, X, FileText, Settings, Contact2, Mail } from "lucide-react";
 import { api } from "@/lib/api";
@@ -77,7 +77,7 @@ const scopes = [
     showSharePointPaths: false,
     showDocumentTypes: false,
     isEntityTab: false,
-    isSharePointConfig: true,
+    isStorageConfig: true,  // SSoT: Provider-agnostic (was isSharePointConfig)
   },
   {
     id: "email_config",
@@ -199,8 +199,8 @@ export function EntityConfigurationTab({ onClose, scope }: EntityConfigurationTa
                   showTabGroups={scope.showTabGroups !== false}
                   compact={true}
                 />
-              ) : "isSharePointConfig" in scope && scope.isSharePointConfig ? (
-                <SharePointTab />
+              ) : "isStorageConfig" in scope && scope.isStorageConfig ? (
+                <StorageConfigTab />
               ) : "isEmailConfig" in scope && scope.isEmailConfig ? (
                 <EmailConfigTab />
               ) : (
