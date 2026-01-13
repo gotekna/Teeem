@@ -76,6 +76,10 @@ Rails.application.routes.draw do
           get "progress/:job_type", action: :progress
           get :active
           get :recent
+          post :start_email_upload
+        end
+        member do
+          post :cancel
         end
       end
 

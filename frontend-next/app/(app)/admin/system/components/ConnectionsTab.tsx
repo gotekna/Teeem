@@ -1463,9 +1463,18 @@ function DocumentMigration() {
 
   const loadStorageUpload = async () => {
     try {
-      const response = await api.get<{ success: boolean; data: { storage_upload?: StorageUploadProgress } }>("/api/v1/organization/data_stats");
-      if (response.data?.storage_upload) {
-        setStorageUpload(response.data.storage_upload);
+      // storage_upload is nested under emails in the API response
+      const response = await api.get<{
+        success: boolean;
+        data: {
+          emails?: {
+            storage_upload?: StorageUploadProgress;
+            total_emails?: number;
+          }
+        }
+      }>("/api/v1/organization/data_stats");
+      if (response.data?.emails?.storage_upload) {
+        setStorageUpload(response.data.emails.storage_upload);
       }
     } catch (error) {
       console.error("Failed to load storage upload progress:", error);
@@ -1591,25 +1600,50 @@ function DocumentMigration() {
         {storageUpload && storageUpload.uploadable > 0 && (
           <div className="p-3 rounded-lg border bg-blue-50 dark:bg-blue-900/20 space-y-3">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Email Storage Upload</p>
-              <Badge variant="outline" className="text-xs">
-                {storageUpload.upload_rate}%
+              <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                Email Migration to Wasabi
+              </p>
+              <Badge
+                variant={storageUpload.upload_rate >= 100 ? "default" : "outline"}
+                className={cn("text-xs", storageUpload.upload_rate >= 100 && "bg-green-600")}
+              >
+                {storageUpload.upload_rate}% Complete
               </Badge>
             </div>
 
             {/* .eml Files Progress */}
-            <div className="space-y-1">
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">.eml files to Wasabi</span>
-                <span className="font-medium">
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Emails uploaded to Wasabi</span>
+                <span className="font-semibold">
                   {storageUpload.uploaded.toLocaleString()} / {storageUpload.uploadable.toLocaleString()}
                 </span>
               </div>
-              <Progress value={storageUpload.upload_rate} className="h-2" />
+              <Progress value={storageUpload.upload_rate} className="h-3" />
               {storageUpload.remaining > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {storageUpload.remaining.toLocaleString()} remaining
-                </p>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    <span className="font-medium text-orange-600 dark:text-orange-400">
+                      {storageUpload.remaining.toLocaleString()}
+                    </span>{" "}
+                    emails remaining
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        await api.post("/api/v1/background_jobs/start_email_upload", { batch_size: 5000 });
+                        toast({ title: "Started", description: "Email migration job queued" });
+                      } catch {
+                        toast({ title: "Error", description: "Failed to start email migration", variant: "destructive" });
+                      }
+                    }}
+                  >
+                    <Play className="h-3 w-3 mr-1" />
+                    Continue Migration
+                  </Button>
+                </div>
               )}
             </div>
 
