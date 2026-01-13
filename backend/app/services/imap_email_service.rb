@@ -149,6 +149,7 @@ class ImapEmailService
             internet_message_id: email_data[:internet_message_id],
             source_type: "imap",
             imap_credential: credential,
+            mailbox_owner_email: credential.email_address,  # SSoT: Required for filtering by mailbox
             uid: email_data[:uid],
             subject: email_data[:subject],
             body_text: email_data[:body_text],

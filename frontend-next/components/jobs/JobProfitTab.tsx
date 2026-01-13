@@ -151,7 +151,7 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
           data: { records: PurchaseOrderRecord[] };
         }>(`/api/v1/foundations/${foundationId}/records`, {
           params: {
-            filters: JSON.stringify([{ column: "job_id", operator: "eq", value: jobId }]),
+            filters: JSON.stringify([{ column: "job_id", operator: "=", value: String(jobId) }]),
             per_page: 1000,
           },
         });
