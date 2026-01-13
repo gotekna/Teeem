@@ -178,48 +178,47 @@ class EntityTab < ApplicationRecord
   # Valid path types for sharepoint_path_type field
   PATH_TYPES = %w[corporate contacts].freeze
 
-  # Map EntityTab scope to CorporateCompanySetting template scope
-  # For contact scope, uses storage_path_type to determine which path
+  # SSoT: Map EntityTab to StorageConfiguration template scope
+  # Priority: storage_path_type (explicit override) > scope (default)
   def scope_for_template
+    # SSoT: storage_path_type is THE ONE way to override which path config to use
+    # This allows "document" scope tabs to use "corporate" templates
+    if storage_path_type.present?
+      return storage_path_type.to_sym
+    end
+
+    # Fall back to scope-based mapping
     case scope
     when 'job' then :job
-    when 'corporate_entity' then :company
-    when 'people', 'contact'
-      # SSoT: For contacts, allow choosing between corporate (people) or contacts path
-      storage_path_type == 'contacts' ? :contacts : :people
+    when 'corporate_entity' then :corporate
+    when 'people', 'contact' then :people
     when 'email' then :email
     when 'warehouse' then :warehouse
     when 'task' then :task
+    when 'document' then :corporate  # Document tabs default to corporate
     else :job  # Default fallback
     end
   end
 
   # Get the inherited template (default template based on scope)
-  # SSoT: EntityTab owns folder paths, this returns a sensible default
+  # SSoT: Uses StorageConfiguration.template_for() - NOT hardcoded templates
   def inherited_template
     return nil unless has_storage_folder
 
-    # Default templates per scope (if no custom path is set)
-    # Note: scope_for_template returns a symbol, convert to string
-    case scope_for_template.to_s
-    when "job", "jobs"
-      "{{JobCode}}/{{TabName}}"
-    when "corporate", "company"
-      "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}"
-    when "contact", "people"
-      "{{ContactName}}/{{TabName}}"
-    when "email"
-      "emails/eml/{{OrgName}}/{{Year}}/{{Month}}"
-    when "warehouse"
-      "Warehousing/{{TabName}}"
-    when "task"
-      "Tasks/Task-{{TaskId}}/{{Category}}"
-    else
-      "{{TabName}}"
+    begin
+      # SSoT: Get template from StorageConfiguration (database)
+      config = StorageConfiguration.instance
+      template_scope = scope_for_template.to_s
+
+      # Get template from SSoT
+      template = config.template_for(template_scope)
+
+      # Replace {{TabName}} with this tab's display_name
+      template&.gsub("{{TabName}}", display_name)
+    rescue => e
+      Rails.logger.warn "[EntityTab] Failed to get inherited template: #{e.message}"
+      nil
     end
-  rescue => e
-    Rails.logger.warn "[EntityTab] Failed to get inherited template: #{e.message}"
-    nil
   end
 
   # Get the storage base path for this tab (used in UI preview)

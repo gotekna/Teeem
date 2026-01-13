@@ -7,6 +7,18 @@ class CorporateCompanyDocument < ApplicationRecord
   # Determines path: /Corporate/{GroupName}/{CompanyCode}/{TabName}/filename
   storage_scope :corporate
 
+  # SSoT: Get EntityTab from DocumentType.primary_entity_tab
+  # This is THE ONE way to get folder structure for a document
+  def effective_entity_tab
+    document_type_record&.primary_entity_tab
+  end
+
+  # SSoT: Get storage folder template from EntityTab
+  # Returns the inherited_template (e.g., "{{CompanyGroup}}/{{CompanyCode}}/ASIC")
+  def storage_folder_template
+    effective_entity_tab&.inherited_template
+  end
+
   # Searchable columns for full-text search (GIN index)
   searchable_columns :file_name, :display_name, :description, :folder
 
@@ -268,13 +280,16 @@ class CorporateCompanyDocument < ApplicationRecord
 
   # SSoT: Default tokens for storage path template
   # Template: /Corporate/{GroupName}/{CompanyCode}/{TabName}/filename
+  # Priority: EntityTab.display_name > folder > document_type
   def default_storage_tokens
+    entity_tab = effective_entity_tab
     {
-      CompanyGroup: corporate_company&.corporate_group&.name || "Ungrouped",
-      GroupName: corporate_company&.corporate_group&.name || "Ungrouped",
+      CompanyGroup: corporate_company&.corporate_group&.name || "No Group",
+      GroupName: corporate_company&.corporate_group&.name || "No Group",
       CompanyCode: corporate_company&.code || corporate_company&.name&.first(3)&.upcase || "UNK",
       CompanyName: corporate_company&.name || "Unknown",
-      TabName: folder || document_type&.titleize || "Documents"
+      # SSoT: TabName comes from EntityTab (THE ONE source of folder names)
+      TabName: entity_tab&.display_name || folder || document_type&.titleize || "Documents"
     }
   end
 

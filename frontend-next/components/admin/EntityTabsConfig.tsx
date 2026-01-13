@@ -1706,9 +1706,10 @@ export function EntityTabsConfig({
                       </div>
 
                       {/* Folder Path template with token builder - drag and drop enabled */}
+                      {/* SSoT: inherited_template from API (computed from storage_path_type) takes precedence */}
                       <TokenBuilder
                         label={labelWithStatus("Folder Path")}
-                        value={folderPathTemplate ?? getDefaultTemplate(scope)}
+                        value={folderPathTemplate || editingTab?.inherited_template || getDefaultTemplate(scope)}
                         onChange={setFolderPathTemplate}
                         placeholders={SHAREPOINT_PLACEHOLDERS}
                         showPreview={true}
@@ -1721,17 +1722,23 @@ export function EntityTabsConfig({
                       {/* Full path preview */}
                       {(() => {
                         const basePath = getBasePath(scope);
-                        // Replace tokens with example values only if template exists
-                        const resolvedPath = folderPathTemplate
-                          ? `/${folderPathTemplate
+                        // SSoT: Use effective template priority:
+                        // 1. Local state (user editing)
+                        // 2. inherited_template from API (computed from storage_path_type)
+                        // 3. getDefaultTemplate (hardcoded fallback)
+                        const effectiveTemplate = folderPathTemplate || editingTab?.inherited_template || getDefaultTemplate(scope);
+                        // Replace tokens with example values
+                        const resolvedPath = effectiveTemplate
+                          ? `/${effectiveTemplate
                               .replace(/\{\{TaskId\}\}/g, "T-001")
                               .replace(/\{\{Category\}\}/g, "Responses")
-                              .replace(/\{\{TabName\}\}/g, "Responses")
+                              .replace(/\{\{TabName\}\}/g, editingTab?.display_name || "Documents")
                               .replace(/\{\{Year\}\}/g, "2025")
                               .replace(/\{\{Month\}\}/g, "01")
                               .replace(/\{\{UserCode\}\}/g, "RH")
                               .replace(/\{\{UserName\}\}/g, "Robert Harder")
                               .replace(/\{\{JobCode\}\}/g, "J069")
+                              .replace(/\{\{CompanyGroup\}\}/g, "Tekna Group")
                               .replace(/\{\{CompanyCode\}\}/g, "TH")
                               .replace(/\{\{ContactName\}\}/g, "John Smith")}`
                           : '';
