@@ -20,6 +20,8 @@ import {
   Check,
   CornerDownRight,
   ExternalLink,
+  Lock,
+  Unlock,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
@@ -95,6 +97,10 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   const router = useRouter();
   const { user: currentUser } = useAuth();
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Selection state for bulk operations
+  const [selectedRows, setSelectedRows] = useState<TableRow[]>([]);
+  const [lockingBudgets, setLockingBudgets] = useState(false);
 
   // Modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -314,6 +320,58 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     }
   };
 
+  // Handle bulk lock/unlock budget for selected POs
+  const handleBulkLockToggle = async () => {
+    if (selectedRows.length === 0 || lockingBudgets) return;
+
+    try {
+      setLockingBudgets(true);
+
+      // Process each selected PO
+      const results = await Promise.allSettled(
+        selectedRows.map(async (row) => {
+          const poId = row.id;
+          const isLocked = row.budget_locked === true;
+
+          if (isLocked) {
+            // Unlock - requires admin permission
+            const reason = "Bulk unlock from PO list";
+            return api.post(`/api/v1/purchase_orders/${poId}/unlock_budget`, { reason });
+          } else {
+            // Lock
+            return api.post(`/api/v1/purchase_orders/${poId}/lock_budget`);
+          }
+        })
+      );
+
+      // Count successes and failures
+      const succeeded = results.filter(r => r.status === "fulfilled").length;
+      const failed = results.filter(r => r.status === "rejected").length;
+
+      if (failed > 0) {
+        console.warn(`Budget toggle: ${succeeded} succeeded, ${failed} failed`);
+      }
+
+      // Refresh table to show updated lock status
+      setRefreshKey(k => k + 1);
+      setSelectedRows([]);
+    } catch (err) {
+      console.error("Failed to toggle budget locks:", err);
+    } finally {
+      setLockingBudgets(false);
+    }
+  };
+
+  // Determine button label based on selected rows' lock status
+  const getLockButtonLabel = () => {
+    if (selectedRows.length === 0) return "Lock/Unlock Budget";
+    const lockedCount = selectedRows.filter(r => r.budget_locked === true).length;
+    const unlockedCount = selectedRows.length - lockedCount;
+
+    if (lockedCount === 0) return `Lock Budget (${unlockedCount})`;
+    if (unlockedCount === 0) return `Unlock Budget (${lockedCount})`;
+    return `Toggle Budget (${selectedRows.length})`;
+  };
 
   return (
     <div className="flex flex-col h-full -mx-4">

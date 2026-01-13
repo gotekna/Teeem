@@ -505,7 +505,8 @@ class PurchaseOrder < ApplicationRecord
       'trade_from_task' => trade_from_task,
       # Budget lockdown info
       'budget_locked' => budget_locked?,
-      'budget_locked_by_name' => budget_locked_by&.name
+      'budget_locked_by_name' => budget_locked_by&.name,
+      'budget_locked_at' => budget_locked_at&.iso8601
     )
     # Include labour summary if this is a labour PO
     result['labour_summary'] = labour_summary if labour_po?

@@ -14,7 +14,10 @@
 export interface PurchaseOrderRecord {
   id: number | string;
   po_number?: string;
+  // supplier can be string (legacy) or expanded lookup object
   supplier?: string | { id: number; display?: string; name?: string };
+  // supplier_id from Foundation API - expanded to { id, display } object
+  supplier_id?: number | { id: number; display?: string; name?: string } | null;
   budget?: number | null;
   total?: number | null;
   xero_amount_paid?: number | null;
@@ -28,7 +31,8 @@ export interface PurchaseOrderRecord {
   total_billed?: number | null;
   xero_complete?: boolean | null;
   task_category?: string | null;
-  sm_task_id?: number | null;
+  // sm_task_id from Foundation API - expanded to { id, display } object
+  sm_task_id?: number | { id: number; display?: string; name?: string } | null;
   sm_task?: { id: number; display?: string; name?: string } | null;
   [key: string]: unknown;
 }
@@ -271,8 +275,19 @@ export function calculateJobTotals(groups: ExpenseGroup[]): {
 
 /**
  * Get supplier display name from PO record
+ * SSoT: Foundation API returns supplier_id as { id, display } object
  */
 export function getSupplierName(po: PurchaseOrderRecord): string {
+  // Check supplier_id first (Foundation API format)
+  const supplierId = po.supplier_id as unknown;
+  if (supplierId && typeof supplierId === 'object') {
+    const obj = supplierId as { id?: number; display?: string; name?: string };
+    if (obj.display || obj.name) {
+      return obj.display || obj.name || `Supplier #${obj.id}`;
+    }
+  }
+
+  // Fallback to supplier field (PO detail API format)
   if (!po.supplier) return '(No Supplier)';
   if (typeof po.supplier === 'string') return po.supplier;
   if (typeof po.supplier === 'object') {
@@ -283,9 +298,21 @@ export function getSupplierName(po: PurchaseOrderRecord): string {
 
 /**
  * Get task display name from PO record
+ * SSoT: Foundation API returns sm_task_id as { id, display } object
  */
 export function getTaskName(po: PurchaseOrderRecord): string {
   if (po.task_category) return String(po.task_category);
+
+  // Check sm_task_id first (Foundation API format)
+  const smTaskId = po.sm_task_id as unknown;
+  if (smTaskId && typeof smTaskId === 'object') {
+    const obj = smTaskId as { id?: number; display?: string; name?: string };
+    if (obj.display || obj.name) {
+      return obj.display || obj.name || `Task #${obj.id}`;
+    }
+  }
+
+  // Fallback to sm_task field (PO detail API format)
   if (po.sm_task) {
     if (typeof po.sm_task === 'object') {
       return po.sm_task.display || po.sm_task.name || `Task #${po.sm_task.id}`;

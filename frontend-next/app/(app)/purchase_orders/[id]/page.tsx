@@ -503,6 +503,11 @@ export default function PurchaseOrderDetailPage() {
       setSelectedSupplier(supp);
       setLineItems(itemsWithBlank);
 
+      // Initialize budget lock state
+      setBudgetLocked(response.budget_locked || false);
+      setBudgetLockedBy(response.budget_locked_by_name || null);
+      setBudgetLockedAt(response.budget_locked_at || null);
+
       // Store original state for change tracking (with sorted items)
       setOriginalState({
         description: desc,
@@ -708,6 +713,11 @@ export default function PurchaseOrderDetailPage() {
       setSelectedSupplier(supp);
       setLineItems(itemsWithBlank);
 
+      // Update budget lock state after save
+      setBudgetLocked(response.budget_locked || false);
+      setBudgetLockedBy(response.budget_locked_by_name || null);
+      setBudgetLockedAt(response.budget_locked_at || null);
+
       // Store original state for change tracking (with sorted items)
       setOriginalState({
         description: desc,
@@ -818,6 +828,71 @@ export default function PurchaseOrderDetailPage() {
     setNotes(originalState.notes);
     setSelectedSupplier(originalState.selectedSupplier);
     setLineItems([...originalState.lineItems]);
+  };
+
+  // Budget lockdown handlers
+  const handleLockBudget = async () => {
+    if (!purchaseOrder || lockingBudget) return;
+
+    try {
+      setLockingBudget(true);
+      setError(null);
+
+      const response = await api.post<{
+        success: boolean;
+        data: PurchaseOrder;
+        message?: string;
+        error?: string;
+      }>(`/api/v1/purchase_orders/${recordId}/lock_budget`);
+
+      if (response?.success && response.data) {
+        setBudgetLocked(true);
+        setBudget(response.data.budget?.toString() || "");
+        setBudgetLockedBy(response.data.budget_locked_by_name || null);
+        setBudgetLockedAt(response.data.budget_locked_at || null);
+        setPurchaseOrder(response.data);
+      } else {
+        setError(response?.error || "Failed to lock budget");
+      }
+    } catch (err) {
+      console.error("Failed to lock budget:", err);
+      setError("Failed to lock budget");
+    } finally {
+      setLockingBudget(false);
+    }
+  };
+
+  const handleUnlockBudget = async () => {
+    if (!purchaseOrder || lockingBudget) return;
+
+    const reason = prompt("Reason for unlocking budget:");
+    if (!reason) return;
+
+    try {
+      setLockingBudget(true);
+      setError(null);
+
+      const response = await api.post<{
+        success: boolean;
+        data: PurchaseOrder;
+        message?: string;
+        error?: string;
+      }>(`/api/v1/purchase_orders/${recordId}/unlock_budget`, { reason });
+
+      if (response?.success && response.data) {
+        setBudgetLocked(false);
+        setBudgetLockedBy(null);
+        setBudgetLockedAt(null);
+        setPurchaseOrder(response.data);
+      } else {
+        setError(response?.error || "Failed to unlock budget");
+      }
+    } catch (err) {
+      console.error("Failed to unlock budget:", err);
+      setError("Failed to unlock budget");
+    } finally {
+      setLockingBudget(false);
+    }
   };
 
   // Line item handlers
@@ -1108,14 +1183,67 @@ export default function PurchaseOrderDetailPage() {
               Ex GST: {formatCurrency(subtotal)} GST: {formatCurrency(gst)}
             </div>
             <div className="mt-3">
-              <label className="text-sm text-muted-foreground">Budget:</label>
-              <Input
-                type="number"
-                value={budget}
-                onChange={(e) => setBudget(e.target.value)}
-                placeholder="0.00"
-                className="mt-1"
-              />
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-sm text-muted-foreground">Budget:</label>
+                {budgetLocked && (
+                  <Badge variant="secondary" className="gap-1 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                    <Lock className="h-3 w-3" />
+                    Locked
+                  </Badge>
+                )}
+              </div>
+
+              {budgetLocked ? (
+                <div className="text-2xl font-bold">{formatCurrency(parseFloat(budget) || 0)}</div>
+              ) : (
+                <Input
+                  type="number"
+                  value={budget}
+                  onChange={(e) => setBudget(e.target.value)}
+                  placeholder="0.00"
+                />
+              )}
+
+              <div className="mt-2 flex gap-2">
+                {!budgetLocked ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleLockBudget}
+                    disabled={lockingBudget}
+                    className="gap-1 text-xs"
+                  >
+                    {lockingBudget ? (
+                      <Spinner className="h-3 w-3" />
+                    ) : (
+                      <Lock className="h-3 w-3" />
+                    )}
+                    Lock from PO Total
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleUnlockBudget}
+                    disabled={lockingBudget}
+                    className="gap-1 text-xs text-amber-600 hover:text-amber-700"
+                  >
+                    {lockingBudget ? (
+                      <Spinner className="h-3 w-3" />
+                    ) : (
+                      <Unlock className="h-3 w-3" />
+                    )}
+                    Unlock (Admin)
+                  </Button>
+                )}
+              </div>
+
+              {budgetLocked && budgetLockedBy && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Locked by {budgetLockedBy}
+                  {budgetLockedAt && ` on ${formatDate(budgetLockedAt)}`}
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
