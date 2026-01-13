@@ -219,11 +219,16 @@ export default function ProfileSettingsPage() {
           formData.append("user[signature]", signatureFile);
         }
 
-        // Use api.patch which handles FormData and adds auth header
-        const data = await api.patch<{ success: boolean; user: any; errors?: string[] }>(
-          `/api/v1/users/${user.id}`,
-          formData
-        );
+        // Use Next.js proxy route for FormData uploads (handles CORS)
+        const token = localStorage.getItem("token");
+        const response = await fetch(`/api/v1/users/${user.id}`, {
+          method: "PATCH",
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: formData,
+        });
+        const data = await response.json();
 
         if (data?.success) {
           setPhotoFile(null);
