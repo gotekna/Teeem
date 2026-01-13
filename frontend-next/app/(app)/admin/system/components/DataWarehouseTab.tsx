@@ -144,6 +144,11 @@ interface OrgDataStats {
         with_blob: number;
         legacy_sharepoint: number;
         migration_rate: number;
+        // StorageBlob deduplication stats
+        unique_blobs?: number;
+        total_storage_bytes?: number;
+        dedup_ratio?: number;
+        files_saved_by_dedup?: number;
       };
     };
   };
@@ -1589,7 +1594,7 @@ export function DataWarehouseTab() {
             {/* Attachments Deduplication Progress */}
             <div className="pt-4 border-t">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">Attachment Deduplication (StorageBlob)</span>
+                <span className="text-sm font-medium">Attachment Migration (SharePoint → Wasabi)</span>
                 <span className="text-sm text-muted-foreground">
                   {stats.emails.storage_upload.attachments.migration_rate}% migrated
                 </span>
@@ -1598,17 +1603,45 @@ export function DataWarehouseTab() {
               <div className="grid grid-cols-3 gap-3">
                 <div className="text-center p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
                   <p className="text-xl font-bold text-green-600">{stats.emails.storage_upload.attachments.with_blob.toLocaleString()}</p>
-                  <p className="text-xs text-muted-foreground">Deduplicated</p>
+                  <p className="text-xs text-muted-foreground">Migrated to Wasabi</p>
                 </div>
-                <div className="text-center p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                  <p className="text-xl font-bold text-blue-600">{stats.emails.storage_upload.attachments.legacy_sharepoint.toLocaleString()}</p>
-                  <p className="text-xs text-muted-foreground">Legacy (SharePoint)</p>
+                <div className="text-center p-3 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+                  <p className="text-xl font-bold text-orange-600">{stats.emails.storage_upload.attachments.legacy_sharepoint.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">Pending (SharePoint)</p>
                 </div>
                 <div className="text-center p-3 bg-muted rounded-lg">
                   <p className="text-xl font-bold">{stats.emails.storage_upload.attachments.total.toLocaleString()}</p>
                   <p className="text-xs text-muted-foreground">Total Attachments</p>
                 </div>
               </div>
+
+              {/* StorageBlob Deduplication Stats */}
+              {stats.emails.storage_upload.attachments.unique_blobs !== undefined && stats.emails.storage_upload.attachments.unique_blobs > 0 && (
+                <div className="mt-4 pt-3 border-t border-dashed">
+                  <div className="flex items-center gap-2 mb-3">
+                    <HardDrive className="h-4 w-4 text-purple-500" />
+                    <span className="text-sm font-medium">Storage Deduplication (SSoT)</span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    <div className="text-center p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                      <p className="text-lg font-bold text-purple-600">{stats.emails.storage_upload.attachments.unique_blobs?.toLocaleString()}</p>
+                      <p className="text-xs text-muted-foreground">Unique Files</p>
+                    </div>
+                    <div className="text-center p-2 bg-cyan-100 dark:bg-cyan-900/30 rounded-lg">
+                      <p className="text-lg font-bold text-cyan-600">{formatBytes(stats.emails.storage_upload.attachments.total_storage_bytes || 0)}</p>
+                      <p className="text-xs text-muted-foreground">Storage Used</p>
+                    </div>
+                    <div className="text-center p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                      <p className="text-lg font-bold text-green-600">{stats.emails.storage_upload.attachments.files_saved_by_dedup?.toLocaleString() || 0}</p>
+                      <p className="text-xs text-muted-foreground">Files Deduplicated</p>
+                    </div>
+                    <div className="text-center p-2 bg-muted rounded-lg">
+                      <p className="text-lg font-bold">{stats.emails.storage_upload.attachments.dedup_ratio?.toFixed(1) || 0}x</p>
+                      <p className="text-xs text-muted-foreground">Dedup Ratio</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

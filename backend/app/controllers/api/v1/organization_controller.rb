@@ -445,6 +445,13 @@ module Api
           attachments_with_blob = defined?(EmailAttachment) ? EmailAttachment.where.not(storage_blob_id: nil).count : 0
           attachments_legacy = defined?(EmailAttachment) ? EmailAttachment.where(storage_blob_id: nil).where("sharepoint_path IS NOT NULL AND sharepoint_path != ''").count : 0
 
+          # StorageBlob Deduplication Stats (SSoT for file storage)
+          unique_blobs = defined?(StorageBlob) ? StorageBlob.count : 0
+          total_blob_bytes = defined?(StorageBlob) ? (StorageBlob.sum(:file_size) || 0) : 0
+          # Deduplication ratio: if 1000 attachments → 500 unique blobs = 2x dedup
+          dedup_ratio = unique_blobs > 0 ? (attachments_with_blob.to_f / unique_blobs).round(2) : 0
+          files_saved = attachments_with_blob > unique_blobs ? attachments_with_blob - unique_blobs : 0
+
           {
             total_emails: total_count,
             total_size: total_size,
@@ -487,7 +494,12 @@ module Api
                 total: attachment_count,
                 with_blob: attachments_with_blob,
                 legacy_sharepoint: attachments_legacy,
-                migration_rate: attachment_count > 0 ? ((attachments_with_blob.to_f / attachment_count) * 100).round(1) : 0
+                migration_rate: attachment_count > 0 ? ((attachments_with_blob.to_f / attachment_count) * 100).round(1) : 0,
+                # StorageBlob deduplication stats
+                unique_blobs: unique_blobs,
+                total_storage_bytes: total_blob_bytes,
+                dedup_ratio: dedup_ratio,
+                files_saved_by_dedup: files_saved
               }
             }
           }
