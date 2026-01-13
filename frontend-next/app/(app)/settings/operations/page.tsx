@@ -59,15 +59,8 @@ export default function OperationsSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold">Operations Configuration</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Configure Schedule Master, contacts, meetings, and operational workflows
-        </p>
-      </div>
-
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1">
+        <TabsList className="flex-wrap h-auto gap-1">
           {OPERATIONS_TABS.map((tab) => (
             <TabsTrigger
               key={tab.id}

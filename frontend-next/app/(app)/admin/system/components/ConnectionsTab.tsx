@@ -1384,6 +1384,10 @@ interface StorageUploadProgress {
     legacy_sharepoint: number;
     migration_rate: number;
   };
+  pending_by_mailbox?: Array<{
+    mailbox: string;
+    pending: number;
+  }>;
 }
 
 interface MigrationEstimate {
@@ -1558,6 +1562,40 @@ function EmailMigrationCard() {
             </p>
           )}
         </div>
+
+        {/* Pending Emails by Mailbox - Collapsible */}
+        {storageUpload.pending_by_mailbox && storageUpload.pending_by_mailbox.length > 0 && (
+          <Accordion type="single" collapsible className="border-t pt-2">
+            <AccordionItem value="pending-mailboxes" className="border-none">
+              <AccordionTrigger className="py-2 hover:no-underline">
+                <div className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-orange-500" />
+                  <span className="text-sm font-medium">Pending by Mailbox</span>
+                  <Badge variant="outline" className="ml-1">
+                    {storageUpload.pending_by_mailbox.length}
+                  </Badge>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="space-y-1.5 pt-1 max-h-64 overflow-y-auto">
+                  {storageUpload.pending_by_mailbox.map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between py-1.5 px-2 bg-muted/50 rounded text-sm">
+                      <span className="text-muted-foreground truncate max-w-[180px]" title={item.mailbox}>
+                        {item.mailbox}
+                      </span>
+                      <Badge
+                        variant={item.pending > 5000 ? "destructive" : item.pending > 1000 ? "default" : "secondary"}
+                        className="text-xs"
+                      >
+                        {item.pending.toLocaleString()}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        )}
 
         <div className="flex items-center justify-between pt-2 border-t">
           <div className="flex items-center gap-2">

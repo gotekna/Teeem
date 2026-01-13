@@ -128,27 +128,35 @@ module Api
               {}
             end
 
-            # Per-mailbox storage status (wasabi vs sharepoint vs mixed)
-            per_mailbox_storage = {}
-            emails.where.not(mailbox_owner_email: [nil, ""])
-                  .group(:mailbox_owner_email)
-                  .select("mailbox_owner_email,
-                           SUM(CASE WHEN storage_path IS NOT NULL AND storage_path != '' THEN 1 ELSE 0 END) as wasabi_count,
-                           SUM(CASE WHEN (storage_path IS NULL OR storage_path = '') AND sharepoint_email_path IS NOT NULL AND sharepoint_email_path != '' THEN 1 ELSE 0 END) as sharepoint_count")
-                  .each do |row|
-                    wasabi = row.wasabi_count.to_i
-                    sharepoint = row.sharepoint_count.to_i
-                    status = if wasabi > 0 && sharepoint > 0
-                      "mixed"
-                    elsif wasabi > 0
-                      "wasabi"
-                    elsif sharepoint > 0
-                      "sharepoint"
-                    else
-                      "none"
-                    end
-                    per_mailbox_storage[row.mailbox_owner_email] = status
-                  end
+            # Per-mailbox email storage counts (actual numbers, not status)
+            per_mailbox_wasabi_counts = emails
+              .where("storage_path IS NOT NULL AND storage_path != ''")
+              .where.not(mailbox_owner_email: [nil, ""])
+              .group(:mailbox_owner_email)
+              .count
+
+            per_mailbox_sharepoint_counts = emails
+              .where("(storage_path IS NULL OR storage_path = '')")
+              .where("sharepoint_email_path IS NOT NULL AND sharepoint_email_path != ''")
+              .where.not(mailbox_owner_email: [nil, ""])
+              .group(:mailbox_owner_email)
+              .count
+
+            # Per-mailbox attachment storage counts
+            per_mailbox_att_wasabi = attachments
+              .joins("INNER JOIN email_warehouses ON email_warehouses.id = email_attachments.email_warehouse_id")
+              .where.not(storage_blob_id: nil)
+              .where.not("email_warehouses.mailbox_owner_email" => [nil, ""])
+              .group("email_warehouses.mailbox_owner_email")
+              .count
+
+            per_mailbox_att_sharepoint = attachments
+              .joins("INNER JOIN email_warehouses ON email_warehouses.id = email_attachments.email_warehouse_id")
+              .where(storage_blob_id: nil)
+              .where("email_attachments.sharepoint_path IS NOT NULL AND email_attachments.sharepoint_path != ''")
+              .where.not("email_warehouses.mailbox_owner_email" => [nil, ""])
+              .group("email_warehouses.mailbox_owner_email")
+              .count
 
             # Document storage breakdown (Tekna tenant only - org-wide)
             document_storage = if org_name == "Tekna"
@@ -170,7 +178,7 @@ module Api
               nil
             end
 
-            # Enhance per_mailbox_stats with attachment and storage info
+            # Enhance per_mailbox_stats with attachment and storage counts
             per_mailbox_stats = per_mailbox_base.map do |row|
               mailbox = row.mailbox_owner_email
               {
@@ -180,7 +188,10 @@ module Api
                 last_email_received: row.last_email_received,
                 attachment_count: per_mailbox_attachment_counts[mailbox] || 0,
                 shared_attachments: shared_per_mailbox[mailbox] || 0,
-                storage: per_mailbox_storage[mailbox] || "none"
+                emails_wasabi: per_mailbox_wasabi_counts[mailbox] || 0,
+                emails_sharepoint: per_mailbox_sharepoint_counts[mailbox] || 0,
+                attachments_wasabi: per_mailbox_att_wasabi[mailbox] || 0,
+                attachments_sharepoint: per_mailbox_att_sharepoint[mailbox] || 0
               }
             end
 

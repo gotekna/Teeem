@@ -276,7 +276,10 @@ interface MicrosoftOrgStats {
       last_email_received: string | null;
       attachment_count: number;
       shared_attachments: number;
-      storage: 'wasabi' | 'sharepoint' | 'mixed' | 'none';
+      emails_wasabi: number;
+      emails_sharepoint: number;
+      attachments_wasabi: number;
+      attachments_sharepoint: number;
     }>;
     ai_classification: {
       spam: number;
@@ -1154,8 +1157,11 @@ export function DataWarehouseTab() {
                               <TableRow>
                                 <TableHead>Mailbox</TableHead>
                                 <TableHead className="text-right">Emails</TableHead>
-                                <TableHead className="text-right">Storage</TableHead>
+                                <TableHead className="text-right text-green-600 dark:text-green-400">Wasabi</TableHead>
+                                <TableHead className="text-right text-blue-600 dark:text-blue-400">SharePoint</TableHead>
                                 <TableHead className="text-right">Attachments</TableHead>
+                                <TableHead className="text-right text-green-600 dark:text-green-400">Att Wasabi</TableHead>
+                                <TableHead className="text-right text-blue-600 dark:text-blue-400">Att SP</TableHead>
                                 <TableHead className="text-right">Shared</TableHead>
                                 <TableHead className="text-right">Last Email</TableHead>
                               </TableRow>
@@ -1165,29 +1171,19 @@ export function DataWarehouseTab() {
                                 <TableRow key={mb.mailbox}>
                                   <TableCell className="font-medium">{mb.mailbox}</TableCell>
                                   <TableCell className="text-right">{mb.email_count.toLocaleString()}</TableCell>
-                                  <TableCell className="text-right">
-                                    <Badge
-                                      variant="outline"
-                                      className={
-                                        mb.storage === "wasabi"
-                                          ? "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                                          : mb.storage === "mixed"
-                                          ? "bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
-                                          : mb.storage === "sharepoint"
-                                          ? "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                                          : "bg-muted text-muted-foreground"
-                                      }
-                                    >
-                                      {mb.storage === "wasabi"
-                                        ? "Wasabi"
-                                        : mb.storage === "mixed"
-                                        ? "Mixed"
-                                        : mb.storage === "sharepoint"
-                                        ? "Legacy"
-                                        : "-"}
-                                    </Badge>
+                                  <TableCell className="text-right text-green-600 dark:text-green-400">
+                                    {mb.emails_wasabi > 0 ? mb.emails_wasabi.toLocaleString() : "-"}
+                                  </TableCell>
+                                  <TableCell className="text-right text-blue-600 dark:text-blue-400">
+                                    {mb.emails_sharepoint > 0 ? mb.emails_sharepoint.toLocaleString() : "-"}
                                   </TableCell>
                                   <TableCell className="text-right">{mb.attachment_count.toLocaleString()}</TableCell>
+                                  <TableCell className="text-right text-green-600 dark:text-green-400">
+                                    {mb.attachments_wasabi > 0 ? mb.attachments_wasabi.toLocaleString() : "-"}
+                                  </TableCell>
+                                  <TableCell className="text-right text-blue-600 dark:text-blue-400">
+                                    {mb.attachments_sharepoint > 0 ? mb.attachments_sharepoint.toLocaleString() : "-"}
+                                  </TableCell>
                                   <TableCell className="text-right text-muted-foreground">
                                     {mb.shared_attachments > 0 ? mb.shared_attachments.toLocaleString() : "-"}
                                   </TableCell>

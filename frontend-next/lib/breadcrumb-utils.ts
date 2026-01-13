@@ -506,6 +506,18 @@ export function isRelatedPath(path1: string, path2: string): boolean {
   // Both need at least one segment
   if (segments1.length === 0 || segments2.length === 0) return false;
 
+  // Special handling for Settings navigation:
+  // When navigating from a deeper Settings path (3+ segments) to a top-level
+  // Settings tab (2 segments), treat as unrelated to force trail rebuild.
+  // e.g., /settings/documents/types → /settings/users should rebuild trail
+  if (segments1[0] === "settings" && segments2[0] === "settings") {
+    const isDeepSettings = segments1.length >= 3;
+    const isTopLevelSettingsTab = segments2.length === 2;
+    if (isDeepSettings && isTopLevelSettingsTab) {
+      return false; // Force trail rebuild
+    }
+  }
+
   // Check if first segment matches (e.g., both under /jobs)
   if (segments1[0] === segments2[0]) return true;
 

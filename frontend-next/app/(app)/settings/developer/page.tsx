@@ -55,15 +55,8 @@ export default function DeveloperSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold">Developer Tools</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Component library, developer utilities, and entity configuration
-        </p>
-      </div>
-
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList className="bg-muted/50 p-1">
+        <TabsList className="flex-wrap h-auto gap-1">
           {DEVELOPER_TABS.map((tab) => (
             <TabsTrigger
               key={tab.id}

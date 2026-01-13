@@ -63,15 +63,8 @@ export default function SystemSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold">System Configuration</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Configure navigation, AI agents, scheduled jobs, and system health monitoring
-        </p>
-      </div>
-
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1">
+        <TabsList className="flex-wrap h-auto gap-1">
           {SYSTEM_TABS.map((tab) => (
             <TabsTrigger
               key={tab.id}
