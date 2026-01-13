@@ -42,11 +42,26 @@ module Api
         # Excel spreadsheets (TeeemXL)
         excel_count = TeeemSpreadsheet.count rescue 0
 
-        # Word documents (placeholder - model TBD)
-        word_count = 0
+        # Word documents (TeeemWord)
+        word_count = TeeemDocument.count rescue 0
 
-        # PowerPoint presentations (placeholder - model TBD)
-        powerpoint_count = 0
+        # PowerPoint presentations (TeeemPowerPoint)
+        powerpoint_count = TeeemPresentation.count rescue 0
+
+        # User files from S3 (MyDocs folder)
+        my_docs_count = begin
+          if current_user
+            organization = Organization.first
+            provider = DocumentProviders::S3Compatible.for_organization(organization)
+            result = provider.list_folder("Users/#{current_user.id}/My Documents", recursive: false) rescue { files: [] }
+            (result[:files] || []).size
+          else
+            0
+          end
+        rescue => e
+          Rails.logger.warn "[Documents] Could not count MyDocs: #{e.message}"
+          0
+        end
 
         total = job_count + corp_count + people_count + email_eml_count + email_attachment_count + task_doc_count + template_count + pricebook_image_count + notes_count + excel_count
 
@@ -79,11 +94,11 @@ module Api
             emails: email_eml_count,
             email_attachments: email_attachment_count,
             attachments: email_attachment_count,  # Legacy alias
-            # User scopes (files stored per user)
-            users: 0,
+            # User scopes (files stored per user in S3)
+            users: my_docs_count,  # Total for parent folder
             user_photos: 0,
             user_contracts: 0,
-            my_docs: 0,
+            my_docs: my_docs_count,
             # Warehouse scopes
             warehousing: 0,
             tasks: task_doc_count,
