@@ -114,38 +114,50 @@ class EmailStorageUploadService
   def upload_parallel(emails)
     require "concurrent"
 
-    # Thread pool with 20 concurrent workers (S3 handles this easily)
-    pool = Concurrent::FixedThreadPool.new(20)
+    # Use 5 threads to stay within Heroku's DB connection pool
+    thread_count = 5
+    pool = Concurrent::FixedThreadPool.new(thread_count)
     processed = Concurrent::AtomicFixnum.new(0)
 
     # Load all email IDs first (faster than find_each for parallel)
     email_ids = emails.pluck(:id)
 
-    Rails.logger.info "[EmailUpload] Starting parallel processing with 20 threads"
+    Rails.logger.info "[EmailUpload] Starting parallel processing with #{thread_count} threads for #{email_ids.count} emails"
 
     futures = email_ids.map do |email_id|
       Concurrent::Future.execute(executor: pool) do
-        # Each thread gets its own DB connection
-        ActiveRecord::Base.connection_pool.with_connection do
-          upload_single_email(email_id)
+        begin
+          # Each thread gets its own DB connection
+          ActiveRecord::Base.connection_pool.with_connection do
+            upload_single_email(email_id)
 
-          count = processed.increment
-          if count % 500 == 0
-            Rails.logger.info "[EmailUpload] Progress: #{count}/#{@stats[:total]}"
-            @stats_mutex.synchronize do
-              @progress&.update!(processed_count: count)
+            count = processed.increment
+            if count % 100 == 0
+              Rails.logger.info "[EmailUpload] Progress: #{count}/#{@stats[:total]}"
+              @stats_mutex.synchronize do
+                @progress&.update!(processed_count: count)
+              end
             end
           end
+        rescue => e
+          Rails.logger.error "[EmailUpload] Future failed for email #{email_id}: #{e.class} - #{e.message}"
+          add_error!(email_id: email_id, error: "Future: #{e.message}")
         end
       end
     end
 
-    # Wait for all to complete
-    futures.each(&:wait)
-    pool.shutdown
-    pool.wait_for_termination
+    # Wait for all to complete and check for exceptions
+    futures.each do |future|
+      future.wait
+      if future.rejected?
+        Rails.logger.error "[EmailUpload] Future rejected: #{future.reason}"
+      end
+    end
 
-    Rails.logger.info "[EmailUpload] Parallel processing complete"
+    pool.shutdown
+    pool.wait_for_termination(30) # 30 second timeout
+
+    Rails.logger.info "[EmailUpload] Parallel processing complete. Processed: #{processed.value}/#{email_ids.count}"
   end
 
   # Sequential processing for SharePoint (rate limited)

@@ -317,18 +317,43 @@ export function isSameRoute(path1: string, path2: string): boolean {
 }
 
 /**
+ * Settings sections that have path-based tabs
+ * These are recognized for sibling tab detection
+ */
+const SETTINGS_TABBED_SECTIONS = [
+  "company",
+  "integrations",
+  "documents",
+  "operations",
+  "system",
+  "developer",
+];
+
+/**
  * Check if two pathnames are sibling tabs (same parent entity, different tab)
  * e.g., /jobs/123/overview and /jobs/123/plans are siblings
+ * e.g., /settings/company/info and /settings/company/connections are siblings
  * Used to replace tab in breadcrumb instead of adding new item
  */
 export function isSiblingTab(path1: string, path2: string): boolean {
   const segments1 = path1.split('/').filter(Boolean);
   const segments2 = path2.split('/').filter(Boolean);
 
-  // Both need at least 3 segments: entity/id/tab (e.g., jobs/123/plans)
+  // Both need at least 3 segments
   if (segments1.length < 3 || segments2.length < 3) return false;
 
-  // Check if it's an entity/id/tab pattern (second-to-last is numeric)
+  // Check for Settings section/tab pattern: /settings/{section}/{tab}
+  const isSettingsTabs1 = segments1[0] === "settings" && SETTINGS_TABBED_SECTIONS.includes(segments1[1]);
+  const isSettingsTabs2 = segments2[0] === "settings" && SETTINGS_TABBED_SECTIONS.includes(segments2[1]);
+
+  if (isSettingsTabs1 && isSettingsTabs2) {
+    // Compare parent paths (settings/section)
+    const parent1 = segments1.slice(0, 2).join('/');
+    const parent2 = segments2.slice(0, 2).join('/');
+    return parent1 === parent2;
+  }
+
+  // Check for entity/id/tab pattern (second-to-last is numeric)
   const hasNumericId1 = /^\d+$/.test(segments1[segments1.length - 2]);
   const hasNumericId2 = /^\d+$/.test(segments2[segments2.length - 2]);
   if (!hasNumericId1 || !hasNumericId2) return false;

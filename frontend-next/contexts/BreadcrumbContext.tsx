@@ -30,7 +30,7 @@ import {
   type BreadcrumbItem,
 } from "@/lib/breadcrumb-atoms";
 import { searchQueryAtom } from "@/lib/table-atoms";
-import { resolveDisplayName, resolveIcon, isSameRoute, isRelatedPath, buildBreadcrumbsFromUrl } from "@/lib/breadcrumb-utils";
+import { resolveDisplayName, resolveIcon, isSameRoute, isSiblingTab, isRelatedPath, buildBreadcrumbsFromUrl } from "@/lib/breadcrumb-utils";
 
 interface BreadcrumbContextType {
   /** Set a custom display name for the current page */
