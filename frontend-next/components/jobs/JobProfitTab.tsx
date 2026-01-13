@@ -123,7 +123,7 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
         // Claims API for revenue data
         api.get<ClaimsResponse>(`/api/v1/jobs/${jobId}/claim_stages`),
         // Foundation API to get purchase orders foundation
-        api.get<{ success: boolean; data: { id: number; slug: string } }>("/api/v1/foundations/purchase-orders"),
+        api.get<{ success: boolean; foundation: { id: number; slug: string } }>("/api/v1/foundations/purchase-orders"),
       ]);
 
       // Process claims data
@@ -144,8 +144,8 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
       }
 
       // Fetch purchase orders for this job
-      if (foundationResponse?.success && foundationResponse.data?.id) {
-        const foundationId = foundationResponse.data.id;
+      if (foundationResponse?.success && foundationResponse.foundation?.id) {
+        const foundationId = foundationResponse.foundation.id;
         const poResponse = await api.get<{
           success: boolean;
           records: PurchaseOrderRecord[];

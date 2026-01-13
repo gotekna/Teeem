@@ -34,6 +34,8 @@ export interface PurchaseOrderRecord {
   // sm_task_id from Foundation API - expanded to { id, display } object
   sm_task_id?: number | { id: number; display?: string; name?: string } | null;
   sm_task?: { id: number; display?: string; name?: string } | null;
+  // Budget lock status
+  budget_locked_at?: string | null;
   [key: string]: unknown;
 }
 

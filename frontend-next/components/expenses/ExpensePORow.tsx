@@ -10,7 +10,7 @@ import {
   getCostToComplete,
   type PurchaseOrderRecord,
 } from "@/lib/expenses-utils";
-import { FileText, CheckCircle2, Circle, AlertTriangle } from "lucide-react";
+import { FileText, CheckCircle2, Circle, AlertTriangle, Lock, LockOpen } from "lucide-react";
 
 interface ExpensePORowProps {
   po: PurchaseOrderRecord;
@@ -81,8 +81,13 @@ export function ExpensePORow({ po, depth, className }: ExpensePORowProps) {
         <FileText className="h-4 w-4 text-muted-foreground" />
       </div>
 
-      {/* PO Number */}
-      <div className="w-[80px] shrink-0">
+      {/* PO Number with Lock Icon */}
+      <div className="w-[100px] shrink-0 flex items-center gap-1">
+        {po.budget_locked_at ? (
+          <Lock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+        ) : (
+          <LockOpen className="h-3.5 w-3.5 text-muted-foreground/30 shrink-0" />
+        )}
         <span className="font-mono text-xs font-medium text-foreground dark:text-muted-foreground">
           {poNumber}
         </span>
@@ -191,7 +196,7 @@ export function ExpensePORowHeader({ depth }: { depth: number }) {
         <span className="w-4" />
       </div>
 
-      <div className="w-[80px] shrink-0">PO #</div>
+      <div className="w-[100px] shrink-0">PO #</div>
       <div className="w-[160px] shrink-0">Task</div>
       <div className="flex-1 min-w-[100px]">Supplier</div>
       <div className="w-[80px] shrink-0 text-right">Budget</div>
@@ -241,7 +246,7 @@ export function ExpensePORowTotals({
         <span className="w-4" />
       </div>
 
-      <div className="w-[80px] shrink-0 text-muted-foreground">
+      <div className="w-[100px] shrink-0 text-muted-foreground">
         {poCount} PO{poCount !== 1 ? 's' : ''}
       </div>
       <div className="w-[160px] shrink-0"></div>
