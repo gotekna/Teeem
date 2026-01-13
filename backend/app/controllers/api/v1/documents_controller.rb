@@ -181,6 +181,7 @@ module Api
           )
 
           # Create document record
+          # Note: company_id is optional for user-uploaded documents
           document = CorporateCompanyDocument.create!(
             file_name: file.original_filename,
             display_name: file.original_filename,
@@ -190,8 +191,7 @@ module Api
             storage_provider: "s3_compatible",
             storage_path: "/#{s3_key}",
             storage_item_id: result[:id],
-            user_id: user.id,
-            corporate_company_id: organization.corporate_company_id
+            user_id: user.id
           )
 
           render json: {
