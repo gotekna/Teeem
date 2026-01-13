@@ -1394,43 +1394,369 @@ interface MigrationEstimate {
   estimated_time_formatted: string;
 }
 
-// Document Migration Component
-function DocumentMigration() {
+// ============================================
+// Card 1: Email Migration to Wasabi
+// ============================================
+function EmailMigrationCard() {
   const { toast } = useToast();
-  const [status, setStatus] = React.useState<MigrationStatus | null>(null);
-  const [estimate, setEstimate] = React.useState<MigrationEstimate | null>(null);
   const [storageUpload, setStorageUpload] = React.useState<StorageUploadProgress | null>(null);
   const [activeEmailJob, setActiveEmailJob] = React.useState<{ status: string; processed: number; total: number } | null>(null);
   const [loading, setLoading] = React.useState(true);
-  const [starting, setStarting] = React.useState(false);
-  const [cancelling, setCancelling] = React.useState(false);
-  const [retrying, setRetrying] = React.useState(false);
-  const [deleteSource, setDeleteSource] = React.useState(false);
-
-  // Auto-refresh interval for ongoing migrations
-  const refreshIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
+  const [stopping, setStopping] = React.useState(false);
   const emailJobRefreshRef = React.useRef<NodeJS.Timeout | null>(null);
 
   React.useEffect(() => {
-    loadStatus();
-    loadEstimate();
     loadStorageUpload();
     loadActiveEmailJob();
 
     return () => {
-      if (refreshIntervalRef.current) {
-        clearInterval(refreshIntervalRef.current);
-      }
       if (emailJobRefreshRef.current) {
         clearInterval(emailJobRefreshRef.current);
       }
     };
   }, []);
 
-  // Set up auto-refresh when migration is in progress
+  const loadStorageUpload = async () => {
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: {
+          emails?: {
+            storage_upload?: StorageUploadProgress;
+            total_emails?: number;
+          }
+        }
+      }>("/api/v1/organization/data_stats");
+      if (response.data?.emails?.storage_upload) {
+        setStorageUpload(response.data.emails.storage_upload);
+      }
+    } catch (error) {
+      console.error("Failed to load storage upload progress:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadActiveEmailJob = async () => {
+    try {
+      const response = await api.get<{
+        success: boolean;
+        active: boolean;
+        data?: { status: string; processed_items: number; total_items: number };
+      }>("/api/v1/background_jobs/progress/email_storage_upload");
+      if (response.active && response.data) {
+        setActiveEmailJob({
+          status: response.data.status,
+          processed: response.data.processed_items,
+          total: response.data.total_items,
+        });
+        if (!emailJobRefreshRef.current) {
+          emailJobRefreshRef.current = setInterval(() => {
+            loadActiveEmailJob();
+            loadStorageUpload();
+          }, 5000);
+        }
+      } else {
+        setActiveEmailJob(null);
+        if (emailJobRefreshRef.current) {
+          clearInterval(emailJobRefreshRef.current);
+          emailJobRefreshRef.current = null;
+          loadStorageUpload();
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load active email job:", error);
+      setActiveEmailJob(null);
+    }
+  };
+
+  const handleStart = async () => {
+    try {
+      await api.post("/api/v1/background_jobs/start_email_upload", { batch_size: 5000 });
+      toast({ title: "Started", description: "Email migration job queued" });
+      setTimeout(loadActiveEmailJob, 1000);
+    } catch {
+      toast({ title: "Error", description: "Failed to start email migration", variant: "destructive" });
+    }
+  };
+
+  const handleStop = async () => {
+    if (!confirm("Stop email migration? The current batch will complete but no new batches will start.")) return;
+    setStopping(true);
+    try {
+      // Find and cancel the active job
+      const response = await api.get<{
+        success: boolean;
+        active: boolean;
+        data?: { id: number };
+      }>("/api/v1/background_jobs/progress/email_storage_upload");
+      if (response.active && response.data?.id) {
+        await api.post(`/api/v1/background_jobs/${response.data.id}/cancel`);
+        toast({ title: "Stopped", description: "Email migration stopped" });
+        setActiveEmailJob(null);
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to stop migration", variant: "destructive" });
+    } finally {
+      setStopping(false);
+      loadActiveEmailJob();
+    }
+  };
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center h-24">
+          <Spinner size={20} className="text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!storageUpload || storageUpload.uploadable === 0) {
+    return null; // Don't show card if no emails to migrate
+  }
+
+  const isComplete = storageUpload.upload_rate >= 100;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900">
+              <Mail className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <CardTitle className="text-base">Email Migration to Wasabi</CardTitle>
+              <CardDescription>Upload .eml files from Microsoft to Wasabi storage</CardDescription>
+            </div>
+          </div>
+          <Badge
+            variant={isComplete ? "default" : "outline"}
+            className={cn("text-xs", isComplete && "bg-green-600")}
+          >
+            {storageUpload.upload_rate}% Complete
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Emails uploaded</span>
+            <span className="font-semibold">
+              {storageUpload.uploaded.toLocaleString()} / {storageUpload.uploadable.toLocaleString()}
+            </span>
+          </div>
+          <Progress value={storageUpload.upload_rate} className="h-3" />
+          {storageUpload.remaining > 0 && (
+            <p className="text-sm text-muted-foreground">
+              <span className="font-medium text-orange-600 dark:text-orange-400">
+                {storageUpload.remaining.toLocaleString()}
+              </span>{" "}
+              emails remaining
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between pt-2 border-t">
+          <div className="flex items-center gap-2">
+            {activeEmailJob ? (
+              <>
+                <Spinner className="h-4 w-4" />
+                <span className="text-sm text-blue-600 dark:text-blue-400">
+                  Running... {activeEmailJob.processed}/{activeEmailJob.total}
+                </span>
+              </>
+            ) : (
+              <span className="text-sm text-muted-foreground">
+                {isComplete ? "Migration complete" : "Paused"}
+              </span>
+            )}
+          </div>
+          <div className="flex gap-2">
+            {activeEmailJob ? (
+              <Button variant="outline" size="sm" onClick={handleStop} disabled={stopping}>
+                {stopping ? <Spinner size={16} /> : <Square className="h-3 w-3 mr-1" />}
+                Stop
+              </Button>
+            ) : !isComplete ? (
+              <Button size="sm" onClick={handleStart}>
+                <Play className="h-3 w-3 mr-1" />
+                Continue
+              </Button>
+            ) : null}
+            <Button variant="ghost" size="sm" onClick={() => { loadStorageUpload(); loadActiveEmailJob(); }}>
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ============================================
+// Card 2: Attachment Deduplication
+// ============================================
+function AttachmentDeduplicationCard() {
+  const { toast } = useToast();
+  const [attachments, setAttachments] = React.useState<{
+    total: number;
+    with_blob: number;
+    legacy_sharepoint: number;
+    migration_rate: number;
+  } | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [starting, setStarting] = React.useState(false);
+
+  React.useEffect(() => {
+    loadAttachmentStats();
+  }, []);
+
+  const loadAttachmentStats = async () => {
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: {
+          emails?: {
+            storage_upload?: StorageUploadProgress;
+          }
+        }
+      }>("/api/v1/organization/data_stats");
+      if (response.data?.emails?.storage_upload?.attachments) {
+        setAttachments(response.data.emails.storage_upload.attachments);
+      }
+    } catch (error) {
+      console.error("Failed to load attachment stats:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStart = async () => {
+    setStarting(true);
+    try {
+      const response = await api.post<{ success: boolean; count?: number; error?: string }>(
+        "/api/v1/background_jobs/start_attachment_deduplication",
+        { batch_size: 1000 }
+      );
+      if (response?.success) {
+        toast({ title: "Started", description: `Queued ${response.count || 0} attachments for processing` });
+      } else {
+        toast({ title: "Info", description: response?.error || "No attachments to process" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to start deduplication", variant: "destructive" });
+    } finally {
+      setStarting(false);
+      loadAttachmentStats();
+    }
+  };
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center h-24">
+          <Spinner size={20} className="text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!attachments || attachments.total === 0) {
+    return null;
+  }
+
+  const isComplete = attachments.migration_rate >= 100;
+  const pending = attachments.legacy_sharepoint;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900">
+              <HardDrive className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+            </div>
+            <div>
+              <CardTitle className="text-base">Attachment Deduplication</CardTitle>
+              <CardDescription>Migrate email attachments and remove duplicates</CardDescription>
+            </div>
+          </div>
+          <Badge
+            variant={isComplete ? "default" : "outline"}
+            className={cn("text-xs", isComplete && "bg-green-600")}
+          >
+            {attachments.migration_rate}% Complete
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Attachments deduplicated</span>
+            <span className="font-semibold">
+              {attachments.with_blob.toLocaleString()} / {attachments.total.toLocaleString()}
+            </span>
+          </div>
+          <Progress value={attachments.migration_rate} className="h-2" />
+          <div className="flex gap-4 text-xs text-muted-foreground">
+            <span>Legacy SharePoint: {attachments.legacy_sharepoint.toLocaleString()}</span>
+            <span>Deduplicated: {attachments.with_blob.toLocaleString()}</span>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between pt-2 border-t">
+          <span className="text-sm text-muted-foreground">
+            {isComplete ? "All attachments processed" : `${pending.toLocaleString()} pending`}
+          </span>
+          <div className="flex gap-2">
+            {!isComplete && (
+              <Button size="sm" onClick={handleStart} disabled={starting}>
+                {starting ? <Spinner size={16} /> : <Play className="h-3 w-3 mr-1" />}
+                Process Batch
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={loadAttachmentStats}>
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ============================================
+// Card 3: Document Migration (SharePoint → S3)
+// ============================================
+function DocumentMigrationCard() {
+  const { toast } = useToast();
+  const [status, setStatus] = React.useState<MigrationStatus | null>(null);
+  const [estimate, setEstimate] = React.useState<MigrationEstimate | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [starting, setStarting] = React.useState(false);
+  const [cancelling, setCancelling] = React.useState(false);
+  const [retrying, setRetrying] = React.useState(false);
+  const [deleteSource, setDeleteSource] = React.useState(false);
+
+  const refreshIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  React.useEffect(() => {
+    loadStatus();
+    loadEstimate();
+
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+      }
+    };
+  }, []);
+
   React.useEffect(() => {
     if (status?.migration_in_progress) {
-      refreshIntervalRef.current = setInterval(loadStatus, 5000); // Refresh every 5 seconds
+      refreshIntervalRef.current = setInterval(loadStatus, 5000);
     } else if (refreshIntervalRef.current) {
       clearInterval(refreshIntervalRef.current);
       refreshIntervalRef.current = null;
@@ -1464,62 +1790,6 @@ function DocumentMigration() {
       }
     } catch (error) {
       console.error("Failed to load migration estimate:", error);
-    }
-  };
-
-  const loadStorageUpload = async () => {
-    try {
-      // storage_upload is nested under emails in the API response
-      const response = await api.get<{
-        success: boolean;
-        data: {
-          emails?: {
-            storage_upload?: StorageUploadProgress;
-            total_emails?: number;
-          }
-        }
-      }>("/api/v1/organization/data_stats");
-      if (response.data?.emails?.storage_upload) {
-        setStorageUpload(response.data.emails.storage_upload);
-      }
-    } catch (error) {
-      console.error("Failed to load storage upload progress:", error);
-    }
-  };
-
-  const loadActiveEmailJob = async () => {
-    try {
-      const response = await api.get<{
-        success: boolean;
-        active: boolean;
-        data?: { status: string; processed_items: number; total_items: number };
-      }>("/api/v1/background_jobs/progress/email_storage_upload");
-      if (response.active && response.data) {
-        setActiveEmailJob({
-          status: response.data.status,
-          processed: response.data.processed_items,
-          total: response.data.total_items,
-        });
-        // Set up polling when job is active
-        if (!emailJobRefreshRef.current) {
-          emailJobRefreshRef.current = setInterval(() => {
-            loadActiveEmailJob();
-            loadStorageUpload();
-          }, 5000);
-        }
-      } else {
-        setActiveEmailJob(null);
-        // Stop polling when no active job
-        if (emailJobRefreshRef.current) {
-          clearInterval(emailJobRefreshRef.current);
-          emailJobRefreshRef.current = null;
-          // Refresh storage upload one more time to get final counts
-          loadStorageUpload();
-        }
-      }
-    } catch (error) {
-      console.error("Failed to load active email job:", error);
-      setActiveEmailJob(null);
     }
   };
 
@@ -1580,14 +1850,13 @@ function DocumentMigration() {
   if (loading) {
     return (
       <Card>
-        <CardContent className="flex items-center justify-center h-32">
-          <Spinner size={24} className="text-muted-foreground" />
+        <CardContent className="flex items-center justify-center h-24">
+          <Spinner size={20} className="text-muted-foreground" />
         </CardContent>
       </Card>
     );
   }
 
-  const totalProcessed = (status?.status_counts.completed || 0) + (status?.status_counts.failed || 0);
   const totalQueued = (status?.status_counts.pending || 0) + (status?.status_counts.in_progress || 0);
   const hasPendingWork = totalQueued > 0;
   const hasFailures = (status?.status_counts.failed || 0) > 0;
@@ -1597,12 +1866,12 @@ function DocumentMigration() {
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900">
-              <ArrowRightLeft className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+            <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900">
+              <ArrowRightLeft className="h-5 w-5 text-green-600 dark:text-green-400" />
             </div>
             <div>
               <CardTitle className="text-base">Document Migration</CardTitle>
-              <CardDescription>Move documents between storage providers</CardDescription>
+              <CardDescription>Move job/company documents from SharePoint to S3</CardDescription>
             </div>
           </div>
           {status?.migration_in_progress && (
@@ -1613,118 +1882,18 @@ function DocumentMigration() {
           )}
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3">
         {/* Provider Breakdown */}
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div className="p-3 rounded-lg border bg-muted/30">
-            <p className="text-muted-foreground text-xs">SharePoint Files</p>
-            <p className="text-2xl font-semibold">{status?.provider_breakdown?.sharepoint || 0}</p>
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="p-2 rounded-lg border bg-muted/30">
+            <p className="text-muted-foreground text-xs">SharePoint</p>
+            <p className="text-xl font-semibold">{status?.provider_breakdown?.sharepoint || 0}</p>
           </div>
-          <div className="p-3 rounded-lg border bg-muted/30">
-            <p className="text-muted-foreground text-xs">S3 Files</p>
-            <p className="text-2xl font-semibold">{status?.provider_breakdown?.s3_compatible || 0}</p>
+          <div className="p-2 rounded-lg border bg-muted/30">
+            <p className="text-muted-foreground text-xs">S3/Wasabi</p>
+            <p className="text-xl font-semibold">{status?.provider_breakdown?.s3_compatible || 0}</p>
           </div>
         </div>
-
-        {/* Additional Files (Emails, Attachments, Tasks) */}
-        {status?.additional_files && status.additional_files.total > 0 && (
-          <div className="text-xs text-muted-foreground p-2 rounded bg-muted/30">
-            <span className="font-medium">Includes:</span>{" "}
-            {[
-              status.additional_files.email_eml > 0 && `${status.additional_files.email_eml.toLocaleString()} emails`,
-              status.additional_files.email_attachments > 0 && `${status.additional_files.email_attachments.toLocaleString()} attachments`,
-              status.additional_files.task_attachments > 0 && `${status.additional_files.task_attachments.toLocaleString()} task files`,
-            ].filter(Boolean).join(" + ")}
-          </div>
-        )}
-
-        {/* Email Storage Upload Progress */}
-        {storageUpload && storageUpload.uploadable > 0 && (
-          <div className="p-3 rounded-lg border bg-blue-50 dark:bg-blue-900/20 space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                Email Migration to Wasabi
-              </p>
-              <Badge
-                variant={storageUpload.upload_rate >= 100 ? "default" : "outline"}
-                className={cn("text-xs", storageUpload.upload_rate >= 100 && "bg-green-600")}
-              >
-                {storageUpload.upload_rate}% Complete
-              </Badge>
-            </div>
-
-            {/* .eml Files Progress */}
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Emails uploaded to Wasabi</span>
-                <span className="font-semibold">
-                  {storageUpload.uploaded.toLocaleString()} / {storageUpload.uploadable.toLocaleString()}
-                </span>
-              </div>
-              <Progress value={storageUpload.upload_rate} className="h-3" />
-              {storageUpload.remaining > 0 && (
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground">
-                    <span className="font-medium text-orange-600 dark:text-orange-400">
-                      {storageUpload.remaining.toLocaleString()}
-                    </span>{" "}
-                    emails remaining
-                  </p>
-                  {activeEmailJob ? (
-                    <div className="flex items-center gap-2">
-                      <Spinner className="h-4 w-4" />
-                      <span className="text-sm text-blue-600 dark:text-blue-400">
-                        Running... {activeEmailJob.processed}/{activeEmailJob.total}
-                      </span>
-                    </div>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={async () => {
-                        try {
-                          await api.post("/api/v1/background_jobs/start_email_upload", { batch_size: 5000 });
-                          toast({ title: "Started", description: "Email migration job queued" });
-                          // Start polling for job status
-                          setTimeout(loadActiveEmailJob, 1000);
-                        } catch {
-                          toast({ title: "Error", description: "Failed to start email migration", variant: "destructive" });
-                        }
-                      }}
-                    >
-                      <Play className="h-3 w-3 mr-1" />
-                      Continue Migration
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Attachments Deduplication Progress */}
-            {storageUpload.attachments.total > 0 && (
-              <div className="space-y-1 pt-2 border-t border-blue-200 dark:border-blue-800">
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Attachment deduplication</span>
-                  <span className="font-medium">
-                    {storageUpload.attachments.with_blob.toLocaleString()} / {storageUpload.attachments.total.toLocaleString()}
-                  </span>
-                </div>
-                <Progress value={storageUpload.attachments.migration_rate} className="h-2" />
-                <div className="flex gap-3 text-xs text-muted-foreground">
-                  <span>Legacy SharePoint: {storageUpload.attachments.legacy_sharepoint.toLocaleString()}</span>
-                  <span>Deduplicated: {storageUpload.attachments.with_blob.toLocaleString()}</span>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Grand Total */}
-        {status?.grand_total && status.grand_total !== status.total_documents && (
-          <div className="text-sm font-medium text-center p-2 border-t">
-            Total Warehouse Files: {status.grand_total.toLocaleString()}
-          </div>
-        )}
 
         {/* Migration Progress */}
         {hasPendingWork && (
@@ -1745,107 +1914,87 @@ function DocumentMigration() {
 
         {/* Migration Status Summary */}
         {!hasPendingWork && (status?.status_counts.completed || 0) > 0 && (
-          <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+          <div className="p-2 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
             <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-300">
               <Check className="h-4 w-4" />
-              <span>{status?.status_counts.completed} documents successfully migrated</span>
+              <span>{status?.status_counts.completed} documents migrated</span>
             </div>
           </div>
         )}
 
         {/* Recent Failures */}
         {hasFailures && status?.recent_failures && status.recent_failures.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-red-600">Recent Failures</p>
-            <div className="max-h-32 overflow-y-auto space-y-1">
-              {status.recent_failures.map((failure) => (
-                <div key={failure.id} className="text-xs p-2 rounded bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300">
-                  <span className="font-medium">{failure.file_name}:</span> {failure.error}
+          <Accordion type="single" collapsible className="w-full">
+            <AccordionItem value="failures" className="border-none">
+              <AccordionTrigger className="py-2 text-sm text-red-600 hover:no-underline">
+                {status.status_counts.failed} failed migrations
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="max-h-24 overflow-y-auto space-y-1">
+                  {status.recent_failures.map((failure) => (
+                    <div key={failure.id} className="text-xs p-1.5 rounded bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300">
+                      <span className="font-medium">{failure.file_name}:</span> {failure.error}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         )}
 
         {/* Migration Estimate */}
         {!hasPendingWork && estimate && estimate.document_count > 0 && (
-          <div className="p-3 rounded-lg border bg-muted/30 space-y-2">
-            <p className="text-sm font-medium">Migration Estimate</p>
-            <div className="grid grid-cols-3 gap-2 text-xs">
-              <div>
-                <span className="text-muted-foreground">Documents:</span>
-                <p className="font-medium">{estimate.document_count}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Total Size:</span>
-                <p className="font-medium">{estimate.total_size_formatted}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Est. Time:</span>
-                <p className="font-medium">{estimate.estimated_time_formatted}</p>
-              </div>
-            </div>
+          <div className="p-2 rounded-lg border bg-muted/30 text-xs">
+            <span className="text-muted-foreground">Ready to migrate:</span>{" "}
+            <span className="font-medium">{estimate.document_count} documents</span>{" "}
+            <span className="text-muted-foreground">({estimate.total_size_formatted})</span>
           </div>
         )}
 
         {/* Delete Source Option */}
         <div className="flex items-center gap-2">
           <Checkbox
-            id="delete_source"
+            id="delete_source_doc"
             checked={deleteSource}
             onCheckedChange={(checked) => setDeleteSource(checked as boolean)}
           />
-          <Label htmlFor="delete_source" className="text-sm cursor-pointer">
-            Delete from source after migration
+          <Label htmlFor="delete_source_doc" className="text-xs cursor-pointer">
+            Delete from SharePoint after migration
           </Label>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-2 pt-2">
-          {!hasPendingWork ? (
-            <>
-              <Button
-                onClick={handleStartMigration}
-                disabled={starting || !estimate || estimate.document_count === 0}
-              >
-                {starting ? (
-                  <Spinner size={16} className="mr-2" />
-                ) : (
-                  <Play className="h-4 w-4 mr-2" />
+        <div className="flex items-center justify-between pt-2 border-t">
+          <span className="text-sm text-muted-foreground">
+            {hasPendingWork ? "Migration in progress..." : estimate?.document_count === 0 ? "All documents migrated" : "Ready to migrate"}
+          </span>
+          <div className="flex gap-2">
+            {!hasPendingWork ? (
+              <>
+                {estimate && estimate.document_count > 0 && (
+                  <Button size="sm" onClick={handleStartMigration} disabled={starting}>
+                    {starting ? <Spinner size={16} /> : <Play className="h-3 w-3 mr-1" />}
+                    Start
+                  </Button>
                 )}
-                Start Migration
+                {hasFailures && (
+                  <Button variant="outline" size="sm" onClick={handleRetryFailed} disabled={retrying}>
+                    {retrying ? <Spinner size={16} /> : <RotateCcw className="h-3 w-3 mr-1" />}
+                    Retry
+                  </Button>
+                )}
+              </>
+            ) : (
+              <Button variant="outline" size="sm" onClick={handleCancelMigration} disabled={cancelling}>
+                {cancelling ? <Spinner size={16} /> : <Square className="h-3 w-3 mr-1" />}
+                Stop
               </Button>
-              {hasFailures && (
-                <Button variant="outline" onClick={handleRetryFailed} disabled={retrying}>
-                  {retrying ? (
-                    <Spinner size={16} className="mr-2" />
-                  ) : (
-                    <RotateCcw className="h-4 w-4 mr-2" />
-                  )}
-                  Retry Failed
-                </Button>
-              )}
-            </>
-          ) : (
-            <Button variant="destructive" onClick={handleCancelMigration} disabled={cancelling}>
-              {cancelling ? (
-                <Spinner size={16} className="mr-2" />
-              ) : (
-                <Square className="h-4 w-4 mr-2" />
-              )}
-              Cancel Migration
+            )}
+            <Button variant="ghost" size="sm" onClick={() => { loadStatus(); loadEstimate(); }}>
+              <RefreshCw className="h-4 w-4" />
             </Button>
-          )}
-          <Button variant="ghost" size="sm" onClick={() => { loadStatus(); loadEstimate(); loadStorageUpload(); }}>
-            <RefreshCw className="h-4 w-4" />
-          </Button>
+          </div>
         </div>
-
-        {/* Info Text */}
-        <p className="text-xs text-muted-foreground">
-          Migration copies documents from SharePoint to S3. Existing documents in SharePoint remain accessible until deleted.
-          New documents will be stored based on the active provider setting above.
-        </p>
       </CardContent>
     </Card>
   );
@@ -1902,7 +2051,13 @@ export function ConnectionsTab({ innerTab }: { innerTab?: string }) {
 
       {/* Tab Content */}
       {activeTab === "provider" && <DocumentStorageProvider />}
-      {activeTab === "migration" && <DocumentMigration />}
+      {activeTab === "migration" && (
+        <div className="space-y-4">
+          <EmailMigrationCard />
+          <AttachmentDeduplicationCard />
+          <DocumentMigrationCard />
+        </div>
+      )}
       {activeTab === "costs" && <StorageCostTab />}
     </div>
   );

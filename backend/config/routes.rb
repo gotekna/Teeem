@@ -77,6 +77,7 @@ Rails.application.routes.draw do
           get :active
           get :recent
           post :start_email_upload
+          post :start_attachment_deduplication
         end
         member do
           post :cancel
