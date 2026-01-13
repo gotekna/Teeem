@@ -612,26 +612,47 @@ module Api
         }
 
         # Build dependency graph (own + inherited predecessors)
+        # Preserve full dependency info: {id:, type:, lag:}
         # If a predecessor is a header, expand to all tasks under that header
         all_deps = {}
         tasks.each do |row|
-          deps = (row.predecessor_ids || []).map { |p| p.is_a?(Hash) ? (p['id'] || p[:id]) : p }
-          inherited = get_inherited_predecessors.call(row).map { |p| p.is_a?(Hash) ? (p['id'] || p[:id]) : p }
+          # Parse predecessor_ids - preserve type and lag
+          deps = (row.predecessor_ids || []).map do |p|
+            if p.is_a?(Hash)
+              { id: (p['id'] || p[:id]).to_i, type: (p['type'] || p[:type] || 'FS'), lag: (p['lag'] || p[:lag] || 0).to_i }
+            else
+              { id: p.to_i, type: 'FS', lag: 0 }
+            end
+          end
+
+          # Inherited predecessors default to FS with 0 lag
+          inherited = get_inherited_predecessors.call(row).map do |p|
+            if p.is_a?(Hash)
+              { id: (p['id'] || p[:id]).to_i, type: (p['type'] || p[:type] || 'FS'), lag: (p['lag'] || p[:lag] || 0).to_i }
+            else
+              { id: p.to_i, type: 'FS', lag: 0 }
+            end
+          end
 
           # Expand header predecessors to their child tasks
           expanded_deps = []
-          (deps + inherited).map(&:to_i).uniq.each do |dep_id|
+          (deps + inherited).each do |dep|
+            dep_id = dep[:id]
             if header_numbers.include?(dep_id)
-              # Header predecessor: expand to all tasks under this header
-              expanded_deps.concat(get_tasks_under_header.call(dep_id))
+              # Header predecessor: expand to all tasks under this header (use same type/lag)
+              get_tasks_under_header.call(dep_id).each do |child_id|
+                expanded_deps << { id: child_id, type: dep[:type], lag: dep[:lag] }
+              end
             elsif task_numbers.include?(dep_id)
-              # Task predecessor: use directly
-              expanded_deps << dep_id
+              # Task predecessor: use directly with type and lag
+              expanded_deps << dep
             end
             # Ignore external predecessors (not in this template)
           end
 
-          all_deps[row.task_number] = expanded_deps.uniq
+          # Dedupe by id, keeping first occurrence
+          seen_ids = Set.new
+          all_deps[row.task_number] = expanded_deps.select { |d| seen_ids.add?(d[:id]) }
         end
 
         # Topological sort using Kahn's algorithm
@@ -647,7 +668,7 @@ module Api
         dependents = Hash.new { |h, k| h[k] = [] }
         all_deps.each do |task, deps|
           deps.each do |dep|
-            dependents[dep] << task
+            dependents[dep[:id]] << task
           end
         end
 
@@ -696,20 +717,40 @@ module Api
             next
           end
 
-          # Get all predecessors for this task
-          all_predecessors = all_deps[row.task_number] || []
+          # Get all predecessors for this task (now includes type and lag)
+          predecessors = all_deps[row.task_number] || []
+          duration = row.duration_days || 1
 
-          # SS (Start-to-Start): Find latest predecessor START date
-          # Successor starts same day as predecessor starts
-          latest_pred_start = nil
-          all_predecessors.each do |pred_id|
-            pred_dates = date_map[pred_id]
+          # Calculate earliest valid start based on each dependency type
+          earliest_start = nil
+          predecessors.each do |dep|
+            pred_dates = date_map[dep[:id]]
             next unless pred_dates
-            pred_start = pred_dates[:start_date]
-            latest_pred_start = pred_start if latest_pred_start.nil? || pred_start > latest_pred_start
+
+            dep_type = dep[:type].to_s.upcase
+            lag = dep[:lag] || 0
+
+            calculated_start = case dep_type
+            when 'FS' # Finish-to-Start: successor starts after predecessor ends
+              calendar.add_working_days(pred_dates[:end_date], lag + 1)
+            when 'SS' # Start-to-Start: successor starts when predecessor starts
+              calendar.add_working_days(pred_dates[:start_date], lag)
+            when 'FF' # Finish-to-Finish: successor ends when predecessor ends
+              # Calculate start from target end
+              target_end = calendar.add_working_days(pred_dates[:end_date], lag)
+              calendar.subtract_working_days(target_end, duration - 1)
+            when 'SF' # Start-to-Finish: successor ends when predecessor starts
+              target_end = calendar.add_working_days(pred_dates[:start_date], lag)
+              calendar.subtract_working_days(target_end, duration - 1)
+            else
+              # Default to FS
+              calendar.add_working_days(pred_dates[:end_date], lag + 1)
+            end
+
+            earliest_start = calculated_start if earliest_start.nil? || calculated_start > earliest_start
           end
 
-          row_start = latest_pred_start || start_date
+          row_start = earliest_start || start_date
           row_start = calendar.next_working_day(row_start) unless calendar.working_day?(row_start)
           duration = row.duration_days || 1
           row_end = calendar.add_working_days(row_start, duration - 1)
@@ -752,7 +793,7 @@ module Api
 
         render json: {
           success: true,
-          message: "Calculated dates for #{rows.size} rows (SS - Start-to-Start)",
+          message: "Calculated dates for #{rows.size} rows (respects FS/SS/FF/SF)",
           start_date: start_date,
           date_map: date_map.transform_values { |v| { start_date: v[:start_date].to_s, end_date: v[:end_date].to_s } },
           debug: {
