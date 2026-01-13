@@ -67,7 +67,7 @@ import { cn } from "@/lib/utils";
 // Types for API response
 interface DocumentItem {
   id: number;
-  source: "job" | "corporate" | "people";
+  source: "job" | "corporate" | "people" | "task";
   fileName: string;
   displayName: string;
   mimeType: string;

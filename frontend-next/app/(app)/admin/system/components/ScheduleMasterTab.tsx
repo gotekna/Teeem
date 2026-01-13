@@ -1765,24 +1765,50 @@ export function ScheduleMasterTab() {
     }
   };
 
-  // Gantt V2: Handle rollover (move tasks off weekends/holidays)
+  // Gantt V2: Handle rollover (move tasks off weekends/holidays AND cascade based on dependencies)
   // SSoT: POST /api/v1/sm_schedule_master_templates/:id/validate_dates
   const handleGanttV2Rollover = async () => {
     if (!ganttV2TemplateId) return null;
 
-    console.log('[Gantt V2] Rollover: validating dates for template:', ganttV2TemplateId);
+    console.log('[Gantt V2] 🔄 Rollover starting for template:', ganttV2TemplateId);
 
     try {
       const result = await api.post<{
         success: boolean;
         updated: number;
         date_map: Record<number, { start_date: string; end_date: string }>;
+        debug?: {
+          tasks_processed: number;
+          tasks_with_predecessors: number;
+          cascade_updates: Array<{ task_number: number; name: string; old_start: string; new_start: string; reason: string }>;
+        };
       }>(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/validate_dates`);
+
+      console.log('[Gantt V2] 📦 Rollover result:', JSON.stringify(result, null, 2));
+
+      if (result?.date_map) {
+        console.log('[Gantt V2] 📅 Date map (tasks that changed):');
+        Object.entries(result.date_map).forEach(([taskNum, dates]) => {
+          console.log(`  Task ${taskNum}: ${dates.start_date} → ${dates.end_date}`);
+        });
+      }
+
+      if (result?.debug) {
+        console.log('[Gantt V2] 🐛 Debug info:');
+        console.log(`  Tasks processed: ${result.debug.tasks_processed}`);
+        console.log(`  Tasks with predecessors: ${result.debug.tasks_with_predecessors}`);
+        if (result.debug.cascade_updates?.length > 0) {
+          console.log('  Cascade updates:');
+          result.debug.cascade_updates.forEach(u => {
+            console.log(`    ${u.task_number} (${u.name}): ${u.old_start} → ${u.new_start} [${u.reason}]`);
+          });
+        }
+      }
 
       if (result?.success) {
         toast({
           title: "Schedule Updated",
-          description: `${result.updated} task(s) recalculated to working days`,
+          description: `${result.updated} task(s) recalculated`,
         });
 
         // Refresh data to show new dates
@@ -1792,7 +1818,7 @@ export function ScheduleMasterTab() {
       }
       return null;
     } catch (error) {
-      console.error('[Gantt V2] Rollover failed:', error);
+      console.error('[Gantt V2] ❌ Rollover failed:', error);
       toast({ title: "Error", description: "Failed to validate dates", variant: "destructive" });
       return null;
     }
