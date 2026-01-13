@@ -1,5 +1,15 @@
-# Job to upload FinancialTransaction receipts to SharePoint
+# frozen_string_literal: true
+
+# Job to upload FinancialTransaction receipts to storage
+#
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  SSoT: Uses DocumentProviderAware for storage abstraction         ║
+# ║  Uploads to Wasabi, SharePoint, or S3 based on StorageConfiguration║
+# ╚═══════════════════════════════════════════════════════════════════╝
+#
 class FinancialTransactionSharepointUploadJob < ApplicationJob
+  include DocumentProviderAware
+
   queue_as :default
 
   def perform(transaction_id)
@@ -8,43 +18,33 @@ class FinancialTransactionSharepointUploadJob < ApplicationJob
     return if transaction.sharepoint_file_id.present?
     return unless transaction.receipt.attached?
 
-    credential = MicrosoftCredential.sharepoint_credential
-    return unless credential
+    Rails.logger.info("[FinancialTransactionUpload] Uploading receipt for Transaction #{transaction_id}")
 
-    client = MicrosoftGraphClient.new(credential)
+    # SSoT: Setup document provider using StorageConfiguration
+    begin
+      setup_default_provider!
+    rescue DocumentProviders::NotConnectedError => e
+      Rails.logger.error("[FinancialTransactionUpload] No storage provider configured: #{e.message}")
+      return
+    end
 
-    folder_path = "FinancialReceipts/#{transaction.transaction_date.strftime('%Y-%m')}"
+    # Build folder path: Warehousing/{YYYY-MM}
+    folder_path = "/Warehousing/FinancialReceipts/#{transaction.transaction_date.strftime('%Y-%m')}"
     filename = transaction.receipt.filename.to_s
     content = transaction.receipt.download
 
-    folder_id = ensure_folder_exists(client, folder_path)
-    result = client.upload_file_content(folder_id, filename, content)
+    get_or_create_folder_path(folder_path)
+    result = upload_to_provider(folder_path, content, filename)
 
     if result && result[:id]
       transaction.update_columns(sharepoint_file_id: result[:id])
-      Rails.logger.info("[FinancialTransactionSharepointUpload] Uploaded: #{filename}")
+      Rails.logger.info("[FinancialTransactionUpload] Uploaded: #{filename} -> #{result[:path]}")
+    else
+      Rails.logger.error("[FinancialTransactionUpload] Upload failed - no ID returned")
     end
+  rescue DocumentProviders::Error => e
+    Rails.logger.error("[FinancialTransactionUpload] Provider error: #{e.message}")
   rescue StandardError => e
-    Rails.logger.error("[FinancialTransactionSharepointUpload] Error: #{e.message}")
-  end
-
-  private
-
-  def ensure_folder_exists(client, path)
-    parts = path.split("/")
-    current_folder_id = nil
-
-    parts.each do |folder_name|
-      if current_folder_id.nil?
-        folder = client.find_folder_in_drive_root(folder_name)
-        folder ||= client.create_folder(folder_name)
-        current_folder_id = folder[:id] || folder["id"]
-      else
-        folder = client.get_or_create_subfolder(current_folder_id, folder_name)
-        current_folder_id = folder[:id] || folder["id"]
-      end
-    end
-
-    current_folder_id
+    Rails.logger.error("[FinancialTransactionUpload] Error: #{e.message}")
   end
 end

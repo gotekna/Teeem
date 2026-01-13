@@ -1,6 +1,16 @@
-# Job to upload BillInbox invoice files to SharePoint
+# frozen_string_literal: true
+
+# Job to upload BillInbox invoice files to storage
 # Triggered after a BillInbox is created/updated with an attached file
+#
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  SSoT: Uses DocumentProviderAware for storage abstraction         ║
+# ║  Uploads to Wasabi, SharePoint, or S3 based on StorageConfiguration║
+# ╚═══════════════════════════════════════════════════════════════════╝
+#
 class BillInboxSharepointUploadJob < ApplicationJob
+  include DocumentProviderAware
+
   queue_as :default
 
   def perform(bill_inbox_id)
@@ -9,17 +19,17 @@ class BillInboxSharepointUploadJob < ApplicationJob
     return if bill.sharepoint_file_id.present? # Already uploaded
     return unless bill.invoice_file.attached?
 
-    Rails.logger.info("[BillInboxSharepointUpload] Uploading file for BillInbox #{bill_inbox_id}")
+    Rails.logger.info("[BillInboxUpload] Uploading file for BillInbox #{bill_inbox_id}")
 
-    credential = MicrosoftCredential.sharepoint_credential
-    unless credential
-      Rails.logger.error("[BillInboxSharepointUpload] No active OneDrive credential")
+    # SSoT: Setup document provider using StorageConfiguration
+    begin
+      setup_default_provider!
+    rescue DocumentProviders::NotConnectedError => e
+      Rails.logger.error("[BillInboxUpload] No storage provider configured: #{e.message}")
       return
     end
 
-    client = MicrosoftGraphClient.new(credential)
-
-    # Upload to BillInbox folder structure
+    # Build folder path: Warehousing/BillInbox/{YYYY-MM}/{source}
     folder_path = build_folder_path(bill)
     filename = bill.invoice_file.filename.to_s
 
@@ -27,62 +37,41 @@ class BillInboxSharepointUploadJob < ApplicationJob
     file_content = bill.invoice_file.download
 
     # Ensure folder exists and upload
-    folder_id = ensure_folder_exists(client, folder_path)
-    upload_result = client.upload_file_content(folder_id, filename, file_content)
+    get_or_create_folder_path(folder_path)
+    upload_result = upload_to_provider(folder_path, file_content, filename)
 
     if upload_result && upload_result[:id]
       bill.update_columns(
         sharepoint_file_id: upload_result[:id],
         original_filename: filename
       )
-      Rails.logger.info("[BillInboxSharepointUpload] Uploaded: #{filename} -> #{upload_result[:web_url]}")
+      Rails.logger.info("[BillInboxUpload] Uploaded: #{filename} -> #{upload_result[:path]}")
 
-      # Queue extraction now that file is in SharePoint
+      # Queue extraction now that file is in storage
       if bill.status == "pending"
         InvoiceExtractionJob.perform_later(bill.id)
       end
     else
-      Rails.logger.error("[BillInboxSharepointUpload] Upload failed - no ID returned")
+      Rails.logger.error("[BillInboxUpload] Upload failed - no ID returned")
     end
-  rescue MicrosoftGraphClient::AuthenticationError => e
-    Rails.logger.error("[BillInboxSharepointUpload] Auth error: #{e.message}")
-  rescue MicrosoftGraphClient::APIError => e
-    Rails.logger.error("[BillInboxSharepointUpload] API error: #{e.message}")
+  rescue DocumentProviders::AuthenticationError => e
+    Rails.logger.error("[BillInboxUpload] Auth error: #{e.message}")
+  rescue DocumentProviders::Error => e
+    Rails.logger.error("[BillInboxUpload] Provider error: #{e.message}")
   rescue StandardError => e
-    Rails.logger.error("[BillInboxSharepointUpload] Error: #{e.message}")
+    Rails.logger.error("[BillInboxUpload] Error: #{e.message}")
     Rails.logger.error(e.backtrace.first(5).join("\n"))
   end
 
   private
 
   def build_folder_path(bill)
-    # Structure: BillInbox/{YYYY-MM}/{source}
+    # SSoT: Get base path from StorageConfiguration
+    base_folder = scope_folder_path(:bill_inbox)
     date = bill.created_at || Time.current
     year_month = date.strftime("%Y-%m")
     source = bill.source || "upload"
 
-    "BillInbox/#{year_month}/#{source}"
-  end
-
-  def ensure_folder_exists(client, path)
-    parts = path.split("/")
-    current_folder_id = nil
-
-    parts.each do |folder_name|
-      if current_folder_id.nil?
-        # Root level
-        folder = client.find_folder_in_drive_root(folder_name)
-        unless folder
-          folder = client.create_folder(folder_name)
-        end
-        current_folder_id = folder[:id] || folder["id"]
-      else
-        # Subfolder
-        folder = client.get_or_create_subfolder(current_folder_id, folder_name)
-        current_folder_id = folder[:id] || folder["id"]
-      end
-    end
-
-    current_folder_id
+    "/#{base_folder}/#{year_month}/#{source}"
   end
 end

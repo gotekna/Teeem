@@ -1,7 +1,17 @@
-# One-time job to upload Xero documents that were downloaded before SharePoint upload was working
-# These documents exist in ActiveStorage but were never uploaded to SharePoint
+# frozen_string_literal: true
+
+# Backfill job to upload Xero documents to the configured storage provider
+# These documents exist in ActiveStorage but were never uploaded to external storage
 # Creates the folder structure: Contacts/{contact_folder}/BILLS|INVOICES/{filename}
+#
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  SSoT: Uses DocumentProviderAware for storage abstraction         ║
+# ║  Uploads to Wasabi, SharePoint, or S3 based on StorageConfiguration║
+# ╚═══════════════════════════════════════════════════════════════════╝
+#
 class XeroSharepointUploadBackfillJob < ApplicationJob
+  include DocumentProviderAware
+
   queue_as :low
 
   # Run with: XeroSharepointUploadBackfillJob.perform_now(limit: 50, dry_run: true)
@@ -16,7 +26,7 @@ class XeroSharepointUploadBackfillJob < ApplicationJob
       .count
 
     if pending_count < 5
-      Rails.logger.info("[XeroSharepointUploadBackfill] Skipping - only #{pending_count} pending (threshold: 5)")
+      Rails.logger.info("[XeroDocumentUpload] Skipping - only #{pending_count} pending (threshold: 5)")
       return { skipped: true, pending_count: pending_count }
     end
 
@@ -28,10 +38,23 @@ class XeroSharepointUploadBackfillJob < ApplicationJob
       skipped_no_contact: 0,
       already_uploaded: 0,
       errors: 0,
-      error_details: []
+      error_details: [],
+      provider: nil
     }
 
-    Rails.logger.info("[XeroSharepointUploadBackfill] Starting backfill job (dry_run: #{dry_run}, limit: #{limit}, pending: #{pending_count})")
+    Rails.logger.info("[XeroDocumentUpload] Starting backfill job (dry_run: #{dry_run}, limit: #{limit}, pending: #{pending_count})")
+
+    # SSoT: Setup document provider using StorageConfiguration
+    begin
+      setup_default_provider!
+      stats[:provider] = current_provider_type.to_s
+      Rails.logger.info("[XeroDocumentUpload] Using provider: #{stats[:provider]}")
+    rescue DocumentProviders::NotConnectedError => e
+      Rails.logger.error("[XeroDocumentUpload] No storage provider configured: #{e.message}")
+      stats[:errors] += 1
+      stats[:error_details] << "No storage provider configured"
+      return stats
+    end
 
     # Find PDF documents that need uploading
     # SSoT: Only process PDFs (external_id LIKE 'xero:%:pdf'), not old attachment records
@@ -49,31 +72,12 @@ class XeroSharepointUploadBackfillJob < ApplicationJob
     documents_to_process = scope.select { |doc| doc.file.attached? }
     total_count = documents_to_process.count
 
-    Rails.logger.info("[XeroSharepointUploadBackfill] Found #{total_count} documents with attached files to upload")
+    Rails.logger.info("[XeroDocumentUpload] Found #{total_count} documents with attached files to upload")
 
     return stats if total_count.zero?
 
-    # Get SharePoint client
-    credential = MicrosoftCredential.sharepoint_credential
-    unless credential
-      Rails.logger.error("[XeroSharepointUploadBackfill] No active OneDrive credential found")
-      stats[:errors] += 1
-      stats[:error_details] << "No active OneDrive credential"
-      return stats
-    end
-
-    graph_client = MicrosoftGraphClient.new(credential)
-
     # SSoT: Get contacts folder path from StorageConfiguration
-    storage_config = StorageConfiguration.instance
-    base_folder_name = storage_config&.path_for(:contacts) || "Contacts"
-
-    # Ensure base Contacts folder exists
-    contacts_folder = graph_client.find_folder_in_drive_root(base_folder_name)
-    unless contacts_folder
-      contacts_folder = graph_client.create_folder(base_folder_name)
-      Rails.logger.info("[XeroSharepointUploadBackfill] Created base folder: #{base_folder_name}")
-    end
+    base_folder_name = scope_folder_path(:contact)
 
     documents_to_process.each_with_index do |doc, index|
       stats[:total_processed] += 1
@@ -89,54 +93,42 @@ class XeroSharepointUploadBackfillJob < ApplicationJob
         contact = doc.contact
         unless contact.present?
           stats[:skipped_no_contact] += 1
-          Rails.logger.warn("[XeroSharepointUploadBackfill] Skipping document #{doc.id} - no contact")
+          Rails.logger.warn("[XeroDocumentUpload] Skipping document #{doc.id} - no contact")
           next
         end
 
         # Build folder path
         contact_folder_name = contact.document_folder_name
         type_folder_name = doc.folder || determine_folder_from_document(doc)
+        folder_path = "/#{base_folder_name}/#{contact_folder_name}/#{type_folder_name}"
+        filename = doc.file_name || doc.file.filename.to_s
 
         if dry_run
-          Rails.logger.info("[XeroSharepointUploadBackfill] [DRY RUN] Would upload: #{doc.title}")
-          Rails.logger.info("  -> Path: #{base_folder_name}/#{contact_folder_name}/#{type_folder_name}/#{doc.file_name || doc.title}")
+          Rails.logger.info("[XeroDocumentUpload] [DRY RUN] Would upload: #{doc.title}")
+          Rails.logger.info("  -> Path: #{folder_path}/#{filename}")
           stats[:uploaded] += 1
           next
         end
 
-        # Get or create contact subfolder
-        contact_folder = graph_client.get_or_create_subfolder(
-          contacts_folder[:id] || contacts_folder["id"],
-          contact_folder_name
-        )
-
-        # Get or create type subfolder (BILLS, INVOICES, etc.)
-        type_folder = graph_client.get_or_create_subfolder(
-          contact_folder[:id] || contact_folder["id"],
-          type_folder_name
-        )
+        # Ensure folder path exists (creates all parents)
+        get_or_create_folder_path(folder_path)
 
         # Download file content from ActiveStorage
         file_content = doc.file.download
-        filename = doc.file_name || doc.file.filename.to_s
 
-        # Upload to SharePoint
-        upload_result = graph_client.upload_file_content(
-          type_folder[:id] || type_folder["id"],
-          filename,
-          file_content
-        )
+        # Upload to storage provider
+        upload_result = upload_to_provider(folder_path, file_content, filename)
 
         if upload_result && upload_result[:id]
           begin
             doc.update!(sharepoint_file_id: upload_result[:id])
             stats[:uploaded] += 1
-            Rails.logger.info("[XeroSharepointUploadBackfill] Uploaded: #{filename} -> #{upload_result[:web_url]}")
+            Rails.logger.info("[XeroDocumentUpload] Uploaded: #{filename} -> #{upload_result[:path]}")
           rescue ActiveRecord::RecordNotUnique
-            # Another process already uploaded with this SharePoint file ID (race condition)
-            # This is fine - the file exists in SharePoint, just skip
+            # Another process already uploaded with this file ID (race condition)
+            # This is fine - the file exists in storage, just skip
             stats[:already_uploaded] += 1
-            Rails.logger.info("[XeroSharepointUploadBackfill] Already uploaded by another process: #{filename}")
+            Rails.logger.info("[XeroDocumentUpload] Already uploaded by another process: #{filename}")
           end
         else
           stats[:errors] += 1
@@ -145,36 +137,36 @@ class XeroSharepointUploadBackfillJob < ApplicationJob
 
         # Progress logging every 10 documents
         if (index + 1) % 10 == 0
-          Rails.logger.info("[XeroSharepointUploadBackfill] Progress: #{index + 1}/#{total_count} (#{stats[:uploaded]} uploaded)")
+          Rails.logger.info("[XeroDocumentUpload] Progress: #{index + 1}/#{total_count} (#{stats[:uploaded]} uploaded)")
         end
 
         # Small delay between uploads to avoid throttling
         sleep(0.5) unless dry_run
 
-      rescue MicrosoftGraphClient::AuthenticationError => e
+      rescue DocumentProviders::AuthenticationError => e
         stats[:errors] += 1
         stats[:error_details] << "Auth error for doc #{doc.id}: #{e.message}"
-        Rails.logger.error("[XeroSharepointUploadBackfill] Auth error - stopping job: #{e.message}")
+        Rails.logger.error("[XeroDocumentUpload] Auth error - stopping job: #{e.message}")
         break  # Stop processing if auth fails
-      rescue MicrosoftGraphClient::APIError => e
+      rescue DocumentProviders::Error => e
         stats[:errors] += 1
-        stats[:error_details] << "API error for doc #{doc.id}: #{e.message}"
-        Rails.logger.error("[XeroSharepointUploadBackfill] API error for document #{doc.id}: #{e.message}")
+        stats[:error_details] << "Provider error for doc #{doc.id}: #{e.message}"
+        Rails.logger.error("[XeroDocumentUpload] Provider error for document #{doc.id}: #{e.message}")
       rescue StandardError => e
         stats[:errors] += 1
         stats[:error_details] << "Error for doc #{doc.id}: #{e.message}"
-        Rails.logger.error("[XeroSharepointUploadBackfill] Error processing document #{doc.id}: #{e.message}")
+        Rails.logger.error("[XeroDocumentUpload] Error processing document #{doc.id}: #{e.message}")
         Rails.logger.error(e.backtrace.first(5).join("\n"))
       end
     end
 
     elapsed = (Time.current - start_time).round(2)
 
-    Rails.logger.info("[XeroSharepointUploadBackfill] Complete! Stats: #{stats.except(:error_details).to_json}")
-    Rails.logger.info("[XeroSharepointUploadBackfill] Time elapsed: #{elapsed}s (#{(elapsed / 60).round(2)} minutes)")
+    Rails.logger.info("[XeroDocumentUpload] Complete! Stats: #{stats.except(:error_details).to_json}")
+    Rails.logger.info("[XeroDocumentUpload] Time elapsed: #{elapsed}s (#{(elapsed / 60).round(2)} minutes)")
 
     if stats[:errors] > 0
-      Rails.logger.warn("[XeroSharepointUploadBackfill] Errors: #{stats[:error_details].first(10).join('; ')}")
+      Rails.logger.warn("[XeroDocumentUpload] Errors: #{stats[:error_details].first(10).join('; ')}")
     end
 
     stats

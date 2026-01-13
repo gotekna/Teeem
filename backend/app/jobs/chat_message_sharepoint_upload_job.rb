@@ -1,5 +1,15 @@
-# Job to upload ChatMessage files to SharePoint
+# frozen_string_literal: true
+
+# Job to upload ChatMessage files to storage
+#
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  SSoT: Uses DocumentProviderAware for storage abstraction         ║
+# ║  Uploads to Wasabi, SharePoint, or S3 based on StorageConfiguration║
+# ╚═══════════════════════════════════════════════════════════════════╝
+#
 class ChatMessageSharepointUploadJob < ApplicationJob
+  include DocumentProviderAware
+
   queue_as :default
 
   def perform(chat_message_id)
@@ -8,53 +18,36 @@ class ChatMessageSharepointUploadJob < ApplicationJob
     return if message.sharepoint_file_id.present?
     return unless message.file.attached?
 
-    Rails.logger.info("[ChatMessageSharepointUpload] Uploading file for ChatMessage #{chat_message_id}")
+    Rails.logger.info("[ChatMessageUpload] Uploading file for ChatMessage #{chat_message_id}")
 
-    credential = MicrosoftCredential.sharepoint_credential
-    unless credential
-      Rails.logger.error("[ChatMessageSharepointUpload] No active OneDrive credential")
+    # SSoT: Setup document provider using StorageConfiguration
+    begin
+      setup_default_provider!
+    rescue DocumentProviders::NotConnectedError => e
+      Rails.logger.error("[ChatMessageUpload] No storage provider configured: #{e.message}")
       return
     end
 
-    client = MicrosoftGraphClient.new(credential)
-
-    # Upload to ChatFiles folder structure: ChatFiles/{YYYY-MM}/{filename}
+    # Build folder path: Warehousing/Chat/{YYYY-MM}
     date = message.created_at || Time.current
-    folder_path = "ChatFiles/#{date.strftime('%Y-%m')}"
+    base_folder = scope_folder_path(:chat)
+    folder_path = "/#{base_folder}/#{date.strftime('%Y-%m')}"
     filename = message.file.filename.to_s
 
     file_content = message.file.download
 
-    folder_id = ensure_folder_exists(client, folder_path)
-    upload_result = client.upload_file_content(folder_id, filename, file_content)
+    get_or_create_folder_path(folder_path)
+    upload_result = upload_to_provider(folder_path, file_content, filename)
 
     if upload_result && upload_result[:id]
       message.update_columns(sharepoint_file_id: upload_result[:id])
-      Rails.logger.info("[ChatMessageSharepointUpload] Uploaded: #{filename}")
+      Rails.logger.info("[ChatMessageUpload] Uploaded: #{filename} -> #{upload_result[:path]}")
     else
-      Rails.logger.error("[ChatMessageSharepointUpload] Upload failed - no ID returned")
+      Rails.logger.error("[ChatMessageUpload] Upload failed - no ID returned")
     end
+  rescue DocumentProviders::Error => e
+    Rails.logger.error("[ChatMessageUpload] Provider error: #{e.message}")
   rescue StandardError => e
-    Rails.logger.error("[ChatMessageSharepointUpload] Error: #{e.message}")
-  end
-
-  private
-
-  def ensure_folder_exists(client, path)
-    parts = path.split("/")
-    current_folder_id = nil
-
-    parts.each do |folder_name|
-      if current_folder_id.nil?
-        folder = client.find_folder_in_drive_root(folder_name)
-        folder ||= client.create_folder(folder_name)
-        current_folder_id = folder[:id] || folder["id"]
-      else
-        folder = client.get_or_create_subfolder(current_folder_id, folder_name)
-        current_folder_id = folder[:id] || folder["id"]
-      end
-    end
-
-    current_folder_id
+    Rails.logger.error("[ChatMessageUpload] Error: #{e.message}")
   end
 end
