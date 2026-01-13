@@ -705,6 +705,8 @@ Rails.application.routes.draw do
           post :smart_lookup
           post :smart_create
           post :bulk_create
+          post :bulk_lock_budget
+          post :bulk_unlock_budget
         end
         member do
           post :approve

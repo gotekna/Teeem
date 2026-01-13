@@ -72,7 +72,7 @@ class StorageConfiguration < ApplicationRecord
     "bank_statements" => "Warehousing/Templates/Bank Statements",
     "contracts" => "Warehousing/Templates/Contracts",
     # Custom storage
-    "custom" => "Custom",
+    "custom" => "Custom Documents",
     # System storage
     "active_storage" => "ActiveStorage"
   }.freeze

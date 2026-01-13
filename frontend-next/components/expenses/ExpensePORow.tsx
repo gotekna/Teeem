@@ -89,7 +89,7 @@ export function ExpensePORow({ po, depth, className }: ExpensePORowProps) {
       </div>
 
       {/* Task */}
-      <div className="w-[100px] shrink-0 truncate">
+      <div className="w-[160px] shrink-0 truncate" title={task}>
         <span className="text-xs text-muted-foreground">{task}</span>
       </div>
 
@@ -192,7 +192,7 @@ export function ExpensePORowHeader({ depth }: { depth: number }) {
       </div>
 
       <div className="w-[80px] shrink-0">PO #</div>
-      <div className="w-[100px] shrink-0">Task</div>
+      <div className="w-[160px] shrink-0">Task</div>
       <div className="flex-1 min-w-[100px]">Supplier</div>
       <div className="w-[80px] shrink-0 text-right">Budget</div>
       <div className="w-[80px] shrink-0 text-right">PO Value</div>
@@ -202,6 +202,74 @@ export function ExpensePORowHeader({ depth }: { depth: number }) {
       <div className="w-[80px] shrink-0 text-right">Overrun</div>
       <div className="w-[50px] shrink-0 text-center">Done</div>
       <div className="w-[40px] shrink-0 text-center">!</div>
+    </div>
+  );
+}
+
+/**
+ * ExpensePORowTotals - Totals row at bottom of PO list
+ */
+export function ExpensePORowTotals({
+  depth,
+  budget,
+  total,
+  invoiced,
+  paid,
+  costToComplete,
+  overrun,
+  poCount,
+}: {
+  depth: number;
+  budget: number;
+  total: number;
+  invoiced: number;
+  paid: number;
+  costToComplete: number;
+  overrun: number;
+  poCount: number;
+}) {
+  const indentPx = (depth + 1) * 24;
+
+  return (
+    <div
+      className="flex items-center gap-2 py-2 px-3 text-xs font-semibold bg-muted/50 dark:bg-muted/20 border-t-2 border-border"
+      style={{ paddingLeft: `${indentPx}px` }}
+    >
+      {/* Spacer for tree connector */}
+      <div className="flex items-center gap-1 shrink-0">
+        <span className="opacity-0">│</span>
+        <span className="w-4" />
+      </div>
+
+      <div className="w-[80px] shrink-0 text-muted-foreground">
+        {poCount} PO{poCount !== 1 ? 's' : ''}
+      </div>
+      <div className="w-[160px] shrink-0"></div>
+      <div className="flex-1 min-w-[100px] text-right font-medium">Totals:</div>
+      <div className="w-[80px] shrink-0 text-right tabular-nums">
+        {budget > 0 ? formatCurrency(budget) : '-'}
+      </div>
+      <div className="w-[80px] shrink-0 text-right tabular-nums font-medium">
+        {formatCurrency(total)}
+      </div>
+      <div className="w-[80px] shrink-0 text-right tabular-nums">
+        {invoiced > 0 ? formatCurrency(invoiced) : '-'}
+      </div>
+      <div className="w-[80px] shrink-0 text-right tabular-nums text-green-600 dark:text-green-400">
+        {paid > 0 ? formatCurrency(paid) : '-'}
+      </div>
+      <div className="w-[80px] shrink-0 text-right tabular-nums">
+        {costToComplete > 0 ? formatCurrency(costToComplete) : '-'}
+      </div>
+      <div className={cn(
+        "w-[80px] shrink-0 text-right tabular-nums font-medium",
+        overrun < 0 && "text-red-600 dark:text-red-400",
+        overrun > 0 && "text-green-600 dark:text-green-400"
+      )}>
+        {overrun !== 0 ? formatCurrency(overrun) : '-'}
+      </div>
+      <div className="w-[50px] shrink-0"></div>
+      <div className="w-[40px] shrink-0"></div>
     </div>
   );
 }

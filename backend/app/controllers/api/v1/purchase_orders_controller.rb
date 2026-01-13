@@ -298,6 +298,85 @@ module Api
         end
       end
 
+      # POST /api/v1/purchase_orders/bulk_lock_budget
+      # Lock budgets for multiple POs in a single transaction (all or nothing)
+      def bulk_lock_budget
+        ids = params[:ids]
+        return render json: { success: false, error: "No PO IDs provided" }, status: :bad_request if ids.blank?
+
+        purchase_orders = PurchaseOrder.where(id: ids)
+
+        if purchase_orders.count != ids.count
+          return render json: { success: false, error: "Some PO IDs not found" }, status: :not_found
+        end
+
+        # Check if any are already locked
+        already_locked = purchase_orders.select(&:budget_locked?)
+        if already_locked.any?
+          return render json: {
+            success: false,
+            error: "#{already_locked.count} PO(s) already locked: #{already_locked.map(&:purchase_order_number).join(', ')}"
+          }, status: :unprocessable_entity
+        end
+
+        # Lock all in a transaction
+        ActiveRecord::Base.transaction do
+          purchase_orders.each do |po|
+            po.lock_budget!(current_user)
+          end
+        end
+
+        render json: {
+          success: true,
+          message: "#{purchase_orders.count} PO budget(s) locked",
+          count: purchase_orders.count
+        }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { success: false, error: "Failed to lock budgets: #{e.message}" }, status: :unprocessable_entity
+      end
+
+      # POST /api/v1/purchase_orders/bulk_unlock_budget
+      # Unlock budgets for multiple POs in a single transaction (all or nothing, admin only)
+      def bulk_unlock_budget
+        unless current_user&.admin?
+          return render json: { success: false, error: "You don't have permission to unlock budgets" }, status: :forbidden
+        end
+
+        ids = params[:ids]
+        reason = params[:reason] || "Bulk unlock"
+        return render json: { success: false, error: "No PO IDs provided" }, status: :bad_request if ids.blank?
+
+        purchase_orders = PurchaseOrder.where(id: ids)
+
+        if purchase_orders.count != ids.count
+          return render json: { success: false, error: "Some PO IDs not found" }, status: :not_found
+        end
+
+        # Check if any are not locked
+        not_locked = purchase_orders.reject(&:budget_locked?)
+        if not_locked.any?
+          return render json: {
+            success: false,
+            error: "#{not_locked.count} PO(s) not locked: #{not_locked.map(&:purchase_order_number).join(', ')}"
+          }, status: :unprocessable_entity
+        end
+
+        # Unlock all in a transaction
+        ActiveRecord::Base.transaction do
+          purchase_orders.each do |po|
+            po.unlock_budget!(current_user, reason: reason)
+          end
+        end
+
+        render json: {
+          success: true,
+          message: "#{purchase_orders.count} PO budget(s) unlocked",
+          count: purchase_orders.count
+        }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { success: false, error: "Failed to unlock budgets: #{e.message}" }, status: :unprocessable_entity
+      end
+
       # POST /api/v1/purchase_orders/smart_lookup
       # Smart lookup for PO auto-population
       # Params: { construction_id, task_description, category, quantity, supplier_preference }

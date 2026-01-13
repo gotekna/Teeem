@@ -323,59 +323,60 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     }
   };
 
-  // Handle bulk lock budget for selected POs
-  // This locks all selected POs - sets budget from total and prevents editing
+  // Handle bulk lock budget for selected POs (all or nothing transaction)
   const handleBulkLock = async () => {
     if (selectedRowIds.size === 0 || lockingBudgets) return;
 
     try {
       setLockingBudgets(true);
+      setError(null);
       const ids = Array.from(selectedRowIds);
 
-      // Process each selected PO - try to lock
-      const results = await Promise.allSettled(
-        ids.map((poId) => api.post(`/api/v1/purchase_orders/${poId}/lock_budget`))
+      const response = await api.post<{ success: boolean; message?: string; error?: string; count?: number }>(
+        "/api/v1/purchase_orders/bulk_lock_budget",
+        { ids }
       );
 
-      // Count successes (some may already be locked, which is fine)
-      const succeeded = results.filter((r) => r.status === "fulfilled").length;
-      console.log(`Budget lock: ${succeeded}/${ids.length} POs processed`);
-
-      // Refresh table to show updated lock status
-      setRefreshKey((k) => k + 1);
-      clearSelection();
+      if (response?.success) {
+        console.log(`Budget lock: ${response.count} POs locked`);
+        setRefreshKey((k) => k + 1);
+        clearSelection();
+      } else {
+        setError(response?.error || "Failed to lock budgets");
+      }
     } catch (err) {
       console.error("Failed to lock budgets:", err);
+      setError("Failed to lock budgets");
     } finally {
       setLockingBudgets(false);
     }
   };
 
-  // Handle bulk unlock budget for selected POs (admin only)
+  // Handle bulk unlock budget for selected POs (all or nothing transaction, admin only)
   const handleBulkUnlock = async () => {
     if (selectedRowIds.size === 0 || lockingBudgets) return;
 
     try {
       setLockingBudgets(true);
+      setError(null);
       const ids = Array.from(selectedRowIds);
       const reason = "Bulk unlock from PO list";
 
-      // Process each selected PO - try to unlock
-      const results = await Promise.allSettled(
-        ids.map((poId) =>
-          api.post(`/api/v1/purchase_orders/${poId}/unlock_budget`, { reason })
-        )
+      const response = await api.post<{ success: boolean; message?: string; error?: string; count?: number }>(
+        "/api/v1/purchase_orders/bulk_unlock_budget",
+        { ids, reason }
       );
 
-      // Count successes
-      const succeeded = results.filter((r) => r.status === "fulfilled").length;
-      console.log(`Budget unlock: ${succeeded}/${ids.length} POs processed`);
-
-      // Refresh table to show updated lock status
-      setRefreshKey((k) => k + 1);
-      clearSelection();
+      if (response?.success) {
+        console.log(`Budget unlock: ${response.count} POs unlocked`);
+        setRefreshKey((k) => k + 1);
+        clearSelection();
+      } else {
+        setError(response?.error || "Failed to unlock budgets");
+      }
     } catch (err) {
       console.error("Failed to unlock budgets:", err);
+      setError("Failed to unlock budgets");
     } finally {
       setLockingBudgets(false);
     }
