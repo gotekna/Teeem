@@ -193,7 +193,7 @@ module Api
             storage_type: "s3_compatible",
             file_url: "/#{s3_key}",
             external_id: result[:id],
-            filed_by: user.display_name || user.email,
+            filed_by: user.name || user.email,
             uploaded_at: Time.current
           )
 
