@@ -1586,6 +1586,7 @@ Rails.application.routes.draw do
           post :cascade_preview
           post :cascade_execute
           post :move
+          post :recalculate_dates
           # Working drawings AI
           get :working_drawings
           post "working_drawings/process", to: "sm_tasks#process_working_drawings"

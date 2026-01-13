@@ -169,6 +169,13 @@ module Api
         @task.created_by = current_user
 
         if @task.save
+          # Recalculate dates if task was created with dependencies
+          # SSoT: Uses same logic as update (recalculate_task_dates_from_predecessors)
+          # Fix: Dependencies should determine start_date, not user input
+          if @task.predecessor_ids.present? && !@task.locked?
+            recalculate_task_dates_from_predecessors(@task)
+          end
+
           # Add followers if provided
           if params[:follower_ids].present?
             Array(params[:follower_ids]).each do |user_id|
@@ -384,6 +391,39 @@ module Api
         render json: {
           success: true,
           message: "Task deleted successfully"
+        }
+      end
+
+      # POST /api/v1/sm_tasks/:id/recalculate_dates
+      # Force recalculation of task dates from dependencies
+      # Useful for fixing tasks where dependency dates weren't applied correctly
+      def recalculate_dates
+        if @task.locked?
+          return render json: {
+            success: false,
+            error: "Cannot recalculate dates for locked task"
+          }, status: :unprocessable_entity
+        end
+
+        if @task.predecessor_ids.empty?
+          return render json: {
+            success: false,
+            error: "Task has no dependencies to calculate from"
+          }, status: :unprocessable_entity
+        end
+
+        old_start = @task.start_date
+        old_end = @task.end_date
+
+        recalculate_task_dates_from_predecessors(@task)
+        @task.reload
+
+        render json: {
+          success: true,
+          message: "Dates recalculated from dependencies",
+          old_dates: { start_date: old_start, end_date: old_end },
+          new_dates: { start_date: @task.start_date, end_date: @task.end_date },
+          sm_task: task_to_json(@task)
         }
       end
 
@@ -1729,6 +1769,8 @@ module Api
         case attachment.attachable_type
         when "EmailWarehouse"
           email = attachment.attachable
+          # Defensive: attachable may be nil if email was deleted
+          return base unless email
           base.merge(
             email: {
               id: email.id,
@@ -1747,6 +1789,8 @@ module Api
           )
         when "CorporateCompanyDocument"
           doc = attachment.attachable
+          # Defensive: attachable may be nil if document was deleted
+          return base unless doc
           base.merge(
             document: {
               id: doc.id,
@@ -1791,13 +1835,14 @@ module Api
         }
 
         # Include delegated task details if present
-        if item.delegated_task.present?
+        # Defensive: use local var to avoid race condition between .present? and access
+        if (delegated = item.delegated_task)
           result[:delegated_task] = {
-            id: item.delegated_task.id,
-            name: item.delegated_task.name,
-            status: item.delegated_task.status,
-            assigned_user_id: item.delegated_task.assigned_user_id,
-            assigned_user_name: item.delegated_task.assigned_user&.name
+            id: delegated.id,
+            name: delegated.name,
+            status: delegated.status,
+            assigned_user_id: delegated.assigned_user_id,
+            assigned_user_name: delegated.assigned_user&.name
           }
         end
 
@@ -2069,8 +2114,8 @@ module Api
           # Last assigner (who assigned this task to current assignee)
           last_assigner_id: task.last_assigner&.id,
           last_assigner_name: task.last_assigner&.name,
-          # Following status (for current user)
-          is_following: task.followed_by?(current_user),
+          # Following status (for current user) - defensive nil check
+          is_following: current_user ? task.followed_by?(current_user) : false,
           # Action items (checkable checklist items)
           action_items: task.action_items.map { |item| action_item_to_json(item) },
           # Email keywords for auto-matching
@@ -2082,7 +2127,9 @@ module Api
         }
 
         if include_dependencies
-          json[:predecessor_dependencies] = task.active_predecessor_dependencies.map do |dep|
+          json[:predecessor_dependencies] = task.active_predecessor_dependencies.filter_map do |dep|
+            # Defensive: skip if predecessor_task is nil (deleted task)
+            next unless dep.predecessor_task
             {
               id: dep.id,
               predecessor_task_id: dep.predecessor_task_id,
@@ -2093,7 +2140,9 @@ module Api
             }
           end
 
-          json[:successor_dependencies] = task.active_successor_dependencies.map do |dep|
+          json[:successor_dependencies] = task.active_successor_dependencies.filter_map do |dep|
+            # Defensive: skip if successor_task is nil (deleted task)
+            next unless dep.successor_task
             {
               id: dep.id,
               successor_task_id: dep.successor_task_id,
