@@ -852,9 +852,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       if (attachmentEmailOptions[att.id]) {
         newOptions[att.id] = attachmentEmailOptions[att.id];
       } else {
-        // Default: use link for SharePoint files, attach for others
-        const hasSharePoint = att.document?.sharepoint_file_id;
-        newOptions[att.id] = hasSharePoint ? 'link' : 'attach';
+        // Default: use link for external storage files, attach for others
+        const hasExternalStorage = att.document?.storage_url;
+        newOptions[att.id] = hasExternalStorage ? 'link' : 'attach';
       }
     });
     // Only update if different to avoid infinite loop
@@ -1732,14 +1732,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       const questionAttachmentsToLink = questionItems
         .filter(q => q.include_in_response)
         .flatMap(q => q.attachments || [])
-        .filter(att => att.document?.sharepoint_file_id);
+        .filter(att => att.document?.storage_url);
 
       // Count files to process for progress
       const toAttach = responseAttachments.filter(a => attachmentEmailOptions[a.id] === 'attach');
       const toLink = responseAttachments.filter(a => {
         const opt = attachmentEmailOptions[a.id];
-        const hasSharePoint = a.document?.sharepoint_file_id;
-        return opt === 'link' && hasSharePoint;
+        const hasExternalStorage = a.document?.storage_url;
+        return opt === 'link' && hasExternalStorage;
       });
       const totalToProcess = toAttach.length + toLink.length + questionAttachmentsToLink.length;
       let processed = 0;
@@ -3079,7 +3079,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             onDoubleClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              const url = att.document?.sharepoint_download_url || att.document?.file_url;
+                              const url = att.document?.storage_url || att.document?.file_url;
                               if (url) {
                                 window.open(url, '_blank');
                               }
@@ -3128,7 +3128,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
               {responseAttachments.length > 0 ? (
                 <div className="border rounded-md divide-y bg-primary/5 dark:bg-primary/10 mb-2">
                   {responseAttachments.map((att) => {
-                    const hasSharePoint = att.document?.sharepoint_file_id;
+                    const hasExternalStorage = att.document?.storage_url;
                     const emailOption = attachmentEmailOptions[att.id] || 'link';
                     return (
                       <div key={att.id} className="p-2 text-xs">
@@ -3176,7 +3176,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             />
                             <span>Attach</span>
                           </label>
-                          {hasSharePoint && (
+                          {hasExternalStorage && (
                             <label className="flex items-center gap-1 cursor-pointer">
                               <input
                                 type="radio"

@@ -28,9 +28,8 @@ export interface TaskAttachmentDocument {
   file_name: string;
   display_name: string;
   document_type?: string;
-  sharepoint_file_id?: string; // SharePoint file ID for creating share links
-  sharepoint_download_url?: string; // Direct download URL for SharePoint files
-  file_url?: string; // For ActiveStorage files (when not on SharePoint)
+  storage_url?: string; // SSoT: Provider-agnostic download URL from StorableDocument
+  file_url?: string; // For ActiveStorage files (when not in external storage)
   created_at: string;
   content_hash?: string; // For matching with email attachment hashes
 }

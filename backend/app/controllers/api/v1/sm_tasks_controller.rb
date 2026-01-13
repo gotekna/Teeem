@@ -1797,8 +1797,9 @@ module Api
               file_name: doc.file_name,
               display_name: doc.display_name,
               document_type: doc.document_type,
-              sharepoint_file_id: doc.sharepoint_file_id,
-              sharepoint_download_url: doc.sharepoint_download_url,
+              # SSoT: Use StorableDocument#storage_url for provider-agnostic download URL
+              # Falls back to ActiveStorage URL if not in external storage
+              storage_url: doc.storage_url,
               file_url: doc.file.attached? ? Rails.application.routes.url_helpers.rails_blob_url(doc.file, only_path: true) : nil,
               created_at: doc.created_at,
               content_hash: doc.content_hash

@@ -174,6 +174,17 @@ module StorableDocument
 
   private
 
+  # Handle different column names across models
+  def sharepoint_item_id
+    return super if respond_to?(:super)
+    read_attribute(:sharepoint_item_id)
+  end
+
+  def sharepoint_file_id
+    return super if respond_to?(:super)
+    read_attribute(:sharepoint_file_id)
+  end
+
   # Override in model to provide default tokens
   def default_storage_tokens
     {}
@@ -198,16 +209,5 @@ module StorableDocument
       migration_status: "failed",
       migration_error: error_message
     )
-  end
-
-  # Handle different column names across models
-  def sharepoint_item_id
-    return super if respond_to?(:super)
-    read_attribute(:sharepoint_item_id)
-  end
-
-  def sharepoint_file_id
-    return super if respond_to?(:super)
-    read_attribute(:sharepoint_file_id)
   end
 end
