@@ -29,6 +29,9 @@ class User < ApplicationRecord
   # Digital signature for certificates (Form 43, contracts, etc.)
   has_one_attached :signature
 
+  # Profile photo
+  has_one_attached :photo
+
   # Signature usage register - tracks every time signature is used
   has_many :signature_usages, dependent: :destroy
 

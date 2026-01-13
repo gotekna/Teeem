@@ -114,7 +114,7 @@ class Api::V1::UsersController < ApplicationController
   def user_params
     params.require(:user).permit(
       :name, :email, :mobile_phone, :job_title, :preferred_theme,
-      :qbcc_licence_number, :qbcc_licence_class, :signature
+      :qbcc_licence_number, :qbcc_licence_class, :signature, :photo
     )
   end
 
@@ -156,6 +156,8 @@ class Api::V1::UsersController < ApplicationController
       # Multi-role support - format for multiple_lookups column type
       role_ids: safe_roles.map { |r| { id: r.id, display_value: r.display_name, name: r.name } },
       role_names: user.role_names,
+      # Profile photo
+      photo_url: user.photo.attached? ? url_for(user.photo) : nil,
       # Digital signature for certificates
       signature_attached: user.signature.attached?,
       signature_url: user.signature.attached? ? url_for(user.signature) : nil,

@@ -77,6 +77,12 @@ export default function ProfileSettingsPage() {
   const [profilePhone, setProfilePhone] = React.useState("");
   const [profileJobTitle, setProfileJobTitle] = React.useState("");
 
+  // Profile photo state
+  const [photoUrl, setPhotoUrl] = React.useState<string | null>(null);
+  const [photoFile, setPhotoFile] = React.useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = React.useState<string | null>(null);
+  const photoInputRef = React.useRef<HTMLInputElement>(null);
+
   // QBCC/Signature state
   const [qbccLicenceNumber, setQbccLicenceNumber] = React.useState("");
   const [qbccLicenceClass, setQbccLicenceClass] = React.useState("");
@@ -102,6 +108,8 @@ export default function ProfileSettingsPage() {
       setProfileEmail(user.email || "");
       setProfilePhone((user as any).mobile_phone || "");
       setProfileJobTitle((user as any).job_title || "");
+      // Profile photo
+      setPhotoUrl((user as any).photo_url || null);
       // QBCC/Signature fields
       setQbccLicenceNumber((user as any).qbcc_licence_number || "");
       setQbccLicenceClass((user as any).qbcc_licence_class || "");
@@ -141,6 +149,27 @@ export default function ProfileSettingsPage() {
     }
   }, [showHistory]);
 
+  // Handle profile photo selection
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith("image/")) {
+        alert("Please select an image file (PNG, JPG, etc.)");
+        return;
+      }
+      // Validate file size (max 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        alert("Photo must be less than 2MB");
+        return;
+      }
+      setPhotoFile(file);
+      // Create preview URL
+      const previewUrl = URL.createObjectURL(file);
+      setPhotoPreview(previewUrl);
+    }
+  };
+
   // Handle signature file selection
   const handleSignatureSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -175,15 +204,20 @@ export default function ProfileSettingsPage() {
 
     setSaving(true);
     try {
-      // Use FormData if we have a signature file to upload
-      if (signatureFile) {
+      // Use FormData if we have a file to upload (photo or signature)
+      if (photoFile || signatureFile) {
         const formData = new FormData();
         formData.append("user[name]", profileName);
         formData.append("user[email]", profileEmail);
         formData.append("user[mobile_phone]", profilePhone);
         formData.append("user[qbcc_licence_number]", qbccLicenceNumber);
         formData.append("user[qbcc_licence_class]", qbccLicenceClass);
-        formData.append("user[signature]", signatureFile);
+        if (photoFile) {
+          formData.append("user[photo]", photoFile);
+        }
+        if (signatureFile) {
+          formData.append("user[signature]", signatureFile);
+        }
 
         // Use api.patch which handles FormData and adds auth header
         const data = await api.patch<{ success: boolean; user: any; errors?: string[] }>(
@@ -192,6 +226,8 @@ export default function ProfileSettingsPage() {
         );
 
         if (data?.success) {
+          setPhotoFile(null);
+          setPhotoPreview(null);
           setSignatureFile(null);
           setSignaturePreview(null);
           if (refreshUser) {
@@ -246,7 +282,7 @@ export default function ProfileSettingsPage() {
       <CardContent className="space-y-6">
         <div className="flex items-center gap-4">
           <Avatar className="h-20 w-20">
-            <AvatarImage src="" />
+            <AvatarImage src={photoPreview || photoUrl || ""} />
             <AvatarFallback className="text-lg">
               {user?.name
                 ?.split(" ")
@@ -256,7 +292,19 @@ export default function ProfileSettingsPage() {
             </AvatarFallback>
           </Avatar>
           <div>
-            <Button variant="outline" size="sm">
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handlePhotoSelect}
+              className="hidden"
+              id="photo-upload"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => photoInputRef.current?.click()}
+            >
               <Upload className="h-4 w-4 mr-2" />
               Upload Photo
             </Button>
