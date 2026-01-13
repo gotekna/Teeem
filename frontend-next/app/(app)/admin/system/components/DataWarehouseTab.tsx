@@ -8,6 +8,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
 import { WAREHOUSE_PAGE_SIZE } from "@/lib/constants/pagination-constants";
@@ -150,6 +156,10 @@ interface OrgDataStats {
         dedup_ratio?: number;
         files_saved_by_dedup?: number;
       };
+      pending_by_mailbox?: Array<{
+        mailbox: string;
+        pending: number;
+      }>;
     };
   };
   storage: {
@@ -1797,6 +1807,39 @@ export function DataWarehouseTab() {
                 </div>
               )}
             </div>
+
+            {/* Pending Emails by Mailbox - Collapsible */}
+            {stats.emails.storage_upload.pending_by_mailbox && stats.emails.storage_upload.pending_by_mailbox.length > 0 && (
+              <div className="pt-4 border-t">
+                <Accordion type="single" collapsible>
+                  <AccordionItem value="pending-mailboxes" className="border-none">
+                    <AccordionTrigger className="py-2 hover:no-underline">
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-4 w-4 text-orange-500" />
+                        <span className="text-sm font-medium">Pending Emails by Mailbox</span>
+                        <Badge variant="outline" className="ml-2">
+                          {stats.emails.storage_upload.pending_by_mailbox.length} mailboxes
+                        </Badge>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-2 pt-2">
+                        {stats.emails.storage_upload.pending_by_mailbox.map((item, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-2 bg-muted/50 rounded-lg">
+                            <span className="text-sm text-muted-foreground truncate max-w-[200px]" title={item.mailbox}>
+                              {item.mailbox}
+                            </span>
+                            <Badge variant={item.pending > 5000 ? "destructive" : item.pending > 1000 ? "default" : "secondary"}>
+                              {item.pending.toLocaleString()} pending
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

@@ -579,6 +579,13 @@ module Api
           dedup_ratio = unique_blobs > 0 ? (attachments_with_blob.to_f / unique_blobs).round(2) : 0
           files_saved = attachments_with_blob > unique_blobs ? attachments_with_blob - unique_blobs : 0
 
+          # Pending emails by mailbox (for migration visibility)
+          pending_by_mailbox = EmailWarehouse.where(storage_path: nil)
+            .group(:mailbox_owner_email)
+            .count
+            .sort_by { |_, v| -v }
+            .map { |email, count| { mailbox: email || "(unknown)", pending: count } }
+
           {
             total_emails: total_count,
             total_size: total_size,
@@ -627,7 +634,8 @@ module Api
                 total_storage_bytes: total_blob_bytes,
                 dedup_ratio: dedup_ratio,
                 files_saved_by_dedup: files_saved
-              }
+              },
+              pending_by_mailbox: pending_by_mailbox
             }
           }
         else
