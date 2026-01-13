@@ -204,6 +204,44 @@ module Api
         end
       end
 
+      # GET /api/v1/documents/user_files
+      # Lists files in the current user's folder from S3
+      # Used by File Warehouse "MyDocs" section
+      def user_files
+        user = current_user
+        folder = params[:folder].presence || "My Documents"
+        s3_path = "Users/#{user.id}/#{folder}"
+
+        begin
+          organization = Organization.first
+          provider = DocumentProviders::S3Compatible.for_organization(organization)
+          result = provider.list_folder(s3_path, recursive: false)
+
+          files = (result[:files] || []).map do |file|
+            {
+              id: file[:id] || file[:key],
+              file_name: File.basename(file[:name] || file[:key] || ""),
+              display_name: File.basename(file[:name] || file[:key] || ""),
+              file_size: file[:size],
+              mime_type: file[:content_type],
+              storage_path: file[:key],
+              last_modified: file[:last_modified]&.iso8601,
+              download_url: file[:web_url]
+            }
+          end
+
+          render json: {
+            success: true,
+            files: files,
+            folder: folder,
+            count: files.size
+          }
+        rescue StandardError => e
+          Rails.logger.error "[Documents] User files list failed: #{e.message}"
+          render json: { success: false, error: e.message, files: [] }, status: :ok
+        end
+      end
+
       # GET /api/v1/documents/:id
       def show
         render json: {

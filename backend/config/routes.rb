@@ -383,6 +383,9 @@ Rails.application.routes.draw do
         to: "job_status_stages#reorder"
       delete "job_status_stages/:id", to: "job_status_stages#destroy"
 
+      # User files from S3 (must be before resources :documents to avoid :id match)
+      get "documents/user_files", to: "documents#user_files"
+
       # Documents (simple alias for company documents)
       resources :documents, only: [ :index, :create, :show, :update, :destroy ] do
         member do
