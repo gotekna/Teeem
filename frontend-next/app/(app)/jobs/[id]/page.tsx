@@ -965,6 +965,12 @@ export default function JobDetailPage() {
   // Uses path-based structure: /jobs/{id}/{parent}/{child}
   // Exception: "schedule" tab stays inline (doesn't navigate to /schedule page)
   const handleTabChange = React.useCallback((newTab: string) => {
+    // IGNORE: Parent tab values prefixed with __p__ come from Radix onValueChange
+    // These are handled via onClick instead to avoid double-firing navigation
+    if (newTab.startsWith("__p__")) {
+      return;
+    }
+
     // SSoT: Handle composite keys (parent__child) from HierarchicalTabsList
     // This is the ONLY reliable way to identify which parent a child belongs to
     // when multiple parents have children with the same tab_key (e.g., "site")
