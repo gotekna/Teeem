@@ -3,7 +3,7 @@
 module Api
   module V1
     class TeeemDocumentsController < ApplicationController
-      before_action :set_document, only: [:show, :update, :destroy, :export]
+      before_action :set_document, only: [:show, :update, :destroy, :export, :save_to_warehouse]
 
       # GET /api/v1/teeem_documents
       # Optional params:
@@ -82,6 +82,65 @@ module Api
           filename: "#{@document.name.parameterize}.html",
           type: "text/html",
           disposition: "attachment"
+      end
+
+      # POST /api/v1/teeem_documents/:id/save_to_warehouse
+      # Saves document to File Warehouse (S3) as HTML (Word-compatible)
+      def save_to_warehouse
+        html_content = @document.data["content"] || "<p></p>"
+
+        # Wrap HTML content with basic Word-compatible structure
+        word_html = <<~HTML
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="UTF-8">
+            <title>#{@document.name}</title>
+            <style>
+              body { font-family: Arial, sans-serif; font-size: 12pt; line-height: 1.5; }
+              p { margin: 0 0 12pt 0; }
+              h1 { font-size: 24pt; margin: 24pt 0 12pt 0; }
+              h2 { font-size: 18pt; margin: 18pt 0 12pt 0; }
+              h3 { font-size: 14pt; margin: 14pt 0 12pt 0; }
+            </style>
+          </head>
+          <body>
+            #{html_content}
+          </body>
+          </html>
+        HTML
+
+        begin
+          # Upload to S3 using SSoT warehouse_path
+          organization = Organization.first
+          provider = DocumentProviders::S3Compatible.for_organization(organization)
+
+          folder_path = @document.warehouse_folder_path
+          filename = "#{@document.safe_filename}.html"
+
+          result = provider.upload_file(
+            folder_path,
+            word_html,
+            filename,
+            content_type: "text/html",
+            overwrite: true
+          )
+
+          # Update storage tracking
+          @document.update_columns(
+            storage_path: "#{folder_path}/#{filename}",
+            storage_provider: "s3_compatible"
+          )
+
+          render json: {
+            success: true,
+            message: "Saved to File Warehouse",
+            path: "#{folder_path}/#{filename}"
+          }
+        rescue StandardError => e
+          Rails.logger.error "[TeeemDocument] Save to warehouse failed: #{e.message}"
+          render json: { success: false, error: e.message }, status: :unprocessable_entity
+        end
       end
 
       private

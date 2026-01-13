@@ -1400,6 +1400,7 @@ function DocumentMigration() {
   const [status, setStatus] = React.useState<MigrationStatus | null>(null);
   const [estimate, setEstimate] = React.useState<MigrationEstimate | null>(null);
   const [storageUpload, setStorageUpload] = React.useState<StorageUploadProgress | null>(null);
+  const [activeEmailJob, setActiveEmailJob] = React.useState<{ status: string; processed: number; total: number } | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [starting, setStarting] = React.useState(false);
   const [cancelling, setCancelling] = React.useState(false);
@@ -1408,15 +1409,20 @@ function DocumentMigration() {
 
   // Auto-refresh interval for ongoing migrations
   const refreshIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
+  const emailJobRefreshRef = React.useRef<NodeJS.Timeout | null>(null);
 
   React.useEffect(() => {
     loadStatus();
     loadEstimate();
     loadStorageUpload();
+    loadActiveEmailJob();
 
     return () => {
       if (refreshIntervalRef.current) {
         clearInterval(refreshIntervalRef.current);
+      }
+      if (emailJobRefreshRef.current) {
+        clearInterval(emailJobRefreshRef.current);
       }
     };
   }, []);
@@ -1478,6 +1484,42 @@ function DocumentMigration() {
       }
     } catch (error) {
       console.error("Failed to load storage upload progress:", error);
+    }
+  };
+
+  const loadActiveEmailJob = async () => {
+    try {
+      const response = await api.get<{
+        success: boolean;
+        active: boolean;
+        data?: { status: string; processed_items: number; total_items: number };
+      }>("/api/v1/background_jobs/progress/email_storage_upload");
+      if (response.active && response.data) {
+        setActiveEmailJob({
+          status: response.data.status,
+          processed: response.data.processed_items,
+          total: response.data.total_items,
+        });
+        // Set up polling when job is active
+        if (!emailJobRefreshRef.current) {
+          emailJobRefreshRef.current = setInterval(() => {
+            loadActiveEmailJob();
+            loadStorageUpload();
+          }, 5000);
+        }
+      } else {
+        setActiveEmailJob(null);
+        // Stop polling when no active job
+        if (emailJobRefreshRef.current) {
+          clearInterval(emailJobRefreshRef.current);
+          emailJobRefreshRef.current = null;
+          // Refresh storage upload one more time to get final counts
+          loadStorageUpload();
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load active email job:", error);
+      setActiveEmailJob(null);
     }
   };
 
@@ -1628,21 +1670,32 @@ function DocumentMigration() {
                     </span>{" "}
                     emails remaining
                   </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={async () => {
-                      try {
-                        await api.post("/api/v1/background_jobs/start_email_upload", { batch_size: 5000 });
-                        toast({ title: "Started", description: "Email migration job queued" });
-                      } catch {
-                        toast({ title: "Error", description: "Failed to start email migration", variant: "destructive" });
-                      }
-                    }}
-                  >
-                    <Play className="h-3 w-3 mr-1" />
-                    Continue Migration
-                  </Button>
+                  {activeEmailJob ? (
+                    <div className="flex items-center gap-2">
+                      <Spinner className="h-4 w-4" />
+                      <span className="text-sm text-blue-600 dark:text-blue-400">
+                        Running... {activeEmailJob.processed}/{activeEmailJob.total}
+                      </span>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          await api.post("/api/v1/background_jobs/start_email_upload", { batch_size: 5000 });
+                          toast({ title: "Started", description: "Email migration job queued" });
+                          // Start polling for job status
+                          setTimeout(loadActiveEmailJob, 1000);
+                        } catch {
+                          toast({ title: "Error", description: "Failed to start email migration", variant: "destructive" });
+                        }
+                      }}
+                    >
+                      <Play className="h-3 w-3 mr-1" />
+                      Continue Migration
+                    </Button>
+                  )}
                 </div>
               )}
             </div>

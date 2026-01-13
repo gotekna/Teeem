@@ -138,14 +138,16 @@ Rails.application.routes.draw do
       # TeeemWord Documents - user-created word documents
       resources :teeem_documents, only: [ :index, :show, :create, :update, :destroy ] do
         member do
-          get :export  # GET /api/v1/teeem_documents/:id/export - download as DOCX
+          get :export               # GET /api/v1/teeem_documents/:id/export - download as DOCX
+          post :save_to_warehouse   # POST /api/v1/teeem_documents/:id/save_to_warehouse - save to S3
         end
       end
 
       # TeeemPowerPoint Presentations - user-created presentations
       resources :teeem_presentations, only: [ :index, :show, :create, :update, :destroy ] do
         member do
-          get :export  # GET /api/v1/teeem_presentations/:id/export - export data for PPTX
+          get :export               # GET /api/v1/teeem_presentations/:id/export - export data for PPTX
+          post :save_to_warehouse   # POST /api/v1/teeem_presentations/:id/save_to_warehouse - save to S3
         end
       end
 

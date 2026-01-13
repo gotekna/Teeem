@@ -3,7 +3,7 @@
 module Api
   module V1
     class TeeemPresentationsController < ApplicationController
-      before_action :set_presentation, only: [:show, :update, :destroy, :export]
+      before_action :set_presentation, only: [:show, :update, :destroy, :export, :save_to_warehouse]
 
       # GET /api/v1/teeem_presentations
       # Optional params:
@@ -83,6 +83,43 @@ module Api
             metadata: @presentation.data["metadata"] || {}
           }
         }
+      end
+
+      # POST /api/v1/teeem_presentations/:id/save_to_warehouse
+      # Saves presentation to File Warehouse (S3)
+      # Expects: file (PPTX blob from PptxGenJS) as multipart form data
+      def save_to_warehouse
+        unless params[:file].present?
+          return render json: { success: false, error: "No file provided. Generate PPTX client-side first." }, status: :bad_request
+        end
+
+        begin
+          file = params[:file]
+
+          # Upload to S3 using SSoT warehouse_path
+          organization = Organization.first
+          provider = DocumentProviders::S3Compatible.for_organization(organization)
+
+          folder_path = @presentation.warehouse_folder_path
+          filename = "#{@presentation.safe_filename}.pptx"
+
+          result = provider.upload_file(
+            folder_path,
+            file.read,
+            filename,
+            content_type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            overwrite: true
+          )
+
+          render json: {
+            success: true,
+            message: "Saved to File Warehouse",
+            path: "#{folder_path}/#{filename}"
+          }
+        rescue StandardError => e
+          Rails.logger.error "[TeeemPresentation] Save to warehouse failed: #{e.message}"
+          render json: { success: false, error: e.message }, status: :unprocessable_entity
+        end
       end
 
       private

@@ -36,7 +36,56 @@ class TeeemPresentation < ApplicationRecord
   scope :for_job, ->(job_id) { where(job_id: job_id) }
   scope :unattached, -> { where(job_id: nil) }
 
+  # ========================================
+  # Warehouse Path (SSoT: StorageConfiguration)
+  # ========================================
+
+  def warehouse_path
+    if job.present?
+      "Jobs/#{job.job_code}/PowerPoint/#{safe_filename}.pptx".gsub(%r{/+}, "/")
+    else
+      config = StorageConfiguration.instance
+      base = config.path_for(:powerpoint_documents)
+      template = config.template_for(:powerpoint_documents)
+
+      resolved = resolve_template(template, {
+        "UserName" => user&.display_name || "Unknown",
+        "Year" => created_at&.year&.to_s || Time.current.year.to_s
+      })
+
+      "#{base}/#{resolved}/#{safe_filename}.pptx".gsub(%r{/+}, "/")
+    end
+  end
+
+  def warehouse_folder_path
+    if job.present?
+      "Jobs/#{job.job_code}/PowerPoint".gsub(%r{/+}, "/")
+    else
+      config = StorageConfiguration.instance
+      base = config.path_for(:powerpoint_documents)
+      template = config.template_for(:powerpoint_documents)
+
+      resolved = resolve_template(template, {
+        "UserName" => user&.display_name || "Unknown",
+        "Year" => created_at&.year&.to_s || Time.current.year.to_s
+      })
+
+      "#{base}/#{resolved}".gsub(%r{/+}, "/")
+    end
+  end
+
+  def safe_filename
+    name.gsub(/[^a-zA-Z0-9\s\-_]/, "").strip.presence || "Untitled"
+  end
+
   private
+
+  def resolve_template(template, values)
+    result = template.dup
+    values.each { |key, value| result.gsub!("{{#{key}}}", value.to_s) }
+    result
+  end
+
 
   def set_default_data
     self.data ||= default_presentation_data
