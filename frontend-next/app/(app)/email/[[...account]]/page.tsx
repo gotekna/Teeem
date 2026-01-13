@@ -861,7 +861,7 @@ export default function EmailPage() {
   // Extract stable function reference to prevent infinite loops
   const toURLParams = emailFilters.toURLParams;
 
-  const fetchEmails = useCallback(async (page = 1, force = false) => {
+  const fetchEmails = useCallback(async (page = 1, force = false, folderOverride?: string) => {
     // Performance: Debounce rapid re-fetches (unless forced)
     const now = Date.now();
     if (!force && now - lastFetchTimeRef.current < FETCH_DEBOUNCE_MS) {
@@ -899,9 +899,10 @@ export default function EmailPage() {
       }
 
       // Filter by folder name (warehouse stores human-readable names like "Inbox", not MS365 IDs)
-      // For "All Inbox", just filter by Inbox folder name across all accounts
-      if (selectedFolder) {
-        params.append("folder_name", selectedFolder);
+      // Use folderOverride if provided (for immediate folder changes before state updates)
+      const folderToUse = folderOverride ?? selectedFolder;
+      if (folderToUse) {
+        params.append("folder_name", folderToUse);
       }
 
       const url = `/api/v1/email_warehouse?${params.toString()}`;
@@ -1532,8 +1533,12 @@ To: ${email.to_emails?.join(", ") || ""}
       startTransition(() => {
         setSelectedAccount(accountId);
       });
+    } else {
+      // Same account but different folder - need to refetch emails
+      // Pass folder.name directly to avoid race condition with state update
+      fetchEmails(1, true, folder.name);
     }
-  }, [selectedAccount]);
+  }, [selectedAccount, fetchEmails]);
 
   const getSelectedAccountName = () => {
     if (selectedAccount === "all") return "All Accounts";
