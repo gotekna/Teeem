@@ -12,7 +12,7 @@ import {
   STATUS_COLORS,
   type ExpenseGroup,
 } from "@/lib/expenses-utils";
-import { ExpensePORow } from "./ExpensePORow";
+import { ExpensePORow, ExpensePORowHeader } from "./ExpensePORow";
 import { AlertTriangle, CheckCircle2, AlertCircle, Minus } from "lucide-react";
 
 interface ExpenseGroupNodeProps {
@@ -160,14 +160,18 @@ export function ExpenseGroupNode({
           ))}
 
           {/* Leaf POs (when this is the leaf level) */}
-          {group.isLeafLevel &&
-            group.pos.map((po) => (
-              <ExpensePORow
-                key={po.id}
-                po={po}
-                depth={depth + 1}
-              />
-            ))}
+          {group.isLeafLevel && group.pos.length > 0 && (
+            <>
+              <ExpensePORowHeader depth={depth + 1} />
+              {group.pos.map((po) => (
+                <ExpensePORow
+                  key={po.id}
+                  po={po}
+                  depth={depth + 1}
+                />
+              ))}
+            </>
+          )}
         </div>
       )}
     </div>

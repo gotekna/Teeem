@@ -2,14 +2,15 @@
 
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
 import {
   formatCurrency,
   getSupplierName,
+  getTaskName,
+  isOverBilled,
+  getCostToComplete,
   type PurchaseOrderRecord,
 } from "@/lib/expenses-utils";
-import { PaymentProgressBar } from "./BudgetProgressBar";
-import { CheckCircle2, Clock, AlertCircle, FileText } from "lucide-react";
+import { FileText, CheckCircle2, Circle, AlertTriangle } from "lucide-react";
 
 interface ExpensePORowProps {
   po: PurchaseOrderRecord;
@@ -17,59 +18,44 @@ interface ExpensePORowProps {
   className?: string;
 }
 
-const PAYMENT_STATUS_CONFIG: Record<
-  string,
-  { label: string; icon: typeof CheckCircle2; color: string }
-> = {
-  complete: {
-    label: "Paid",
-    icon: CheckCircle2,
-    color: "text-green-600 dark:text-green-400",
-  },
-  part_payment: {
-    label: "Partial",
-    icon: Clock,
-    color: "text-yellow-600 dark:text-yellow-400",
-  },
-  pending: {
-    label: "Pending",
-    icon: AlertCircle,
-    color: "text-muted-foreground dark:text-muted-foreground",
-  },
-  manual_review: {
-    label: "Review",
-    icon: AlertCircle,
-    color: "text-orange-600 dark:text-orange-400",
-  },
-};
-
 /**
- * ExpensePORow - Individual purchase order row
+ * ExpensePORow - Individual purchase order row (redesigned)
  *
- * Shows:
- * - PO Number
- * - Supplier name
- * - Total amount
- * - Payment progress bar
- * - Payment status badge
+ * Columns (left to right):
+ * 1. PO Number
+ * 2. Task
+ * 3. Supplier
+ * 4. Budget
+ * 5. PO Value (total)
+ * 6. Invoiced
+ * 7. Paid to Date
+ * 8. Cost to Complete
+ * 9. Overrun
+ * 10. Complete checkbox
+ * 11. Over-billed indicator (triggers red row)
  */
 export function ExpensePORow({ po, depth, className }: ExpensePORowProps) {
   const router = useRouter();
+
+  // Extract values
+  const budget = Number(po.budget) || 0;
   const total = Number(po.total) || 0;
+  const invoiced = Number(po.total_billed) || 0;
   const paid = Number(po.xero_amount_paid) || 0;
-  const paymentStatus = po.payment_status || "pending";
-  const statusConfig = PAYMENT_STATUS_CONFIG[paymentStatus] || PAYMENT_STATUS_CONFIG.pending;
-  const StatusIcon = statusConfig.icon;
+  const costToComplete = getCostToComplete(po);
+  const overrun = Number(po.diff_po_with_allowance_versus_budget) || 0;
+  const isComplete = po.xero_complete === true;
+  const overBilled = isOverBilled(po);
 
   const poNumber = po.po_number || `PO-${po.id}`;
   const supplier = getSupplierName(po);
+  const task = getTaskName(po);
 
-  // Calculate indent based on depth (level 2 is depth 2, so 3 levels of indent)
+  // Calculate indent based on depth
   const indentPx = (depth + 1) * 24;
 
   // Double-click to open PO detail page
   const handleDoubleClick = () => {
-    // Navigate to PO detail page - use PO number without "PO-" prefix or id
     const slug = po.po_number?.replace("PO-", "") || po.id;
     router.push(`/purchase_orders/${slug}`);
   };
@@ -77,10 +63,12 @@ export function ExpensePORow({ po, depth, className }: ExpensePORowProps) {
   return (
     <div
       className={cn(
-        "flex items-center gap-4 py-2 px-3 text-sm cursor-pointer",
+        "flex items-center gap-2 py-2 px-3 text-sm cursor-pointer",
         "border-b border-border dark:border-border",
         "hover:bg-muted dark:hover:bg-muted/50",
         "transition-colors",
+        // Red highlight for over-billed
+        overBilled && "bg-red-50 dark:bg-red-900/20 border-l-4 border-l-red-500",
         className
       )}
       style={{ paddingLeft: `${indentPx}px` }}
@@ -88,54 +76,132 @@ export function ExpensePORow({ po, depth, className }: ExpensePORowProps) {
       title="Double-click to open PO"
     >
       {/* Tree connector line */}
-      <div className="flex items-center gap-2 text-muted-foreground">
+      <div className="flex items-center gap-1 text-muted-foreground shrink-0">
         <span className="text-muted-foreground dark:text-muted-foreground">│</span>
         <FileText className="h-4 w-4 text-muted-foreground" />
       </div>
 
       {/* PO Number */}
-      <div className="min-w-[90px]">
+      <div className="w-[80px] shrink-0">
         <span className="font-mono text-xs font-medium text-foreground dark:text-muted-foreground">
           {poNumber}
         </span>
       </div>
 
+      {/* Task */}
+      <div className="w-[100px] shrink-0 truncate">
+        <span className="text-xs text-muted-foreground">{task}</span>
+      </div>
+
       {/* Supplier */}
-      <div className="flex-1 min-w-[150px] truncate">
+      <div className="flex-1 min-w-[100px] truncate">
         <span className="text-muted-foreground dark:text-muted-foreground">{supplier}</span>
       </div>
 
-      {/* Total Amount */}
-      <div className="min-w-[90px] text-right tabular-nums">
+      {/* Budget */}
+      <div className="w-[80px] shrink-0 text-right tabular-nums">
+        <span className={cn(
+          "text-xs",
+          budget > 0 ? "text-foreground" : "text-muted-foreground"
+        )}>
+          {budget > 0 ? formatCurrency(budget) : '-'}
+        </span>
+      </div>
+
+      {/* PO Value (total) */}
+      <div className="w-[80px] shrink-0 text-right tabular-nums">
         <span className="font-medium">{formatCurrency(total)}</span>
       </div>
 
-      {/* Payment Progress */}
-      <div className="min-w-[120px]">
-        <PaymentProgressBar paid={paid} total={total} />
+      {/* Invoiced */}
+      <div className="w-[80px] shrink-0 text-right tabular-nums">
+        <span className={cn(
+          "text-xs",
+          invoiced > 0 ? "text-foreground" : "text-muted-foreground"
+        )}>
+          {invoiced > 0 ? formatCurrency(invoiced) : '-'}
+        </span>
       </div>
 
-      {/* Paid Amount */}
-      <div className="min-w-[90px] text-right tabular-nums text-muted-foreground">
-        {formatCurrency(paid)}
+      {/* Paid to Date */}
+      <div className="w-[80px] shrink-0 text-right tabular-nums">
+        <span className={cn(
+          "text-xs",
+          paid > 0 ? "text-green-600 dark:text-green-400" : "text-muted-foreground"
+        )}>
+          {paid > 0 ? formatCurrency(paid) : '-'}
+        </span>
       </div>
 
-      {/* Status Badge */}
-      <div className="min-w-[80px] flex justify-end">
-        <Badge
-          variant="secondary"
-          className={cn(
-            "gap-1 font-normal",
-            paymentStatus === "complete" && "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
-            paymentStatus === "part_payment" && "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300",
-            paymentStatus === "pending" && "bg-muted text-muted-foreground dark:bg-card dark:text-muted-foreground",
-            paymentStatus === "manual_review" && "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300"
-          )}
-        >
-          <StatusIcon className="h-3 w-3" />
-          {statusConfig.label}
-        </Badge>
+      {/* Cost to Complete */}
+      <div className="w-[80px] shrink-0 text-right tabular-nums">
+        <span className={cn(
+          "text-xs",
+          costToComplete > 0 ? "text-foreground" : "text-muted-foreground"
+        )}>
+          {costToComplete > 0 ? formatCurrency(costToComplete) : '-'}
+        </span>
       </div>
+
+      {/* Overrun (negative = over budget) */}
+      <div className="w-[80px] shrink-0 text-right tabular-nums">
+        <span className={cn(
+          "text-xs font-medium",
+          overrun < 0 && "text-red-600 dark:text-red-400",
+          overrun > 0 && "text-green-600 dark:text-green-400",
+          overrun === 0 && "text-muted-foreground"
+        )}>
+          {overrun !== 0 ? formatCurrency(overrun) : '-'}
+        </span>
+      </div>
+
+      {/* Complete checkbox */}
+      <div className="w-[50px] shrink-0 flex justify-center">
+        {isComplete ? (
+          <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+        ) : (
+          <Circle className="h-4 w-4 text-muted-foreground" />
+        )}
+      </div>
+
+      {/* Over-billed indicator */}
+      <div className="w-[40px] shrink-0 flex justify-center">
+        {overBilled && (
+          <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * ExpensePORowHeader - Column headers for PO rows
+ */
+export function ExpensePORowHeader({ depth }: { depth: number }) {
+  const indentPx = (depth + 1) * 24;
+
+  return (
+    <div
+      className="flex items-center gap-2 py-1.5 px-3 text-xs font-medium text-muted-foreground border-b border-border bg-muted/30 dark:bg-muted/10"
+      style={{ paddingLeft: `${indentPx}px` }}
+    >
+      {/* Spacer for tree connector */}
+      <div className="flex items-center gap-1 shrink-0">
+        <span className="opacity-0">│</span>
+        <span className="w-4" />
+      </div>
+
+      <div className="w-[80px] shrink-0">PO #</div>
+      <div className="w-[100px] shrink-0">Task</div>
+      <div className="flex-1 min-w-[100px]">Supplier</div>
+      <div className="w-[80px] shrink-0 text-right">Budget</div>
+      <div className="w-[80px] shrink-0 text-right">PO Value</div>
+      <div className="w-[80px] shrink-0 text-right">Invoiced</div>
+      <div className="w-[80px] shrink-0 text-right">Paid</div>
+      <div className="w-[80px] shrink-0 text-right">To Complete</div>
+      <div className="w-[80px] shrink-0 text-right">Overrun</div>
+      <div className="w-[50px] shrink-0 text-center">Done</div>
+      <div className="w-[40px] shrink-0 text-center">!</div>
     </div>
   );
 }

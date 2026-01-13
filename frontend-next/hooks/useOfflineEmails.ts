@@ -212,6 +212,7 @@ export function useOfflineEmails(
   const { isOnline, wasOffline } = useNetworkStatus();
   const fetchingRef = useRef(false);
   const mountedRef = useRef(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Load from cache
   const loadFromCache = useCallback(async () => {
@@ -270,6 +271,12 @@ export function useOfflineEmails(
   const fetchFromAPI = useCallback(async () => {
     if (!enabled || fetchingRef.current) return;
 
+    // Performance: Cancel any pending request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     fetchingRef.current = true;
     setIsFetching(true);
     setError(null);
@@ -297,7 +304,8 @@ export function useOfflineEmails(
         { timeout: API_TIMEOUT_EMAIL_OFFLINE }
       );
 
-      if (!mountedRef.current) return;
+      // Check if request was aborted or component unmounted
+      if (!mountedRef.current || abortControllerRef.current?.signal.aborted) return;
 
       const data = (response as SplitInboxAPIResponse).data;
 
@@ -378,6 +386,11 @@ export function useOfflineEmails(
 
       console.log("[useOfflineEmails] Fetched and cached split inbox data");
     } catch (err) {
+      // Ignore abort errors
+      if (err instanceof Error && err.name === "AbortError") {
+        return;
+      }
+
       console.error("[useOfflineEmails] API fetch failed:", err);
 
       if (mountedRef.current) {
@@ -422,6 +435,10 @@ export function useOfflineEmails(
 
     return () => {
       mountedRef.current = false;
+      // Cleanup: abort pending requests on unmount
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
     };
   }, [loadFromCache, fetchOnMount, isOnline, fetchFromAPI]);
 

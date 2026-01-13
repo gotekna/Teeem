@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState, useEffect, useCallback, useTransition, useMemo, memo } from "react";
+import { useState, useEffect, useCallback, useTransition, useMemo, memo, useRef } from "react";
 import { useSearchParams, useRouter, useParams } from "next/navigation";
 import { useLayoutMode } from "@/contexts/LayoutModeContext";
 import { Button } from "@/components/ui/button";
@@ -540,6 +540,11 @@ export default function EmailPage() {
 
   const [emails, setEmails] = useState<Email[]>([]);
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
+
+  // Performance: Request deduplication and staleness tracking
+  const fetchAbortControllerRef = useRef<AbortController | null>(null);
+  const lastFetchTimeRef = useRef<number>(0);
+  const FETCH_DEBOUNCE_MS = 500; // Prevent rapid re-fetches within 500ms
   const [showAllMailboxes, setShowAllMailboxes] = useState(false);  // Toggle to see all vs favorites only
   const [accountFolders, setAccountFolders] = useState<Record<string, EmailFolder[]>>({});
   const [folderOrder, setFolderOrder] = useState<Record<string, string[]>>({});
@@ -856,8 +861,23 @@ export default function EmailPage() {
   // Extract stable function reference to prevent infinite loops
   const toURLParams = emailFilters.toURLParams;
 
-  const fetchEmails = useCallback(async (page = 1) => {
+  const fetchEmails = useCallback(async (page = 1, force = false) => {
+    // Performance: Debounce rapid re-fetches (unless forced)
+    const now = Date.now();
+    if (!force && now - lastFetchTimeRef.current < FETCH_DEBOUNCE_MS) {
+      console.log("[Email] Skipping fetch - too soon since last fetch");
+      return;
+    }
+
+    // Performance: Cancel any pending request
+    if (fetchAbortControllerRef.current) {
+      fetchAbortControllerRef.current.abort();
+    }
+    fetchAbortControllerRef.current = new AbortController();
+
     setLoading(true);
+    lastFetchTimeRef.current = now;
+
     try {
       // Start with filters from hook
       const params = toURLParams();
@@ -887,9 +907,18 @@ export default function EmailPage() {
       const url = `/api/v1/email_warehouse?${params.toString()}`;
       const response = await api.get<{ emails: Email[]; pagination: Pagination }>(url);
 
+      // Check if request was aborted
+      if (fetchAbortControllerRef.current?.signal.aborted) {
+        return;
+      }
+
       setEmails(response.emails || []);
       setPagination(response.pagination);
     } catch (error) {
+      // Ignore abort errors
+      if (error instanceof Error && error.name === "AbortError") {
+        return;
+      }
       console.error("Failed to fetch emails:", error);
     } finally {
       setLoading(false);
@@ -1841,7 +1870,7 @@ To: ${email.to_emails?.join(", ") || ""}
                 hasActiveFilters={emailFilters.hasActiveFilters}
                 activeFilterCount={emailFilters.activeFilterCount}
                 activeFilterLabels={emailFilters.getActiveFilterLabels()}
-                onSearch={() => fetchEmails(1)}
+                onSearch={() => fetchEmails(1, true)}
               />
             </div>
           )}
@@ -1934,7 +1963,7 @@ To: ${email.to_emails?.join(", ") || ""}
                     hasSelections={selection.hasSelection}
                     onClick={handleEmailRowClick}
                     onCheckboxChange={handleCheckboxChange}
-                    onQuickAction={() => fetchEmails()}
+                    onQuickAction={() => fetchEmails(1, true)}
                     onSnooze={handleSnoozeEmail}
                     onReply={handleReply}
                     onReplyAll={handleReplyAll}
@@ -1970,7 +1999,7 @@ To: ${email.to_emails?.join(", ") || ""}
                     hasSelections={selection.hasSelection}
                     onClick={handleEmailRowClick}
                     onCheckboxChange={handleCheckboxChange}
-                    onQuickAction={() => fetchEmails()}
+                    onQuickAction={() => fetchEmails(1, true)}
                     onSnooze={handleSnoozeEmail}
                     onReply={handleReply}
                     onReplyAll={handleReplyAll}
@@ -2004,7 +2033,7 @@ To: ${email.to_emails?.join(", ") || ""}
                 size="icon"
                 className="h-6 w-6"
                 disabled={pagination.page === 1}
-                onClick={() => fetchEmails(pagination.page - 1)}
+                onClick={() => fetchEmails(pagination.page - 1, true)}
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
               </Button>
@@ -2013,7 +2042,7 @@ To: ${email.to_emails?.join(", ") || ""}
                 size="icon"
                 className="h-6 w-6"
                 disabled={pagination.page === pagination.total_pages}
-                onClick={() => fetchEmails(pagination.page + 1)}
+                onClick={() => fetchEmails(pagination.page + 1, true)}
               >
                 <ChevronRight className="h-3.5 w-3.5" />
               </Button>
