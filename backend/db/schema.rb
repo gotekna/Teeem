@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_13_120003) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_13_170002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1331,6 +1331,35 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_13_120003) do
     t.index ["company_id"], name: "index_contact_corporate_group_memberships_on_company_id"
     t.index ["contact_id", "company_group_id", "membership_type"], name: "idx_contact_group_membership_unique", unique: true
     t.index ["contact_id"], name: "index_contact_corporate_group_memberships_on_contact_id"
+  end
+
+  create_table "contact_documents", force: :cascade do |t|
+    t.bigint "contact_id", null: false
+    t.bigint "document_type_id"
+    t.bigint "uploaded_by_id"
+    t.string "file_name", null: false
+    t.string "file_extension", limit: 10
+    t.integer "file_size"
+    t.string "content_type"
+    t.string "folder"
+    t.string "storage_path"
+    t.string "storage_item_id"
+    t.string "storage_provider", limit: 20
+    t.string "sharepoint_item_id"
+    t.string "sharepoint_file_id"
+    t.string "web_url"
+    t.string "migration_status", limit: 20
+    t.text "migration_error"
+    t.datetime "migration_started_at"
+    t.datetime "migration_completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_contact_documents_on_contact_id"
+    t.index ["document_type_id"], name: "index_contact_documents_on_document_type_id"
+    t.index ["folder"], name: "index_contact_documents_on_folder"
+    t.index ["migration_status"], name: "index_contact_documents_on_migration_status"
+    t.index ["storage_provider"], name: "index_contact_documents_on_storage_provider"
+    t.index ["uploaded_by_id"], name: "index_contact_documents_on_uploaded_by_id"
   end
 
   create_table "contact_emails", force: :cascade do |t|
@@ -8677,14 +8706,25 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_13_120003) do
     t.decimal "exif_latitude", precision: 10, scale: 7
     t.decimal "exif_longitude", precision: 10, scale: 7
     t.datetime "exif_timestamp"
+    t.bigint "document_type_id"
+    t.string "storage_path"
+    t.string "storage_item_id"
+    t.string "storage_provider", limit: 20
+    t.string "migration_status", limit: 20
+    t.text "migration_error"
+    t.datetime "migration_started_at"
+    t.datetime "migration_completed_at"
+    t.index ["document_type_id"], name: "index_sm_task_photos_on_document_type_id"
     t.index ["face_verified"], name: "index_sm_task_photos_on_face_verified"
     t.index ["is_checkin_photo"], name: "index_sm_task_photos_on_is_checkin_photo"
     t.index ["is_checkout_photo"], name: "index_sm_task_photos_on_is_checkout_photo"
     t.index ["job_id"], name: "index_sm_task_photos_on_job_id"
+    t.index ["migration_status"], name: "index_sm_task_photos_on_migration_status"
     t.index ["photo_type"], name: "index_sm_task_photos_on_photo_type"
     t.index ["resource_id"], name: "index_sm_task_photos_on_resource_id"
     t.index ["sm_task_id", "photo_type"], name: "index_sm_task_photos_on_sm_task_id_and_photo_type"
     t.index ["sm_task_id"], name: "index_sm_task_photos_on_sm_task_id"
+    t.index ["storage_provider"], name: "index_sm_task_photos_on_storage_provider"
     t.index ["taken_at"], name: "index_sm_task_photos_on_taken_at"
     t.index ["uploaded_by_id"], name: "index_sm_task_photos_on_uploaded_by_id"
   end
@@ -9601,6 +9641,32 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_13_120003) do
     t.index ["user_id"], name: "index_user_absences_on_user_id"
   end
 
+  create_table "user_documents", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "document_type_id"
+    t.string "file_name", null: false
+    t.string "file_extension", limit: 10
+    t.integer "file_size"
+    t.string "content_type"
+    t.string "category", limit: 20
+    t.string "folder"
+    t.string "storage_path"
+    t.string "storage_item_id"
+    t.string "storage_provider", limit: 20
+    t.string "migration_status", limit: 20
+    t.text "migration_error"
+    t.datetime "migration_started_at"
+    t.datetime "migration_completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["category"], name: "index_user_documents_on_category"
+    t.index ["document_type_id"], name: "index_user_documents_on_document_type_id"
+    t.index ["migration_status"], name: "index_user_documents_on_migration_status"
+    t.index ["storage_provider"], name: "index_user_documents_on_storage_provider"
+    t.index ["user_id", "category"], name: "index_user_documents_on_user_id_and_category"
+    t.index ["user_id"], name: "index_user_documents_on_user_id"
+  end
+
   create_table "user_entity_tab_preferences", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.string "scope", null: false
@@ -10473,6 +10539,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_13_120003) do
   add_foreign_key "contact_corporate_group_memberships", "contacts"
   add_foreign_key "contact_corporate_group_memberships", "corporate_companies", column: "company_id"
   add_foreign_key "contact_corporate_group_memberships", "corporate_groups", column: "company_group_id"
+  add_foreign_key "contact_documents", "contacts"
+  add_foreign_key "contact_documents", "document_types"
+  add_foreign_key "contact_documents", "users", column: "uploaded_by_id"
   add_foreign_key "contact_external_links", "contacts"
   add_foreign_key "contact_group_memberships", "contact_groups"
   add_foreign_key "contact_group_memberships", "contacts"
@@ -11130,6 +11199,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_13_120003) do
   add_foreign_key "sm_task_attachments", "users", column: "added_by_id", on_delete: :nullify
   add_foreign_key "sm_task_document_types", "document_types"
   add_foreign_key "sm_task_document_types", "sm_tasks"
+  add_foreign_key "sm_task_photos", "document_types"
   add_foreign_key "sm_task_photos", "jobs", on_delete: :cascade
   add_foreign_key "sm_task_photos", "sm_resources", column: "resource_id", on_delete: :nullify
   add_foreign_key "sm_task_photos", "sm_tasks", on_delete: :cascade
@@ -11216,6 +11286,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_13_120003) do
   add_foreign_key "unreal_measurements", "purchase_orders", column: "synced_to_po_id"
   add_foreign_key "user_absences", "users"
   add_foreign_key "user_absences", "users", column: "approved_by_id"
+  add_foreign_key "user_documents", "document_types"
+  add_foreign_key "user_documents", "users"
   add_foreign_key "user_entity_tab_preferences", "users"
   add_foreign_key "user_job_tab_configs", "job_tabs"
   add_foreign_key "user_job_tab_configs", "job_tabs", column: "parent_job_tab_id"

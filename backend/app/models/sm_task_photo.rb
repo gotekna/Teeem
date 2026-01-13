@@ -111,20 +111,51 @@ class SmTaskPhoto < ApplicationRecord
     document_type || task&.completion_document_type
   end
 
+  # SSoT: Get the EntityTab from DocumentType (primary_entity_tab method)
+  # This provides the folder name and storage_folder_path template
+  def effective_entity_tab
+    effective_document_type&.primary_entity_tab
+  end
+
   # SSoT: All tokens come from related records - NOTHING HARDCODED
   # Used by StorableDocument.upload_to_storage() to build the storage path
+  #
+  # Path is built from:
+  # 1. EntityTab.storage_folder_path template (from database, NOT hardcoded)
+  # 2. Tokens expanded from this method
   def default_storage_tokens
     doc_type = effective_document_type
+    entity_tab = effective_entity_tab
     effective_job = job || task&.job
 
     {
+      # Job tokens
       JobCode: effective_job&.job_code,
-      TabName: doc_type&.primary_tab&.display_name || doc_type&.primary_tab&.tab_key,
+      JobTitle: effective_job&.title,
+
+      # Tab tokens (from EntityTab - SSoT for folder structure)
+      TabName: entity_tab&.display_name || doc_type&.primary_tab,
+      TabKey: entity_tab&.tab_key,
+      SubTabName: entity_tab&.parent&.display_name,
+
+      # DocumentType tokens
       DocTypeCode: doc_type&.code || doc_type&.abbreviation,
+      DocTypeName: doc_type&.name,
+      Folder: doc_type&.folder,
+
+      # Date/time tokens
       Date: (taken_at || created_at)&.strftime("%Y-%m-%d"),
       DateTime: (taken_at || created_at)&.strftime("%Y-%m-%d_%H%M%S"),
+
+      # File tokens
       OriginalFileName: File.basename(photo_url.to_s, ".*")
     }.compact
+  end
+
+  # SSoT: Get the storage folder path template from EntityTab
+  # This is the database-stored template, NOT a hardcoded constant
+  def storage_folder_template
+    effective_entity_tab&.storage_folder_path
   end
 
   # SSoT: Filename from DocumentType.file_name template

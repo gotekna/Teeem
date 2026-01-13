@@ -73,6 +73,18 @@ class UserDocument < ApplicationRecord
     CATEGORIES[category] || :users
   end
 
+  # SSoT: Get the EntityTab from DocumentType (primary_entity_tab method)
+  # This provides the folder name and storage_folder_path template
+  def effective_entity_tab
+    document_type&.primary_entity_tab
+  end
+
+  # SSoT: Get the storage folder path template from EntityTab
+  # This is the database-stored template, NOT a hardcoded constant
+  def storage_folder_template
+    effective_entity_tab&.storage_folder_path
+  end
+
   # Override upload_to_storage to use dynamic scope
   def upload_to_storage(file_content, tokens: {}, filename: nil)
     # Temporarily set the storage scope based on category
@@ -90,15 +102,39 @@ class UserDocument < ApplicationRecord
   private
 
   # SSoT: Default tokens for storage path template
-  # Template varies by category:
+  # Path is built from:
+  # 1. EntityTab.storage_folder_path template (from database, NOT hardcoded)
+  # 2. Tokens expanded from this method
+  #
+  # Category determines base folder:
   # - photos: /Users/Photos/{UserName}/filename
   # - contracts: /Users/Contracts/{UserName}/filename
   # - my_docs: /Users/MyDocs/{UserName}/filename
   def default_storage_tokens
+    entity_tab = effective_entity_tab
+
     {
+      # User tokens
       UserName: sanitize_path_component(user&.name || "Unknown"),
-      TabName: folder || category&.titleize || "Documents",
+      UserEmail: user&.email,
+
+      # Tab tokens (from EntityTab - SSoT for folder structure)
+      TabName: entity_tab&.display_name || folder || category&.titleize || "Documents",
+      TabKey: entity_tab&.tab_key,
+      SubTabName: entity_tab&.parent&.display_name,
+
+      # DocumentType tokens
+      DocTypeCode: document_type&.code,
+      DocTypeName: document_type&.name,
+      Folder: document_type&.folder,
+
+      # Category token
+      Category: category&.titleize,
+
+      # Date tokens
       Date: created_at&.strftime("%Y-%m-%d"),
+
+      # File tokens
       OriginalFileName: File.basename(file_name.to_s, ".*")
     }.compact
   end

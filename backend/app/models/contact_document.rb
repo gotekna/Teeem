@@ -61,16 +61,46 @@ class ContactDocument < ApplicationRecord
     storage_item_id.presence || sharepoint_item_id
   end
 
+  # SSoT: Get the EntityTab from DocumentType (primary_entity_tab method)
+  # This provides the folder name and storage_folder_path template
+  def effective_entity_tab
+    document_type&.primary_entity_tab
+  end
+
+  # SSoT: Get the storage folder path template from EntityTab
+  # This is the database-stored template, NOT a hardcoded constant
+  def storage_folder_template
+    effective_entity_tab&.storage_folder_path
+  end
+
   private
 
   # SSoT: Default tokens for storage path template
-  # Template: /Contacts/{ContactName}/{TabName}/filename
+  # Path is built from:
+  # 1. EntityTab.storage_folder_path template (from database, NOT hardcoded)
+  # 2. Tokens expanded from this method
   def default_storage_tokens
+    entity_tab = effective_entity_tab
+
     {
+      # Contact tokens
       ContactName: sanitize_path_component(contact&.display_name || "Unknown"),
-      TabName: folder || document_type&.primary_tab&.display_name || "Documents",
+
+      # Tab tokens (from EntityTab - SSoT for folder structure)
+      TabName: entity_tab&.display_name || folder || document_type&.primary_tab || "Documents",
+      TabKey: entity_tab&.tab_key,
+      SubTabName: entity_tab&.parent&.display_name,
+
+      # DocumentType tokens
       DocTypeCode: document_type&.code,
-      Date: created_at&.strftime("%Y-%m-%d")
+      DocTypeName: document_type&.name,
+      Folder: document_type&.folder,
+
+      # Date tokens
+      Date: created_at&.strftime("%Y-%m-%d"),
+
+      # File tokens
+      OriginalFileName: File.basename(file_name.to_s, ".*")
     }.compact
   end
 

@@ -64,7 +64,8 @@ class DocumentStorageService
     end
 
     # Build the storage path using StorageConfiguration
-    folder_path = build_folder_path(scope, tokens)
+    # SSoT: Pass record so we can use its EntityTab.storage_folder_path template
+    folder_path = build_folder_path(scope, tokens, record: record)
     full_path = "#{folder_path}/#{sanitize_filename(file_name)}"
 
     Rails.logger.info "[DocumentStorage] Uploading to #{full_path} (#{file_content.bytesize} bytes)"
@@ -108,8 +109,9 @@ class DocumentStorageService
   end
 
   # Build a storage path without uploading (for preview/validation)
-  def preview_path(scope:, tokens:, filename:)
-    folder_path = build_folder_path(scope, tokens)
+  # SSoT: Pass record to use its EntityTab.storage_folder_path template
+  def preview_path(scope:, tokens:, filename:, record: nil)
+    folder_path = build_folder_path(scope, tokens, record: record)
     "#{folder_path}/#{sanitize_filename(filename)}"
   end
 
@@ -150,13 +152,20 @@ class DocumentStorageService
   end
 
   # Build folder path from scope and tokens
-  # Uses StorageConfiguration.path_for(scope) + template expansion
-  def build_folder_path(scope, tokens)
+  # SSoT Priority:
+  # 1. Record's storage_folder_template (from EntityTab.storage_folder_path - database)
+  # 2. StorageConfiguration.template_for(scope) (fallback)
+  def build_folder_path(scope, tokens, record: nil)
     # Get base path from StorageConfiguration
     base_path = @storage_config.path_for(scope)
 
-    # Get template for this scope
-    template = @storage_config.template_for(scope)
+    # SSoT: Try to get template from record's EntityTab first (database-stored)
+    # Falls back to StorageConfiguration constant if not available
+    template = if record&.respond_to?(:storage_folder_template) && record.storage_folder_template.present?
+      record.storage_folder_template
+    else
+      @storage_config.template_for(scope)
+    end
 
     # Expand template with tokens
     expanded = expand_template(template, tokens)
