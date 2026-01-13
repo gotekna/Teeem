@@ -74,10 +74,40 @@ module Api
 
         # Handle file upload via Active Storage
         if params[:file].present?
-          @document.file.attach(params[:file])
-          @document.file_name = params[:file].original_filename
-          @document.file_size = params[:file].size
-          @document.mime_type = params[:file].content_type
+          original_file = params[:file]
+          file_content = original_file.read
+          original_file.rewind
+
+          # Auto-convert Word to PDF for official document types
+          if should_auto_convert_to_pdf?(original_file.original_filename, @document.folder)
+            conversion_result = convert_word_to_pdf(file_content, original_file.original_filename)
+
+            if conversion_result[:success]
+              # Attach the converted PDF instead
+              @document.file.attach(
+                io: StringIO.new(conversion_result[:pdf]),
+                filename: conversion_result[:filename],
+                content_type: "application/pdf"
+              )
+              @document.file_name = conversion_result[:filename]
+              @document.file_size = conversion_result[:pdf].bytesize
+              @document.mime_type = "application/pdf"
+              @document.notes = "Auto-converted from Word document"
+            else
+              # Conversion failed - attach original
+              Rails.logger.warn "[CorporateCompanyDocuments] Word→PDF conversion failed: #{conversion_result[:error]}"
+              @document.file.attach(original_file)
+              @document.file_name = original_file.original_filename
+              @document.file_size = original_file.size
+              @document.mime_type = original_file.content_type
+            end
+          else
+            # No conversion needed - attach original
+            @document.file.attach(original_file)
+            @document.file_name = original_file.original_filename
+            @document.file_size = original_file.size
+            @document.mime_type = original_file.content_type
+          end
         end
 
         if @document.save
@@ -760,6 +790,22 @@ module Api
         when /\.xlsx?$/ then "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         else "application/octet-stream"
         end
+      end
+
+      # Check if file should be auto-converted from Word to PDF
+      # Applies to: ASIC, Company folders (official documents)
+      def should_auto_convert_to_pdf?(filename, folder)
+        return false unless WordToPdfConverter.convertible?(filename)
+
+        # Folders that should always have PDFs (official documents)
+        pdf_required_folders = %w[asic company registry]
+        folder&.downcase.in?(pdf_required_folders)
+      end
+
+      # Convert Word document to PDF using WordToPdfConverter
+      def convert_word_to_pdf(content, filename)
+        converter = WordToPdfConverter.new
+        converter.convert(content, filename: filename)
       end
 
       # NOTE: serve_from_sharepoint, serve_from_active_storage, serve_from_s3_compatible
