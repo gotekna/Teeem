@@ -154,7 +154,7 @@ module Api
       end
 
       # GET /api/v1/company_documents/:id/content
-      # Serves document content from SharePoint (primary) or Active Storage (fallback)
+      # Serves document content from SharePoint (primary), S3-compatible (Wasabi), or Active Storage (fallback)
       # SSoT self-healing: verifies SharePoint filename matches before serving
       def content
         # Set CORS headers for frontend access
@@ -162,11 +162,15 @@ module Api
         response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
 
-        # Priority 1: SharePoint file (SSoT for synced documents)
-        if @document.sharepoint_file_id.present?
+        # Priority 1: S3-compatible storage (Wasabi)
+        if @document.storage_provider == "s3_compatible" && @document.storage_path.present?
+          serve_from_s3_compatible
+
+        # Priority 2: SharePoint file (SSoT for synced documents)
+        elsif @document.sharepoint_file_id.present?
           serve_from_sharepoint
 
-        # Priority 2: Active Storage blob (for manual uploads)
+        # Priority 3: Active Storage blob (for manual uploads)
         elsif @document.file.attached?
           serve_from_active_storage
 
@@ -174,7 +178,7 @@ module Api
         else
           render json: {
             success: false,
-            error: "No file available - document has no SharePoint ID and no uploaded file"
+            error: "No file available - document has no storage path, SharePoint ID, or uploaded file"
           }, status: :not_found
         end
       end
@@ -843,6 +847,41 @@ module Api
           success: false,
           error: "Failed to download file"
         }, status: :internal_server_error
+      end
+
+      # Serve document content from S3-compatible storage (Wasabi)
+      def serve_from_s3_compatible
+        s3_key = @document.storage_path.sub(%r{^/}, "") # Remove leading slash if present
+
+        begin
+          organization = Organization.first # Single-tenant
+          provider = DocumentProviders::S3Compatible.for_organization(organization)
+          file_content = provider.download_file(s3_key)
+          content_type = determine_content_type(@document.file_name)
+
+          send_data file_content,
+            type: content_type,
+            disposition: "inline",
+            filename: @document.file_name
+        rescue DocumentProviders::NotFoundError => e
+          Rails.logger.error "S3 file not found for document #{@document.id}: #{e.message}"
+          render json: {
+            success: false,
+            error: "File not found in S3 storage"
+          }, status: :not_found
+        rescue DocumentProviders::NotConnectedError => e
+          Rails.logger.error "S3 storage not configured: #{e.message}"
+          render json: {
+            success: false,
+            error: "S3 storage not configured"
+          }, status: :service_unavailable
+        rescue StandardError => e
+          Rails.logger.error "S3 download error for document #{@document.id}: #{e.message}"
+          render json: {
+            success: false,
+            error: "Failed to download file from S3 storage: #{e.message}"
+          }, status: :internal_server_error
+        end
       end
     end
   end
