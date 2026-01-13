@@ -50,11 +50,13 @@ module Api
 
         # User files from S3 (MyDocs folder)
         # SSoT: Path matches StorageConfiguration.SCOPE_FOLDERS["my_docs"] = "Users/MyDocs"
+        # Note: list_folder returns an array of items directly, not a hash
         my_docs_count = begin
           organization = Organization.first
           provider = DocumentProviders::S3Compatible.for_organization(organization)
-          result = provider.list_folder("Users/MyDocs", recursive: false) rescue { files: [] }
-          (result[:files] || []).size
+          items = provider.list_folder("Users/MyDocs", recursive: false) rescue []
+          # Count only files (items with :type == :file), not folders
+          items.is_a?(Array) ? items.count { |item| item[:type] == :file } : 0
         rescue => e
           Rails.logger.warn "[Documents] Could not count MyDocs: #{e.message}"
           0
@@ -231,18 +233,20 @@ module Api
         begin
           organization = Organization.first
           provider = DocumentProviders::S3Compatible.for_organization(organization)
-          result = provider.list_folder(s3_path, recursive: false)
+          # Note: list_folder returns an array directly, not a hash
+          items = provider.list_folder(s3_path, recursive: false) || []
 
-          files = (result[:files] || []).map do |file|
+          # Filter to files only (exclude folders)
+          files = items.select { |item| item[:type] == :file }.map do |item|
             {
-              id: file[:id] || file[:key],
-              file_name: File.basename(file[:name] || file[:key] || ""),
-              display_name: File.basename(file[:name] || file[:key] || ""),
-              file_size: file[:size],
-              mime_type: file[:content_type],
-              storage_path: file[:key],
-              last_modified: file[:last_modified]&.iso8601,
-              download_url: file[:web_url]
+              id: item[:id] || item[:key],
+              file_name: File.basename(item[:name] || item[:key] || ""),
+              display_name: File.basename(item[:name] || item[:key] || ""),
+              file_size: item[:size],
+              mime_type: item[:content_type],
+              storage_path: item[:key],
+              last_modified: item[:last_modified]&.iso8601,
+              download_url: item[:web_url]
             }
           end
 
