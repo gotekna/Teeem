@@ -143,6 +143,20 @@ export function BreadcrumbProvider({ children }: { children: ReactNode }) {
         return truncated;
       }
 
+      // Check if navigating between sibling tabs (same parent, different tab)
+      // e.g., /settings/company/info → /settings/company/connections
+      // Update the last item instead of adding a new one
+      if (prev.length > 0 && isSiblingTab(prev[prev.length - 1].pathname, pathname)) {
+        const updated = [...prev];
+        updated[updated.length - 1] = {
+          ...updated[updated.length - 1],
+          pathname,
+          searchParams: searchParams?.toString(),
+          displayName: resolveDisplayName(pathname, searchParams),
+        };
+        return updated;
+      }
+
       // BACKLOAD: Rebuild trail from URL when stale or empty
       // This handles: browser back button, direct links, external navigation
       const isTrailStale = prev.length > 0 && !isRelatedPath(prev[prev.length - 1].pathname, pathname);

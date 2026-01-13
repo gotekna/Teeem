@@ -269,6 +269,14 @@ export function resolveDisplayName(
     return tabName;
   }
 
+  // 4b. Check for Settings path-based tab pattern (e.g., /settings/company/connections)
+  // Pattern: /settings/{section}/{tab}
+  if (segments.length === 3 && segments[0] === "settings") {
+    const tabKey = lastSegment;
+    const tabName = TAB_DISPLAY_NAMES[tabKey] || humanizeSegment(tabKey);
+    return tabName;
+  }
+
   // 5. Humanize last segment as fallback
   const baseName = humanizeSegment(lastSegment);
   if (effectiveTab) {

@@ -598,11 +598,13 @@ export function SharePointTab() {
       );
 
       results.forEach(({ scopeKey, tabs }) => {
-        // Only include root tabs (no parent) with sharepoint folders
+        // Only include root tabs (no parent)
         tabsByScope[scopeKey] = tabs.filter(
-          (tab) => tab.parent_id === null && tab.has_sharepoint_folder
+          (tab) => tab.parent_id === null
         );
       });
+
+      console.log('Loaded entity tabs:', tabsByScope);
 
       setEntityTabs(tabsByScope);
     } catch (error) {
@@ -629,6 +631,18 @@ export function SharePointTab() {
     };
 
     attachTabs(tree);
+
+    // Debug: log which nodes have tabs
+    const logTabs = (nodes: FolderTreeNode[], prefix = '') => {
+      nodes.forEach(n => {
+        if (n.scopeKey) {
+          console.log(`${prefix}Node: ${n.name}, scopeKey: ${n.scopeKey}, tabs: ${n.tabs?.length || 0}`);
+        }
+        logTabs(n.children, prefix + '  ');
+      });
+    };
+    logTabs(tree);
+
     return tree;
   }, [formData.scope_folders, entityTabs]);
 
