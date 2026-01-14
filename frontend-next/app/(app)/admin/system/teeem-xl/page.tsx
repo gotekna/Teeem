@@ -23,6 +23,9 @@ import {
   Briefcase,
   X,
   Search,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -1650,6 +1653,31 @@ export default function TeeemXLPage() {
     setHasChanges(true);
   };
 
+  // Apply text alignment to selected cells (preserves other format properties)
+  const applyAlignment = (textAlign: 'left' | 'center' | 'right') => {
+    saveToHistory();
+    const newSheets = [...sheets];
+    const activeSheet = { ...newSheets[activeSheetIndex] };
+    activeSheet.cells = { ...activeSheet.cells };
+
+    forEachSelectedCell((row, col, ref) => {
+      const cell = activeSheet.cells[ref];
+      if (cell) {
+        activeSheet.cells[ref] = {
+          ...cell,
+          format: { ...cell.format, type: cell.format?.type ?? 'general', textAlign },
+        };
+      } else {
+        // Create a cell with the alignment if it doesn't exist
+        activeSheet.cells[ref] = { value: null, type: "string", format: { type: 'general', textAlign } };
+      }
+    });
+
+    newSheets[activeSheetIndex] = activeSheet;
+    setSheets(newSheets);
+    setHasChanges(true);
+  };
+
   // Add sheet
   const addSheet = () => {
     saveToHistory();
@@ -1707,11 +1735,17 @@ export default function TeeemXLPage() {
       ? FORMULA_REF_COLORS[formulaRefColorIndex % FORMULA_REF_COLORS.length]
       : "";
 
+    // Get alignment class from cell format
+    const alignmentClass = cell?.format?.textAlign === 'center' ? 'justify-center'
+      : cell?.format?.textAlign === 'right' ? 'justify-end'
+      : 'justify-start';
+
     return (
       <div
         key={ref}
         className={cn(
           "border-r border-b border-border dark:border-border px-1 flex items-center overflow-hidden relative",
+          alignmentClass,
           isSelected && "ring-2 ring-blue-500 ring-inset z-10",
           inSelection && !isSelected && "bg-blue-100 dark:bg-blue-900/30",
           inFillPreview && "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700 border-dashed",
@@ -1739,7 +1773,11 @@ export default function TeeemXLPage() {
               handleCellBlur();
             }}
             onKeyDown={handleInputKeyDown}
-            className="w-full h-full bg-transparent outline-none text-sm"
+            className={cn(
+              "w-full h-full bg-transparent outline-none text-sm",
+              cell?.format?.textAlign === 'center' && "text-center",
+              cell?.format?.textAlign === 'right' && "text-right"
+            )}
             autoFocus
           />
         ) : (
@@ -1882,6 +1920,34 @@ export default function TeeemXLPage() {
           title="Format as Number"
         >
           <Hash className="h-4 w-4" />
+        </Button>
+
+        <div className="h-6 w-px bg-border" />
+
+        {/* Text Alignment */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => applyAlignment('left')}
+          title="Align Left"
+        >
+          <AlignLeft className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => applyAlignment('center')}
+          title="Align Center"
+        >
+          <AlignCenter className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => applyAlignment('right')}
+          title="Align Right"
+        >
+          <AlignRight className="h-4 w-4" />
         </Button>
 
         <div className="h-6 w-px bg-border" />

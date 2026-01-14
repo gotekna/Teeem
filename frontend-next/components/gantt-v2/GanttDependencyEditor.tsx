@@ -540,7 +540,7 @@ export function GanttDependencyEditor({
       await onSave(task.id, currentPreds, currentSuccs);
 
       // 2. THEN: Update predecessor task (move it backward) if needed
-      if (onUpdateTask && restoreConflict.requiredPredEndDate) {
+      if (onUpdateTask && restoreConflict.requiredPredStartDate) {
         const updates: Record<string, unknown> = {};
 
         // Unlock if needed
@@ -550,10 +550,18 @@ export function GanttDependencyEditor({
           updates.confirm = false;
         }
 
-        // Set new end date
-        updates.end_date = restoreConflict.requiredPredEndDate.toISOString().split('T')[0];
+        // For templates: use hold + hold_date (start date) to position the task
+        // Format date as YYYY-MM-DD in local timezone
+        const startDate = restoreConflict.requiredPredStartDate;
+        const year = startDate.getFullYear();
+        const month = String(startDate.getMonth() + 1).padStart(2, '0');
+        const day = String(startDate.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
 
-        console.log('[GanttDependencyEditor] Moving predecessor:', predTask.id, updates);
+        updates.hold = true;
+        updates.hold_date = dateStr;
+
+        console.log('[GanttDependencyEditor] Moving predecessor (hold_date):', predTask.id, updates);
         await onUpdateTask(predTask.id, updates);
       }
 
@@ -1611,7 +1619,12 @@ export function GanttDependencyEditor({
                       Move #{restoreConflict?.brokenDep.taskNumber} backward
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      End by{' '}
+                      Start{' '}
+                      {restoreConflict?.requiredPredStartDate?.toLocaleDateString('en-AU', {
+                        day: 'numeric',
+                        month: 'short',
+                      })}
+                      {' → end by '}
                       {restoreConflict?.requiredPredEndDate?.toLocaleDateString('en-AU', {
                         day: 'numeric',
                         month: 'short',
