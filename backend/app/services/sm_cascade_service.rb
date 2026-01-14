@@ -64,15 +64,17 @@ class SmCascadeService
       new_start = cascade_params[:new_start_date]
       new_end = calculate_new_end_date(new_start)
 
-      # Check if new position violates predecessor dependencies
-      # If so, set hold=true to pin the task at this manual position
-      violates_predecessors = violates_predecessor_dependencies?(new_start)
+      # When a task is manually dragged, ALWAYS set hold=true and hold_date
+      # This pins the task at the user's chosen position.
+      # Without this, GanttDateCalculationService would recalculate from
+      # predecessors and snap the task back to the dependency-driven date.
       updates = {
         start_date: new_start,
         end_date: new_end,
-        updated_by_id: cascade_params[:user_id]
+        updated_by_id: cascade_params[:user_id],
+        hold: true,
+        hold_date: new_start
       }
-      updates[:hold] = true if violates_predecessors
 
       task.update!(updates)
       results[:updated_tasks] << task

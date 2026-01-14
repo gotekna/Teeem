@@ -58,6 +58,8 @@ const SCOPE_LABELS: Record<string, string> = {
 const DEFAULT_FOLDER_TEMPLATES: Record<string, string> = {
   job: '{{JobCode}}/{{TabName}}',
   task: '{{TaskId}}',
+  task_attachments: '{{TaskId}}/Attachments',
+  task_responses: '{{TaskId}}/Responses',
   corporate_entity: '{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}',
   corporate: '{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}',
   contact: '{{ContactName}}/{{TabName}}',
@@ -461,6 +463,43 @@ function TreeNode({
               placeholder="Click tokens to build folder path..."
               defaultExpanded={false}
             />
+
+            {/* Folder suffix buttons for task scopes - SSoT: prevents typos */}
+            {(node.scopeKey === 'task_attachments' || node.scopeKey === 'task_responses') && (
+              <div className="flex items-center gap-2 -mt-2">
+                <span className="text-xs text-muted-foreground">Add folder suffix:</span>
+                {node.scopeKey === 'task_attachments' && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-6 text-xs px-2"
+                    disabled={folderTemplate.endsWith('/Attachments')}
+                    onClick={() => {
+                      const base = folderTemplate.replace(/\/Attachments\/?$/, '').replace(/\/$/, '');
+                      handleFolderTemplateChange(base + '/Attachments');
+                    }}
+                  >
+                    /Attachments
+                  </Button>
+                )}
+                {node.scopeKey === 'task_responses' && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-6 text-xs px-2"
+                    disabled={folderTemplate.endsWith('/Responses')}
+                    onClick={() => {
+                      const base = folderTemplate.replace(/\/Responses\/?$/, '').replace(/\/$/, '');
+                      handleFolderTemplateChange(base + '/Responses');
+                    }}
+                  >
+                    /Responses
+                  </Button>
+                )}
+              </div>
+            )}
 
             {/* Full Path Preview */}
             <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded px-3 py-2">

@@ -3,12 +3,11 @@
 # TaskResponseUploader
 # Uploads task files to document storage (SharePoint, S3, etc.)
 #
-# ALL tasks use the same folder structure from StorageConfiguration (SSoT):
-#   - /Tasks/{TaskId}/Responses/{filename}
-#   - /Tasks/{TaskId}/Attachments/{filename}
+# SSoT: StorageConfiguration defines ALL folder paths via resolve_path():
+#   - :task_responses scope → /Tasks/{TaskId}/Responses/{filename}
+#   - :task_attachments scope → /Tasks/{TaskId}/Attachments/{filename}
 #
 # Job linkage is a DATA relationship (stored in document record), not a storage path decision.
-# SSoT: StorageConfiguration.task_path() defines where task files go.
 class TaskResponseUploader
   class UploadError < StandardError; end
 
@@ -90,7 +89,12 @@ class TaskResponseUploader
     DocumentProviders.for_organization(organization)
   end
 
-  # Folder name based on category
+  # Scope based on category - determines which StorageConfiguration path to use
+  def storage_scope
+    category == "response" ? :task_responses : :task_attachments
+  end
+
+  # Folder name for document record metadata (extracted from scope template)
   def folder_name
     category == "response" ? "Responses" : "Attachments"
   end
@@ -101,12 +105,11 @@ class TaskResponseUploader
   end
 
   # Target folder path for task files
-  # SSoT: StorageConfiguration.task_path() defines where ALL task files go
-  # Job linkage is a data relationship, not a storage path decision
+  # SSoT: StorageConfiguration.resolve_path() with scope defines ALL paths
+  # No hardcoded folder names - reads from SCOPE_TEMPLATES
   def target_folder_path
     config = StorageConfiguration.for_organization(organization)
-    # All tasks use the same path structure: /Tasks/{TaskId}/{category}
-    config.task_path(task.id, folder_name)
+    config.resolve_path(storage_scope, { TaskId: task.id })
   end
 
   def ensure_folder_exists(provider, folder_path)

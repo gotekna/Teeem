@@ -706,16 +706,27 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       const task = tasks.find(t => t.id === taskId);
       const updateData: Record<string, unknown> = { [apiField]: checked };
 
-      // Lock position when confirming - format in local timezone to avoid day shift
-      if (checked && task?.startDate) {
+      // When starting a task, move to today and set hold
+      if (field === 'started' && checked) {
+        const today = new Date();
+        updateData.hold = true;
+        updateData.hold_date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      }
+      // For other confirms (confirm, supplier_confirm), lock at current position
+      else if (checked && task?.startDate) {
         const d = task.startDate;
+        updateData.hold = true;
         updateData.hold_date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       }
 
-      await api.patch(
-        apiConfig.updateUrl(taskId),
-        wrapPayload(apiConfig, updateData)
-      );
+      const url = apiConfig.updateUrl(taskId);
+      const payload = wrapPayload(apiConfig, updateData);
+      console.log('[GanttDataManager] 🔧 Checkbox toggle DEBUG:');
+      console.log('[GanttDataManager]   URL:', url);
+      console.log('[GanttDataManager]   payload:', JSON.stringify(payload));
+
+      const response = await api.patch(url, payload);
+      console.log('[GanttDataManager]   response:', response);
 
       toast({ title: 'Updated', description: `${field} ${checked ? 'enabled' : 'disabled'}` });
       loadData({ silent: true });
@@ -900,43 +911,62 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       const month = String(newStartDate.getMonth() + 1).padStart(2, '0');
       const day = String(newStartDate.getDate()).padStart(2, '0');
       const dateStr = `${year}-${month}-${day}`;
-      console.log('[GanttDataManager] Executing drag move via /move endpoint, new_start_date=', dateStr);
 
-      // Use /move endpoint which auto-cascades unlocked successors
-      // This is the SSoT for task movement with dependency cascade
-      const result = await api.post<{
-        success: boolean;
-        needs_confirmation?: boolean;
-        message?: string;
-        cascade_results?: {
-          updated_count: number;
-          updated_task_ids: number[];
-        };
-      }>(`/api/v1/sm_tasks/${task.id}/move`, {
-        new_start_date: dateStr,
-      });
+      if (mode === 'template' && templateId) {
+        // Template mode: PATCH the template row with hold=true and hold_date
+        // This sets the manual position that GanttDateCalculationService will respect
+        const url = `/api/v1/sm_schedule_master_templates/${templateId}/rows/${task.id}`;
+        const payload = { row: { hold: true, hold_date: dateStr } };
+        console.log('[GanttDataManager] 🔧 Template drag move DEBUG:');
+        console.log('[GanttDataManager]   mode:', mode);
+        console.log('[GanttDataManager]   templateId:', templateId);
+        console.log('[GanttDataManager]   task.id:', task.id);
+        console.log('[GanttDataManager]   URL:', url);
+        console.log('[GanttDataManager]   payload:', JSON.stringify(payload));
 
-      if (result?.needs_confirmation) {
-        // Shouldn't happen since we pre-filter locked successors, but handle it
-        console.warn('[GanttDataManager] Move returned needs_confirmation - showing cascade dialog');
-        toast({ title: 'Cascade Required', description: 'Please resolve locked successor conflicts', variant: 'destructive' });
-        return;
+        const response = await api.patch(url, payload);
+
+        console.log('[GanttDataManager] 🔧 Template drag move response:', response);
+        toast({ title: 'Task Moved', description: `Moved to ${newStartDate.toLocaleDateString('en-AU')}` });
+        loadData({ silent: true });
+      } else {
+        // Job mode: Use /move endpoint which auto-cascades unlocked successors
+        console.log('[GanttDataManager] Executing drag move via /move endpoint, new_start_date=', dateStr);
+
+        const result = await api.post<{
+          success: boolean;
+          needs_confirmation?: boolean;
+          message?: string;
+          cascade_results?: {
+            updated_count: number;
+            updated_task_ids: number[];
+          };
+        }>(`/api/v1/sm_tasks/${task.id}/move`, {
+          new_start_date: dateStr,
+        });
+
+        if (result?.needs_confirmation) {
+          // Shouldn't happen since we pre-filter locked successors, but handle it
+          console.warn('[GanttDataManager] Move returned needs_confirmation - showing cascade dialog');
+          toast({ title: 'Cascade Required', description: 'Please resolve locked successor conflicts', variant: 'destructive' });
+          return;
+        }
+
+        const cascadeCount = (result?.cascade_results?.updated_count || 1) - 1;
+        console.log('[GanttDataManager] Drag move saved successfully, cascaded:', cascadeCount);
+
+        const description = cascadeCount > 0
+          ? `Moved to ${newStartDate.toLocaleDateString('en-AU')} (+ ${cascadeCount} successor${cascadeCount > 1 ? 's' : ''} cascaded)`
+          : `Moved to ${newStartDate.toLocaleDateString('en-AU')}`;
+
+        toast({ title: 'Task Moved', description });
+        loadData({ silent: true });
       }
-
-      const cascadeCount = (result?.cascade_results?.updated_count || 1) - 1;
-      console.log('[GanttDataManager] Drag move saved successfully, cascaded:', cascadeCount);
-
-      const description = cascadeCount > 0
-        ? `Moved to ${newStartDate.toLocaleDateString('en-AU')} (+ ${cascadeCount} successor${cascadeCount > 1 ? 's' : ''} cascaded)`
-        : `Moved to ${newStartDate.toLocaleDateString('en-AU')}`;
-
-      toast({ title: 'Task Moved', description });
-      loadData({ silent: true });
     } catch (err) {
       console.error('[GanttDataManager] Drag move failed:', err);
       toast({ title: 'Error', description: 'Failed to move task', variant: 'destructive' });
     }
-  }, [apiConfig, loadData, toast]);
+  }, [mode, templateId, apiConfig, loadData, toast]);
 
   // ---------------------------------------------------------------------------
   // Rollover
