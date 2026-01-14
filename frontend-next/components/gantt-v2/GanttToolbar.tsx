@@ -495,20 +495,20 @@ export function GanttToolbar({
                   </div>
                   <div className="flex items-center gap-2">
                     <div
-                      className="w-4 h-2.5 rounded overflow-hidden relative"
-                      style={{ backgroundColor: '#a855f7' }}
+                      className="w-5 h-3 rounded overflow-hidden relative"
+                      style={{ backgroundColor: '#9ca3af' }}
                     >
+                      {/* Checkered pattern matching Renderer.ts - 3px squares, alternating */}
                       <div
                         className="absolute inset-0"
                         style={{
                           backgroundImage: `
-                            linear-gradient(45deg, rgba(255,255,255,0.3) 25%, transparent 25%),
-                            linear-gradient(-45deg, rgba(255,255,255,0.3) 25%, transparent 25%),
-                            linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.3) 75%),
-                            linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.3) 75%)
+                            repeating-conic-gradient(
+                              rgba(255,255,255,0.35) 0% 25%,
+                              transparent 0% 50%
+                            )
                           `,
-                          backgroundSize: '4px 4px',
-                          backgroundPosition: '0 0, 0 2px, 2px -2px, -2px 0px'
+                          backgroundSize: '6px 6px'
                         }}
                       />
                     </div>

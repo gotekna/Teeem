@@ -196,8 +196,22 @@ module Api
       end
 
       # Clear dependency_broken flag when predecessors are re-added
+      # Also backup predecessors when breaking dependencies
       def clear_dependency_broken_if_needed
         return unless params[:row]
+
+        # Auto-backup predecessors when breaking dependencies
+        # SSoT: When dependency_broken is set to true, backup current predecessors
+        if params[:row][:dependency_broken] == true && !@row.dependency_broken
+          # Backup current predecessors before they're cleared
+          if @row.predecessor_ids.present?
+            @row.predecessor_ids_backup = @row.predecessor_ids
+          end
+          @row.dependency_broken_at = Time.current
+          @row.dependency_broken_by_id = current_user&.id
+          return
+        end
+
         return unless @row.dependency_broken
 
         # If predecessor_ids are being set and there are actual predecessors
@@ -371,6 +385,10 @@ module Api
           previous_hold_date: row.previous_manual_start_date,
           # Broken dependency indicator (locked task detached from flow)
           dependency_broken: row.dependency_broken,
+          # Broken dependency tracking - for restore in dependency editor
+          predecessor_ids_backup: row.predecessor_ids_backup || [],
+          dependency_broken_at: row.dependency_broken_at,
+          dependency_broken_by: row.dependency_broken_by_id.present? ? User.find_by(id: row.dependency_broken_by_id)&.name : nil,
           created_at: row.created_at,
           updated_at: row.updated_at
         }

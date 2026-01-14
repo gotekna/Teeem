@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_14_100010) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_14_100012) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8618,6 +8618,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_14_100010) do
     t.jsonb "completion_linked_task_ids", default: []
     t.string "supplier_confirmation_method"
     t.string "supplier_confirmed_contact_name"
+    t.datetime "dependency_broken_at"
+    t.bigint "dependency_broken_by_id"
     t.index ["checklist_id"], name: "index_sm_schedule_masters_on_checklist_id"
     t.index ["claim_invoice_template_id"], name: "index_sm_schedule_masters_on_claim_invoice_template_id"
     t.index ["complete_workflow_id"], name: "index_sm_schedule_masters_on_complete_workflow_id"
@@ -8882,12 +8884,18 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_14_100010) do
     t.integer "sm_task_group_id"
     t.string "supplier_confirmation_method"
     t.string "supplier_confirmed_contact_name"
+    t.boolean "dependency_broken", default: false
+    t.jsonb "predecessor_ids_backup", default: []
+    t.datetime "dependency_broken_at"
+    t.bigint "dependency_broken_by_id"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
     t.index ["complete_workflow_id"], name: "index_sm_tasks_on_complete_workflow_id"
     t.index ["completion_document_type_id"], name: "index_sm_tasks_on_completion_document_type_id"
     t.index ["confirm_status"], name: "index_sm_tasks_on_confirm_status"
     t.index ["created_by_id"], name: "index_sm_tasks_on_created_by_id"
+    t.index ["dependency_broken"], name: "index_sm_tasks_on_dependency_broken", where: "(dependency_broken = true)"
+    t.index ["dependency_broken_by_id"], name: "index_sm_tasks_on_dependency_broken_by_id"
     t.index ["hold_reason_id"], name: "index_sm_tasks_on_hold_reason_id"
     t.index ["hold_released_by_id"], name: "index_sm_tasks_on_hold_released_by_id"
     t.index ["hold_started_by_id"], name: "index_sm_tasks_on_hold_started_by_id"

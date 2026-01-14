@@ -364,6 +364,17 @@ module Api
         # Track if predecessor_ids is changing (for date recalculation)
         predecessor_ids_changing = params[:sm_task]&.key?(:predecessor_ids)
 
+        # Auto-backup predecessors when breaking dependencies
+        # SSoT: When dependency_broken is set to true, backup current predecessors
+        if params[:sm_task]&.dig(:dependency_broken) == true && !@task.dependency_broken
+          # Backup current predecessors before they're cleared
+          if @task.predecessor_ids.present?
+            @task.predecessor_ids_backup = @task.predecessor_ids
+          end
+          @task.dependency_broken_at = Time.current
+          @task.dependency_broken_by_id = current_user&.id
+        end
+
         if @task.update(sm_task_params)
           # Create notification if task was assigned to a new user
           notify_task_assignment(@task)
@@ -2002,10 +2013,15 @@ module Api
           # Completion document requirement
           :requires_document_to_complete, :completion_document_type_id,
 
+          # Dependency broken tracking
+          :dependency_broken, :dependency_broken_at, :dependency_broken_by_id,
+
           # Arrays
           linked_task_ids: [],
           # predecessor_ids is JSONB array of {id, type, lag} objects
-          predecessor_ids: [:id, :type, :lag]
+          predecessor_ids: [:id, :type, :lag],
+          # predecessor_ids_backup is JSONB array of backed up {id, type, lag} objects
+          predecessor_ids_backup: [:id, :type, :lag]
         )
       end
 
@@ -2442,7 +2458,12 @@ module Api
           po_required: po_required,
           is_visible: is_visible,
           # SSoT: Include predecessor_ids for frontend dependency display
-          predecessor_ids: task.predecessor_ids || []
+          predecessor_ids: task.predecessor_ids || [],
+          # Broken dependency tracking - for restore in dependency editor
+          predecessor_ids_backup: task.predecessor_ids_backup || [],
+          dependency_broken: task.dependency_broken || false,
+          dependency_broken_at: task.dependency_broken_at,
+          dependency_broken_by: task.dependency_broken_by_id ? User.find_by(id: task.dependency_broken_by_id)&.name : nil
         }
 
         # Include PO details when linked (One Entity concept)

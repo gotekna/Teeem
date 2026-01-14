@@ -296,10 +296,30 @@ function TreeNode({
   const saveTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   // Track if templates have been modified (to avoid saving on initial load)
   const hasModified = React.useRef(false);
+  // Track previous scope to save when switching
+  const prevScopeRef = React.useRef<{
+    scopeKey: string;
+    folder: string;
+    filename: string;
+    configLink: string | null;
+  } | null>(null);
+
+  // Immediate save function (no debounce) - for switching scopes
+  const saveImmediate = React.useCallback(async (scopeKey: string, folder: string, filename: string, configLink: string | null) => {
+    if (!scopeKey) return;
+    try {
+      await onSaveTemplates(scopeKey, folder, filename, configLink);
+    } catch (error) {
+      console.error('Failed to save templates:', error);
+    }
+  }, [onSaveTemplates]);
 
   // Auto-save function with debounce - calls actual API
   const autoSave = React.useCallback(async (scopeKey: string, folder: string, filename: string, configLink: string | null) => {
     if (!scopeKey || !hasModified.current) return;
+
+    // Update the ref so we can save when switching
+    prevScopeRef.current = { scopeKey, folder, filename, configLink };
 
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -309,6 +329,8 @@ function TreeNode({
       try {
         await onSaveTemplates(scopeKey, folder, filename, configLink);
         setLastSaved(new Date());
+        hasModified.current = false;
+        prevScopeRef.current = null; // Clear after successful save
       } catch (error) {
         console.error('Failed to save templates:', error);
       } finally {
@@ -330,6 +352,21 @@ function TreeNode({
       }
     };
   }, [folderTemplate, filenameTemplate, hasConfigLink, configLinkUrl, currentEditingScopeKey, autoSave]);
+
+  // Save previous scope immediately when switching to a different scope
+  React.useEffect(() => {
+    // If we have pending changes from a previous scope, save them immediately
+    if (prevScopeRef.current && prevScopeRef.current.scopeKey !== currentEditingScopeKey) {
+      const prev = prevScopeRef.current;
+      saveImmediate(prev.scopeKey, prev.folder, prev.filename, prev.configLink);
+      prevScopeRef.current = null;
+      // Clear any pending debounced save
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
+      }
+    }
+  }, [currentEditingScopeKey, saveImmediate]);
 
   // Handle template changes - mark as modified
   const handleFolderTemplateChange = (value: string) => {
