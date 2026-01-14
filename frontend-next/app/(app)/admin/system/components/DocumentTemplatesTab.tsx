@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useCallback } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useCallback, useMemo } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -88,10 +88,19 @@ const DEFAULT_BASE_PATH = "/admin/system/company/doc-templates";
 export function DocumentTemplatesTab({ innerTab: innerTabProp, basePath = DEFAULT_BASE_PATH }: DocumentTemplatesTabProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const pathname = usePathname();
   const subtabFromUrl = searchParams.get("subtab");
   const activeTab = subtabFromUrl || "ssot";
-  // Use prop if provided, otherwise fall back to search param, then default
-  const innerTab = innerTabProp || searchParams.get("inner") || "documents";
+
+  // Extract innerTab from URL path (format: .../inner/{innerTab})
+  // This handles path-based routing like /settings/company/documents/templates/inner/bank-statements
+  const innerTabFromPath = useMemo(() => {
+    const innerMatch = pathname.match(/\/inner\/([^/]+)/);
+    return innerMatch ? innerMatch[1] : null;
+  }, [pathname]);
+
+  // Use prop if provided, otherwise fall back to path, then search param, then default
+  const innerTab = innerTabProp || innerTabFromPath || searchParams.get("inner") || "documents";
 
   const handleTabChange = useCallback((tabId: string) => {
     const innerPath = innerTab !== "documents" ? `/inner/${innerTab}` : "";
