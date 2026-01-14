@@ -55,4 +55,18 @@ class SmNotificationMailer < ApplicationMailer
       subject: "Daily Schedule Digest - #{Date.current.strftime('%b %d, %Y')}"
     )
   end
+
+  # Email supplier about task confirmation or schedule update
+  def supplier_notification(to:, task:, message:, sender:)
+    @task = task
+    @construction = task.construction
+    @message = message
+    @sender = sender
+    @supplier = task.supplier
+
+    mail(
+      to: to,
+      subject: "Schedule Update: #{@construction&.job_code || 'Job'} - #{task.name}"
+    )
+  end
 end

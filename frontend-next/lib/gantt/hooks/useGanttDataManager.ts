@@ -118,6 +118,10 @@ export interface SupplierConfirmDialogState {
   /** Previous confirmation values (when viewing existing confirmation) */
   previousMethod: 'phone' | 'text' | 'email' | null;
   previousContactName: string;
+  /** Whether task has predecessors (affects UI options) */
+  hasPredecessors: boolean;
+  /** Option selected: 'current' = lock at current date, 'break' = break deps and confirm */
+  confirmOption: 'current' | 'break' | null;
 }
 
 export interface UndoState {
@@ -241,6 +245,8 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     sendEmail: false,
     previousMethod: null,
     previousContactName: '',
+    hasPredecessors: false,
+    confirmOption: null,
   });
 
   // Edit sheet
@@ -703,6 +709,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       const supplierEmail = (row as any).supplier_email || (row as any).po_supplier?.email || null;
       const previousMethod = (row as any).supplier_confirmation_method || null;
       const previousContactName = (row as any).supplier_confirmed_contact_name || '';
+      const hasPredecessors = (row.predecessor_ids?.length ?? 0) > 0;
 
       setSupplierConfirmDialog({
         isOpen: true,
@@ -716,6 +723,8 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
         sendEmail: false,
         previousMethod,
         previousContactName,
+        hasPredecessors,
+        confirmOption: hasPredecessors && checked ? null : 'current', // Need to choose if has deps
       });
       return;
     }
@@ -860,8 +869,9 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     if (!apiConfig) return;
 
     try {
-      const today = new Date();
-      const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      // Lock task at its CURRENT position (not today)
+      const currentStart = task.startDate;
+      const dateStr = `${currentStart.getFullYear()}-${String(currentStart.getMonth() + 1).padStart(2, '0')}-${String(currentStart.getDate()).padStart(2, '0')}`;
 
       const updateData: Record<string, unknown> = {
         supplier_confirm: true,
@@ -921,31 +931,41 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     reason: string,
     supplierEmail?: string
   ) => {
-    if (!apiConfig) return;
+    // Email supplier only works in job mode (templates don't have real suppliers)
+    if (mode !== 'job') {
+      toast({
+        title: 'Not Available',
+        description: 'Email supplier is only available for job tasks'
+      });
+      return;
+    }
 
     try {
-      // Get the row data
-      const row = task.rowData as SmScheduleMaster | undefined;
+      const response = await api.post<{ success: boolean; message?: string; error?: string }>(
+        `/api/v1/sm_tasks/${task.id}/email_supplier`,
+        {
+          message: reason,
+          supplier_email: supplierEmail,
+        }
+      );
 
-      // TODO: Implement email sending via backend
-      // For now, just show a toast with the details
-      console.log('[GanttDataManager] Email supplier:', {
-        taskId: task.id,
-        taskName: task.name,
-        reason,
-        supplierEmail,
-        row,
-      });
-
-      toast({
-        title: 'Email Sent',
-        description: `Supplier notified: ${reason.substring(0, 50)}${reason.length > 50 ? '...' : ''}`
-      });
+      if (response?.success) {
+        toast({
+          title: 'Email Sent',
+          description: response.message || 'Supplier notified'
+        });
+      } else {
+        toast({
+          title: 'Email Failed',
+          description: response?.error || 'Could not send email',
+          variant: 'destructive'
+        });
+      }
     } catch (err) {
       console.error('[GanttDataManager] Email supplier failed:', err);
       toast({ title: 'Error', description: 'Failed to send email', variant: 'destructive' });
     }
-  }, [apiConfig, toast]);
+  }, [mode, toast]);
 
   // ---------------------------------------------------------------------------
   // Task Drag (with cascade dialog)

@@ -185,6 +185,15 @@ class GanttDateCalculationService
       return [row_start, row_end]
     end
 
+    # Supplier confirmed tasks use hold_date as anchor (pins to confirmation date)
+    if task.try(:supplier_confirm) && task.hold_date.present?
+      row_start = task.hold_date.to_date
+      row_start = @calendar.next_working_day(row_start) unless @calendar.working_day?(row_start)
+      duration = task.duration_days || 1
+      row_end = @calendar.add_working_days(row_start, duration - 1)
+      return [row_start, row_end]
+    end
+
     # Hold with date (both tables have this)
     if task.hold && task.hold_date.present?
       row_start = task.hold_date.to_date

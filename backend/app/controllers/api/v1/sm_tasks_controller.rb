@@ -13,7 +13,8 @@ module Api
         :download_attachment_for_email, :create_attachment_share_link,
         :follow, :unfollow, :followers, :add_follower, :remove_follower,
         :history,
-        :compare_to_template, :sync_from_template
+        :compare_to_template, :sync_from_template,
+        :email_supplier
       ]
 
       # GET /api/v1/sm_tasks (global - all tasks across jobs)
@@ -695,6 +696,45 @@ module Api
             updated_task_ids: results[:updated_tasks].map(&:id)
           }
         }
+      end
+
+      # POST /api/v1/sm_tasks/:id/email_supplier
+      # Send email notification to supplier
+      def email_supplier
+        message = params[:message] || params[:reason]
+        supplier_email = params[:supplier_email]
+
+        # Try to get supplier email from task if not provided
+        if supplier_email.blank?
+          supplier_email = @task.supplier&.email
+        end
+
+        if supplier_email.blank?
+          return render json: {
+            success: false,
+            error: "No supplier email available for this task"
+          }, status: :unprocessable_entity
+        end
+
+        begin
+          SmNotificationMailer.supplier_notification(
+            to: supplier_email,
+            task: @task,
+            message: message,
+            sender: current_user
+          ).deliver_later
+
+          render json: {
+            success: true,
+            message: "Email sent to #{supplier_email}"
+          }
+        rescue => e
+          Rails.logger.error "[SmTasksController] Email supplier failed: #{e.message}"
+          render json: {
+            success: false,
+            error: "Failed to send email: #{e.message}"
+          }, status: :unprocessable_entity
+        end
       end
 
       # GET /api/v1/sm_tasks/:id/working_drawings
