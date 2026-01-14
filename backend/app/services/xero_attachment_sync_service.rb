@@ -281,14 +281,14 @@ class XeroAttachmentSyncService
   end
 
   def document_type_for_invoice
-    # Map invoice types to valid CorporateCompanyDocument document_types
-    # These must match DocumentType.pluck(:name) or LEGACY_DOCUMENT_TYPES
+    # SSoT: Map invoice types to Xero DocumentTypes created in AddXeroDocumentTypes migration
+    # Primary invoices use ContactDocument with scope: contacts
     case external_invoice.invoice_type
-    when "sales_invoice" then "Sales Document"
-    when "bill" then "Purchases"
-    when "credit_note" then "other"
-    when "quote" then "Estimation"
-    else "other"
+    when "sales_invoice" then "Xero Invoice"
+    when "bill" then "Xero Bill"
+    when "credit_note" then "Xero Credit Note"
+    when "quote" then "Xero Invoice"  # Quotes use invoice type
+    else "Xero Invoice"
     end
   end
 
@@ -326,25 +326,9 @@ class XeroAttachmentSyncService
   end
 
   def guess_document_type(filename)
-    ext = File.extname(filename).downcase
-    name = filename.downcase
-
-    # Map attachment filenames to valid CorporateCompanyDocument document_types
-    # Uses existing DocumentType names from the database
-    return "Sales Document" if name.include?("invoice") || name.include?("inv")
-    return "Purchases" if name.include?("bill")
-    return "Expenses" if name.include?("receipt")
-    return "contract" if name.include?("contract")
-    return "Estimation" if name.include?("quote") || name.include?("estimate")
-
-    # Default based on extension - use "General" which is a valid type
-    case ext
-    when ".pdf" then "General"
-    when ".doc", ".docx" then "General"
-    when ".xls", ".xlsx" then "General"
-    when ".jpg", ".jpeg", ".png" then "General"
-    else "other"
-    end
+    # SSoT: Attachments use "Xero Attachment" DocumentType created in AddXeroDocumentTypes migration
+    # This maps to CorporateCompanyDocument with scope: corporate_entity
+    "Xero Attachment"
   end
 
   # SSoT: Build document attributes for the given model class

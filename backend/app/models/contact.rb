@@ -103,6 +103,9 @@ class Contact < ApplicationRecord
   # Personal documents (for family members, directors, etc.)
   has_many :corporate_company_documents, dependent: :destroy
 
+  # SSoT: Contact documents (Xero invoices, bills, etc.)
+  has_many :contact_documents, dependent: :destroy
+
   # Company Group memberships (SSoT - links contact to company groups with permissions)
   has_many :corporate_group_memberships, class_name: "ContactCorporateGroupMembership", dependent: :destroy
   has_many :corporate_groups_via_membership, through: :corporate_group_memberships, source: :corporate_group

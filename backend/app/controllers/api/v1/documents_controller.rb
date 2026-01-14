@@ -566,7 +566,11 @@ module Api
           build_corporate_hierarchy
         when "job", "jobs"
           build_job_hierarchy
-        when "people", "contact", "contacts"
+        when "contact", "contacts"
+          # SSoT: ContactDocument stores invoices/bills from Xero
+          build_contact_hierarchy
+        when "people"
+          # SSoT: PeopleDocument stores people/employee documents
           build_people_hierarchy
         else
           []  # Other scopes return empty - can be extended as needed
@@ -616,6 +620,50 @@ module Api
                     fileCount: doc_count
                   }
                 end
+              }
+            end
+          }
+        end
+      end
+
+      # SSoT: Contact hierarchy follows template {{ContactName}}/{{TabName}}
+      # Uses ContactDocument model (for Xero invoices/bills)
+      def build_contact_hierarchy
+        # Get document tabs for contact scope (includes Invoices, Financial, etc.)
+        tabs = EntityTab.for_scope("contact")
+                        .where(tab_group: "documents")
+                        .enabled
+                        .ordered
+
+        # Get contacts with ContactDocuments (includes Xero invoices)
+        Contact.joins(:contact_documents)
+               .distinct
+               .order(:name)
+               .limit(100)
+               .map do |contact|
+          {
+            id: "contact-#{contact.id}",
+            name: contact.display_name || contact.name,
+            token: "ContactName",
+            type: "folder",
+            contactId: contact.id,
+            children: tabs.map do |tab|
+              doc_count = if tab.document_type_ids.present?
+                ContactDocument
+                  .where(contact_id: contact.id, document_type_id: tab.document_type_ids)
+                  .count
+              else
+                ContactDocument.where(contact_id: contact.id).count
+              end
+
+              {
+                id: "tab-#{contact.id}-#{tab.id}",
+                name: tab.display_name,
+                token: "TabName",
+                type: "folder",
+                entityTabId: tab.id,
+                contactId: contact.id,
+                fileCount: doc_count
               }
             end
           }
