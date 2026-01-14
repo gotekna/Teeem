@@ -2412,7 +2412,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   return (
     <div className="h-full w-full flex flex-col">
       <Tabs value={activeTab} onValueChange={handleTabChange} className="h-full flex flex-col relative">
-        <TabsList className="shrink-0 mx-4">
+        <TabsList className="shrink-0 justify-start">
           <TabsTrigger value="schedule-templates">
             <Calendar className="h-4 w-4 mr-2" />
             Schedule Templates

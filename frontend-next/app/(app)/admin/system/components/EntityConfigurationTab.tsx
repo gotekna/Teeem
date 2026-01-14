@@ -23,9 +23,13 @@ import { useRouter } from "next/navigation";
  *
  * Uses the unified EntityTabsConfig component with different scope props.
  */
+const DEFAULT_ENTITY_CONFIG_BASE_PATH = "/admin/system/entity-config";
+
 interface EntityConfigurationTabProps {
   onClose?: () => void;  // Called when user exits fullscreen
   scope?: string;  // Path-based scope
+  subTab?: string;  // Alias for scope (for consistency with other tabs)
+  basePath?: string;  // Base path for navigation
 }
 
 const scopes = [
@@ -91,13 +95,14 @@ const scopes = [
   },
 ] as const;
 
-export function EntityConfigurationTab({ onClose, scope }: EntityConfigurationTabProps) {
+export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFAULT_ENTITY_CONFIG_BASE_PATH }: EntityConfigurationTabProps) {
   const router = useRouter();
-  const activeScope = scope || "corporate_entity";
+  // Support both scope and subTab props (subTab for consistency with other tabs)
+  const activeScope = scope || subTab || "corporate_entity";
 
   const setActiveScope = React.useCallback((newScope: string) => {
-    router.push(`/admin/system/entity-config/${newScope}`, { scroll: false });
-  }, [router]);
+    router.push(`${basePath}/${newScope}`, { scroll: false });
+  }, [router, basePath]);
   const [scopeCounts, setScopeCounts] = React.useState<Record<string, number>>({});
 
   // Fetch document type counts per scope

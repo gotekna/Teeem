@@ -29,12 +29,13 @@ const PERSONAL_TABS = [
 
 // Organization tabs - visible to admin users only
 // SSoT: Integrations is now under Company > Connections > Integrations
+// SSoT: Documents moved under Company
+// SSoT: Entity Config moved under Company
 const ORGANIZATION_TABS = [
   { id: "users", label: "Users", icon: Users },
   { id: "roles", label: "Access Control", icon: ShieldCheck },
   { id: "corporate", label: "Corporate", icon: Building2 },
   { id: "company", label: "Company", icon: Building },
-  { id: "documents", label: "Documents", icon: FileText },
   { id: "operations", label: "Operations", icon: Wrench },
   { id: "system", label: "System", icon: Server },
   { id: "developer", label: "Developer", icon: Code },

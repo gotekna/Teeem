@@ -269,6 +269,54 @@ You're a craftsman, an artist, an engineer who thinks like a designer. Every lin
 
 **Deprecated:** `combobox.tsx`, `loader.tsx`, `drawer.tsx`, `data-table.tsx`, `router.back()`
 
+## 🔴 SSoT - Settings Navigation Structure
+
+**All settings are under `/settings/` with URL-based tab state.**
+
+### Personal Settings (all users)
+| Tab | URL | Description |
+|-----|-----|-------------|
+| Profile | `/settings/profile` | User profile |
+| Notifications | `/settings/notifications` | Notification preferences |
+| Security | `/settings/security` | Password, 2FA |
+| Preferences | `/settings/preferences` | UI preferences |
+
+### Organization Settings (admin only)
+| Tab | URL | Sub-tabs |
+|-----|-----|----------|
+| Users | `/settings/users` | User management |
+| Access Control | `/settings/roles` | Permissions, User Roles, Groups |
+| Corporate | `/settings/corporate` | Groups, Companies, Company Tabs |
+| Company | `/settings/company` | Info, Brand Colors, Documents, Holidays, Workflows, Connections, Job Setup, Entity Config |
+| Operations | `/settings/operations` | Schedule Master, SM Tasks, Contact Types, Meeting Types, Supervisor Checklist, Cost |
+| System | `/settings/system` | System configuration |
+| Developer | `/settings/developer` | Components Lab, Developer Tools, Brand Guidelines, Unreal Engine |
+
+### Company Sub-tabs Detail
+| Sub-tab | URL | Contains |
+|---------|-----|----------|
+| Info | `/settings/company/info` | Company details |
+| Brand Colors | `/settings/company/brand-colors` | Color palette |
+| Documents | `/settings/company/documents` | Document Types, Templates, PDF Fields |
+| Holidays | `/settings/company/holidays` | Public holidays |
+| Workflows | `/settings/company/workflows` | Workflow configuration |
+| Connections | `/settings/company/connections` | Storage Provider, Integrations (Xero), Migration, Cost Comparison |
+| Job Setup | `/settings/company/job-setup` | Lists (Types/Statuses/Stages/Suburbs), Workflow |
+| Entity Config | `/settings/company/entity-config` | Corporate, Jobs, Contacts, Document Types, Storage Config, Email Config |
+
+### Navigation Patterns
+- **URL is SSoT** for tab state - use `router.push()` not local state
+- **Sub-tabs** use path segments: `/settings/company/job-setup/workflow`
+- **Components accept `basePath` prop** for reusability across different URL contexts
+- **Catch-all routes** `[...tab]/page.tsx` re-export parent page for sub-tab URLs
+
+### SSoT Consolidations (Jan 2026)
+- ❌ `/settings/documents` → Moved to `/settings/company/documents`
+- ❌ `/settings/integrations` → Moved to `/settings/company/connections/integrations`
+- ❌ Entity Config in Developer → Moved to `/settings/company/entity-config`
+- ❌ Workflow Config separate tab → Moved to `/settings/company/job-setup/workflow`
+- ❌ Doc Templates duplicate → Consolidated into Documents > Templates
+
 ## 🔴 Table Page Pattern
 
 ```tsx

@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useCallback, useState, useMemo } from "react";
+import { useAtom } from "jotai";
 import { createConsumer, Subscription } from "@rails/actioncable";
 import type { EmailListItem, EmailUserState } from "@/lib/email-types";
 import { getApiBaseUrl } from "@/lib/api";
+import { syncingAtom } from "@/lib/email-atoms";
 
 // Singleton ActionCable consumer to prevent multiple connections
 let globalConsumer: ReturnType<typeof createConsumer> | null = null;
@@ -182,7 +184,8 @@ export function useEmailWebSocket(
   } = options;
 
   const [isConnected, setIsConnected] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
+  // SSoT: Use syncingAtom instead of local state
+  const [isSyncing, setIsSyncing] = useAtom(syncingAtom);
   const [newEmailCount, setNewEmailCount] = useState(0);
 
   const subscriptionRef = useRef<Subscription | null>(null);

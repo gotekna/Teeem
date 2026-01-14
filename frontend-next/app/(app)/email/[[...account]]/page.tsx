@@ -2,7 +2,44 @@
 
 import * as React from "react";
 import { useState, useEffect, useCallback, useTransition, useMemo, memo, useRef } from "react";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useSearchParams, useRouter, useParams } from "next/navigation";
+import {
+  // Folder state
+  selectedFolderAtom,
+  selectedAccountAtom,
+  expandedAccountsAtom,
+  showAllMailboxesAtom,
+  // Accounts & folders
+  accountsAtom,
+  accountFoldersAtom,
+  folderOrderAtom,
+  loadingFoldersAtom,
+  // Email list state
+  emailsAtom,
+  viewModeAtom,
+  splitInboxDataAtom,
+  selectedCategoryAtom,
+  visibleEmailsAtom,
+  // Loading & sync
+  loadingAtom,
+  syncingAtom,
+  paginationAtom,
+  // Selection
+  selectedEmailIdsAtom,
+  selectedEmailAtom,
+  lastClickedEmailIdAtom,
+  popoutEmailAtom,
+  // UI state
+  activeEmailModalAtom,
+  type EmailModalType,
+  // Compose state
+  replyToDataAtom,
+  resumeDraftAtom,
+  // Action state
+  creatingTaskAtom,
+  creatingContactAtom,
+} from "@/lib/email-atoms";
 import { useLayoutMode } from "@/contexts/LayoutModeContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -160,6 +197,38 @@ function decodeHtmlEntities(text: string | null | undefined): string {
   decoded = decoded.replace(/\s+/g, " ").trim();
 
   return decoded;
+}
+
+// Helper to get initials from name or email
+function getInitials(name: string | null | undefined, email: string | null | undefined): string {
+  if (name && name.trim()) {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return name.trim().substring(0, 2).toUpperCase();
+  }
+  if (email) {
+    const localPart = email.split("@")[0];
+    return localPart.substring(0, 2).toUpperCase();
+  }
+  return "??";
+}
+
+// Generate consistent color from string (for avatar background)
+// Gmail-style color palette
+const AVATAR_COLORS = [
+  "bg-red-500", "bg-pink-500", "bg-purple-500", "bg-indigo-500",
+  "bg-blue-500", "bg-cyan-500", "bg-teal-500", "bg-green-500",
+  "bg-lime-500", "bg-yellow-500", "bg-amber-500", "bg-orange-500",
+];
+
+function getAvatarColor(identifier: string): string {
+  let hash = 0;
+  for (let i = 0; i < identifier.length; i++) {
+    hash = identifier.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
 // Smart date formatter for email list:
@@ -375,10 +444,7 @@ const EmailListItem = memo(function EmailListItem({
                   hasSelections ? "opacity-100" : "opacity-0 group-hover:opacity-100",
                   "transition-opacity"
                 )}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onCheckboxChange(email);
-                }}
+                onClick={(e) => e.stopPropagation()}
               >
                 <Checkbox
                   checked={isChecked}
@@ -389,7 +455,19 @@ const EmailListItem = memo(function EmailListItem({
             )}
           </div>
 
-          <div className="flex-1 min-w-0 flex items-start gap-0.5">
+          {/* Sender Avatar */}
+          <div className="shrink-0 pt-0.5">
+            <div
+              className={cn(
+                "h-8 w-8 rounded-full flex items-center justify-center text-white text-xs font-medium",
+                getAvatarColor(email.from_email || email.from_address || "unknown")
+              )}
+            >
+              {getInitials(email.from_name, email.from_email || email.from_address)}
+            </div>
+          </div>
+
+          <div className="flex-1 min-w-0 flex items-start gap-1">
             {/* Unread indicator dot */}
             {!email.is_read && (
               <div className="shrink-0 pt-1.5">
@@ -400,7 +478,7 @@ const EmailListItem = memo(function EmailListItem({
               <div className="flex items-center gap-1.5 mb-0.5">
                 <span className={cn(
                   "text-sm truncate flex-1 min-w-0",
-                  !email.is_read ? "font-bold text-foreground" : "font-normal text-muted-foreground"
+                  !email.is_read ? "font-semibold text-foreground" : "font-normal text-muted-foreground"
                 )}>
                   {email.from_name || email.from_email || email.from_address}
                 </span>
@@ -538,71 +616,117 @@ export default function EmailPage() {
     }
   }, [isStandalone, setMode]);
 
-  const [emails, setEmails] = useState<Email[]>([]);
-  const [accounts, setAccounts] = useState<EmailAccount[]>([]);
+  // ==========================================================================
+  // SSoT STATE - All email state now uses Jotai atoms (lib/email-atoms.ts)
+  // ==========================================================================
+
+  // Email list state (SSoT: emailsAtom)
+  const [emailsAtomValue, setEmailsAtomValue] = useAtom(emailsAtom);
+  // Cast to local Email type for backwards compatibility
+  const emails = emailsAtomValue as unknown as Email[];
+  const setEmails = setEmailsAtomValue as unknown as React.Dispatch<React.SetStateAction<Email[]>>;
+
+  // Accounts state (SSoT: accountsAtom)
+  const [accountsAtomValue, setAccountsAtomValue] = useAtom(accountsAtom);
+  const accounts = accountsAtomValue as unknown as EmailAccount[];
+  const setAccounts = setAccountsAtomValue as unknown as React.Dispatch<React.SetStateAction<EmailAccount[]>>;
 
   // Performance: Request deduplication and staleness tracking
   const fetchAbortControllerRef = useRef<AbortController | null>(null);
   const lastFetchTimeRef = useRef<number>(0);
   const FETCH_DEBOUNCE_MS = 500; // Prevent rapid re-fetches within 500ms
-  const [showAllMailboxes, setShowAllMailboxes] = useState(false);  // Toggle to see all vs favorites only
-  const [accountFolders, setAccountFolders] = useState<Record<string, EmailFolder[]>>({});
-  const [folderOrder, setFolderOrder] = useState<Record<string, string[]>>({});
-  const [loadingFolders, setLoadingFolders] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
-  const [creatingTask, setCreatingTask] = useState(false);
-  const [creatingContact, setCreatingContact] = useState(false);
-  // SSoT: Uses PAGE_SIZE_LIST from pagination-constants.ts
-  const [pagination, setPagination] = useState<Pagination>({
-    page: 1,
-    per_page: PAGE_SIZE_LIST,
-    total: 0,
-    total_pages: 0,
-  });
+
+  // Folder/account state (SSoT: atoms)
+  const [showAllMailboxes, setShowAllMailboxes] = useAtom(showAllMailboxesAtom);
+  const [accountFoldersAtomValue, setAccountFoldersAtomValue] = useAtom(accountFoldersAtom);
+  const accountFolders = accountFoldersAtomValue as unknown as Record<string, EmailFolder[]>;
+  const setAccountFolders = setAccountFoldersAtomValue as unknown as React.Dispatch<React.SetStateAction<Record<string, EmailFolder[]>>>;
+  const [folderOrder, setFolderOrder] = useAtom(folderOrderAtom);
+  const [loadingFolders, setLoadingFolders] = useAtom(loadingFoldersAtom);
+  const [loading, setLoading] = useAtom(loadingAtom);
+  const [syncing, setSyncing] = useAtom(syncingAtom);
+  const [creatingTask, setCreatingTask] = useAtom(creatingTaskAtom);
+  const [creatingContact, setCreatingContact] = useAtom(creatingContactAtom);
+
+  // SSoT: Uses PAGE_SIZE_LIST from pagination-constants.ts via paginationAtom
+  const [pagination, setPagination] = useAtom(paginationAtom);
 
   // Search filters
   const emailFilters = useEmailFilters();
 
-  // Load cached state from localStorage for instant loading
-  const getCachedEmailState = () => {
-    if (typeof window === 'undefined') return null;
-    try {
-      const cached = localStorage.getItem('teeem_email_state');
-      return cached ? JSON.parse(cached) : null;
-    } catch { return null; }
-  };
-  const cachedState = getCachedEmailState();
+  // ==========================================================================
+  // FOLDER SELECTION - SSoT: selectedFolderAtom (combined name + id)
+  // This eliminates the selectedFolder/selectedFolderId dual state bug
+  // ==========================================================================
+  const [selectedFolderState, setSelectedFolderState] = useAtom(selectedFolderAtom);
+  // Backwards compatible getters
+  const selectedFolder = selectedFolderState.name;
+  const selectedFolderId = selectedFolderState.id;
+  // Wrapper to update both name and id atomically
+  const setSelectedFolder = useCallback((name: string) => {
+    setSelectedFolderState(prev => ({ ...prev, name }));
+  }, [setSelectedFolderState]);
+  const setSelectedFolderId = useCallback((id: string) => {
+    setSelectedFolderState(prev => ({ ...prev, id }));
+  }, [setSelectedFolderState]);
 
-  // "all" = combined view from all accounts, "" = select mailbox, otherwise = specific account id
-  const [selectedAccount, setSelectedAccount] = useState<string>(cachedState?.accountId || "all");
-  const [selectedFolder, setSelectedFolder] = useState<string>(cachedState?.folderName || "Inbox");
-  const [selectedFolderId, setSelectedFolderId] = useState<string>(cachedState?.folderId || "ALL_INBOX");
-  const [expandedAccounts, setExpandedAccounts] = useState<Set<string>>(
-    cachedState?.accountId ? new Set([cachedState.accountId]) : new Set()
-  );
-  const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
-  const [popoutEmail, setPopoutEmail] = useState<Email | null>(null);
-  const [composeOpen, setComposeOpen] = useState(false);
-  const [createFolderOpen, setCreateFolderOpen] = useState(false);
-  const [showDrafts, setShowDrafts] = useState(false);
-  const [resumeDraft, setResumeDraft] = useState<import("@/lib/email-types").EmailDraft | null>(null);
-  const [replyTo, setReplyTo] = useState<{ to: string; cc?: string; subject: string; body?: string; messageId?: string; fromAccountId?: string; replyToMessageId?: string } | null>(null);
+  // Account selection (SSoT: selectedAccountAtom)
+  const [selectedAccount, setSelectedAccount] = useAtom(selectedAccountAtom);
+  const [expandedAccounts, setExpandedAccounts] = useAtom(expandedAccountsAtom);
+
+  // Selected/popout email (SSoT: atoms)
+  const [selectedEmailAtomValue, setSelectedEmailAtomValue] = useAtom(selectedEmailAtom);
+  const selectedEmail = selectedEmailAtomValue as Email | null;
+  const setSelectedEmail = setSelectedEmailAtomValue as unknown as React.Dispatch<React.SetStateAction<Email | null>>;
+  const [popoutEmailAtomValue, setPopoutEmailAtomValue] = useAtom(popoutEmailAtom);
+  const popoutEmail = popoutEmailAtomValue as Email | null;
+  const setPopoutEmail = setPopoutEmailAtomValue as unknown as React.Dispatch<React.SetStateAction<Email | null>>;
+
+  // ==========================================================================
+  // MODAL STATE - SSoT: activeEmailModalAtom (one modal at a time)
+  // ==========================================================================
+  const [activeModal, setActiveModal] = useAtom(activeEmailModalAtom);
+  // Backwards compatible boolean flags derived from activeModal
+  const composeOpen = activeModal === "compose";
+  const setComposeOpen = useCallback((open: boolean) => {
+    setActiveModal(open ? "compose" : null);
+  }, [setActiveModal]);
+  const createFolderOpen = activeModal === "createFolder";
+  const setCreateFolderOpen = useCallback((open: boolean) => {
+    setActiveModal(open ? "createFolder" : null);
+  }, [setActiveModal]);
+  const showDrafts = activeModal === "drafts";
+  const setShowDrafts = useCallback((open: boolean) => {
+    setActiveModal(open ? "drafts" : null);
+  }, [setActiveModal]);
+  const showShortcutsHelp = activeModal === "shortcuts";
+  const setShowShortcutsHelp = useCallback((open: boolean) => {
+    setActiveModal(open ? "shortcuts" : null);
+  }, [setActiveModal]);
+
+  // Compose state (SSoT: atoms)
+  const [resumeDraft, setResumeDraft] = useAtom(resumeDraftAtom);
+  const [replyToAtomValue, setReplyToAtomValue] = useAtom(replyToDataAtom);
+  // Backwards compatible type (has extra fields)
+  const replyTo = replyToAtomValue as { to: string; cc?: string; subject: string; body?: string; messageId?: string; fromAccountId?: string; replyToMessageId?: string } | null;
+  const setReplyTo = setReplyToAtomValue as unknown as React.Dispatch<React.SetStateAction<typeof replyTo>>;
+
   const [isPending, startTransition] = useTransition();
 
-  // Split Inbox State - default to folders (Inbox) for faster loading
-  const [viewMode, setViewMode] = useState<"split" | "folders">(cachedState?.viewMode || "folders");
+  // ==========================================================================
+  // VIEW MODE - SSoT: viewModeAtom
+  // ==========================================================================
+  const [viewMode, setViewMode] = useAtom(viewModeAtom);
   // Only fetch split inbox data when in split view mode (performance optimization)
   const splitInbox = useSplitInbox({ accountId: selectedAccount, enabled: viewMode === "split" });
 
-  // Keyboard Shortcuts
-  const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
+  // Toast & email state hooks
   const { toast } = useToast();
   const emailState = useEmailState(selectedEmail?.id);
 
   // Multi-select state
   const selection = useEmailSelection();
-  const [lastClickedEmailId, setLastClickedEmailId] = useState<number | null>(null);
+  const [lastClickedEmailId, setLastClickedEmailId] = useAtom(lastClickedEmailIdAtom);
 
   // Thread expansion state
   const threads = useEmailThreads();
@@ -633,8 +757,8 @@ export default function EmailPage() {
       splitInbox.refresh();
     } else {
       // Add to folder view
-      setEmails(prev => [email as unknown as Email, ...prev]);
-      setPagination(prev => ({ ...prev, total: prev.total + 1 }));
+      setEmails((prev: Email[]) => [email as unknown as Email, ...prev]);
+      setPagination((prev: Pagination) => ({ ...prev, total: prev.total + 1 }));
     }
 
     // Show notification
@@ -662,8 +786,8 @@ export default function EmailPage() {
     if (viewMode === "split") {
       splitInbox.refresh();
     } else {
-      setEmails(prev => [...emails as unknown as Email[], ...prev]);
-      setPagination(prev => ({ ...prev, total: prev.total + count }));
+      setEmails((prev: Email[]) => [...emails as unknown as Email[], ...prev]);
+      setPagination((prev: Pagination) => ({ ...prev, total: prev.total + count }));
     }
 
     toast({
@@ -713,8 +837,8 @@ export default function EmailPage() {
       }
     }
 
-    setEmails(prev => prev.filter(e => e.id !== emailId));
-    setPagination(prev => ({ ...prev, total: Math.max(0, prev.total - 1) }));
+    setEmails((prev: Email[]) => prev.filter(e => e.id !== emailId));
+    setPagination((prev: Pagination) => ({ ...prev, total: Math.max(0, prev.total - 1) }));
 
     if (viewMode === "split") {
       splitInbox.refresh();
@@ -939,7 +1063,7 @@ export default function EmailPage() {
       return;
     }
 
-    setLoadingFolders(prev => new Set(prev).add(accountId));
+    setLoadingFolders((prev: Set<string>) => new Set(prev).add(accountId));
 
     // Build URL with mailbox_email for ms365 accounts
     let foldersUrl = `/api/v1/imap_credentials/folders?account_id=${accountId}`;
@@ -992,7 +1116,7 @@ export default function EmailPage() {
       }));
     }
 
-    setLoadingFolders(prev => {
+    setLoadingFolders((prev: Set<string>) => {
       const next = new Set(prev);
       next.delete(accountId);
       return next;
@@ -2192,10 +2316,42 @@ To: ${email.to_emails?.join(", ") || ""}
             </div>
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
-            <Mail className="h-16 w-16 mb-4 opacity-30" />
-            <p className="text-lg">Select an email to read</p>
-            <p className="text-sm mt-1">Choose an email from the list to view its contents</p>
+          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-8">
+            {/* Animated envelope icon */}
+            <div className="relative mb-6">
+              <div className="absolute inset-0 bg-primary/10 rounded-full blur-2xl scale-150" />
+              <div className="relative bg-gradient-to-br from-primary/20 to-primary/5 rounded-full p-6">
+                <Mail className="h-12 w-12 text-primary/60" />
+              </div>
+            </div>
+
+            <h3 className="text-xl font-medium text-foreground mb-2">Select an email to read</h3>
+            <p className="text-sm text-muted-foreground mb-8 text-center max-w-xs">
+              Choose an email from the list to view its contents, or use keyboard shortcuts to navigate
+            </p>
+
+            {/* Keyboard shortcuts hint */}
+            <div className="flex flex-col gap-3 text-xs">
+              <div className="flex items-center gap-4">
+                <div className="flex gap-1">
+                  <kbd className="px-2 py-1 bg-muted rounded border text-muted-foreground font-mono">j</kbd>
+                  <kbd className="px-2 py-1 bg-muted rounded border text-muted-foreground font-mono">k</kbd>
+                </div>
+                <span className="text-muted-foreground">Navigate emails</span>
+              </div>
+              <div className="flex items-center gap-4">
+                <kbd className="px-2 py-1 bg-muted rounded border text-muted-foreground font-mono">c</kbd>
+                <span className="text-muted-foreground">Compose new email</span>
+              </div>
+              <div className="flex items-center gap-4">
+                <kbd className="px-2 py-1 bg-muted rounded border text-muted-foreground font-mono">r</kbd>
+                <span className="text-muted-foreground">Reply to email</span>
+              </div>
+              <div className="flex items-center gap-4">
+                <kbd className="px-2 py-1 bg-muted rounded border text-muted-foreground font-mono">?</kbd>
+                <span className="text-muted-foreground">All shortcuts</span>
+              </div>
+            </div>
           </div>
         )}
       </ResizablePanel>

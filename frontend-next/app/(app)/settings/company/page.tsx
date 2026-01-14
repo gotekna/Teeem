@@ -11,10 +11,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HolidaysTab } from "@/app/(app)/admin/system/components/HolidaysTab";
 import { WorkflowsTab } from "@/app/(app)/admin/system/components/WorkflowsTab";
 import { BrandColorsTab } from "@/app/(app)/admin/system/components/BrandColorsTab";
-import { DocumentTemplatesTab } from "@/app/(app)/admin/system/components/DocumentTemplatesTab";
 import { ConnectionsTab } from "@/app/(app)/admin/system/components/ConnectionsTab";
 import { JobSetupTab } from "@/app/(app)/admin/system/components/JobSetupTab";
-import { WorkflowConfigTab } from "@/app/(app)/admin/system/components/WorkflowConfigTab";
+import { DocumentsTab } from "@/app/(app)/admin/system/components/DocumentsTab";
+import { EntityConfigurationTab } from "@/app/(app)/admin/system/components/EntityConfigurationTab";
 import CompanyInfoTab from "@/app/(app)/admin/system/components/CompanyInfoTab";
 
 /**
@@ -31,15 +31,18 @@ import CompanyInfoTab from "@/app/(app)/admin/system/components/CompanyInfoTab";
  */
 
 // SSoT: Brand Guidelines moved to /settings/developer (developer tool)
+// SSoT: Workflow Config moved under Job Setup as sub-tab
+// SSoT: Documents consolidated here (was separate Organization tab)
+// SSoT: Entity Config moved here from Developer
 const COMPANY_TABS = [
   { id: "info", label: "Info" },
   { id: "brand-colors", label: "Brand Colors" },
-  { id: "doc-templates", label: "Doc Templates" },
+  { id: "documents", label: "Documents" },
   { id: "holidays", label: "Holidays" },
   { id: "workflows", label: "Workflows" },
   { id: "connections", label: "Connections" },
   { id: "job-setup", label: "Job Setup" },
-  { id: "workflow-config", label: "Workflow Config" },
+  { id: "entity-config", label: "Entity Config" },
 ];
 
 const DEFAULT_TAB = "info";
@@ -49,20 +52,14 @@ export default function CompanySettingsPage() {
   const router = useRouter();
 
   // URL is SSoT for tab state (path-based navigation)
-  const { activeTab, subTab, docTemplatesInnerTab } = useMemo(() => {
+  const { activeTab, subTab } = useMemo(() => {
     const parts = pathname.replace("/settings/company", "").split("/").filter(Boolean);
     const tab = parts[0] || DEFAULT_TAB;
     const sub = parts[1] || undefined;
-    // For doc-templates, parse inner tab from /doc-templates/inner/{innerTab}
-    let innerTab: string | undefined;
-    if (tab === "doc-templates" && parts[1] === "inner" && parts[2]) {
-      innerTab = parts[2];
-    }
     // Validate tab exists
     return {
       activeTab: COMPANY_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB,
       subTab: sub,
-      docTemplatesInnerTab: innerTab,
     };
   }, [pathname]);
 
@@ -118,16 +115,13 @@ export default function CompanySettingsPage() {
             <ConnectionsTab subTab={subTab} />
           </TabsContent>
           <TabsContent value="job-setup">
-            <JobSetupTab />
+            <JobSetupTab subTab={subTab} basePath="/settings/company/job-setup" />
           </TabsContent>
-          <TabsContent value="workflow-config">
-            <WorkflowConfigTab />
+          <TabsContent value="documents">
+            <DocumentsTab subTab={subTab} basePath="/settings/company/documents" />
           </TabsContent>
-          <TabsContent value="doc-templates">
-            <DocumentTemplatesTab
-              basePath="/settings/company/doc-templates"
-              innerTab={docTemplatesInnerTab}
-            />
+          <TabsContent value="entity-config">
+            <EntityConfigurationTab subTab={subTab} basePath="/settings/company/entity-config" />
           </TabsContent>
         </div>
       </Tabs>

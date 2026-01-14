@@ -6,9 +6,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Import developer-related tab components from admin
+// SSoT: Entity Config moved to Company settings
 import { GoldStandardTab } from "@/app/(app)/admin/system/components/GoldStandardTab";
 import { DeveloperToolsTab } from "@/app/(app)/admin/system/components/DeveloperToolsTab";
-import { EntityConfigurationTab } from "@/app/(app)/admin/system/components/EntityConfigurationTab";
 import { UnrealEngineTab } from "@/app/(app)/admin/system/components/UnrealEngineTab";
 import { BrandGuidelinesTab } from "@/app/(app)/admin/system/components/BrandGuidelinesTab";
 
@@ -22,10 +22,10 @@ import { BrandGuidelinesTab } from "@/app/(app)/admin/system/components/BrandGui
  * URL is SSoT for tab state: /settings/developer/[tab]
  */
 
+// SSoT: Entity Config moved to Company settings
 const DEVELOPER_TABS = [
   { id: "components", label: "Components Lab" },
   { id: "tools", label: "Developer Tools" },
-  { id: "entity-config", label: "Entity Config" },
   { id: "brand-guidelines", label: "Brand Guidelines" },
   { id: "unreal-engine", label: "Unreal Engine" },
 ];
@@ -76,9 +76,6 @@ export default function DeveloperSettingsPage() {
           </TabsContent>
           <TabsContent value="tools">
             <DeveloperToolsTab />
-          </TabsContent>
-          <TabsContent value="entity-config">
-            <EntityConfigurationTab />
           </TabsContent>
           <TabsContent value="brand-guidelines">
             <BrandGuidelinesTab />
