@@ -177,7 +177,8 @@ class DocumentStorageService
 
     # Priority 1: S3-compatible (Wasabi)
     if record.respond_to?(:storage_provider) && record.storage_provider == "s3_compatible" && record.storage_path.present?
-      s3_key = record.storage_path.sub(%r{^/}, "")
+      # Use build_s3_key to handle legacy records where storage_path is just folder
+      s3_key = build_s3_key(record)
       begin
         provider = s3_provider
         return error_result("S3 storage not configured", status: :service_unavailable) unless provider
@@ -185,7 +186,7 @@ class DocumentStorageService
         url = provider.download_url(s3_key, expires_in: expires_in)
         { success: true, url: url }
       rescue DocumentProviders::NotFoundError
-        error_result("File not found in S3 storage", status: :not_found)
+        error_result("File not found in S3 storage: #{s3_key}", status: :not_found)
       rescue DocumentProviders::NotConnectedError
         error_result("S3 storage not configured", status: :service_unavailable)
       rescue => e
@@ -328,7 +329,7 @@ class DocumentStorageService
   # ============================================================================
 
   def download_from_s3(record)
-    s3_key = record.storage_path.sub(%r{^/}, "")
+    s3_key = build_s3_key(record)
     provider = s3_provider
     return error_result("S3 storage not configured", status: :service_unavailable) unless provider
 
@@ -340,7 +341,7 @@ class DocumentStorageService
       filename: record.file_name
     }
   rescue DocumentProviders::NotFoundError
-    error_result("File not found in S3 storage", status: :not_found)
+    error_result("File not found in S3 storage: #{s3_key}", status: :not_found)
   rescue DocumentProviders::NotConnectedError
     error_result("S3 storage not configured", status: :service_unavailable)
   rescue => e
@@ -393,6 +394,25 @@ class DocumentStorageService
     (record.respond_to?(:storage_reference) && record.storage_reference.present?) ||
       (record.respond_to?(:sharepoint_file_id) && record.sharepoint_file_id.present?) ||
       (record.respond_to?(:sharepoint_item_id) && record.sharepoint_item_id.present?)
+  end
+
+  # Build the S3 key from storage_path + file_name
+  # Handles legacy records where storage_path is just the folder (missing filename)
+  def build_s3_key(record)
+    path = record.storage_path.to_s.sub(%r{^/}, "")
+    filename = record.file_name.to_s
+
+    # If storage_path already ends with a file extension, use it as-is
+    # Common extensions: .pdf, .doc, .docx, .xls, .xlsx, .png, .jpg, etc.
+    if path.match?(/\.\w{2,5}$/)
+      path
+    elsif filename.present?
+      # Storage path is just folder - append filename
+      "#{path.chomp('/')}/#{filename}"
+    else
+      # No filename available, use path as-is (will likely fail)
+      path
+    end
   end
 
   def s3_provider
