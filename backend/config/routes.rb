@@ -392,6 +392,9 @@ Rails.application.routes.draw do
       get "documents/corporate_folder_files", to: "documents#folder_files"
       # Warehouse files (TeeemSpreadsheet, TeeemDocument, TeeemPresentation, TeeemPdf)
       get "documents/warehouse_files", to: "documents#warehouse_files"
+      # SSoT: Folder hierarchy matching StorageConfiguration.SCOPE_TEMPLATES
+      # Used by File Warehouse to build tree structure that mirrors storage paths
+      get "documents/scope_hierarchy", to: "documents#scope_hierarchy"
 
       # Documents (simple alias for company documents)
       resources :documents, only: [ :index, :create, :show, :update, :destroy ] do

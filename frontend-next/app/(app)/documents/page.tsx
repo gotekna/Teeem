@@ -59,6 +59,7 @@ import {
 } from "@/components/ui/dialog";
 import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { WordDocumentPreview } from "@/components/ui/word-document-preview";
+import { ExcelDocumentPreview } from "@/components/ui/excel-document-preview";
 import { BackButton } from "@/components/ui/back-button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -127,6 +128,25 @@ interface TreeNode {
 
 type ViewMode = "tree" | "list" | "gallery";
 type TreeDisplayMode = "list" | "gallery";
+
+// SSoT: Scope hierarchy item from /api/v1/documents/scope_hierarchy
+// Matches StorageConfiguration.SCOPE_TEMPLATES structure
+interface ScopeHierarchyItem {
+  id: string;
+  name: string;
+  token: string; // Which template token this represents (CompanyGroup, CompanyCode, TabName, etc.)
+  type: "folder";
+  children?: ScopeHierarchyItem[];
+  // Context IDs for fetching files
+  companyId?: number;
+  companyCode?: string;
+  companyName?: string;
+  jobId?: number;
+  jobTitle?: string;
+  contactId?: number;
+  entityTabId?: number;
+  fileCount?: number;
+}
 
 // Sync settings types
 interface DesktopClient {
@@ -355,6 +375,14 @@ export default function AllDocumentsPage() {
     contact: EntityTabFolder[];
   }>({ job: [], corporate: [], contact: [] });
 
+  // SSoT: Scope hierarchies from /api/v1/documents/scope_hierarchy
+  // These match StorageConfiguration.SCOPE_TEMPLATES ({{CompanyGroup}}/{{CompanyCode}}/{{TabName}})
+  const [scopeHierarchies, setScopeHierarchies] = useState<{
+    corporate: ScopeHierarchyItem[];
+    job: ScopeHierarchyItem[];
+    people: ScopeHierarchyItem[];
+  }>({ corporate: [], job: [], people: [] });
+
   // Sync settings state
   const [showSyncSettings, setShowSyncSettings] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
@@ -446,6 +474,37 @@ export default function AllDocumentsPage() {
       }
     };
     fetchEntityFolders();
+  }, []);
+
+  // SSoT: Fetch scope hierarchies from /api/v1/documents/scope_hierarchy
+  // These hierarchies match StorageConfiguration.SCOPE_TEMPLATES
+  // Structure: CompanyGroup → CompanyCode → TabName (for corporate)
+  useEffect(() => {
+    const fetchScopeHierarchies = async () => {
+      try {
+        // Fetch hierarchies for all scopes in parallel
+        const [corpRes, jobRes, peopleRes] = await Promise.all([
+          api.get<{ success: boolean; scope: string; template: string; hierarchy: ScopeHierarchyItem[] }>(
+            "/api/v1/documents/scope_hierarchy?scope=corporate"
+          ),
+          api.get<{ success: boolean; scope: string; template: string; hierarchy: ScopeHierarchyItem[] }>(
+            "/api/v1/documents/scope_hierarchy?scope=job"
+          ),
+          api.get<{ success: boolean; scope: string; template: string; hierarchy: ScopeHierarchyItem[] }>(
+            "/api/v1/documents/scope_hierarchy?scope=people"
+          ),
+        ]);
+
+        setScopeHierarchies({
+          corporate: corpRes?.success && corpRes.hierarchy ? corpRes.hierarchy : [],
+          job: jobRes?.success && jobRes.hierarchy ? jobRes.hierarchy : [],
+          people: peopleRes?.success && peopleRes.hierarchy ? peopleRes.hierarchy : [],
+        });
+      } catch (err) {
+        console.error("Failed to fetch scope hierarchies:", err);
+      }
+    };
+    fetchScopeHierarchies();
   }, []);
 
   // Fetch all documents
@@ -895,24 +954,61 @@ export default function AllDocumentsPage() {
       }));
     };
 
-    // Enhance specific nodes with EntityTab-based sub-folders
-    // (Jobs, Corporate, People have EntityTab configurations for their internal folder structure)
+    // SSoT: Convert ScopeHierarchyItem to TreeNode (recursive)
+    // This maps the backend hierarchy structure to the frontend tree
+    const hierarchyToTree = (items: ScopeHierarchyItem[], scopePrefix: string): TreeNode[] => {
+      return items.map(item => ({
+        id: item.id,
+        name: item.name,
+        type: "folder" as const,
+        fileCount: item.fileCount || 0,
+        children: item.children ? hierarchyToTree(item.children, scopePrefix) : undefined,
+        // Pass through context for fetching files later
+        fullPath: item.entityTabId ? `/entity-tab/${item.entityTabId}` : undefined,
+      }));
+    };
+
+    // Enhance specific nodes with SSoT hierarchy from scope_hierarchy endpoint
+    // This replaces the flat EntityTab structure with proper template-based hierarchy
     return dynamicTree.map(node => {
-      if (node.id === "job" && entityFolders.job.length > 0) {
+      // SSoT: Corporate uses template {{CompanyGroup}}/{{CompanyCode}}/{{TabName}}
+      if ((node.id === "corporate" || node.id === "corporate_entity") && scopeHierarchies.corporate.length > 0) {
+        // Use hierarchy from API (CompanyGroup → CompanyCode → TabName)
+        const hierarchyChildren = hierarchyToTree(scopeHierarchies.corporate, "corp");
+        return {
+          ...node,
+          children: [...hierarchyChildren, ...(node.children || [])],
+        };
+      }
+      // SSoT: Job uses template {{JobCode}}/{{TabName}}
+      if (node.id === "job" && scopeHierarchies.job.length > 0) {
+        return {
+          ...node,
+          children: hierarchyToTree(scopeHierarchies.job, "job"),
+        };
+      }
+      // SSoT: People/Contact uses template {{ContactName}}/{{TabName}}
+      if (node.id === "contact" && scopeHierarchies.people.length > 0) {
+        return {
+          ...node,
+          children: hierarchyToTree(scopeHierarchies.people, "contact"),
+        };
+      }
+      // Fallback: Use old entityFolders if hierarchy not loaded (backward compatibility)
+      if (node.id === "job" && entityFolders.job.length > 0 && scopeHierarchies.job.length === 0) {
         return {
           ...node,
           children: buildFolderTree(entityFolders.job, filteredDocuments.jobs, "job"),
         };
       }
-      if ((node.id === "corporate" || node.id === "corporate_entity") && entityFolders.corporate.length > 0) {
-        // For corporate, add entity tab children but keep nested scopes (like People)
+      if ((node.id === "corporate" || node.id === "corporate_entity") && entityFolders.corporate.length > 0 && scopeHierarchies.corporate.length === 0) {
         const corpChildren = buildFolderTree(entityFolders.corporate, filteredDocuments.corporate, "corp");
         return {
           ...node,
           children: [...corpChildren, ...(node.children || [])],
         };
       }
-      if (node.id === "contact" && entityFolders.contact.length > 0) {
+      if (node.id === "contact" && entityFolders.contact.length > 0 && scopeHierarchies.people.length === 0) {
         return {
           ...node,
           children: buildFolderTree(entityFolders.contact, filteredDocuments.people, "contact"),
@@ -927,7 +1023,7 @@ export default function AllDocumentsPage() {
       }
       return node;
     });
-  }, [filteredDocuments, entityFolders, scopeFolders, scopeTemplates, rootPath, counts]);
+  }, [filteredDocuments, entityFolders, scopeFolders, scopeTemplates, rootPath, counts, scopeHierarchies]);
 
   // Toggle folder expansion and fetch files if needed
   const toggleFolder = useCallback((folderId: string, folderPath?: string) => {
@@ -1748,6 +1844,14 @@ export default function AllDocumentsPage() {
                   previewDocument.displayName?.toLowerCase().endsWith(".docx") ? (
                   // Word document preview using TeeemWord's mammoth conversion
                   <WordDocumentPreview url={previewDocument.fileUrl} className="h-full" />
+                ) : previewDocument.mimeType?.includes("spreadsheetml") ||
+                  previewDocument.mimeType?.includes("ms-excel") ||
+                  previewDocument.fileName?.toLowerCase().endsWith(".xlsx") ||
+                  previewDocument.fileName?.toLowerCase().endsWith(".xls") ||
+                  previewDocument.displayName?.toLowerCase().endsWith(".xlsx") ||
+                  previewDocument.displayName?.toLowerCase().endsWith(".xls") ? (
+                  // Excel document preview using TeeemXL
+                  <ExcelDocumentPreview url={previewDocument.fileUrl} className="h-full" />
                 ) : (
                   // Other file types - show preview placeholder
                   <div className="h-full flex flex-col items-center justify-center p-8 text-center">

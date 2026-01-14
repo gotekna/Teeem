@@ -486,6 +486,25 @@ module Api
         render json: { success: true, suggestion: suggestion }
       end
 
+      # GET /api/v1/documents/scope_hierarchy
+      # SSoT: Returns folder hierarchy for a scope that matches StorageConfiguration.SCOPE_TEMPLATES
+      # Used by File Warehouse to build tree structure that mirrors storage paths
+      # Example: scope=corporate → CompanyGroup/CompanyCode/TabName hierarchy
+      def scope_hierarchy
+        scope = params[:scope]&.to_s || "corporate"
+        config = StorageConfiguration.instance
+        template = config.template_for(scope)
+
+        hierarchy = build_hierarchy_for_scope(scope, template)
+
+        render json: {
+          success: true,
+          scope: scope,
+          template: template,
+          hierarchy: hierarchy
+        }
+      end
+
       # POST /api/v1/documents/rename
       # Rename a file in S3 storage
       # Params:
@@ -538,6 +557,153 @@ module Api
       end
 
       private
+
+      # SSoT: Build folder hierarchy matching StorageConfiguration.SCOPE_TEMPLATES
+      # Template tokens ({{CompanyGroup}}, {{CompanyCode}}, {{TabName}}) define the tree structure
+      def build_hierarchy_for_scope(scope, template)
+        case scope.to_s
+        when "corporate", "corporate_entity"
+          build_corporate_hierarchy
+        when "job", "jobs"
+          build_job_hierarchy
+        when "people", "contact", "contacts"
+          build_people_hierarchy
+        else
+          []  # Other scopes return empty - can be extended as needed
+        end
+      end
+
+      # SSoT: Corporate hierarchy follows template {{CompanyGroup}}/{{CompanyCode}}/{{TabName}}
+      def build_corporate_hierarchy
+        # Get document tabs for corporate scope
+        tabs = EntityTab.for_scope("corporate_entity")
+                        .where(tab_group: "documents")
+                        .enabled
+                        .ordered
+
+        CorporateGroup.includes(:corporate_companies).order(:name).map do |group|
+          {
+            id: "group-#{group.id}",
+            name: group.name,
+            token: "CompanyGroup",
+            type: "folder",
+            children: group.corporate_companies.order(:name).map do |company|
+              {
+                id: "company-#{company.id}",
+                name: company.company_code.present? ? "#{company.company_code} (#{company.name})" : company.name,
+                token: "CompanyCode",
+                type: "folder",
+                companyId: company.id,
+                companyCode: company.company_code,
+                companyName: company.name,
+                children: tabs.map do |tab|
+                  # Count documents for this company+tab combination
+                  doc_count = if tab.document_type_ids.present?
+                    CorporateCompanyDocument
+                      .where(company_id: company.id, document_type_id: tab.document_type_ids)
+                      .count
+                  else
+                    0
+                  end
+
+                  {
+                    id: "tab-#{company.id}-#{tab.id}",
+                    name: tab.display_name,
+                    token: "TabName",
+                    type: "folder",
+                    entityTabId: tab.id,
+                    companyId: company.id,
+                    fileCount: doc_count
+                  }
+                end
+              }
+            end
+          }
+        end
+      end
+
+      # SSoT: Job hierarchy follows template {{JobCode}}/{{TabName}}
+      def build_job_hierarchy
+        # Get document tabs for job scope
+        tabs = EntityTab.for_scope("job")
+                        .where(tab_group: "documents")
+                        .enabled
+                        .ordered
+
+        # Get recent jobs (limit for performance)
+        Job.order(created_at: :desc).limit(100).map do |job|
+          {
+            id: "job-#{job.id}",
+            name: job.job_number,
+            token: "JobCode",
+            type: "folder",
+            jobId: job.id,
+            jobTitle: job.title,
+            children: tabs.map do |tab|
+              doc_count = if tab.document_type_ids.present?
+                JobDocument
+                  .where(job_id: job.id, document_type_id: tab.document_type_ids)
+                  .count
+              else
+                0
+              end
+
+              {
+                id: "tab-#{job.id}-#{tab.id}",
+                name: tab.display_name,
+                token: "TabName",
+                type: "folder",
+                entityTabId: tab.id,
+                jobId: job.id,
+                fileCount: doc_count
+              }
+            end
+          }
+        end
+      end
+
+      # SSoT: People hierarchy follows template {{ContactName}}/{{TabName}}
+      def build_people_hierarchy
+        # Get document tabs for people scope
+        tabs = EntityTab.for_scope("people")
+                        .where(tab_group: "documents")
+                        .enabled
+                        .ordered
+
+        # Get contacts with documents (limit for performance)
+        Contact.joins(:people_documents)
+               .distinct
+               .order(:name)
+               .limit(100)
+               .map do |contact|
+          {
+            id: "contact-#{contact.id}",
+            name: contact.display_name || contact.name,
+            token: "ContactName",
+            type: "folder",
+            contactId: contact.id,
+            children: tabs.map do |tab|
+              doc_count = if tab.document_type_ids.present?
+                PeopleDocument
+                  .where(contact_id: contact.id, document_type_id: tab.document_type_ids)
+                  .count
+              else
+                0
+              end
+
+              {
+                id: "tab-#{contact.id}-#{tab.id}",
+                name: tab.display_name,
+                token: "TabName",
+                type: "folder",
+                entityTabId: tab.id,
+                contactId: contact.id,
+                fileCount: doc_count
+              }
+            end
+          }
+        end
+      end
 
       # SSoT: Fetch job documents by EntityTab.document_type_ids
       def fetch_job_documents(entity_tab)
