@@ -2,84 +2,53 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { BackButton } from "@/components/ui/back-button";
-import { Plus } from "lucide-react";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import { useCorporateTable } from "@/hooks/use-corporate-table";
 import type { TableRow } from "@/components/table/types";
 import { TablePage } from "@/components/ui/page-wrappers";
-import { Spinner } from "@/components/ui/spinner";
 
+/**
+ * Assets Page - Corporate Assets Management
+ *
+ * SSoT: Uses Foundation API via autoFetchRecords (Jan 2026 refactor)
+ * Foundation: "assets" (ID 530)
+ *
+ * Previous pattern used useCorporateTable hook with entries prop.
+ * Refactored to use autoFetchRecords for SSR hydration, caching, infinite scroll.
+ */
 export default function AssetsPage() {
   const router = useRouter();
+  const [refreshKey, setRefreshKey] = React.useState(0);
 
-  // Use the corporate table hook for assets (Gold Standard Table - Foundation ID 526)
-  const {
-    foundationId,
-    entries: assets,
-    isLoading,
-    error,
-    refreshColumns,
-    refreshData,
-    handleEdit,
-    handleDelete,
-    handleBulkDelete,
-  } = useCorporateTable('assets');
-
-  // Wrap handlers to show confirmation for deletes
+  // Delete confirmation wrapper
   const handleDeleteWithConfirm = async (entry: TableRow) => {
-    if (!confirm(`Delete asset "${entry.name}"? This cannot be undone.`)) return;
-    await handleDelete(entry);
+    if (!confirm(`Delete asset "${entry.name}"? This cannot be undone.`)) {
+      throw new Error("Cancelled"); // Prevents TeeemTableView from proceeding
+    }
+    // TeeemTableView handles the actual delete via Foundation API
   };
 
   const handleBulkDeleteWithConfirm = async (ids: (string | number)[]) => {
-    if (!confirm(`Delete ${ids.length} assets? This cannot be undone.`)) return;
-    // Convert IDs to entries for the hook's handleBulkDelete
-    const entriesToDelete = assets.filter(a => ids.includes(a.id));
-    await handleBulkDelete(entriesToDelete);
+    if (!confirm(`Delete ${ids.length} assets? This cannot be undone.`)) {
+      throw new Error("Cancelled");
+    }
+    // TeeemTableView handles the actual delete via Foundation API
   };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center h-96 gap-4">
-        <p className="text-destructive">{error}</p>
-        <Button onClick={refreshData}>Retry</Button>
-      </div>
-    );
-  }
 
   return (
     <TablePage>
       <TeeemTableView
         foundationId="assets"
-        foundationIdNumeric={foundationId || 0}
+        autoFetchRecords={true}
+        refreshTrigger={refreshKey}
         tableName="Assets"
-        entries={assets}
-        onEdit={handleEdit}
         onDelete={handleDeleteWithConfirm}
         onBulkDelete={handleBulkDeleteWithConfirm}
         onRowDoubleClick={(asset) => router.push(`/corporate/assets/${asset.id}`)}
+        onAddRow={() => router.push("/corporate/assets/new")}
         enableExport={true}
         enableSchemaEditor={true}
-        onColumnUpdate={refreshColumns}
-        leftActions={
-          <div className="flex items-center gap-2">
-            <BackButton fallbackHref="/corporate" />
-            <Button onClick={() => router.push("/corporate/assets/new")}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Asset
-            </Button>
-          </div>
-        }
+        leftActions={<BackButton fallbackHref="/corporate" />}
         hideFooter={true}
       />
     </TablePage>

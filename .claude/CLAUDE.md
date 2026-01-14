@@ -355,6 +355,8 @@ onAddRow={() => setShowModal(true)}
 **`entries` prop is DEPRECATED** for Foundation-backed tables. Only use `entries` for:
 - Non-Foundation data (e.g., Xero API responses)
 - Demo/test data in components lab
+- Rails models without Foundation (e.g., `CorporateCompany` - corporate/page.tsx Companies tab)
+- Custom API endpoints with special filtering (e.g., Public Holidays with year/region params)
 
 ## 🔴 Design System
 
