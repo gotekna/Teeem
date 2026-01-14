@@ -355,6 +355,19 @@ class ImapEmailService
     false
   end
 
+  # Mark email as read/unread
+  # @param uid [Integer] UID of the email
+  # @param is_read [Boolean] Read status to set
+  # @param folder [String] Folder containing the email (default: INBOX)
+  # @return [Boolean] Success status
+  def mark_read(uid, is_read:, folder: "INBOX")
+    if is_read
+      set_flags(uid, [:Seen], folder: folder)
+    else
+      remove_flags(uid, [:Seen], folder: folder)
+    end
+  end
+
   # Remove flags from email
   # @param uid [Integer] UID of the email
   # @param flags [Array<Symbol>] Flags to remove

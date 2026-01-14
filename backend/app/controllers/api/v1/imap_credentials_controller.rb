@@ -209,7 +209,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
       end
     else
       # Fetch IMAP folders
-      credential = current_user.imap_credentials.find_by(id: account_id)
+      # SSoT: Use accessible_by to include both owned and shared credentials
+      credential = ImapCredential.accessible_by(current_user).find_by(id: account_id)
       unless credential
         return render json: {
           success: false,

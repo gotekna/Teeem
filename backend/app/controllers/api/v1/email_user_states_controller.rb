@@ -104,8 +104,9 @@ class Api::V1::EmailUserStatesController < ApplicationController
   def toggle_read
     state = EmailUserState.toggle_read!(@email, current_user)
 
-    # Sync read status to Office 365 (fire-and-forget, don't block on errors)
+    # Sync read status to email provider (fire-and-forget, don't block on errors)
     sync_read_status_to_office365(@email, state.is_read)
+    sync_read_status_to_imap(@email, state.is_read)
 
     render json: {
       success: true,
@@ -169,6 +170,7 @@ class Api::V1::EmailUserStatesController < ApplicationController
       unless state.is_read
         state.update!(is_read: true)
         sync_read_status_to_office365(email, true)
+        sync_read_status_to_imap(email, true)
         affected += 1
       end
     end
@@ -220,9 +222,11 @@ class Api::V1::EmailUserStatesController < ApplicationController
       when "mark_read"
         state.update!(is_read: true)
         sync_read_status_to_office365(email, true)
+        sync_read_status_to_imap(email, true)
       when "mark_unread"
         state.update!(is_read: false)
         sync_read_status_to_office365(email, false)
+        sync_read_status_to_imap(email, false)
       end
 
       affected += 1
@@ -317,6 +321,34 @@ class Api::V1::EmailUserStatesController < ApplicationController
       rescue StandardError => e
         # Don't fail the request if Office 365 sync fails
         Rails.logger.warn "[EmailSync] Failed to sync read status to Office 365 for email #{email.id}: #{e.message}"
+      ensure
+        ActiveRecord::Base.connection_pool.release_connection
+      end
+    end
+  end
+
+  # Sync read status back to IMAP server (fire-and-forget)
+  # @param email [EmailWarehouse] The email record
+  # @param is_read [Boolean] The read status to sync
+  def sync_read_status_to_imap(email, is_read)
+    return unless email.imap_credential_id.present?
+    return unless email.uid.present?
+
+    # Find the IMAP credential
+    credential = ImapCredential.find_by(id: email.imap_credential_id)
+    return unless credential&.is_active?
+
+    folder = email.folder_name || "INBOX"
+
+    # Fire-and-forget - don't block the response on IMAP call
+    Thread.new do
+      begin
+        service = ImapEmailService.new(credential)
+        service.mark_read(email.uid, is_read: is_read, folder: folder)
+        Rails.logger.info "[EmailSync] Synced read status to IMAP: #{email.id} -> #{is_read}"
+      rescue StandardError => e
+        # Don't fail the request if IMAP sync fails
+        Rails.logger.warn "[EmailSync] Failed to sync read status to IMAP for email #{email.id}: #{e.message}"
       ensure
         ActiveRecord::Base.connection_pool.release_connection
       end

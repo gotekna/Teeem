@@ -198,14 +198,39 @@ export const WritingChecker = Extension.create({
 
               // Create tooltip container
               const tooltipContainer = document.createElement("div");
-              tooltipContainer.style.position = "absolute";
+              tooltipContainer.style.position = "fixed";
               tooltipContainer.style.zIndex = "9999";
               document.body.appendChild(tooltipContainer);
 
-              // Position near the click
+              // Get position and viewport dimensions for smart placement
               const coords = view.coordsAtPos(clickedIssue.from);
-              tooltipContainer.style.left = `${coords.left}px`;
-              tooltipContainer.style.top = `${coords.bottom + 5}px`;
+              const tooltipWidth = 288; // w-72 = 18rem = 288px
+              const tooltipHeight = 180; // Approximate height
+              const padding = 8;
+              const viewportWidth = window.innerWidth;
+              const viewportHeight = window.innerHeight;
+
+              // Calculate horizontal position (prefer left-aligned, but shift if too close to right edge)
+              let left = coords.left;
+              if (left + tooltipWidth + padding > viewportWidth) {
+                left = Math.max(padding, viewportWidth - tooltipWidth - padding);
+              }
+
+              // Calculate vertical position (prefer below, but flip above if too close to bottom)
+              let top: number;
+              if (coords.bottom + tooltipHeight + padding > viewportHeight) {
+                // Position above the text
+                top = coords.top - tooltipHeight - padding;
+              } else {
+                // Position below the text
+                top = coords.bottom + padding;
+              }
+
+              // Ensure we don't go above viewport
+              top = Math.max(padding, top);
+
+              tooltipContainer.style.left = `${left}px`;
+              tooltipContainer.style.top = `${top}px`;
 
               extension.storage.tooltipContainer = tooltipContainer;
               extension.storage.tooltipRoot = createRoot(tooltipContainer);
