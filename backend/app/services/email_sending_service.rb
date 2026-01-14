@@ -311,8 +311,10 @@ class EmailSendingService
     user = @params.user
     credential_id = imap_credential_id
 
+    # SSoT: Use accessible_by to include both owned and shared credentials
+    # This allows users to send from shared email accounts (e.g., Rachel sending from robert@teeem.au)
     credential = if user
-                   user.imap_credentials.find_by(id: credential_id)
+                   ImapCredential.accessible_by(user).find_by(id: credential_id)
                  else
                    ImapCredential.find_by(id: credential_id)
                  end

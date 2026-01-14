@@ -38,6 +38,7 @@ interface WritingCheckerState {
   decorations: DecorationSet;
   issues: WritingIssue[];
   isChecking: boolean;
+  correctedText: string | null;
 }
 
 // Tooltip component for showing issue details
@@ -143,6 +144,7 @@ export const WritingChecker = Extension.create({
               decorations: DecorationSet.empty,
               issues: [],
               isChecking: false,
+              correctedText: null,
             };
           },
 
@@ -162,10 +164,14 @@ export const WritingChecker = Extension.create({
                   issues: meta.issues,
                   decorations,
                   isChecking: meta.isChecking ?? state.isChecking,
+                  correctedText: meta.correctedText ?? state.correctedText,
                 };
               }
               if (meta.isChecking !== undefined) {
                 return { ...state, isChecking: meta.isChecking, decorations };
+              }
+              if (meta.correctedText !== undefined) {
+                return { ...state, correctedText: meta.correctedText, decorations };
               }
             }
 
@@ -236,13 +242,33 @@ export const WritingChecker = Extension.create({
               extension.storage.tooltipRoot = createRoot(tooltipContainer);
 
               const handleFix = () => {
-                // Replace the text with the suggestion
-                const tr = view.state.tr.replaceWith(
-                  clickedIssue.from,
-                  clickedIssue.to,
-                  view.state.schema.text(clickedIssue.suggestion)
-                );
-                view.dispatch(tr);
+                // Get the corrected text from state - this fixes ALL issues at once
+                const pluginState = writingCheckerKey.getState(view.state);
+                const correctedText = pluginState?.correctedText;
+
+                if (correctedText) {
+                  // Replace entire content with corrected text (fixes all issues)
+                  const tr = view.state.tr.replaceWith(
+                    1,
+                    view.state.doc.content.size - 1,
+                    view.state.schema.text(correctedText)
+                  );
+                  // Clear all issues and decorations since we fixed everything
+                  tr.setMeta(writingCheckerKey, {
+                    decorations: DecorationSet.empty,
+                    issues: [],
+                    correctedText: null,
+                  });
+                  view.dispatch(tr);
+                } else {
+                  // Fallback: just fix the clicked issue
+                  const tr = view.state.tr.replaceWith(
+                    clickedIssue.from,
+                    clickedIssue.to,
+                    view.state.schema.text(clickedIssue.suggestion)
+                  );
+                  view.dispatch(tr);
+                }
 
                 // Clean up tooltip
                 extension.storage.tooltipRoot?.unmount();
@@ -354,11 +380,12 @@ export const WritingChecker = Extension.create({
                     issues
                   );
 
-                  // Update state
+                  // Update state with corrected text for "Apply Fix" to use
                   const tr = editorView.state.tr.setMeta(writingCheckerKey, {
                     decorations,
                     issues,
                     isChecking: false,
+                    correctedText: response.data.corrected_text,
                   });
                   editorView.dispatch(tr);
 
