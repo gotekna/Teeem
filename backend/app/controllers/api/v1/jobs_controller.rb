@@ -1045,6 +1045,20 @@ module Api
         render json: { success: false, error: "Job not found" }, status: :not_found
       end
 
+      # POST /api/v1/jobs/:id/create_storage_folders
+      # Creates storage folders for a job that doesn't have them yet
+      def create_storage_folders
+        if @job.storage_folder_status == "completed"
+          render json: { success: true, status: "completed", message: "Folders already exist" }
+          return
+        end
+
+        @job.create_folders_if_needed!
+        render json: { success: true, status: @job.reload.storage_folder_status }
+      rescue StandardError => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
       private
 
       def set_job
@@ -1224,20 +1238,6 @@ module Api
           success: false,
           error: e.message
         }
-      end
-
-      # POST /api/v1/jobs/:id/create_storage_folders
-      # Creates storage folders for a job that doesn't have them yet
-      def create_storage_folders
-        if @job.storage_folder_status == "completed"
-          render json: { success: true, status: "completed", message: "Folders already exist" }
-          return
-        end
-
-        @job.create_folders_if_needed!
-        render json: { success: true, status: @job.reload.storage_folder_status }
-      rescue StandardError => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
       end
     end
   end
