@@ -58,6 +58,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { PDFViewer } from "@/components/ui/pdf-viewer";
+import { WordDocumentPreview } from "@/components/ui/word-document-preview";
 import { BackButton } from "@/components/ui/back-button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -1742,6 +1743,11 @@ export default function AllDocumentsPage() {
                   previewDocument.displayName?.toLowerCase().endsWith(".pdf") ? (
                   // PDF preview (check mime type OR file extension)
                   <PDFViewer url={previewDocument.fileUrl} className="h-full" />
+                ) : previewDocument.mimeType?.includes("wordprocessingml") ||
+                  previewDocument.fileName?.toLowerCase().endsWith(".docx") ||
+                  previewDocument.displayName?.toLowerCase().endsWith(".docx") ? (
+                  // Word document preview using TeeemWord's mammoth conversion
+                  <WordDocumentPreview url={previewDocument.fileUrl} className="h-full" />
                 ) : (
                   // Other file types - show preview placeholder
                   <div className="h-full flex flex-col items-center justify-center p-8 text-center">
