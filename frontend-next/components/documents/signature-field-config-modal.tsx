@@ -27,6 +27,7 @@ import {
   Sparkles,
   Save,
   GripVertical,
+  Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -87,8 +88,14 @@ export function SignatureFieldConfigModal({
   const [selectedFieldIndex, setSelectedFieldIndex] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  // Local PDF content state (for uploaded PDFs)
+  const [localPdfContent, setLocalPdfContent] = useState<string | undefined>(pdfContent);
 
   const pageRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Use local PDF content if available, otherwise fall back to prop
+  const activePdfContent = localPdfContent || pdfContent;
 
   // Reset fields when modal opens with initial config
   useEffect(() => {
@@ -96,12 +103,37 @@ export function SignatureFieldConfigModal({
       setFields(initialConfig);
       setCurrentPage(1);
       setSelectedFieldIndex(null);
+      setLocalPdfContent(pdfContent);
     }
-  }, [open, initialConfig]);
+  }, [open, initialConfig, pdfContent]);
+
+  // Handle PDF file upload
+  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== "application/pdf") {
+      toast.error("Please upload a PDF file");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      // Remove data URL prefix to get just base64
+      const base64 = result.split(",")[1];
+      setLocalPdfContent(base64);
+      toast.success("PDF loaded successfully");
+    };
+    reader.onerror = () => {
+      toast.error("Failed to read PDF file");
+    };
+    reader.readAsDataURL(file);
+  }, []);
 
   // Detect signature fields using AI
   const handleDetectFields = async () => {
-    if (!pdfContent) {
+    if (!activePdfContent) {
       toast.error("No PDF content available for detection");
       return;
     }
@@ -110,7 +142,7 @@ export function SignatureFieldConfigModal({
     try {
       const response = await api.post<{ success: boolean; fields?: SignatureFieldConfig[]; error?: string }>(
         `/document_types/${documentTypeId}/detect_signature_fields`,
-        { pdf_content: pdfContent }
+        { pdf_content: activePdfContent }
       );
 
       if (response && response.success && response.fields) {
@@ -203,7 +235,7 @@ export function SignatureFieldConfigModal({
     setPdfDimensions({ width: page.width, height: page.height });
   }, []);
 
-  const pdfDataUrl = pdfContent ? `data:application/pdf;base64,${pdfContent}` : undefined;
+  const pdfDataUrl = activePdfContent ? `data:application/pdf;base64,${activePdfContent}` : undefined;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -323,8 +355,22 @@ export function SignatureFieldConfigModal({
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-center h-64 text-muted-foreground">
-                  <p>Upload a PDF to configure signature fields</p>
+                <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-4">
+                  <p>Upload a sample PDF to configure signature field positions</p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="application/pdf"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload PDF
+                  </Button>
                 </div>
               )}
             </div>
@@ -339,7 +385,7 @@ export function SignatureFieldConfigModal({
               </Button>
             </div>
 
-            {pdfContent && (
+            {activePdfContent && (
               <Button
                 variant="outline"
                 onClick={handleDetectFields}

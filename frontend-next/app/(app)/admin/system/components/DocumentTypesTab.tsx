@@ -21,7 +21,9 @@ import {
   Building2,
   Briefcase,
   Users,
+  PenTool,
 } from "lucide-react";
+import { SignatureFieldConfigModal, type SignatureFieldConfig } from "@/components/documents/signature-field-config-modal";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -74,6 +76,8 @@ interface DocumentType extends TableRow {
   file_extensions?: string[];
   file_extensions_display?: string;
   target_folder?: string;
+  // Signature field configuration for Word→PDF conversion
+  signature_field_config?: SignatureFieldConfig[];
 }
 
 // Separate component for tabs display with popover - MUST be outside DocumentTypesTab to avoid hook violations
@@ -247,6 +251,10 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
   const [columns, setColumns] = React.useState<TableColumn[]>([]);
   // SSoT: Add form handled by TeeemTableView's built-in "Add Record" modal
   const [availableFolders, setAvailableFolders] = React.useState<FolderOption[]>([]);
+  // Signature field configuration modal state
+  const [signatureModalOpen, setSignatureModalOpen] = React.useState(false);
+  const [signatureModalDocType, setSignatureModalDocType] = React.useState<DocumentType | null>(null);
+  const [signatureModalPdf, setSignatureModalPdf] = React.useState<string | undefined>(undefined);
 
   // Filter document types by scope
   const filteredDocTypes = React.useMemo(() => {
@@ -396,6 +404,41 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
 
   // SSoT: Add handled by TeeemTableView's built-in add modal via Foundation API
 
+  // Open signature field configuration modal
+  const handleOpenSignatureConfig = React.useCallback((docType: DocumentType) => {
+    setSignatureModalDocType(docType);
+    setSignatureModalPdf(undefined); // User will upload a PDF in the modal
+    setSignatureModalOpen(true);
+  }, []);
+
+  // Save signature field configuration
+  const handleSaveSignatureConfig = React.useCallback(async (config: SignatureFieldConfig[]) => {
+    if (!signatureModalDocType?.id) return;
+
+    try {
+      await api.patch(`/api/v1/document_types/${signatureModalDocType.id}`, {
+        document_type: { signature_field_config: config }
+      });
+
+      // Update local state
+      setDocumentTypes(prev => prev.map(dt =>
+        dt.id === signatureModalDocType.id ? { ...dt, signature_field_config: config } : dt
+      ));
+
+      toast({
+        title: "Signature fields saved",
+        description: `Configured ${config.length} signature field(s) for "${signatureModalDocType.name}"`,
+      });
+    } catch (error) {
+      console.error("Failed to save signature config:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save signature field configuration",
+        variant: "destructive",
+      });
+    }
+  }, [signatureModalDocType, toast]);
+
   // Handle row double-click - navigate to detail page
   // Single-click selects row (default behavior), double-click opens detail
   const handleRowDoubleClick = React.useCallback((row: DocumentType) => {
@@ -404,21 +447,42 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
 
   // Custom cell renderer for tabs display and badges
   const customCellRenderer = (entry: DocumentType, columnKey: string) => {
-    // Make NAME column a clickable link to full-screen editor
+    // Make NAME column a clickable link to full-screen editor with signature config button
     if (columnKey === "name") {
       const value = entry.name;
       if (!value) return <span className="text-muted-foreground">-</span>;
+      const hasSignatureConfig = entry.signature_field_config && entry.signature_field_config.length > 0;
       return (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            router.push(`${basePath}/${entry.id}`);
-          }}
-          className="text-left text-primary hover:underline font-medium"
-          title="Click to open full editor"
-        >
-          {value}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              router.push(`${basePath}/${entry.id}`);
+            }}
+            className="text-left text-primary hover:underline font-medium flex-1"
+            title="Click to open full editor"
+          >
+            {value}
+          </button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "h-6 w-6 shrink-0",
+              hasSignatureConfig ? "text-green-600 dark:text-green-400" : "text-muted-foreground"
+            )}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleOpenSignatureConfig(entry);
+            }}
+            title={hasSignatureConfig
+              ? `${entry.signature_field_config!.length} signature field(s) configured`
+              : "Configure signature fields"
+            }
+          >
+            <PenTool className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       );
     }
     if (columnKey === "scope") {
@@ -572,6 +636,19 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
 
         </TabsContent>
       </Tabs>
+
+      {/* Signature Field Configuration Modal */}
+      {signatureModalDocType && (
+        <SignatureFieldConfigModal
+          open={signatureModalOpen}
+          onOpenChange={setSignatureModalOpen}
+          documentTypeId={signatureModalDocType.id as number}
+          documentTypeName={signatureModalDocType.name || "Document Type"}
+          pdfContent={signatureModalPdf}
+          initialConfig={signatureModalDocType.signature_field_config || []}
+          onSave={handleSaveSignatureConfig}
+        />
+      )}
     </div>
   );
 }

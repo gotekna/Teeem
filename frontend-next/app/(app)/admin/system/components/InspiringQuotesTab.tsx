@@ -50,9 +50,6 @@ interface InspiringQuote {
   updated_at?: string;
 }
 
-// SSoT: Categories from active Bible business quotes in database
-const CATEGORIES = ["Leadership", "Work", "Wisdom", "Courage", "Excellence", "Planning", "Teamwork", "Finance", "Resilience", "Perseverance", "Success"];
-
 const DEFAULT_QUOTES: InspiringQuote[] = [
   { id: 1, quote: "The only way to do great work is to love what you do.", author: "Steve Jobs", category: "Motivation", is_active: true, created_at: new Date().toISOString() },
   { id: 2, quote: "Quality is not an act, it is a habit.", author: "Aristotle", category: "Success", is_active: true, created_at: new Date().toISOString() },
@@ -235,6 +232,12 @@ export function InspiringQuotesTab() {
     toast({ title: "Success", description: "Quotes reset to defaults" });
   };
 
+  // Derive unique categories from loaded quotes (dynamic, not hardcoded)
+  const categories = React.useMemo(() => {
+    const cats = [...new Set(quotes.map(q => q.category).filter(Boolean))];
+    return cats.sort();
+  }, [quotes]);
+
   const filteredQuotes = filterCategory
     ? quotes.filter((q) => q.category === filterCategory)
     : quotes;
@@ -301,7 +304,7 @@ export function InspiringQuotesTab() {
           >
             All
           </Button>
-          {CATEGORIES.map((cat) => (
+          {categories.map((cat) => (
             <Button
               key={cat}
               variant={filterCategory === cat ? "default" : "outline"}
@@ -426,7 +429,7 @@ export function InspiringQuotesTab() {
             <div className="space-y-2">
               <Label>Category</Label>
               <div className="flex flex-wrap gap-2">
-                {CATEGORIES.map((cat) => (
+                {categories.map((cat) => (
                   <Button
                     key={cat}
                     type="button"
