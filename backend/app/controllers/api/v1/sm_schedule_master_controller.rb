@@ -216,11 +216,27 @@ module Api
 
         return unless @row.dependency_broken
 
-        # If predecessor_ids are being set and there are actual predecessors
+        # Only clear dependency_broken if a backed-up predecessor is being restored
+        # (not just because any predecessors are being set)
         new_preds = params[:row][:predecessor_ids]
-        if new_preds.present? && new_preds.is_a?(Array) && new_preds.any?
-          # Predecessors being added - clear the broken flag
+        return unless new_preds.present? && new_preds.is_a?(Array)
+
+        backup_preds = @row.predecessor_ids_backup || []
+        return if backup_preds.empty?
+
+        # Get IDs from backup (handle both hash and integer formats)
+        backup_ids = backup_preds.map { |p| p.is_a?(Hash) ? p['id'] || p[:id] : p }.compact
+        # Get IDs from new predecessors
+        new_ids = new_preds.map { |p| p.is_a?(Hash) ? p['id'] || p[:id] : p }.compact
+
+        # Check if any backed-up predecessor is being restored
+        restored = backup_ids.any? { |id| new_ids.include?(id) || new_ids.include?(id.to_s) || new_ids.include?(id.to_i) }
+
+        if restored
+          # A backed-up predecessor is being restored - clear the broken flag
           params[:row][:dependency_broken] = false
+          # Also clear the backup since it's been restored
+          params[:row][:predecessor_ids_backup] = []
         end
       end
 

@@ -287,7 +287,11 @@ function TreeNode({
   const [hasConfigLink, setHasConfigLink] = React.useState(!!initialConfigLink);
 
   // SSoT: Simple scopes without config link can expand to show folder template preview
-  const hasTemplatePreview = node.scopeKeys?.length > 0 && folderTemplate && !hasConfigLink;
+  // Check if ANY scope has a template (for multi-scope paths like Tasks)
+  const hasTemplatePreview = node.scopeKeys?.length > 0 && node.scopeKeys.some(sk => {
+    const template = scopeTemplates[sk] || DEFAULT_FOLDER_TEMPLATES[sk];
+    return template && !configLinks[sk];
+  });
   const hasExpandableContent = hasChildren || hasTabs || hasTemplatePreview;
   const isExpanded = expandedPaths.has(node.path);
   const [configLinkUrl, setConfigLinkUrl] = React.useState(initialConfigLink);
@@ -691,30 +695,83 @@ function TreeNode({
         <div>
           {/* For simple scopes WITHOUT config link: show folder template preview */}
           {/* Complex scopes with config links have their folder structure defined in entity tabs (SSoT) */}
-          {node.scopeKeys?.length > 0 && folderTemplate && !isEditingThisNode && !hasConfigLink && (
+          {/* When multiple scopes share a path, show ALL their template previews */}
+          {node.scopeKeys?.length > 0 && !isEditingThisNode && (
             <div className="ml-1">
-              {/* Render folder template as nested preview folders */}
+              {/* Render ALL scope templates as nested preview folders */}
               {(() => {
-                const parts = folderTemplate.split('/').filter(Boolean);
-                let currentLevel = level + 1;
-                return parts.map((part, idx) => (
-                  <div
-                    key={`template-${idx}`}
-                    className="flex items-center gap-1 py-0.5 px-1"
-                    style={{ paddingLeft: `${currentLevel++ * 16 + 4}px` }}
-                  >
-                    <span className="w-5" />
-                    <Folder className="h-3.5 w-3.5 text-amber-500/50 flex-shrink-0" />
-                    <span className="font-mono text-xs text-muted-foreground italic">
-                      {part}
-                    </span>
-                    {idx === parts.length - 1 && filenameTemplate && (
-                      <span className="ml-2 text-[10px] text-muted-foreground/60">
-                        → {filenameTemplate}
+                // Collect all templates from all scopes sharing this path
+                const allTemplates: Array<{ scopeKey: string; template: string; filename: string }> = [];
+                for (const sk of node.scopeKeys) {
+                  const template = scopeTemplates[sk] || DEFAULT_FOLDER_TEMPLATES[sk] || '';
+                  const filename = fileNameTemplates[sk] || '{{OriginalFileName}}';
+                  // Skip scopes with config links (they show tabs instead)
+                  if (!configLinks[sk] && template) {
+                    allTemplates.push({ scopeKey: sk, template, filename });
+                  }
+                }
+
+                // Build a merged tree structure from all templates
+                // This handles the case where multiple scopes share the same prefix (e.g., {{TaskId}})
+                const templateTree: Map<string, { parts: string[]; scopeKey: string; filename: string }[]> = new Map();
+                for (const { scopeKey, template, filename } of allTemplates) {
+                  const parts = template.split('/').filter(Boolean);
+                  const key = parts[0] || ''; // First part as the grouping key
+                  if (!templateTree.has(key)) {
+                    templateTree.set(key, []);
+                  }
+                  templateTree.get(key)!.push({ parts, scopeKey, filename });
+                }
+
+                // Render the merged tree
+                const rendered: React.ReactNode[] = [];
+                for (const [firstPart, items] of templateTree) {
+                  if (!firstPart) continue;
+
+                  // Render the first part (e.g., {{TaskId}})
+                  rendered.push(
+                    <div
+                      key={`first-${firstPart}`}
+                      className="flex items-center gap-1 py-0.5 px-1"
+                      style={{ paddingLeft: `${(level + 1) * 16 + 4}px` }}
+                    >
+                      <span className="w-5" />
+                      <Folder className="h-3.5 w-3.5 text-amber-500/50 flex-shrink-0" />
+                      <span className="font-mono text-xs text-muted-foreground italic">
+                        {firstPart}
                       </span>
-                    )}
-                  </div>
-                ));
+                    </div>
+                  );
+
+                  // Render the remaining parts for each scope
+                  for (const { parts, filename } of items) {
+                    const remainingParts = parts.slice(1);
+                    let currentLevel = level + 2;
+                    for (let idx = 0; idx < remainingParts.length; idx++) {
+                      const part = remainingParts[idx];
+                      const isLast = idx === remainingParts.length - 1;
+                      rendered.push(
+                        <div
+                          key={`${parts.join('-')}-${idx}`}
+                          className="flex items-center gap-1 py-0.5 px-1"
+                          style={{ paddingLeft: `${currentLevel++ * 16 + 4}px` }}
+                        >
+                          <span className="w-5" />
+                          <Folder className="h-3.5 w-3.5 text-amber-500/50 flex-shrink-0" />
+                          <span className="font-mono text-xs text-muted-foreground italic">
+                            {part}
+                          </span>
+                          {isLast && filename && (
+                            <span className="ml-2 text-[10px] text-muted-foreground/60">
+                              → {filename}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    }
+                  }
+                }
+                return rendered;
               })()}
             </div>
           )}
