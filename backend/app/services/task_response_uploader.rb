@@ -87,7 +87,8 @@ class TaskResponseUploader
   private
 
   def document_provider
-    DocumentProviders::SharePoint.for_organization(organization)
+    # SSoT: Use generic provider factory which respects StorageConfiguration
+    DocumentProviders.for_organization(organization)
   end
 
   # Folder name based on category

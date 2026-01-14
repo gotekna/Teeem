@@ -24,24 +24,27 @@ module DocumentProviders
   class ProviderError < Error; end
 
   # Factory method to get the appropriate provider for an organization
+  # SSoT: StorageConfiguration.detected_provider_type determines which provider to use
   # @param organization [Organization] The organization
   # @return [DocumentProviders::Base] The configured provider
   def self.for_organization(organization)
-    provider_type = organization.respond_to?(:document_provider) ? organization.document_provider : "sharepoint"
+    # SSoT: StorageConfiguration determines provider type based on active credentials
+    config = StorageConfiguration.for_organization(organization)
+    provider_type = config.provider_type
 
     case provider_type.to_s
     when "sharepoint"
       DocumentProviders::SharePoint.for_organization(organization)
-    when "s3", "s3_compatible"
+    when "s3", "wasabi"
       DocumentProviders::S3Compatible.for_organization(organization)
     when "box"
-      # DocumentProviders::Box.for_organization(organization)
       raise NotConnectedError, "Box provider not yet implemented"
     when "google_drive"
-      # DocumentProviders::GoogleDrive.for_organization(organization)
       raise NotConnectedError, "Google Drive provider not yet implemented"
+    when "local"
+      raise NotConnectedError, "Local storage provider not yet implemented"
     else
-      raise Error, "Unknown document provider: #{provider_type}"
+      raise Error, "Unknown document provider: #{provider_type}. Check StorageConfiguration."
     end
   end
 end

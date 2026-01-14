@@ -1093,11 +1093,44 @@ module Api
         }
       end
 
+      # GET /api/v1/sm_tasks/:id/search_contacts?q=searchterm
+      # Search contacts by name and return email counts
+      def search_contacts
+        query = params[:q].to_s.strip
+        return render json: { success: true, contacts: [] } if query.length < 2
+
+        # Search contacts by name (case-insensitive)
+        contacts = Contact.where("name ILIKE ?", "%#{query}%")
+                         .includes(:contact_emails)
+                         .limit(10)
+
+        results = contacts.map do |contact|
+          emails = contact.all_emails
+          next nil if emails.empty?
+
+          email_count = EmailWarehouse.involving_email(emails).count
+
+          {
+            id: contact.id,
+            name: contact.name,
+            company: contact.company_name,
+            emails: emails,
+            email_count: email_count
+          }
+        end.compact
+
+        render json: {
+          success: true,
+          contacts: results.sort_by { |c| -c[:email_count] }
+        }
+      end
+
       # POST /api/v1/sm_tasks/:id/bulk_link_emails
       # Links all emails from/to a given email address to this task
       # Params:
       #   - email_address: Email address to search for
       #   - OR job_contact_id: ID of job_contact to use (gets emails from contact)
+      #   - OR contact_id: ID of contact to use (gets emails from contact)
       def bulk_link_emails
         # Determine which emails to find
         emails_to_search = if params[:job_contact_id].present?
@@ -1111,10 +1144,15 @@ module Api
           else
             []
           end
+        elsif params[:contact_id].present?
+          # Link emails from a contact (from search)
+          contact = Contact.find_by(id: params[:contact_id])
+          return render json: { success: false, error: "Contact not found" }, status: :not_found unless contact
+          contact.all_emails
         elsif params[:email_address].present?
           [ params[:email_address].downcase.strip ]
         else
-          return render json: { success: false, error: "email_address or job_contact_id required" }, status: :bad_request
+          return render json: { success: false, error: "email_address, job_contact_id, or contact_id required" }, status: :bad_request
         end
 
         return render json: { success: false, error: "No email addresses found" }, status: :unprocessable_entity if emails_to_search.empty?

@@ -734,6 +734,17 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   } | null>(null);
   const [bulkLinkLoading, setBulkLinkLoading] = useState(false);
   const [bulkLinkEmail, setBulkLinkEmail] = useState('');
+  // Contact search state
+  const [contactSearchQuery, setContactSearchQuery] = useState('');
+  const [contactSearchResults, setContactSearchResults] = useState<Array<{
+    id: number;
+    name: string;
+    company?: string;
+    emails: string[];
+    email_count: number;
+  }>>([]);
+  const [contactSearchLoading, setContactSearchLoading] = useState(false);
+  const contactSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Document viewer state (for markup/annotations)
   const [viewerDocument, setViewerDocument] = useState<{
@@ -1511,6 +1522,80 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           alert(`Linked ${response.linked_count} emails to this task`);
         } else if (response.total_found === 0) {
           alert('No emails found for this address');
+        } else {
+          alert('No new emails to link (all already attached)');
+        }
+      }
+    } catch (err) {
+      console.error('Failed to bulk link emails:', err);
+      alert('Failed to link emails');
+    }
+    setBulkLinkLoading(false);
+  };
+
+  // Search contacts for email linking (with debounce)
+  const handleContactSearch = (query: string) => {
+    setContactSearchQuery(query);
+
+    // Clear previous timeout
+    if (contactSearchTimeoutRef.current) {
+      clearTimeout(contactSearchTimeoutRef.current);
+    }
+
+    // Clear results if query too short
+    if (query.length < 2) {
+      setContactSearchResults([]);
+      return;
+    }
+
+    // Debounce the search
+    contactSearchTimeoutRef.current = setTimeout(async () => {
+      setContactSearchLoading(true);
+      try {
+        const response = await api.get<{
+          success: boolean;
+          contacts: Array<{
+            id: number;
+            name: string;
+            company?: string;
+            emails: string[];
+            email_count: number;
+          }>;
+        }>(`/api/v1/sm_tasks/${task.id}/search_contacts?q=${encodeURIComponent(query)}`);
+
+        if (response?.success) {
+          setContactSearchResults(response.contacts);
+        }
+      } catch (err) {
+        console.error('Failed to search contacts:', err);
+      }
+      setContactSearchLoading(false);
+    }, 300);
+  };
+
+  // Handle bulk link from contact search result
+  const handleBulkLinkFromContact = async (contactId: number) => {
+    setBulkLinkLoading(true);
+    try {
+      const response = await api.post<{
+        success: boolean;
+        linked_count: number;
+        skipped_count: number;
+        total_found: number;
+        attachments: TaskAttachment[];
+      }>(`/api/v1/sm_tasks/${task.id}/bulk_link_emails`, {
+        contact_id: contactId
+      });
+
+      if (response?.success) {
+        setLocalAttachments(prev => [...prev, ...response.attachments]);
+        setBulkLinkOpen(false);
+        setContactSearchQuery('');
+        setContactSearchResults([]);
+        if (response.linked_count > 0) {
+          alert(`Linked ${response.linked_count} emails to this task`);
+        } else if (response.total_found === 0) {
+          alert('No emails found for this contact');
         } else {
           alert('No new emails to link (all already attached)');
         }
@@ -3080,7 +3165,13 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 {/* Bulk Link Emails Button */}
                 <Popover open={bulkLinkOpen} onOpenChange={(open) => {
                   setBulkLinkOpen(open);
-                  if (open) fetchBulkLinkOptions();
+                  if (open) {
+                    fetchBulkLinkOptions();
+                  } else {
+                    // Reset search state when closing
+                    setContactSearchQuery('');
+                    setContactSearchResults([]);
+                  }
                 }}>
                   <PopoverTrigger asChild>
                     <Button
@@ -3093,18 +3184,66 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       Link
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-72 p-3" align="end">
+                  <PopoverContent className="w-80 p-3" align="end">
                     <div className="space-y-3">
                       <h4 className="text-sm font-medium">Link emails from:</h4>
 
-                      {bulkLinkLoading && (
+                      {/* Contact Search */}
+                      <div className="space-y-2">
+                        <Input
+                          placeholder="Search contacts..."
+                          value={contactSearchQuery}
+                          onChange={(e) => handleContactSearch(e.target.value)}
+                          className="h-8 text-xs"
+                        />
+
+                        {/* Search Results */}
+                        {contactSearchLoading && (
+                          <div className="flex items-center justify-center py-2">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          </div>
+                        )}
+
+                        {!contactSearchLoading && contactSearchResults.length > 0 && (
+                          <div className="space-y-1 max-h-40 overflow-y-auto">
+                            {contactSearchResults.map((contact) => (
+                              <button
+                                key={contact.id}
+                                className="w-full flex items-center justify-between p-2 text-sm rounded hover:bg-muted text-left"
+                                onClick={() => handleBulkLinkFromContact(contact.id)}
+                                disabled={bulkLinkLoading}
+                              >
+                                <div className="truncate flex-1">
+                                  <div className="font-medium truncate">{contact.name}</div>
+                                  {contact.company && (
+                                    <div className="text-xs text-muted-foreground truncate">{contact.company}</div>
+                                  )}
+                                </div>
+                                <Badge variant="secondary" className="text-xs ml-2 shrink-0">
+                                  {contact.email_count}
+                                </Badge>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        {!contactSearchLoading && contactSearchQuery.length >= 2 && contactSearchResults.length === 0 && (
+                          <div className="text-xs text-muted-foreground text-center py-2">
+                            No contacts found
+                          </div>
+                        )}
+                      </div>
+
+                      {bulkLinkLoading && !contactSearchLoading && (
                         <div className="flex items-center justify-center py-2">
                           <Loader2 className="h-4 w-4 animate-spin" />
                         </div>
                       )}
 
+                      {/* Job Contacts (Client, Supervisor, etc.) */}
                       {!bulkLinkLoading && bulkLinkOptions?.options && bulkLinkOptions.options.length > 0 && (
                         <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">Job contacts:</label>
                           {bulkLinkOptions.options.map((opt) => (
                             <button
                               key={opt.job_contact_id}
@@ -3117,12 +3256,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                               </Badge>
                             </button>
                           ))}
-                          <div className="border-t my-2" />
                         </div>
                       )}
 
                       {/* Manual email input */}
-                      <div className="space-y-2">
+                      <div className="space-y-2 border-t pt-3">
                         <label className="text-xs text-muted-foreground">Or enter email address:</label>
                         <div className="flex gap-2">
                           <Input

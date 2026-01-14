@@ -1613,6 +1613,7 @@ Rails.application.routes.draw do
           post "attachments/:attachment_id/share_link", action: :create_attachment_share_link
           # Bulk email linking
           get :email_link_options
+          get :search_contacts
           post :bulk_link_emails
           # Task followers
           post :follow
