@@ -931,8 +931,18 @@ export default function AllDocumentsPage() {
 
     setIsRenameSaving(true);
     try {
-      // Get the path from folderPath or construct from context
-      const path = previewDocument.folderPath || previewDocument.fileUrl?.replace(/.*\/\/[^/]+/, "") || "";
+      // Build full S3 path: folderPath + current filename
+      // folderPath is the folder, we need full path including filename for S3 rename
+      let path = previewDocument.folderPath || "";
+      const currentFilename = previewDocument.fileName;
+
+      // If path doesn't already end with the filename, append it
+      if (currentFilename && !path.endsWith(currentFilename)) {
+        path = path.endsWith("/") ? `${path}${currentFilename}` : `${path}/${currentFilename}`;
+      }
+
+      // Remove leading slash for S3 key
+      path = path.replace(/^\//, "");
 
       const response = await api.post<{
         success: boolean;
