@@ -342,8 +342,10 @@ function TreeNode({
   }, [onSaveTemplates]);
 
   // Trigger auto-save when templates or config link change
+  // IMPORTANT: Only auto-save if we're editing the INITIALIZED scope (not during scope switch)
   React.useEffect(() => {
-    if (currentEditingScopeKey && hasModified.current) {
+    // Don't auto-save during scope switch - let the save-on-switch effect handle that
+    if (currentEditingScopeKey && hasModified.current && initializedScopeRef.current === currentEditingScopeKey) {
       // Pass null for configLink if checkbox is unchecked (to remove it)
       const linkToSave = hasConfigLink ? configLinkUrl : null;
       autoSave(currentEditingScopeKey, folderTemplate, filenameTemplate, linkToSave);

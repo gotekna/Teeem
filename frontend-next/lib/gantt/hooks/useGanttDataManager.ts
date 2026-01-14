@@ -383,6 +383,11 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       if (fetchedDeps.length > 0) {
         console.log('[GanttDataManager] Sample dep from API:', fetchedDeps[0]);
       }
+      // Debug: Log any tasks with dependency_broken = true
+      const brokenTasks = rawRows.filter((r: Record<string, unknown>) => r.dependency_broken);
+      if (brokenTasks.length > 0) {
+        console.log('[GanttDataManager] Tasks with dependency_broken=true:', brokenTasks.map((t: Record<string, unknown>) => ({ id: t.id, name: t.name, dependency_broken: t.dependency_broken })));
+      }
 
       // SSoT: Backend sorts gantt_data by (start_date, end_date, sequence_order) in GanttDataService
       // Only sort by sequence_order for Data View (rows endpoint), not Gantt view (gantt_data endpoint)

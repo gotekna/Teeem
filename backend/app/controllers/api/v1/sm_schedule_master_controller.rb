@@ -202,7 +202,9 @@ module Api
 
         # Auto-backup predecessors when breaking dependencies
         # SSoT: When dependency_broken is set to true, backup current predecessors
-        if params[:row][:dependency_broken] == true && !@row.dependency_broken
+        # Use ActiveModel cast to handle string "true" vs boolean true
+        breaking_deps = ActiveModel::Type::Boolean.new.cast(params[:row][:dependency_broken])
+        if breaking_deps && !@row.dependency_broken
           # Backup current predecessors before they're cleared
           if @row.predecessor_ids.present?
             @row.predecessor_ids_backup = @row.predecessor_ids
