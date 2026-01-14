@@ -76,12 +76,25 @@ module Api
       def update
         @row.updated_by = current_user
 
+        # Debug logging for dependency_broken
+        if params[:row]&.key?(:dependency_broken)
+          Rails.logger.info "[SmScheduleMaster] Update row #{@row.id}: dependency_broken in params = #{params[:row][:dependency_broken].inspect} (was #{@row.dependency_broken})"
+        end
+
         # Auto-clear dependency_broken when predecessors are re-added
         clear_dependency_broken_if_needed
+
+        # Debug: log after clear_dependency_broken_if_needed
+        if params[:row]&.key?(:dependency_broken)
+          Rails.logger.info "[SmScheduleMaster] After clear_dependency_broken_if_needed: dependency_broken = #{params[:row][:dependency_broken].inspect}"
+        end
 
         if @row.update(row_params)
           # Reload to get fresh data after any updates
           @row.reload
+
+          # Debug: log final value
+          Rails.logger.info "[SmScheduleMaster] After save, row #{@row.id}: dependency_broken = #{@row.dependency_broken.inspect}, predecessor_ids_backup = #{@row.predecessor_ids_backup.inspect}"
 
           render json: {
             success: true,

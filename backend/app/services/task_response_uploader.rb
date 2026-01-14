@@ -64,8 +64,7 @@ class TaskResponseUploader
   def create_document_record(upload_result, file)
     attrs = {
       file_name: upload_result[:filename],
-      display_name: upload_result[:filename],
-      sharepoint_url: upload_result[:sharepoint_url],
+      sharepoint_download_url: upload_result[:sharepoint_url],
       sharepoint_file_id: upload_result[:file_id],
       document_type: document_type,
       folder: folder_name,
