@@ -2051,21 +2051,36 @@ interface XeroStatus {
 
 function IntegrationsSubTab() {
   const [xeroStatus, setXeroStatus] = React.useState<XeroStatus | null>(null);
+  const [cloudflareStatus, setCloudflareStatus] = React.useState<{ connected: boolean; account_id?: string } | null>(null);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
-    const fetchXeroStatus = async () => {
+    const fetchStatuses = async () => {
       try {
-        const response = await api.xero.getStatus();
-        setXeroStatus(response.data || { connected: false });
+        // Fetch Xero status
+        const xeroResponse = await api.xero.getStatus();
+        setXeroStatus(xeroResponse.data || { connected: false });
+
+        // Fetch Cloudflare status
+        try {
+          const cloudflareResponse = await api.get<{ success: boolean; data: { status: string; account_id: string } | null }>('/cloudflare_credentials');
+          if (cloudflareResponse?.success && cloudflareResponse.data) {
+            setCloudflareStatus({ connected: cloudflareResponse.data.status === 'connected', account_id: cloudflareResponse.data.account_id });
+          } else {
+            setCloudflareStatus({ connected: false });
+          }
+        } catch {
+          setCloudflareStatus({ connected: false });
+        }
       } catch (error) {
-        console.error("Failed to fetch Xero status:", error);
+        console.error("Failed to fetch integration statuses:", error);
         setXeroStatus({ connected: false });
+        setCloudflareStatus({ connected: false });
       } finally {
         setLoading(false);
       }
     };
-    fetchXeroStatus();
+    fetchStatuses();
   }, []);
 
   return (

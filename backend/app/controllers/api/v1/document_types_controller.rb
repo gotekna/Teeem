@@ -192,6 +192,52 @@ module Api
         }
       end
 
+      # POST /api/v1/document_types/:id/detect_signature_fields
+      # Uses Claude Vision to detect signature field positions in a PDF
+      #
+      # Params:
+      #   pdf_content: Base64-encoded PDF content
+      #
+      # Response:
+      #   { success: true, fields: [{signatory_type, page_number, x_percent, y_percent, ...}] }
+      #
+      # The detected fields can be adjusted in the frontend UI, then saved via PATCH /document_types/:id
+      def detect_signature_fields
+        unless params[:pdf_content].present?
+          return render json: {
+            success: false,
+            error: "pdf_content parameter is required (base64-encoded PDF)"
+          }, status: :bad_request
+        end
+
+        begin
+          # Decode base64 PDF content
+          pdf_content = Base64.decode64(params[:pdf_content])
+
+          # Detect signature fields using Claude Vision
+          result = DocumentVerificationService.detect_signature_fields!(pdf_content)
+
+          if result[:success]
+            render json: {
+              success: true,
+              fields: result[:fields],
+              analysis_notes: result[:analysis_notes]
+            }
+          else
+            render json: {
+              success: false,
+              error: result[:error]
+            }, status: :unprocessable_entity
+          end
+        rescue StandardError => e
+          Rails.logger.error("Signature detection failed: #{e.message}")
+          render json: {
+            success: false,
+            error: "Failed to detect signature fields: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
       # GET /api/v1/document_types/suggest
       # Returns suggested DocumentTypes for a given filename with confidence scores
       #
@@ -258,6 +304,7 @@ module Api
           :supports_versioning,
           :generates_certificate,     # Auto-generate certificate on task completion
           :certificate_template,      # Template to use (e.g., "form_43")
+          :signature_field_config,    # JSONB: Signature field positions for Word→PDF conversion
           tabs: [],
           file_extensions: [],
           folder_ids: [],
@@ -321,6 +368,7 @@ module Api
           supports_versioning: document_type.supports_versioning,
           generates_certificate: document_type.generates_certificate || false,
           certificate_template: document_type.certificate_template,
+          signature_field_config: document_type.signature_field_config || [],
           documents_count: document_type.corporate_company_documents.count,
           created_at: document_type.created_at,
           updated_at: document_type.updated_at

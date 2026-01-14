@@ -18,6 +18,7 @@ export interface EmailSubscription {
   organization_id: number;
   domain: string;
   status: SubscriptionStatus;
+  dns_status?: DnsStatus;
   polaris_account_id: string | null;
 
   // Billing
@@ -358,4 +359,94 @@ export interface AddMailboxData {
   mailbox_type: MailboxType;
   source_email?: string;
   start_migration?: boolean;
+}
+
+// ============================================================================
+// DNS RECORDS (Cloudflare Integration)
+// ============================================================================
+
+export type DnsRecordType = 'mx' | 'txt' | 'cname';
+export type DnsRecordStatus = 'pending' | 'created' | 'verified' | 'error' | 'missing';
+export type DnsStatus = 'pending' | 'provisioning' | 'provisioned' | 'verified' | 'missing' | 'error' | 'zone_not_found' | 'not_configured';
+
+export interface EmailDnsRecord {
+  id: number;
+  record_type: DnsRecordType;
+  name: string;
+  full_name: string;
+  content: string;
+  priority: number | null;
+  status: DnsRecordStatus;
+  purpose: string;
+  cloudflare_record_id: string | null;
+  error_message: string | null;
+  last_verified_at: string | null;
+  provisioned_at: string | null;
+}
+
+export interface DnsRecordsResponse {
+  success: boolean;
+  data: {
+    dns_status: DnsStatus;
+    domain: string;
+    records: EmailDnsRecord[];
+    cloudflare_configured: boolean;
+  };
+}
+
+export interface DnsVerifyResponse {
+  success: boolean;
+  data: {
+    status: 'verified' | 'missing' | 'incorrect';
+    verified: number;
+    missing: number;
+    incorrect: number;
+    dns_status: DnsStatus;
+  };
+}
+
+// ============================================================================
+// CLOUDFLARE CREDENTIALS
+// ============================================================================
+
+export type CloudflareStatus = 'pending' | 'connected' | 'error';
+
+export interface CloudflareCredential {
+  id: number;
+  account_id: string;
+  email: string | null;
+  status: CloudflareStatus;
+  is_active: boolean;
+  last_connected_at: string | null;
+  last_error_at: string | null;
+  error_message: string | null;
+  created_at: string;
+}
+
+export interface CloudflareZone {
+  id: string;
+  name: string;
+  status: string;
+  name_servers?: string[];
+}
+
+export interface CloudflareCredentialResponse {
+  success: boolean;
+  data: CloudflareCredential | null;
+  configured?: boolean;
+}
+
+export interface CloudflareZonesResponse {
+  success: boolean;
+  data: CloudflareZone[];
+}
+
+export interface CloudflareTestResponse {
+  success: boolean;
+  data?: {
+    connected: boolean;
+    zones_count: number;
+    zones: CloudflareZone[];
+  };
+  error?: string;
 }

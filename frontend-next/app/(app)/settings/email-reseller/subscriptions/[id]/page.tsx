@@ -33,6 +33,7 @@ import {
   ArrowRightLeft,
   FileText,
   Settings,
+  Globe,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -42,6 +43,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useEmailSubscriptions, useEmailMailboxes, useEmailMigrations } from "@/hooks/useEmailSubscriptions";
 import { AddMailboxDialog } from "@/components/email-reseller/AddMailboxDialog";
+import { DnsStatusTab } from "@/components/email-reseller/DnsStatusTab";
 import { cn } from "@/lib/utils";
 import type {
   EmailSubscription,
@@ -49,8 +51,10 @@ import type {
   EmailMigration,
   EmailAlias,
   EmailSubscriptionInvoice,
+  EmailDnsRecord,
   SubscriptionStatus,
   MailboxStatus,
+  DnsStatus,
 } from "@/lib/email-reseller-types";
 
 const STATUS_COLORS: Record<SubscriptionStatus, string> = {
@@ -74,6 +78,8 @@ interface SubscriptionDetail extends EmailSubscription {
   aliases: EmailAlias[];
   migrations: EmailMigration[];
   invoices: EmailSubscriptionInvoice[];
+  dns_records: EmailDnsRecord[];
+  dns_status: DnsStatus;
 }
 
 export default function SubscriptionDetailPage() {
@@ -280,6 +286,10 @@ export default function SubscriptionDetailPage() {
           <TabsTrigger value="billing" className="gap-2">
             <FileText className="h-4 w-4" />
             Billing
+          </TabsTrigger>
+          <TabsTrigger value="dns" className="gap-2">
+            <Globe className="h-4 w-4" />
+            DNS
           </TabsTrigger>
           <TabsTrigger value="settings" className="gap-2">
             <Settings className="h-4 w-4" />
@@ -520,6 +530,17 @@ export default function SubscriptionDetailPage() {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* DNS Tab */}
+        <TabsContent value="dns" className="space-y-4">
+          <DnsStatusTab
+            subscriptionId={subscriptionId}
+            domain={subscription.domain}
+            dnsStatus={subscription.dns_status || 'pending'}
+            dnsRecords={subscription.dns_records || []}
+            onRefresh={handleRefresh}
+          />
         </TabsContent>
 
         {/* Settings Tab */}

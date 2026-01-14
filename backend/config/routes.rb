@@ -2861,6 +2861,7 @@ Rails.application.routes.draw do
         end
         member do
           post :duplicate
+          post :detect_signature_fields  # AI detection of signature positions in PDF
         end
       end
 
