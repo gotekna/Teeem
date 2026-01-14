@@ -256,8 +256,9 @@ module Api
             file_name = File.basename(file_key || "")
 
             # Generate presigned URL for download
+            # SSoT: Method is download_url (not presigned_url) on all document providers
             url = if file_key.present?
-              provider.presigned_url(file_key, expires_in: 3600) rescue item[:web_url]
+              provider.download_url(file_key, expires_in: 3600) rescue item[:web_url]
             else
               item[:web_url]
             end
@@ -554,7 +555,9 @@ module Api
               size: doc.file_size || 0,
               content_type: doc.mime_type || MiniMime.lookup_by_filename(doc.file_name || "")&.content_type || "application/octet-stream",
               last_modified: doc.updated_at&.iso8601,
-              url: doc.web_url || "",
+              # SSoT: storage_url (from StorableDocument concern) is THE ONE way to get download URLs
+              # Falls back to web_url (SharePoint) for backwards compatibility
+              url: doc.storage_url || doc.web_url || "",
               id: doc.id,
               job_id: doc.job_id,
               job_number: doc.job&.job_number,
@@ -579,7 +582,9 @@ module Api
               size: doc.file_size || 0,
               content_type: doc.mime_type || MiniMime.lookup_by_filename(doc.file_name || "")&.content_type || "application/octet-stream",
               last_modified: doc.updated_at&.iso8601,
-              url: doc.file_url || doc.sharepoint_download_url || "",
+              # SSoT: storage_url (from StorableDocument concern) is THE ONE way to get download URLs
+              # Falls back to legacy database columns for backwards compatibility
+              url: doc.storage_url || doc.file_url || doc.sharepoint_download_url || "",
               id: doc.id,
               company_name: doc.corporate_company&.name,
               company_code: doc.company_code
@@ -761,7 +766,8 @@ module Api
           display_title: doc.display_name || doc.file_name,
           type: doc.mime_type || "application/octet-stream",
           size: doc.file_size || 0,
-          url: doc.file_url,
+          # SSoT: storage_url (from StorableDocument concern) is THE ONE way to get download URLs
+          url: doc.storage_url || doc.file_url,
           job_title: nil, # CorporateCompanyDocuments aren't linked to jobs
           job_id: nil,
           uploaded_at: doc.created_at&.iso8601,

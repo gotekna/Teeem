@@ -195,7 +195,8 @@ class GlobalSearchService
         title: record.display_name || record.file_name,
         subtitle: record.document_type_record&.name || "Document",
         date: record.created_at&.iso8601,
-        url: record.file_url
+        # SSoT: storage_url (from StorableDocument concern) is THE ONE way to get download URLs
+        url: record.storage_url || record.file_url
       }
     when "Job"
       {

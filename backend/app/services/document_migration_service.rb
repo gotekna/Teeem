@@ -102,14 +102,15 @@ class DocumentMigrationService
     # Migrate a single document type
     def migrate_document_type(klass, type_name, from, to, delete_source, batch_size, job_id = nil)
       # Build query based on document type
-      # Skip orphaned documents (sync_status: 'missing' means file deleted from source)
       documents = klass.where(storage_provider: [from, nil])
                        .where(migration_status: [nil, 'failed'])
-                       .where.not(sync_status: 'missing')
 
       # Add type-specific filters
       case type_name
       when 'JobDocument'
+        # Skip orphaned documents (sync_status: 'missing' means file deleted from source)
+        # Note: Only JobDocument has sync_status column
+        documents = documents.where.not(sync_status: 'missing')
         documents = documents.where.not(sharepoint_item_id: nil)
         documents = documents.where(job_id: job_id) if job_id.present?
       when 'CorporateCompanyDocument'

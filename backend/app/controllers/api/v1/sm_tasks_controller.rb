@@ -1028,18 +1028,11 @@ module Api
           return render json: { success: false, error: "Attachment is not a document" }, status: :unprocessable_entity
         end
 
-        # Get file content from ActiveStorage or SharePoint
-        content = if document.file.attached?
-          document.file.download
-        elsif document.file_url.present?
-          begin
-            response = HTTParty.get(document.file_url, timeout: 30)
-            response.success? ? response.body : nil
-          rescue => e
-            Rails.logger.warn "[SmTasksController#download_attachment] Download failed: #{e.message}"
-            nil
-          end
-        end
+        # SSoT: Use DocumentStorageService for all document downloads
+        # Handles S3/Wasabi, SharePoint, and ActiveStorage uniformly
+        service = DocumentStorageService.new
+        result = service.download(document)
+        content = result[:success] ? result[:content] : nil
 
         unless content
           return render json: { success: false, error: "Could not download file content" }, status: :unprocessable_entity
