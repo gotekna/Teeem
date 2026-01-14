@@ -1,13 +1,17 @@
 # frozen_string_literal: true
 
-# EmailAttachmentMigrationJob - Migrate single attachment from SharePoint to Wasabi
+# EmailAttachmentMigrationJob - Migrate single attachment from Microsoft Graph to Wasabi
 # ╔═══════════════════════════════════════════════════════════════════╗
-# ║  SSoT: Uses DocumentProviderAware for storage abstraction         ║
-# ║  Downloads from SharePoint using provider abstraction             ║
+# ║  SSoT: Downloads from Microsoft Graph API (primary)               ║
+# ║  Falls back to SharePoint if Graph fails                          ║
 # ╚═══════════════════════════════════════════════════════════════════╝
 #
 # Designed for parallel execution via SolidQueue. Each job handles ONE attachment,
 # allowing multiple workers to process attachments concurrently.
+#
+# Download priority:
+#   1. Microsoft Graph API using outlook_attachment_id (SSoT for email attachments)
+#   2. SharePoint using sharepoint_path (legacy fallback)
 #
 # Storage API rate limit: ~10,000 requests per 10 minutes
 # Safe concurrency: 5-10 workers (with retries)
@@ -75,9 +79,6 @@ class EmailAttachmentMigrationJob < ApplicationJob
     # Already migrated?
     return if attachment.storage_blob_id.present?
 
-    # No SharePoint path?
-    return if attachment.sharepoint_path.blank?
-
     Rails.logger.info "[AttachmentMigrationJob] Processing attachment #{attachment_id}"
 
     # Check for deduplication first
@@ -91,16 +92,21 @@ class EmailAttachmentMigrationJob < ApplicationJob
       end
     end
 
-    # SSoT: Setup document provider (specifically SharePoint for migration)
-    begin
-      setup_sharepoint_provider_for_migration!
-    rescue DocumentProviders::NotConnectedError => e
-      raise "Failed to get storage provider: #{e.message}"
+    # SSoT: Try Microsoft Graph API first (primary source)
+    content = download_from_graph(attachment)
+
+    # Fallback to SharePoint if Graph fails and sharepoint_path exists
+    if content.blank? && attachment.sharepoint_path.present?
+      Rails.logger.info "[AttachmentMigrationJob] Graph failed, trying SharePoint for #{attachment_id}"
+      begin
+        setup_sharepoint_provider_for_migration!
+        content = download_from_storage(attachment)
+      rescue => e
+        Rails.logger.debug "[AttachmentMigrationJob] SharePoint fallback failed: #{e.message}"
+      end
     end
 
-    # Download from storage (try path variations)
-    content = download_from_storage(attachment)
-    raise "Could not download attachment #{attachment_id} from SharePoint" unless content
+    raise "Could not download attachment #{attachment_id} from Graph or SharePoint" unless content
 
     # Store with deduplication
     attachment.store_content!(content, filename: attachment.filename)
@@ -109,6 +115,35 @@ class EmailAttachmentMigrationJob < ApplicationJob
   end
 
   private
+
+  # SSoT: Download attachment from Microsoft Graph API
+  # Uses parent email's outlook_id and the attachment's outlook_attachment_id
+  def download_from_graph(attachment)
+    return nil if attachment.outlook_attachment_id.blank?
+
+    email = attachment.email_warehouse
+    return nil unless email&.outlook_id.present? && email&.mailbox_owner_email.present?
+
+    Rails.logger.info "[AttachmentMigrationJob] Fetching from Graph: #{email.mailbox_owner_email}/#{email.outlook_id}/#{attachment.outlook_attachment_id}"
+
+    credential = MicrosoftCredential.active_credential
+    return nil unless credential&.connected?
+
+    client = MicrosoftAppGraphClient.new(credential)
+    result = client.download_email_attachment(
+      email.mailbox_owner_email,
+      email.outlook_id,
+      attachment.outlook_attachment_id
+    )
+
+    return nil unless result && result[:content].present?
+
+    Rails.logger.info "[AttachmentMigrationJob] Downloaded #{result[:content].bytesize} bytes from Graph"
+    result[:content]
+  rescue => e
+    Rails.logger.warn "[AttachmentMigrationJob] Graph download failed: #{e.message}"
+    nil
+  end
 
   # For migration jobs, we specifically need SharePoint since we're migrating FROM it
   def setup_sharepoint_provider_for_migration!
