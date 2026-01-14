@@ -226,14 +226,19 @@ class DocumentMigrationJob < ApplicationJob
   end
 
   # Build folder path for document based on type
-  # Uses clean, URL-friendly paths: jobs/49/contract/po-49678.pdf
+  # SSoT: Uses StorageConfiguration.instance.path_for() for base folder names
+  # This ensures consistency between migration paths and UI display
   def build_folder_path(document, document_type)
+    storage_config = StorageConfiguration.instance
+
     case document_type
     when 'JobDocument'
       job = document.job
+      # SSoT: Get base folder from StorageConfiguration (e.g., "jobs")
+      base_folder = storage_config.path_for(:job)
       subfolder = slugify_path(document.folder_path.presence || "documents")
       filename = slugify_filename(document.file_name)
-      "jobs/#{job.id}/#{subfolder}/#{filename}"
+      "#{base_folder}/#{job.id}/#{subfolder}/#{filename}"
 
     when 'CorporateCompanyDocument'
       # SSoT: Task documents use EntityTab storage_folder_path template
@@ -244,7 +249,7 @@ class DocumentMigrationJob < ApplicationJob
 
         # SSoT: Get path from EntityTab (scope: task) + StorageConfiguration
         entity_tab = EntityTab.find_by(scope: 'task')
-        base_folder = StorageConfiguration.instance.path_for(:task) # "Tasks"
+        base_folder = storage_config.path_for(:task) # "Tasks"
 
         if entity_tab&.storage_folder_path.present?
           # Resolve template with task values
@@ -262,21 +267,26 @@ class DocumentMigrationJob < ApplicationJob
         end
       elsif document.corporate_company
         company = document.corporate_company
+        # SSoT: Get base folder from StorageConfiguration (e.g., "corporate")
+        base_folder = storage_config.path_for(:corporate)
         folder = slugify_path(document.folder.presence || "documents")
         filename = slugify_filename(document.file_name)
-        "corporate/#{company.id}/#{folder}/#{filename}"
+        "#{base_folder}/#{company.id}/#{folder}/#{filename}"
       else
-        "corporate/unassigned/#{slugify_filename(document.file_name)}"
+        base_folder = storage_config.path_for(:corporate)
+        "#{base_folder}/unassigned/#{slugify_filename(document.file_name)}"
       end
 
     when 'PeopleDocument'
       contact = document.contact
+      # SSoT: Get base folder from StorageConfiguration (e.g., "people")
+      base_folder = storage_config.path_for(:people)
       if contact
         folder = slugify_path(document.folder.presence || "documents")
         filename = slugify_filename(document.file_name)
-        "people/#{contact.id}/#{folder}/#{filename}"
+        "#{base_folder}/#{contact.id}/#{folder}/#{filename}"
       else
-        "people/unassigned/#{slugify_filename(document.file_name)}"
+        "#{base_folder}/unassigned/#{slugify_filename(document.file_name)}"
       end
 
     else

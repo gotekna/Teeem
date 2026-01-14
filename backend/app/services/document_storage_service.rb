@@ -398,9 +398,27 @@ class DocumentStorageService
 
   # Build the S3 key from storage_path + file_name
   # Handles legacy records where storage_path is just the folder (missing filename)
+  #
+  # ⚠️ EDGE CASE: Duplicate filename in path
+  # Some records have storage_path like: "Tasks/2339/Attachments/ASIC Teeem Registration/ASIC Teeem Registration"
+  # where the filename appears TWICE (folder/file both named the same).
+  # The actual S3 object is at: "Tasks/2339/Attachments/ASIC Teeem Registration"
+  # We detect and remove the duplication.
   def build_s3_key(record)
     path = record.storage_path.to_s.sub(%r{^/}, "")
     filename = record.file_name.to_s
+
+    # ⚠️ Check for duplicate filename at end of path
+    # If path ends with "/filename/filename" (same name twice), remove the duplicate
+    # This handles bad data where storage_path was saved incorrectly with duplication
+    if filename.present? && !filename.match?(/\.\w{2,5}$/)
+      # Filename has no extension - check for duplicate pattern
+      duplicate_suffix = "/#{filename}/#{filename}"
+      if path.end_with?(duplicate_suffix)
+        # Remove the duplicate - keep only one copy of filename
+        return path.sub(/\/#{Regexp.escape(filename)}$/, "")
+      end
+    end
 
     # If storage_path already ends with a file extension, use it as-is
     # Common extensions: .pdf, .doc, .docx, .xls, .xlsx, .png, .jpg, etc.
