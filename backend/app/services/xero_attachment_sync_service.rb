@@ -4,8 +4,10 @@
 # - xero_primary_invoice: ContactDocument (primary Xero invoice/bill PDFs go to contacts)
 # - xero_attachment: CorporateCompanyDocument (supporting attachments go to corporate warehouse)
 #
-# Also uploads PDFs to SharePoint folder structure: Contacts/{contact_folder}/BILLS|INVOICES/
+# Also uploads PDFs to storage folder structure: Contacts/{contact_folder}/BILLS|INVOICES/
+# SSoT: Uses DocumentProviderAware for provider-agnostic storage operations
 class XeroAttachmentSyncService
+  include DocumentProviderAware
   attr_reader :external_invoice, :xero_client, :results
 
   def initialize(external_invoice, skip_sharepoint: false)
@@ -389,72 +391,71 @@ class XeroAttachmentSyncService
     attributes
   end
 
-  # Upload file content to SharePoint using folder structure:
+  # Upload file content to storage using folder structure:
   # Contacts/{contact_folder}/BILLS|INVOICES/{filename}
-  def upload_to_sharepoint(content, filename)
+  # SSoT: Uses DocumentProviderAware for provider-agnostic storage
+  def upload_to_storage(content, filename)
     return nil if @skip_sharepoint
     return nil unless external_invoice.contact.present?
 
     begin
-      credential = MicrosoftCredential.sharepoint_credential
-      return nil unless credential.present?
-
-      # MicrosoftGraphClient.new automatically refreshes expired tokens via ensure_valid_token!
-      # If refresh fails (e.g., refresh token expired), it will raise AuthenticationError
-      graph_client = MicrosoftGraphClient.new(credential)
+      setup_default_provider!
 
       # SSoT: Get contacts folder path from StorageConfiguration
       storage_config = StorageConfiguration.instance
       base_folder_name = storage_config&.path_for(:contacts) || "Contacts"
 
-      # Find or create the base Contacts folder
-      contacts_folder = graph_client.find_folder_in_drive_root(base_folder_name)
-      unless contacts_folder
-        contacts_folder = graph_client.create_folder(base_folder_name)
-        Rails.logger.info("[XeroAttachmentSync] Created SharePoint folder: #{base_folder_name}")
-      end
+      # Get contact folder name
+      contact_name = contact_folder_name()
+      return nil unless contact_name.present?
 
-      # Get or create contact subfolder (e.g., "456 - ABC Supplies")
-      contact_folder_name = contact_folder_name()
-      return nil unless contact_folder_name.present?
-
-      contact_folder = graph_client.get_or_create_subfolder(contacts_folder["id"] || contacts_folder[:id], contact_folder_name)
-      Rails.logger.info("[XeroAttachmentSync] Using contact folder: #{contact_folder_name}")
-
-      # Get or create type subfolder (BILLS, INVOICES, etc.)
+      # Get type subfolder (BILLS, INVOICES, etc.)
       type_folder_name = folder_for_invoice_type
-      type_folder = graph_client.get_or_create_subfolder(contact_folder[:id] || contact_folder["id"], type_folder_name)
-      Rails.logger.info("[XeroAttachmentSync] Using type folder: #{type_folder_name}")
+
+      # Build full path
+      full_path = "/#{base_folder_name}/#{contact_name}/#{type_folder_name}"
+
+      # Ensure folder exists
+      get_or_create_folder_path(full_path)
 
       # Upload the file
-      upload_result = graph_client.upload_file_content(
-        type_folder[:id] || type_folder["id"],
+      upload_result = upload_to_provider(
+        full_path,
+        content,
         filename,
-        content
+        content_type: "application/pdf"
       )
 
-      Rails.logger.info("[XeroAttachmentSync] Uploaded to SharePoint: #{filename} -> #{upload_result[:web_url]}")
+      Rails.logger.info("[XeroAttachmentSync] Uploaded to storage: #{filename} -> #{upload_result[:web_url] || upload_result[:path]}")
 
       results[:sharepoint_uploads] << {
         filename: filename,
-        folder: "#{base_folder_name}/#{contact_folder_name}/#{type_folder_name}",
-        web_url: upload_result[:web_url]
+        folder: full_path,
+        web_url: upload_result[:web_url] || upload_result[:path]
       }
 
       upload_result
-    rescue MicrosoftGraphClient::AuthenticationError => e
-      error_msg = "OneDrive credential authentication failed - token refresh unsuccessful. Please reconnect OneDrive in Settings > Integrations."
+    rescue DocumentProviders::NotConnectedError => e
+      error_msg = "Storage not connected. Please connect in Settings > Integrations."
       results[:errors] << error_msg
       Rails.logger.error("[XeroAttachmentSync] #{error_msg} Details: #{e.message}")
       nil
-    rescue MicrosoftGraphClient::APIError => e
-      results[:errors] << "SharePoint API error: #{e.message}"
-      Rails.logger.error("[XeroAttachmentSync] SharePoint API error: #{e.message}")
+    rescue DocumentProviders::AuthenticationError => e
+      error_msg = "Storage credential authentication failed - token refresh unsuccessful. Please reconnect in Settings > Integrations."
+      results[:errors] << error_msg
+      Rails.logger.error("[XeroAttachmentSync] #{error_msg} Details: #{e.message}")
+      nil
+    rescue DocumentProviders::Error => e
+      results[:errors] << "Storage API error: #{e.message}"
+      Rails.logger.error("[XeroAttachmentSync] Storage API error: #{e.message}")
       nil
     rescue StandardError => e
-      results[:errors] << "SharePoint upload error: #{e.message}"
-      Rails.logger.error("[XeroAttachmentSync] SharePoint upload error: #{e.message}")
+      results[:errors] << "Storage upload error: #{e.message}"
+      Rails.logger.error("[XeroAttachmentSync] Storage upload error: #{e.message}")
       nil
     end
   end
+
+  # Legacy method name for backwards compatibility
+  alias_method :upload_to_sharepoint, :upload_to_storage
 end

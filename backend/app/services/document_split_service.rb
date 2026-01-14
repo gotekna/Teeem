@@ -1,6 +1,9 @@
 require "hexapdf"
 
+# SSoT: Uses DocumentProviderAware for provider-agnostic storage operations
 class DocumentSplitService
+  include DocumentProviderAware
+
   class SplitError < StandardError; end
   class FileNotFoundError < SplitError; end
   class InvalidSplitError < SplitError; end
@@ -70,17 +73,16 @@ class DocumentSplitService
   end
 
   def download_document
-    credential = MicrosoftCredential.sharepoint_credential
-    raise FileNotFoundError, "No active OneDrive credential" unless credential
+    # SSoT: Use DocumentStorageService for provider-agnostic download
+    service = DocumentStorageService.new
+    result = service.download(@document)
 
-    client = MicrosoftGraphClient.new(credential)
-    content = client.download_file(@document.sharepoint_file_id)
+    raise FileNotFoundError, "Storage not connected: #{result[:error]}" unless result[:success]
+    raise FileNotFoundError, "Failed to download file content" if result[:content].blank?
 
-    raise FileNotFoundError, "Failed to download file content" if content.blank?
-
-    content
-  rescue MicrosoftGraphClient::APIError => e
-    raise FileNotFoundError, "OneDrive API error: #{e.message}"
+    result[:content]
+  rescue DocumentProviders::Error => e
+    raise FileNotFoundError, "Storage API error: #{e.message}"
   end
 
   def validate_page_ranges!(splits, total_pages)
@@ -132,28 +134,45 @@ class DocumentSplitService
   end
 
   def upload_to_sharepoint(content, filename)
-    credential = MicrosoftCredential.sharepoint_credential
-    raise FileNotFoundError, "No active OneDrive credential" unless credential
+    # SSoT: Use DocumentProviderAware for provider-agnostic upload
+    begin
+      setup_default_provider!
+    rescue DocumentProviders::NotConnectedError => e
+      raise FileNotFoundError, "Storage not connected: #{e.message}"
+    end
 
-    client = MicrosoftGraphClient.new(credential)
-
-    # Get parent folder ID from original document
-    parent_folder_id = get_parent_folder_id
+    # Get parent folder path from original document
+    parent_folder_path = get_parent_folder_path
 
     # Upload new file
-    result = client.upload_file_content(parent_folder_id, filename, content)
+    result = upload_to_provider(
+      parent_folder_path,
+      content,
+      filename,
+      content_type: "application/pdf"
+    )
 
     result[:id]
+  rescue DocumentProviders::Error => e
+    raise FileNotFoundError, "Storage API error: #{e.message}"
   end
 
-  def get_parent_folder_id
-    # Get the folder ID from the original document's path
-    credential = MicrosoftCredential.sharepoint_credential
-    client = MicrosoftGraphClient.new(credential)
-
-    # Get parent folder from original file
-    file_info = client.get_item(@document.sharepoint_file_id)
-    file_info.dig("parentReference", "id")
+  def get_parent_folder_path
+    # Get the folder path from the original document
+    # Try storage_path first, then expected_sharepoint_path, then folder
+    if @document.respond_to?(:storage_path) && @document.storage_path.present?
+      File.dirname(@document.storage_path)
+    elsif @document.respond_to?(:expected_sharepoint_path) && @document.expected_sharepoint_path.present?
+      File.dirname(@document.expected_sharepoint_path)
+    elsif @document.respond_to?(:folder) && @document.folder.present?
+      # Build path from company folder structure
+      storage_config = StorageConfiguration.instance
+      base_path = storage_config&.path_for(:corporate) || "Corporate"
+      company_folder = @company&.document_folder_name || @company&.name
+      "/#{base_path}/#{company_folder}/#{@document.folder}"
+    else
+      raise FileNotFoundError, "Cannot determine parent folder path for document"
+    end
   end
 
   def create_document_record(split_config, sharepoint_file_id, file_size)

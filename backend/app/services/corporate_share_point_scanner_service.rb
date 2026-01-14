@@ -1,8 +1,9 @@
 # =============================================================================
 # CorporateSharePointScannerService - DOCUMENT SCANNER
 # =============================================================================
-# Purpose: Scan SharePoint for existing corporate documents and link them to companies
-# SSoT: This service READS from SharePoint (discovery/scanning)
+# Purpose: Scan storage for existing corporate documents and link them to companies
+# SSoT: This service READS from storage (discovery/scanning)
+# SSoT: Uses DocumentProviderAware for provider-agnostic storage operations
 #
 # Key Methods:
 #   - scan_all: Scan all corporate folders for documents
@@ -13,6 +14,7 @@
 # RENAMED: CorporateOnedriveService → CorporateSharePointScannerService
 # =============================================================================
 class CorporateSharePointScannerService
+  include DocumentProviderAware
   attr_reader :credential, :results, :folder_path
 
   # SSoT: Get the preferred company folder path from StorageConfiguration
@@ -309,8 +311,21 @@ class CorporateSharePointScannerService
   end
 
   def get_onedrive_client
-    return nil unless @credential
-    MicrosoftGraphClient.new(@credential)
+    # SSoT: Use DocumentProviderAware to setup provider
+    begin
+      setup_default_provider!
+      # Return self as the "client" since we use provider methods directly
+      # For SharePoint-specific operations, fall back to MicrosoftGraphClient
+      if current_provider_type == :sharepoint && @credential
+        MicrosoftGraphClient.new(@credential)
+      else
+        self  # Use DocumentProviderAware methods
+      end
+    rescue DocumentProviders::NotConnectedError
+      return nil unless @credential
+      # Fall back to direct client if provider not configured
+      MicrosoftGraphClient.new(@credential)
+    end
   end
 
   def find_folder_by_path(client, path)

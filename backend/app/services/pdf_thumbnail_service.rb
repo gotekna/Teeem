@@ -2,11 +2,13 @@
 # Creates TWO thumbnails for progressive loading:
 #   1. Micro (50px, blurred) - 3KB, inline in JSON for instant display
 #   2. Full (500px, sharp) - 15KB, loads in background for quality
+# SSoT: Uses DocumentProviderAware for provider-agnostic storage operations
 #
 # Usage:
 #   PdfThumbnailService.new(revision).generate!
 #
 class PdfThumbnailService
+  include DocumentProviderAware
   # Micro thumbnail (instant display, large enough for preview panel)
   MICRO_WIDTH = 600   # Large enough to fill preview panel without pixelation
   MICRO_BLUR = 0      # No blur - keep it readable
@@ -56,7 +58,10 @@ class PdfThumbnailService
   private
 
   def validate!
-    raise ThumbnailError, "Revision has no SharePoint file" unless @revision.sharepoint_file_id.present?
+    # Check for storage identifier (path or file_id)
+    unless @revision.storage_path.present? || @revision.sharepoint_file_id.present?
+      raise ThumbnailError, "Revision has no storage file"
+    end
     raise ThumbnailError, "File is not a PDF" unless pdf_file?
   end
 
@@ -66,25 +71,28 @@ class PdfThumbnailService
     true
   end
 
+  # Download PDF using provider-agnostic storage
+  # SSoT: Uses DocumentStorageService for downloads
   def download_pdf
-    Rails.logger.info "[PdfThumbnail] Downloading PDF from SharePoint..."
-    credential = MicrosoftCredential.sharepoint_credential
-    raise ThumbnailError, "SharePoint not connected" unless credential&.valid_credential?
+    Rails.logger.info "[PdfThumbnail] Downloading PDF from storage..."
 
-    # Use appropriate client based on credential type
-    if credential.is_a?(MicrosoftCredential) && credential.credential_type == "app"
-      client = MicrosoftAppGraphClient.new(credential)
-      storage_config = StorageConfiguration.instance
-      raise ThumbnailError, "SharePoint not configured" unless storage_config&.connected?
+    # Create a document-like object for the storage service
+    doc = OpenStruct.new(
+      storage_path: @revision.storage_path,
+      sharepoint_file_id: @revision.sharepoint_file_id
+    )
 
-      client.get_drive_item_content(
-        drive_id: storage_config.drive_id,
-        item_id: @revision.sharepoint_file_id
-      )
-    else
-      client = MicrosoftGraphClient.new(credential)
-      client.download_file(@revision.sharepoint_file_id)
-    end
+    service = DocumentStorageService.new
+    result = service.download(doc)
+
+    raise ThumbnailError, "Storage not connected: #{result[:error]}" unless result[:success]
+    raise ThumbnailError, "Failed to download file content" if result[:content].blank?
+
+    result[:content]
+  rescue DocumentProviders::NotConnectedError => e
+    raise ThumbnailError, "Storage not connected: #{e.message}"
+  rescue DocumentProviders::Error => e
+    raise ThumbnailError, "Storage API error: #{e.message}"
   end
 
   # Generate micro thumbnail: 300px wide, sharp, WebP
@@ -150,57 +158,46 @@ class PdfThumbnailService
     end
   end
 
+  # Upload thumbnail using provider-agnostic storage
+  # SSoT: Uses DocumentProviderAware for uploads
   def upload_thumbnail(thumbnail_content)
-    Rails.logger.info "[PdfThumbnail] Uploading thumbnail to SharePoint..."
+    Rails.logger.info "[PdfThumbnail] Uploading thumbnail to storage..."
 
-    credential = MicrosoftCredential.sharepoint_credential
-    raise ThumbnailError, "SharePoint not connected" unless credential&.valid_credential?
+    begin
+      setup_default_provider!
+    rescue DocumentProviders::NotConnectedError => e
+      raise ThumbnailError, "Storage not connected: #{e.message}"
+    end
 
-    # Generate thumbnail filename: original_name_thumb.png
+    # Generate thumbnail filename: original_name_thumb.webp
     base_name = File.basename(@revision.file_name || 'plan', '.*')
     thumbnail_name = "#{base_name}_thumb.#{THUMBNAIL_FORMAT}"
 
-    # Use appropriate client based on credential type
-    if credential.is_a?(MicrosoftCredential) && credential.credential_type == "app"
-      client = MicrosoftAppGraphClient.new(credential)
-      storage_config = StorageConfiguration.instance
-      raise ThumbnailError, "SharePoint not configured" unless storage_config&.connected?
-
-      # Get parent folder from original file
-      file_info = client.get_drive_item(storage_config.drive_id, @revision.sharepoint_file_id)
-      parent_folder_id = file_info[:parent_id]
-      raise ThumbnailError, "Could not determine parent folder" unless parent_folder_id
-
-      # Upload thumbnail to same folder
-      result = client.upload_to_folder(
-        drive_id: storage_config.drive_id,
-        parent_folder_id: parent_folder_id,
-        filename: thumbnail_name,
-        content: thumbnail_content
-      )
-
-      {
-        file_id: result['id'],
-        name: result['name'],
-        web_url: result['webUrl']
-      }
+    # Determine parent folder path from original file
+    parent_folder_path = if @revision.storage_path.present?
+      File.dirname(@revision.storage_path)
+    elsif @job_plan&.job&.storage_folder_path.present?
+      @job_plan.job.storage_folder_path
     else
-      client = MicrosoftGraphClient.new(credential)
-
-      # Get parent folder ID from the original file
-      file_info = client.get_file(@revision.sharepoint_file_id)
-      parent_folder_id = file_info.dig('parentReference', 'id')
-      raise ThumbnailError, "Could not determine parent folder" unless parent_folder_id
-
-      # Upload thumbnail
-      result = client.upload_file_content(parent_folder_id, thumbnail_name, thumbnail_content)
-
-      {
-        file_id: result[:id],
-        name: result[:name],
-        web_url: result[:web_url]
-      }
+      raise ThumbnailError, "Could not determine parent folder for thumbnail"
     end
+
+    # Upload thumbnail to same folder
+    result = upload_to_provider(
+      parent_folder_path,
+      thumbnail_content,
+      thumbnail_name,
+      content_type: "image/webp"
+    )
+
+    {
+      file_id: result[:id],
+      name: thumbnail_name,
+      web_url: result[:web_url] || result[:url],
+      path: result[:path]
+    }
+  rescue DocumentProviders::Error => e
+    raise ThumbnailError, "Storage API error: #{e.message}"
   end
 
   def update_revision(thumbnail_info, micro_content)

@@ -4,8 +4,11 @@
 # - Checks against existing company_documents (SSoT)
 # - Files to correct location based on document type
 # - Links to case via case_documents join table
+# SSoT: Uses DocumentProviderAware for provider-agnostic storage operations
 class CaseDocumentOrganizationService
-  attr_reader :case_record, :graph_client, :results
+  include DocumentProviderAware
+
+  attr_reader :case_record, :results
 
   # Document type to folder mapping
   DOCUMENT_TYPE_FOLDERS = {
@@ -29,7 +32,6 @@ class CaseDocumentOrganizationService
 
   def initialize(case_record)
     @case_record = case_record
-    @graph_client = MicrosoftGraphClient.new
     @results = {
       scanned: 0,
       linked_existing: 0,
@@ -60,22 +62,32 @@ class CaseDocumentOrganizationService
   private
 
   # Scan all source folders and return array of file info hashes
+  # SSoT: Uses DocumentProviderAware for provider-agnostic folder listing
   def scan_source_folders
     files = []
+
+    # Setup provider once for the scan operation
+    begin
+      setup_default_provider!
+    rescue DocumentProviders::NotConnectedError => e
+      @results[:errors] << { folder: "all", error: "Storage not connected: #{e.message}" }
+      return files
+    end
 
     case_record.source_folder_paths.each do |folder_path|
       begin
         folder = resolve_folder_path(folder_path)
         next unless folder
 
-        # Get all files recursively
-        folder_files = @graph_client.list_folder_recursive(folder[:id])
+        # Get all files recursively using provider-agnostic method
+        folder_files = list_folder_recursive_in_provider(folder[:path] || folder_path)
 
         folder_files.each do |file|
           next if file[:is_folder]
 
           files << {
             id: file[:id],
+            path: file[:path],
             name: file[:name],
             size: file[:size],
             created_at: file[:created_at],
@@ -86,6 +98,9 @@ class CaseDocumentOrganizationService
           }
           @results[:scanned] += 1
         end
+      rescue DocumentProviders::Error => e
+        @results[:errors] << { folder: folder_path, error: e.message }
+        Rails.logger.error "[CaseDocumentOrganization] Error scanning folder #{folder_path}: #{e.message}"
       rescue => e
         @results[:errors] << { folder: folder_path, error: e.message }
         Rails.logger.error "[CaseDocumentOrganization] Error scanning folder #{folder_path}: #{e.message}"
@@ -95,7 +110,7 @@ class CaseDocumentOrganizationService
     # Calculate hashes for all files (for duplicate detection)
     files.each do |file|
       begin
-        file[:content_hash] = @graph_client.get_file_hash(file[:id])
+        file[:content_hash] = get_file_hash_in_provider(file[:path] || file[:id])
       rescue => e
         Rails.logger.warn "[CaseDocumentOrganization] Could not hash file #{file[:name]}: #{e.message}"
         file[:content_hash] = nil
@@ -200,26 +215,32 @@ class CaseDocumentOrganizationService
   end
 
   # File document to correct location based on type
+  # SSoT: Uses DocumentProviderAware for provider-agnostic file operations
   def file_to_correct_location(file_info)
     # Determine document type (can use AI later)
     doc_type = classify_document(file_info)
     target_location = DOCUMENT_TYPE_FOLDERS[doc_type] || :case_folder
 
-    # Get destination folder
-    destination_folder_id = get_destination_folder(target_location)
-    return unless destination_folder_id
+    # Get destination folder path
+    destination_folder_path = get_destination_folder_path(target_location)
+    return unless destination_folder_path
 
     # Get date-based subfolder (YYYY-MM)
     file_date = parse_date(file_info[:created_at]) || Date.current
     date_folder_name = file_date.strftime("%Y-%m")
-    date_folder = @graph_client.get_or_create_subfolder(destination_folder_id, date_folder_name)
+    date_folder_path = "#{destination_folder_path}/#{date_folder_name}"
 
-    # Copy or move the file
+    # Ensure date folder exists
+    get_or_create_folder_path(date_folder_path)
+
+    # Copy or move the file using provider-agnostic methods
     action = case_record.file_action || "copy"
+    source_path = file_info[:path] || file_info[:id]
+
     if action == "move"
-      result = @graph_client.move_file(file_info[:id], date_folder[:id])
+      result = move_file_in_provider(source_path, date_folder_path, file_info[:name])
     else
-      result = @graph_client.copy_file(file_info[:id], date_folder[:id])
+      result = copy_file_in_provider(source_path, date_folder_path, file_info[:name])
     end
 
     # Create company_document entry
@@ -254,60 +275,74 @@ class CaseDocumentOrganizationService
     "other"
   end
 
-  # Get destination folder ID based on target location
-  def get_destination_folder(target_location)
+  # Get destination folder path based on target location
+  # SSoT: Uses StorageConfiguration for path building
+  def get_destination_folder_path(target_location)
+    storage_config = StorageConfiguration.instance
+
     case target_location
     when :corporate
       # Get company's corporate folder
       company = case_record.corporate_company || case_record.corporate_companies.first
       return nil unless company
 
-      # Find or create corporate folder for company
-      get_or_create_company_folder(company, "Corporate")
+      # Build corporate folder path
+      base_path = storage_config&.path_for(:corporate) || "Corporate"
+      company_folder = company.document_folder_name || company.name
+      "/#{base_path}/#{company_folder}"
     when :register
       company = case_record.corporate_company || case_record.corporate_companies.first
       return nil unless company
 
-      get_or_create_company_folder(company, "Register")
+      # Build register folder path
+      base_path = storage_config&.path_for(:corporate) || "Corporate"
+      company_folder = company.document_folder_name || company.name
+      "/#{base_path}/#{company_folder}/Register"
     when :case_folder
-      # Use first filing folder
-      folder_path = case_record.filing_folder_paths.first
-      return nil unless folder_path
-
-      folder = resolve_folder_path(folder_path)
-      folder&.dig(:id)
+      # Use first filing folder path directly
+      case_record.filing_folder_paths.first
     end
   end
 
-  # Get or create a folder for a company
-  def get_or_create_company_folder(company, folder_type)
-    # This would integrate with existing company folder structure
-    # For now, return the first filing folder as fallback
-    folder_path = case_record.filing_folder_paths.first
-    return nil unless folder_path
+  # Get or create a folder for a company (provider-agnostic)
+  def get_or_create_company_folder_path(company, folder_type)
+    storage_config = StorageConfiguration.instance
+    base_path = storage_config&.path_for(:corporate) || "Corporate"
+    company_folder = company.document_folder_name || company.name
+    full_path = "/#{base_path}/#{company_folder}/#{folder_type}"
 
-    folder = resolve_folder_path(folder_path)
-    return nil unless folder
+    # Ensure folder exists
+    get_or_create_folder_path(full_path)
 
-    @graph_client.get_or_create_subfolder(folder[:id], folder_type)[:id]
+    full_path
   end
 
-  # Resolve a folder path to folder info
+  # Resolve a folder path to folder info (provider-agnostic)
   def resolve_folder_path(path)
-    # Path could be a folder ID or a path string
+    # Path could be a Hash, path string, or ID
     if path.is_a?(Hash)
       path
     elsif path.start_with?("/")
-      # Path string - resolve via Graph API
-      @graph_client.get_folder_by_path(path.sub(/^\//, ""))
+      # Path string - verify it exists
+      if folder_exists_in_provider?(path)
+        { path: path, name: File.basename(path) }
+      else
+        nil
+      end
     else
-      # Assume it's a folder ID
-      result = @graph_client.get_file(path)
-      {
-        id: result["id"],
-        name: result["name"],
-        web_url: result["webUrl"]
-      }
+      # For non-path strings, try to get folder info
+      # This handles legacy folder IDs for SharePoint
+      begin
+        result = get_folder_info_in_provider(path)
+        {
+          id: result[:id],
+          path: result[:path],
+          name: result[:name],
+          web_url: result[:web_url]
+        }
+      rescue DocumentProviders::Error
+        nil
+      end
     end
   rescue => e
     Rails.logger.error "[CaseDocumentOrganization] Could not resolve folder path #{path}: #{e.message}"
@@ -315,9 +350,21 @@ class CaseDocumentOrganizationService
   end
 
   # Create a company_document entry for a new file
-  def create_company_document(file_info, graph_result, doc_type)
+  # SSoT: Handles both SharePoint and S3/Wasabi result formats
+  def create_company_document(file_info, storage_result, doc_type)
     # Determine company
     company = case_record.corporate_company || case_record.corporate_companies.first
+
+    # Handle both SharePoint (id/webUrl) and S3/Wasabi (path/url) result formats
+    storage_file_id = nil
+    storage_url = nil
+    storage_path = nil
+
+    if storage_result.is_a?(Hash)
+      storage_file_id = storage_result["id"] || storage_result[:id]
+      storage_url = storage_result["webUrl"] || storage_result[:web_url] || storage_result[:url]
+      storage_path = storage_result[:path]
+    end
 
     CorporateCompanyDocument.create!(
       corporate_company: company,
@@ -327,8 +374,9 @@ class CaseDocumentOrganizationService
       file_size: file_info[:size],
       mime_type: file_info[:mime_type],  # Required for PDF/image preview
       content_hash: file_info[:content_hash],
-      sharepoint_file_id: graph_result.is_a?(Hash) ? graph_result["id"] : nil,
-      sharepoint_download_url: graph_result.is_a?(Hash) ? graph_result["webUrl"] : nil,
+      sharepoint_file_id: storage_file_id,
+      sharepoint_download_url: storage_url,
+      storage_path: storage_path,
       source: "case_import",
       last_modified_at: parse_date(file_info[:modified_at])
     )

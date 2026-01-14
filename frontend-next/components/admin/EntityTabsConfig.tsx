@@ -1388,6 +1388,22 @@ export function EntityTabsConfig({
             )}
           </div>
 
+          {/* SSoT: Visibility rule - prominent centered box */}
+          {tab.visibility_rule && (
+            <div className="hidden md:flex items-center justify-center px-3">
+              <div
+                className={cn(
+                  "px-3 py-1 rounded-md text-xs font-medium border",
+                  tab.visibility_rule === "Always visible" || tab.visibility_rule?.startsWith("Always visible")
+                    ? "bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300"
+                    : "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-900/30 dark:border-amber-700 dark:text-amber-300"
+                )}
+              >
+                {tab.visibility_rule}
+              </div>
+            </div>
+          )}
+
           {/* Description - right aligned */}
           {tab.description && (
             <div className="hidden lg:block text-xs text-muted-foreground text-right shrink-0">

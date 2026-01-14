@@ -368,6 +368,8 @@ class EntityTab < ApplicationRecord
       hidden_by_default: hidden_by_default,      # SSoT: Tab hidden in overflow menu by default
       component_name: component_name,
       is_system_tab: is_system_tab,
+      # SSoT: Visibility rules - when this tab is shown/hidden
+      visibility_rule: visibility_rule,
       # SSoT: Xero integration fields
       xero_scope: xero_scope,
       xero_account_name: xero_account_name,  # Resolved name (e.g., "Tekna Homes")

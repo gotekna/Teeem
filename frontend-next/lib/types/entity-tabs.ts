@@ -32,6 +32,8 @@ export interface EntityTab {
   hidden_by_default: boolean;  // SSoT: Tab hidden in overflow menu by default
   component_name: string | null;
   is_system_tab: boolean;
+  // SSoT: Visibility rules - when this tab is shown/hidden
+  visibility_rule: string | null;  // Human-readable condition (e.g., "Has Xero links AND is supplier")
   // SSoT: Xero integration fields
   xero_scope: 'primary' | null;  // Which Xero account this tab uses
   xero_account_name: string | null;  // Resolved name (e.g., "Tekna Homes")

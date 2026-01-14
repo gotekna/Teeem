@@ -1,6 +1,9 @@
 require "anthropic"
 
+# SSoT: Uses DocumentProviderAware for provider-agnostic storage operations
 class DocumentVerificationService
+  include DocumentProviderAware
+
   MAX_FILE_SIZE = 20.megabytes
   MODEL = "claude-sonnet-4-20250514"
 
@@ -8,7 +11,7 @@ class DocumentVerificationService
   class FileNotFoundError < VerificationError; end
   class FileTooLargeError < VerificationError; end
   class ExtractionError < VerificationError; end
-  class OneDriveError < VerificationError; end
+  class StorageError < VerificationError; end
 
   # ============================================================================
   # Class Method: Detect Signature Fields in PDF
@@ -305,24 +308,32 @@ class DocumentVerificationService
   private
 
   # Auto-apply AI suggestion when confidence is 74%+
-  # - Renames file in SharePoint
+  # - Renames file in storage (provider-agnostic)
   # - Updates document record with suggested values
   # - Marks as verified
+  # SSoT: Uses DocumentProviderAware for provider-agnostic file operations
   def auto_apply_suggestion!(analysis)
     return false unless analysis[:suggested_name].present?
 
-    # Rename file in SharePoint if name changed
-    if analysis[:suggested_name] != @document.file_name && @document.sharepoint_file_id.present?
-      begin
-        credential = MicrosoftCredential.sharepoint_credential
-        if credential
-          client = MicrosoftGraphClient.new(credential)
-          client.rename_file(@document.sharepoint_file_id, analysis[:suggested_name])
-          Rails.logger.info("Auto-renamed SharePoint file to: #{analysis[:suggested_name]}")
+    # Rename file in storage if name changed
+    if analysis[:suggested_name] != @document.file_name
+      # Try provider-agnostic rename using path or file_id
+      if @document.storage_path.present? || @document.sharepoint_file_id.present?
+        begin
+          setup_default_provider!
+          file_identifier = @document.storage_path || @document.sharepoint_file_id
+          rename_file_in_provider(file_identifier, analysis[:suggested_name])
+          Rails.logger.info("Auto-renamed storage file to: #{analysis[:suggested_name]}")
+        rescue DocumentProviders::NotConnectedError => e
+          Rails.logger.warn("Storage not connected for rename: #{e.message}")
+          # Continue with database update even if storage rename fails
+        rescue DocumentProviders::Error => e
+          Rails.logger.warn("Failed to rename storage file: #{e.message}")
+          # Continue with database update even if storage rename fails
+        rescue StandardError => e
+          Rails.logger.warn("Failed to rename file: #{e.message}")
+          # Continue with database update even if rename fails
         end
-      rescue StandardError => e
-        Rails.logger.warn("Failed to rename SharePoint file: #{e.message}")
-        # Continue with database update even if SharePoint rename fails
       end
     end
 
@@ -362,24 +373,27 @@ class DocumentVerificationService
   end
 
   def validate_file_available!
-    unless @document.sharepoint_file_id.present?
-      raise FileNotFoundError, "No OneDrive file ID available for this document"
+    # Check for storage_path (S3/Wasabi) or sharepoint_file_id (SharePoint)
+    unless @document.storage_path.present? || @document.sharepoint_file_id.present?
+      raise FileNotFoundError, "No storage path or file ID available for this document"
     end
   end
 
+  # Download document using provider-agnostic storage service
+  # SSoT: Uses DocumentStorageService for provider-agnostic downloads
   def download_document
-    credential = MicrosoftCredential.sharepoint_credential
-    raise OneDriveError, "No active OneDrive credential" unless credential
+    service = DocumentStorageService.new
+    result = service.download(@document)
 
-    client = MicrosoftGraphClient.new(credential)
-    content = client.download_file(@document.sharepoint_file_id)
+    raise StorageError, "Storage not connected: #{result[:error]}" unless result[:success]
+    raise FileNotFoundError, "Failed to download file content" if result[:content].blank?
+    raise FileTooLargeError, "File too large (#{result[:content].bytesize} bytes)" if result[:content].bytesize > MAX_FILE_SIZE
 
-    raise FileNotFoundError, "Failed to download file content" if content.blank?
-    raise FileTooLargeError, "File too large (#{content.bytesize} bytes)" if content.bytesize > MAX_FILE_SIZE
-
-    content
-  rescue MicrosoftGraphClient::APIError => e
-    raise OneDriveError, "OneDrive API error: #{e.message}"
+    result[:content]
+  rescue DocumentProviders::NotConnectedError => e
+    raise StorageError, "Storage not connected: #{e.message}"
+  rescue DocumentProviders::Error => e
+    raise StorageError, "Storage API error: #{e.message}"
   end
 
   def extract_text(content)

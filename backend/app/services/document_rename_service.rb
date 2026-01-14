@@ -1,7 +1,8 @@
 # frozen_string_literal: true
 
-# Service for renaming documents in SharePoint and updating local records
+# Service for renaming documents in storage and updating local records
 # Part of the unified document standardization system (SSoT: DocumentType.naming_format)
+# SSoT: Uses DocumentProviderAware for provider-agnostic storage operations
 #
 # Usage:
 #   service = DocumentRenameService.new(job_document)
@@ -11,11 +12,12 @@
 #   DocumentRenameService.batch_rename(job_documents, use_ai_names: true)
 #
 class DocumentRenameService
+  include DocumentProviderAware
+
   class RenameError < StandardError; end
 
   def initialize(document)
     @document = document
-    @credential = MicrosoftCredential.sharepoint_credential
   end
 
   # Rename a single document
@@ -23,8 +25,9 @@ class DocumentRenameService
   # @param approved_by [User] Optional user who approved the rename
   # @return [Hash] Result with success status and details
   def rename!(new_name, approved_by: nil)
-    raise RenameError, "No SharePoint credential configured" unless @credential
-    raise RenameError, "Document has no SharePoint item ID" if @document.sharepoint_item_id.blank?
+    # Check for storage identifier (path for S3/Wasabi, item_id for SharePoint)
+    file_identifier = @document.storage_path || @document.sharepoint_item_id
+    raise RenameError, "Document has no storage path or item ID" if file_identifier.blank?
     raise RenameError, "New name cannot be blank" if new_name.blank?
 
     # Check if document type should skip renaming (CAD/BIM files)
@@ -33,16 +36,22 @@ class DocumentRenameService
       return { success: false, skipped: true, reason: "Document type does not allow renaming" }
     end
 
+    # Setup provider
+    begin
+      setup_default_provider!
+    rescue DocumentProviders::NotConnectedError => e
+      raise RenameError, "Storage not connected: #{e.message}"
+    end
+
     # Preserve file extension if not included in new name
     new_name = ensure_extension(new_name)
 
-    client = MicrosoftGraphClient.new(@credential)
     old_name = @document.file_name
 
     Rails.logger.info("[DocumentRename] Renaming #{old_name} → #{new_name}")
 
-    # 1. Rename in SharePoint
-    client.rename_file(@document.sharepoint_item_id, new_name)
+    # 1. Rename in storage (provider-agnostic)
+    rename_file_in_provider(file_identifier, new_name)
 
     # 2. Update local record
     @document.update!(
@@ -55,10 +64,10 @@ class DocumentRenameService
 
     { success: true, old_name: old_name, new_name: new_name }
 
-  rescue MicrosoftGraphClient::APIError => e
-    Rails.logger.error("[DocumentRename] SharePoint error: #{e.message}")
+  rescue DocumentProviders::Error => e
+    Rails.logger.error("[DocumentRename] Storage error: #{e.message}")
     @document.update_column(:rename_status, "failed")
-    { success: false, error: "SharePoint error: #{e.message}" }
+    { success: false, error: "Storage error: #{e.message}" }
   rescue StandardError => e
     Rails.logger.error("[DocumentRename] Error: #{e.message}")
     { success: false, error: e.message }

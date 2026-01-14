@@ -3,12 +3,14 @@
 # - Checks against existing company_documents (SSoT)
 # - Files to case folder organized by date
 # - Links to case via case_documents
+# SSoT: Uses DocumentProviderAware for provider-agnostic storage operations
 class CaseEmailAttachmentService
-  attr_reader :case_record, :graph_client, :results
+  include DocumentProviderAware
+
+  attr_reader :case_record, :results
 
   def initialize(case_record)
     @case_record = case_record
-    @graph_client = MicrosoftGraphClient.new
     @results = {
       processed_emails: 0,
       attachments_found: 0,
@@ -101,23 +103,36 @@ class CaseEmailAttachmentService
     Rails.logger.info "[CaseEmailAttachment] Linked existing document: #{company_doc.title}"
   end
 
-  # Save attachment to filing folder in OneDrive
+  # Save attachment to filing folder (provider-agnostic)
+  # SSoT: Uses DocumentProviderAware for uploads
   def save_attachment_to_filing_folder(case_email, file, content_hash)
-    # Get filing folder
-    folder_id = get_filing_folder_id
-    return unless folder_id
+    # Get filing folder path
+    folder_path = get_filing_folder_path
+    return unless folder_path
+
+    # Setup provider
+    begin
+      setup_default_provider!
+    rescue DocumentProviders::NotConnectedError => e
+      @results[:errors] << { file: file.filename.to_s, error: "Storage not connected: #{e.message}" }
+      return
+    end
 
     # Get date-based subfolder
     email_date = case_email.email_warehouse.received_at&.to_date || Date.current
     date_folder_name = email_date.strftime("%Y-%m")
-    date_folder = @graph_client.get_or_create_subfolder(folder_id, date_folder_name)
+    date_folder_path = "#{folder_path}/#{date_folder_name}"
 
-    # Upload file to OneDrive
+    # Ensure date folder exists
+    get_or_create_folder_path(date_folder_path)
+
+    # Upload file using provider-agnostic method
     file.open do |temp_file|
-      result = @graph_client.upload_file_content(
-        date_folder[:id],
+      result = upload_to_provider(
+        date_folder_path,
+        File.read(temp_file.path),
         file.filename.to_s,
-        File.read(temp_file.path)
+        content_type: file.content_type
       )
 
       # Create company_document entry
@@ -134,24 +149,26 @@ class CaseEmailAttachmentService
 
       @results[:downloaded_new] += 1
     end
+  rescue DocumentProviders::Error => e
+    @results[:errors] << { file: file.filename.to_s, error: e.message }
+    Rails.logger.error "[CaseEmailAttachment] Storage error saving attachment: #{e.message}"
   rescue => e
     @results[:errors] << { file: file.filename.to_s, error: e.message }
     Rails.logger.error "[CaseEmailAttachment] Error saving attachment: #{e.message}"
   end
 
-  # Get the filing folder ID
-  def get_filing_folder_id
+  # Get the filing folder path (provider-agnostic)
+  def get_filing_folder_path
     folder_path = case_record.filing_folder_paths.first
     return nil unless folder_path.present?
 
-    # Resolve folder path to ID
+    # Normalize to path string
     if folder_path.is_a?(Hash)
-      folder_path[:id] || folder_path["id"]
-    elsif folder_path.start_with?("/")
-      result = @graph_client.get_folder_by_path(folder_path.sub(/^\//, ""))
-      result&.dig("id")
+      folder_path[:path] || folder_path["path"] || folder_path[:id] || folder_path["id"]
+    elsif folder_path.is_a?(String)
+      folder_path.start_with?("/") ? folder_path : "/#{folder_path}"
     else
-      folder_path # Assume it's already an ID
+      folder_path.to_s
     end
   rescue => e
     Rails.logger.error "[CaseEmailAttachment] Could not resolve filing folder: #{e.message}"
@@ -159,12 +176,18 @@ class CaseEmailAttachmentService
   end
 
   # Create company_document for the attachment
-  def create_company_document(case_email, file, content_hash, graph_result)
+  # SSoT: Handles both SharePoint and S3/Wasabi result formats
+  def create_company_document(case_email, file, content_hash, storage_result)
     company = case_record.corporate_company || case_record.corporate_companies.first
     email = case_email.email_warehouse
 
     # Determine document type from mime type
     doc_type = classify_attachment(file)
+
+    # Handle both SharePoint (id/web_url) and S3/Wasabi (path/url) result formats
+    storage_file_id = storage_result[:id]
+    storage_url = storage_result[:web_url] || storage_result[:url]
+    storage_path = storage_result[:path]
 
     CorporateCompanyDocument.create!(
       company: company,
@@ -174,8 +197,9 @@ class CaseEmailAttachmentService
       file_size: file.byte_size,
       mime_type: file.content_type,  # Required for PDF/image preview
       content_hash: content_hash,
-      sharepoint_file_id: graph_result[:id],
-      sharepoint_download_url: graph_result[:web_url],
+      sharepoint_file_id: storage_file_id,
+      sharepoint_download_url: storage_url,
+      storage_path: storage_path,
       source: "email_attachment",
       last_modified_at: email.received_at
     )
