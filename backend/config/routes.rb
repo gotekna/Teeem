@@ -390,6 +390,8 @@ Rails.application.routes.draw do
       get "documents/folder_files", to: "documents#folder_files"
       # Legacy alias for corporate folders
       get "documents/corporate_folder_files", to: "documents#folder_files"
+      # Warehouse files (TeeemSpreadsheet, TeeemDocument, TeeemPresentation, TeeemPdf)
+      get "documents/warehouse_files", to: "documents#warehouse_files"
 
       # Documents (simple alias for company documents)
       resources :documents, only: [ :index, :create, :show, :update, :destroy ] do

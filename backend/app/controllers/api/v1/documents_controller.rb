@@ -48,6 +48,12 @@ module Api
         # PowerPoint presentations (TeeemPowerPoint)
         powerpoint_count = TeeemPresentation.count rescue 0
 
+        # PDF documents (TeeemPdf)
+        pdf_count = TeeemPdf.count rescue 0
+
+        # Warehouse total (all Teeem document types stored in S3/Warehouse)
+        warehousing_count = excel_count + word_count + powerpoint_count + pdf_count + notes_count
+
         # User files from S3 (MyDocs folder)
         # SSoT: Path matches StorageConfiguration.SCOPE_FOLDERS["my_docs"] = "Users/MyDocs"
         # Note: list_folder returns an array of items directly, not a hash
@@ -62,7 +68,7 @@ module Api
           0
         end
 
-        total = job_count + corp_count + people_count + email_eml_count + email_attachment_count + task_doc_count + template_count + pricebook_image_count + notes_count + excel_count
+        total = job_count + corp_count + people_count + email_eml_count + email_attachment_count + task_doc_count + template_count + pricebook_image_count + notes_count + excel_count + word_count + powerpoint_count + pdf_count
 
         # Fetch task documents with their task associations
         # SSoT: Task documents are CorporateCompanyDocuments linked via SmTaskAttachment
@@ -99,7 +105,7 @@ module Api
             user_contracts: 0,
             my_docs: my_docs_count,
             # Warehouse scopes
-            warehousing: 0,
+            warehousing: warehousing_count,
             tasks: task_doc_count,
             bill_inbox: 0,
             pricebook_photos: pricebook_image_count,
@@ -114,6 +120,7 @@ module Api
             excel_documents: excel_count,
             word_documents: word_count,
             powerpoint_documents: powerpoint_count,
+            pdf_documents: pdf_count,
             # System storage
             active_storage: active_storage_count,
             # Total
@@ -318,6 +325,33 @@ module Api
 
       # Backwards compatibility alias
       alias_method :corporate_folder_files, :folder_files
+
+      # GET /api/v1/documents/warehouse_files
+      # SSoT: List warehouse documents (TeeemSpreadsheet, TeeemDocument, TeeemPresentation, TeeemPdf)
+      # Used by File Warehouse to display warehouse document subfolders
+      def warehouse_files
+        doc_type = params[:type] || "all"
+
+        files = case doc_type.to_s.downcase
+                when "excel", "spreadsheet"
+                  fetch_warehouse_spreadsheets
+                when "word", "document"
+                  fetch_warehouse_documents
+                when "powerpoint", "presentation"
+                  fetch_warehouse_presentations
+                when "pdf"
+                  fetch_warehouse_pdfs
+                else
+                  fetch_warehouse_spreadsheets + fetch_warehouse_documents + fetch_warehouse_presentations + fetch_warehouse_pdfs
+                end
+
+        render json: {
+          success: true,
+          files: files,
+          type: doc_type,
+          count: files.size
+        }
+      end
 
       # GET /api/v1/documents/:id
       def show
@@ -551,6 +585,92 @@ module Api
               company_code: doc.company_code
             }
           end
+      end
+
+      # SSoT: Fetch warehouse spreadsheets (TeeemSpreadsheet)
+      def fetch_warehouse_spreadsheets
+        TeeemSpreadsheet
+          .includes(:user)
+          .order(updated_at: :desc)
+          .limit(500)
+          .map do |doc|
+            {
+              name: doc.name || "Untitled Spreadsheet",
+              path: doc.warehouse_path,
+              size: 0,
+              content_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+              last_modified: doc.updated_at&.iso8601,
+              url: "/spreadsheets/#{doc.id}",  # Frontend URL to open
+              id: doc.id,
+              doc_type: "excel",
+              user_name: doc.user&.name
+            }
+          end
+      end
+
+      # SSoT: Fetch warehouse documents (TeeemDocument)
+      def fetch_warehouse_documents
+        TeeemDocument
+          .includes(:user)
+          .order(updated_at: :desc)
+          .limit(500)
+          .map do |doc|
+            {
+              name: doc.name || "Untitled Document",
+              path: doc.warehouse_path,
+              size: 0,
+              content_type: "text/html",
+              last_modified: doc.updated_at&.iso8601,
+              url: "/documents/#{doc.id}",  # Frontend URL to open
+              id: doc.id,
+              doc_type: "word",
+              user_name: doc.user&.name
+            }
+          end
+      end
+
+      # SSoT: Fetch warehouse presentations (TeeemPresentation)
+      def fetch_warehouse_presentations
+        TeeemPresentation
+          .includes(:user)
+          .order(updated_at: :desc)
+          .limit(500)
+          .map do |doc|
+            {
+              name: doc.name || "Untitled Presentation",
+              path: doc.warehouse_path,
+              size: 0,
+              content_type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+              last_modified: doc.updated_at&.iso8601,
+              url: "/presentations/#{doc.id}",  # Frontend URL to open
+              id: doc.id,
+              doc_type: "powerpoint",
+              user_name: doc.user&.name
+            }
+          end
+      end
+
+      # SSoT: Fetch warehouse PDFs (TeeemPdf)
+      def fetch_warehouse_pdfs
+        TeeemPdf
+          .includes(:user)
+          .order(updated_at: :desc)
+          .limit(500)
+          .map do |doc|
+            {
+              name: doc.name || "Untitled PDF",
+              path: doc.warehouse_path,
+              size: 0,
+              content_type: "application/pdf",
+              last_modified: doc.updated_at&.iso8601,
+              url: "/pdfs/#{doc.id}",  # Frontend URL to open
+              id: doc.id,
+              doc_type: "pdf",
+              user_name: doc.user&.name
+            }
+          end
+      rescue NameError
+        []  # TeeemPdf might not exist
       end
 
       # SSoT: Fetch people documents by EntityTab.document_type_ids
