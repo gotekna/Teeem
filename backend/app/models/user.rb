@@ -252,13 +252,12 @@ class User < ApplicationRecord
     return existing_user if existing_user
 
     # Create new OAuth user
+    # Note: OAuth tokens are NOT stored on User - use MicrosoftCredential/UserMicrosoftToken instead
     user = create!(
       provider: auth.provider,
       uid: auth.uid,
       email: auth.info.email,
       name: auth.info.name,
-      oauth_token: auth.credentials.token,
-      oauth_expires_at: auth.credentials.expires_at ? Time.at(auth.credentials.expires_at) : nil,
       role: "user",  # Legacy column (still required by validation)
       password: SecureRandom.hex(32)
     )

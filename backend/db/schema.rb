@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_14_190655) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_14_190656) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9833,8 +9833,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_14_190655) do
     t.string "mobile_phone"
     t.string "provider"
     t.string "uid"
-    t.text "oauth_token"
-    t.datetime "oauth_expires_at"
     t.boolean "wphs_appointee", default: false, null: false
     t.boolean "preload_price_books", default: false, null: false
     t.bigint "user_group_id"

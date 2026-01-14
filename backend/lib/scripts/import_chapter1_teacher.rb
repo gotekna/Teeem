@@ -172,8 +172,7 @@ entries = [
           user.email = auth.info.email
           user.name = auth.info.name
           user.password = SecureRandom.hex(16)
-          user.oauth_token = auth.credentials.token
-          user.oauth_expires_at = Time.at(auth.credentials.expires_at)
+          # Note: OAuth tokens stored in dedicated credential models, not on User
         end
       end
     CODE
