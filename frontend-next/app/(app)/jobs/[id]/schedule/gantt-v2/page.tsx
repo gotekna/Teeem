@@ -330,6 +330,16 @@ export default function GanttV2Page() {
     gantt.loadData({ silent: true });
   }, [gantt]);
 
+  // Simple task update for dependency editor (e.g., unlocking a task)
+  const handleUpdateTask = React.useCallback(async (taskId: string, updates: Record<string, unknown>) => {
+    await api.patch(`/api/v1/sm_tasks/${taskId}`, {
+      sm_task: updates,
+    });
+    // Clear cache and reload gantt data
+    clearCachedRecords("sm_tasks");
+    gantt.loadData({ silent: true });
+  }, [gantt]);
+
   // ==========================================================================
   // Photo Panel (Job-specific)
   // ==========================================================================
@@ -569,6 +579,7 @@ export default function GanttV2Page() {
         task={gantt.dependencyEditorState.task}
         tasks={gantt.tasks}
         onSave={gantt.handleDependencyEditorSave}
+        onUpdateTask={handleUpdateTask}
       />
 
       {/* Edit Dialog - SSoT: uses shared EditRowDialog component */}

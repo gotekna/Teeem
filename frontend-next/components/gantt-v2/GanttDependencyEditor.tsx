@@ -22,7 +22,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ComboboxDropdown } from '@/components/ui/combobox-dropdown';
-import { X, ChevronDown, ChevronRight, RotateCcw, Link2Off, AlertTriangle } from 'lucide-react';
+import { X, ChevronDown, ChevronRight, RotateCcw, Link2Off, AlertTriangle, Lock, Unlock } from 'lucide-react';
 import type { GanttTask } from '@/lib/gantt/types';
 
 // =============================================================================
@@ -52,6 +52,15 @@ interface BrokenDependencyInfo {
   brokenBy?: string;
 }
 
+interface RestoreConflictInfo {
+  brokenDep: BrokenDependencyInfo;
+  predecessorTask: GanttTask | null;
+  hasConflict: boolean;
+  isLocked: boolean;
+  lockReason: string;
+  requiredStartDate: Date | null;
+}
+
 export interface GanttDependencyEditorProps {
   isOpen: boolean;
   onClose: () => void;
@@ -62,6 +71,8 @@ export interface GanttDependencyEditorProps {
     predecessors: Array<{ taskNumber: number; type: string; lag: number }>,
     successors: Array<{ taskNumber: number; type: string; lag: number }>
   ) => Promise<void>;
+  /** Callback to update a task (for unlocking) */
+  onUpdateTask?: (taskId: string, updates: Record<string, unknown>) => Promise<void>;
   /** Pending predecessor from drag-create (not yet saved) */
   pendingPredecessor?: { taskNumber: number; type: string; lag: number };
   /** Pending successor from drag-create (not yet saved) */
@@ -78,6 +89,7 @@ export function GanttDependencyEditor({
   task,
   tasks,
   onSave,
+  onUpdateTask,
   pendingPredecessor,
   pendingSuccessor,
 }: GanttDependencyEditorProps) {
@@ -97,6 +109,9 @@ export function GanttDependencyEditor({
 
   // Track which inherited headers are expanded to show their children
   const [expandedHeaders, setExpandedHeaders] = React.useState<Set<number>>(new Set());
+
+  // Restore conflict dialog state
+  const [restoreConflict, setRestoreConflict] = React.useState<RestoreConflictInfo | null>(null);
 
   // ---------------------------------------------------------------------------
   // Effects
@@ -270,6 +285,70 @@ export function GanttDependencyEditor({
   };
 
   const restoreBrokenDependency = (brokenDep: BrokenDependencyInfo) => {
+    // Find the predecessor task to check for conflicts
+    const predTask = tasks.find(t => t.id === brokenDep.predecessorId);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const predRowData = predTask?.rowData as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const taskRowData = task?.rowData as any;
+
+    // Check if restoring would cause a date conflict
+    // For FS (Finish-to-Start): task must start after predecessor ends
+    let hasConflict = false;
+    let requiredStartDate: Date | null = null;
+
+    if (predRowData?.end_date && taskRowData?.start_date) {
+      const predEndDate = new Date(predRowData.end_date);
+      const taskStartDate = new Date(taskRowData.start_date);
+      const lag = brokenDep.lag || 0;
+
+      // Calculate required start date based on dependency type
+      if (brokenDep.type === 'FS') {
+        requiredStartDate = new Date(predEndDate);
+        requiredStartDate.setDate(requiredStartDate.getDate() + lag);
+      } else if (brokenDep.type === 'SS') {
+        const predStartDate = new Date(predRowData.start_date || predRowData.end_date);
+        requiredStartDate = new Date(predStartDate);
+        requiredStartDate.setDate(requiredStartDate.getDate() + lag);
+      }
+
+      // Check if current start date is before required start date
+      if (requiredStartDate && taskStartDate < requiredStartDate) {
+        hasConflict = true;
+      }
+    }
+
+    // Check if task is locked
+    const isLocked = taskRowData?.supplier_confirm || taskRowData?.confirm || taskRowData?.started || taskRowData?.is_completed;
+    const lockReason = taskRowData?.supplier_confirm
+      ? 'Supplier Confirmed'
+      : taskRowData?.confirm
+      ? 'Confirmed'
+      : taskRowData?.started
+      ? 'Started'
+      : taskRowData?.is_completed
+      ? 'Completed'
+      : '';
+
+    // If there's a conflict AND task is locked, show dialog
+    if (hasConflict && isLocked) {
+      setRestoreConflict({
+        brokenDep,
+        predecessorTask: predTask || null,
+        hasConflict,
+        isLocked,
+        lockReason,
+        requiredStartDate,
+      });
+      return;
+    }
+
+    // No conflict or task is not locked - proceed with restore
+    doRestoreDependency(brokenDep);
+  };
+
+  // Actually restore the dependency (called after conflict resolution)
+  const doRestoreDependency = (brokenDep: BrokenDependencyInfo) => {
     // Add to active predecessors
     setDepEditorLinks(prev => [...prev, {
       predecessorId: brokenDep.predecessorId,
@@ -278,6 +357,38 @@ export function GanttDependencyEditor({
     }]);
     // Remove from broken list
     setBrokenDependencies(prev => prev.filter(b => b.predecessorId !== brokenDep.predecessorId));
+    // Clear any conflict dialog
+    setRestoreConflict(null);
+  };
+
+  // Handle unlock and restore
+  const handleUnlockAndRestore = async () => {
+    if (!restoreConflict || !task || !onUpdateTask) return;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const taskRowData = task.rowData as any;
+
+    // Determine which lock to clear
+    const updates: Record<string, unknown> = {};
+    if (taskRowData?.supplier_confirm) {
+      updates.supplier_confirm = false;
+    } else if (taskRowData?.confirm) {
+      updates.confirm = false;
+    }
+
+    try {
+      // Unlock the task
+      await onUpdateTask(task.id, updates);
+      // Then restore the dependency
+      doRestoreDependency(restoreConflict.brokenDep);
+    } catch (error) {
+      console.error('[GanttDependencyEditor] Failed to unlock task:', error);
+    }
+  };
+
+  // Cancel restore (keep broken)
+  const cancelRestore = () => {
+    setRestoreConflict(null);
   };
 
   const handleSave = async () => {
@@ -498,6 +609,7 @@ export function GanttDependencyEditor({
   // ---------------------------------------------------------------------------
 
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col">
         <DialogHeader>
@@ -1261,6 +1373,64 @@ export function GanttDependencyEditor({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+      {/* Restore Conflict Dialog */}
+      <Dialog open={restoreConflict !== null} onOpenChange={() => setRestoreConflict(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+              Cannot Restore Dependency
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              Restoring this dependency would require moving task{' '}
+              <strong>#{(task?.rowData as { task_number?: number })?.task_number}</strong> to start on{' '}
+              <strong>
+                {restoreConflict?.requiredStartDate?.toLocaleDateString('en-AU', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })}
+              </strong>
+              {' '}to honor the dependency.
+            </p>
+
+            <div className="flex items-center gap-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+              <Lock className="h-4 w-4 text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
+              <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                This task is <strong>{restoreConflict?.lockReason}</strong> and cannot be moved automatically.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Options:</p>
+              <div className="space-y-2">
+                {onUpdateTask && (
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start gap-2"
+                    onClick={handleUnlockAndRestore}
+                  >
+                    <Unlock className="h-4 w-4" />
+                    Remove {restoreConflict?.lockReason} & Restore Dependency
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2 text-muted-foreground"
+                  onClick={cancelRestore}
+                >
+                  <X className="h-4 w-4" />
+                  Keep Broken (Don't Restore)
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

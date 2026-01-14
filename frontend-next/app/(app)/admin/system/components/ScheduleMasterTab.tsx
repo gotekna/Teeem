@@ -1836,6 +1836,25 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     }
   };
 
+  // Gantt V2: Update a single task (used for unlocking tasks in dependency editor)
+  const handleGanttV2UpdateTask = async (taskId: string, updates: Record<string, unknown>) => {
+    if (!ganttV2TemplateId) return;
+
+    console.log('[Gantt V2] Updating task:', taskId, 'updates:', updates);
+
+    try {
+      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${taskId}`, {
+        row: updates,
+      });
+
+      // Refresh data
+      loadGanttV2Data();
+    } catch (error) {
+      console.error('[Gantt V2] Failed to update task:', error);
+      toast({ title: "Error", description: "Failed to update task", variant: "destructive" });
+    }
+  };
+
   // Gantt V2: Handle dependency create
   const handleGanttV2DependencyCreate = async (fromId: string, toId: string, type: string) => {
     if (!ganttV2TemplateId) return;
@@ -5026,6 +5045,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         task={dependencyEditorState.task}
         tasks={ganttV2Tasks}
         onSave={handleDependencyEditorSave}
+        onUpdateTask={handleGanttV2UpdateTask}
         pendingPredecessor={dependencyEditorState.pendingPredecessor}
         pendingSuccessor={dependencyEditorState.pendingSuccessor}
       />
