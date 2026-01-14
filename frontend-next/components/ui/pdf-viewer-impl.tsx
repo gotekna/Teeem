@@ -113,20 +113,31 @@ export function PDFViewerImpl({
           return;
         }
 
-        // 2. Fetch from server with auth
-        const token =
-          typeof window !== "undefined"
-            ? localStorage.getItem("token")
-            : null;
+        // 2. Fetch from server
+        // For presigned S3 URLs (contain X-Amz-Signature), don't send auth headers
+        // Presigned URLs are self-authenticating and extra headers break the signature
+        const isPresignedS3 = url.includes("X-Amz-Signature=") || url.includes("wasabisys.com");
+
         const headers: Record<string, string> = {
           Accept: "application/pdf",
         };
-        if (token) {
-          headers["Authorization"] = `Bearer ${token}`;
+
+        // Only add auth for our backend URLs, not for presigned S3 URLs
+        if (!isPresignedS3) {
+          const token =
+            typeof window !== "undefined"
+              ? localStorage.getItem("token")
+              : null;
+          if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+          }
         }
 
         const response = await fetch(url, {
-          credentials: "include",
+          // Don't send credentials for cross-origin presigned URLs
+          credentials: isPresignedS3 ? "omit" : "include",
+          // Must use "cors" mode for cross-origin requests
+          mode: isPresignedS3 ? "cors" : "same-origin",
           headers,
         });
 
