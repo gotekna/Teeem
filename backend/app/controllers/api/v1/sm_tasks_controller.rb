@@ -1042,6 +1042,118 @@ module Api
         render json: { success: false, error: "Failed to create sharing link" }, status: :internal_server_error
       end
 
+      # ===== Bulk Email Linking =====
+
+      # GET /api/v1/sm_tasks/:id/email_link_options
+      # Returns available options for bulk email linking:
+      # - If task has a job, returns job contacts with email counts
+      # - Always available: manual email input option
+      def email_link_options
+        options = []
+
+        # If task has a job, get job contacts with their email counts
+        if @task.job_id.present?
+          job = @task.job
+          job.job_contacts.includes(contact: :contact_emails, user: []).each do |jc|
+            # Get email addresses for this contact
+            emails = if jc.contact.present?
+              jc.contact.all_emails
+            elsif jc.user.present?
+              [ jc.user.email ].compact
+            else
+              []
+            end
+
+            next if emails.empty?
+
+            # Count emails in warehouse involving these addresses
+            email_count = EmailWarehouse.involving_email(emails).count
+
+            # Get display name
+            name = jc.contact&.name || jc.user&.name || "Unknown"
+            role_label = jc.role.to_s.titleize
+
+            options << {
+              type: "job_contact",
+              job_contact_id: jc.id,
+              role: jc.role,
+              name: name,
+              label: "#{role_label} (#{name})",
+              emails: emails,
+              email_count: email_count
+            }
+          end
+        end
+
+        render json: {
+          success: true,
+          has_job: @task.job_id.present?,
+          job_code: @task.job&.job_code,
+          options: options.sort_by { |o| -o[:email_count] }  # Most emails first
+        }
+      end
+
+      # POST /api/v1/sm_tasks/:id/bulk_link_emails
+      # Links all emails from/to a given email address to this task
+      # Params:
+      #   - email_address: Email address to search for
+      #   - OR job_contact_id: ID of job_contact to use (gets emails from contact)
+      def bulk_link_emails
+        # Determine which emails to find
+        emails_to_search = if params[:job_contact_id].present?
+          jc = @task.job&.job_contacts&.find_by(id: params[:job_contact_id])
+          return render json: { success: false, error: "Job contact not found" }, status: :not_found unless jc
+
+          if jc.contact.present?
+            jc.contact.all_emails
+          elsif jc.user.present?
+            [ jc.user.email ].compact
+          else
+            []
+          end
+        elsif params[:email_address].present?
+          [ params[:email_address].downcase.strip ]
+        else
+          return render json: { success: false, error: "email_address or job_contact_id required" }, status: :bad_request
+        end
+
+        return render json: { success: false, error: "No email addresses found" }, status: :unprocessable_entity if emails_to_search.empty?
+
+        # Find all matching emails
+        matching_emails = EmailWarehouse.involving_email(emails_to_search)
+
+        # Get already attached email IDs
+        existing_email_ids = @task.sm_task_attachments
+          .where(attachable_type: "EmailWarehouse")
+          .pluck(:attachable_id)
+
+        # Filter to only new emails
+        new_emails = matching_emails.where.not(id: existing_email_ids)
+
+        # Create attachments for each new email
+        created_attachments = []
+        new_emails.find_each do |email|
+          attachment = @task.sm_task_attachments.create!(
+            attachable: email,
+            attachment_type: "email",
+            added_by: current_user,
+            notes: "Bulk linked from #{emails_to_search.first}"
+          )
+          created_attachments << attachment
+        end
+
+        render json: {
+          success: true,
+          linked_count: created_attachments.size,
+          skipped_count: existing_email_ids.size,
+          total_found: matching_emails.count,
+          attachments: created_attachments.map { |a| attachment_to_json(a) }
+        }
+      rescue => e
+        Rails.logger.error "[SmTasksController#bulk_link_emails] Error: #{e.message}"
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
       # ===== Task Followers =====
 
       # POST /api/v1/sm_tasks/:id/follow

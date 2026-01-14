@@ -49,6 +49,8 @@ import {
   Eye,
   EyeOff,
   FileText,
+  Link2,
+  Loader2,
   GripVertical,
   HelpCircle,
   Lock,
@@ -714,6 +716,24 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   // Email-to-document highlighting state
   const [selectedEmailForHighlight, setSelectedEmailForHighlight] = useState<number | null>(null);
   const [highlightedDocHashes, setHighlightedDocHashes] = useState<Set<string>>(new Set());
+
+  // Bulk email linking state
+  const [bulkLinkOpen, setBulkLinkOpen] = useState(false);
+  const [bulkLinkOptions, setBulkLinkOptions] = useState<{
+    hasJob: boolean;
+    jobCode?: string;
+    options: Array<{
+      type: string;
+      job_contact_id: number;
+      role: string;
+      name: string;
+      label: string;
+      emails: string[];
+      email_count: number;
+    }>;
+  } | null>(null);
+  const [bulkLinkLoading, setBulkLinkLoading] = useState(false);
+  const [bulkLinkEmail, setBulkLinkEmail] = useState('');
 
   // Document viewer state (for markup/annotations)
   const [viewerDocument, setViewerDocument] = useState<{
@@ -1402,6 +1422,104 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       await updateTask(task.id, { email_keywords: emailKeywords });
       setLoading(null);
     }
+  };
+
+  // Fetch bulk email link options when popover opens
+  const fetchBulkLinkOptions = async () => {
+    setBulkLinkLoading(true);
+    try {
+      const response = await api.get<{
+        success: boolean;
+        has_job: boolean;
+        job_code?: string;
+        options: Array<{
+          type: string;
+          job_contact_id: number;
+          role: string;
+          name: string;
+          label: string;
+          emails: string[];
+          email_count: number;
+        }>;
+      }>(`/api/v1/sm_tasks/${task.id}/email_link_options`);
+
+      if (response?.success) {
+        setBulkLinkOptions({
+          hasJob: response.has_job,
+          jobCode: response.job_code,
+          options: response.options
+        });
+      }
+    } catch (err) {
+      console.error('Failed to fetch bulk link options:', err);
+    }
+    setBulkLinkLoading(false);
+  };
+
+  // Handle bulk link from job contact
+  const handleBulkLinkContact = async (jobContactId: number) => {
+    setBulkLinkLoading(true);
+    try {
+      const response = await api.post<{
+        success: boolean;
+        linked_count: number;
+        skipped_count: number;
+        attachments: TaskAttachment[];
+      }>(`/api/v1/sm_tasks/${task.id}/bulk_link_emails`, {
+        job_contact_id: jobContactId
+      });
+
+      if (response?.success) {
+        // Add new attachments to local state
+        setLocalAttachments(prev => [...prev, ...response.attachments]);
+        setBulkLinkOpen(false);
+        // Show success message (using existing toast or alert system)
+        if (response.linked_count > 0) {
+          alert(`Linked ${response.linked_count} emails to this task`);
+        } else {
+          alert('No new emails to link (all already attached)');
+        }
+      }
+    } catch (err) {
+      console.error('Failed to bulk link emails:', err);
+      alert('Failed to link emails');
+    }
+    setBulkLinkLoading(false);
+  };
+
+  // Handle bulk link from manual email address
+  const handleBulkLinkEmail = async () => {
+    if (!bulkLinkEmail.trim()) return;
+
+    setBulkLinkLoading(true);
+    try {
+      const response = await api.post<{
+        success: boolean;
+        linked_count: number;
+        skipped_count: number;
+        total_found: number;
+        attachments: TaskAttachment[];
+      }>(`/api/v1/sm_tasks/${task.id}/bulk_link_emails`, {
+        email_address: bulkLinkEmail.trim()
+      });
+
+      if (response?.success) {
+        setLocalAttachments(prev => [...prev, ...response.attachments]);
+        setBulkLinkOpen(false);
+        setBulkLinkEmail('');
+        if (response.linked_count > 0) {
+          alert(`Linked ${response.linked_count} emails to this task`);
+        } else if (response.total_found === 0) {
+          alert('No emails found for this address');
+        } else {
+          alert('No new emails to link (all already attached)');
+        }
+      }
+    } catch (err) {
+      console.error('Failed to bulk link emails:', err);
+      alert('Failed to link emails');
+    }
+    setBulkLinkLoading(false);
   };
 
   // Email-to-document highlighting handler
@@ -2948,14 +3066,87 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
             {/* Emails Section */}
             <div className="mb-3">
-              <div
-                className="flex items-center gap-2 mb-2 cursor-pointer"
-                onClick={() => setEmailsCollapsed(!emailsCollapsed)}
-              >
-                {emailsCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                <Mail className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-muted-foreground">Emails</span>
-                <Badge variant="secondary" className="text-xs">{emailAttachments.length}</Badge>
+              <div className="flex items-center gap-2 mb-2">
+                <div
+                  className="flex items-center gap-2 cursor-pointer flex-1"
+                  onClick={() => setEmailsCollapsed(!emailsCollapsed)}
+                >
+                  {emailsCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium text-muted-foreground">Emails</span>
+                  <Badge variant="secondary" className="text-xs">{emailAttachments.length}</Badge>
+                </div>
+
+                {/* Bulk Link Emails Button */}
+                <Popover open={bulkLinkOpen} onOpenChange={(open) => {
+                  setBulkLinkOpen(open);
+                  if (open) fetchBulkLinkOptions();
+                }}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Link2 className="h-3 w-3 mr-1" />
+                      Link
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-72 p-3" align="end">
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-medium">Link emails from:</h4>
+
+                      {bulkLinkLoading && (
+                        <div className="flex items-center justify-center py-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        </div>
+                      )}
+
+                      {!bulkLinkLoading && bulkLinkOptions?.options && bulkLinkOptions.options.length > 0 && (
+                        <div className="space-y-1">
+                          {bulkLinkOptions.options.map((opt) => (
+                            <button
+                              key={opt.job_contact_id}
+                              className="w-full flex items-center justify-between p-2 text-sm rounded hover:bg-muted text-left"
+                              onClick={() => handleBulkLinkContact(opt.job_contact_id)}
+                            >
+                              <span className="truncate">{opt.label}</span>
+                              <Badge variant="secondary" className="text-xs ml-2 shrink-0">
+                                {opt.email_count}
+                              </Badge>
+                            </button>
+                          ))}
+                          <div className="border-t my-2" />
+                        </div>
+                      )}
+
+                      {/* Manual email input */}
+                      <div className="space-y-2">
+                        <label className="text-xs text-muted-foreground">Or enter email address:</label>
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="email@example.com"
+                            value={bulkLinkEmail}
+                            onChange={(e) => setBulkLinkEmail(e.target.value)}
+                            className="h-8 text-xs flex-1"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleBulkLinkEmail();
+                            }}
+                          />
+                          <Button
+                            size="sm"
+                            className="h-8 px-3"
+                            onClick={handleBulkLinkEmail}
+                            disabled={!bulkLinkEmail.trim() || bulkLinkLoading}
+                          >
+                            Link
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               {!emailsCollapsed && (

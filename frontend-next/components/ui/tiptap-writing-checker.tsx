@@ -50,44 +50,55 @@ function IssueTooltip({
   onFix: () => void;
   onDismiss: () => void;
 }) {
-  const borderColor =
-    issue.type === "spelling"
-      ? "border-l-red-500"
-      : issue.type === "grammar"
-        ? "border-l-yellow-500"
-        : "border-l-blue-500";
+  const typeConfig = {
+    spelling: { color: "text-red-600 dark:text-red-400", bg: "bg-red-50 dark:bg-red-900/20", label: "Spelling" },
+    grammar: { color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-900/20", label: "Grammar" },
+    tone: { color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-900/20", label: "Tone" },
+  };
+
+  const config = typeConfig[issue.type];
 
   return (
     <div
-      className={`bg-popover text-popover-foreground shadow-lg rounded-md border border-l-4 ${borderColor} p-2 min-w-[200px] max-w-[300px] z-[9999]`}
+      className="bg-popover text-popover-foreground shadow-xl rounded-lg border p-3 w-72 z-[9999]"
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="text-xs text-muted-foreground uppercase mb-1">
-        {issue.type}
-      </div>
-      <div className="text-sm mb-2">
-        <span className="line-through text-muted-foreground mr-2">
-          {issue.original}
-        </span>
-        <span className="font-medium text-green-600 dark:text-green-400">
-          {issue.suggestion}
+      {/* Header with type badge */}
+      <div className="flex items-center gap-2 mb-2">
+        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${config.bg} ${config.color}`}>
+          {config.label}
         </span>
       </div>
-      {issue.explanation && (
-        <div className="text-xs text-muted-foreground mb-2">
-          {issue.explanation}
+
+      {/* Before/After comparison */}
+      <div className="space-y-1.5 mb-3">
+        <div className="flex items-start gap-2">
+          <span className="text-xs text-muted-foreground w-12 shrink-0 pt-0.5">Before:</span>
+          <span className="text-sm line-through text-muted-foreground">{issue.original}</span>
         </div>
+        <div className="flex items-start gap-2">
+          <span className="text-xs text-muted-foreground w-12 shrink-0 pt-0.5">After:</span>
+          <span className="text-sm font-medium text-green-600 dark:text-green-400">{issue.suggestion}</span>
+        </div>
+      </div>
+
+      {issue.explanation && (
+        <p className="text-xs text-muted-foreground mb-3 leading-relaxed">
+          {issue.explanation}
+        </p>
       )}
-      <div className="flex gap-1">
+
+      {/* Action buttons */}
+      <div className="flex gap-2">
         <button
           onClick={onFix}
-          className="text-xs px-2 py-1 bg-primary text-primary-foreground rounded hover:bg-primary/90"
+          className="flex-1 text-sm px-3 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 font-medium transition-colors"
         >
-          Fix
+          Apply Fix
         </button>
         <button
           onClick={onDismiss}
-          className="text-xs px-2 py-1 bg-muted hover:bg-muted/80 rounded"
+          className="text-sm px-3 py-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
         >
           Ignore
         </button>
