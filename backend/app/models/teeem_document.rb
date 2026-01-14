@@ -32,8 +32,9 @@ class TeeemDocument < ApplicationRecord
   # ========================================
 
   # SSoT: Full warehouse path including filename
+  # Include ID to prevent collisions when multiple documents have the same name
   def warehouse_path
-    "#{warehouse_folder_path}/#{safe_filename}.html".gsub(%r{/+}, "/")
+    "#{warehouse_folder_path}/#{safe_filename}_#{id}.html".gsub(%r{/+}, "/")
   end
 
   # SSoT: Folder path computed by StorageConfiguration

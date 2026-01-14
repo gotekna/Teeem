@@ -28,8 +28,9 @@ class TeeemSpreadsheet < ApplicationRecord
   # ========================================
 
   # SSoT: Full warehouse path including filename
+  # Include ID to prevent collisions when multiple spreadsheets have the same name
   def warehouse_path
-    "#{warehouse_folder_path}/#{safe_filename}.xlsx".gsub(%r{/+}, "/")
+    "#{warehouse_folder_path}/#{safe_filename}_#{id}.xlsx".gsub(%r{/+}, "/")
   end
 
   # SSoT: Folder path computed by StorageConfiguration

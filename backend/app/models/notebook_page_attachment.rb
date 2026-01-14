@@ -62,9 +62,12 @@ class NotebookPageAttachment < ApplicationRecord
   # ========================================
 
   # SSoT: Full warehouse path including filename
-  # Example: "Warehousing/Notes/Robert Harder/2026/report.pdf"
+  # Include ID to prevent collisions when multiple attachments have the same name
+  # Example: "Warehousing/Notes/Robert Harder/2026/report_123.pdf"
   def warehouse_path
-    "#{warehouse_folder_path}/#{file_name}".gsub(%r{/+}, "/")
+    ext = File.extname(file_name)
+    base = File.basename(file_name, ext)
+    "#{warehouse_folder_path}/#{base}_#{id}#{ext}".gsub(%r{/+}, "/")
   end
 
   # SSoT: Folder path computed by StorageConfiguration

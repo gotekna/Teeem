@@ -66,8 +66,9 @@ class TeeemPdf < ApplicationRecord
   # ========================================
 
   # SSoT: Full warehouse path including filename
+  # Include ID to prevent collisions when multiple PDFs have the same name
   def warehouse_path
-    "#{warehouse_folder_path}/#{safe_filename}.pdf".gsub(%r{/+}, "/")
+    "#{warehouse_folder_path}/#{safe_filename}_#{id}.pdf".gsub(%r{/+}, "/")
   end
 
   # SSoT: Folder path computed by StorageConfiguration

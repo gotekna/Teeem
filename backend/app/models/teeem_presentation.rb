@@ -44,8 +44,9 @@ class TeeemPresentation < ApplicationRecord
   # ========================================
 
   # SSoT: Full warehouse path including filename
+  # Include ID to prevent collisions when multiple presentations have the same name
   def warehouse_path
-    "#{warehouse_folder_path}/#{safe_filename}.pptx".gsub(%r{/+}, "/")
+    "#{warehouse_folder_path}/#{safe_filename}_#{id}.pptx".gsub(%r{/+}, "/")
   end
 
   # SSoT: Folder path computed by StorageConfiguration
