@@ -977,6 +977,7 @@ module Api
         doc_attrs = {
           file_name: file.original_filename,
           display_name: file.original_filename,
+          mime_type: file.content_type,  # Required for PDF/image preview
           document_type: "other",
           filed_by: current_user&.name,
           uploaded_at: Time.current

@@ -65,8 +65,16 @@ class TaskResponseUploader
   # @param file [ActionDispatch::Http::UploadedFile] Original file
   # @return [CorporateCompanyDocument] The created document record
   def create_document_record(upload_result, file)
+    # Get mime type from uploaded file (important for preview to work)
+    mime_type = if file.respond_to?(:content_type)
+                  file.content_type
+                else
+                  Marcel::MimeType.for(name: upload_result[:filename])
+                end
+
     attrs = {
       file_name: upload_result[:filename],
+      mime_type: mime_type,  # Required for PDF/image preview
       # SSoT: Use storage_item_id (provider-agnostic) instead of sharepoint_file_id
       storage_item_id: upload_result[:file_id],
       # Map provider type to valid storage_provider value

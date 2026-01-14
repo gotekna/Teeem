@@ -545,6 +545,7 @@ module Api
             new_document = CorporateCompanyDocument.create!(
               company_id: @document.company_id,
               file_name: new_filename,
+              mime_type: @document.mime_type || Marcel::MimeType.for(name: new_filename),  # Inherit or detect
               folder: @document.folder,
               document_type: params[:document_type] || @document.document_type,
               source: "edited",

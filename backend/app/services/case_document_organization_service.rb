@@ -325,6 +325,7 @@ class CaseDocumentOrganizationService
       document_type: doc_type,
       file_name: file_info[:name],
       file_size: file_info[:size],
+      mime_type: file_info[:mime_type],  # Required for PDF/image preview
       content_hash: file_info[:content_hash],
       sharepoint_file_id: graph_result.is_a?(Hash) ? graph_result["id"] : nil,
       sharepoint_download_url: graph_result.is_a?(Hash) ? graph_result["webUrl"] : nil,

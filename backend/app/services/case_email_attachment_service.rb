@@ -172,6 +172,7 @@ class CaseEmailAttachmentService
       document_type: doc_type,
       file_name: file.filename.to_s,
       file_size: file.byte_size,
+      mime_type: file.content_type,  # Required for PDF/image preview
       content_hash: content_hash,
       sharepoint_file_id: graph_result[:id],
       sharepoint_download_url: graph_result[:web_url],

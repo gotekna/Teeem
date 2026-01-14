@@ -256,7 +256,9 @@ class EmailStorageUploadService
 
     # Update email record with provider-agnostic storage_path
     # Also update legacy columns for backward compatibility during migration
-    email.update!(
+    # Use update_columns to bypass uniqueness validation on internet_message_id
+    # (duplicates exist in DB, but we still want to upload their .eml files)
+    email.update_columns(
       storage_path: result[:path],
       storage_file_id: result[:id],
       sharepoint_email_path: result[:path],

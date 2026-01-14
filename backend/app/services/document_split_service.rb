@@ -162,6 +162,7 @@ class DocumentSplitService
       file_name: split_config[:title],  # Input still called :title, maps to file_name
       folder: split_config[:folder] || @document.folder,
       document_type: split_config[:document_type],
+      mime_type: "application/pdf",  # Split service only processes PDFs
       source: "split",
       sharepoint_file_id: sharepoint_file_id,
       file_size: file_size,

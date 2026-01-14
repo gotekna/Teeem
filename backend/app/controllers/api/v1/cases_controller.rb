@@ -565,6 +565,7 @@ module Api
             company_id: @case.company_id,
             title: review.new_file_name,
             filename: review.new_file_name,
+            mime_type: Marcel::MimeType.for(name: review.new_file_name),  # Required for PDF/image preview
             onedrive_id: params[:new_onedrive_id],
             onedrive_path: review.new_file_path,
             content_hash: review.new_file_hash,
