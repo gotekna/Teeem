@@ -2131,6 +2131,48 @@ function IntegrationsSubTab() {
             </CardContent>
           </Link>
         </Card>
+
+        {/* Cloudflare */}
+        <Card className="hover:bg-accent/50 transition-colors">
+          <Link href="/settings/integrations/cloudflare">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-orange-100 dark:bg-orange-900 rounded-lg">
+                    <Cloud className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">Cloudflare</CardTitle>
+                    <CardDescription>DNS Management</CardDescription>
+                  </div>
+                </div>
+                {!loading && (
+                  cloudflareStatus?.connected ? (
+                    <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      Connected
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary">
+                      <XCircle className="h-3 w-3 mr-1" />
+                      Not Connected
+                    </Badge>
+                  )
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Automatic DNS provisioning for email reseller domains.
+              </p>
+              {!loading && cloudflareStatus?.connected && cloudflareStatus.account_id && (
+                <p className="text-sm font-medium mt-2 text-orange-700 dark:text-orange-400 font-mono">
+                  Account: {cloudflareStatus.account_id}
+                </p>
+              )}
+            </CardContent>
+          </Link>
+        </Card>
       </div>
     </div>
   );
