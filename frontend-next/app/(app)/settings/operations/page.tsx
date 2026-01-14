@@ -74,7 +74,7 @@ export default function OperationsSettingsPage() {
 
         <div className="mt-6">
           <TabsContent value="schedule-master" className="h-full">
-            <ScheduleMasterTab />
+            <ScheduleMasterTab basePath="/settings/operations/schedule-master" />
           </TabsContent>
           <TabsContent value="sm-tasks" className="h-full">
             <SMTasksTab />

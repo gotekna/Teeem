@@ -17,7 +17,8 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+import { VIEW_CHANGE_EVENT } from "@/lib/breadcrumb-atoms";
 
 interface UseViewFromPathOptions {
   /** Foundation slug for path construction (e.g., "jobs", "contacts") */
@@ -27,8 +28,11 @@ interface UseViewFromPathOptions {
 interface UseViewFromPathReturn {
   /** Current view slug from query param, null if on default view */
   viewSlug: string | null;
-  /** Navigate to a different view (client-side, no page reload) */
-  setViewSlug: (slug: string | null) => void;
+  /** Navigate to a different view (client-side, no page reload)
+   * @param slug - View slug or null for default view
+   * @param options.silent - If true, update URL without triggering React re-renders (for auto-select)
+   */
+  setViewSlug: (slug: string | null, options?: { silent?: boolean }) => void;
   /** Check if currently on default view (no slug) */
   isDefaultView: boolean;
 }
@@ -48,7 +52,6 @@ interface UseViewFromPathReturn {
 export function useViewFromPath({
   foundationSlug,
 }: UseViewFromPathOptions): UseViewFromPathReturn {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -80,8 +83,10 @@ export function useViewFromPath({
   }, [pathname, searchParams, foundationSlug]);
 
   // Navigate to a view using path-based URL (SSoT standard)
+  // ALL view changes use history.replaceState + custom event
+  // This prevents React re-renders/flash while keeping breadcrumbs in sync
   const setViewSlug = useCallback(
-    (slug: string | null) => {
+    (slug: string | null, options?: { silent?: boolean }) => {
       // Get base path without /view/slug suffix
       let basePath = pathname || `/${foundationSlug}`;
 
@@ -97,15 +102,27 @@ export function useViewFromPath({
         basePath = basePath.substring(0, queryIndex);
       }
 
-      if (slug) {
-        // Navigate to path-based view URL
-        router.push(`${basePath}/view/${slug}`, { scroll: false });
-      } else {
-        // Navigate to base path (default view)
-        router.push(basePath, { scroll: false });
+      const newPath = slug ? `${basePath}/view/${slug}` : basePath;
+
+      // Skip if URL is already correct (prevents redundant updates)
+      // Check both pathname (React state) and actual browser URL
+      if (pathname === newPath || (typeof window !== 'undefined' && window.location.pathname === newPath)) {
+        return;
+      }
+
+      // All view changes use history.replaceState (no React re-renders)
+      // Then dispatch event so breadcrumbs can update from actual URL
+      if (typeof window !== 'undefined') {
+        window.history.replaceState(
+          { ...window.history.state, as: newPath, url: newPath },
+          '',
+          newPath
+        );
+        // Trigger breadcrumb rebuild (reads from window.location)
+        window.dispatchEvent(new CustomEvent(VIEW_CHANGE_EVENT));
       }
     },
-    [router, pathname, foundationSlug]
+    [pathname, foundationSlug]
   );
 
   const isDefaultView = viewSlug === null;

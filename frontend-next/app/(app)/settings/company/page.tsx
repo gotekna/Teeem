@@ -6,13 +6,11 @@ import { usePathname, useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Import company-related tab components from admin
-import { SecurityTab } from "@/app/(app)/admin/system/components/SecurityTab";
-import { PermissionsTab } from "@/app/(app)/admin/system/components/PermissionsTab";
-import { CorporateTab } from "@/app/(app)/admin/system/components/CorporateTab";
+// SSoT: Security & Permissions moved to /settings/roles (consolidated Access Control page)
+// SSoT: Corporate moved to /settings/corporate (top-level Organization tab)
 import { HolidaysTab } from "@/app/(app)/admin/system/components/HolidaysTab";
 import { WorkflowsTab } from "@/app/(app)/admin/system/components/WorkflowsTab";
 import { BrandColorsTab } from "@/app/(app)/admin/system/components/BrandColorsTab";
-import { BrandGuidelinesTab } from "@/app/(app)/admin/system/components/BrandGuidelinesTab";
 import { DocumentTemplatesTab } from "@/app/(app)/admin/system/components/DocumentTemplatesTab";
 import { ConnectionsTab } from "@/app/(app)/admin/system/components/ConnectionsTab";
 import { JobSetupTab } from "@/app/(app)/admin/system/components/JobSetupTab";
@@ -27,16 +25,16 @@ import CompanyInfoTab from "@/app/(app)/admin/system/components/CompanyInfoTab";
  * Admin role required (enforced by layout).
  *
  * URL is SSoT for tab state: /settings/company/[tab]
+ *
+ * SSoT Note: Security & Permissions have been consolidated into /settings/roles
+ * SSoT Note: Corporate moved to /settings/corporate (top-level Organization tab)
  */
 
+// SSoT: Brand Guidelines moved to /settings/developer (developer tool)
 const COMPANY_TABS = [
   { id: "info", label: "Info" },
   { id: "brand-colors", label: "Brand Colors" },
-  { id: "brand-guidelines", label: "Brand Guidelines" },
   { id: "doc-templates", label: "Doc Templates" },
-  { id: "security", label: "Security" },
-  { id: "permissions", label: "Permissions" },
-  { id: "corporate", label: "Corporate" },
   { id: "holidays", label: "Holidays" },
   { id: "workflows", label: "Workflows" },
   { id: "connections", label: "Connections" },
@@ -51,14 +49,20 @@ export default function CompanySettingsPage() {
   const router = useRouter();
 
   // URL is SSoT for tab state (path-based navigation)
-  const { activeTab, subTab } = useMemo(() => {
+  const { activeTab, subTab, docTemplatesInnerTab } = useMemo(() => {
     const parts = pathname.replace("/settings/company", "").split("/").filter(Boolean);
     const tab = parts[0] || DEFAULT_TAB;
     const sub = parts[1] || undefined;
+    // For doc-templates, parse inner tab from /doc-templates/inner/{innerTab}
+    let innerTab: string | undefined;
+    if (tab === "doc-templates" && parts[1] === "inner" && parts[2]) {
+      innerTab = parts[2];
+    }
     // Validate tab exists
     return {
       activeTab: COMPANY_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB,
       subTab: sub,
+      docTemplatesInnerTab: innerTab,
     };
   }, [pathname]);
 
@@ -74,10 +78,6 @@ export default function CompanySettingsPage() {
     if (!subTab) {
       if (activeTab === "connections") {
         router.replace("/settings/company/connections/provider", { scroll: false });
-      } else if (activeTab === "security") {
-        router.replace("/settings/company/security/users", { scroll: false });
-      } else if (activeTab === "corporate") {
-        router.replace("/settings/company/corporate/groups", { scroll: false });
       }
     }
   }, [activeTab, subTab, router]);
@@ -108,18 +108,6 @@ export default function CompanySettingsPage() {
           <TabsContent value="brand-colors">
             <BrandColorsTab />
           </TabsContent>
-          <TabsContent value="brand-guidelines">
-            <BrandGuidelinesTab />
-          </TabsContent>
-          <TabsContent value="security">
-            <SecurityTab subTab={subTab} />
-          </TabsContent>
-          <TabsContent value="permissions">
-            <PermissionsTab />
-          </TabsContent>
-          <TabsContent value="corporate">
-            <CorporateTab subTab={subTab} />
-          </TabsContent>
           <TabsContent value="holidays">
             <HolidaysTab />
           </TabsContent>
@@ -136,7 +124,10 @@ export default function CompanySettingsPage() {
             <WorkflowConfigTab />
           </TabsContent>
           <TabsContent value="doc-templates">
-            <DocumentTemplatesTab />
+            <DocumentTemplatesTab
+              basePath="/settings/company/doc-templates"
+              innerTab={docTemplatesInnerTab}
+            />
           </TabsContent>
         </div>
       </Tabs>

@@ -329,7 +329,14 @@ type ColumnStatus = {
 
 const COLUMN_STATUS_KEY = "sm_column_status";
 
-export function ScheduleMasterTab() {
+interface ScheduleMasterTabProps {
+  /** Base path for navigation (e.g., "/settings/operations/schedule-master" or "/admin/system/schedule-master") */
+  basePath?: string;
+}
+
+const DEFAULT_SM_BASE_PATH = "/admin/system/schedule-master";
+
+export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleMasterTabProps) {
   console.log("[ScheduleMasterTab] Component mounted - v2 with document types");
   const { toast } = useToast();
   const router = useRouter();
@@ -338,14 +345,14 @@ export function ScheduleMasterTab() {
   const jotaiStore = useStore();
 
   // SSoT: Parse path segments for state
-  // Pattern: /admin/system/schedule-master/[subtab]/[view-or-table]
+  // Pattern: /[basePath]/[subtab]/[view-or-table]
   const pathSegments = React.useMemo(() => {
-    const parts = pathname.replace("/admin/system/schedule-master", "").split("/").filter(Boolean);
+    const parts = pathname.replace(basePath, "").split("/").filter(Boolean);
     return {
       subtab: parts[0] || null,  // e.g., "data-view", "tables"
       extra: parts[1] || null,   // e.g., "live" (view) or "sm_resources" (table)
     };
-  }, [pathname]);
+  }, [pathname, basePath]);
 
   // URL is SSoT for tab state (back button support)
   const activeTab: SubTab = VALID_SUBTABS.includes(pathSegments.subtab as SubTab)
@@ -385,8 +392,8 @@ export function ScheduleMasterTab() {
 
   // Clear view filter from URL
   const handleViewClear = React.useCallback(() => {
-    router.push("/admin/system/schedule-master/data-view", { scroll: false });
-  }, [router]);
+    router.push(`${basePath}/data-view`, { scroll: false });
+  }, [router, basePath]);
 
   // Update URL when view changes (for path-based view persistence)
   // SSoT: Template dropdown selection is KEPT when views change
@@ -400,22 +407,22 @@ export function ScheduleMasterTab() {
     if (pendingTemplateIdRef.current !== null) return;
 
     if (view?.slug) {
-      router.push(`/admin/system/schedule-master/data-view/${view.slug}`, { scroll: false });
+      router.push(`${basePath}/data-view/${view.slug}`, { scroll: false });
     }
     // Note: Do NOT sync template from view filters
     // The template dropdown stays as the user selected it
     // Saved views add additional filters on top of the template filter
-  }, [router]);
+  }, [router, basePath]);
 
   // Update URL when tab changes
   const handleTabChange = React.useCallback((value: string) => {
     const newTab = value as SubTab;
     if (newTab === "schedule-templates") {
-      router.push("/admin/system/schedule-master", { scroll: false });
+      router.push(basePath, { scroll: false });
     } else {
-      router.push(`/admin/system/schedule-master/${newTab}`, { scroll: false });
+      router.push(`${basePath}/${newTab}`, { scroll: false });
     }
-  }, [router]);
+  }, [router, basePath]);
 
   // Schedule Templates state
   const [templates, setTemplates] = React.useState<SmScheduleMasterTemplate[]>([]);
@@ -566,11 +573,11 @@ export function ScheduleMasterTab() {
   // Update URL when table changes
   const handleTableChange = React.useCallback((tableId: LookupTableId) => {
     if (tableId === "sm_trades") {
-      router.push("/admin/system/schedule-master/tables", { scroll: false });
+      router.push(`${basePath}/tables`, { scroll: false });
     } else {
-      router.push(`/admin/system/schedule-master/tables/${tableId}`, { scroll: false });
+      router.push(`${basePath}/tables/${tableId}`, { scroll: false });
     }
-  }, [router]);
+  }, [router, basePath]);
 
   const [lookupTableRefreshKey, setLookupTableRefreshKey] = React.useState(0);
 
@@ -2808,7 +2815,7 @@ export function ScheduleMasterTab() {
                           setOverrideViewSlugClear(true); // Immediately clear view for TeeemTableView
                           setDataViewTemplateId(newTemplateId);
                           setDataViewRefreshKey(k => k + 1);
-                          router.push('/admin/system/schedule-master/data-view', { scroll: false });
+                          router.push(`${basePath}/data-view`, { scroll: false });
                           // Clear ref after a tick to allow state to propagate
                           setTimeout(() => {
                             pendingTemplateIdRef.current = null;

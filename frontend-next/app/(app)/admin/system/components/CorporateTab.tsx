@@ -1228,14 +1228,21 @@ const CORPORATE_SUB_TABS = [
 ];
 
 // ===== MAIN CORPORATE TAB =====
-export function CorporateTab({ subTab }: { subTab?: string }) {
+const DEFAULT_CORPORATE_BASE_PATH = "/settings/corporate";
+
+interface CorporateTabProps {
+  subTab?: string;
+  basePath?: string;
+}
+
+export function CorporateTab({ subTab, basePath = DEFAULT_CORPORATE_BASE_PATH }: CorporateTabProps) {
   const router = useRouter();
 
   // Validate and default the sub-tab
   const activeSubTab = CORPORATE_SUB_TABS.some((t) => t.id === subTab) ? subTab : "groups";
 
   const handleSubTabChange = (tabId: string) => {
-    router.push(`/settings/company/corporate/${tabId}`, { scroll: false });
+    router.push(`${basePath}/${tabId}`, { scroll: false });
   };
 
   return (

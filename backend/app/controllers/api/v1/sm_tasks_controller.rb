@@ -833,6 +833,26 @@ module Api
         render json: { success: false, error: "Attachment not found" }, status: :not_found
       end
 
+      # PATCH /api/v1/sm_tasks/:id/attachments/:attachment_id
+      # Update attachment properties (e.g., link to a question via action_item_id)
+      def update_attachment
+        attachment = @task.sm_task_attachments.find(params[:attachment_id])
+
+        permitted = params.permit(:action_item_id, :category, :notes)
+        attachment.update!(permitted)
+
+        render json: {
+          success: true,
+          attachment: attachment_to_json(attachment).merge(
+            action_item_id: attachment.action_item_id
+          )
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Attachment not found" }, status: :not_found
+      rescue => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
       # POST /api/v1/sm_tasks/:id/attachments/upload
       # Upload a file and attach it to the task
       # Params:

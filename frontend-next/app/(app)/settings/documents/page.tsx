@@ -68,10 +68,10 @@ export default function DocumentsSettingsPage() {
 
         <div className="mt-6">
           <TabsContent value="types">
-            <DocumentTypesTab />
+            <DocumentTypesTab basePath="/settings/documents/types" />
           </TabsContent>
           <TabsContent value="templates">
-            <DocumentTemplatesTab />
+            <DocumentTemplatesTab basePath="/settings/documents/templates" />
           </TabsContent>
           <TabsContent value="pdf-fields">
             <PdfFieldsTab />

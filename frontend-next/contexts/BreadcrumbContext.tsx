@@ -27,6 +27,7 @@ import {
   breadcrumbTrailAtom,
   generateBreadcrumbId,
   MAX_TRAIL_LENGTH,
+  VIEW_CHANGE_EVENT,
   type BreadcrumbItem,
 } from "@/lib/breadcrumb-atoms";
 import { searchQueryAtom } from "@/lib/table-atoms";
@@ -100,6 +101,27 @@ export function BreadcrumbProvider({ children }: { children: ReactNode }) {
     window.addEventListener(SIDEBAR_NAVIGATION_EVENT, handleSidebarNav);
     return () => window.removeEventListener(SIDEBAR_NAVIGATION_EVENT, handleSidebarNav);
   }, [resetTrail, setSearchQuery]);
+
+  /**
+   * Listen for view change events
+   * Rebuilds trail from current URL when view changes via history.replaceState()
+   * This decouples breadcrumb updates from React navigation (prevents flash)
+   */
+  useEffect(() => {
+    const handleViewChange = () => {
+      // Read from actual browser URL (not pathname which doesn't update on replaceState)
+      const currentPath = window.location.pathname;
+      const currentSearch = window.location.search;
+      const params = currentSearch ? new URLSearchParams(currentSearch.slice(1)) : null;
+
+      // Rebuild trail from current URL
+      const newTrail = buildBreadcrumbsFromUrl(currentPath, params);
+      setTrail(newTrail);
+    };
+
+    window.addEventListener(VIEW_CHANGE_EVENT, handleViewChange);
+    return () => window.removeEventListener(VIEW_CHANGE_EVENT, handleViewChange);
+  }, [setTrail]);
 
   /**
    * Track navigation changes

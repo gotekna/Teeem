@@ -79,9 +79,13 @@ const DOC_INNER_TABS = [
 
 interface DocumentTemplatesTabProps {
   innerTab?: string;
+  /** Base path for navigation (e.g., "/settings/company/doc-templates" or "/admin/system/company/doc-templates") */
+  basePath?: string;
 }
 
-export function DocumentTemplatesTab({ innerTab: innerTabProp }: DocumentTemplatesTabProps) {
+const DEFAULT_BASE_PATH = "/admin/system/company/doc-templates";
+
+export function DocumentTemplatesTab({ innerTab: innerTabProp, basePath = DEFAULT_BASE_PATH }: DocumentTemplatesTabProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const subtabFromUrl = searchParams.get("subtab");
@@ -92,14 +96,14 @@ export function DocumentTemplatesTab({ innerTab: innerTabProp }: DocumentTemplat
   const handleTabChange = useCallback((tabId: string) => {
     const innerPath = innerTab !== "documents" ? `/inner/${innerTab}` : "";
     const url = tabId === "ssot"
-      ? `/admin/system/company/doc-templates${innerPath}`
-      : `/admin/system/company/doc-templates/${tabId}${innerPath}`;
+      ? `${basePath}${innerPath}`
+      : `${basePath}/${tabId}${innerPath}`;
     router.push(url, { scroll: false });
-  }, [router, innerTab]);
+  }, [router, innerTab, basePath]);
 
   const handleInnerTabChange = (value: string) => {
     const subtabPath = subtabFromUrl ? `/${subtabFromUrl}` : "";
-    router.push(`/admin/system/company/doc-templates${subtabPath}/inner/${value}`, { scroll: false });
+    router.push(`${basePath}${subtabPath}/inner/${value}`, { scroll: false });
   };
 
   const [ssotTemplates, setSsotTemplates] = React.useState<SsotTemplate[]>([]);

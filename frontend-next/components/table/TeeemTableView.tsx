@@ -3134,12 +3134,13 @@ export default function TeeemTableView({
   // isUserAction: set to true when user explicitly clicks to change view (for URL updates in embedded context)
   // NOTE: This function is now simplified - atoms handle the atomic state updates
   const loadViewState = useCallback(
-    (view: SavedView, skipUrlUpdate = false, isUserAction = false) => {
+    (view: SavedView, skipUrlUpdate = false, isUserAction = false, silentUrlUpdate = false) => {
       console.log('[loadViewState] Called with:', {
         viewId: view.id,
         viewName: view.name,
         skipUrlUpdate,
         isUserAction,
+        silentUrlUpdate,
         foundationSlug,
       });
 
@@ -3195,13 +3196,16 @@ export default function TeeemTableView({
       // - Embedded context: Parent owns URL, only notify on user actions
       // - Standalone context: Navigate using path-based URLs (/jobs/view/live)
       // SSoT: isEmbeddedContext defined at component top
-      // IMPORTANT: Only update URL on explicit user action to prevent conflicts with
-      // other URL state management (e.g., useUrlState, tabs). Initial view load should
-      // NOT modify the URL - only user-initiated view changes should update it.
-      if (view.id && !skipUrlUpdate && !isEmbeddedContext && isUserAction && foundationSlug) {
-        const newViewSlug = view.slug || null;
-        // Use path-based navigation: /jobs/view/live
-        navigateToView(newViewSlug);
+      // - silentUrlUpdate: Use history.replaceState (no React re-render) - for auto-select
+      // - isUserAction: Use router.replace (triggers re-render for breadcrumbs) - for user clicks
+      if (view.id && !skipUrlUpdate && !isEmbeddedContext && foundationSlug) {
+        if (isUserAction || silentUrlUpdate) {
+          const newViewSlug = view.slug || null;
+          // Use path-based navigation: /jobs/view/live
+          // Silent mode for auto-select only (prevents flash on load)
+          // Normal mode for user clicks (updates breadcrumbs)
+          navigateToView(newViewSlug, { silent: silentUrlUpdate });
+        }
       }
 
       // Handle apiParams for server-side filtering
@@ -3226,13 +3230,15 @@ export default function TeeemTableView({
     // Reset user selection flag when foundation changes (new context = fresh start)
     userSelectedViewRef.current = false;
 
-    // ⚠️ DO NOT REMOVE - Abort flag for async cleanup (v2701)
+    // ⚠️ DO NOT REMOVE - Foundation tracking for async cleanup (v2701 updated Jan 2026)
     // ════════════════════════════════════════════════════════════════════
     // Why: When component remounts (key change), old async effect can still
     //      complete and apply view to global atoms, causing view conflicts.
-    //      The abort flag prevents applying view after unmount.
+    //      We track the foundation ID that started the load to prevent applying
+    //      views to a DIFFERENT foundation. StrictMode double-mount is safe
+    //      because the foundation ID remains the same.
     // ════════════════════════════════════════════════════════════════════
-    let aborted = false;
+    const loadStartFoundationId = effectiveFoundationId;
 
     const loadSavedViews = async () => {
       if (!effectiveFoundationId) return;
@@ -3261,11 +3267,15 @@ export default function TeeemTableView({
         // Pass inheritViewsFrom to include global views from related foundations
         const result = await loadViews(effectiveFoundationId, inheritViewsFrom);
 
-        // ⚠️ ABORT CHECK - Prevents applying view after component unmounts (v2701)
+        // ⚠️ FOUNDATION CHANGE CHECK - Prevents applying view to wrong foundation (v2701 updated Jan 2026)
         // This is critical for template switching: old component's async effect
-        // must not apply view to global atoms after it unmounts
-        if (aborted) {
-          console.log('[loadSavedViews] Aborted - component unmounted during load');
+        // must not apply view to a DIFFERENT foundation's global atoms.
+        // StrictMode double-mount is safe (same foundation ID) and should proceed.
+        if (loadStartFoundationId !== effectiveFoundationId) {
+          console.log('[loadSavedViews] Foundation changed during load, skipping view application', {
+            startedWith: loadStartFoundationId,
+            currentFoundation: effectiveFoundationId,
+          });
           return;
         }
 
@@ -3307,10 +3317,12 @@ export default function TeeemTableView({
         const urlViewExistsForFoundation = !!urlMatchedView;
         // Convert to number for selectDefaultView (database IDs are always numeric)
         const matchedViewNumericId = urlMatchedView ? (typeof urlMatchedView.id === 'number' ? urlMatchedView.id : parseInt(String(urlMatchedView.id), 10)) : null;
+
+        // Priority: URL view > default (URL is SSoT for view selection)
         const effectiveViewId = urlViewExistsForFoundation ? matchedViewNumericId : defaultViewId;
 
         const defaultView = selectDefaultView(filteredViews, {
-          urlViewId: effectiveViewId,
+          urlViewId: effectiveViewId as number | null,
           preferGlobal: true,
         });
 
@@ -3329,37 +3341,34 @@ export default function TeeemTableView({
           // ════════════════════════════════════════════════════════════════════
           const explicitlyNoView = defaultViewSlug === null;
 
-          console.log('[loadSavedViews] v2705 - View application check:', {
+          // Check if user has selected a view in THIS session
+          const userSelectedThisSession = userSelectedViewRef.current;
+
+          console.log('[loadSavedViews] View application check:', {
             defaultViewSlug,
             explicitlyNoView,
             ssrAlreadyAppliedView,
-            userSelected: userSelectedViewRef.current,
-            willApply: !ssrAlreadyAppliedView && !userSelectedViewRef.current && !explicitlyNoView,
+            userSelectedThisSession,
+            urlViewExistsForFoundation,
+            willApply: !ssrAlreadyAppliedView && !userSelectedThisSession && !explicitlyNoView,
             defaultViewName: defaultView?.name,
           });
 
-          // ALSO skip if user has already selected a view (prevents race condition override)
-          // This fixes: user clicks global view, but async loadSavedViews completion overrides it
-          if (!ssrAlreadyAppliedView && !userSelectedViewRef.current && !explicitlyNoView) {
-            // ⚠️ ABORT CHECK #2 - Final check before applying view (v2703)
-            // This catches the race where unmount happens between line 3053 check and here
-            if (aborted) {
-              console.log('[loadSavedViews] Aborted before loadViewState - component unmounted');
-              return;
-            }
-            // No SSR view and no user selection - apply default view now
-            // If no view was in URL, update URL to reflect auto-selected default view
-            // This ensures breadcrumbs and URL show the active view
-            const skipUrlUpdate = !!urlViewExistsForFoundation;
-            const shouldUpdateUrl = !urlViewExistsForFoundation;
-            console.log('[loadSavedViews] About to call loadViewState with:', {
+          // Skip if:
+          // - SSR already applied a view, OR
+          // - User selected a view THIS session (prevents race condition), OR
+          // - Explicitly no view requested
+          if (!ssrAlreadyAppliedView && !userSelectedThisSession && !explicitlyNoView) {
+            // Apply the selected view
+            // URL is SSoT - always update it (event-based breadcrumbs handle sync)
+            console.log('[loadSavedViews] Auto-applying view:', {
               viewId: defaultView.id,
               viewName: defaultView.name,
               viewSlug: defaultView.slug,
-              skipUrlUpdate,
-              shouldUpdateUrl,
             });
-            loadViewState(defaultView, skipUrlUpdate, shouldUpdateUrl);
+            // silentUrlUpdate: true - uses history.replaceState + VIEW_CHANGE_EVENT
+            // This updates URL and triggers breadcrumb rebuild without React re-renders
+            loadViewState(defaultView, false, false, true);
           } else if (explicitlyNoView) {
             // ⚠️ v2706: CLEAR view filters when defaultViewSlug === null
             // ════════════════════════════════════════════════════════════════════
@@ -3404,11 +3413,8 @@ export default function TeeemTableView({
 
     loadSavedViews();
 
-    // Cleanup: abort async operation if component unmounts before it completes
-    // This prevents the old component's effect from applying view to global atoms
-    return () => {
-      aborted = true;
-    };
+    // No cleanup needed - viewsLoadingRef prevents duplicate loads
+    // Foundation ID check in loadSavedViews prevents applying to wrong foundation
   }, [effectiveFoundationId, preloadedViews, disableSavedViews, inheritViewsFrom]);
 
   // Expose loadViewState to parent via callback
@@ -5769,7 +5775,8 @@ export default function TeeemTableView({
     },
     savedViews,
     activeView: activeView || null,
-    loadView: loadViewState,
+    // Context loadView is always user-initiated, so pass isUserAction=true
+    loadView: (view: SavedView) => loadViewState(view, false, true, false),
     isLoading: columnsLoading || isLoadingMore || serverSearchLoading,
     error: null,
     hasMore: hasMore || serverHasMore,

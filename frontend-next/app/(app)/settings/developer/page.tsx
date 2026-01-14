@@ -10,6 +10,7 @@ import { GoldStandardTab } from "@/app/(app)/admin/system/components/GoldStandar
 import { DeveloperToolsTab } from "@/app/(app)/admin/system/components/DeveloperToolsTab";
 import { EntityConfigurationTab } from "@/app/(app)/admin/system/components/EntityConfigurationTab";
 import { UnrealEngineTab } from "@/app/(app)/admin/system/components/UnrealEngineTab";
+import { BrandGuidelinesTab } from "@/app/(app)/admin/system/components/BrandGuidelinesTab";
 
 /**
  * Developer Settings Page - Organization Settings
@@ -25,6 +26,7 @@ const DEVELOPER_TABS = [
   { id: "components", label: "Components Lab" },
   { id: "tools", label: "Developer Tools" },
   { id: "entity-config", label: "Entity Config" },
+  { id: "brand-guidelines", label: "Brand Guidelines" },
   { id: "unreal-engine", label: "Unreal Engine" },
 ];
 
@@ -77,6 +79,9 @@ export default function DeveloperSettingsPage() {
           </TabsContent>
           <TabsContent value="entity-config">
             <EntityConfigurationTab />
+          </TabsContent>
+          <TabsContent value="brand-guidelines">
+            <BrandGuidelinesTab />
           </TabsContent>
           <TabsContent value="unreal-engine">
             <UnrealEngineTab />

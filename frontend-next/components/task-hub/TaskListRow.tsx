@@ -68,8 +68,8 @@ export function TaskListRow({
   const handleRowDoubleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    // SSoT: Use router.push for same-tab client-side navigation (matches Jobs/Contacts/Pricebook pattern)
-    router.push(`/sm_tasks/${task.id}`);
+    // Open task in new tab on double-click (user preference)
+    window.open(`/sm_tasks/${task.id}`, '_blank');
   };
 
   const handleStatusChange = async (newStatus: SmTask['status']) => {

@@ -908,8 +908,8 @@ function GroupsManagementTab() {
 
 // Main Security Tab Component
 // Sub-tab definitions for security
+// SSoT: "Users" removed - use /settings/users instead (the SSoT for user management)
 const SECURITY_SUB_TABS = [
-  { id: "users", label: "Users" },
   { id: "roles", label: "User Roles" },
   { id: "groups", label: "Groups" },
 ];
@@ -921,8 +921,8 @@ interface SecurityTabProps {
 export function SecurityTab({ subTab }: SecurityTabProps) {
   const router = useRouter();
 
-  // Validate and default the sub-tab
-  const activeSubTab = SECURITY_SUB_TABS.some((t) => t.id === subTab) ? subTab : "users";
+  // Validate and default the sub-tab (default to "roles" since "users" is now at /settings/users)
+  const activeSubTab = SECURITY_SUB_TABS.some((t) => t.id === subTab) ? subTab : "roles";
 
   const handleTabChange = React.useCallback((tab: string) => {
     router.push(`/settings/company/security/${tab}`, { scroll: false });
@@ -932,10 +932,6 @@ export function SecurityTab({ subTab }: SecurityTabProps) {
     <div className="space-y-6">
       <Tabs value={activeSubTab} onValueChange={handleTabChange}>
         <TabsList>
-          <TabsTrigger value="users" className="gap-2">
-            <Users className="h-4 w-4" />
-            Users
-          </TabsTrigger>
           <TabsTrigger value="roles" className="gap-2">
             <Shield className="h-4 w-4" />
             User Roles
@@ -947,9 +943,6 @@ export function SecurityTab({ subTab }: SecurityTabProps) {
         </TabsList>
 
         <div className="mt-6">
-          <TabsContent value="users">
-            <UsersManagementTab />
-          </TabsContent>
           <TabsContent value="roles">
             <RolesManagementTab />
           </TabsContent>

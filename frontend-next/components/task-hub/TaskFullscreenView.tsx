@@ -111,6 +111,7 @@ interface SortableQuestionItemProps {
   onRemove: () => void;
   onAddChild?: () => void;  // For adding question under header
   onFileDrop?: (file: File, itemId: number) => void;  // For dropping files on questions
+  onAttachmentDrop?: (attachmentId: number, itemId: number) => void;  // For dropping existing attachments on questions
   editingItemId: number | null;
   editingItemText: string;
   setEditingItemText: (text: string) => void;
@@ -147,6 +148,7 @@ function SortableQuestionItem({
   onRemove,
   onAddChild,
   onFileDrop,
+  onAttachmentDrop,
   editingItemId,
   editingItemText,
   setEditingItemText,
@@ -314,6 +316,14 @@ function SortableQuestionItem({
     e.preventDefault();
     e.stopPropagation();
     setIsFileDropTarget(false);
+
+    // Check for existing attachment being dragged (from "See attached" section)
+    const attachmentId = e.dataTransfer.getData('application/x-attachment-id');
+    if (attachmentId && onAttachmentDrop) {
+      console.log('[SortableQuestionItem] Linking existing attachment:', attachmentId, 'to question:', item.id);
+      onAttachmentDrop(parseInt(attachmentId), item.id);
+      return;
+    }
 
     // Log everything about the drop to debug OneDrive drags
     const files = Array.from(e.dataTransfer.files);
@@ -1500,6 +1510,24 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     await uploadFileWithCategory(file, 'response', actionItemId);
   };
 
+  // Handle linking an existing attachment to a question
+  const handleAttachmentDropOnQuestion = async (attachmentId: number, actionItemId: number) => {
+    console.log('[TaskFullscreenView] handleAttachmentDropOnQuestion called:', attachmentId, 'to question:', actionItemId);
+    try {
+      const response = await api.patch<{ success: boolean; attachment: TaskAttachment }>(
+        `/api/v1/sm_tasks/${task.id}/attachments/${attachmentId}`,
+        { action_item_id: actionItemId }
+      );
+      if (response?.success) {
+        console.log('[TaskFullscreenView] Attachment linked to question successfully');
+        // Refresh tasks to show updated attachments
+        await refresh();
+      }
+    } catch (error) {
+      console.error('[TaskFullscreenView] Failed to link attachment:', error);
+    }
+  };
+
   // Drag and drop handlers for the attachment column
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -2530,6 +2558,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                               }}
                               onRemove={() => handleRemoveItem(child.id)}
                               onFileDrop={handleFileDropOnQuestion}
+                              onAttachmentDrop={handleAttachmentDropOnQuestion}
                               editingItemId={editingItemId}
                               editingItemText={editingItemText}
                               setEditingItemText={setEditingItemText}
@@ -2570,6 +2599,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       }}
                       onRemove={() => handleRemoveItem(item.id)}
                       onFileDrop={handleFileDropOnQuestion}
+                      onAttachmentDrop={handleAttachmentDropOnQuestion}
                       editingItemId={editingItemId}
                       editingItemText={editingItemText}
                       setEditingItemText={setEditingItemText}
@@ -2648,7 +2678,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   {responseAttachments.map((att) => (
                     <div
                       key={att.id}
-                      className="flex items-center gap-2 p-2 rounded bg-green-50 dark:bg-green-950/30 text-sm group"
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('application/x-attachment-id', att.id.toString());
+                        e.dataTransfer.effectAllowed = 'link';
+                      }}
+                      className="flex items-center gap-2 p-2 rounded bg-green-50 dark:bg-green-950/30 text-sm group cursor-grab active:cursor-grabbing"
                     >
                       <FileText className="h-4 w-4 text-green-600 shrink-0" />
                       <span className="flex-1 truncate font-medium">

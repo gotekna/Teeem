@@ -223,7 +223,14 @@ function TabsDisplayCell({
   );
 }
 
-export function DocumentTypesTab() {
+interface DocumentTypesTabProps {
+  /** Base path for navigation (e.g., "/settings/documents/types" or "/admin/system/document-types") */
+  basePath?: string;
+}
+
+const DEFAULT_DOC_TYPES_BASE_PATH = "/admin/system/document-types";
+
+export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: DocumentTypesTabProps) {
   const router = useRouter();
   const pathname = usePathname();
 
@@ -253,13 +260,12 @@ export function DocumentTypesTab() {
 
   // Handle scope tab change - update URL for back button support
   const handleScopeChange = React.useCallback((value: string) => {
-    const basePath = "/admin/system/entity-config/document_types";
     if (value === "all") {
       router.push(basePath, { scroll: false });
     } else {
       router.push(`${basePath}/${value}`, { scroll: false });
     }
-  }, [router]);
+  }, [router, basePath]);
 
   React.useEffect(() => {
     fetchColumns();
@@ -393,8 +399,8 @@ export function DocumentTypesTab() {
   // Handle row double-click - navigate to detail page
   // Single-click selects row (default behavior), double-click opens detail
   const handleRowDoubleClick = React.useCallback((row: DocumentType) => {
-    router.push(`/admin/system/document-types/${row.id}`);
-  }, [router]);
+    router.push(`${basePath}/${row.id}`);
+  }, [router, basePath]);
 
   // Custom cell renderer for tabs display and badges
   const customCellRenderer = (entry: DocumentType, columnKey: string) => {
@@ -406,7 +412,7 @@ export function DocumentTypesTab() {
         <button
           onClick={(e) => {
             e.stopPropagation();
-            router.push(`/admin/system/document-types/${entry.id}`);
+            router.push(`${basePath}/${entry.id}`);
           }}
           className="text-left text-primary hover:underline font-medium"
           title="Click to open full editor"

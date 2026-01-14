@@ -12,11 +12,11 @@ import {
   Users,
   ShieldCheck,
   Building,
-  Link2,
+  Building2,
   FileText,
-  Settings2,
   Server,
   Code,
+  Wrench,
 } from "lucide-react";
 
 // Personal tabs - visible to all authenticated users
@@ -28,13 +28,14 @@ const PERSONAL_TABS = [
 ];
 
 // Organization tabs - visible to admin users only
+// SSoT: Integrations is now under Company > Connections > Integrations
 const ORGANIZATION_TABS = [
   { id: "users", label: "Users", icon: Users },
-  { id: "roles", label: "Roles", icon: ShieldCheck },
+  { id: "roles", label: "Access Control", icon: ShieldCheck },
+  { id: "corporate", label: "Corporate", icon: Building2 },
   { id: "company", label: "Company", icon: Building },
-  { id: "integrations", label: "Integrations", icon: Link2 },
   { id: "documents", label: "Documents", icon: FileText },
-  { id: "operations", label: "Operations", icon: Settings2 },
+  { id: "operations", label: "Operations", icon: Wrench },
   { id: "system", label: "System", icon: Server },
   { id: "developer", label: "Developer", icon: Code },
 ];

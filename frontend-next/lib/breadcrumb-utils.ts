@@ -63,7 +63,8 @@ const ROUTE_DISPLAY_NAMES: Record<string, string> = {
   "/settings/security": "Security",
   "/settings/preferences": "Preferences",
   "/settings/users": "Users",
-  "/settings/roles": "Roles",
+  "/settings/roles": "Access Control",
+  "/settings/corporate": "Corporate",
   "/settings/company": "Company",
   "/settings/integrations": "Integrations",
   "/settings/documents": "Documents",
@@ -575,12 +576,31 @@ export function buildBreadcrumbsFromUrl(
     const isLast = i === segments.length - 1;
     const nextSegment = i < segments.length - 1 ? segments[i + 1] : null;
 
-    // Skip "view" segment and its slug - views are display modes, not navigation destinations
-    // e.g., /settings/users/view/settings → breadcrumbs show Settings > Users
-    // The view is indicated in the UI toolbar, not in breadcrumbs
+    // Handle "view" segment - skip "view" but show the view name
+    // e.g., /settings/users/view/settings → breadcrumbs show Settings > Users > Settings (view)
     if (segment === 'view') {
-      // Skip this segment and the next one (view slug)
-      i++; // Skip the view slug in next iteration
+      // Skip the "view" segment itself, but process the view slug next
+      continue;
+    }
+
+    // Check if previous segment was "view" - this is the view slug
+    const prevSegment = i > 0 ? segments[i - 1] : null;
+    if (prevSegment === 'view') {
+      // Format view slug as readable name (e.g., "po-tasks-only" → "PO Tasks Only")
+      const viewName = segment
+        .split('-')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+
+      const item = {
+        id: `view-${segment}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        pathname: currentPath + '/view/' + segment, // Full path including view
+        searchParams: isLast ? searchParams?.toString() : undefined,
+        displayName: viewName,
+        icon: undefined, // Views don't need icons
+        timestamp: Date.now(),
+      };
+      trail.push(item);
       continue;
     }
 
