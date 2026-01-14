@@ -455,7 +455,7 @@ function TreeNode({
               label={<span className="text-xs font-medium">Folder Path</span>}
               value={folderTemplate}
               onChange={handleFolderTemplateChange}
-              scope="all"
+              scope="storage"
               showPreview={false}
               separator="/"
               placeholder="Click tokens to build folder path..."
@@ -475,7 +475,7 @@ function TreeNode({
               label={<span className="text-xs font-medium">File Name</span>}
               value={filenameTemplate}
               onChange={handleFilenameTemplateChange}
-              scope="all"
+              scope="storage"
               showPreview={true}
               placeholder="Click tokens to build filename..."
               defaultExpanded={false}
