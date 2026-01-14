@@ -15,10 +15,12 @@ class EmailAttachment < ApplicationRecord
   # Scopes
   scope :linked_to_document, -> { where(is_existing_doc: true) }
   scope :standalone, -> { where(is_existing_doc: false) }
-  scope :synced_to_sharepoint, -> { where.not(sharepoint_file_id: nil) }
-  scope :pending_sync, -> { where(sharepoint_file_id: nil) }
+  # SSoT: storage_blob_id is the storage reference
   scope :with_storage_blob, -> { where.not(storage_blob_id: nil) }
   scope :without_storage_blob, -> { where(storage_blob_id: nil) }
+  # Legacy: sharepoint_path (not sharepoint_file_id)
+  scope :synced_to_sharepoint, -> { where.not(sharepoint_path: nil) }
+  scope :pending_sync, -> { where(sharepoint_path: nil, storage_blob_id: nil) }
 
   # SSoT: Store content with deduplication via StorageBlob
   # Same file = same blob, just increment reference count
@@ -83,5 +85,13 @@ class EmailAttachment < ApplicationRecord
   # Calculate content hash from binary data
   def self.compute_hash(content)
     Digest::SHA256.hexdigest(content)
+  end
+
+  # SSoT: storage_blob is THE ONE storage reference for email attachments
+  # This model doesn't use sharepoint_file_id pattern, it uses:
+  # - storage_blob (new SSoT, deduplicated)
+  # - sharepoint_path (legacy, path string not item ID)
+  def storage_reference
+    storage_blob_id.presence
   end
 end

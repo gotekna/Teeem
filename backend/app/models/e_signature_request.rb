@@ -245,6 +245,24 @@ class ESignatureRequest < ApplicationRecord
     }
   end
 
+  # Provider-agnostic storage references (SSoT: original/signed_storage_item_id)
+  # Falls back to sharepoint columns for backwards compatibility
+  def original_storage_reference
+    original_storage_item_id.presence || original_sharepoint_file_id
+  end
+
+  def signed_storage_reference
+    signed_storage_item_id.presence || signed_sharepoint_file_id
+  end
+
+  def set_original_storage_reference(item_id)
+    self.original_storage_item_id = item_id
+  end
+
+  def set_signed_storage_reference(item_id)
+    self.signed_storage_item_id = item_id
+  end
+
   private
 
   def generate_request_number

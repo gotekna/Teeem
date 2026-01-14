@@ -27,6 +27,8 @@ interface CompanyDocument {
   financial_years?: number[] | string;
   source?: string;
   company?: { id: number; name: string; code: string };
+  // SSoT: storage_item_id is provider-agnostic, sharepoint_file_id is legacy
+  storage_item_id?: string;
   sharepoint_file_id?: string;
   // Confidence scores (0-100)
   ocr_confidence?: number;
@@ -55,10 +57,13 @@ export default function DocumentSidePanel({
   const [previewLoading, setPreviewLoading] = React.useState(false);
   const [previewError, setPreviewError] = React.useState<string | null>(null);
 
-  // Fetch embeddable preview URL for OneDrive files
+  // Fetch embeddable preview URL for cloud storage files
+  // SSoT: Prefer storage_item_id, fall back to sharepoint_file_id
+  const storageRef = document?.storage_item_id || document?.sharepoint_file_id;
+
   React.useEffect(() => {
     const fetchPreviewUrl = async () => {
-      if (!document?.sharepoint_file_id || !open) {
+      if (!storageRef || !open) {
         setPreviewUrl(null);
         return;
       }
@@ -93,7 +98,7 @@ export default function DocumentSidePanel({
     };
 
     fetchPreviewUrl();
-  }, [document?.id, document?.sharepoint_file_id, open]);
+  }, [document?.id, storageRef, open]);
 
   if (!document) return null;
 
@@ -246,7 +251,7 @@ export default function DocumentSidePanel({
                 title="Document Preview"
                 allow="fullscreen"
               />
-            ) : fileType === "pdf" && document.file_url && !document.sharepoint_file_id ? (
+            ) : fileType === "pdf" && document.file_url && !storageRef ? (
               <iframe
                 src={document.file_url}
                 className="w-full h-full border-0"
@@ -267,7 +272,7 @@ export default function DocumentSidePanel({
                   {previewError || "Preview not available"}
                 </p>
                 <p className="text-sm text-center mb-4">
-                  {document.sharepoint_file_id
+                  {storageRef
                     ? "Could not load cloud storage preview"
                     : "This file type cannot be previewed inline"}
                 </p>

@@ -174,6 +174,8 @@ export default function ChatPage() {
         message_type?: "text" | "image" | "file";
         file_url?: string | null;
         file_name?: string | null;
+        // SSoT: storage_item_id is provider-agnostic, sharepoint_file_id is legacy
+        storage_item_id?: string | null;
         sharepoint_file_id?: string | null;
         has_file?: boolean;
       }
@@ -191,7 +193,9 @@ export default function ChatPage() {
         message_type: msg.message_type || "text",
         file_url: msg.file_url || null,
         file_name: msg.file_name || null,
-        sharepoint_file_id: msg.sharepoint_file_id || null,
+        // SSoT: Prefer storage_item_id, fall back to sharepoint_file_id
+        storage_item_id: msg.storage_item_id || msg.sharepoint_file_id || null,
+        sharepoint_file_id: msg.sharepoint_file_id || null, // Keep for backwards compat
         created_at: msg.created_at,
         read_by: [msg.user_id],
         is_own: msg.user_id === user.id,
@@ -1262,11 +1266,11 @@ function MessageBubble({
                     </div>
                   )
                 ) : message.file_name ? (
-                  // Fallback when file_url is not available yet (uploading to SharePoint)
+                  // Fallback when file_url is not available yet (uploading to storage)
                   <div className="flex items-center gap-2 px-3 py-2">
                     <FileIcon className="h-4 w-4 shrink-0" />
                     <span className="text-sm break-words">{message.file_name}</span>
-                    {!message.sharepoint_file_id && (
+                    {!message.storage_item_id && !message.sharepoint_file_id && (
                       <span className="text-xs text-muted-foreground">(uploading...)</span>
                     )}
                   </div>

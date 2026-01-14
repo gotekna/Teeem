@@ -84,6 +84,8 @@ interface Revision {
   issued_date: string | null;
   is_on_issue: boolean;
   has_file: boolean;
+  // SSoT: storage_item_id is provider-agnostic, sharepoint_file_id is legacy
+  storage_item_id?: string | null;
   sharepoint_file_id: string | null;
   sharepoint_web_url: string | null;
   file_name: string | null;
@@ -314,9 +316,11 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
   );
 
   // Get PDF preview URL
+  // SSoT: Prefer storage_item_id, fall back to sharepoint_file_id
   const getPdfPreviewUrl = (revision: Revision | null) => {
-    if (!revision?.sharepoint_file_id) return null;
-    return `${getApiBaseUrl()}/api/v1/documents/download?file_id=${revision.sharepoint_file_id}&preview=true`;
+    const fileId = revision?.storage_item_id || revision?.sharepoint_file_id;
+    if (!fileId) return null;
+    return `${getApiBaseUrl()}/api/v1/documents/download?file_id=${fileId}&preview=true`;
   };
 
   // Get thumbnail URL for instant preview (if available)
@@ -550,7 +554,8 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
 
   // Handle re-extract single plan from PDF (uses PdfTextExtractionService SSoT)
   const handleReprocess = async (plan: JobPlan) => {
-    if (!plan.current_revision?.sharepoint_file_id) {
+    const fileId = plan.current_revision?.storage_item_id || plan.current_revision?.sharepoint_file_id;
+    if (!fileId) {
       toast({
         title: "Error",
         description: "Plan has no file to extract from",
@@ -841,20 +846,25 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
                   <ExternalLink className="h-4 w-4 mr-2" />
                   Open Storage Folder
                 </DropdownMenuItem>
-                {(selectedPlan?.current_revision?.sharepoint_file_id || selectedPlanIds.length > 0) && (
+                {((selectedPlan?.current_revision?.storage_item_id || selectedPlan?.current_revision?.sharepoint_file_id) || selectedPlanIds.length > 0) && (
                   <DropdownMenuItem onClick={() => {
                     // Download selected plans' PDFs
+                    // SSoT: Prefer storage_item_id, fall back to sharepoint_file_id
                     if (selectedPlanIds.length > 0) {
                       // Download all checkbox-selected plans
                       const selectedPlansData = plans.filter(p => selectedPlanIds.includes(p.id));
                       selectedPlansData.forEach(plan => {
-                        if (plan.current_revision?.sharepoint_file_id) {
-                          window.open(`${getApiBaseUrl()}/api/v1/documents/download?file_id=${plan.current_revision.sharepoint_file_id}`, "_blank");
+                        const fileId = plan.current_revision?.storage_item_id || plan.current_revision?.sharepoint_file_id;
+                        if (fileId) {
+                          window.open(`${getApiBaseUrl()}/api/v1/documents/download?file_id=${fileId}`, "_blank");
                         }
                       });
-                    } else if (selectedPlan?.current_revision?.sharepoint_file_id) {
+                    } else {
                       // Download single-selected plan
-                      window.open(`${getApiBaseUrl()}/api/v1/documents/download?file_id=${selectedPlan.current_revision.sharepoint_file_id}`, "_blank");
+                      const fileId = selectedPlan?.current_revision?.storage_item_id || selectedPlan?.current_revision?.sharepoint_file_id;
+                      if (fileId) {
+                        window.open(`${getApiBaseUrl()}/api/v1/documents/download?file_id=${fileId}`, "_blank");
+                      }
                     }
                   }}>
                     <Download className="h-4 w-4 mr-2" />

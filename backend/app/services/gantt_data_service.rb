@@ -63,6 +63,10 @@ class GanttDataService
     # This ensures dependencies can reference any task, even filtered ones
     task_num_to_row_id = build_lookup_map
 
+    # Build broken successors map: task_number -> list of tasks that have this task in their predecessor_ids_backup
+    # This allows showing "Broken Successors" in the dependency editor for the predecessor's view
+    @broken_successors_map = build_broken_successors_map
+
     # SSoT: Expand header dependencies to task dependencies BEFORE filtering
     # This ensures inherited deps are calculated from the complete dependency graph
     @inherited_deps = expand_header_dependencies(@records)
@@ -96,6 +100,35 @@ class GanttDataService
   # Build lookup: task_number -> row.id
   def build_lookup_map
     @records.each_with_object({}) { |r, h| h[r.task_number] = r.id }
+  end
+
+  # Build map of task_number -> list of tasks that have this task in their predecessor_ids_backup
+  # This allows the dependency editor to show "Broken Successors" from the predecessor's perspective
+  def build_broken_successors_map
+    result = Hash.new { |h, k| h[k] = [] }
+
+    @records.each do |record|
+      backup = record.try(:predecessor_ids_backup) || []
+      next if backup.empty?
+
+      # Each backed-up predecessor should see this task as a "broken successor"
+      backup.each do |pred|
+        pred_task_num = pred.is_a?(Hash) ? (pred['id'] || pred[:id]) : pred
+        next unless pred_task_num
+
+        result[pred_task_num.to_i] << {
+          id: record.id,
+          task_number: record.task_number,
+          name: record.name,
+          dependency_broken_at: record.try(:dependency_broken_at),
+          dependency_broken_by: record.try(:dependency_broken_by_id).present? ? User.find_by(id: record.dependency_broken_by_id)&.name : nil,
+          type: pred.is_a?(Hash) ? (pred['type'] || pred[:type] || 'FS') : 'FS',
+          lag: pred.is_a?(Hash) ? (pred['lag'] || pred[:lag] || 0) : 0
+        }
+      end
+    end
+
+    result
   end
 
   # Filter out invisible tasks based on mode:
@@ -349,6 +382,9 @@ class GanttDataService
       # SSoT: Inherited predecessors from header dependencies (calculated by backend)
       # Frontend reads this, does NOT calculate - single source of truth
       inherited_predecessor_ids: @inherited_deps&.dig(record.id) || [],
+      # SSoT: Broken successors - tasks that have this task in their predecessor_ids_backup
+      # Allows the dependency editor to show "Broken Successors" from the predecessor's perspective
+      broken_successor_ids: @broken_successors_map&.dig(record.task_number) || [],
       # PO-related fields
       po_required: record.po_required || false,
       supplier_id: record.try(:supplier_id) || record.try(:po_supplier_id),

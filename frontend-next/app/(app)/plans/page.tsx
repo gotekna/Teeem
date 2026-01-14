@@ -31,6 +31,8 @@ interface PlanFolderScan {
   id: number;
   job_id: number;
   job_name: string;
+  // SSoT: storage_item_id is provider-agnostic, sharepoint_file_id is legacy
+  storage_item_id?: string;
   sharepoint_file_id: string;
   file_name: string;
   file_modified_at: string;

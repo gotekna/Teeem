@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_14_100012) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_14_190655) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -437,9 +437,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_14_100012) do
     t.bigint "organization_microsoft_app_credential_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "storage_item_id"
     t.index ["content_hash"], name: "index_attachments_on_content_hash", unique: true
     t.index ["organization_microsoft_app_credential_id"], name: "index_attachments_on_org_cred_id"
     t.index ["sharepoint_file_id"], name: "index_attachments_on_sharepoint_file_id"
+    t.index ["storage_item_id"], name: "index_attachments_on_storage_item_id"
   end
 
   create_table "background_job_progress", force: :cascade do |t|
@@ -690,6 +692,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_14_100012) do
     t.string "sharepoint_file_id"
     t.integer "match_confidence"
     t.string "match_source", limit: 30
+    t.string "storage_item_id"
     t.index ["approved_by_id"], name: "index_bill_inboxes_on_approved_by_id"
     t.index ["corporate_company_id", "status"], name: "index_bill_inboxes_on_corporate_company_id_and_status"
     t.index ["corporate_company_id"], name: "index_bill_inboxes_on_corporate_company_id"
@@ -700,6 +703,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_14_100012) do
     t.index ["matched_purchase_order_id"], name: "index_bill_inboxes_on_matched_purchase_order_id"
     t.index ["sharepoint_file_id"], name: "index_bill_inboxes_on_sharepoint_file_id"
     t.index ["status"], name: "index_bill_inboxes_on_status"
+    t.index ["storage_item_id"], name: "index_bill_inboxes_on_storage_item_id"
     t.index ["supplier_id", "invoice_number"], name: "index_bill_inboxes_on_supplier_id_and_invoice_number", unique: true, where: "(invoice_number IS NOT NULL)"
     t.index ["supplier_id"], name: "index_bill_inboxes_on_supplier_id"
   end
@@ -1123,6 +1127,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_14_100012) do
     t.string "file_url"
     t.string "file_name"
     t.string "sharepoint_file_id"
+    t.string "storage_item_id"
     t.index ["case_id"], name: "index_chat_messages_on_case_id"
     t.index ["channel", "created_at"], name: "index_chat_messages_on_channel_and_created_at"
     t.index ["contact_id"], name: "index_chat_messages_on_contact_id"
@@ -1133,6 +1138,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_14_100012) do
     t.index ["project_id"], name: "index_chat_messages_on_project_id"
     t.index ["recipient_user_id"], name: "index_chat_messages_on_recipient_user_id"
     t.index ["sharepoint_file_id"], name: "index_chat_messages_on_sharepoint_file_id"
+    t.index ["storage_item_id"], name: "index_chat_messages_on_storage_item_id"
     t.index ["user_id"], name: "index_chat_messages_on_user_id"
   end
 
@@ -2548,6 +2554,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_14_100012) do
     t.text "message_to_signers"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "original_storage_item_id"
+    t.string "signed_storage_item_id"
     t.index ["created_by_id"], name: "index_e_signature_requests_on_created_by_id"
     t.index ["documentable_type", "documentable_id"], name: "index_e_signature_requests_on_documentable"
     t.index ["expires_at"], name: "index_e_signature_requests_on_expires_at"
@@ -3346,6 +3354,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_14_100012) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "sharepoint_file_id"
+    t.string "storage_item_id"
     t.index ["category"], name: "index_financial_transactions_on_category"
     t.index ["company_id", "status"], name: "index_financial_transactions_on_company_id_and_status"
     t.index ["company_id", "transaction_date"], name: "idx_on_company_id_transaction_date_f27cab6995"
@@ -3356,6 +3365,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_14_100012) do
     t.index ["keepr_journal_id"], name: "index_financial_transactions_on_keepr_journal_id"
     t.index ["sharepoint_file_id"], name: "index_financial_transactions_on_sharepoint_file_id"
     t.index ["status"], name: "index_financial_transactions_on_status"
+    t.index ["storage_item_id"], name: "index_financial_transactions_on_storage_item_id"
     t.index ["transaction_date"], name: "index_financial_transactions_on_transaction_date"
     t.index ["transaction_type"], name: "index_financial_transactions_on_transaction_type"
     t.index ["user_id"], name: "index_financial_transactions_on_user_id"
@@ -6252,10 +6262,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_14_100012) do
     t.string "thumbnail_url"
     t.datetime "thumbnail_generated_at"
     t.text "micro_thumbnail_base64"
+    t.string "storage_item_id"
     t.index ["is_on_issue"], name: "index_job_plan_revisions_on_is_on_issue"
     t.index ["issued_by_id"], name: "index_job_plan_revisions_on_issued_by_id"
     t.index ["job_plan_id", "revision"], name: "index_job_plan_revisions_on_job_plan_id_and_revision", unique: true
     t.index ["job_plan_id"], name: "index_job_plan_revisions_on_job_plan_id"
+    t.index ["storage_item_id"], name: "index_job_plan_revisions_on_storage_item_id"
     t.index ["thumbnail_file_id"], name: "index_job_plan_revisions_on_thumbnail_file_id"
   end
 
@@ -7121,6 +7133,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_14_100012) do
     t.datetime "updated_at", null: false
     t.string "sharepoint_file_id"
     t.jsonb "proof_photos_sharepoint_ids", default: []
+    t.string "storage_item_id"
     t.index ["approved_by_builder_id"], name: "index_pay_now_requests_on_approved_by_builder_id"
     t.index ["contact_id", "status"], name: "index_pay_now_requests_on_contact_and_status"
     t.index ["contact_id"], name: "index_pay_now_requests_on_contact_id"
@@ -7135,6 +7148,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_14_100012) do
     t.index ["sharepoint_file_id"], name: "index_pay_now_requests_on_sharepoint_file_id"
     t.index ["status", "created_at"], name: "index_pay_now_requests_on_status_and_created_at"
     t.index ["status"], name: "index_pay_now_requests_on_status"
+    t.index ["storage_item_id"], name: "index_pay_now_requests_on_storage_item_id"
   end
 
   create_table "pay_now_weekly_limits", force: :cascade do |t|
@@ -7431,11 +7445,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_14_100012) do
     t.datetime "processed_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "storage_item_id"
     t.index ["job_id", "status"], name: "index_plan_folder_scans_on_job_id_and_status"
     t.index ["job_id"], name: "index_plan_folder_scans_on_job_id"
     t.index ["job_plan_id"], name: "index_plan_folder_scans_on_job_plan_id"
     t.index ["sharepoint_file_id"], name: "index_plan_folder_scans_on_sharepoint_file_id", unique: true
     t.index ["status"], name: "index_plan_folder_scans_on_status"
+    t.index ["storage_item_id"], name: "index_plan_folder_scans_on_storage_item_id"
   end
 
   create_table "plan_identification_rules", force: :cascade do |t|

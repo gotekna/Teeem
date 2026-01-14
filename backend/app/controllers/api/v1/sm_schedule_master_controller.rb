@@ -222,8 +222,10 @@ module Api
           if @row.predecessor_ids.present?
             @row.predecessor_ids_backup = @row.predecessor_ids
           end
+          @row.dependency_broken = true  # Explicitly set this to ensure it's saved
           @row.dependency_broken_at = Time.current
           @row.dependency_broken_by_id = current_user&.id
+          Rails.logger.info "[SmScheduleMaster] Breaking dependency - set dependency_broken=true, backup=#{@row.predecessor_ids_backup.inspect}"
           return
         end
 

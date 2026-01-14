@@ -21,7 +21,17 @@ class JobPlanRevision < ApplicationRecord
 
   # Check if this revision has a file attached
   def has_file?
-    sharepoint_file_id.present? || sharepoint_web_url.present?
+    storage_reference.present? || sharepoint_web_url.present?
+  end
+
+  # Provider-agnostic storage reference (SSoT: storage_item_id)
+  # Falls back to sharepoint_file_id for backwards compatibility
+  def storage_reference
+    storage_item_id.presence || sharepoint_file_id
+  end
+
+  def set_storage_reference(item_id, provider: "sharepoint")
+    self.storage_item_id = item_id
   end
 
   # Human-readable file size

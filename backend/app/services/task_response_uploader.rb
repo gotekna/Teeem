@@ -64,8 +64,10 @@ class TaskResponseUploader
   def create_document_record(upload_result, file)
     attrs = {
       file_name: upload_result[:filename],
-      sharepoint_download_url: upload_result[:sharepoint_url],
-      sharepoint_file_id: upload_result[:file_id],
+      # SSoT: Use storage_item_id (provider-agnostic) instead of sharepoint_file_id
+      storage_item_id: upload_result[:file_id],
+      storage_provider: StorageConfiguration.instance.provider_type,
+      storage_path: upload_result[:folder_path],
       document_type: document_type,
       folder: folder_name,
       source: "task_upload"

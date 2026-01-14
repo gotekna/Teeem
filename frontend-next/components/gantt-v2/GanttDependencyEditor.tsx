@@ -22,7 +22,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ComboboxDropdown } from '@/components/ui/combobox-dropdown';
-import { X, ChevronDown, ChevronRight, RotateCcw, Link2Off } from 'lucide-react';
+import { X, ChevronDown, ChevronRight, RotateCcw, Link2Off, AlertTriangle } from 'lucide-react';
 import type { GanttTask } from '@/lib/gantt/types';
 
 // =============================================================================
@@ -88,6 +88,7 @@ export function GanttDependencyEditor({
   const [depEditorLinks, setDepEditorLinks] = React.useState<DependencyLink[]>([]);
   const [depEditorSuccessorLinks, setDepEditorSuccessorLinks] = React.useState<DependencyLink[]>([]);
   const [brokenDependencies, setBrokenDependencies] = React.useState<BrokenDependencyInfo[]>([]);
+  const [brokenSuccessors, setBrokenSuccessors] = React.useState<BrokenDependencyInfo[]>([]);
   const [isSaving, setIsSaving] = React.useState(false);
 
   // Controlled state for pending input values (fixes race condition when clicking OK)
@@ -211,6 +212,37 @@ export function GanttDependencyEditor({
     }
 
     setDepEditorSuccessorLinks(successorLinks);
+
+    // Load broken successors from backend-calculated broken_successor_ids
+    // These are tasks that have this task in their predecessor_ids_backup
+    const brokenSuccessorData = rowData?.broken_successor_ids || [];
+    const brokenSuccLinks: BrokenDependencyInfo[] = brokenSuccessorData
+      .filter((bs: { task_number: number }) => {
+        // Only show broken successors that aren't currently in active successors
+        return !successorLinks.some(active => {
+          const activeTask = tasks.find(t => t.id === active.predecessorId);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const activeRowData = activeTask?.rowData as any;
+          return activeRowData?.task_number === bs.task_number;
+        });
+      })
+      .map((bs: { id: number; task_number: number; name: string; dependency_broken_at?: string; dependency_broken_by?: string; type: string; lag: number }) => {
+        const succTask = tasks.find(t => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const r = t.rowData as any;
+          return r?.task_number === bs.task_number;
+        });
+        return {
+          predecessorId: succTask?.id || String(bs.id),
+          taskNumber: bs.task_number,
+          type: (bs.type as DependencyType) || 'FS',
+          lag: bs.lag || 0,
+          brokenAt: bs.dependency_broken_at,
+          brokenBy: bs.dependency_broken_by,
+        };
+      });
+
+    setBrokenSuccessors(brokenSuccLinks);
   }, [task, tasks, isOpen, pendingPredecessor]);
 
   // ---------------------------------------------------------------------------
@@ -1110,10 +1142,109 @@ export function GanttDependencyEditor({
                   );
                 })()}
 
-                {depEditorSuccessorLinks.length === 0 && (
+                {depEditorSuccessorLinks.length === 0 && brokenSuccessors.length === 0 && (
                   <p className="text-xs text-muted-foreground italic py-1">
                     No tasks depend on this task yet. Add one above.
                   </p>
+                )}
+
+                {/* Broken successors - tasks that had this task as predecessor but broke the link */}
+                {brokenSuccessors.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-dashed border-orange-300 dark:border-orange-800">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Link2Off className="h-3.5 w-3.5 text-orange-500" />
+                      <span className="text-xs font-medium text-orange-600 dark:text-orange-400">
+                        Broken Successors ({brokenSuccessors.length})
+                      </span>
+                    </div>
+                    {brokenSuccessors.map((brokenSucc, index) => {
+                      const brokenTask = tasks.find(t => t.id === brokenSucc.predecessorId);
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      const brokenRowData = brokenTask?.rowData as any;
+                      const brokenRowIndex = brokenTask ? tasks.findIndex(t => t.id === brokenTask.id) + 1 : 0;
+
+                      // Format broken date/time
+                      let brokenInfo = '';
+                      if (brokenSucc.brokenAt) {
+                        const brokenDate = new Date(brokenSucc.brokenAt);
+                        brokenInfo = `Broken ${brokenDate.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} @ ${brokenDate.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}`;
+                        if (brokenSucc.brokenBy) {
+                          brokenInfo += ` by ${brokenSucc.brokenBy}`;
+                        }
+                      }
+
+                      return (
+                        <div
+                          key={`broken-succ-${index}`}
+                          className="grid grid-cols-[72px_60px_1fr_180px_60px_32px] gap-2 items-center opacity-50 bg-orange-50 dark:bg-orange-950/20 -mx-2 px-2 py-1.5 rounded"
+                          title={brokenInfo || 'Broken successor - this task removed its dependency on you'}
+                        >
+                          {/* Row # - greyed */}
+                          <Input
+                            type="number"
+                            value={brokenRowIndex}
+                            disabled
+                            className="h-8 text-center bg-muted cursor-not-allowed line-through"
+                          />
+
+                          {/* ID display - greyed */}
+                          <div className="h-8 flex items-center justify-center text-xs text-muted-foreground rounded-md border border-orange-200 dark:border-orange-800 bg-muted line-through">
+                            {brokenTask?.id || brokenSucc.taskNumber || ''}
+                          </div>
+
+                          {/* Task name - greyed with checkered pattern */}
+                          <div
+                            className="h-8 flex items-center px-2 rounded-md border border-orange-200 dark:border-orange-800 text-sm relative overflow-hidden"
+                            style={{
+                              background: `
+                                repeating-conic-gradient(
+                                  rgba(249,115,22,0.15) 0% 25%,
+                                  transparent 0% 50%
+                                )
+                              `,
+                              backgroundSize: '8px 8px'
+                            }}
+                          >
+                            <span className="truncate line-through text-muted-foreground">
+                              {brokenRowData?.name || brokenTask?.name || `Task ${brokenSucc.taskNumber}`}
+                            </span>
+                            {brokenInfo && (
+                              <span className="ml-auto text-[10px] text-orange-500 dark:text-orange-400 shrink-0 pl-2">
+                                {brokenInfo}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Type dropdown - disabled */}
+                          <select
+                            disabled
+                            className="h-8 w-full rounded-md border border-orange-200 dark:border-orange-800 bg-muted px-2 text-sm text-muted-foreground cursor-not-allowed"
+                            value={brokenSucc.type}
+                          >
+                            <option value="FS">Finish-to-Start (FS)</option>
+                            <option value="SS">Start-to-Start (SS)</option>
+                            <option value="FF">Finish-to-Finish (FF)</option>
+                            <option value="SF">Start-to-Finish (SF)</option>
+                          </select>
+
+                          {/* Lag - disabled */}
+                          <Input
+                            disabled
+                            className="h-8 text-center bg-muted cursor-not-allowed"
+                            value={brokenSucc.lag}
+                          />
+
+                          {/* Info icon - shows broken info on hover */}
+                          <div className="h-8 w-8 flex items-center justify-center" title={brokenInfo || 'Broken successor'}>
+                            <AlertTriangle className="h-4 w-4 text-orange-500" />
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <p className="text-[10px] text-orange-600/70 dark:text-orange-400/70 mt-2 italic">
+                      These tasks removed their dependency on this task. Open their dependency editor to restore.
+                    </p>
+                  </div>
                 )}
               </div>
             </div>

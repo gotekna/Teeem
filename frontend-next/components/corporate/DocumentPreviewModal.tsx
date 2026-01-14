@@ -227,6 +227,8 @@ interface CompanyDocument {
   company?: Company;
   asset_id?: number;
   asset?: Asset;
+  // SSoT: storage_item_id is provider-agnostic, sharepoint_file_id is legacy
+  storage_item_id?: string;
   sharepoint_file_id?: string;
   user_validated_at?: string;
   user_validated_by_id?: number;
@@ -398,11 +400,14 @@ export default function DocumentPreviewModal({
     checkExistingAmendedDocs();
   }, [isAmended, editedCompanyId, editedDocumentType, editedFinancialYears]);
 
-  // Fetch embeddable preview URL for OneDrive files
+  // Fetch embeddable preview URL for cloud storage files
+  // SSoT: Prefer storage_item_id, fall back to sharepoint_file_id
+  const storageRef = document?.storage_item_id || document?.sharepoint_file_id;
+
   React.useEffect(() => {
     const fetchPreviewUrl = async () => {
-      // Only fetch preview for OneDrive files
-      if (!document?.sharepoint_file_id || !open) {
+      // Only fetch preview for cloud storage files
+      if (!storageRef || !open) {
         setPreviewUrl(null);
         return;
       }
@@ -426,7 +431,7 @@ export default function DocumentPreviewModal({
           setPreviewUrl(null);
         }
       } catch (error: unknown) {
-        // Don't log OneDrive credential errors - expected in local dev
+        // Don't log cloud storage credential errors - expected in local dev
         const errorMessage = error instanceof Error ? error.message : String(error);
         if (!errorMessage.includes("OneDrive credentials not available")) {
           console.error("Failed to fetch preview URL:", error);
@@ -439,7 +444,7 @@ export default function DocumentPreviewModal({
     };
 
     fetchPreviewUrl();
-  }, [document?.id, document?.sharepoint_file_id, open]);
+  }, [document?.id, storageRef, open]);
 
   // Fetch document data for Excel/Word files using Universal Document Reader
   React.useEffect(() => {
@@ -1221,8 +1226,8 @@ export default function DocumentPreviewModal({
     return `${Math.round((bytes / Math.pow(1024, i)) * 100) / 100} ${sizes[i]}`;
   };
 
-  // Check if document has OneDrive file for AI verification
-  const canAiVerify = document?.sharepoint_file_id && !validated;
+  // Check if document has cloud storage file for AI verification
+  const canAiVerify = storageRef && !validated;
 
   // AI verification status
   const aiStatus = document?.ai_verification_status;
@@ -2207,7 +2212,7 @@ export default function DocumentPreviewModal({
                     {previewError || "Preview not available"}
                   </p>
                   <p className="text-sm mb-4 text-center">
-                    {document.sharepoint_file_id
+                    {storageRef
                       ? "Could not load cloud storage preview."
                       : "This file type cannot be previewed inline."}
                   </p>
