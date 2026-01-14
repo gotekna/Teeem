@@ -1,6 +1,7 @@
 module Api
   module V1
     class ExternalInvoicesController < ApplicationController
+      include DocumentProviderAware
       # GET /api/v1/external_invoices
       # List invoices with optional filtering
       def index
@@ -501,23 +502,55 @@ module Api
         render json: { success: false, error: "Failed to fetch PDF: #{e.message}" }, status: :internal_server_error
       end
 
-      # Fetch file content from SharePoint using OrganizationSharePointCredential
-      # This bypasses Active Storage's SharePointService which has config issues
+      # Fetch file content from storage (provider-agnostic)
+      # SSoT: Uses DocumentStorageService for provider-agnostic downloads
+      def fetch_from_storage(document)
+        service = DocumentStorageService.new
+        result = service.download(document)
+        result[:success] ? result[:content] : nil
+      rescue DocumentProviders::Error => e
+        Rails.logger.error("Storage download failed: #{e.message}")
+        nil
+      rescue StandardError => e
+        Rails.logger.error("Storage fetch error: #{e.message}")
+        nil
+      end
+
+      # Legacy method for backwards compatibility (uses file_id for SharePoint)
+      # TODO: Migrate to fetch_from_storage once all documents have storage_path
       def fetch_from_sharepoint(file_id)
+        # Use DocumentProviderAware to detect current provider
+        begin
+          setup_default_provider!
+        rescue DocumentProviders::NotConnectedError
+          return nil
+        end
+
+        # For SharePoint, download by file ID
+        if current_provider_type == :sharepoint
+          download_file_by_id(file_id)
+        else
+          # For S3/Wasabi, we need the full path - file_id won't work
+          # This is a legacy fallback; new code should use fetch_from_storage
+          Rails.logger.warn("fetch_from_sharepoint called with non-SharePoint provider")
+          nil
+        end
+      rescue DocumentProviders::Error => e
+        Rails.logger.error("Storage auth failed: #{e.message}")
+        nil
+      rescue StandardError => e
+        Rails.logger.error("Storage fetch error: #{e.message}")
+        nil
+      end
+
+      # Download file by provider-specific ID (SharePoint only)
+      def download_file_by_id(file_id)
+        return nil unless current_provider_type == :sharepoint
         credential = MicrosoftCredential.sharepoint_credential
         return nil unless credential&.valid_credential?
 
         graph_client = MicrosoftGraphClient.new(credential)
         graph_client.download_file(file_id)
-      rescue MicrosoftGraphClient::AuthenticationError => e
-        Rails.logger.error("SharePoint auth failed: #{e.message}")
-        nil
-      rescue MicrosoftGraphClient::APIError => e
-        Rails.logger.error("SharePoint API error: #{e.message}")
-        nil
-      rescue StandardError => e
-        Rails.logger.error("SharePoint fetch error: #{e.message}")
-        nil
       end
 
       # GET /api/v1/external_invoices/:id/attachments

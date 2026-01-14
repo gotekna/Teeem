@@ -1,6 +1,8 @@
 module Api
   module V1
     class DocumentTasksController < ApplicationController
+      include DocumentProviderAware
+
       before_action :set_job
 
       # GET /api/v1/jobs/:job_id/document_tasks
@@ -43,6 +45,7 @@ module Api
       end
 
       # POST /api/v1/jobs/:job_id/document_tasks/:id/upload
+      # SSoT: Uses DocumentProviderAware for provider-agnostic storage
       def upload
         task = DocumentTask.find_or_create_by(
           id: params[:id],
@@ -55,35 +58,39 @@ module Api
         end
 
         uploaded_file = params[:file]
-        sharepoint_url = nil
+        storage_url = nil
 
-        # Try to upload to SharePoint first
+        # Try to upload to storage provider first
         begin
-          credential = MicrosoftCredential.sharepoint_credential
-          if credential&.valid_credential?
-            client = MicrosoftGraphClient.new(credential)
+          setup_default_provider!
 
-            # Find the job folder
-            job_folder = client.find_job_folder(@job)
-            if job_folder
-              # Get the folder path from the documentation tab
-              tab = @job.job_documentation_tabs.find_by(id: params[:category])
-              folder_path = tab&.folder_path
+          # Build job folder path
+          job_folder_path = build_job_folder_path(@job)
 
-              if folder_path.present?
-                # Navigate to or create the target subfolder
-                target_folder = ensure_folder_path(client, job_folder["id"], folder_path)
+          # Get the folder path from the documentation tab
+          tab = @job.job_documentation_tabs.find_by(id: params[:category])
+          folder_path = tab&.folder_path
 
-                if target_folder
-                  # Upload the file
-                  result = client.upload_file(uploaded_file, target_folder["id"], uploaded_file.original_filename)
-                  sharepoint_url = result["webUrl"] if result
-                end
-              end
-            end
+          if folder_path.present?
+            # Build full target path
+            target_folder_path = "#{job_folder_path}/#{folder_path}"
+
+            # Ensure folder exists
+            get_or_create_folder_path(target_folder_path)
+
+            # Upload the file
+            result = upload_to_provider(
+              target_folder_path,
+              uploaded_file.read,
+              uploaded_file.original_filename,
+              content_type: uploaded_file.content_type
+            )
+            storage_url = result[:web_url] || result[:path]
           end
-        rescue => e
-          Rails.logger.warn "SharePoint upload failed (will continue with local): #{e.message}"
+        rescue DocumentProviders::NotConnectedError => e
+          Rails.logger.warn "Storage not connected (will continue with local): #{e.message}"
+        rescue DocumentProviders::Error => e
+          Rails.logger.warn "Storage upload failed (will continue with local): #{e.message}"
         end
 
         # Also attach to ActiveStorage as backup
@@ -92,14 +99,15 @@ module Api
           has_document: true,
           uploaded_at: Time.current,
           uploaded_by: current_user&.email,
-          sharepoint_url: sharepoint_url
+          sharepoint_url: storage_url
         )
 
         render json: {
           message: "Document uploaded successfully",
-          document_url: sharepoint_url || url_for(task.document),
-          sharepoint_url: sharepoint_url,
-          uploaded_at: task.uploaded_at
+          document_url: storage_url || url_for(task.document),
+          sharepoint_url: storage_url,
+          uploaded_at: task.uploaded_at,
+          provider: current_provider_type&.to_s
         }
       rescue => e
         render json: { error: e.message }, status: :unprocessable_entity
@@ -134,29 +142,15 @@ module Api
         @job = Job.find(params[:job_id])
       end
 
-      # Navigate to or create nested folder path (e.g., "02 PreCon/Revit-DWG")
-      def ensure_folder_path(client, parent_folder_id, path)
-        current_folder_id = parent_folder_id
-        current_folder = nil
+      # Build job folder path using SSoT pattern from StorageConfiguration
+      def build_job_folder_path(job)
+        base_folder = scope_folder_path(:job)
+        job_folder_name = "#{job.id.to_s.rjust(3, '0')} - #{sanitize_folder_name(job.title)}"
+        "/#{base_folder}/#{job_folder_name}"
+      end
 
-        path.split("/").each do |folder_name|
-          next if folder_name.blank?
-
-          # Try to find the folder first
-          items = client.list_items(current_folder_id)
-          existing = items.find { |item| item["folder"] && item["name"] == folder_name }
-
-          if existing
-            current_folder = existing
-            current_folder_id = existing["id"]
-          else
-            # Create the folder
-            current_folder = client.create_folder(current_folder_id, folder_name)
-            current_folder_id = current_folder["id"]
-          end
-        end
-
-        current_folder
+      def sanitize_folder_name(name)
+        name.to_s.gsub(/[<>:"|?*\\]/, "_").strip
       end
 
       def task_json(task)

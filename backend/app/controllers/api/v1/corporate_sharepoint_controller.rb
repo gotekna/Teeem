@@ -1,7 +1,10 @@
 module Api
   module V1
     # RENAMED: CorporateOnedriveController → CorporateSharepointController
+    # SSoT: Uses DocumentProviderAware for provider-agnostic storage when possible
     class CorporateSharepointController < ApplicationController
+      include DocumentProviderAware
+
       skip_before_action :authorize_request, only: [ :import_documents ]
       before_action :verify_import_token, only: [ :import_documents ]
       before_action :set_credential, except: [ :import_documents ]
@@ -118,31 +121,30 @@ module Api
       end
 
       # GET /api/v1/corporate_onedrive/browse
-      # Browse OneDrive folders
+      # Browse storage folders (provider-agnostic)
+      # SSoT: Uses DocumentProviderAware for provider-agnostic folder listing
       def browse
-        unless @credential
-          return render json: { success: false, error: "SharePoint not connected" }
+        begin
+          setup_default_provider!
+        rescue DocumentProviders::NotConnectedError => e
+          return render json: { success: false, error: "Storage not connected: #{e.message}" }
         end
 
-        client = MicrosoftGraphClient.new(@credential)
         path = params[:path] || ""
+        folder_path = path.blank? ? "/" : "/#{path}"
 
-        if path.blank?
-          response = client.get("/me/drive/root/children")
-        else
-          encoded_path = path.split("/").map { |p| CGI.escape(p) }.join("/")
-          response = client.get("/me/drive/root:/#{encoded_path}:/children")
+        begin
+          items = list_folder_in_provider(folder_path, folders_only: true)
+
+          render json: {
+            success: true,
+            path: path,
+            provider: current_provider_type.to_s,
+            folders: items.map { |f| { name: f[:name], id: f[:id] } }
+          }
+        rescue DocumentProviders::Error => e
+          render json: { success: false, error: e.message }
         end
-
-        folders = (response["value"] || []).select { |item| item["folder"] }
-
-        render json: {
-          success: true,
-          path: path,
-          folders: folders.map { |f| { name: f["name"], id: f["id"] } }
-        }
-      rescue MicrosoftGraphClient::APIError => e
-        render json: { success: false, error: e.message }
       end
 
       private

@@ -1,6 +1,8 @@
 module Api
   module V1
     class CorporateCompanyDocumentsController < ApplicationController
+      include DocumentProviderAware
+
       skip_before_action :authorize_request, only: [ :content ]
       before_action :set_document, only: [ :show, :update, :destroy, :download, :content, :preview, :validate, :ai_verify, :apply_ai_suggestion, :relocate, :feedback, :upload_edited, :split, :restore ]
 
@@ -150,36 +152,19 @@ module Api
       end
 
       # GET /api/v1/company_documents/:id/download
-      # Downloads file from SharePoint via sharepoint_file_id (SSoT)
+      # SSoT: Delegates to DocumentStorageService for all storage providers
       def download
-        unless @document.sharepoint_file_id.present?
-          return render json: {
-            success: false,
-            error: "No SharePoint file ID - document not synced to SharePoint"
-          }, status: :not_found
-        end
+        service = DocumentStorageService.new
+        result = service.download(@document)
 
-        begin
-          credential = MicrosoftCredential.sharepoint_credential
-          unless credential
-            return render json: {
-              success: false,
-              error: "OneDrive credentials not available"
-            }, status: :service_unavailable
-          end
-
-          client = MicrosoftGraphClient.new(credential)
-          file_content = client.download_file(@document.sharepoint_file_id)
-
-          send_data file_content,
-            type: @document.mime_type || "application/octet-stream",
+        if result[:success]
+          send_data result[:content],
+            type: result[:content_type] || @document.mime_type || "application/octet-stream",
             disposition: "attachment",
-            filename: @document.file_name || "document"
-        rescue MicrosoftGraphClient::APIError => e
-          render json: {
-            success: false,
-            error: "SharePoint download failed: #{e.message}"
-          }, status: :bad_gateway
+            filename: result[:filename] || @document.file_name || "document"
+        else
+          render json: { success: false, error: result[:error] },
+            status: result[:status] || :internal_server_error
         end
       end
 
@@ -207,59 +192,23 @@ module Api
       end
 
       # GET /api/v1/company_documents/:id/preview
-      # Returns an embeddable preview URL for OneDrive files
-      # No fallback - fail fast if SharePoint doesn't work
+      # SSoT: Returns a preview/download URL from the configured storage provider
       def preview
-        unless @document.sharepoint_file_id.present?
-          return render json: {
-            success: false,
-            error: "No SharePoint file ID - document not synced"
-          }, status: :not_found
-        end
+        service = DocumentStorageService.new
+        result = service.download_url(@document, expires_in: 3600)
 
-        begin
-          credential = MicrosoftCredential.sharepoint_credential
-          unless credential
-            return render json: {
-              success: false,
-              error: "OneDrive credentials not available"
-            }, status: :service_unavailable
-          end
-
-          client = MicrosoftGraphClient.new(credential)
-          preview_url = client.get_preview_url(@document.sharepoint_file_id)
-
-          if preview_url
-            render json: {
-              success: true,
-              preview_url: preview_url,
-              file_name: @document.file_name,
-              file_type: @document.file_name&.split(".")&.last&.downcase
-            }
-          else
-            render json: {
-              success: false,
-              error: "Preview not available for this file type"
-            }, status: :unprocessable_entity
-          end
-        rescue MicrosoftGraphClient::AuthenticationError => e
-          Rails.logger.error "OneDrive auth error getting preview: #{e.message}"
+        if result[:success]
+          render json: {
+            success: true,
+            preview_url: result[:url],
+            file_name: @document.file_name,
+            file_type: @document.file_name&.split(".")&.last&.downcase
+          }
+        else
           render json: {
             success: false,
-            error: "OneDrive authentication error: #{e.message}"
-          }, status: :unauthorized
-        rescue MicrosoftGraphClient::APIError => e
-          Rails.logger.error "OneDrive API error getting preview: #{e.message}"
-          render json: {
-            success: false,
-            error: "SharePoint API error: #{e.message}"
-          }, status: :bad_gateway
-        rescue ActiveRecord::Encryption::Errors::Decryption => e
-          Rails.logger.error "OneDrive credential decryption error: #{e.message}"
-          render json: {
-            success: false,
-            error: "OneDrive credentials not available in this environment"
-          }, status: :service_unavailable
+            error: result[:error]
+          }, status: result[:status] || :internal_server_error
         end
       end
 
@@ -522,11 +471,6 @@ module Api
         create_new = params[:create_new] == "true" || params[:create_new] == true
 
         begin
-          credential = MicrosoftCredential.sharepoint_credential
-          raise "No active OneDrive credential" unless credential
-
-          client = MicrosoftGraphClient.new(credential)
-
           # Get content from either file upload or base64 data
           content = if params[:file].present?
             params[:file].read
@@ -534,39 +478,58 @@ module Api
             Base64.decode64(params[:file_data])
           end
 
+          service = DocumentStorageService.new
+
           if create_new
-            # Create a new document in the same folder
-            file_info = client.get_item(@document.sharepoint_file_id)
-            parent_folder_id = file_info.dig("parentReference", "id")
-
-            result = client.upload_file_content(parent_folder_id, new_filename, content)
-
-            # Create new document record
+            # Create a new document record first
             new_document = CorporateCompanyDocument.create!(
               company_id: @document.company_id,
               file_name: new_filename,
-              mime_type: @document.mime_type || Marcel::MimeType.for(name: new_filename),  # Inherit or detect
+              mime_type: @document.mime_type || Marcel::MimeType.for(name: new_filename),
               folder: @document.folder,
               document_type: params[:document_type] || @document.document_type,
               source: "edited",
-              sharepoint_file_id: result[:id],
               file_size: content.bytesize,
               financial_years: @document.financial_years,
               ai_verification_status: "pending",
               ai_analysis_notes: "Created from edited version of #{@document.file_name}"
             )
 
+            # Upload to storage using DocumentStorageService
+            result = service.upload(
+              scope: :corporate,
+              record: new_document,
+              file: content,
+              filename: new_filename,
+              tokens: { CompanyName: @document.corporate_company&.name }
+            )
+
+            unless result[:success]
+              new_document.destroy
+              raise result[:error]
+            end
+
             render json: {
               success: true,
               message: "New document created successfully",
-              document: new_document.as_json(
+              document: new_document.reload.as_json(
                 include: { company: {} },
                 methods: [ :formatted_document_type, :file_size_mb ]
               )
             }
           else
-            # Replace existing file
-            client.update_file_content(@document.sharepoint_file_id, content)
+            # Replace existing file using DocumentStorageService
+            result = service.upload(
+              scope: :corporate,
+              record: @document,
+              file: content,
+              filename: new_filename,
+              tokens: { CompanyName: @document.corporate_company&.name }
+            )
+
+            unless result[:success]
+              raise result[:error]
+            end
 
             # Update document record
             @document.update!(

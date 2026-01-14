@@ -1,20 +1,24 @@
 module Api
   module V1
     class JobPhotosController < ApplicationController
+      include DocumentProviderAware
+
       # POST /api/v1/jobs/:job_id/photos/upload
-      # Upload a photo directly to a job's SharePoint photo folder
+      # Upload a photo directly to a job's storage folder
+      # SSoT: Uses DocumentProviderAware for provider-agnostic storage (Wasabi, SharePoint, S3)
       # Params:
       #   - file: The photo file (multipart)
       #   - folder_path: The relative folder path (e.g., "06 Photo/01 SITE")
       def upload
         job = Job.find(params[:job_id])
 
-        credential = MicrosoftCredential.sharepoint_credential
-
-        unless credential&.valid_credential?
+        # SSoT: Setup provider using StorageConfiguration
+        begin
+          setup_default_provider!
+        rescue DocumentProviders::NotConnectedError => e
           return render json: {
             success: false,
-            error: "SharePoint not connected. Please connect in Admin > System > Connections."
+            error: "Storage not connected: #{e.message}"
           }, status: :unauthorized
         end
 
@@ -35,84 +39,36 @@ module Api
         end
 
         begin
-          Rails.logger.info "[JobPhotos] Starting upload for job #{job.id}, folder_path: #{folder_path}, filename: #{filename}"
-          client = MicrosoftGraphClient.new(credential)
-          Rails.logger.info "[JobPhotos] MicrosoftGraphClient created successfully"
+          Rails.logger.info "[JobPhotos] Starting upload for job #{job.id}, folder_path: #{folder_path}, filename: #{filename}, provider: #{current_provider_type}"
 
-          # Find or create the job folder
-          job_folder = client.find_job_folder(job)
-          Rails.logger.info "[JobPhotos] find_job_folder result: #{job_folder&.slice('id', 'name', 'webUrl')}"
+          # Build full path to target folder
+          job_folder_path = build_job_folder_path(job)
+          target_folder_path = folder_path.present? ? "#{job_folder_path}/#{folder_path}" : job_folder_path
 
-          # Verify the folder actually exists in SharePoint (it might be a stale cached ID)
-          if job_folder && job_folder["id"].present?
-            begin
-              Rails.logger.info "[JobPhotos] Verifying folder exists: #{job_folder['id']}"
-              drive_path = credential.drive_id.present? ? "/drives/#{credential.drive_id}" : "/me/drive"
-              client.get("#{drive_path}/items/#{job_folder['id']}")
-              Rails.logger.info "[JobPhotos] Folder verified to exist"
-            rescue MicrosoftGraphClient::APIError => e
-              if e.message.include?("404") || e.message.include?("itemNotFound")
-                Rails.logger.warn "[JobPhotos] Folder ID #{job_folder['id']} no longer exists, will recreate"
-                job_folder = nil # Force recreation
-              else
-                raise e
-              end
-            end
+          Rails.logger.info "[JobPhotos] Target folder path: #{target_folder_path}"
+
+          # Ensure job folder and subfolder exist
+          unless folder_exists_in_provider?(job_folder_path)
+            Rails.logger.info "[JobPhotos] Job folder not found, creating structure..."
+            get_or_create_folder_path(job_folder_path)
           end
 
-          # If job folder doesn't exist or has no valid ID, create it
-          # SSoT: Folder structure comes from EntityTab hierarchy (no longer uses FolderTemplate)
-          unless job_folder && job_folder["id"].present?
-            Rails.logger.info "[JobPhotos] Job folder not found, creating structure from EntityTab..."
-            job_folder = client.create_job_folder_structure(job)
+          # Create target subfolder if different from job folder
+          if folder_path.present?
+            get_or_create_folder_path(target_folder_path)
           end
 
-          # Navigate to the photo folder within the job folder
-          # folder_path can be like "06 Photo/01 SITE" or just "Photo"
-          Rails.logger.info "[JobPhotos] Navigating to folder_path: #{folder_path} within job_folder_id: #{job_folder['id']}"
-          target_folder = find_or_create_folder_path(client, credential, job_folder["id"], folder_path)
-          Rails.logger.info "[JobPhotos] target_folder result: #{target_folder.inspect}"
+          # Upload the file
+          Rails.logger.info "[JobPhotos] Uploading file to #{target_folder_path}"
+          result = upload_to_provider(target_folder_path, uploaded_file.read, filename, content_type: uploaded_file.content_type)
 
-          unless target_folder
-            return render json: {
-              success: false,
-              error: "Could not find or create photo folder: #{folder_path}"
-            }, status: :unprocessable_entity
-          end
-
-          # Upload the file with the specified filename
-          # With retry if folder doesn't actually exist (stale cache)
-          upload_attempts = 0
-          max_upload_attempts = 2
-          result = nil
-
-          begin
-            upload_attempts += 1
-            Rails.logger.info "[JobPhotos] Upload attempt #{upload_attempts}: uploading to folder #{target_folder['id']}"
-            result = client.upload_file(uploaded_file, target_folder["id"], filename)
-          rescue MicrosoftGraphClient::APIError => upload_error
-            if (upload_error.message.include?("404") || upload_error.message.include?("itemNotFound")) && upload_attempts < max_upload_attempts
-              Rails.logger.warn "[JobPhotos] Upload failed with 404, folder may be stale. Force-creating folder path..."
-              # Force create the folder path by using path-based navigation
-              drive_path = credential.drive_id.present? ? "/drives/#{credential.drive_id}" : "/me/drive"
-              target_folder = force_create_folder_path(client, drive_path, job_folder["id"], folder_path)
-              if target_folder
-                retry
-              else
-                raise upload_error
-              end
-            else
-              raise upload_error
-            end
-          end
-
-          Rails.logger.info "[JobPhotos] Successfully uploaded #{filename} to #{folder_path}"
+          Rails.logger.info "[JobPhotos] Successfully uploaded #{filename} to #{target_folder_path}"
 
           # SSoT: Use JobActivity for consistent activity logging across the job
           JobActivity.log_document_uploaded(
             job,
             document_name: filename,
-            document_url: result["webUrl"],
+            document_url: result[:web_url] || result[:path],
             user: current_user
           )
 
@@ -120,140 +76,39 @@ module Api
             success: true,
             message: "Photo uploaded successfully",
             file: {
-              name: result["name"],
-              web_url: result["webUrl"],
-              size: result["size"],
+              id: result[:id],
+              name: result[:name] || filename,
+              web_url: result[:web_url] || result[:path],
+              size: result[:size],
               folder_path: folder_path
-            }
+            },
+            provider: current_provider_type.to_s
           }
 
-        rescue MicrosoftGraphClient::AuthenticationError => e
+        rescue DocumentProviders::AuthenticationError => e
           Rails.logger.error "[JobPhotos] Auth error: #{e.message}"
           render json: { success: false, error: "Authentication failed: #{e.message}" }, status: :unauthorized
-        rescue MicrosoftGraphClient::APIError => e
-          Rails.logger.error "[JobPhotos] API error: #{e.message}"
-          render json: { success: false, error: "SharePoint API error: #{e.message}" }, status: :bad_gateway
+        rescue DocumentProviders::Error => e
+          Rails.logger.error "[JobPhotos] Storage error: #{e.message}"
+          render json: { success: false, error: "Storage error: #{e.message}" }, status: :bad_gateway
         rescue StandardError => e
           Rails.logger.error "[JobPhotos] Upload error: #{e.message}"
-          Rails.logger.error e.backtrace.join("\n")
+          Rails.logger.error e.backtrace.first(10).join("\n")
           render json: { success: false, error: "Failed to upload photo: #{e.message}" }, status: :internal_server_error
         end
       end
 
       private
 
-      # Navigate through a folder path and find or create each folder
-      # Returns the final folder item or nil if failed
-      def find_or_create_folder_path(client, credential, parent_folder_id, path)
-        return { "id" => parent_folder_id } if path.blank?
-
-        # Split path and navigate/create each folder
-        path_parts = path.split("/").reject(&:blank?)
-        current_folder_id = parent_folder_id
-        drive_path = credential.drive_id.present? ? "/drives/#{credential.drive_id}" : "/me/drive"
-
-        path_parts.each do |folder_name|
-          Rails.logger.info "[JobPhotos] Looking for folder '#{folder_name}' in parent #{current_folder_id}"
-          begin
-            # List children of current folder
-            response = client.list_folder_items(current_folder_id)
-            items = response["value"] || []
-
-            # Find folder by name (case-insensitive)
-            folder = items.find { |item| item["folder"] && item["name"]&.downcase == folder_name.downcase }
-
-            if folder
-              Rails.logger.info "[JobPhotos] Found existing folder '#{folder_name}' with id #{folder['id']}"
-              current_folder_id = folder["id"]
-            else
-              # Folder not found in listing - create it
-              Rails.logger.info "[JobPhotos] Folder '#{folder_name}' not found, creating..."
-              new_folder = client.post("#{drive_path}/items/#{current_folder_id}/children", {
-                name: folder_name,
-                folder: {},
-                "@microsoft.graph.conflictBehavior" => "rename"
-              })
-              current_folder_id = new_folder["id"]
-              Rails.logger.info "[JobPhotos] Created folder '#{folder_name}' with id #{current_folder_id}"
-            end
-          rescue MicrosoftGraphClient::APIError => e
-            # If listing fails (404), the parent folder might not exist - try creating it
-            if e.message.include?("404") || e.message.include?("itemNotFound")
-              Rails.logger.warn "[JobPhotos] Parent folder #{current_folder_id} not found (404), creating '#{folder_name}' at root"
-              begin
-                new_folder = client.post("#{drive_path}/items/#{parent_folder_id}/children", {
-                  name: folder_name,
-                  folder: {},
-                  "@microsoft.graph.conflictBehavior" => "rename"
-                })
-                current_folder_id = new_folder["id"]
-                Rails.logger.info "[JobPhotos] Created folder '#{folder_name}' with id #{current_folder_id}"
-              rescue StandardError => create_error
-                Rails.logger.error "[JobPhotos] Failed to create folder #{folder_name}: #{create_error.message}"
-                return nil
-              end
-            else
-              Rails.logger.error "[JobPhotos] Failed to navigate to folder #{folder_name}: #{e.message}"
-              return nil
-            end
-          rescue StandardError => e
-            Rails.logger.error "[JobPhotos] Failed to create folder #{folder_name}: #{e.message}"
-            return nil
-          end
-        end
-
-        # Return the final folder info
-        { "id" => current_folder_id }
+      # Build job folder path using SSoT pattern from StorageConfiguration
+      def build_job_folder_path(job)
+        base_folder = scope_folder_path(:job)
+        job_folder_name = "#{job.id.to_s.rjust(3, '0')} - #{sanitize_folder_name(job.title)}"
+        "/#{base_folder}/#{job_folder_name}"
       end
 
-      # Force-create folder path without relying on cached listings
-      # Always creates folders, using conflict behavior to handle existing ones
-      def force_create_folder_path(client, drive_path, parent_folder_id, path)
-        return { "id" => parent_folder_id } if path.blank?
-
-        path_parts = path.split("/").reject(&:blank?)
-        current_folder_id = parent_folder_id
-
-        path_parts.each do |folder_name|
-          Rails.logger.info "[JobPhotos] Force-creating folder '#{folder_name}' in parent #{current_folder_id}"
-          begin
-            new_folder = client.post("#{drive_path}/items/#{current_folder_id}/children", {
-              name: folder_name,
-              folder: {},
-              "@microsoft.graph.conflictBehavior" => "fail"  # Will fail if exists, letting us get the existing one
-            })
-            current_folder_id = new_folder["id"]
-            Rails.logger.info "[JobPhotos] Created new folder '#{folder_name}' with id #{current_folder_id}"
-          rescue MicrosoftGraphClient::APIError => e
-            if e.message.include?("nameAlreadyExists") || e.message.include?("409")
-              # Folder exists - list children and find by name
-              Rails.logger.info "[JobPhotos] Folder '#{folder_name}' already exists, listing children to find it..."
-              begin
-                children_response = client.get("#{drive_path}/items/#{current_folder_id}/children")
-                items = children_response["value"] || []
-                existing = items.find { |item| item["folder"] && item["name"]&.downcase == folder_name.downcase }
-                if existing && existing["id"].present?
-                  current_folder_id = existing["id"]
-                  Rails.logger.info "[JobPhotos] Found existing folder '#{folder_name}' with id #{current_folder_id}"
-                else
-                  Rails.logger.error "[JobPhotos] Folder '#{folder_name}' reported as existing but not found in children list"
-                  return nil
-                end
-              rescue StandardError => lookup_error
-                Rails.logger.error "[JobPhotos] Failed to lookup existing folder '#{folder_name}': #{lookup_error.message}"
-                return nil
-              end
-            else
-              Rails.logger.error "[JobPhotos] Failed to force-create folder '#{folder_name}': #{e.message}"
-              return nil
-            end
-          rescue StandardError => e
-            Rails.logger.error "[JobPhotos] Failed to force-create folder '#{folder_name}': #{e.message}"
-            return nil
-          end
-        end
-
-        { "id" => current_folder_id }
+      def sanitize_folder_name(name)
+        name.to_s.gsub(/[<>:"|?*\\]/, "_").strip
       end
     end
   end

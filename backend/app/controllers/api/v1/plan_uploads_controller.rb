@@ -3,6 +3,8 @@
 module Api
   module V1
     class PlanUploadsController < ApplicationController
+      include DocumentProviderAware
+
       before_action :set_job
       before_action :set_plan_upload, only: [:show, :resume]
 
@@ -48,6 +50,7 @@ module Api
 
       # POST /api/v1/jobs/:job_id/plan_uploads
       # Upload a new plan set
+      # SSoT: Uses DocumentProviderAware for provider-agnostic storage
       def create
         unless params[:file].present?
           return render json: { success: false, error: "No file provided" }, status: :unprocessable_entity
@@ -76,26 +79,27 @@ module Api
           status: "pending"
         )
 
-        # Get SharePoint credential
-        credential = MicrosoftCredential.sharepoint_credential
-        unless credential
-          @plan_upload.mark_failed!("SharePoint not connected")
-          return render json: { success: false, error: "SharePoint not connected" }, status: :unprocessable_entity
+        # SSoT: Setup provider using StorageConfiguration
+        begin
+          setup_default_provider!
+        rescue DocumentProviders::NotConnectedError => e
+          @plan_upload.mark_failed!("Storage not connected: #{e.message}")
+          return render json: { success: false, error: "Storage not connected: #{e.message}" }, status: :unprocessable_entity
         end
 
         begin
           @plan_upload.start_uploading!
 
-          client = MicrosoftGraphClient.new(credential)
-
-          # Find or create staging folder
-          staging_folder_id = get_or_create_staging_folder(client, credential)
+          # Find or create staging folder at root
+          staging_folder_path = "/#{PlanUpload.staging_folder_name}"
+          get_or_create_folder_path(staging_folder_path)
 
           # Upload to staging folder
-          staging_result = client.upload_file_content(
-            staging_folder_id,
+          staging_result = upload_to_provider(
+            staging_folder_path,
+            uploaded_file.read,
             @plan_upload.staging_filename,
-            uploaded_file.read
+            content_type: uploaded_file.content_type
           )
 
           @plan_upload.update!(staging_file_id: staging_result[:id])
@@ -105,9 +109,14 @@ module Api
 
           render json: {
             success: true,
-            data: @plan_upload.as_json_status
+            data: @plan_upload.as_json_status,
+            provider: current_provider_type.to_s
           }, status: :accepted
 
+        rescue DocumentProviders::Error => e
+          Rails.logger.error("[PlanUpload] Storage error: #{e.message}")
+          @plan_upload.mark_failed!(e.message)
+          render json: { success: false, error: "Storage error: #{e.message}" }, status: :bad_gateway
         rescue => e
           Rails.logger.error("[PlanUpload] Upload failed: #{e.message}")
           @plan_upload.mark_failed!(e.message)
@@ -147,28 +156,6 @@ module Api
       def ensure_job_has_plan_tabs
         return if @job.job_plan_tabs.exists?
         PlanCategory.create_tabs_for_job(@job)
-      end
-
-      def get_or_create_staging_folder(client, credential)
-        staging_folder_name = PlanUpload.staging_folder_name
-
-        # Try to find existing staging folder in root
-        begin
-          drive_path = credential.drive_id.present? ? "/drives/#{credential.drive_id}" : "/me/drive"
-          response = client.get("#{drive_path}/root/children")
-          folders = response["value"] || []
-          staging_folder = folders.find { |f| f["name"] == staging_folder_name && f["folder"] }
-
-          if staging_folder
-            return staging_folder["id"]
-          end
-        rescue => e
-          Rails.logger.warn("[PlanUpload] Error finding staging folder: #{e.message}")
-        end
-
-        # Create staging folder
-        result = client.create_folder(staging_folder_name)
-        result["id"]
       end
     end
   end

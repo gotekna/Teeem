@@ -1,6 +1,8 @@
 module Api
   module V1
     class JobsController < ApplicationController
+      include DocumentProviderAware
+
       before_action :set_job, only: [ :show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :activities, :budget_tracking, :merge, :update_stage, :mark_lost, :upload_plan_set, :plan_set, :rename_plans, :generate_contract, :save_contract, :send_contract_for_signing, :create_storage_folders ]
 
       # GET /api/v1/jobs/pipeline
@@ -763,45 +765,43 @@ module Api
 
       # GET /api/v1/jobs/:id/plan_set
       # Get the list of plans in the 04 Plans folder
+      # SSoT: Uses DocumentProviderAware for provider-agnostic storage
       def plan_set
-        credential = MicrosoftCredential.sharepoint_credential
-        unless credential
-          return render json: { success: false, error: "SharePoint not connected" }, status: :unprocessable_entity
+        begin
+          setup_default_provider!
+        rescue DocumentProviders::NotConnectedError => e
+          return render json: { success: false, error: "Storage not connected: #{e.message}" }, status: :unprocessable_entity
         end
 
-        client = MicrosoftGraphClient.new(credential)
+        # Build job folder path
+        job_folder_path = build_job_folder_path(@job)
 
-        # Find the job folder
-        job_folder = client.find_job_folder(@job)
-        unless job_folder
+        # Check if job folder exists
+        unless folder_exists_in_provider?(job_folder_path)
           return render json: { success: true, data: { plans: [], folder_exists: false } }
         end
 
         # SSoT: Get plans folder name from EntityTab
         plans_folder_name = EntityTab.folder_name_for("job", "plans", "04 Plans")
+        plans_folder_path = "#{job_folder_path}/#{plans_folder_name}"
 
-        # Find plans folder - list_folder_items returns { "value" => [...] } with string keys
-        response = client.list_folder_items(job_folder["id"])
-        items = response["value"] || []
-        plans_folder = items.find { |item| item["name"] == plans_folder_name && item["folder"].present? }
-
-        unless plans_folder
+        # Check if plans folder exists
+        unless folder_exists_in_provider?(plans_folder_path)
           return render json: { success: true, data: { plans: [], folder_exists: false } }
         end
 
         # List files in 04 Plans
-        plan_response = client.list_folder_items(plans_folder["id"])
-        plan_files = plan_response["value"] || []
-        pdf_files = plan_files.select { |f| f["file"].present? && f["name"]&.end_with?(".pdf") }
+        items = list_folder_in_provider(plans_folder_path, recursive: false)
+        pdf_files = items.select { |f| f[:type] == :file && f[:name]&.end_with?(".pdf") }
 
         plans = pdf_files.map do |f|
           {
-            id: f["id"],
-            name: f["name"],
-            web_url: f["webUrl"],
-            size: f["size"],
-            modified: f["lastModifiedDateTime"],
-            is_all_plans: f["name"] == "All Plans.pdf"
+            id: f[:id],
+            name: f[:name],
+            web_url: f[:web_url] || f[:path],
+            size: f[:size],
+            modified: f[:modified_at]&.iso8601,
+            is_all_plans: f[:name] == "All Plans.pdf"
           }
         end
 
@@ -813,8 +813,8 @@ module Api
           data: {
             plans: plans,
             folder_exists: true,
-            folder_id: plans_folder["id"],
-            folder_web_url: plans_folder["webUrl"]
+            folder_path: plans_folder_path,
+            provider: current_provider_type.to_s
           }
         }
       rescue => e
@@ -861,6 +861,7 @@ module Api
 
       # POST /api/v1/jobs/:id/save_contract
       # Generate QBCC contract PDF and save to job documents
+      # SSoT: Uses DocumentProviderAware for provider-agnostic storage
       def save_contract
         engine = Engines::PdfOverlayEngine.new(:qbcc_contract)
         pdf_content = engine.generate(job: @job)
@@ -868,31 +869,29 @@ module Api
         # Create a document record for this job
         filename = "QBCC_Contract_#{@job.job_number || @job.id}_#{Date.current.strftime('%Y%m%d')}.pdf"
 
-        # Upload to SharePoint/OneDrive
-        credential = MicrosoftCredential.sharepoint_credential
-        if credential
-          client = MicrosoftGraphClient.new(credential)
-
-          # Build folder path: Jobs/0046 - Job Name/01 Contract Documents
-          # SSoT: Use StorageConfiguration for jobs path
-          jobs_base = StorageConfiguration.instance.path_for(:jobs)
-          job_folder_name = "#{@job.job_number} - #{@job.name}".truncate(100)
-          folder_path = "#{jobs_base}/#{job_folder_name}/01 Contract Documents"
-
-          # Ensure folder exists
-          client.ensure_folder_path(folder_path)
-
-          # Upload file
-          result = client.upload_file(folder_path, filename, pdf_content, "application/pdf")
-
-          if result
-            render json: { success: true, data: { filename: filename, sharepoint_id: result[:id], folder: folder_path } }
-          else
-            render json: { success: false, error: "Failed to upload to SharePoint" }, status: :internal_server_error
-          end
-        else
+        # Upload to storage provider
+        begin
+          setup_default_provider!
+        rescue DocumentProviders::NotConnectedError => e
           # Fallback: just return success with the filename
-          render json: { success: true, data: { filename: filename, note: "SharePoint not connected - document generated but not saved" } }
+          return render json: { success: true, data: { filename: filename, note: "Storage not connected - document generated but not saved" } }
+        end
+
+        # Build folder path using SSoT pattern
+        job_folder_path = build_job_folder_path(@job)
+        contracts_folder_name = EntityTab.folder_name_for("job", "contracts", "01 Contract Documents")
+        folder_path = "#{job_folder_path}/#{contracts_folder_name}"
+
+        # Ensure folder exists
+        get_or_create_folder_path(folder_path)
+
+        # Upload file
+        result = upload_to_provider(folder_path, pdf_content, filename, content_type: "application/pdf")
+
+        if result
+          render json: { success: true, data: { filename: filename, storage_id: result[:id], folder: folder_path, provider: current_provider_type.to_s } }
+        else
+          render json: { success: false, error: "Failed to upload to storage" }, status: :internal_server_error
         end
       rescue => e
         Rails.logger.error("save_contract error: #{e.message}")
@@ -901,7 +900,8 @@ module Api
       end
 
       # POST /api/v1/jobs/:id/send_contract_for_signing
-      # Generate QBCC contract PDF, save to SharePoint, and send for e-signing
+      # Generate QBCC contract PDF, save to storage, and send for e-signing
+      # SSoT: Uses DocumentProviderAware for provider-agnostic storage
       def send_contract_for_signing
         # Step 1: Generate the QBCC contract PDF
         engine = Engines::PdfOverlayEngine.new(:qbcc_contract)
@@ -909,26 +909,24 @@ module Api
 
         filename = "QBCC_Contract_#{@job.job_number || @job.id}_#{Date.current.strftime('%Y%m%d')}.pdf"
 
-        # Step 2: Upload to SharePoint
-        credential = MicrosoftCredential.sharepoint_credential
-        unless credential
-          return render json: { success: false, error: "SharePoint not connected" }, status: :unprocessable_entity
+        # Step 2: Upload to storage provider
+        begin
+          setup_default_provider!
+        rescue DocumentProviders::NotConnectedError => e
+          return render json: { success: false, error: "Storage not connected: #{e.message}" }, status: :unprocessable_entity
         end
 
-        client = MicrosoftGraphClient.new(credential)
-
-        # Build folder path: Jobs/0046 - Job Name/01 Contract Documents
-        # SSoT: Use StorageConfiguration for jobs path
-        jobs_base = StorageConfiguration.instance.path_for(:jobs)
-        job_folder_name = "#{@job.job_number} - #{@job.name}".truncate(100)
-        folder_path = "#{jobs_base}/#{job_folder_name}/01 Contract Documents"
+        # Build folder path using SSoT pattern
+        job_folder_path = build_job_folder_path(@job)
+        contracts_folder_name = EntityTab.folder_name_for("job", "contracts", "01 Contract Documents")
+        folder_path = "#{job_folder_path}/#{contracts_folder_name}"
 
         # Ensure folder exists and upload
-        client.ensure_folder_path(folder_path)
-        uploaded = client.upload_file(folder_path, filename, pdf_content, "application/pdf")
+        get_or_create_folder_path(folder_path)
+        uploaded = upload_to_provider(folder_path, pdf_content, filename, content_type: "application/pdf")
 
         unless uploaded
-          return render json: { success: false, error: "Failed to upload to SharePoint" }, status: :internal_server_error
+          return render json: { success: false, error: "Failed to upload to storage" }, status: :internal_server_error
         end
 
         # Step 3: Get signers from job contacts (clients only)
@@ -950,6 +948,7 @@ module Api
         end
 
         # Step 4: Create e-signature request
+        # Storage reference fields work across providers (sharepoint_ prefix is legacy naming)
         request = ESignatureRequest.new(
           title: "QBCC Contract - #{@job.name}",
           description: "Building Contract for #{@job.address || @job.name}",
@@ -959,8 +958,8 @@ module Api
           expires_at: 30.days.from_now,
           send_reminders: true,
           original_sharepoint_file_id: uploaded[:id],
-          sharepoint_site_id: credential.site_id,
-          sharepoint_drive_id: credential.drive_id
+          sharepoint_site_id: storage_config&.site_id,
+          sharepoint_drive_id: storage_config&.drive_id
         )
 
         # Add client contacts as signers
@@ -1060,6 +1059,17 @@ module Api
       end
 
       private
+
+      # Build job folder path using SSoT pattern from StorageConfiguration
+      def build_job_folder_path(job)
+        base_folder = scope_folder_path(:job)
+        job_folder_name = "#{job.id.to_s.rjust(3, '0')} - #{sanitize_folder_name(job.title)}"
+        "/#{base_folder}/#{job_folder_name}"
+      end
+
+      def sanitize_folder_name(name)
+        name.to_s.gsub(/[<>:"|?*\\]/, "_").strip
+      end
 
       def set_job
         # Support lookup by ID or slug (title-based)

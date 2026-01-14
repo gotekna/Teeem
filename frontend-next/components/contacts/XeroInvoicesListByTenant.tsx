@@ -289,16 +289,32 @@ export function XeroInvoicesListByTenant({
     </div>
   );
 
-  // Single tenant - no tabs needed
-  if (tenantIds.length === 1) {
-    const data = byTenant[tenantIds[0]];
-    const items = isInvoice ? data.invoices : data.bills;
+  // SSoT: Tab structure based on linkedTenants count, not data count
+  // - 1 linked tenant: show company name as header (no tabs)
+  // - 2+ linked tenants: show "All" + company tabs
+  const linkedTenantCount = linkedTenants?.length || 0;
+  const showTabs = linkedTenantCount >= 2;
+
+  // Get all linked tenant IDs for tabs (show even if empty)
+  const allLinkedTenantIds = linkedTenants?.map(t => t.xero_tenant_id) || tenantIds;
+
+  // Single linked tenant - no tabs needed, just show the tenant name
+  if (!showTabs && tenantIds.length <= 1) {
+    const tenantId = tenantIds[0];
+    const data = tenantId ? byTenant[tenantId] : null;
+    const items = data ? (isInvoice ? data.invoices : data.bills) : [];
     const rows = transformToRows(items, false);
     const columns = getColumns(false);
+    const tenantName = linkedTenants?.[0]?.xero_tenant_name || data?.tenant_info?.tenant_name;
 
     return (
       <div className="h-full space-y-4">
         <SyncHeader />
+        {tenantName && (
+          <div className="text-sm font-medium text-muted-foreground mb-2">
+            {tenantName}
+          </div>
+        )}
         {rows.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             <FileText className="h-12 w-12 mx-auto mb-4 opacity-20" />
@@ -313,6 +329,7 @@ export function XeroInvoicesListByTenant({
               onRowClick={handleRowClick}
               viewOnly={true}
               enableExport={true}
+              foundationIdNumeric={0}
             />
           </div>
         )}
@@ -320,7 +337,7 @@ export function XeroInvoicesListByTenant({
     );
   }
 
-  // Multiple tenants - show tabs with "All" option
+  // Multiple linked tenants - show tabs with "All" option
   return (
     <div className="h-full space-y-4">
       <SyncHeader />
@@ -334,13 +351,15 @@ export function XeroInvoicesListByTenant({
               {totalAllCount}
             </Badge>
           </TabsTrigger>
-          {/* Individual tenant tabs */}
-          {tenantIds.map((tenantId) => {
+          {/* Individual tenant tabs - show all linked tenants */}
+          {allLinkedTenantIds.map((tenantId) => {
             const data = byTenant[tenantId];
-            const count = isInvoice ? data.total_invoices : data.total_bills;
+            const linkedTenant = linkedTenants?.find(t => t.xero_tenant_id === tenantId);
+            const count = data ? (isInvoice ? data.total_invoices : data.total_bills) : 0;
+            const tenantName = linkedTenant?.xero_tenant_name || data?.tenant_info?.tenant_name || "Unknown";
             return (
               <TabsTrigger key={tenantId} value={tenantId} className="flex items-center gap-2">
-                {data.tenant_info?.tenant_name || "Unknown"}
+                {tenantName}
                 <Badge variant="secondary" className="ml-1">
                   {count}
                 </Badge>
@@ -365,15 +384,16 @@ export function XeroInvoicesListByTenant({
                 onRowClick={handleRowClick}
                 viewOnly={true}
                 enableExport={true}
+                foundationIdNumeric={0}
               />
             </div>
           )}
         </TabsContent>
 
-        {/* Individual tenant tab contents */}
-        {tenantIds.map((tenantId) => {
+        {/* Individual tenant tab contents - show all linked tenants */}
+        {allLinkedTenantIds.map((tenantId) => {
           const data = byTenant[tenantId];
-          const items = isInvoice ? data.invoices : data.bills;
+          const items = data ? (isInvoice ? data.invoices : data.bills) : [];
           const rows = transformToRows(items, false);
           return (
             <TabsContent key={tenantId} value={tenantId}>
@@ -391,6 +411,7 @@ export function XeroInvoicesListByTenant({
                     onRowClick={handleRowClick}
                     viewOnly={true}
                     enableExport={true}
+                    foundationIdNumeric={0}
                   />
                 </div>
               )}

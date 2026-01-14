@@ -1,6 +1,8 @@
 module Api
   module V1
     class JobPlansController < ApplicationController
+      include DocumentProviderAware
+
       before_action :set_job
       before_action :set_job_plan, only: [:show, :update, :destroy, :add_revision, :set_on_issue, :reprocess]
 
@@ -224,6 +226,7 @@ module Api
 
       # POST /api/v1/jobs/:job_id/job_plans/upload_plan_set
       # Uploads a multi-page PDF - processing is done in background to avoid timeout
+      # SSoT: Uses DocumentProviderAware for provider-agnostic storage
       def upload_plan_set
         unless params[:file].present?
           return render json: { success: false, error: 'No file provided' }, status: :unprocessable_entity
@@ -232,34 +235,35 @@ module Api
         # Ensure job has plan tabs
         ensure_job_has_plan_tabs
 
-        # Upload to SharePoint as staging file (accessible from worker dyno)
-        # This avoids Heroku's ephemeral filesystem issue where web/worker dynos can't share files
-        uploaded_file = params[:file]
-        credential = MicrosoftCredential.sharepoint_credential
-        unless credential
-          return render json: { success: false, error: 'SharePoint not connected' }, status: :unprocessable_entity
+        # SSoT: Setup provider using StorageConfiguration
+        begin
+          setup_default_provider!
+        rescue DocumentProviders::NotConnectedError => e
+          return render json: { success: false, error: "Storage not connected: #{e.message}" }, status: :unprocessable_entity
         end
 
-        client = MicrosoftGraphClient.new(credential)
+        uploaded_file = params[:file]
 
-        # Upload to a staging location in SharePoint
-        job_folder = client.find_job_folder(@job)
-        unless job_folder
-          return render json: { success: false, error: 'Job folder not found in SharePoint' }, status: :unprocessable_entity
+        # Build job folder path
+        job_folder_path = build_job_folder_path(@job)
+
+        # Ensure job folder exists
+        unless folder_exists_in_provider?(job_folder_path)
+          return render json: { success: false, error: 'Job folder not found in storage' }, status: :unprocessable_entity
         end
 
         # Create staging filename with timestamp
         staging_filename = "_staging_#{Time.now.to_i}_#{uploaded_file.original_filename}"
-        staging_result = client.upload_file_content(job_folder["id"], staging_filename, uploaded_file.read)
+        staging_result = upload_to_provider(job_folder_path, uploaded_file.read, staging_filename, content_type: uploaded_file.content_type)
         uploaded_file.rewind
 
         staging_file_id = staging_result[:id]
-        Rails.logger.info "[upload_plan_set] Staged file to SharePoint: #{staging_file_id}"
+        Rails.logger.info "[upload_plan_set] Staged file to storage: #{staging_file_id} (provider: #{current_provider_type})"
 
         # Get the first tab (or specified tab) for categorizing plans
         tab_id = params[:job_plan_tab_id] || @job.job_plan_tabs.root_tabs.ordered.first&.id
 
-        # Queue background job for processing with SharePoint file ID
+        # Queue background job for processing with storage file ID
         PlanSetUploadJob.perform_later(
           @job.id,
           staging_file_id,
@@ -271,10 +275,14 @@ module Api
           success: true,
           data: {
             message: "Plan set upload queued for processing",
-            processing: true
+            processing: true,
+            provider: current_provider_type.to_s
           }
         }, status: :accepted
 
+      rescue DocumentProviders::Error => e
+        Rails.logger.error("upload_plan_set storage error: #{e.message}")
+        render json: { success: false, error: "Storage error: #{e.message}" }, status: :bad_gateway
       rescue StandardError => e
         Rails.logger.error("upload_plan_set failed: #{e.class} - #{e.message}")
         Rails.logger.error(e.backtrace.first(10).join("\n"))
@@ -406,6 +414,17 @@ module Api
       end
 
       private
+
+      # Build job folder path using SSoT pattern from StorageConfiguration
+      def build_job_folder_path(job)
+        base_folder = scope_folder_path(:job)
+        job_folder_name = "#{job.id.to_s.rjust(3, '0')} - #{sanitize_folder_name(job.title)}"
+        "/#{base_folder}/#{job_folder_name}"
+      end
+
+      def sanitize_folder_name(name)
+        name.to_s.gsub(/[<>:"|?*\\]/, "_").strip
+      end
 
       def set_job
         @job = Job.find(params[:job_id])
