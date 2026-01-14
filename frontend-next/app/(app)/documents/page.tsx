@@ -480,6 +480,13 @@ export default function AllDocumentsPage() {
 
     setLoadingFolders(prev => new Set(prev).add(scopeKey));
     try {
+      // Strip template variables from path (e.g., {{UserName}}/{{Year}})
+      const cleanPath = folderPath.replace(/\/?\{\{[^\}]+\}\}/g, "").replace(/\/+$/, "");
+
+      // Use recursive for warehouse folders (files are nested in user/year subfolders)
+      const isWarehouseFolder = cleanPath.startsWith("Warehousing");
+      const recursive = isWarehouseFolder ? "&recursive=true" : "";
+
       // Use full path parameter for S3 lookup
       const response = await api.get<{
         success: boolean;
@@ -494,7 +501,7 @@ export default function AllDocumentsPage() {
         folder: string;
         path: string;
         count: number;
-      }>(`/api/v1/documents/user_files?path=${encodeURIComponent(folderPath)}`);
+      }>(`/api/v1/documents/user_files?path=${encodeURIComponent(cleanPath)}${recursive}`);
 
       if (response?.success && response.files) {
         // Convert S3 files to DocumentItem format

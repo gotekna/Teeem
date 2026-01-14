@@ -230,14 +230,17 @@ module Api
         # Supports two modes:
         # 1. ?folder=MyDocs (legacy) -> Users/MyDocs
         # 2. ?path=Users/MyDocs (generic) -> exact path
+        # 3. ?recursive=true -> list all files in subfolders (for Warehousing folders)
         folder = params[:folder].presence || "MyDocs"
         s3_path = params[:path].presence || "Users/#{folder}"
+        recursive = params[:recursive] == "true"
 
         begin
           organization = Organization.first
           provider = DocumentProviders::S3Compatible.for_organization(organization)
           # Note: list_folder returns an array directly, not a hash
-          items = provider.list_folder(s3_path, recursive: false) || []
+          # Use recursive for warehouse folders (files nested in user/year subfolders)
+          items = provider.list_folder(s3_path, recursive: recursive) || []
 
           # Filter to files only (exclude folders) and generate presigned download URLs
           files = items.select { |item| item[:type] == :file }.map do |item|
