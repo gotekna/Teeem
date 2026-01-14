@@ -9,6 +9,9 @@ import {
   RefreshCw,
   ChevronLeft,
   ChevronRight,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "./button";
@@ -49,6 +52,9 @@ export function PDFViewerImpl({
   const [displayedPage, setDisplayedPage] = React.useState<number>(1);
   const [isPageTransitioning, setIsPageTransitioning] = React.useState(false);
   const [containerKey, setContainerKey] = React.useState<number>(0);
+  // Zoom state: 100 = 100%, "page-fit" = fit to width
+  // Default to 100% for sharp, readable text (page-fit causes blurriness)
+  const [zoom, setZoom] = React.useState<number | "page-fit">(100);
   const containerRef = React.useRef<HTMLDivElement>(null);
 
   // Store onError in ref to avoid re-fetching when callback changes
@@ -291,39 +297,106 @@ export function PDFViewerImpl({
   const prevPage = () => goToPage(currentPage - 1);
   const nextPage = () => goToPage(currentPage + 1);
 
-  // Build iframe URLs with page-fit zoom and hidden toolbar for max PDF size
-  const displayedIframeSrc = blobUrl ? `${blobUrl}#page=${displayedPage}&zoom=page-fit&toolbar=0&navpanes=0` : "";
-  const newPageIframeSrc = blobUrl ? `${blobUrl}#page=${currentPage}&zoom=page-fit&toolbar=0&navpanes=0` : "";
+  // Zoom handlers
+  const ZOOM_LEVELS = [50, 75, 100, 125, 150, 200];
+  const zoomIn = () => {
+    if (zoom === "page-fit") {
+      setZoom(100);
+    } else {
+      const currentIndex = ZOOM_LEVELS.indexOf(zoom);
+      if (currentIndex < ZOOM_LEVELS.length - 1) {
+        setZoom(ZOOM_LEVELS[currentIndex + 1]);
+      }
+    }
+  };
+  const zoomOut = () => {
+    if (zoom === "page-fit") {
+      setZoom(75);
+    } else {
+      const currentIndex = ZOOM_LEVELS.indexOf(zoom);
+      if (currentIndex > 0) {
+        setZoom(ZOOM_LEVELS[currentIndex - 1]);
+      }
+    }
+  };
+  const fitToWidth = () => setZoom("page-fit");
+
+  // Build zoom string for iframe
+  const zoomParam = zoom === "page-fit" ? "page-fit" : zoom.toString();
+
+  // Build iframe URLs with zoom and hidden toolbar for max PDF size
+  const displayedIframeSrc = blobUrl ? `${blobUrl}#page=${displayedPage}&zoom=${zoomParam}&toolbar=0&navpanes=0` : "";
+  const newPageIframeSrc = blobUrl ? `${blobUrl}#page=${currentPage}&zoom=${zoomParam}&toolbar=0&navpanes=0` : "";
 
   // Success state - iframe with native PDF viewer
   return (
     <div ref={containerRef} className={cn("h-full w-full relative", className)}>
-      {/* Floating page navigation - only show for multi-page PDFs */}
-      {pageCount > 1 && (
-        <div className="absolute top-3 left-3 z-10 flex items-center gap-1 bg-background/90 backdrop-blur-sm border rounded-md shadow-sm px-1 py-0.5">
+      {/* Floating controls: page navigation + zoom */}
+      <div className="absolute top-3 left-3 z-10 flex items-center gap-2">
+        {/* Page navigation - only show for multi-page PDFs */}
+        {pageCount > 1 && (
+          <div className="flex items-center gap-1 bg-background/90 backdrop-blur-sm border rounded-md shadow-sm px-1 py-0.5">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={prevPage}
+              disabled={currentPage <= 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-sm font-medium min-w-[80px] text-center">
+              {currentPage} / {pageCount}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={nextPage}
+              disabled={currentPage >= pageCount}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+
+        {/* Zoom controls - always visible */}
+        <div className="flex items-center gap-1 bg-background/90 backdrop-blur-sm border rounded-md shadow-sm px-1 py-0.5">
           <Button
             variant="ghost"
             size="icon"
             className="h-7 w-7"
-            onClick={prevPage}
-            disabled={currentPage <= 1}
+            onClick={zoomOut}
+            disabled={zoom !== "page-fit" && zoom <= ZOOM_LEVELS[0]}
+            title="Zoom out"
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ZoomOut className="h-4 w-4" />
           </Button>
-          <span className="text-sm font-medium min-w-[80px] text-center">
-            {currentPage} / {pageCount}
+          <span className="text-sm font-medium min-w-[50px] text-center">
+            {zoom === "page-fit" ? "Fit" : `${zoom}%`}
           </span>
           <Button
             variant="ghost"
             size="icon"
             className="h-7 w-7"
-            onClick={nextPage}
-            disabled={currentPage >= pageCount}
+            onClick={zoomIn}
+            disabled={zoom !== "page-fit" && zoom >= ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
+            title="Zoom in"
           >
-            <ChevronRight className="h-4 w-4" />
+            <ZoomIn className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={fitToWidth}
+            disabled={zoom === "page-fit"}
+            title="Fit to width"
+          >
+            <Maximize2 className="h-4 w-4" />
           </Button>
         </div>
-      )}
+      </div>
 
       {/* Cache indicator (dev only) */}
       {process.env.NODE_ENV === "development" && isCached && (

@@ -63,6 +63,7 @@ interface RestoreConflictInfo {
   predecessorIsLocked: boolean;
   predecessorLockReason: string;
   requiredPredEndDate: Date | null;
+  requiredPredStartDate: Date | null; // For templates: hold_date
 }
 
 export interface GanttDependencyEditorProps {
@@ -346,14 +347,21 @@ export function GanttDependencyEditor({
       ? 'Completed'
       : '';
 
-    // Calculate required end date for predecessor (if we move predecessor instead)
+    // Calculate required dates for predecessor (if we move predecessor instead)
+    // For FS: predecessor must END before successor STARTS
     let requiredPredEndDate: Date | null = null;
+    let requiredPredStartDate: Date | null = null;
     if (taskRowData?.start_date) {
       const taskStartDate = new Date(taskRowData.start_date);
       const lag = brokenDep.lag || 0;
       if (brokenDep.type === 'FS') {
         requiredPredEndDate = new Date(taskStartDate);
         requiredPredEndDate.setDate(requiredPredEndDate.getDate() - lag);
+
+        // Calculate required START date = END date - duration
+        const predDuration = predRowData?.duration_days || predRowData?.duration || 1;
+        requiredPredStartDate = new Date(requiredPredEndDate);
+        requiredPredStartDate.setDate(requiredPredStartDate.getDate() - predDuration + 1);
       }
     }
 
@@ -369,6 +377,7 @@ export function GanttDependencyEditor({
         predecessorIsLocked,
         predecessorLockReason,
         requiredPredEndDate,
+        requiredPredStartDate,
       });
       return;
     }
@@ -418,26 +427,63 @@ export function GanttDependencyEditor({
 
   // Handle moving the successor (current task) to honor dependency
   const handleMoveSuccessor = async () => {
-    if (!restoreConflict || !task || !onUpdateTask) return;
+    if (!restoreConflict || !task) return;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const taskRowData = task.rowData as any;
-
-    // Determine which lock to clear
-    const updates: Record<string, unknown> = {};
-    if (taskRowData?.supplier_confirm) {
-      updates.supplier_confirm = false;
-    } else if (taskRowData?.confirm) {
-      updates.confirm = false;
-    }
+    const brokenDep = restoreConflict.brokenDep;
 
     try {
-      // Unlock the task if needed
-      if (Object.keys(updates).length > 0) {
-        await onUpdateTask(task.id, updates);
+      // 1. Unlock the task if needed
+      if (onUpdateTask && restoreConflict.isLocked) {
+        const updates: Record<string, unknown> = {};
+        if (taskRowData?.supplier_confirm) {
+          updates.supplier_confirm = false;
+        } else if (taskRowData?.confirm) {
+          updates.confirm = false;
+        }
+        if (Object.keys(updates).length > 0) {
+          console.log('[GanttDependencyEditor] Unlocking successor:', task.id, updates);
+          await onUpdateTask(task.id, updates);
+        }
       }
-      // Then restore the dependency (this will trigger cascade)
-      doRestoreDependency(restoreConflict.brokenDep);
+
+      // 2. Save the restored dependency immediately
+      const currentPreds = depEditorLinks.map(link => {
+        const pt = tasks.find(t => t.id === link.predecessorId);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rd = pt?.rowData as any;
+        return {
+          taskNumber: rd?.task_number || 0,
+          type: link.type,
+          lag: link.lag,
+        };
+      }).filter(p => p.taskNumber > 0);
+
+      // Add the restored dependency
+      currentPreds.push({
+        taskNumber: brokenDep.taskNumber,
+        type: brokenDep.type,
+        lag: brokenDep.lag,
+      });
+
+      const currentSuccs = depEditorSuccessorLinks.map(link => {
+        const st = tasks.find(t => t.id === link.predecessorId);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rd = st?.rowData as any;
+        return {
+          taskNumber: rd?.task_number || 0,
+          type: link.type,
+          lag: link.lag,
+        };
+      }).filter(s => s.taskNumber > 0);
+
+      console.log('[GanttDependencyEditor] Saving restored dependency (move successor):', currentPreds);
+      await onSave(task.id, currentPreds, currentSuccs);
+
+      // Close dialogs
+      setRestoreConflict(null);
+      onClose();
     } catch (error) {
       console.error('[GanttDependencyEditor] Failed to move successor:', error);
     }
@@ -446,52 +492,74 @@ export function GanttDependencyEditor({
   // Handle moving the predecessor to honor dependency
   const handleMovePredecessor = async () => {
     console.log('[GanttDependencyEditor] handleMovePredecessor called');
-    console.log('[GanttDependencyEditor] restoreConflict:', restoreConflict);
-    console.log('[GanttDependencyEditor] onUpdateTask:', !!onUpdateTask);
 
-    if (!restoreConflict || !restoreConflict.predecessorTask || !onUpdateTask) {
-      console.log('[GanttDependencyEditor] Early return - missing:', {
-        restoreConflict: !!restoreConflict,
-        predecessorTask: !!restoreConflict?.predecessorTask,
-        onUpdateTask: !!onUpdateTask,
-      });
+    if (!restoreConflict || !restoreConflict.predecessorTask || !task) {
+      console.log('[GanttDependencyEditor] Early return - missing data');
       return;
     }
 
     const predTask = restoreConflict.predecessorTask;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const predRowData = predTask.rowData as any;
-
-    console.log('[GanttDependencyEditor] predTask:', predTask.id, predRowData?.task_number);
-    console.log('[GanttDependencyEditor] requiredPredEndDate:', restoreConflict.requiredPredEndDate);
-
-    // Determine which lock to clear on predecessor
-    const updates: Record<string, unknown> = {};
-    if (predRowData?.supplier_confirm) {
-      updates.supplier_confirm = false;
-    } else if (predRowData?.confirm) {
-      updates.confirm = false;
-    }
-
-    // Also update the end date to required date
-    if (restoreConflict.requiredPredEndDate) {
-      updates.end_date = restoreConflict.requiredPredEndDate.toISOString().split('T')[0];
-    }
-
-    console.log('[GanttDependencyEditor] updates to apply:', updates);
+    const brokenDep = restoreConflict.brokenDep;
 
     try {
-      // Update predecessor (unlock + move end date)
-      if (Object.keys(updates).length > 0) {
-        console.log('[GanttDependencyEditor] Calling onUpdateTask for predecessor:', predTask.id);
+      // 1. FIRST: Save the restored dependency immediately (before any refresh)
+      // Build the new predecessors list with the restored dependency
+      const currentPreds = depEditorLinks.map(link => {
+        const pt = tasks.find(t => t.id === link.predecessorId);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rd = pt?.rowData as any;
+        return {
+          taskNumber: rd?.task_number || 0,
+          type: link.type,
+          lag: link.lag,
+        };
+      }).filter(p => p.taskNumber > 0);
+
+      // Add the restored dependency
+      currentPreds.push({
+        taskNumber: brokenDep.taskNumber,
+        type: brokenDep.type,
+        lag: brokenDep.lag,
+      });
+
+      // Get current successors
+      const currentSuccs = depEditorSuccessorLinks.map(link => {
+        const st = tasks.find(t => t.id === link.predecessorId);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rd = st?.rowData as any;
+        return {
+          taskNumber: rd?.task_number || 0,
+          type: link.type,
+          lag: link.lag,
+        };
+      }).filter(s => s.taskNumber > 0);
+
+      console.log('[GanttDependencyEditor] Saving restored dependency immediately:', currentPreds);
+      await onSave(task.id, currentPreds, currentSuccs);
+
+      // 2. THEN: Update predecessor task (move it backward) if needed
+      if (onUpdateTask && restoreConflict.requiredPredEndDate) {
+        const updates: Record<string, unknown> = {};
+
+        // Unlock if needed
+        if (predRowData?.supplier_confirm) {
+          updates.supplier_confirm = false;
+        } else if (predRowData?.confirm) {
+          updates.confirm = false;
+        }
+
+        // Set new end date
+        updates.end_date = restoreConflict.requiredPredEndDate.toISOString().split('T')[0];
+
+        console.log('[GanttDependencyEditor] Moving predecessor:', predTask.id, updates);
         await onUpdateTask(predTask.id, updates);
-        console.log('[GanttDependencyEditor] onUpdateTask completed');
-      } else {
-        console.log('[GanttDependencyEditor] No updates needed for predecessor');
       }
-      // Then restore the dependency
-      console.log('[GanttDependencyEditor] Calling doRestoreDependency');
-      doRestoreDependency(restoreConflict.brokenDep);
+
+      // Close dialogs
+      setRestoreConflict(null);
+      onClose();
     } catch (error) {
       console.error('[GanttDependencyEditor] Failed to move predecessor:', error);
     }

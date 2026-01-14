@@ -406,7 +406,91 @@ module Api
         render json: { success: true, suggestion: suggestion }
       end
 
+      # POST /api/v1/documents/rename
+      # Rename a file in S3 storage
+      # Params:
+      #   path: The current S3 path (e.g., "Tasks/123/Attachments/old-name.pdf")
+      #   new_name: The new filename (e.g., "Invoice-2024.pdf")
+      #   document_id: Optional - the CorporateCompanyDocument ID to update
+      #   source: Optional - the document source type (job, corporate, people, task)
+      def rename
+        path = params[:path]
+        new_name = params[:new_name]
+
+        unless path.present? && new_name.present?
+          return render json: { success: false, error: "Missing path or new_name parameter" }, status: :bad_request
+        end
+
+        # Sanitize new filename (remove dangerous characters)
+        safe_new_name = new_name.gsub(/[<>:"|?*\\\/]/, "_").strip
+        if safe_new_name.blank?
+          return render json: { success: false, error: "Invalid filename" }, status: :bad_request
+        end
+
+        begin
+          organization = Organization.first
+          provider = DocumentProviders::S3Compatible.for_organization(organization)
+
+          # Rename in S3 (copy + delete)
+          result = provider.rename_file(path, safe_new_name)
+
+          # Update database record if document_id provided
+          if params[:document_id].present?
+            update_document_record(params[:document_id], params[:source], safe_new_name, result[:path])
+          else
+            # Try to find and update by storage_path
+            find_and_update_document_by_path(path, safe_new_name, result[:path])
+          end
+
+          render json: {
+            success: true,
+            message: "File renamed successfully",
+            new_name: safe_new_name,
+            new_path: result[:path],
+            file: result
+          }
+        rescue DocumentProviders::NotFoundError => e
+          render json: { success: false, error: "File not found: #{e.message}" }, status: :not_found
+        rescue StandardError => e
+          Rails.logger.error "[Documents] Rename failed: #{e.message}"
+          render json: { success: false, error: e.message }, status: :unprocessable_entity
+        end
+      end
+
       private
+
+      # Update document record after S3 rename
+      def update_document_record(document_id, source, new_filename, new_path)
+        case source
+        when "job"
+          doc = JobDocument.find_by(id: document_id)
+          doc&.update(file_name: new_filename, storage_path: new_path)
+        when "corporate", "task"
+          doc = CorporateCompanyDocument.find_by(id: document_id)
+          doc&.update(file_name: new_filename, storage_path: new_path)
+        when "people"
+          doc = PeopleDocument.find_by(id: document_id)
+          doc&.update(file_name: new_filename, storage_path: new_path)
+        end
+      end
+
+      # Find document by storage_path and update
+      def find_and_update_document_by_path(old_path, new_filename, new_path)
+        # Normalize path for comparison (remove leading slash)
+        normalized_old = old_path.sub(%r{^/}, "")
+
+        # Try each document type
+        [CorporateCompanyDocument, JobDocument, PeopleDocument].each do |klass|
+          next unless klass.column_names.include?("storage_path")
+
+          doc = klass.find_by("storage_path = ? OR storage_path = ?", old_path, normalized_old)
+          if doc
+            doc.update(file_name: new_filename, storage_path: new_path)
+            Rails.logger.info "[Documents] Updated #{klass.name}##{doc.id} after rename"
+            return
+          end
+        end
+      end
 
       def set_document
         @document = CorporateCompanyDocument.find(params[:id])

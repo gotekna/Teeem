@@ -49,6 +49,7 @@ import {
   HardDrive,
   FileSpreadsheet,
   PenTool,
+  Pencil,
 } from "lucide-react";
 import {
   Dialog,
@@ -330,6 +331,10 @@ export default function AllDocumentsPage() {
   const [previewDocument, setPreviewDocument] = useState<DocumentItem | null>(null);
   // Click timer for single/double click differentiation
   const clickTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Rename state
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const [isRenameSaving, setIsRenameSaving] = useState(false);
 
   // SSoT: Scope folder names from StorageConfiguration
   // Start empty - API will provide all scopes from StorageConfiguration.SCOPE_FOLDERS
@@ -900,6 +905,69 @@ export default function AllDocumentsPage() {
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   };
 
+  // Start rename mode
+  const handleStartRename = useCallback(() => {
+    if (!previewDocument) return;
+    setRenameValue(previewDocument.displayName || previewDocument.fileName);
+    setIsRenaming(true);
+  }, [previewDocument]);
+
+  // Cancel rename
+  const handleCancelRename = useCallback(() => {
+    setIsRenaming(false);
+    setRenameValue("");
+  }, []);
+
+  // Save rename
+  const handleSaveRename = useCallback(async () => {
+    if (!previewDocument || !renameValue.trim()) return;
+
+    const newName = renameValue.trim();
+    // Don't save if name didn't change
+    if (newName === previewDocument.displayName || newName === previewDocument.fileName) {
+      setIsRenaming(false);
+      return;
+    }
+
+    setIsRenameSaving(true);
+    try {
+      // Get the path from folderPath or construct from context
+      const path = previewDocument.folderPath || previewDocument.fileUrl?.replace(/.*\/\/[^/]+/, "") || "";
+
+      const response = await api.post<{
+        success: boolean;
+        new_name: string;
+        new_path: string;
+        error?: string;
+      }>("/api/v1/documents/rename", {
+        path: path,
+        new_name: newName,
+        document_id: previewDocument.id,
+        source: previewDocument.source,
+      });
+
+      if (response?.success) {
+        // Update the preview document with new name
+        setPreviewDocument({
+          ...previewDocument,
+          fileName: response.new_name,
+          displayName: response.new_name,
+          folderPath: response.new_path,
+        });
+        // Clear folder files cache so renamed file shows with new name when re-expanding
+        setFolderFiles({});
+        setIsRenaming(false);
+      } else {
+        alert(response?.error || "Failed to rename file");
+      }
+    } catch (err) {
+      console.error("Rename failed:", err);
+      alert("Failed to rename file");
+    } finally {
+      setIsRenameSaving(false);
+    }
+  }, [previewDocument, renameValue]);
+
   // Render tree node recursively
   const renderTreeNode = (node: TreeNode, depth: number = 0): React.ReactNode => {
     const isExpanded = expandedFolders.has(node.id);
@@ -1439,9 +1507,62 @@ export default function AllDocumentsPage() {
             <div className="px-4 py-3 border-b bg-background shrink-0">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-medium truncate">
-                    {previewDocument.displayName || previewDocument.fileName}
-                  </h3>
+                  {isRenaming ? (
+                    // Rename input mode
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleSaveRename();
+                          if (e.key === "Escape") handleCancelRename();
+                        }}
+                        className="h-8 text-sm"
+                        autoFocus
+                        disabled={isRenameSaving}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0"
+                        onClick={handleSaveRename}
+                        disabled={isRenameSaving}
+                        title="Save"
+                      >
+                        {isRenameSaving ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Check className="h-4 w-4 text-green-600" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0"
+                        onClick={handleCancelRename}
+                        disabled={isRenameSaving}
+                        title="Cancel"
+                      >
+                        <X className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </div>
+                  ) : (
+                    // Normal display mode
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-medium truncate">
+                        {previewDocument.displayName || previewDocument.fileName}
+                      </h3>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 shrink-0"
+                        onClick={handleStartRename}
+                        title="Rename file"
+                      >
+                        <Pencil className="h-3 w-3 text-muted-foreground" />
+                      </Button>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                     {previewDocument.source === "job" && previewDocument.jobNumber && (
                       <Badge variant="outline" className="text-xs">Job {previewDocument.jobNumber}</Badge>
@@ -1495,7 +1616,10 @@ export default function AllDocumentsPage() {
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8"
-                    onClick={() => setPreviewDocument(null)}
+                    onClick={() => {
+                      setPreviewDocument(null);
+                      setIsRenaming(false);
+                    }}
                     title="Close preview"
                   >
                     <X className="h-4 w-4" />

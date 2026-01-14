@@ -396,6 +396,7 @@ Rails.application.routes.draw do
         collection do
           post :analyze
           post :preview_upload  # Preview uploaded file
+          post :rename          # Rename file in S3 storage
         end
       end
 
