@@ -215,10 +215,24 @@ export default function DocumentTypeDetailPage() {
         if (data.success && data.data?.tabs) {
           // Filter to documents group tabs (Xero is now in documents group with children nested)
           allDocumentTabs = data.data.tabs.filter((t: any) => t.tab_group === 'documents');
-          // Keep ALL tabs for name lookups (tab might be in a different group)
-          const allTabs = data.data.tabs.map(mapTabRecursive);
-          setAllTabsForLookup(allTabs);
         }
+
+        // SSoT: Fetch ALL tabs from ALL scopes for name lookups
+        // This ensures we can display tab names even for tabs from other scopes
+        // (e.g., a company doc type referencing a job or contact tab)
+        const allScopes = ['corporate_entity', 'job', 'contact'];
+        const allTabsFromAllScopes: any[] = [];
+        for (const scope of allScopes) {
+          try {
+            const scopeData = await api.get<{ success: boolean; data: { tabs: any[] } }>(`/api/v1/entity_tabs?scope=${scope}`);
+            if (scopeData.success && scopeData.data?.tabs) {
+              allTabsFromAllScopes.push(...scopeData.data.tabs.map(mapTabRecursive));
+            }
+          } catch {
+            // Continue if one scope fails
+          }
+        }
+        setAllTabsForLookup(allTabsFromAllScopes);
 
         if (allDocumentTabs.length > 0) {
           const hierarchy = allDocumentTabs.map(mapTabRecursive);
