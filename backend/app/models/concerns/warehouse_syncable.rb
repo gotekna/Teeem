@@ -47,8 +47,10 @@ module WarehouseSyncable
     provider = warehouse_provider
     return { success: false, error: "No S3 provider configured" } unless provider
 
-    folder_path = warehouse_folder_path
-    filename = warehouse_filename
+    # SSoT: Use model's warehouse_path which includes ID for uniqueness
+    full_path = warehouse_path
+    folder_path = File.dirname(full_path)
+    filename = File.basename(full_path)
     content_type = warehouse_content_type
 
     begin
@@ -60,8 +62,8 @@ module WarehouseSyncable
         overwrite: true
       )
 
-      Rails.logger.info "[WarehouseSync] Synced #{self.class.name} #{id} to #{folder_path}/#{filename}"
-      { success: true, path: "#{folder_path}/#{filename}" }
+      Rails.logger.info "[WarehouseSync] Synced #{self.class.name} #{id} to #{full_path}"
+      { success: true, path: full_path }
     rescue StandardError => e
       Rails.logger.error "[WarehouseSync] Failed to sync #{self.class.name} #{id}: #{e.message}"
       { success: false, error: e.message }

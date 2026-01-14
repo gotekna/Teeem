@@ -278,6 +278,47 @@ module Api
         end
       end
 
+      # GET /api/v1/documents/folder_files
+      # SSoT: Unified endpoint for fetching files from EntityTab folders
+      # Used by File Warehouse to display subfolder contents for ALL scopes
+      # Supports: job, corporate/corporate_entity/corp, contact/people
+      def folder_files
+        entity_tab_id = params[:entity_tab_id]
+        scope = params[:scope] || "corporate"
+
+        unless entity_tab_id.present?
+          return render json: { success: false, error: "entity_tab_id required", files: [] }, status: :bad_request
+        end
+
+        entity_tab = EntityTab.find_by(id: entity_tab_id)
+        unless entity_tab
+          return render json: { success: false, error: "EntityTab not found", files: [] }, status: :not_found
+        end
+
+        # SSoT: Route to correct document model based on scope
+        files = case scope.to_s.downcase
+                when "job"
+                  fetch_job_documents(entity_tab)
+                when "corporate", "corporate_entity", "corp"
+                  fetch_corporate_documents(entity_tab)
+                when "contact", "people"
+                  fetch_people_documents(entity_tab)
+                else
+                  []
+                end
+
+        render json: {
+          success: true,
+          files: files,
+          folder: entity_tab.display_name,
+          scope: scope,
+          count: files.size
+        }
+      end
+
+      # Backwards compatibility alias
+      alias_method :corporate_folder_files, :folder_files
+
       # GET /api/v1/documents/:id
       def show
         render json: {
@@ -462,6 +503,88 @@ module Api
       end
 
       private
+
+      # SSoT: Fetch job documents by EntityTab.document_type_ids
+      def fetch_job_documents(entity_tab)
+        return [] if entity_tab.document_type_ids.empty?
+
+        JobDocument
+          .where(document_type_id: entity_tab.document_type_ids)
+          .includes(:job)
+          .order(created_at: :desc)
+          .limit(500)
+          .map do |doc|
+            {
+              name: doc.display_title || doc.file_name || "Untitled",
+              path: doc.storage_path || doc.folder_path || "",
+              size: doc.file_size || 0,
+              content_type: doc.mime_type || MiniMime.lookup_by_filename(doc.file_name || "")&.content_type || "application/octet-stream",
+              last_modified: doc.updated_at&.iso8601,
+              url: doc.web_url || "",
+              id: doc.id,
+              job_id: doc.job_id,
+              job_number: doc.job&.job_number,
+              job_title: doc.job&.title
+            }
+          end
+      end
+
+      # SSoT: Fetch corporate documents by EntityTab.document_type_ids
+      def fetch_corporate_documents(entity_tab)
+        return [] if entity_tab.document_type_ids.empty?
+
+        CorporateCompanyDocument
+          .where(document_type_id: entity_tab.document_type_ids)
+          .includes(:corporate_company)
+          .order(created_at: :desc)
+          .limit(500)
+          .map do |doc|
+            {
+              name: doc.display_name || doc.file_name || "Untitled",
+              path: doc.storage_path || doc.expected_sharepoint_path || "",
+              size: doc.file_size || 0,
+              content_type: doc.mime_type || MiniMime.lookup_by_filename(doc.file_name || "")&.content_type || "application/octet-stream",
+              last_modified: doc.updated_at&.iso8601,
+              url: doc.file_url || doc.sharepoint_download_url || "",
+              id: doc.id,
+              company_name: doc.corporate_company&.name,
+              company_code: doc.company_code
+            }
+          end
+      end
+
+      # SSoT: Fetch people documents by EntityTab.document_type_ids
+      def fetch_people_documents(entity_tab)
+        return [] if entity_tab.document_type_ids.empty?
+
+        PeopleDocument
+          .where(document_type_id: entity_tab.document_type_ids)
+          .includes(:contact)
+          .order(created_at: :desc)
+          .limit(500)
+          .map do |doc|
+            # PeopleDocument uses Active Storage, so get URL from file attachment or storage_url
+            url = if doc.respond_to?(:storage_url) && doc.storage_url.present?
+                    doc.storage_url
+                  elsif doc.file.attached?
+                    Rails.application.routes.url_helpers.rails_blob_url(doc.file, only_path: false) rescue ""
+                  else
+                    ""
+                  end
+
+            {
+              name: doc.title || doc.file_name || "Untitled",
+              path: doc.storage_path || "",
+              size: doc.file_size || 0,
+              content_type: doc.mime_type || MiniMime.lookup_by_filename(doc.file_name || "")&.content_type || "application/octet-stream",
+              last_modified: doc.updated_at&.iso8601,
+              url: url,
+              id: doc.id,
+              contact_id: doc.contact_id,
+              contact_name: doc.contact&.display_name
+            }
+          end
+      end
 
       # Update document record after S3 rename
       def update_document_record(document_id, source, new_filename, new_path)

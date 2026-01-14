@@ -386,6 +386,10 @@ Rails.application.routes.draw do
 
       # User files from S3 (must be before resources :documents to avoid :id match)
       get "documents/user_files", to: "documents#user_files"
+      # SSoT: Unified endpoint for EntityTab folder files (job, corporate, contact)
+      get "documents/folder_files", to: "documents#folder_files"
+      # Legacy alias for corporate folders
+      get "documents/corporate_folder_files", to: "documents#folder_files"
 
       # Documents (simple alias for company documents)
       resources :documents, only: [ :index, :create, :show, :update, :destroy ] do

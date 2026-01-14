@@ -473,53 +473,117 @@ export default function AllDocumentsPage() {
     fetchDocuments();
   }, [fetchDocuments]);
 
-  // Fetch files for a specific folder from S3
+  // Fetch files for a specific folder from S3 or database
   const fetchFolderFiles = useCallback(async (folderPath: string, scopeKey: string) => {
     // Already loaded or loading
     if (folderFiles[scopeKey] || loadingFolders.has(scopeKey)) return;
 
     setLoadingFolders(prev => new Set(prev).add(scopeKey));
     try {
-      // Strip template variables from path (e.g., {{UserName}}/{{Year}})
-      const cleanPath = folderPath.replace(/\/?\{\{[^\}]+\}\}/g, "").replace(/\/+$/, "");
+      // SSoT: Check if this is an EntityTab folder (job-folder, corp-folder, contact-folder)
+      // Pattern: {scope}-folder-{EntityTab.id}
+      const entityTabFolderMatch = scopeKey.match(/^(job|corp|contact)-folder-(\d+)$/);
 
-      // Use recursive for warehouse folders (files are nested in user/year subfolders)
-      const isWarehouseFolder = cleanPath.startsWith("Warehousing");
-      const recursive = isWarehouseFolder ? "&recursive=true" : "";
+      if (entityTabFolderMatch) {
+        // Fetch documents from database by EntityTab ID
+        const [, scopePrefix, entityTabId] = entityTabFolderMatch;
+        // Map prefix to backend scope
+        const scope = scopePrefix === "corp" ? "corporate" : scopePrefix;
 
-      // Use full path parameter for S3 lookup
-      const response = await api.get<{
-        success: boolean;
-        files: Array<{
-          name: string;
+        const response = await api.get<{
+          success: boolean;
+          files: Array<{
+            name: string;
+            path: string;
+            size: number;
+            last_modified: string;
+            url: string;
+            content_type: string;
+            id: number;
+            // Corporate fields
+            company_name?: string;
+            company_code?: string;
+            // Job fields
+            job_id?: number;
+            job_number?: string;
+            job_title?: string;
+            // Contact fields
+            contact_id?: number;
+            contact_name?: string;
+          }>;
+          folder: string;
+          scope: string;
+          count: number;
+        }>(`/api/v1/documents/folder_files?entity_tab_id=${entityTabId}&scope=${scope}`);
+
+        if (response?.success && response.files) {
+          const docs: DocumentItem[] = response.files.map((file) => ({
+            id: file.id,
+            source: scope as "job" | "corporate" | "people",
+            fileName: file.name,
+            displayName: file.name,
+            mimeType: file.content_type || "",
+            fileSize: file.size || 0,
+            fileUrl: file.url,
+            folderPath: file.path,
+            storagePath: file.path,
+            storageProvider: scope === "job" ? "sharepoint" : "sharepoint",
+            createdAt: file.last_modified || new Date().toISOString(),
+            isImage: /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(file.name),
+            // Scope-specific fields
+            companyName: file.company_name,
+            companyCode: file.company_code,
+            jobId: file.job_id,
+            jobNumber: file.job_number,
+            jobTitle: file.job_title,
+            contactId: file.contact_id,
+            contactName: file.contact_name,
+          }));
+          setFolderFiles(prev => ({ ...prev, [scopeKey]: docs }));
+        }
+      } else {
+        // Standard S3 folder fetch
+        // Strip template variables from path (e.g., {{UserName}}/{{Year}})
+        const cleanPath = folderPath.replace(/\/?\{\{[^\}]+\}\}/g, "").replace(/\/+$/, "");
+
+        // Use recursive for warehouse folders (files are nested in user/year subfolders)
+        const isWarehouseFolder = cleanPath.startsWith("Warehousing");
+        const recursive = isWarehouseFolder ? "&recursive=true" : "";
+
+        // Use full path parameter for S3 lookup
+        const response = await api.get<{
+          success: boolean;
+          files: Array<{
+            name: string;
+            path: string;
+            size: number;
+            last_modified: string;
+            url: string;
+            content_type: string;
+          }>;
+          folder: string;
           path: string;
-          size: number;
-          last_modified: string;
-          url: string;
-          content_type: string;
-        }>;
-        folder: string;
-        path: string;
-        count: number;
-      }>(`/api/v1/documents/user_files?path=${encodeURIComponent(cleanPath)}${recursive}`);
+          count: number;
+        }>(`/api/v1/documents/user_files?path=${encodeURIComponent(cleanPath)}${recursive}`);
 
-      if (response?.success && response.files) {
-        // Convert S3 files to DocumentItem format
-        const docs: DocumentItem[] = response.files.map((file, idx) => ({
-          id: idx + 1,
-          source: "corporate" as const, // Generic source for user files
-          fileName: file.name,
-          displayName: file.name,
-          mimeType: file.content_type || "",
-          fileSize: file.size || 0,
-          fileUrl: file.url,
-          folderPath: file.path,
-          storagePath: file.path,  // S3 key for rename operations
-          storageProvider: "s3_compatible",
-          createdAt: file.last_modified || new Date().toISOString(),
-          isImage: /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(file.name),
-        }));
-        setFolderFiles(prev => ({ ...prev, [scopeKey]: docs }));
+        if (response?.success && response.files) {
+          // Convert S3 files to DocumentItem format
+          const docs: DocumentItem[] = response.files.map((file, idx) => ({
+            id: idx + 1,
+            source: "corporate" as const, // Generic source for user files
+            fileName: file.name,
+            displayName: file.name,
+            mimeType: file.content_type || "",
+            fileSize: file.size || 0,
+            fileUrl: file.url,
+            folderPath: file.path,
+            storagePath: file.path,  // S3 key for rename operations
+            storageProvider: "s3_compatible",
+            createdAt: file.last_modified || new Date().toISOString(),
+            isImage: /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(file.name),
+          }));
+          setFolderFiles(prev => ({ ...prev, [scopeKey]: docs }));
+        }
       }
     } catch (err) {
       console.error(`Failed to fetch files for ${folderPath}:`, err);
@@ -873,8 +937,11 @@ export default function AllDocumentsPage() {
       } else {
         next.add(folderId);
         // Fetch files for this folder if it has a path and is being expanded
-        if (folderPath) {
-          fetchFolderFiles(folderPath, folderId);
+        // SSoT: EntityTab folders (job-folder-*, corp-folder-*, contact-folder-*)
+        // always attempt fetch even without folderPath since they use EntityTab ID
+        const isEntityTabFolder = /^(job|corp|contact)-folder-\d+$/.test(folderId);
+        if (folderPath || isEntityTabFolder) {
+          fetchFolderFiles(folderPath || "", folderId);
         }
       }
       return next;
