@@ -49,17 +49,24 @@ class EntityTab < ApplicationRecord
   # SSoT: When display_name changes, sync SharePoint folder and job_documents
   after_update :enqueue_folder_rename_if_needed
 
-  # Set document types by IDs (SSoT: replaces existing assignments)
+  # Set document types by IDs
+  # SSoT: EntityTab can only add/remove SECONDARY links (is_primary: false)
+  # Primary links are controlled from DocumentType side only
   def document_type_ids=(ids)
     ids = Array(ids).map(&:to_i).reject(&:zero?)
     existing_ids = entity_tab_document_types.pluck(:document_type_id)
 
-    # Remove old assignments
-    entity_tab_document_types.where.not(document_type_id: ids).destroy_all
+    # Remove old assignments - ONLY secondary ones!
+    # Primary links cannot be removed from EntityTab side
+    entity_tab_document_types
+      .where.not(document_type_id: ids)
+      .where(is_primary: false)
+      .destroy_all
 
-    # Add new assignments
+    # Add new assignments as SECONDARY (is_primary: false)
+    # Primary can only be set from DocumentType side
     (ids - existing_ids).each do |doc_type_id|
-      entity_tab_document_types.create(document_type_id: doc_type_id)
+      entity_tab_document_types.create(document_type_id: doc_type_id, is_primary: false)
     end
   end
 
@@ -348,13 +355,17 @@ class EntityTab < ApplicationRecord
       is_photo_category: is_photo_category,  # SSoT: Explicit photo gallery flag
       can_delete: can_delete?,
       children: children.enabled.ordered.map(&:as_nested_json),
-      document_types: document_types.map { |dt| {
-        id: dt.id,
-        name: dt.name,
-        display_name: dt.display_name,
-        abbreviation: dt.abbreviation,
-        file_name: dt.file_name
-      } },
+      document_types: document_types.map { |dt|
+        join = entity_tab_document_types.find_by(document_type_id: dt.id)
+        {
+          id: dt.id,
+          name: dt.name,
+          display_name: dt.display_name,
+          abbreviation: dt.abbreviation,
+          file_name: dt.file_name,
+          is_primary: join&.is_primary || false  # SSoT: Include primary/secondary flag
+        }
+      },
       # Backwards compatibility aliases
       has_sharepoint_folder: has_storage_folder,
       sharepoint_folder_path: storage_folder_path,

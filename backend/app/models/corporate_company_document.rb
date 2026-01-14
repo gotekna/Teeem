@@ -19,6 +19,18 @@ class CorporateCompanyDocument < ApplicationRecord
     effective_entity_tab&.inherited_template
   end
 
+  # Compatibility with BulkDocumentCategorizationService (which uses folder_path)
+  # Returns the folder field value (e.g., "ASIC", "ATO", "LOANS")
+  def folder_path
+    folder
+  end
+
+  # Extract file extension from file_name (for compatibility with JobDocument interface)
+  def file_extension
+    return nil if file_name.blank?
+    File.extname(file_name.to_s).delete('.').downcase.presence
+  end
+
   # Searchable columns for full-text search (GIN index)
   searchable_columns :file_name, :display_name, :description, :folder
 

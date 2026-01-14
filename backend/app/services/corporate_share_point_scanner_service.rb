@@ -548,7 +548,24 @@ class CorporateSharePointScannerService
 
     if company_doc.save
       @results[:documents_linked] += 1
-      Rails.logger.info "Linked document '#{doc['name']}' to #{company.name} [#{document_type&.name || 'Unknown'}]"
+
+      # SSoT: Use BulkDocumentCategorizationService for document_type_id assignment
+      # This ensures the same logic is used for corporate docs as for job docs
+      # The service will match folder_path to EntityTab and find the best document type
+      if company_doc.document_type_id.nil?
+        categorization_result = BulkDocumentCategorizationService
+          .for_company(company)
+          .categorize_single(company_doc)
+
+        if categorization_result[:stats][:categorized] > 0
+          company_doc.reload  # Refresh to get the new document_type_id
+          Rails.logger.info "Linked and categorized '#{doc['name']}' to #{company.name} [#{company_doc.document_type_record&.name || 'Unknown'}]"
+        else
+          Rails.logger.info "Linked document '#{doc['name']}' to #{company.name} [uncategorized - no matching EntityTab]"
+        end
+      else
+        Rails.logger.info "Linked document '#{doc['name']}' to #{company.name} [#{document_type&.name || 'Unknown'}]"
+      end
     else
       @results[:errors] << "Failed to save document '#{doc['name']}': #{company_doc.errors.full_messages.join(', ')}"
     end

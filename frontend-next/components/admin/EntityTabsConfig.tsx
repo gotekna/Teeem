@@ -1089,6 +1089,7 @@ export function EntityTabsConfig({
                 <TableRow className="border-b bg-muted/50">
                   <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground w-20">CODE</TableHead>
                   <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground w-48">NAME</TableHead>
+                  <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground w-24">STATUS</TableHead>
                   <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground">FILE NAME</TableHead>
                   <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground">DISPLAY NAME</TableHead>
                 </TableRow>
@@ -1118,6 +1119,18 @@ export function EntityTabsConfig({
                       >
                         <TableCell className="py-1.5 px-3 font-mono text-xs">{dt.abbreviation || '—'}</TableCell>
                         <TableCell className="py-1.5 px-3">{dt.name}</TableCell>
+                        <TableCell className="py-1.5 px-3">
+                          {/* SSoT: is_primary flag indicates primary vs secondary link */}
+                          {dt.is_primary ? (
+                            <Badge variant="default" className="bg-green-600 hover:bg-green-600 text-white text-xs">
+                              Primary
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="text-xs">
+                              Secondary
+                            </Badge>
+                          )}
+                        </TableCell>
                         <TableCell className="py-1.5 px-3 text-muted-foreground text-xs font-mono">{dt.file_name || '—'}</TableCell>
                         <TableCell className="py-1.5 px-3 text-muted-foreground text-xs font-mono">{dt.display_name || '—'}</TableCell>
                       </TableRow>
@@ -1128,6 +1141,7 @@ export function EntityTabsConfig({
                       >
                         <TableCell className="py-1 px-3 text-xs text-green-600 dark:text-green-400">↳ eg.</TableCell>
                         <TableCell className="py-1 px-3 text-xs text-muted-foreground italic"></TableCell>
+                        <TableCell className="py-1 px-3"></TableCell>
                         <TableCell className="py-1 px-3 text-xs text-green-700 dark:text-green-300">{exampleFileName}</TableCell>
                         <TableCell className="py-1 px-3 text-xs text-green-700 dark:text-green-300">{exampleDisplayName}</TableCell>
                       </TableRow>

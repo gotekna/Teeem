@@ -57,6 +57,7 @@ export interface EntityTabDocumentType {
   display_name: string;
   abbreviation?: string;
   file_name?: string;
+  is_primary?: boolean;  // SSoT: true = this tab is the primary home, false = secondary ("also show in")
 }
 
 export interface EntityTabsResponse {

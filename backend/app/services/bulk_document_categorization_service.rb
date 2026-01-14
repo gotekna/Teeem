@@ -1,10 +1,21 @@
-# Service to bulk categorize job documents by matching folder paths to EntityTabs
-# Used for client onboarding to automatically assign document types based on folder structure
+# Service to bulk categorize documents by matching folder paths to EntityTabs
+# SSoT: Uses EntityTab.document_types for categorization across ALL scopes (job, corporate, etc.)
 #
 # Usage:
-#   service = BulkDocumentCategorizationService.new(job)
-#   result = service.categorize_all          # Execute categorization
-#   result = service.preview                 # Dry run - see what would happen
+#   # For jobs (original behavior)
+#   service = BulkDocumentCategorizationService.for_job(job)
+#   result = service.categorize_all
+#
+#   # For corporate documents
+#   service = BulkDocumentCategorizationService.for_corporate
+#   result = service.categorize_all
+#
+#   # For a specific company
+#   service = BulkDocumentCategorizationService.for_company(company)
+#   result = service.categorize_all
+#
+#   # Preview mode (dry run)
+#   result = service.preview
 #
 # Returns:
 #   {
@@ -15,8 +26,67 @@
 #   }
 #
 class BulkDocumentCategorizationService
-  def initialize(job, options = {})
-    @job = job
+  # SSoT: Class methods for each document scope
+  # These are the preferred way to instantiate the service
+
+  # For job documents (original behavior)
+  def self.for_job(job, options = {})
+    new(
+      scope: 'job',
+      documents: job.job_documents,
+      context_name: "Job #{job.code || job.id}",
+      **options
+    )
+  end
+
+  # For ALL corporate documents
+  def self.for_corporate(options = {})
+    new(
+      scope: 'corporate_entity',
+      documents: CorporateCompanyDocument.all,
+      context_name: "All Corporate",
+      **options
+    )
+  end
+
+  # For a specific company's documents
+  def self.for_company(company, options = {})
+    new(
+      scope: 'corporate_entity',
+      documents: company.corporate_company_documents,
+      context_name: "Company #{company.name}",
+      **options
+    )
+  end
+
+  # Backward compatibility: old constructor signature
+  # DEPRECATED: Use class methods above instead
+  def initialize(job_or_scope = nil, options_or_documents = {})
+    # Handle new keyword-based constructor
+    if job_or_scope.is_a?(Hash) || job_or_scope.is_a?(Symbol) || job_or_scope.is_a?(String)
+      # New style: initialize(scope:, documents:, ...)
+      init_from_keywords(job_or_scope.is_a?(Hash) ? job_or_scope : options_or_documents.merge(scope: job_or_scope))
+    elsif job_or_scope.respond_to?(:job_documents)
+      # Old style: initialize(job, options)
+      # DEPRECATED but supported for backward compatibility
+      @scope = 'job'
+      @documents = job_or_scope.job_documents
+      @context_name = "Job #{job_or_scope.code || job_or_scope.id}"
+      init_options(options_or_documents)
+    else
+      # Direct keyword args passed
+      init_from_keywords(options_or_documents)
+    end
+  end
+
+  private def init_from_keywords(kwargs)
+    @scope = kwargs[:scope]&.to_s || 'job'
+    @documents = kwargs[:documents]
+    @context_name = kwargs[:context_name] || @scope
+    init_options(kwargs)
+  end
+
+  private def init_options(options)
     @dry_run = options.fetch(:dry_run, false)
     @force = options.fetch(:force, false)  # Re-categorize even already-categorized docs
     @current_user = options[:user]
@@ -30,15 +100,15 @@ class BulkDocumentCategorizationService
   def categorize_all
     load_entity_tabs
 
-    # Get documents to process
+    # Get documents to process (uses @documents from constructor)
     documents = if @force
-      @job.job_documents.all  # ALL documents when force=true
+      @documents.all  # ALL documents when force=true
     else
-      @job.job_documents.where(document_type_id: nil)  # Only uncategorized
+      @documents.where(document_type_id: nil)  # Only uncategorized
     end
     @stats[:total] = documents.count
 
-    Rails.logger.info("[BulkCategorize] Starting categorization for Job #{@job.id}: #{@stats[:total]} documents, dry_run=#{@dry_run}")
+    Rails.logger.info("[BulkCategorize] Starting categorization for #{@context_name}: #{@stats[:total]} documents, scope=#{@scope}, dry_run=#{@dry_run}")
 
     documents.find_each do |doc|
       process_document(doc)
@@ -55,19 +125,31 @@ class BulkDocumentCategorizationService
     categorize_all
   end
 
+  # Categorize a single document (used by sync services after creating a document)
+  # Returns the result hash for the single document
+  def categorize_single(doc)
+    load_entity_tabs unless @entity_tabs
+    @stats = { total: 1, categorized: 0, skipped: 0, failed: 0, recategorized: 0, already_correct: 0 }
+    @details = []
+
+    process_document(doc)
+
+    { success: true, stats: @stats, details: @details, dry_run: @dry_run }
+  end
+
   private
 
   def load_entity_tabs
-    # Load all job document tabs with their document types
-    # SSoT: scope='job', tab_group='documents', enabled=true
+    # Load all document tabs for the configured scope with their document types
+    # SSoT: Uses @scope (job, corporate_entity, contact, etc.), tab_group='documents', enabled=true
     @entity_tabs = EntityTab
-      .for_scope('job')
+      .for_scope(@scope)
       .for_group('documents')
       .enabled
       .includes(:document_types, :children)
       .to_a
 
-    Rails.logger.info("[BulkCategorize] Loaded #{@entity_tabs.size} EntityTabs")
+    Rails.logger.info("[BulkCategorize] Loaded #{@entity_tabs.size} EntityTabs for scope '#{@scope}'")
 
     # Build lookup structures for efficient matching
     build_path_lookup

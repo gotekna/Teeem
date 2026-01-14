@@ -154,6 +154,7 @@ module Api
               .count
 
             # Document storage breakdown (Tekna tenant only - org-wide)
+            # SSoT: Orphaned documents (sync_status: 'missing') are deleted, not tracked
             document_storage = if org_name == "Tekna"
               doc_by_provider = { "wasabi" => 0, "sharepoint" => 0, "s3" => 0 }
               [JobDocument, CorporateCompanyDocument, PeopleDocument].each do |klass|

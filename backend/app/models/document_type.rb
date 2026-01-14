@@ -12,9 +12,11 @@ class DocumentType < ApplicationRecord
     entity_tabs.pluck(:display_name)
   end
 
-  # Get the primary tab (first linked tab or first by position)
+  # Get the primary tab (uses is_primary flag from join table)
+  # SSoT: is_primary flag is THE ONE way to identify the primary tab
   def primary_entity_tab
-    entity_tabs.ordered.first
+    primary_join = entity_tab_document_types.find_by(is_primary: true)
+    primary_join&.entity_tab || entity_tabs.ordered.first
   end
 
   # Set tabs by EntityTab IDs (SSoT: replaces old folder_ids=)
@@ -39,23 +41,29 @@ class DocumentType < ApplicationRecord
   end
 
   # Sync entity_tab_ids with the database
-  # SSoT: Also updates primary_tab column to match first EntityTab
+  # SSoT: Uses is_primary flag to track primary vs secondary tabs
+  # First ID = primary tab, rest = secondary ("also show in")
   def sync_entity_tab_ids(ids)
-    existing_ids = entity_tab_document_types.pluck(:entity_tab_id)
-
-    # Remove old assignments
+    # Remove old assignments not in the new list
     entity_tab_document_types.where.not(entity_tab_id: ids).destroy_all
 
-    # Add new assignments
-    (ids - existing_ids).each do |tab_id|
-      entity_tab_document_types.create(entity_tab_id: tab_id)
+    # Update/create assignments with is_primary flag
+    # First ID = primary, rest = secondary
+    ids.each_with_index do |tab_id, index|
+      is_primary = (index == 0)
+      existing = entity_tab_document_types.find_by(entity_tab_id: tab_id)
+      if existing
+        existing.update(is_primary: is_primary) if existing.is_primary != is_primary
+      else
+        entity_tab_document_types.create(entity_tab_id: tab_id, is_primary: is_primary)
+      end
     end
 
-    # SSoT: Update primary_tab column to match first EntityTab
+    # SSoT: Update primary_tab column to match first EntityTab (backup for display)
     primary_tab_id = ids.first
     if primary_tab_id.present?
-      primary_entity_tab = EntityTab.find_by(id: primary_tab_id)
-      update_column(:primary_tab, primary_entity_tab&.display_name)
+      primary_tab_record = EntityTab.find_by(id: primary_tab_id)
+      update_column(:primary_tab, primary_tab_record&.display_name)
     else
       update_column(:primary_tab, nil)
     end
