@@ -61,7 +61,7 @@ class TeeemPresentation < ApplicationRecord
       base = config.path_for(:powerpoint_documents)
       template = config.template_for(:powerpoint_documents)
       resolved = resolve_template(template, {
-        "UserName" => user&.display_name || "Unknown",
+        "UserName" => user&.name || "Unknown",
         "Year" => created_at&.year&.to_s || Time.current.year.to_s
       })
       "#{base}/#{resolved}".gsub(%r{/+}, "/")

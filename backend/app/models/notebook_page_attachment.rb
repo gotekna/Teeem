@@ -70,7 +70,7 @@ class NotebookPageAttachment < ApplicationRecord
 
     # Resolve template placeholders
     resolved = resolve_template(template, {
-      "UserName" => uploaded_by&.display_name || "Unknown",
+      "UserName" => uploaded_by&.name || "Unknown",
       "Year" => created_at&.year&.to_s || Time.current.year.to_s,
       "Month" => created_at&.strftime("%m") || Time.current.strftime("%m")
     })
@@ -86,7 +86,7 @@ class NotebookPageAttachment < ApplicationRecord
     template = config.template_for(:notes)
 
     resolved = resolve_template(template, {
-      "UserName" => uploaded_by&.display_name || "Unknown",
+      "UserName" => uploaded_by&.name || "Unknown",
       "Year" => created_at&.year&.to_s || Time.current.year.to_s,
       "Month" => created_at&.strftime("%m") || Time.current.strftime("%m")
     })
