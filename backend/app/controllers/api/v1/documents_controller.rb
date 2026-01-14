@@ -244,7 +244,8 @@ module Api
 
           # Filter to files only (exclude folders) and generate presigned download URLs
           files = items.select { |item| item[:type] == :file }.map do |item|
-            file_key = item[:key] || item[:name]
+            # Get full S3 key path (stored in :id by S3 provider)
+            file_key = item[:id] || item[:key] || item[:name]
             file_name = File.basename(file_key || "")
 
             # Generate presigned URL for download
