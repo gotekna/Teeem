@@ -70,16 +70,26 @@ interface WarehouseResponse {
   };
 }
 
+// SSoT: XeroLink from ContactHeader defines which tenants the contact is linked to
+interface LinkedTenant {
+  xero_tenant_id: string;
+  xero_tenant_name: string;
+}
+
 interface XeroInvoicesListByTenantProps {
   contactId: number;
   type: "ACCREC" | "ACCPAY"; // ACCREC = Invoices (Receivable), ACCPAY = Bills (Payable)
   onViewInvoiceDetail?: (invoiceId: string) => void;
+  // SSoT: Only show tabs for linked tenants (from contact's xero_links)
+  // If not provided, shows all tenants from API response
+  linkedTenants?: LinkedTenant[];
 }
 
 export function XeroInvoicesListByTenant({
   contactId,
   type,
   onViewInvoiceDetail,
+  linkedTenants,
 }: XeroInvoicesListByTenantProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -222,7 +232,18 @@ export function XeroInvoicesListByTenant({
     );
   }
 
-  const tenantIds = Object.keys(byTenant);
+  // SSoT: Use linkedTenants to determine which tenant tabs to show
+  // Only show tabs for tenants the contact is actually linked to
+  const tenantIds = useMemo(() => {
+    if (linkedTenants && linkedTenants.length > 0) {
+      // Filter to only show linked tenants that have data
+      return linkedTenants
+        .map(t => t.xero_tenant_id)
+        .filter(id => byTenant[id]);
+    }
+    // Fallback: show all tenants from API response
+    return Object.keys(byTenant);
+  }, [linkedTenants, byTenant]);
 
   if (tenantIds.length === 0) {
     return (

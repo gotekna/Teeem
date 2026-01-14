@@ -32,6 +32,9 @@ export interface EntityTab {
   hidden_by_default: boolean;  // SSoT: Tab hidden in overflow menu by default
   component_name: string | null;
   is_system_tab: boolean;
+  // SSoT: Xero integration fields
+  xero_scope: 'primary' | null;  // Which Xero account this tab uses
+  xero_account_name: string | null;  // Resolved name (e.g., "Tekna Homes")
   has_sharepoint_folder: boolean;
   sharepoint_folder_path: string | null;
   full_sharepoint_path: string | null;
@@ -66,6 +69,7 @@ export interface EntityTabsResponse {
     scope: EntityTabScope;
     tabs: EntityTab[];
     groups: TabGroup[];
+    primary_xero_name: string | null;  // SSoT: Name of primary Xero account
   };
 }
 

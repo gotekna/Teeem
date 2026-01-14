@@ -1296,6 +1296,26 @@ export function EntityTabsConfig({
                   </Tooltip>
                 </TooltipProvider>
               )}
+              {/* SSoT: Primary Xero badge for tabs with xero_scope */}
+              {tab.xero_scope === "primary" && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge
+                        variant="outline"
+                        className="text-xs gap-1 bg-purple-50 border-purple-300 text-purple-700 dark:bg-purple-900/30 dark:border-purple-700 dark:text-purple-300"
+                      >
+                        <span className="font-normal">Primary Xero:</span>
+                        <span className="font-medium">{tab.xero_account_name || "Not configured"}</span>
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p>Documents stored from the Primary Xero account</p>
+                      <p className="text-muted-foreground mt-1">Configure at Settings → Company → Info</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               {hasChildren && (
                 <Badge variant="secondary" className="text-xs">
                   {tab.children?.length} sub-tabs

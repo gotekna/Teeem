@@ -357,6 +357,11 @@ export interface Contact {
   xero_synced?: boolean | null;
   xero_invoice_count?: number | null;
   xero_contact_types: string[];
+  // SSoT: Xero customer/supplier flags (from contact_external_links)
+  xero_customer?: boolean;
+  xero_supplier?: boolean;
+  xero_linked_count?: number;
+  xero_tenant_names?: string[];
   sync_with_xero: boolean;
   created_at: string;
   updated_at: string;

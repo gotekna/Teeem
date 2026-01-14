@@ -21,6 +21,7 @@ import { PendingXeroReviewPanel } from "@/components/contacts/PendingXeroReviewP
 import { XeroInvoicesListByTenant } from "@/components/contacts/XeroInvoicesListByTenant";
 import type { Contact } from "../types";
 import { formatABN } from "../types";
+import type { XeroLink } from "./ContactHeader";
 
 interface ContactFinancialTabProps {
   contact: Contact;
@@ -28,6 +29,9 @@ interface ContactFinancialTabProps {
   handleFinancialSubTabChange: (value: string) => void;
   setContact: (contact: Contact) => void;
   handleViewInvoiceDetail: (invoiceId: string) => void;
+  // SSoT: Xero links determine which company tabs to show in Invoices/Bills
+  // 0 links = hide tabs, 1 link = company tab only, 2+ links = All + company tabs
+  xeroLinks: XeroLink[];
 }
 
 export function ContactFinancialTab({
@@ -36,7 +40,13 @@ export function ContactFinancialTab({
   handleFinancialSubTabChange,
   setContact,
   handleViewInvoiceDetail,
+  xeroLinks,
 }: ContactFinancialTabProps) {
+  // SSoT: Contact must have at least one Xero link to show Invoices/Bills tabs
+  const hasXeroLinks = xeroLinks.length > 0;
+  // Show Bills if supplier (from TEEEM transactions) OR Xero supplier
+  const showBillsTab = hasXeroLinks && (contact["is_supplier?"] || contact.xero_supplier);
+
   return (
     <Tabs value={activeFinancialSubTab} onValueChange={handleFinancialSubTabChange}>
       <TabsList className="mb-4">
@@ -48,11 +58,15 @@ export function ContactFinancialTab({
           <ExternalLink className="h-3.5 w-3.5 mr-1" />
           Xero
         </TabsTrigger>
-        <TabsTrigger value="invoices">
-          <FileText className="h-3.5 w-3.5 mr-1" />
-          Invoices
-        </TabsTrigger>
-        {contact["is_supplier?"] && (
+        {/* SSoT: Only show Invoices tab if contact has Xero links */}
+        {hasXeroLinks && (
+          <TabsTrigger value="invoices">
+            <FileText className="h-3.5 w-3.5 mr-1" />
+            Invoices
+          </TabsTrigger>
+        )}
+        {/* SSoT: Only show Bills tab if contact has Xero links AND is a supplier */}
+        {showBillsTab && (
           <TabsTrigger value="bills">
             <FileText className="h-3.5 w-3.5 mr-1" />
             Bills
@@ -84,20 +98,24 @@ export function ContactFinancialTab({
         />
       </TabsContent>
 
-      {/* Invoices Sub-Tab */}
-      <TabsContent value="invoices" className="mt-4">
-        <InvoicesSubTab
-          contactId={contact.id}
-          handleViewInvoiceDetail={handleViewInvoiceDetail}
-        />
-      </TabsContent>
+      {/* Invoices Sub-Tab - only if contact has Xero links */}
+      {hasXeroLinks && (
+        <TabsContent value="invoices" className="mt-4">
+          <InvoicesSubTab
+            contactId={contact.id}
+            handleViewInvoiceDetail={handleViewInvoiceDetail}
+            xeroLinks={xeroLinks}
+          />
+        </TabsContent>
+      )}
 
-      {/* Bills Sub-Tab */}
-      {contact["is_supplier?"] && (
+      {/* Bills Sub-Tab - only if contact has Xero links AND is a supplier */}
+      {showBillsTab && (
         <TabsContent value="bills" className="mt-4">
           <BillsSubTab
             contactId={contact.id}
             handleViewInvoiceDetail={handleViewInvoiceDetail}
+            xeroLinks={xeroLinks}
           />
         </TabsContent>
       )}
@@ -401,9 +419,10 @@ function XeroSubTab({
 interface InvoicesSubTabProps {
   contactId: number;
   handleViewInvoiceDetail: (invoiceId: string) => void;
+  xeroLinks: XeroLink[];
 }
 
-function InvoicesSubTab({ contactId, handleViewInvoiceDetail }: InvoicesSubTabProps) {
+function InvoicesSubTab({ contactId, handleViewInvoiceDetail, xeroLinks }: InvoicesSubTabProps) {
   return (
     <Card>
       <CardHeader>
@@ -414,6 +433,7 @@ function InvoicesSubTab({ contactId, handleViewInvoiceDetail }: InvoicesSubTabPr
           contactId={contactId}
           type="ACCREC"
           onViewInvoiceDetail={handleViewInvoiceDetail}
+          linkedTenants={xeroLinks}
         />
       </CardContent>
     </Card>
@@ -427,9 +447,10 @@ function InvoicesSubTab({ contactId, handleViewInvoiceDetail }: InvoicesSubTabPr
 interface BillsSubTabProps {
   contactId: number;
   handleViewInvoiceDetail: (invoiceId: string) => void;
+  xeroLinks: XeroLink[];
 }
 
-function BillsSubTab({ contactId, handleViewInvoiceDetail }: BillsSubTabProps) {
+function BillsSubTab({ contactId, handleViewInvoiceDetail, xeroLinks }: BillsSubTabProps) {
   return (
     <Card>
       <CardHeader>
@@ -440,6 +461,7 @@ function BillsSubTab({ contactId, handleViewInvoiceDetail }: BillsSubTabProps) {
           contactId={contactId}
           type="ACCPAY"
           onViewInvoiceDetail={handleViewInvoiceDetail}
+          linkedTenants={xeroLinks}
         />
       </CardContent>
     </Card>

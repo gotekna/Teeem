@@ -143,10 +143,6 @@ if git diff --name-only HEAD~1 HEAD | grep "^backend/db/migrate/" > /dev/null; t
   echo "✅ Migrations OK"
 fi
 
-# Scale workers to 0 to free queue DB connections for release command
-echo "⏳ Scaling workers to 0..."
-heroku ps:scale worker=0 -a teeemlive
-
 # ULTRA-FAST DEPLOY - direct push from temp directory (~5 seconds total)
 # Avoids slow git subtree split entirely
 cd /Users/robertharder/GitHub/teeem
@@ -179,11 +175,6 @@ git remote add heroku https://git.heroku.com/teeemlive.git
 git push heroku HEAD:main --force
 cd /Users/robertharder/GitHub/teeem
 rm -rf "$DEPLOY_DIR"
-
-# Scale workers back to 2
-echo "⏳ Scaling workers back to 2..."
-heroku ps:scale worker=2 -a teeemlive
-echo "✅ Workers restored"
 ```
 
 **If no backend changes, skip this step entirely.**
@@ -305,8 +296,6 @@ release command failed: too many connections for role
 ```bash
 heroku run rails db:migrate --app teeemlive
 ```
-
-**Note:** Worker scaling is now automatic - workers scale to 0 before deploy and back to 2 after.
 
 ## Notes
 

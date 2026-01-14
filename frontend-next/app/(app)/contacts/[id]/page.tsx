@@ -65,7 +65,7 @@ import TeeemTableView from "@/components/table/TeeemTableView";
 import { type TableColumn } from "@/components/table/types";
 import PersonStructureChart from "@/components/corporate/PersonStructureChart";
 import MultipleSelector, { type Option } from "@/components/ui/multiple-selector";
-import { ContactHeader } from "./components/ContactHeader";
+import { ContactHeader, XeroLink } from "./components/ContactHeader";
 import { useEntityTabs } from "@/lib/hooks/useEntityTabs";
 import { getIcon } from "@/lib/icon-map";
 import {
@@ -240,6 +240,8 @@ export default function ContactDetailPage() {
   const [loadingMemberships, setLoadingMemberships] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [enrichingFromWeb, setEnrichingFromWeb] = useState(false);
+  // SSoT: Xero links for Financial tab (from ContactHeader)
+  const [xeroLinks, setXeroLinks] = useState<XeroLink[]>([]);
 
   // Track if component is mounted to prevent state updates after deletion/navigation
   const mountedRef = useRef(true);
@@ -1881,6 +1883,7 @@ export default function ContactDetailPage() {
         onDelete={handleDelete}
         onEnrichFromWeb={handleEnrichFromWeb}
         enrichingFromWeb={enrichingFromWeb}
+        onXeroLinksChange={setXeroLinks}
       />
 
       {/* Tabs */}
@@ -2028,6 +2031,7 @@ export default function ContactDetailPage() {
             handleFinancialSubTabChange={handleFinancialSubTabChange}
             setContact={setContact}
             handleViewInvoiceDetail={handleViewInvoiceDetail}
+            xeroLinks={xeroLinks}
           />
         </TabsContent>
 

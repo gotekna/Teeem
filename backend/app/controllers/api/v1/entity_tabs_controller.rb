@@ -23,7 +23,8 @@ module Api
           data: {
             scope: params[:scope],
             tabs: service.nested_tabs,
-            groups: EntityTab::TAB_GROUPS
+            groups: EntityTab::TAB_GROUPS,
+            primary_xero_name: EntityTab.primary_xero_name  # SSoT: Name of primary Xero account
           }
         }
       end
@@ -282,6 +283,7 @@ module Api
           :is_cad_category,  # SSoT: Explicit CAD/Revit file viewer flag
           :display_mode,  # SSoT: How tab renders (icon_only, text_only, both)
           :hidden_by_default,  # SSoT: Tab hidden in overflow menu by default
+          :xero_scope,  # SSoT: Which Xero account this tab uses (nil, "primary", or tenant_id)
           entity_filters: [],
           document_type_ids: []  # SSoT: Link document types to this tab
         )

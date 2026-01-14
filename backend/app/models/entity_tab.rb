@@ -30,6 +30,12 @@ class EntityTab < ApplicationRecord
   # - text_only: Show only text (no icon)
   DISPLAY_MODES = %w[both icon_only text_only].freeze
 
+  # Valid xero_scope values (SSoT: which Xero account this tab uses)
+  # - nil: No Xero integration
+  # - "primary": Uses PRIMARY Xero account (XeroCredential.is_primary = true)
+  # - tenant_id: Specific Xero tenant (future use)
+  XERO_SCOPES = %w[primary].freeze
+
   # Associations
   belongs_to :parent, class_name: 'EntityTab', optional: true
   belongs_to :job, optional: true  # For per-job tabs
@@ -81,6 +87,7 @@ class EntityTab < ApplicationRecord
   validates :display_name, presence: true
   validates :tab_group, inclusion: { in: TAB_GROUPS }, allow_blank: true
   validates :display_mode, inclusion: { in: DISPLAY_MODES }, allow_blank: true
+  validates :xero_scope, inclusion: { in: XERO_SCOPES }, allow_blank: true
 
   # Uniqueness within scope + job + parent (allows same tab_key under different parents)
   # SSoT: Child tabs under different parents can have the same display_name (e.g., "Site" under Documents vs "Site" under Photos)
@@ -108,6 +115,7 @@ class EntityTab < ApplicationRecord
   scope :custom_tabs, -> { where(is_system_tab: false) }
   scope :global, -> { where(job_id: nil) }  # Not job-specific
   scope :for_job, ->(job_id) { where(job_id: job_id) }
+  scope :with_xero_scope, -> { where.not(xero_scope: nil) }
 
   # Filter by entity type (for corporate_entity scope)
   scope :for_entity_type, ->(entity_type) {
@@ -128,6 +136,26 @@ class EntityTab < ApplicationRecord
     end
 
     tabs
+  end
+
+  # SSoT: Get the name of the PRIMARY Xero account
+  # Returns nil if no primary Xero credential exists
+  def self.primary_xero_name
+    XeroCredential.primary.first&.tenant_name
+  end
+
+  # Get the Xero account name for this tab (if xero_scope is set)
+  # Returns the primary Xero name for xero_scope: "primary"
+  def xero_account_name
+    return nil unless xero_scope.present?
+
+    case xero_scope
+    when 'primary'
+      self.class.primary_xero_name
+    else
+      # Future: Could be a specific tenant_id
+      XeroCredential.find_by(tenant_id: xero_scope)&.tenant_name
+    end
   end
 
   # SSoT: Get folder name for a tab by key
@@ -340,6 +368,9 @@ class EntityTab < ApplicationRecord
       hidden_by_default: hidden_by_default,      # SSoT: Tab hidden in overflow menu by default
       component_name: component_name,
       is_system_tab: is_system_tab,
+      # SSoT: Xero integration fields
+      xero_scope: xero_scope,
+      xero_account_name: xero_account_name,  # Resolved name (e.g., "Tekna Homes")
       has_storage_folder: has_storage_folder,
       storage_folder_path: storage_folder_path,
       full_storage_path: full_storage_path,

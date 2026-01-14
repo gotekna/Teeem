@@ -20,7 +20,8 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 
-interface XeroLink {
+// Exported for use in other components (ContactFinancialTab)
+export interface XeroLink {
   id: number;
   xero_tenant_id: string;
   xero_tenant_name: string;
@@ -56,6 +57,8 @@ export interface ContactHeaderProps {
   onDelete: () => void;
   onEnrichFromWeb: () => void;
   enrichingFromWeb: boolean;
+  // SSoT: Callback when Xero links are loaded (for passing to Financial tab)
+  onXeroLinksChange?: (links: XeroLink[]) => void;
 }
 
 export function ContactHeader({
@@ -63,6 +66,7 @@ export function ContactHeader({
   onDelete,
   onEnrichFromWeb,
   enrichingFromWeb,
+  onXeroLinksChange,
 }: ContactHeaderProps) {
   const [xeroLinks, setXeroLinks] = useState<XeroLink[]>([]);
   const [allTenants, setAllTenants] = useState<XeroTenant[]>([]);
@@ -85,6 +89,8 @@ export function ContactHeader({
       );
       if (response?.success && response.xero_links) {
         setXeroLinks(response.xero_links);
+        // SSoT: Notify parent of xero links for Financial tab
+        onXeroLinksChange?.(response.xero_links);
       }
     } catch (err) {
       console.error("Failed to load Xero links:", err);
