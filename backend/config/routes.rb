@@ -1611,6 +1611,9 @@ Rails.application.routes.draw do
           patch "attachments/:attachment_id", action: :update_attachment
           get "attachments/:attachment_id/download", action: :download_attachment_for_email
           post "attachments/:attachment_id/share_link", action: :create_attachment_share_link
+          # Bulk email linking
+          get :email_link_options
+          post :bulk_link_emails
           # Task followers
           post :follow
           delete :unfollow

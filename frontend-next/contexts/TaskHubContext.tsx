@@ -937,7 +937,11 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updates } : t));
 
     try {
-      await api.patch(`/api/v1/sm_tasks/${taskId}`, { sm_task: updates });
+      const response = await api.patch<{ success: boolean; sm_task: SmTask }>(`/api/v1/sm_tasks/${taskId}`, { sm_task: updates });
+      // Update with full task data from server (includes computed fields like job_name)
+      if (response?.success && response?.sm_task) {
+        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...response.sm_task } : t));
+      }
     } catch (err) {
       // Rollback on failure
       console.error('Failed to update task:', err);

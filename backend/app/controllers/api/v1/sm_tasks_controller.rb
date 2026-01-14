@@ -2073,6 +2073,7 @@ module Api
         json = {
           id: task.id,
           construction_id: task.construction_id,
+          job_name: task.job&.name || "Unknown Job",
           task_number: task.task_number,
           name: task.name,
           status: task.status,

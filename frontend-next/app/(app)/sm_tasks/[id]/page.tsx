@@ -45,9 +45,9 @@ function TaskDetailContent() {
 
       // Task not in context, fetch directly
       try {
-        const response = await api.get<{ success: boolean; task: SmTask }>(`/api/v1/sm_tasks/${taskId}`);
-        if (response?.success && response.task) {
-          setTask(response.task);
+        const response = await api.get<{ success: boolean; sm_task: SmTask }>(`/api/v1/sm_tasks/${taskId}`);
+        if (response?.success && response.sm_task) {
+          setTask(response.sm_task);
         } else {
           setError('Task not found');
         }
