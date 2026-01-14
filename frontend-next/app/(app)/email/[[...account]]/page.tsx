@@ -95,6 +95,7 @@ import {
 import { api } from "@/lib/api";
 import { PAGE_SIZE_LIST } from "@/lib/constants/pagination-constants";
 import { formatDistanceToNow, format, isToday, differenceInDays } from "date-fns";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { ComposeEmailModal } from "@/components/emails/ComposeEmailModal";
 import { DraftsList } from "@/components/emails/DraftsList";
 import {
@@ -635,6 +636,9 @@ export default function EmailPage() {
   const fetchAbortControllerRef = useRef<AbortController | null>(null);
   const lastFetchTimeRef = useRef<number>(0);
   const FETCH_DEBOUNCE_MS = 500; // Prevent rapid re-fetches within 500ms
+
+  // Virtual scrolling for email list performance
+  const emailListScrollRef = useRef<HTMLDivElement>(null);
 
   // Folder/account state (SSoT: atoms)
   const [showAllMailboxes, setShowAllMailboxes] = useAtom(showAllMailboxesAtom);
@@ -1464,7 +1468,7 @@ export default function EmailPage() {
     setLastClickedEmailId(email.id);
   }, [selection]);
 
-  const handleReply = (email: Email) => {
+  const handleReply = useCallback((email: Email) => {
     // Build quoted original message as HTML to preserve formatting
     const originalBody = email.body_html || email.body_text || "";
     // Start with empty paragraph for typing, then quoted content below
@@ -1485,9 +1489,9 @@ ${originalBody}
       replyToMessageId: email.internet_message_id, // For email threading
     });
     setComposeOpen(true);
-  };
+  }, [selectedAccount, setComposeOpen]);
 
-  const handleReplyAll = (email: Email) => {
+  const handleReplyAll = useCallback((email: Email) => {
     // Get the current user's email from the selected account
     const currentAccount = accounts.find(a => String(a.id) === selectedAccount);
     const currentUserEmail = currentAccount?.email_address?.toLowerCase();
@@ -1523,14 +1527,14 @@ ${originalBody}
       replyToMessageId: email.internet_message_id, // For email threading
     });
     setComposeOpen(true);
-  };
+  }, [accounts, selectedAccount, setComposeOpen]);
 
   const handleCompose = () => {
     setReplyTo(null);
     setComposeOpen(true);
   };
 
-  const handleForward = (email: Email) => {
+  const handleForward = useCallback((email: Email) => {
     // Build forwarded message header
     const forwardHeader = `---------- Forwarded message ----------
 From: ${email.from_email || email.from_address}
@@ -1549,7 +1553,7 @@ To: ${email.to_emails?.join(", ") || ""}
       fromAccountId: selectedAccount,
     });
     setComposeOpen(true);
-  };
+  }, [selectedAccount, setComposeOpen]);
 
   // Create a task from email (same as forwarding to newtask@tekna.com.au)
   const handleCreateTaskFromEmail = async (email: Email) => {
@@ -1633,6 +1637,11 @@ To: ${email.to_emails?.join(", ") || ""}
       description: `Snooze feature coming soon for "${email.subject}"`,
     });
   }, [toast]);
+
+  // Stable callback for refreshing email list after quick actions (archive, delete, etc.)
+  const handleQuickAction = useCallback(() => {
+    fetchEmails(1, true);
+  }, [fetchEmails]);
 
   const toggleAccountExpanded = (accountId: string, account?: EmailAccount) => {
     const newExpanded = new Set(expandedAccounts);
@@ -2092,7 +2101,7 @@ To: ${email.to_emails?.join(", ") || ""}
                     hasSelections={selection.hasSelection}
                     onClick={handleEmailRowClick}
                     onCheckboxChange={handleCheckboxChange}
-                    onQuickAction={() => fetchEmails(1, true)}
+                    onQuickAction={handleQuickAction}
                     onSnooze={handleSnoozeEmail}
                     onReply={handleReply}
                     onReplyAll={handleReplyAll}
@@ -2128,7 +2137,7 @@ To: ${email.to_emails?.join(", ") || ""}
                     hasSelections={selection.hasSelection}
                     onClick={handleEmailRowClick}
                     onCheckboxChange={handleCheckboxChange}
-                    onQuickAction={() => fetchEmails(1, true)}
+                    onQuickAction={handleQuickAction}
                     onSnooze={handleSnoozeEmail}
                     onReply={handleReply}
                     onReplyAll={handleReplyAll}

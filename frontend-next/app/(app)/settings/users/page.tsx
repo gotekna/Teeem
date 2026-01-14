@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { UserPlus } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { AddUserModal } from "@/components/admin/AddUserModal";
@@ -119,12 +117,7 @@ export default function UsersSettingsPage() {
         onBulkDelete={handleBulkDelete}
         onRowDoubleClick={handleRowDoubleClick}
         onRefresh={triggerRefresh}
-        leftActions={
-          <Button onClick={() => setShowAddModal(true)}>
-            <UserPlus className="h-4 w-4 mr-2" />
-            Add User
-          </Button>
-        }
+        onAddRow={() => setShowAddModal(true)}  // SSoT: Override built-in Add to use custom AddUserModal
       />
 
       <AddUserModal

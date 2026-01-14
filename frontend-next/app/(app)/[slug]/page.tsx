@@ -1,8 +1,8 @@
 "use client";
 
 import { useParams, usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, Suspense, useCallback, useMemo } from "react";
-import { TeeemTableView, SchemaTab, ConnectionsTab, CreateRecordDialog } from "@/components/table";
+import { useEffect, Suspense, useCallback, useMemo } from "react";
+import { TeeemTableView, SchemaTab, ConnectionsTab } from "@/components/table";
 import { api } from "@/lib/api";
 import type { TableRow } from "@/components/table/types";
 import { TABLE_IDS, stripUrlSuffix, slugifyPricebookCode } from "@/lib/url-utils";
@@ -10,8 +10,7 @@ import { getTableUIConfig } from "@/lib/table-ui-config";
 import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertCircle, Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { AlertCircle } from "lucide-react";
 import { notFound } from "next/navigation";
 
 /**
@@ -86,8 +85,6 @@ function TablePageContent() {
     return null;
   }, [pathname, cleanSlug]);
 
-  const [showAddModal, setShowAddModal] = useState(false);
-
   // Load foundation data by slug
   const { foundation, columns, records, isLoading, error, refresh, serverSearch, isSearching } = useFoundationBySlug(cleanSlug);
 
@@ -160,12 +157,6 @@ function TablePageContent() {
     return <ErrorDisplay error={error} slug={cleanSlug} />;
   }
 
-  // Handle add new record
-  const handleAddNew = () => {
-    console.log("[TablePage] Add new record for table:", tableId);
-    setShowAddModal(true);
-  };
-
   // Handle row click - navigate to detail page
   const handleRowClick = (row: { id: number | string; [key: string]: unknown }) => {
     console.log('handleRowClick called with row:', row, 'tableId:', tableId);
@@ -200,15 +191,8 @@ function TablePageContent() {
 
   // Note: Merge is now handled by TeeemTableView internally via enableMerge prop
 
-  // Left actions - Add New button
-  const leftActions = !uiConfig.viewOnly ? (
-    <Button onClick={handleAddNew} className="gap-2">
-      <Plus className="h-4 w-4" />
-      Add Record
-    </Button>
-  ) : null;
-
   // Common table props
+  // SSoT: Add button is auto-enabled by TeeemTableView when foundationIdNumeric is set
   // Note: Filters button is auto-enabled by TeeemTableView when foundationIdNumeric is set
   // Note: columns NOT passed - TeeemTableView auto-fetches from Foundation API (SSoT)
   const tableProps = {
@@ -227,8 +211,8 @@ function TablePageContent() {
     onRowClick: handleRowClick,
     onRowUpdate: !uiConfig.viewOnly ? handleRowUpdate : undefined,
     onBulkDelete: !uiConfig.viewOnly ? handleBulkDelete : undefined,
-    // Merge is handled internally by TeeemTableView when foundationIdNumeric is set
-    leftActions: leftActions,
+    // Note: Merge is handled internally by TeeemTableView when foundationIdNumeric is set
+    // Note: leftActions removed - Add button auto-enabled by TeeemTableView (SSoT)
     // Server-side search for large tables
     onServerSearch: serverSearch,
     serverSearchLoading: isSearching,
@@ -279,16 +263,7 @@ function TablePageContent() {
         <TeeemTableView {...tableProps} />
       )}
 
-      {/* Create Record Dialog */}
-      <CreateRecordDialog
-        open={showAddModal}
-        onOpenChange={setShowAddModal}
-        foundationId={tableId}
-        tableName={tableName}
-        columns={columns}
-        onSuccess={refresh}
-      />
-
+      {/* Note: CreateRecordDialog removed - handled internally by TeeemTableView (SSoT) */}
       {/* Note: GlobalViewsManager is now handled by TeeemTableView internally when foundationIdNumeric is set */}
     </div>
   );
