@@ -39,7 +39,7 @@ export type PlaceholderColor =
   | "green"   // Date-related
   | "gray";   // Other
 
-export type PlaceholderScope = "company" | "job" | "document" | "sharepoint" | "all";
+export type PlaceholderScope = "company" | "job" | "document" | "storage" | "all";
 
 // =============================================================================
 // COMPANY PLACEHOLDERS (Purple)
@@ -405,21 +405,21 @@ export const DOCUMENT_PLACEHOLDERS: PlaceholderToken[] = [
 ];
 
 // =============================================================================
-// SHAREPOINT PLACEHOLDERS (Used with {{double braces}})
+// STORAGE PLACEHOLDERS (Used with {{double braces}} for folder paths)
 // =============================================================================
 
-export const SHAREPOINT_PLACEHOLDERS: PlaceholderToken[] = [
+export const STORAGE_PLACEHOLDERS: PlaceholderToken[] = [
   {
     code: "{{JobCode}}",
     example: "J069",
     color: "orange",
-    description: "Job code for SharePoint paths",
+    description: "Job code for storage paths",
   },
   {
     code: "{{TaskId}}",
     example: "T-001",
     color: "orange",
-    description: "Task identifier for SharePoint paths",
+    description: "Task identifier for storage paths",
   },
   {
     code: "{{Category}}",
@@ -514,6 +514,9 @@ export const SHAREPOINT_PLACEHOLDERS: PlaceholderToken[] = [
   },
 ];
 
+// Backwards compatibility alias
+export const SHAREPOINT_PLACEHOLDERS = STORAGE_PLACEHOLDERS;
+
 // =============================================================================
 // COMBINED EXPORTS BY SCOPE
 // =============================================================================
@@ -522,7 +525,7 @@ export const PLACEHOLDERS_BY_SCOPE: Record<PlaceholderScope, PlaceholderToken[]>
   company: [...COMPANY_PLACEHOLDERS, ...DATE_PLACEHOLDERS],
   job: [...JOB_PLACEHOLDERS, ...TAB_PLACEHOLDERS, ...PLAN_PLACEHOLDERS, ...DATE_PLACEHOLDERS],
   document: [...DOCUMENT_PLACEHOLDERS, ...TAB_PLACEHOLDERS, ...PLAN_PLACEHOLDERS],
-  sharepoint: SHAREPOINT_PLACEHOLDERS,
+  storage: STORAGE_PLACEHOLDERS,
   all: [
     ...DOCUMENT_PLACEHOLDERS,
     ...COMPANY_PLACEHOLDERS,

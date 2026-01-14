@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { resolveWithExamples, resolveSharePointPath, SHAREPOINT_PLACEHOLDERS } from "@/lib/placeholders";
+import { resolveWithExamples, resolveSharePointPath, STORAGE_PLACEHOLDERS } from "@/lib/placeholders";
 import { TokenBuilder } from "@/components/ui/tokens";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1711,8 +1711,8 @@ export function EntityTabsConfig({
                         label={labelWithStatus("Folder Path")}
                         value={folderPathTemplate || editingTab?.inherited_template || getDefaultTemplate(scope)}
                         onChange={setFolderPathTemplate}
-                        scope="sharepoint"
-                        placeholders={SHAREPOINT_PLACEHOLDERS}
+                        scope="storage"
+                        placeholders={STORAGE_PLACEHOLDERS}
                         showPreview={true}
                         placeholder="Click tokens below to add..."
                         disabled={false}
@@ -1757,8 +1757,8 @@ export function EntityTabsConfig({
                         label={labelWithStatus("File Name")}
                         value={fileNameTemplate}
                         onChange={setFileNameTemplate}
-                        scope="sharepoint"
-                        placeholders={SHAREPOINT_PLACEHOLDERS}
+                        scope="storage"
+                        placeholders={STORAGE_PLACEHOLDERS}
                         showPreview={true}
                         placeholder="Click tokens below to add..."
                         disabled={false}
@@ -1822,8 +1822,8 @@ export function EntityTabsConfig({
                           label={labelWithStatus("Folder Path")}
                           value={attachmentsPathTemplate ?? getDefaultTemplate('email')}
                           onChange={setAttachmentsPathTemplate}
-                          scope="sharepoint"
-                          placeholders={SHAREPOINT_PLACEHOLDERS}
+                          scope="storage"
+                          placeholders={STORAGE_PLACEHOLDERS}
                           showPreview={true}
                           placeholder="Click tokens below to add..."
                           disabled={false}
@@ -1858,8 +1858,8 @@ export function EntityTabsConfig({
                           label={labelWithStatus("File Name")}
                           value={attachmentsFileNameTemplate}
                           onChange={setAttachmentsFileNameTemplate}
-                          scope="sharepoint"
-                          placeholders={SHAREPOINT_PLACEHOLDERS}
+                          scope="storage"
+                          placeholders={STORAGE_PLACEHOLDERS}
                           showPreview={true}
                           placeholder="Click tokens below to add..."
                           disabled={false}
@@ -1943,8 +1943,8 @@ export function EntityTabsConfig({
                                   label={labelWithStatus("Folder Path")}
                                   value={template}
                                   onChange={(val) => setWarehouseScopeTemplate(config.id, val)}
-                                  scope="sharepoint"
-                                  placeholders={SHAREPOINT_PLACEHOLDERS}
+                                  scope="storage"
+                                  placeholders={STORAGE_PLACEHOLDERS}
                                   showPreview={true}
                                   placeholder="Click tokens below to add..."
                                   disabled={false}
@@ -1963,8 +1963,8 @@ export function EntityTabsConfig({
                                   label={labelWithStatus("File Name")}
                                   value={fileNameTpl}
                                   onChange={(val) => setWarehouseScopeFileNameTemplate(config.id, val)}
-                                  scope="sharepoint"
-                                  placeholders={SHAREPOINT_PLACEHOLDERS}
+                                  scope="storage"
+                                  placeholders={STORAGE_PLACEHOLDERS}
                                   showPreview={true}
                                   disabled={false}
                                   defaultExpanded={false}
@@ -2340,11 +2340,11 @@ export function EntityTabsConfig({
                       sharepoint_folder_path: value,
                     }))
                   }
-                  scope="sharepoint"
+                  scope="storage"
                   // SSoT: Filter placeholders based on tab hierarchy
                   // - Root tabs: show {{TabName}} only (no subtab)
                   // - Subtabs: show BOTH {{TabName}} (parent) and {{SubTabName}} (current)
-                  placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) => {
+                  placeholders={STORAGE_PLACEHOLDERS.filter((p) => {
                     const isSubtab = !!(formData.parent_id || editingTab?.parent_id);
                     if (isSubtab) {
                       // Subtabs: show BOTH TabName (parent) and SubTabName (current)

@@ -732,7 +732,7 @@ function TabNode({
                 label={<span className="text-[11px] font-medium text-muted-foreground">Folder Template</span>}
                 value={editTemplate}
                 onChange={setEditTemplate}
-                scope="sharepoint"
+                scope="storage"
                 showPreview={true}
                 separator="/"
                 placeholder="Click tokens to build folder path..."
