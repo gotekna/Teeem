@@ -332,6 +332,8 @@ class GanttDataService
       locked: record.try(:confirm) || false,
       confirm: record.try(:confirm) || false,
       supplier_confirm: record.try(:supplier_confirm) || false,
+      supplier_confirmation_method: record.try(:supplier_confirmation_method),
+      supplier_confirmed_contact_name: record.try(:supplier_confirmed_contact_name),
       started: record.try(:started) || false,
       hold: record.try(:hold) || false,
       hold_date: format_date(record.try(:hold_date)),

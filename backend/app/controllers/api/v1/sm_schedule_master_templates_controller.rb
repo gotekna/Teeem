@@ -707,7 +707,17 @@ module Api
         date_map = {}
 
         sorted_tasks.each do |row|
-          # Handle held tasks first
+          # Started tasks use hold_date as anchor (even if hold is false)
+          if row.started && row.hold_date.present?
+            row_start = row.hold_date.to_date
+            row_start = calendar.next_working_day(row_start) unless calendar.working_day?(row_start)
+            duration = row.duration_days || 1
+            row_end = calendar.add_working_days(row_start, duration - 1)
+            date_map[row.task_number] = { start_date: row_start, end_date: row_end }
+            next
+          end
+
+          # Handle held tasks
           if row.hold && row.hold_date.present?
             row_start = row.hold_date.to_date
             row_start = calendar.next_working_day(row_start) unless calendar.working_day?(row_start)

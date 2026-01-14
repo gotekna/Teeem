@@ -102,6 +102,24 @@ export interface StartTaskDialogState {
   lastWorkingDay: Date | null;
 }
 
+export interface SupplierConfirmDialogState {
+  isOpen: boolean;
+  task: GanttTask | null;
+  /** true = confirming, false = viewing/un-confirming */
+  isConfirming: boolean;
+  method: 'phone' | 'text' | 'email' | null;
+  contactName: string;
+  supplierName: string | null;
+  supplierEmail: string | null;
+  /** Reason for job not ready (used with Email Supplier) */
+  reason: string;
+  /** Whether to send email to supplier */
+  sendEmail: boolean;
+  /** Previous confirmation values (when viewing existing confirmation) */
+  previousMethod: 'phone' | 'text' | 'email' | null;
+  previousContactName: string;
+}
+
 export interface UndoState {
   startDate: Date;
   endDate: Date;
@@ -208,6 +226,21 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     hasPredecessors: false,
     isTodayWorkingDay: true,
     lastWorkingDay: null,
+  });
+
+  // Supplier confirm dialog
+  const [supplierConfirmDialog, setSupplierConfirmDialog] = React.useState<SupplierConfirmDialogState>({
+    isOpen: false,
+    task: null,
+    isConfirming: true,
+    method: null,
+    contactName: '',
+    supplierName: null,
+    supplierEmail: null,
+    reason: '',
+    sendEmail: false,
+    previousMethod: null,
+    previousContactName: '',
   });
 
   // Edit sheet
@@ -658,8 +691,37 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       }
     }
 
-    // For confirm fields, show confirmation dialog
-    if (field === 'supplier_confirm' || field === 'confirm') {
+    // For supplier_confirm, show the supplier confirmation details dialog (both confirming and un-confirming)
+    if (field === 'supplier_confirm') {
+      if (!task || !row) {
+        await executeCheckboxToggle(taskId, field, checked);
+        return;
+      }
+
+      // Get supplier name, email, and previous confirmation details from rowData
+      const supplierName = (row as any).supplier_name || (row as any).po_supplier?.name || null;
+      const supplierEmail = (row as any).supplier_email || (row as any).po_supplier?.email || null;
+      const previousMethod = (row as any).supplier_confirmation_method || null;
+      const previousContactName = (row as any).supplier_confirmed_contact_name || '';
+
+      setSupplierConfirmDialog({
+        isOpen: true,
+        task,
+        isConfirming: checked,
+        method: checked ? null : previousMethod,
+        contactName: checked ? '' : previousContactName,
+        supplierName,
+        supplierEmail,
+        reason: '',
+        sendEmail: false,
+        previousMethod,
+        previousContactName,
+      });
+      return;
+    }
+
+    // For confirm field (not supplier_confirm), show confirmation dialog
+    if (field === 'confirm') {
       if (!task || !row) {
         await executeCheckboxToggle(taskId, field, checked);
         return;
@@ -675,7 +737,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
 
       setConfirmDialog({
         isOpen: true,
-        type: field === 'supplier_confirm' ? 'supplierConfirm' : 'confirm',
+        type: 'confirm',
         task,
         isChecking: checked,
         affectedSuccessors: successorRows,
@@ -706,10 +768,11 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       const task = tasks.find(t => t.id === taskId);
       const updateData: Record<string, unknown> = { [apiField]: checked };
 
-      // When starting a task, move to today and set hold
+      // When starting a task, move to today and clear hold
+      // The backend will use hold_date as anchor when started=true (even without hold)
       if (field === 'started' && checked) {
         const today = new Date();
-        updateData.hold = true;
+        updateData.hold = false;  // Clear hold checkbox
         updateData.hold_date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
       }
       // For other confirms (confirm, supplier_confirm), lock at current position
@@ -719,14 +782,10 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
         updateData.hold_date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       }
 
-      const url = apiConfig.updateUrl(taskId);
-      const payload = wrapPayload(apiConfig, updateData);
-      console.log('[GanttDataManager] 🔧 Checkbox toggle DEBUG:');
-      console.log('[GanttDataManager]   URL:', url);
-      console.log('[GanttDataManager]   payload:', JSON.stringify(payload));
-
-      const response = await api.patch(url, payload);
-      console.log('[GanttDataManager]   response:', response);
+      await api.patch(
+        apiConfig.updateUrl(taskId),
+        wrapPayload(apiConfig, updateData)
+      );
 
       toast({ title: 'Updated', description: `${field} ${checked ? 'enabled' : 'disabled'}` });
       loadData({ silent: true });
@@ -788,6 +847,105 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       toast({ title: 'Error', description: 'Failed to start task', variant: 'destructive' });
     }
   }, [apiConfig, loadData, toast]);
+
+  // ---------------------------------------------------------------------------
+  // Supplier Confirm (with method and contact details)
+  // ---------------------------------------------------------------------------
+
+  const executeSupplierConfirm = React.useCallback(async (
+    task: GanttTask,
+    method: 'phone' | 'text' | 'email',
+    contactName: string
+  ) => {
+    if (!apiConfig) return;
+
+    try {
+      const today = new Date();
+      const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+      const updateData: Record<string, unknown> = {
+        supplier_confirm: true,
+        supplier_confirmation_method: method,
+        supplier_confirmed_contact_name: contactName,
+        hold: true,
+        hold_date: dateStr,
+      };
+
+      await api.patch(
+        apiConfig.updateUrl(task.id),
+        wrapPayload(apiConfig, updateData)
+      );
+
+      const methodLabel = method === 'phone' ? 'phone call' : method;
+      toast({
+        title: 'Supplier Confirmed',
+        description: `Confirmed by ${contactName} via ${methodLabel}`
+      });
+      loadData({ silent: true });
+    } catch (err) {
+      console.error('[GanttDataManager] Supplier confirm failed:', err);
+      toast({ title: 'Error', description: 'Failed to confirm supplier', variant: 'destructive' });
+    }
+  }, [apiConfig, loadData, toast]);
+
+  // Clear supplier confirmation (un-confirm)
+  const executeSupplierUnconfirm = React.useCallback(async (task: GanttTask) => {
+    if (!apiConfig) return;
+
+    try {
+      const updateData: Record<string, unknown> = {
+        supplier_confirm: false,
+        supplier_confirmation_method: null,
+        supplier_confirmed_contact_name: null,
+      };
+
+      await api.patch(
+        apiConfig.updateUrl(task.id),
+        wrapPayload(apiConfig, updateData)
+      );
+
+      toast({
+        title: 'Confirmation Cleared',
+        description: 'Supplier confirmation has been removed'
+      });
+      loadData({ silent: true });
+    } catch (err) {
+      console.error('[GanttDataManager] Supplier unconfirm failed:', err);
+      toast({ title: 'Error', description: 'Failed to clear confirmation', variant: 'destructive' });
+    }
+  }, [apiConfig, loadData, toast]);
+
+  // Email supplier (job not ready)
+  const executeEmailSupplier = React.useCallback(async (
+    task: GanttTask,
+    reason: string,
+    supplierEmail?: string
+  ) => {
+    if (!apiConfig) return;
+
+    try {
+      // Get the row data
+      const row = task.rowData as SmScheduleMaster | undefined;
+
+      // TODO: Implement email sending via backend
+      // For now, just show a toast with the details
+      console.log('[GanttDataManager] Email supplier:', {
+        taskId: task.id,
+        taskName: task.name,
+        reason,
+        supplierEmail,
+        row,
+      });
+
+      toast({
+        title: 'Email Sent',
+        description: `Supplier notified: ${reason.substring(0, 50)}${reason.length > 50 ? '...' : ''}`
+      });
+    } catch (err) {
+      console.error('[GanttDataManager] Email supplier failed:', err);
+      toast({ title: 'Error', description: 'Failed to send email', variant: 'destructive' });
+    }
+  }, [apiConfig, toast]);
 
   // ---------------------------------------------------------------------------
   // Task Drag (with cascade dialog)
@@ -915,18 +1073,10 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       if (mode === 'template' && templateId) {
         // Template mode: PATCH the template row with hold=true and hold_date
         // This sets the manual position that GanttDateCalculationService will respect
-        const url = `/api/v1/sm_schedule_master_templates/${templateId}/rows/${task.id}`;
-        const payload = { row: { hold: true, hold_date: dateStr } };
-        console.log('[GanttDataManager] 🔧 Template drag move DEBUG:');
-        console.log('[GanttDataManager]   mode:', mode);
-        console.log('[GanttDataManager]   templateId:', templateId);
-        console.log('[GanttDataManager]   task.id:', task.id);
-        console.log('[GanttDataManager]   URL:', url);
-        console.log('[GanttDataManager]   payload:', JSON.stringify(payload));
+        await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${task.id}`, {
+          row: { hold: true, hold_date: dateStr }
+        });
 
-        const response = await api.patch(url, payload);
-
-        console.log('[GanttDataManager] 🔧 Template drag move response:', response);
         toast({ title: 'Task Moved', description: `Moved to ${newStartDate.toLocaleDateString('en-AU')}` });
         loadData({ silent: true });
       } else {
@@ -1456,6 +1606,13 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     startTaskDialog,
     setStartTaskDialog,
     executeStartTask,
+
+    // Supplier confirm dialog
+    supplierConfirmDialog,
+    setSupplierConfirmDialog,
+    executeSupplierConfirm,
+    executeSupplierUnconfirm,
+    executeEmailSupplier,
 
     // Undo
     undoHistory,

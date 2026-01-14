@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_14_100009) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_14_100010) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8616,6 +8616,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_14_100009) do
     t.bigint "completion_document_type_id"
     t.bigint "sm_task_group_id"
     t.jsonb "completion_linked_task_ids", default: []
+    t.string "supplier_confirmation_method"
+    t.string "supplier_confirmed_contact_name"
     t.index ["checklist_id"], name: "index_sm_schedule_masters_on_checklist_id"
     t.index ["claim_invoice_template_id"], name: "index_sm_schedule_masters_on_claim_invoice_template_id"
     t.index ["complete_workflow_id"], name: "index_sm_schedule_masters_on_complete_workflow_id"
@@ -8878,6 +8880,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_14_100009) do
     t.bigint "completion_document_type_id"
     t.jsonb "completion_linked_task_ids", default: []
     t.integer "sm_task_group_id"
+    t.string "supplier_confirmation_method"
+    t.string "supplier_confirmed_contact_name"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
     t.index ["complete_workflow_id"], name: "index_sm_tasks_on_complete_workflow_id"

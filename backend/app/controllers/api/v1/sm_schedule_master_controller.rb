@@ -227,7 +227,7 @@ module Api
           # Completion document requirement
           :requires_document_to_complete, :completion_document_type_id,
           # New Schedule Master fields
-          :supplier_confirm,
+          :supplier_confirm, :supplier_confirmation_method, :supplier_confirmed_contact_name,
           # Manual positioning and task status
           :hold, :hold_date, :dependency_broken, :started,
           # Header and active status

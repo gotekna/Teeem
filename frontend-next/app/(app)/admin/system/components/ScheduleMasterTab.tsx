@@ -85,7 +85,7 @@ import { isWorkingDay, skipToPreviousWorkingDay, type GanttTask, type SmSchedule
 import { useToast } from "@/components/ui/use-toast";
 import { EditRowDialog, type EditRowData, type EditRowFormData } from "@/components/schedule/EditRowDialog";
 import { Spinner } from "@/components/ui/spinner";
-import { Check, AlertCircle, Link2Off, PlayCircle, GitBranch, Search } from "lucide-react";
+import { Check, AlertCircle, Link2Off, PlayCircle, GitBranch, Search, Phone, MessageSquare, Mail } from "lucide-react";
 import { useAtom, useStore } from "jotai";
 import { smDataViewTemplateIdAtom } from "@/lib/table-atoms";
 
@@ -507,6 +507,11 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   const setConfirmDialog = gantt.setConfirmDialog;
   const startTaskDialog = gantt.startTaskDialog;
   const setStartTaskDialog = gantt.setStartTaskDialog;
+  const supplierConfirmDialog = gantt.supplierConfirmDialog;
+  const setSupplierConfirmDialog = gantt.setSupplierConfirmDialog;
+  const executeSupplierConfirm = gantt.executeSupplierConfirm;
+  const executeSupplierUnconfirm = gantt.executeSupplierUnconfirm;
+  const executeEmailSupplier = gantt.executeEmailSupplier;
   const dependencyEditorState = gantt.dependencyEditorState;
   const setDependencyEditorState = gantt.setDependencyEditorState;
   const executeGanttV2CheckboxToggle = gantt.executeCheckboxToggle;
@@ -4780,6 +4785,191 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => setStartTaskDialog(prev => ({ ...prev, isOpen: false }))}>
               Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Supplier Confirm Dialog - quick capture of confirmation method and contact */}
+      <Dialog open={supplierConfirmDialog.isOpen} onOpenChange={(open) => setSupplierConfirmDialog(prev => ({ ...prev, isOpen: open }))}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Phone className="h-5 w-5 text-purple-500" />
+              {supplierConfirmDialog.isConfirming ? 'Supplier Confirmation' : 'Supplier Confirmed'}
+            </DialogTitle>
+            <DialogDescription>
+              {supplierConfirmDialog.isConfirming
+                ? 'Record how the supplier confirmed this task'
+                : 'View or update confirmation details'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Task name */}
+            <div className="text-sm">
+              <span className="text-muted-foreground">Task:</span>{' '}
+              <span className="font-medium">{supplierConfirmDialog.task?.name}</span>
+            </div>
+
+            {/* Supplier name if available */}
+            {supplierConfirmDialog.supplierName && (
+              <div className="text-sm">
+                <span className="text-muted-foreground">Supplier:</span>{' '}
+                <span className="font-medium">{supplierConfirmDialog.supplierName}</span>
+              </div>
+            )}
+
+            {/* Show previous confirmation info when viewing */}
+            {!supplierConfirmDialog.isConfirming && supplierConfirmDialog.previousMethod && (
+              <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-md p-3 space-y-1">
+                <div className="text-sm font-medium text-green-700 dark:text-green-300 flex items-center gap-1.5">
+                  <Check className="h-4 w-4" />
+                  Previously Confirmed
+                </div>
+                <div className="text-sm text-green-600 dark:text-green-400">
+                  Via {supplierConfirmDialog.previousMethod === 'phone' ? 'Phone' : supplierConfirmDialog.previousMethod === 'text' ? 'Text' : 'Email'}
+                  {supplierConfirmDialog.previousContactName && ` by ${supplierConfirmDialog.previousContactName}`}
+                </div>
+              </div>
+            )}
+
+            {/* Confirmation method buttons */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">
+                {supplierConfirmDialog.isConfirming ? 'Confirmed via:' : 'Update confirmation method:'}
+              </label>
+              <div className="flex gap-2">
+                <Button
+                  variant={supplierConfirmDialog.method === 'phone' ? 'default' : 'outline'}
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setSupplierConfirmDialog(prev => ({ ...prev, method: 'phone' }))}
+                >
+                  <Phone className="h-4 w-4 mr-1" />
+                  Phone
+                </Button>
+                <Button
+                  variant={supplierConfirmDialog.method === 'text' ? 'default' : 'outline'}
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setSupplierConfirmDialog(prev => ({ ...prev, method: 'text' }))}
+                >
+                  <MessageSquare className="h-4 w-4 mr-1" />
+                  Text
+                </Button>
+                <Button
+                  variant={supplierConfirmDialog.method === 'email' ? 'default' : 'outline'}
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setSupplierConfirmDialog(prev => ({ ...prev, method: 'email' }))}
+                >
+                  <Mail className="h-4 w-4 mr-1" />
+                  Email
+                </Button>
+              </div>
+            </div>
+
+            {/* Contact name input */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Contact name:</label>
+              <Input
+                placeholder="Who confirmed?"
+                value={supplierConfirmDialog.contactName}
+                onChange={(e) => setSupplierConfirmDialog(prev => ({ ...prev, contactName: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && supplierConfirmDialog.method && supplierConfirmDialog.contactName) {
+                    executeSupplierConfirm(
+                      supplierConfirmDialog.task!,
+                      supplierConfirmDialog.method,
+                      supplierConfirmDialog.contactName
+                    );
+                    setSupplierConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                  }
+                }}
+              />
+            </div>
+
+            {/* Email Supplier checkbox and reason */}
+            <div className="border-t pt-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="sendEmailCheckbox"
+                  checked={supplierConfirmDialog.sendEmail}
+                  onChange={(e) => setSupplierConfirmDialog(prev => ({ ...prev, sendEmail: e.target.checked }))}
+                  className="h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                />
+                <label htmlFor="sendEmailCheckbox" className="text-sm font-medium flex items-center gap-1.5 cursor-pointer">
+                  <Mail className="h-4 w-4 text-orange-500" />
+                  Email Supplier
+                  {supplierConfirmDialog.supplierEmail && (
+                    <span className="text-muted-foreground font-normal">({supplierConfirmDialog.supplierEmail})</span>
+                  )}
+                </label>
+              </div>
+              {supplierConfirmDialog.sendEmail && (
+                <Input
+                  placeholder="Reason / message to supplier..."
+                  value={supplierConfirmDialog.reason}
+                  onChange={(e) => setSupplierConfirmDialog(prev => ({ ...prev, reason: e.target.value }))}
+                  autoFocus
+                />
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            {/* Clear Confirmation button (only when viewing existing confirmation) */}
+            {!supplierConfirmDialog.isConfirming && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-950"
+                onClick={() => {
+                  if (supplierConfirmDialog.task) {
+                    executeSupplierUnconfirm(supplierConfirmDialog.task);
+                    setSupplierConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                  }
+                }}
+              >
+                Clear Confirmation
+              </Button>
+            )}
+            <div className="flex-1" />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSupplierConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={!supplierConfirmDialog.method || !supplierConfirmDialog.contactName}
+              onClick={async () => {
+                if (supplierConfirmDialog.task && supplierConfirmDialog.method && supplierConfirmDialog.contactName) {
+                  // Save confirmation
+                  await executeSupplierConfirm(
+                    supplierConfirmDialog.task,
+                    supplierConfirmDialog.method,
+                    supplierConfirmDialog.contactName
+                  );
+                  // Send email if checkbox is checked
+                  if (supplierConfirmDialog.sendEmail && supplierConfirmDialog.reason.trim()) {
+                    await executeEmailSupplier(
+                      supplierConfirmDialog.task,
+                      supplierConfirmDialog.reason,
+                      supplierConfirmDialog.supplierEmail || undefined
+                    );
+                  }
+                  setSupplierConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                }
+              }}
+            >
+              {supplierConfirmDialog.sendEmail
+                ? (supplierConfirmDialog.isConfirming ? 'Confirm & Email' : 'Update & Email')
+                : (supplierConfirmDialog.isConfirming ? 'Confirm' : 'Update')}
             </Button>
           </DialogFooter>
         </DialogContent>
