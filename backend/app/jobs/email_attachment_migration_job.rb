@@ -106,7 +106,26 @@ class EmailAttachmentMigrationJob < ApplicationJob
       end
     end
 
-    raise "Could not download attachment #{attachment_id} from Graph or SharePoint" unless content
+    unless content
+      # Mark as unrecoverable if no source available
+      if attachment.outlook_attachment_id.blank? && attachment.sharepoint_path.blank?
+        Rails.logger.warn "[AttachmentMigrationJob] Attachment #{attachment_id} has no source (no outlook_id, no sharepoint_path) - marking unrecoverable"
+        return  # Don't retry
+      end
+
+      # Check if it's a mailbox mismatch (unrecoverable)
+      email = attachment.email_warehouse
+      if email&.outlook_id.present? && attachment.outlook_attachment_id.present?
+        email_prefix = email.outlook_id[0..35]
+        att_prefix = attachment.outlook_attachment_id[0..35]
+        if email_prefix != att_prefix
+          Rails.logger.warn "[AttachmentMigrationJob] Attachment #{attachment_id} has mismatched mailbox - unrecoverable"
+          return  # Don't retry
+        end
+      end
+
+      raise "Could not download attachment #{attachment_id} from Graph or SharePoint"
+    end
 
     # Store with deduplication
     attachment.store_content!(content, filename: attachment.filename)
@@ -118,11 +137,24 @@ class EmailAttachmentMigrationJob < ApplicationJob
 
   # SSoT: Download attachment from Microsoft Graph API
   # Uses parent email's outlook_id and the attachment's outlook_attachment_id
+  #
+  # IMPORTANT: The outlook_attachment_id must belong to the same mailbox as the email's outlook_id.
+  # The first ~36 chars of both IDs contain the mailbox identifier - they must match.
+  # If mismatched, Graph API returns "Item doesn't belong to the targeted mailbox".
   def download_from_graph(attachment)
     return nil if attachment.outlook_attachment_id.blank?
 
     email = attachment.email_warehouse
     return nil unless email&.outlook_id.present? && email&.mailbox_owner_email.present?
+
+    # Verify mailbox IDs match - first 36 chars contain mailbox identifier
+    email_mailbox_prefix = email.outlook_id[0..35]
+    attachment_mailbox_prefix = attachment.outlook_attachment_id[0..35]
+
+    if email_mailbox_prefix != attachment_mailbox_prefix
+      Rails.logger.warn "[AttachmentMigrationJob] Attachment #{attachment.id} has mismatched mailbox ID - cannot recover via Graph"
+      return nil
+    end
 
     Rails.logger.info "[AttachmentMigrationJob] Fetching from Graph: #{email.mailbox_owner_email}/#{email.outlook_id}/#{attachment.outlook_attachment_id}"
 
