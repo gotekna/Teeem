@@ -340,6 +340,10 @@ class GanttDataService
       is_completed: record.try(:is_completed) || false,
       completed_at: format_date(record.try(:completed_at)),
       dependency_broken: record.try(:dependency_broken) || false,
+      # Broken dependency tracking - for restore in dependency editor
+      predecessor_ids_backup: record.try(:predecessor_ids_backup) || [],
+      dependency_broken_at: record.try(:dependency_broken_at),
+      dependency_broken_by: record.try(:dependency_broken_by_id).present? ? User.find_by(id: record.dependency_broken_by_id)&.name : nil,
       # Include predecessor_ids for frontend display (task_number format)
       predecessor_ids: record.predecessor_ids || [],
       # SSoT: Inherited predecessors from header dependencies (calculated by backend)

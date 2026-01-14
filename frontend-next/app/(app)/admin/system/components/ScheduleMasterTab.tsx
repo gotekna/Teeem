@@ -4474,14 +4474,18 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
                     for (const lockedTask of cascadeDialog.lockedSuccessors) {
                       const decision = lockedTaskDecisions[lockedTask.id] || 'break';
                       if (decision === 'break') {
-                        // Remove dependency from this locked task
+                        // Remove dependency from this locked task and mark as broken
                         const currentPreds = lockedTask.predecessor_ids || [];
                         const updatedPreds = currentPreds.filter((p: { id: number }) => p.id !== movedTaskNumber);
 
                         try {
                           await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${lockedTask.id}`, {
-                            row: { predecessor_ids: updatedPreds }
+                            row: {
+                              predecessor_ids: updatedPreds,
+                              dependency_broken: true  // Mark task as having broken dependencies
+                            }
                           });
+                          console.log('[Gantt V2] Broke dependency for task:', lockedTask.id, lockedTask.name);
                         } catch (err) {
                           console.error('[Gantt V2] Failed to break dependency for task', lockedTask.id, err);
                         }

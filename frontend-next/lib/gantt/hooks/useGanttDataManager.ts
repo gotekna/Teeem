@@ -384,9 +384,9 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
         console.log('[GanttDataManager] Sample dep from API:', fetchedDeps[0]);
       }
       // Debug: Log any tasks with dependency_broken = true
-      const brokenTasks = rawRows.filter((r: Record<string, unknown>) => r.dependency_broken);
+      const brokenTasks = rawRows.filter((r: SmScheduleMaster) => r.dependency_broken);
       if (brokenTasks.length > 0) {
-        console.log('[GanttDataManager] Tasks with dependency_broken=true:', brokenTasks.map((t: Record<string, unknown>) => ({ id: t.id, name: t.name, dependency_broken: t.dependency_broken })));
+        console.log('[GanttDataManager] Tasks with dependency_broken=true:', brokenTasks.map((t: SmScheduleMaster) => ({ id: t.id, name: t.name, dependency_broken: t.dependency_broken })));
       }
 
       // SSoT: Backend sorts gantt_data by (start_date, end_date, sequence_order) in GanttDataService
