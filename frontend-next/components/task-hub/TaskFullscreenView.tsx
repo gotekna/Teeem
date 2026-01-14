@@ -1395,7 +1395,22 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const handleAddAttachment = async (attachment: PendingAttachment) => {
     setAttachmentLoading(true);
     try {
-      if (attachment.id) {
+      if (attachment.type === 'upload' && attachment.file) {
+        // File upload - use FormData to upload the file
+        const formData = new FormData();
+        formData.append('file', attachment.file);
+        formData.append('category', 'info'); // Default to info category for picker uploads
+
+        const response = await api.postFormData<{ success: boolean; attachment: TaskAttachment }>(
+          `/api/v1/sm_tasks/${task.id}/attachments/upload`,
+          formData
+        );
+        if (response?.success && response.attachment) {
+          setLocalAttachments(prev => [...prev, response.attachment]);
+          setShowAttachmentPicker(false);
+        }
+      } else if (attachment.id) {
+        // Email or document - link existing record
         const response = await api.post<{ success: boolean; attachment: TaskAttachment }>(
           `/api/v1/sm_tasks/${task.id}/attachments`,
           {
