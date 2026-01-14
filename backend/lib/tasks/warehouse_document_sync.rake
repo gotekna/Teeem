@@ -26,7 +26,9 @@ namespace :warehouse do
     [
       { name: "TeeemSpreadsheet", model: TeeemSpreadsheet, scope: :excel_documents, ext: ".xlsx" },
       { name: "TeeemDocument", model: TeeemDocument, scope: :word_documents, ext: ".html" },
-      { name: "TeeemPresentation", model: TeeemPresentation, scope: :powerpoint_documents, ext: ".pptx" }
+      { name: "TeeemPresentation", model: TeeemPresentation, scope: :powerpoint_documents, ext: ".pptx" },
+      { name: "TeeemPdf", model: TeeemPdf, scope: :pdf_documents, ext: ".pdf" },
+      { name: "NotebookPageAttachment", model: NotebookPageAttachment, scope: :notes, ext: nil }
     ].each do |config|
       result = sync_document_type(config, execute)
       total_synced += result[:synced]
@@ -96,8 +98,14 @@ namespace :warehouse do
       end
 
       begin
-        folder_path = record.warehouse_folder_path
-        filename = "#{record.safe_filename}#{ext}"
+        # Handle different record types
+        if name == "NotebookPageAttachment"
+          folder_path = record.warehouse_folder_path
+          filename = record.file_name
+        else
+          folder_path = record.warehouse_folder_path
+          filename = "#{record.safe_filename}#{ext}"
+        end
         full_path = "#{folder_path}/#{filename}"
 
         if execute
@@ -105,12 +113,19 @@ namespace :warehouse do
           content = generate_file_content(record, name)
 
           if content
+            # Determine mime type
+            content_type = if name == "NotebookPageAttachment"
+              record.content_type || "application/octet-stream"
+            else
+              mime_type_for(ext)
+            end
+
             # Upload to S3
             provider.upload_file(
               folder_path,
               content,
               filename,
-              content_type: mime_type_for(ext),
+              content_type: content_type,
               overwrite: true
             )
             synced += 1
@@ -119,8 +134,9 @@ namespace :warehouse do
           end
         else
           # Dry run - just show what would happen
+          display_name = record.respond_to?(:name) ? record.name : record.file_name
           if index < 5
-            puts "    Would save: #{record.name}"
+            puts "    Would save: #{display_name}"
             puts "            to: #{full_path}"
           elsif index == 5
             puts "    ... and #{count - 5} more"
@@ -144,6 +160,10 @@ namespace :warehouse do
       generate_html_content(record)
     when "TeeemPresentation"
       generate_pptx_content(record)
+    when "TeeemPdf"
+      generate_pdf_content(record)
+    when "NotebookPageAttachment"
+      generate_notes_content(record)
     else
       nil
     end
@@ -197,6 +217,44 @@ namespace :warehouse do
     # For now, export as JSON (proper PPTX generation would require pptx gem)
     # This is a placeholder - in production you'd use a proper PPTX generator
     presentation.data.to_json
+  end
+
+  def generate_pdf_content(pdf)
+    # Export TeeemPdf as actual PDF using Prawn
+    require "prawn"
+
+    Prawn::Document.new(page_size: "LETTER") do |doc|
+      pdf.data["pages"]&.each_with_index do |page_data, page_index|
+        doc.start_new_page if page_index > 0
+
+        page_data["elements"]&.each do |element|
+          case element["type"]
+          when "text"
+            doc.draw_text element["content"].to_s,
+              at: [element["x"] || 0, element["y"] || 700],
+              size: element["fontSize"] || 12
+          when "rectangle"
+            doc.fill_rectangle(
+              [element["x"] || 0, element["y"] || 0],
+              element["width"] || 100,
+              element["height"] || 50
+            )
+          end
+        end
+      end
+    end.render
+  rescue LoadError
+    # Fallback if Prawn not available - export as JSON
+    pdf.data.to_json
+  end
+
+  def generate_notes_content(attachment)
+    # NotebookPageAttachment uses ActiveStorage - get the file content
+    if attachment.file.attached?
+      attachment.file.download
+    else
+      nil
+    end
   end
 
   def cells_to_rows(cells)

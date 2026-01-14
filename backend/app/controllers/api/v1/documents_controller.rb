@@ -544,6 +544,7 @@ module Api
           fileSize: doc.file_size || 0,
           fileUrl: generate_download_url(doc),  # S3: presigned URL, SharePoint: web_url
           folderPath: doc.folder_path,
+          storagePath: doc.storage_path,  # Full S3 key - SSoT for rename/download
           storageProvider: doc.storage_provider,
           createdAt: doc.created_at&.iso8601,
           # Parent info
@@ -573,6 +574,7 @@ module Api
           fileSize: doc.file_size || 0,
           fileUrl: generate_download_url(doc),  # S3: presigned URL, SharePoint: file_url
           folderPath: doc.folder,
+          storagePath: doc.storage_path,  # Full S3 key - SSoT for rename/download
           storageProvider: doc.storage_provider,
           createdAt: doc.created_at&.iso8601,
           # Parent info
@@ -599,6 +601,7 @@ module Api
           fileSize: doc.file_size || 0,
           fileUrl: nil,  # PeopleDocument doesn't have file_url - use download endpoint
           folderPath: nil,
+          storagePath: doc.storage_path,  # Full S3 key - SSoT for rename/download
           storageProvider: doc.storage_provider,
           createdAt: doc.created_at&.iso8601,
           # Parent info
@@ -629,7 +632,8 @@ module Api
           mimeType: doc.mime_type || "application/octet-stream",
           fileSize: doc.file_size || 0,
           fileUrl: generate_download_url(doc),
-          folderPath: doc.storage_path,
+          folderPath: doc.folder,  # Folder only (not full path)
+          storagePath: doc.storage_path,  # Full S3 key - SSoT for rename/download
           storageProvider: doc.storage_provider,
           createdAt: doc.created_at&.iso8601,
           # Task info

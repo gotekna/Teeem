@@ -75,6 +75,7 @@ interface DocumentItem {
   fileSize: number;
   fileUrl: string | null;
   folderPath: string | null;
+  storagePath: string | null; // Full S3 key - SSoT for rename/download operations
   storageProvider: string | null;
   createdAt: string;
   // Job-specific
@@ -506,6 +507,7 @@ export default function AllDocumentsPage() {
           fileSize: file.size || 0,
           fileUrl: file.url,
           folderPath: file.path,
+          storagePath: file.path,  // S3 key for rename operations
           storageProvider: "s3_compatible",
           createdAt: file.last_modified || new Date().toISOString(),
           isImage: /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(file.name),
@@ -931,14 +933,23 @@ export default function AllDocumentsPage() {
 
     setIsRenameSaving(true);
     try {
-      // Build full S3 path: folderPath + current filename
-      // folderPath is the folder, we need full path including filename for S3 rename
-      let path = previewDocument.folderPath || "";
-      const currentFilename = previewDocument.fileName;
+      // SSoT: Use storagePath (full S3 key) if available
+      // This avoids the bug where folderPath + fileName reconstruction fails
+      // when a folder name matches the filename (e.g., "ASIC Teeem Registration/ASIC Teeem Registration")
+      let path = previewDocument.storagePath || "";
 
-      // If path doesn't already end with the filename, append it
-      if (currentFilename && !path.endsWith(currentFilename)) {
-        path = path.endsWith("/") ? `${path}${currentFilename}` : `${path}/${currentFilename}`;
+      // Fallback: reconstruct from folderPath + fileName if storagePath not available
+      if (!path && previewDocument.folderPath) {
+        path = previewDocument.folderPath;
+        const currentFilename = previewDocument.fileName;
+        // Only append filename if path is clearly a folder (ends with /)
+        // Don't use endsWith(filename) check - it fails when folder name = filename
+        if (currentFilename && path.endsWith("/")) {
+          path = `${path}${currentFilename}`;
+        } else if (currentFilename && !path.includes(currentFilename)) {
+          // Only append if filename is not anywhere in the path
+          path = `${path}/${currentFilename}`;
+        }
       }
 
       // Remove leading slash for S3 key
@@ -957,12 +968,14 @@ export default function AllDocumentsPage() {
       });
 
       if (response?.success) {
-        // Update the preview document with new name
+        // Update the preview document with new name and path
+        // storagePath is the SSoT for S3 key - must be updated for subsequent renames
         setPreviewDocument({
           ...previewDocument,
           fileName: response.new_name,
           displayName: response.new_name,
-          folderPath: response.new_path,
+          storagePath: response.new_path,  // SSoT: full S3 key
+          folderPath: response.new_path,   // Keep for backward compatibility
         });
         // Clear folder files cache so renamed file shows with new name when re-expanding
         setFolderFiles({});
