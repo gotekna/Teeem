@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_14_190656) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_14_205848) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1377,10 +1377,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_14_190656) do
     t.datetime "migration_completed_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "source", default: "manual"
+    t.string "external_id"
     t.index ["contact_id"], name: "index_contact_documents_on_contact_id"
     t.index ["document_type_id"], name: "index_contact_documents_on_document_type_id"
     t.index ["folder"], name: "index_contact_documents_on_folder"
     t.index ["migration_status"], name: "index_contact_documents_on_migration_status"
+    t.index ["source", "external_id"], name: "index_contact_documents_on_source_and_external_id", unique: true, where: "(external_id IS NOT NULL)"
+    t.index ["source"], name: "index_contact_documents_on_source"
     t.index ["storage_provider"], name: "index_contact_documents_on_storage_provider"
     t.index ["uploaded_by_id"], name: "index_contact_documents_on_uploaded_by_id"
   end
@@ -9205,6 +9209,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_14_190656) do
     t.jsonb "scope_folders", default: {}, null: false
     t.jsonb "file_name_templates", default: {}, null: false
     t.jsonb "config_links", default: {}, null: false
+    t.jsonb "document_routing", default: {"sharepoint_scan"=>{"model"=>"CorporateCompanyDocument", "scope"=>"corporate_entity", "description"=>"SharePoint scanned documents"}, "xero_attachment"=>{"model"=>"CorporateCompanyDocument", "scope"=>"corporate_entity", "description"=>"Xero invoice/bill attachments"}, "email_attachment"=>{"model"=>"CorporateCompanyDocument", "scope"=>"corporate_entity", "description"=>"Email attachments"}, "xero_primary_invoice"=>{"model"=>"ContactDocument", "scope"=>"contact", "description"=>"Primary Xero invoice/bill PDF"}}, null: false
     t.index ["credential_type", "credential_id"], name: "index_storage_configurations_on_credential"
     t.index ["organization_id"], name: "index_storage_configurations_on_organization_id", unique: true
   end

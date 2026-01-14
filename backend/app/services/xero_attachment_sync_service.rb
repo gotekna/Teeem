@@ -1,5 +1,9 @@
-# Service to sync attachments from Xero invoices/bills to CorporateCompanyDocuments
-# Links downloaded documents to ExternalInvoice via polymorphic documentable
+# Service to sync attachments from Xero invoices/bills to document models
+#
+# SSoT: Uses StorageConfiguration.document_routing to determine which model to use:
+# - xero_primary_invoice: ContactDocument (primary Xero invoice/bill PDFs go to contacts)
+# - xero_attachment: CorporateCompanyDocument (supporting attachments go to corporate warehouse)
+#
 # Also uploads PDFs to SharePoint folder structure: Contacts/{contact_folder}/BILLS|INVOICES/
 class XeroAttachmentSyncService
   attr_reader :external_invoice, :xero_client, :results
@@ -8,6 +12,7 @@ class XeroAttachmentSyncService
     @external_invoice = external_invoice
     @xero_client = XeroApiClient.new
     @skip_sharepoint = skip_sharepoint
+    @storage_config = StorageConfiguration.instance
     @results = { pdf: nil, attachments: [], errors: [], sharepoint_uploads: [] }
   end
 
@@ -38,12 +43,15 @@ class XeroAttachmentSyncService
   end
 
   def sync_invoice_pdf
-    # Check if PDF already exists in SharePoint - skip API call if we have it
+    # SSoT: Get the document model class from routing config
+    document_model = @storage_config.document_model_for(:xero_primary_invoice)
     external_doc_id = "xero:#{external_invoice.external_id}:pdf"
-    existing_pdf = CorporateCompanyDocument.find_by(source: "xero", external_id: external_doc_id)
 
-    if existing_pdf.present? && existing_pdf.sharepoint_file_id.present?
-      Rails.logger.info("[XeroAttachmentSync] PDF already synced to SharePoint, skipping: #{existing_pdf.title}")
+    # Check if PDF already exists - skip API call if we have it
+    existing_pdf = document_model.find_by(source: "xero", external_id: external_doc_id)
+
+    if existing_pdf.present? && existing_pdf.respond_to?(:sharepoint_file_id) && existing_pdf.sharepoint_file_id.present?
+      Rails.logger.info("[XeroAttachmentSync] PDF already synced to SharePoint, skipping: #{existing_pdf.file_name}")
       results[:pdf] = existing_pdf
       results[:skipped] = true
       return
@@ -70,30 +78,25 @@ class XeroAttachmentSyncService
       return
     end
 
-    # Create or update CorporateCompanyDocument
+    # Create or update document using SSoT model from routing
     filename = build_pdf_filename
-    external_doc_id = "xero:#{external_invoice.external_id}:pdf"
-
-    document = CorporateCompanyDocument.find_or_initialize_by(
+    document = document_model.find_or_initialize_by(
       source: "xero",
       external_id: external_doc_id
     )
 
-    # Attach the PDF content
-    # Link to contact (for contact document tabs) AND to external_invoice (for warehouse queries)
-    document.assign_attributes(
-      display_name: filename,
-      document_type: document_type_for_invoice,
-      folder: folder_for_invoice_type,              # BILLS, INVOICES, etc. for contact tabs
-      contact_id: external_invoice.contact_id,      # Link to contact for document management
-      documentable: external_invoice,               # Also link to warehouse record
-      job_id: external_invoice.job_id,
-      expected_sharepoint_path: expected_document_path(filename), # Full SharePoint path
+    # Build attributes based on which model we're using
+    doc_attributes = build_document_attributes(
+      document_model: document_model,
+      filename: filename,
+      document_type_name: document_type_for_invoice,
+      folder: folder_for_invoice_type,
       file_size: pdf_result[:content_length] || pdf_result[:content].bytesize,
-      file_name: filename,
       mime_type: "application/pdf",
-      ai_verification_status: "verified" # Xero-sourced, no need for AI verification
+      is_primary: true  # Primary invoice PDF
     )
+
+    document.assign_attributes(doc_attributes)
 
     # Attach the file via Active Storage
     document.file.attach(
@@ -104,13 +107,13 @@ class XeroAttachmentSyncService
 
     if document.save
       results[:pdf] = document
-      Rails.logger.info("[XeroAttachmentSync] Saved PDF: #{filename}")
+      Rails.logger.info("[XeroAttachmentSync] Saved PDF (#{document_model.name}): #{filename}")
 
       # Also upload to SharePoint
       upload_result = upload_to_sharepoint(pdf_result[:content], filename)
 
       # Update document with OneDrive file ID if upload succeeded
-      if upload_result && upload_result[:id]
+      if upload_result && upload_result[:id] && document.respond_to?(:sharepoint_file_id=)
         document.update(sharepoint_file_id: upload_result[:id])
         Rails.logger.info("[XeroAttachmentSync] Updated document with OneDrive file ID: #{upload_result[:id]}")
       end
@@ -119,19 +122,16 @@ class XeroAttachmentSyncService
     end
   rescue ActiveRecord::RecordNotUnique => e
     # Race condition: another process created this PDF between our check and save
-    # This is OK - just find the existing record and use it
-    existing = CorporateCompanyDocument.find_by(source: "xero", external_id: external_doc_id)
+    existing = document_model.find_by(source: "xero", external_id: external_doc_id)
     if existing
       results[:pdf] = existing
       results[:skipped] = true
       Rails.logger.info("[XeroAttachmentSync] PDF already exists (race condition avoided): #{filename}")
     else
-      # Shouldn't happen, but log it
       results[:errors] << "Unique constraint violation but couldn't find existing record: #{e.message}"
       Rails.logger.error("[XeroAttachmentSync] Unique constraint violation: #{e.message}")
     end
   rescue XeroApiClient::RateLimitError => e
-    # Re-raise rate limit errors so the caller can handle with backoff
     raise e
   rescue StandardError => e
     results[:errors] << "PDF sync error: #{e.message}"
@@ -164,9 +164,12 @@ class XeroAttachmentSyncService
     filename = attachment_info[:filename]
     attachment_id = attachment_info[:attachment_id]
 
-    # Skip if already synced
+    # SSoT: Get the document model class from routing config
+    document_model = @storage_config.document_model_for(:xero_attachment)
     external_doc_id = "xero:#{external_invoice.external_id}:#{attachment_id}"
-    existing = CorporateCompanyDocument.find_by(source: "xero", external_id: external_doc_id)
+
+    # Skip if already synced
+    existing = document_model.find_by(source: "xero", external_id: external_doc_id)
 
     if existing.present?
       Rails.logger.debug("[XeroAttachmentSync] Skipping existing attachment: #{filename}")
@@ -187,22 +190,21 @@ class XeroAttachmentSyncService
       return
     end
 
-    # Create CorporateCompanyDocument
-    # Link to contact (for contact document tabs) AND to external_invoice (for warehouse queries)
-    document = CorporateCompanyDocument.new(
+    # Create document using SSoT model from routing
+    doc_attributes = build_document_attributes(
+      document_model: document_model,
+      filename: filename,
+      document_type_name: guess_document_type(filename),
+      folder: folder_for_invoice_type,
+      file_size: download_result[:content_length] || download_result[:content].bytesize,
+      mime_type: download_result[:mime_type] || attachment_info[:mime_type],
+      is_primary: false  # Attachment, not primary
+    )
+
+    document = document_model.new(
       source: "xero",
       external_id: external_doc_id,
-      display_name: filename,
-      document_type: guess_document_type(filename),
-      folder: folder_for_invoice_type,              # BILLS, INVOICES, etc. for contact tabs
-      contact_id: external_invoice.contact_id,      # Link to contact for document management
-      documentable: external_invoice,               # Also link to warehouse record
-      job_id: external_invoice.job_id,
-      expected_sharepoint_path: expected_document_path(filename), # Full SharePoint path
-      file_size: download_result[:content_length] || download_result[:content].bytesize,
-      file_name: filename,
-      mime_type: download_result[:mime_type] || attachment_info[:mime_type],
-      ai_verification_status: "pending" # Attachments should go through AI verification
+      **doc_attributes
     )
 
     # Attach the file
@@ -214,13 +216,13 @@ class XeroAttachmentSyncService
 
     if document.save
       results[:attachments] << document
-      Rails.logger.info("[XeroAttachmentSync] Saved attachment: #{filename}")
+      Rails.logger.info("[XeroAttachmentSync] Saved attachment (#{document_model.name}): #{filename}")
 
       # Also upload to SharePoint
       upload_result = upload_to_sharepoint(download_result[:content], filename)
 
       # Update document with OneDrive file ID if upload succeeded
-      if upload_result && upload_result[:id]
+      if upload_result && upload_result[:id] && document.respond_to?(:sharepoint_file_id=)
         document.update(sharepoint_file_id: upload_result[:id])
         Rails.logger.info("[XeroAttachmentSync] Updated document with OneDrive file ID: #{upload_result[:id]}")
       end
@@ -229,7 +231,7 @@ class XeroAttachmentSyncService
     end
   rescue ActiveRecord::RecordNotUnique => e
     # Race condition: another process created this attachment between our check and save
-    existing = CorporateCompanyDocument.find_by(source: "xero", external_id: external_doc_id)
+    existing = document_model.find_by(source: "xero", external_id: external_doc_id)
     if existing
       results[:attachments] << existing
       Rails.logger.info("[XeroAttachmentSync] Attachment already exists (race condition avoided): #{filename}")
@@ -343,6 +345,61 @@ class XeroAttachmentSyncService
     when ".jpg", ".jpeg", ".png" then "General"
     else "other"
     end
+  end
+
+  # SSoT: Build document attributes for the given model class
+  # Handles differences between ContactDocument and CorporateCompanyDocument
+  #
+  # @param document_model [Class] The model class (ContactDocument or CorporateCompanyDocument)
+  # @param filename [String] The filename
+  # @param document_type_name [String] The document type name (for legacy document_type column)
+  # @param folder [String] The folder name (BILLS, INVOICES, etc.)
+  # @param file_size [Integer] File size in bytes
+  # @param mime_type [String] MIME type of the file
+  # @param is_primary [Boolean] Whether this is a primary document (determines AI verification)
+  # @return [Hash] Attributes hash compatible with the given model
+  def build_document_attributes(document_model:, filename:, document_type_name:, folder:, file_size:, mime_type:, is_primary: false)
+    # Find the DocumentType record for linking
+    document_type_record = DocumentType.find_by(name: document_type_name)
+
+    # Common attributes for all document models
+    attributes = {
+      file_name: filename,
+      folder: folder,
+      file_size: file_size
+    }
+
+    # Model-specific attributes
+    case document_model.name
+    when "ContactDocument"
+      # ContactDocument attributes
+      attributes.merge!(
+        contact_id: external_invoice.contact_id,
+        document_type_id: document_type_record&.id,
+        content_type: mime_type,
+        storage_path: expected_document_path(filename)
+      )
+
+    when "CorporateCompanyDocument"
+      # CorporateCompanyDocument attributes
+      attributes.merge!(
+        contact_id: external_invoice.contact_id,
+        display_name: filename,
+        document_type: document_type_name,    # Legacy string column
+        document_type_id: document_type_record&.id,
+        documentable: external_invoice,
+        job_id: external_invoice.job_id,
+        expected_sharepoint_path: expected_document_path(filename),
+        mime_type: mime_type,
+        ai_verification_status: is_primary ? "verified" : "pending"
+      )
+
+    else
+      # Fallback for unknown models - use common attributes
+      Rails.logger.warn("[XeroAttachmentSync] Unknown document model: #{document_model.name}, using minimal attributes")
+    end
+
+    attributes
   end
 
   # Upload file content to SharePoint using folder structure:

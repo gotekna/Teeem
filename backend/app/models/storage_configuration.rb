@@ -507,6 +507,64 @@ class StorageConfiguration < ApplicationRecord
   end
 
   # ========================================
+  # Document Routing (SSoT for document model selection)
+  # ========================================
+
+  # Default routing configuration (fallback when database doesn't have it)
+  DEFAULT_DOCUMENT_ROUTING = {
+    "xero_primary_invoice" => { "model" => "ContactDocument", "scope" => "contact", "description" => "Primary Xero invoice/bill PDF" },
+    "xero_attachment" => { "model" => "CorporateCompanyDocument", "scope" => "corporate_entity", "description" => "Xero invoice/bill attachments" },
+    "sharepoint_scan" => { "model" => "CorporateCompanyDocument", "scope" => "corporate_entity", "description" => "SharePoint scanned documents" },
+    "email_attachment" => { "model" => "CorporateCompanyDocument", "scope" => "corporate_entity", "description" => "Email attachments" }
+  }.freeze
+
+  # SSoT: Get routing configuration for a document source
+  # @param source [String, Symbol] The document source (xero_primary_invoice, xero_attachment, etc.)
+  # @return [Hash] { "model" => "...", "scope" => "...", "description" => "..." }
+  def routing_for(source)
+    effective_document_routing[source.to_s] || DEFAULT_DOCUMENT_ROUTING[source.to_s]
+  end
+
+  # SSoT: Get the document model class for a source
+  # @param source [String, Symbol] The document source
+  # @return [Class] The ActiveRecord model class (ContactDocument, CorporateCompanyDocument, etc.)
+  def document_model_for(source)
+    routing = routing_for(source)
+    return CorporateCompanyDocument unless routing # Default fallback
+
+    model_name = routing["model"]
+    model_name.constantize
+  rescue NameError
+    Rails.logger.warn("[StorageConfiguration] Unknown model '#{model_name}' for source '#{source}', falling back to CorporateCompanyDocument")
+    CorporateCompanyDocument
+  end
+
+  # SSoT: Get the EntityTab scope for a source
+  # @param source [String, Symbol] The document source
+  # @return [String] The scope name (contact, corporate_entity, etc.)
+  def document_scope_for(source)
+    routing = routing_for(source)
+    routing&.dig("scope") || "corporate_entity"
+  end
+
+  # Get effective document routing (database + defaults)
+  def effective_document_routing
+    DEFAULT_DOCUMENT_ROUTING.merge(document_routing || {})
+  end
+
+  # Update routing for a specific source
+  def update_routing(source, model:, scope:, description: nil)
+    new_routing = (document_routing || {}).merge(
+      source.to_s => {
+        "model" => model,
+        "scope" => scope,
+        "description" => description || "Custom routing"
+      }
+    )
+    update!(document_routing: new_routing)
+  end
+
+  # ========================================
   # Configuration Export (for API/UI)
   # ========================================
 
@@ -538,7 +596,9 @@ class StorageConfiguration < ApplicationRecord
       scope_templates: templates || {},
       file_name_templates: file_name_templates || {},
       # Config links for scope folders (URL to external config page)
-      config_links: config_links || {}
+      config_links: config_links || {},
+      # Document routing configuration (SSoT for model selection)
+      document_routing: effective_document_routing
     }
   end
 end

@@ -92,6 +92,12 @@ module Api
           update_attrs[:config_links] = merged_links
         end
 
+        # SSoT: Document routing configuration (which model to use for each source)
+        if sp.key?(:document_routing)
+          existing_routing = storage_config.document_routing || {}
+          update_attrs[:document_routing] = existing_routing.merge(sp[:document_routing].to_h)
+        end
+
         if storage_config.update(update_attrs)
           enqueue_folder_reorganization_jobs(old_templates, new_templates) if new_templates
 
@@ -147,7 +153,8 @@ module Api
           scope_folders: StorageConfiguration::SCOPE_FOLDERS.keys.map(&:to_sym),
           scope_templates: {},
           file_name_templates: {},
-          config_links: {}
+          config_links: {},
+          document_routing: {}  # SSoT: Which model to use for each document source
         )
       end
 
