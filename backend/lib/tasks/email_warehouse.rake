@@ -1,4 +1,14 @@
 namespace :email_warehouse do
+  desc "Show email and attachment migration status (storage migration)"
+  task migration_stats: :environment do
+    em = EmailWarehouse.where.not(storage_path: nil).count
+    ep = EmailWarehouse.where(storage_path: nil).count
+    am = EmailAttachment.where.not(storage_blob_id: nil).count
+    ap = EmailAttachment.where(storage_blob_id: nil).count
+
+    puts "MIGRATION_STATS:#{em}|#{ep}|#{am}|#{ap}"
+  end
+
   desc "Delete all spam emails from Outlook using org-wide credentials"
   task delete_spam: :environment do
     # Get org-wide Microsoft credentials
