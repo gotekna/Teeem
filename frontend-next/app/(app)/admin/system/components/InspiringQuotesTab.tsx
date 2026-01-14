@@ -50,7 +50,8 @@ interface InspiringQuote {
   updated_at?: string;
 }
 
-const CATEGORIES = ["Motivation", "Leadership", "Success", "Perseverance", "Teamwork", "Construction"];
+// SSoT: Categories from active Bible business quotes in database
+const CATEGORIES = ["Leadership", "Work", "Wisdom", "Courage", "Excellence", "Planning", "Teamwork", "Finance", "Resilience", "Perseverance", "Success"];
 
 const DEFAULT_QUOTES: InspiringQuote[] = [
   { id: 1, quote: "The only way to do great work is to love what you do.", author: "Steve Jobs", category: "Motivation", is_active: true, created_at: new Date().toISOString() },
