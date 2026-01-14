@@ -98,39 +98,16 @@ namespace :warehouse do
       end
 
       begin
-        # Handle different record types
-        if name == "NotebookPageAttachment"
-          folder_path = record.warehouse_folder_path
-          filename = record.file_name
-        else
-          folder_path = record.warehouse_folder_path
-          filename = "#{record.safe_filename}#{ext}"
-        end
-        full_path = "#{folder_path}/#{filename}"
+        # SSoT: Use model's warehouse_path method which includes ID for uniqueness
+        full_path = record.warehouse_path
 
         if execute
-          # Generate file content based on type
-          content = generate_file_content(record, name)
-
-          if content
-            # Determine mime type
-            content_type = if name == "NotebookPageAttachment"
-              record.content_type || "application/octet-stream"
-            else
-              mime_type_for(ext)
-            end
-
-            # Upload to S3
-            provider.upload_file(
-              folder_path,
-              content,
-              filename,
-              content_type: content_type,
-              overwrite: true
-            )
+          # SSoT: Use WarehouseSyncable concern's sync method
+          result = record.sync_to_warehouse!
+          if result[:success]
             synced += 1
           else
-            puts "    SKIP #{record.id}: No content to export"
+            puts "    SKIP #{record.id}: #{result[:error]}"
           end
         else
           # Dry run - just show what would happen
