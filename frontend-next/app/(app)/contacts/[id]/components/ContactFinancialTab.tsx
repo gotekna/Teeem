@@ -98,27 +98,45 @@ export function ContactFinancialTab({
         />
       </TabsContent>
 
-      {/* Invoices Sub-Tab - only if contact has Xero links */}
-      {hasXeroLinks && (
-        <TabsContent value="invoices" className="mt-4">
+      {/* Invoices Sub-Tab - always render TabsContent for URL routing, but content depends on xeroLinks */}
+      <TabsContent value="invoices" className="mt-4">
+        {hasXeroLinks ? (
           <InvoicesSubTab
             contactId={contact.id}
             handleViewInvoiceDetail={handleViewInvoiceDetail}
             xeroLinks={xeroLinks}
           />
-        </TabsContent>
-      )}
+        ) : (
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-muted-foreground text-center py-8">
+                Link this contact to Xero to view invoices.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+      </TabsContent>
 
-      {/* Bills Sub-Tab - only if contact has Xero links AND is a supplier */}
-      {showBillsTab && (
-        <TabsContent value="bills" className="mt-4">
+      {/* Bills Sub-Tab - always render TabsContent for URL routing */}
+      <TabsContent value="bills" className="mt-4">
+        {showBillsTab ? (
           <BillsSubTab
             contactId={contact.id}
             handleViewInvoiceDetail={handleViewInvoiceDetail}
             xeroLinks={xeroLinks}
           />
-        </TabsContent>
-      )}
+        ) : (
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-muted-foreground text-center py-8">
+                {!hasXeroLinks
+                  ? "Link this contact to Xero to view bills."
+                  : "This contact is not a supplier."}
+              </p>
+            </CardContent>
+          </Card>
+        )}
+      </TabsContent>
 
       {/* Jobs Sub-Tab */}
       <TabsContent value="jobs" className="mt-4">

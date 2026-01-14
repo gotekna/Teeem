@@ -2,6 +2,8 @@ module Api
   module V1
     # RENAMED: OrganizationOnedriveController → OrganizationSharepointController
     class OrganizationSharepointController < ApplicationController
+      include DocumentProviderAware
+
       # Skip auth for OAuth callback (comes from Microsoft, not our frontend)
       # Skip auth for download previews (thumbnails) - uses browser caching, file IDs are unguessable
       # Skip auth for job_document_download - opened in new browser tab via window.open()
@@ -859,20 +861,22 @@ module Api
 
       # GET /api/v1/documents/job_folders
       # List folders and files for a specific job
-      # Performance: Cached for 5 minutes to reduce SharePoint API calls
+      # SSoT: Uses DocumentProviderAware for provider-agnostic storage (Wasabi, SharePoint, S3)
+      # Performance: Cached for 5 minutes to reduce API calls
       def list_job_items
         job = Job.find(params[:job_id])
 
-        credential = get_onedrive_credential
-
-        unless credential
-          return render json: { error: "SharePoint not connected" }, status: :unauthorized
+        # SSoT: Setup provider using StorageConfiguration
+        begin
+          setup_default_provider!
+        rescue DocumentProviders::NotConnectedError => e
+          return render json: { error: "Storage not connected: #{e.message}" }, status: :unauthorized
         end
 
         # Skip cache if explicitly requested
         skip_cache = params[:refresh] == "true"
-        folder_id = params[:folder_id]
-        cache_key = "sharepoint:job_items:#{job.id}:#{folder_id || 'root'}"
+        subfolder = params[:folder_path] # Optional subfolder within job folder
+        cache_key = "storage:job_items:#{job.id}:#{subfolder || 'root'}"
 
         # Try to get from cache first (5 minute TTL)
         cached_result = Rails.cache.read(cache_key) unless skip_cache
@@ -882,28 +886,42 @@ module Api
         end
 
         begin
-          client = MicrosoftGraphClient.new(credential)
+          # Build job folder path using SSoT pattern
+          job_folder_path = build_job_folder_path(job)
 
-          # Find the job folder
-          job_folder = client.find_job_folder(job)
-
-          unless job_folder
+          # Check if job folder exists
+          unless folder_exists_in_provider?(job_folder_path)
             return render json: {
               error: "Job folder not found. Please create the folder structure first.",
               job_folder_exists: false
             }, status: :not_found
           end
 
-          # Get folder ID from params or use job folder
-          target_folder_id = folder_id || job_folder["id"]
+          # Get target path (job folder or subfolder within it)
+          target_path = subfolder ? "#{job_folder_path}/#{subfolder}" : job_folder_path
 
-          items = client.list_folder_items(target_folder_id)
+          # List items in folder
+          items = list_folder_in_provider(target_path, recursive: false)
+
+          # Transform items to consistent format
+          formatted_items = items.map do |item|
+            {
+              id: item[:id],
+              name: item[:name],
+              type: item[:type] == :folder ? "folder" : "file",
+              size: item[:size],
+              path: item[:path],
+              webUrl: item[:web_url] || item[:path],
+              lastModifiedDateTime: item[:modified_at]&.iso8601,
+              thumbnailUrl: item[:thumbnail_url]
+            }
+          end
 
           result = {
-            items: items["value"],
-            count: items["value"]&.length || 0,
-            job_folder_id: job_folder["id"],
-            job_folder_web_url: job_folder["webUrl"]
+            items: formatted_items,
+            count: formatted_items.length,
+            job_folder_path: job_folder_path,
+            provider: current_provider_type.to_s
           }
 
           # Cache for 5 minutes
@@ -911,12 +929,13 @@ module Api
 
           render json: result.merge(from_cache: false)
 
-        rescue MicrosoftGraphClient::AuthenticationError => e
+        rescue DocumentProviders::AuthenticationError => e
           render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
-        rescue MicrosoftGraphClient::APIError => e
-          render json: { error: "OneDrive API error: #{e.message}" }, status: :bad_gateway
+        rescue DocumentProviders::Error => e
+          render json: { error: "Storage error: #{e.message}" }, status: :bad_gateway
         rescue StandardError => e
           Rails.logger.error "Failed to list items: #{e.message}"
+          Rails.logger.error e.backtrace.first(5).join("\n")
           render json: { error: "Failed to list items: #{e.message}" }, status: :internal_server_error
         end
       end
@@ -2451,6 +2470,17 @@ module Api
       end
 
       private
+
+      # Build job folder path using SSoT pattern from StorageConfiguration
+      def build_job_folder_path(job)
+        base_folder = scope_folder_path(:job)
+        job_folder_name = "#{job.id.to_s.rjust(3, '0')} - #{sanitize_folder_name(job.title)}"
+        "/#{base_folder}/#{job_folder_name}"
+      end
+
+      def sanitize_folder_name(name)
+        name.to_s.gsub(/[<>:"|?*\\]/, "_").strip
+      end
 
       # Download document content from S3
       def download_from_s3(document, is_preview)

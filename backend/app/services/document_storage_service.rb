@@ -139,35 +139,35 @@ class DocumentStorageService
   end
 
   # ============================================================================
-  # DOWNLOAD METHODS - SSoT for retrieving documents from any storage provider
+  # DOWNLOAD METHODS - SSoT: S3/Wasabi is THE storage provider
   # ============================================================================
 
   # Download file content from storage
-  # Works with ANY document model (JobDocument, CorporateCompanyDocument, etc.)
+  # SSoT: S3/Wasabi - no fallback to SharePoint
   #
-  # @param record [ActiveRecord::Base] Document with storage_path/storage_provider or sharepoint_file_id
+  # @param record [ActiveRecord::Base] Document with storage_path
   # @return [Hash] { success: true, content: binary, content_type: "...", filename: "..." }
   #                or { success: false, error: "...", status: :symbol }
   def download(record)
     return error_result("No record provided", status: :bad_request) unless record
 
-    # Priority 1: S3-compatible (Wasabi)
-    if record.respond_to?(:storage_provider) && record.storage_provider == "s3_compatible" && record.storage_path.present?
+    # SSoT: S3/Wasabi storage
+    if record.respond_to?(:storage_path) && record.storage_path.present?
       download_from_s3(record)
-    # Priority 2: SharePoint
-    elsif has_sharepoint_id?(record)
-      download_from_sharepoint(record)
-    # Priority 3: ActiveStorage
+    # ActiveStorage (Rails-native) - valid alternative for some models
     elsif record.respond_to?(:file) && record.file.attached?
       download_from_active_storage(record)
     else
-      error_result("No file available - document has no storage path, SharePoint ID, or uploaded file", status: :not_found)
+      Rails.logger.warn "[DocumentStorage] Document #{record.class.name}##{record.id} has no storage_path - needs migration"
+      error_result("Document not in S3 storage (missing storage_path)", status: :not_found)
     end
   end
 
   # Generate presigned download URL (no binary transfer)
-  # For S3: returns presigned URL with expiry
-  # For SharePoint: returns web_url or download URL
+  # SSoT: S3/Wasabi is THE storage provider - no fallback to SharePoint
+  #
+  # ⚠️ NO FALLBACK - If document isn't properly configured for S3, return error.
+  # This exposes data integrity issues rather than masking them with broken SharePoint URLs.
   #
   # @param record [ActiveRecord::Base] Document model
   # @param expires_in [Integer] URL expiry in seconds (default: 3600)
@@ -175,9 +175,9 @@ class DocumentStorageService
   def download_url(record, expires_in: 3600)
     return error_result("No record provided", status: :bad_request) unless record
 
-    # Priority 1: S3-compatible (Wasabi)
-    if record.respond_to?(:storage_provider) && record.storage_provider == "s3_compatible" && record.storage_path.present?
-      # Use build_s3_key to handle legacy records where storage_path is just folder
+    # SSoT: S3/Wasabi storage - generate presigned URL
+    # Check storage_path first (required), then verify provider or assume S3 if path exists
+    if record.respond_to?(:storage_path) && record.storage_path.present?
       s3_key = build_s3_key(record)
       begin
         provider = s3_provider
@@ -193,17 +193,11 @@ class DocumentStorageService
         Rails.logger.error "[DocumentStorage] S3 URL error: #{e.message}"
         error_result("Failed to generate S3 URL: #{e.message}", status: :internal_server_error)
       end
-    # Priority 2: SharePoint
-    elsif has_sharepoint_id?(record)
-      # SharePoint web_url is already a usable URL
-      url = record.respond_to?(:web_url) ? record.web_url : record.file_url
-      if url.present?
-        { success: true, url: url }
-      else
-        error_result("No SharePoint URL available", status: :not_found)
-      end
     else
-      error_result("No storage URL available", status: :not_found)
+      # No storage_path = document not properly configured
+      # Log for visibility - this indicates data that needs fixing
+      Rails.logger.warn "[DocumentStorage] Document #{record.class.name}##{record.id} has no storage_path - needs migration"
+      error_result("Document not in S3 storage (missing storage_path)", status: :not_found)
     end
   end
 
@@ -349,31 +343,7 @@ class DocumentStorageService
     error_result("Failed to download file from S3: #{e.message}", status: :internal_server_error)
   end
 
-  def download_from_sharepoint(record)
-    credential = MicrosoftCredential.sharepoint_credential
-    return error_result("SharePoint not configured", status: :service_unavailable) unless credential
-
-    client = MicrosoftGraphClient.new(credential)
-    # SSoT: Use storage_reference fallback pattern (storage_item_id || sharepoint_file_id)
-    file_id = record.respond_to?(:storage_reference) ? record.storage_reference : nil
-    file_id ||= record.respond_to?(:sharepoint_file_id) ? record.sharepoint_file_id : nil
-    file_id ||= record.respond_to?(:sharepoint_item_id) ? record.sharepoint_item_id : nil
-    return error_result("No SharePoint file ID", status: :not_found) unless file_id
-
-    content = client.download_file(file_id)
-    {
-      success: true,
-      content: content,
-      content_type: detect_content_type(record.file_name),
-      filename: record.file_name
-    }
-  rescue MicrosoftGraphClient::APIError => e
-    Rails.logger.error "[DocumentStorage] SharePoint download error for #{record.class.name}##{record.id}: #{e.message}"
-    error_result("SharePoint download failed: #{e.message}", status: :bad_gateway)
-  rescue => e
-    Rails.logger.error "[DocumentStorage] SharePoint error: #{e.message}"
-    error_result("SharePoint error: #{e.message}", status: :internal_server_error)
-  end
+  # NOTE: download_from_sharepoint removed - S3/Wasabi is SSoT, no SharePoint fallback
 
   def download_from_active_storage(record)
     {
@@ -389,12 +359,7 @@ class DocumentStorageService
     error_result("Failed to download file: #{e.message}", status: :internal_server_error)
   end
 
-  def has_sharepoint_id?(record)
-    # SSoT: Check storage_reference first (storage_item_id || sharepoint_file_id fallback)
-    (record.respond_to?(:storage_reference) && record.storage_reference.present?) ||
-      (record.respond_to?(:sharepoint_file_id) && record.sharepoint_file_id.present?) ||
-      (record.respond_to?(:sharepoint_item_id) && record.sharepoint_item_id.present?)
-  end
+  # NOTE: has_sharepoint_id? removed - S3/Wasabi is SSoT, no SharePoint fallback
 
   # Build the S3 key from storage_path + file_name
   # Handles legacy records where storage_path is just the folder (missing filename)

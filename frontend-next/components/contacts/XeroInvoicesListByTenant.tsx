@@ -102,6 +102,33 @@ export function XeroInvoicesListByTenant({
   const isInvoice = type === "ACCREC";
   const title = isInvoice ? "Invoices" : "Bills";
 
+  // SSoT: Calculate tenantIds based on linkedTenants prop
+  // Must be calculated before any early returns (React hooks rules)
+  const tenantIds = useMemo(() => {
+    if (linkedTenants && linkedTenants.length > 0) {
+      return linkedTenants.map(t => t.xero_tenant_id).filter(id => byTenant[id]);
+    }
+    return Object.keys(byTenant);
+  }, [linkedTenants, byTenant]);
+
+  // Pre-calculate allItems and totalAllCount before any early returns
+  const allItems = useMemo(() => {
+    return tenantIds.flatMap((tenantId) => {
+      const data = byTenant[tenantId];
+      if (!data) return [];
+      const items = isInvoice ? data.invoices : data.bills;
+      return items.map((item) => ({ ...item, tenant_id: tenantId }));
+    });
+  }, [byTenant, tenantIds, isInvoice]);
+
+  const totalAllCount = useMemo(() => {
+    return tenantIds.reduce((sum, tenantId) => {
+      const data = byTenant[tenantId];
+      if (!data) return sum;
+      return sum + (isInvoice ? data.total_invoices : data.total_bills);
+    }, 0);
+  }, [byTenant, tenantIds, isInvoice]);
+
   useEffect(() => {
     if (contactId) {
       loadInvoices();
@@ -232,19 +259,6 @@ export function XeroInvoicesListByTenant({
     );
   }
 
-  // SSoT: Use linkedTenants to determine which tenant tabs to show
-  // Only show tabs for tenants the contact is actually linked to
-  const tenantIds = useMemo(() => {
-    if (linkedTenants && linkedTenants.length > 0) {
-      // Filter to only show linked tenants that have data
-      return linkedTenants
-        .map(t => t.xero_tenant_id)
-        .filter(id => byTenant[id]);
-    }
-    // Fallback: show all tenants from API response
-    return Object.keys(byTenant);
-  }, [linkedTenants, byTenant]);
-
   if (tenantIds.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
@@ -307,21 +321,6 @@ export function XeroInvoicesListByTenant({
   }
 
   // Multiple tenants - show tabs with "All" option
-  // Combine all items for the "All" tab
-  const allItems = useMemo(() => {
-    return tenantIds.flatMap((tenantId) => {
-      const data = byTenant[tenantId];
-      const items = isInvoice ? data.invoices : data.bills;
-      // Ensure tenant_id is set on each item for display
-      return items.map((item) => ({ ...item, tenant_id: tenantId }));
-    });
-  }, [byTenant, tenantIds, isInvoice]);
-
-  const totalAllCount = tenantIds.reduce((sum, tenantId) => {
-    const data = byTenant[tenantId];
-    return sum + (isInvoice ? data.total_invoices : data.total_bills);
-  }, 0);
-
   return (
     <div className="h-full space-y-4">
       <SyncHeader />
