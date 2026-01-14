@@ -49,10 +49,10 @@ class TaskResponseUploader
       filename: filename,
       folder_path: folder_path
     }
-  rescue DocumentProviders::Base::NotConnectedError => e
-    Rails.logger.error("[TaskResponseUploader] SharePoint not connected: #{e.message}")
-    raise UploadError, "SharePoint is not connected. Please check system settings."
-  rescue DocumentProviders::Base::NotFoundError => e
+  rescue DocumentProviders::NotConnectedError => e
+    Rails.logger.error("[TaskResponseUploader] Storage not connected: #{e.message}")
+    raise UploadError, "Document storage is not connected. Please check system settings."
+  rescue DocumentProviders::NotFoundError => e
     Rails.logger.error("[TaskResponseUploader] Folder not found: #{e.message}")
     raise UploadError, "Could not find or create the #{folder_name} folder."
   rescue StandardError => e
