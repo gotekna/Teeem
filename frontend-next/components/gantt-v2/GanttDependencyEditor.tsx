@@ -260,24 +260,32 @@ export function GanttDependencyEditor({
     console.log('[GanttDependencyEditor] tasks.length:', tasks.length);
 
     if (pendingPredRowNum) {
-      const rowNum = parseInt(pendingPredRowNum, 10);
-      console.log('[GanttDependencyEditor] rowNum:', rowNum);
-      const t = rowNum > 0 && rowNum <= tasks.length ? tasks[rowNum - 1] : null;
+      const taskNum = parseInt(pendingPredRowNum, 10);
+      console.log('[GanttDependencyEditor] taskNum:', taskNum);
+      // Find by task_number, not array index
+      const t = tasks.find(t => {
+        const rd = t.rowData as any;
+        return rd?.task_number === taskNum;
+      }) || null;
       console.log('[GanttDependencyEditor] found task t:', t?.id, t?.name);
       console.log('[GanttDependencyEditor] current task.id:', task?.id);
       if (t && t.id !== task?.id && !currentPredLinks.some(l => l.predecessorId === t.id)) {
         currentPredLinks.push({ predecessorId: t.id, type: 'FS', lag: 0 });
-        console.log('[GanttDependencyEditor] Added pending predecessor from input:', rowNum);
+        console.log('[GanttDependencyEditor] Added pending predecessor from input:', taskNum);
       }
     }
 
     // Check if there's a pending successor in the input field (controlled state)
     if (pendingSuccRowNum) {
-      const rowNum = parseInt(pendingSuccRowNum, 10);
-      const t = rowNum > 0 && rowNum <= tasks.length ? tasks[rowNum - 1] : null;
+      const taskNum = parseInt(pendingSuccRowNum, 10);
+      // Find by task_number, not array index
+      const t = tasks.find(t => {
+        const rd = t.rowData as any;
+        return rd?.task_number === taskNum;
+      }) || null;
       if (t && t.id !== task?.id && !currentSuccLinks.some(l => l.predecessorId === t.id)) {
         currentSuccLinks.push({ predecessorId: t.id, type: 'FS', lag: 0 });
-        console.log('[GanttDependencyEditor] Added pending successor from input:', rowNum);
+        console.log('[GanttDependencyEditor] Added pending successor from input:', taskNum);
       }
     }
 
@@ -865,9 +873,13 @@ export function GanttDependencyEditor({
 
                 {/* Empty row to add new predecessor */}
                 {(() => {
-                  // Compute the pending task from row number for display
+                  // Compute the pending task from task_number for display
                   const pendingPredNum = parseInt(pendingPredRowNum, 10);
-                  const pendingPredTask = pendingPredNum > 0 && pendingPredNum <= tasks.length ? tasks[pendingPredNum - 1] : null;
+                  // Find by task_number, not array index
+                  const pendingPredTask = pendingPredNum > 0 ? tasks.find(t => {
+                    const rd = t.rowData as any;
+                    return rd?.task_number === pendingPredNum;
+                  }) || null : null;
                   const pendingPredItem = pendingPredTask && pendingPredTask.id !== task?.id
                     ? taskComboItems.find(item => item.id === pendingPredTask.id)
                     : undefined;
@@ -882,8 +894,12 @@ export function GanttDependencyEditor({
                         onChange={(e) => setPendingPredRowNum(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
-                            const rowNum = parseInt(pendingPredRowNum, 10);
-                            const t = rowNum > 0 && rowNum <= tasks.length ? tasks[rowNum - 1] : null;
+                            const taskNum = parseInt(pendingPredRowNum, 10);
+                            // Find by task_number, not array index
+                            const t = taskNum > 0 ? tasks.find(t => {
+                              const rd = t.rowData as any;
+                              return rd?.task_number === taskNum;
+                            }) || null : null;
                             if (t && t.id !== task?.id && !depEditorLinks.some(l => l.predecessorId === t.id)) {
                               setDepEditorLinks(prev => [...prev, { predecessorId: t.id, type: 'FS', lag: 0 }]);
                               setPendingPredRowNum('');
@@ -1029,9 +1045,13 @@ export function GanttDependencyEditor({
 
                 {/* Empty row to add new successor */}
                 {(() => {
-                  // Compute the pending task from row number for display
+                  // Compute the pending task from task_number for display
                   const pendingSuccNum = parseInt(pendingSuccRowNum, 10);
-                  const pendingSuccTask = pendingSuccNum > 0 && pendingSuccNum <= tasks.length ? tasks[pendingSuccNum - 1] : null;
+                  // Find by task_number, not array index
+                  const pendingSuccTask = pendingSuccNum > 0 ? tasks.find(t => {
+                    const rd = t.rowData as any;
+                    return rd?.task_number === pendingSuccNum;
+                  }) || null : null;
                   const pendingSuccItem = pendingSuccTask && pendingSuccTask.id !== task?.id
                     ? taskComboItems.find(item => item.id === pendingSuccTask.id)
                     : undefined;
@@ -1046,8 +1066,12 @@ export function GanttDependencyEditor({
                         onChange={(e) => setPendingSuccRowNum(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
-                            const rowNum = parseInt(pendingSuccRowNum, 10);
-                            const t = rowNum > 0 && rowNum <= tasks.length ? tasks[rowNum - 1] : null;
+                            const taskNum = parseInt(pendingSuccRowNum, 10);
+                            // Find by task_number, not array index
+                            const t = taskNum > 0 ? tasks.find(t => {
+                              const rd = t.rowData as any;
+                              return rd?.task_number === taskNum;
+                            }) || null : null;
                             if (t && t.id !== task?.id && !depEditorSuccessorLinks.some(l => l.predecessorId === t.id)) {
                               setDepEditorSuccessorLinks(prev => [...prev, { predecessorId: t.id, type: 'FS', lag: 0 }]);
                               setPendingSuccRowNum('');

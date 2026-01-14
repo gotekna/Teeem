@@ -243,7 +243,7 @@ module Api
           # New Schedule Master fields
           :supplier_confirm, :supplier_confirmation_method, :supplier_confirmed_contact_name,
           # Manual positioning and task status
-          :hold, :hold_date, :dependency_broken, :started,
+          :hold, :hold_date, :dependency_broken, :dependency_broken_at, :dependency_broken_by_id, :started,
           # Header and active status
           :allow_header, :is_active,
           # Task group for PO/non-PO grouping
@@ -251,6 +251,7 @@ module Api
           # Claim task settings (SSoT for job claims)
           :is_claim_task, :is_variation, :claim_percentage, :claim_sequence_number, :claim_invoice_pattern, :claim_invoice_template_id, :claim_trading_name_id,
           predecessor_ids: [ :id, :type, :lag ],
+          predecessor_ids_backup: [ :id, :type, :lag ],
           linked_task_ids: [],
           subtask_names: [],
           tags: [],
@@ -383,6 +384,8 @@ module Api
           hold: row.hold,
           hold_date: row.hold_date,
           previous_hold_date: row.previous_manual_start_date,
+          # Started indicator (task has begun execution)
+          started: row.started,
           # Broken dependency indicator (locked task detached from flow)
           dependency_broken: row.dependency_broken,
           # Broken dependency tracking - for restore in dependency editor

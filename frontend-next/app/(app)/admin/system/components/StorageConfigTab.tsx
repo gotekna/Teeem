@@ -303,6 +303,8 @@ function TreeNode({
     filename: string;
     configLink: string | null;
   } | null>(null);
+  // Track the last scope we initialized for (to avoid re-initializing on prop changes)
+  const initializedScopeRef = React.useRef<string | null>(null);
 
   // Immediate save function (no debounce) - for switching scopes
   const saveImmediate = React.useCallback(async (scopeKey: string, folder: string, filename: string, configLink: string | null) => {
@@ -384,22 +386,30 @@ function TreeNode({
   const isSimpleScopeChild = isInSimpleScope && node.scopeKey && !SIMPLE_SCOPES.includes(node.scopeKey);
 
   // Reset edit value and templates when editing starts or switches to a different scope
+  // IMPORTANT: Only initialize templates when SCOPE actually changes, not when props update after save
   React.useEffect(() => {
     if (currentEditingScopeKey) {
-      setEditValue(currentPath[currentEditingScopeKey] || node.path);
-      // Reset templates to the editing scope's values
-      setFolderTemplate(
-        scopeTemplates[currentEditingScopeKey] || DEFAULT_FOLDER_TEMPLATES[currentEditingScopeKey] || '{{TabName}}'
-      );
-      setFilenameTemplate(
-        fileNameTemplates[currentEditingScopeKey] || '{{OriginalFileName}}'
-      );
-      const linkValue = configLinks[currentEditingScopeKey] || '';
-      setConfigLinkUrl(linkValue);
-      setHasConfigLink(!!linkValue);
-      // Reset modification tracking
-      hasModified.current = false;
-      setLastSaved(null);
+      const scopeActuallyChanged = initializedScopeRef.current !== currentEditingScopeKey;
+
+      // Only initialize templates when switching to a DIFFERENT scope
+      if (scopeActuallyChanged) {
+        setEditValue(currentPath[currentEditingScopeKey] || node.path);
+        setFolderTemplate(
+          scopeTemplates[currentEditingScopeKey] || DEFAULT_FOLDER_TEMPLATES[currentEditingScopeKey] || '{{TabName}}'
+        );
+        setFilenameTemplate(
+          fileNameTemplates[currentEditingScopeKey] || '{{OriginalFileName}}'
+        );
+        const linkValue = configLinks[currentEditingScopeKey] || '';
+        setConfigLinkUrl(linkValue);
+        setHasConfigLink(!!linkValue);
+        hasModified.current = false;
+        setLastSaved(null);
+        initializedScopeRef.current = currentEditingScopeKey;
+      }
+    } else {
+      // Editing stopped - reset the initialized scope tracker
+      initializedScopeRef.current = null;
     }
   }, [currentEditingScopeKey, currentPath, node.path, scopeTemplates, fileNameTemplates, configLinks]);
 
