@@ -439,6 +439,21 @@ class StorageConfiguration < ApplicationRecord
   end
 
   # ========================================
+  # Warehouse Sync Settings
+  # ========================================
+
+  # Check if warehouse sync is enabled
+  # SSoT: Controls whether documents auto-sync to S3 on save
+  def warehouse_sync_enabled?
+    # Only sync if connected to S3/Wasabi
+    return false unless connected?
+    return false unless %w[s3 wasabi].include?(provider_type)
+
+    # Check the warehouse_sync_enabled flag (defaults to true if column doesn't exist)
+    respond_to?(:warehouse_sync_enabled) ? warehouse_sync_enabled : true
+  end
+
+  # ========================================
   # SSoT: Warehouse Path Resolution
   # ========================================
 

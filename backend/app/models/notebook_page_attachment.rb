@@ -8,6 +8,9 @@
 # - Tracks uploader
 #
 class NotebookPageAttachment < ApplicationRecord
+  include WarehouseSyncable
+  warehouse_type :file
+
   # Associations
   belongs_to :page, class_name: "NotebookPage"
   belongs_to :uploaded_by, class_name: "User", optional: true

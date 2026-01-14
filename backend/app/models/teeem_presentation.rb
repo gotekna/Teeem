@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 class TeeemPresentation < ApplicationRecord
+  include WarehouseSyncable
+  warehouse_type :pptx
+
   belongs_to :user
   belongs_to :job, optional: true
 

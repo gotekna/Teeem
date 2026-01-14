@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 class TeeemPdf < ApplicationRecord
+  include WarehouseSyncable
+  warehouse_type :pdf
+
   belongs_to :user
   belongs_to :job, optional: true
 

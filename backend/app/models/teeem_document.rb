@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 class TeeemDocument < ApplicationRecord
+  include WarehouseSyncable
+  warehouse_type :html
+
   belongs_to :user
   belongs_to :job, optional: true
 
