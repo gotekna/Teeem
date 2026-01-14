@@ -1257,30 +1257,18 @@ export function DataWarehouseTab() {
                       </div>
                     </div>
 
-                    {/* SSoT Migration Progress (same as Overview) */}
+                    {/* Email Data Completeness */}
                     <div className="pt-4 border-t">
-                      <h4 className="text-sm font-medium mb-3">SSoT Migration Progress</h4>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs text-muted-foreground">Direction Field</span>
-                            <span className="text-xs font-medium">{org.stats.ssot_migration?.direction_rate || 0}%</span>
-                          </div>
-                          <Progress value={org.stats.ssot_migration?.direction_rate || 0} className="h-1.5" />
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {(org.stats.ssot_migration?.with_direction || 0).toLocaleString()} of {org.stats.emails.toLocaleString()}
-                          </p>
+                      <h4 className="text-sm font-medium mb-3">Email Data Completeness</h4>
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs text-muted-foreground">Body Preview Available</span>
+                          <span className="text-xs font-medium">{org.stats.ssot_migration?.body_preview_rate || 0}%</span>
                         </div>
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs text-muted-foreground">Body Preview</span>
-                            <span className="text-xs font-medium">{org.stats.ssot_migration?.body_preview_rate || 0}%</span>
-                          </div>
-                          <Progress value={org.stats.ssot_migration?.body_preview_rate || 0} className="h-1.5" />
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {(org.stats.ssot_migration?.with_body_preview || 0).toLocaleString()} of {org.stats.emails.toLocaleString()}
-                          </p>
-                        </div>
+                        <Progress value={org.stats.ssot_migration?.body_preview_rate || 0} className="h-1.5" />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {(org.stats.ssot_migration?.with_body_preview || 0).toLocaleString()} of {org.stats.emails.toLocaleString()}
+                        </p>
                       </div>
                     </div>
 
@@ -1708,30 +1696,18 @@ export function DataWarehouseTab() {
             </div>
           </div>
 
-          {/* SSoT Migration Progress */}
+          {/* Email Body Preview Coverage */}
           <div className="pt-4 border-t">
-            <h4 className="text-sm font-medium mb-3">SSoT Migration Progress</h4>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-muted-foreground">Direction Field</span>
-                  <span className="text-xs font-medium">{stats.emails.ssot_migration?.direction_rate || 0}%</span>
-                </div>
-                <Progress value={stats.emails.ssot_migration?.direction_rate || 0} className="h-1.5" />
-                <p className="text-xs text-muted-foreground mt-1">
-                  {(stats.emails.ssot_migration?.with_direction || 0).toLocaleString()} of {stats.emails.total_emails.toLocaleString()}
-                </p>
+            <h4 className="text-sm font-medium mb-3">Email Data Completeness</h4>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-muted-foreground">Body Preview Available</span>
+                <span className="text-xs font-medium">{stats.emails.ssot_migration?.body_preview_rate || 0}%</span>
               </div>
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-muted-foreground">Body Preview</span>
-                  <span className="text-xs font-medium">{stats.emails.ssot_migration?.body_preview_rate || 0}%</span>
-                </div>
-                <Progress value={stats.emails.ssot_migration?.body_preview_rate || 0} className="h-1.5" />
-                <p className="text-xs text-muted-foreground mt-1">
-                  {(stats.emails.ssot_migration?.with_body_preview || 0).toLocaleString()} of {stats.emails.total_emails.toLocaleString()}
-                </p>
-              </div>
+              <Progress value={stats.emails.ssot_migration?.body_preview_rate || 0} className="h-1.5" />
+              <p className="text-xs text-muted-foreground mt-1">
+                {(stats.emails.ssot_migration?.with_body_preview || 0).toLocaleString()} of {stats.emails.total_emails.toLocaleString()}
+              </p>
             </div>
           </div>
         </CardContent>

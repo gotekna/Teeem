@@ -698,7 +698,8 @@ module Api
         synced_files_count, last_sync_time = case actual_provider_type
         when "wasabi", "s3"
           # Documents on S3/Wasabi storage
-          s3_docs = documents.where(storage_provider: [ "s3", "wasabi" ])
+          # SSoT: storage_provider values are "s3_compatible", "wasabi", or "s3"
+          s3_docs = documents.where(storage_provider: [ "s3", "wasabi", "s3_compatible" ])
           [ s3_docs.count, s3_docs.maximum(:last_modified_at) || s3_credential&.updated_at ]
         when "sharepoint"
           # Documents synced from SharePoint/OneDrive

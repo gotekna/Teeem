@@ -190,9 +190,10 @@ interface JobDocumentsTabProps {
   jobTitle?: string;
   initialCategory?: string; // e.g., "site-photo" -> auto-selects "Site Photo" category
   categories?: DocumentCategory[]; // SSoT: Categories from parent (useEntityTabs) - eliminates duplicate API call
+  storageFolderStatus?: "not_requested" | "pending" | "processing" | "completed" | "failed";
 }
 
-export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: propCategories }: JobDocumentsTabProps) {
+export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: propCategories, storageFolderStatus }: JobDocumentsTabProps) {
   const [viewMode, setViewMode] = useState<"tasks" | "sharepoint" | "allfiles" | "treeview">("tasks");
   const [selectMode, setSelectMode] = useState(false);
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
@@ -2928,6 +2929,94 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       </div>
     );
   };
+
+  // State for creating folders
+  const [creatingStorageFolders, setCreatingStorageFolders] = useState(false);
+  const [folderCreationError, setFolderCreationError] = useState<string | null>(null);
+
+  // Handle creating storage folders
+  const handleCreateStorageFolders = async () => {
+    setCreatingStorageFolders(true);
+    setFolderCreationError(null);
+    try {
+      const response = await api.post<{ success: boolean; status: string; error?: string }>(
+        `/api/v1/jobs/${jobId}/create_storage_folders`
+      );
+      if (response?.success) {
+        // Reload the page to refresh job data with new storage status
+        window.location.reload();
+      } else {
+        setFolderCreationError(response?.error || "Failed to create folders");
+      }
+    } catch (err) {
+      setFolderCreationError(err instanceof Error ? err.message : "Failed to create folders");
+    } finally {
+      setCreatingStorageFolders(false);
+    }
+  };
+
+  // Show "Folders Missing" screen if storage folders don't exist
+  if (storageFolderStatus && storageFolderStatus !== "completed") {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 px-4">
+        <div className="max-w-md w-full text-center space-y-6">
+          {/* Icon */}
+          <div className="mx-auto w-20 h-20 rounded-full bg-muted flex items-center justify-center">
+            <FolderInput className="h-10 w-10 text-muted-foreground" />
+          </div>
+
+          {/* Title */}
+          <div className="space-y-2">
+            <h2 className="text-2xl font-semibold">Storage Folders Missing</h2>
+            <p className="text-muted-foreground">
+              This job doesn&apos;t have storage folders set up yet. Create them to store photos and documents.
+            </p>
+          </div>
+
+          {/* Status indicator for pending/processing */}
+          {(storageFolderStatus === "pending" || storageFolderStatus === "processing") && (
+            <div className="flex items-center justify-center gap-2 text-blue-600 dark:text-blue-400">
+              <Spinner size={16} />
+              <span className="text-sm">
+                {storageFolderStatus === "pending" ? "Folder creation queued..." : "Creating folders..."}
+              </span>
+            </div>
+          )}
+
+          {/* Error message */}
+          {(storageFolderStatus === "failed" || folderCreationError) && (
+            <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg p-3">
+              <p className="text-sm text-red-700 dark:text-red-300">
+                {folderCreationError || "Failed to create folders. Please try again."}
+              </p>
+            </div>
+          )}
+
+          {/* Create button */}
+          {(storageFolderStatus === "not_requested" || storageFolderStatus === "failed") && (
+            <Button
+              size="lg"
+              onClick={handleCreateStorageFolders}
+              disabled={creatingStorageFolders}
+              className="gap-2"
+            >
+              {creatingStorageFolders ? (
+                <>
+                  <Spinner size={16} />
+                  Creating Folders...
+                </>
+              ) : (
+                <>
+                  <Folder className="h-5 w-5" />
+                  Create Folders
+                </>
+              )}
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

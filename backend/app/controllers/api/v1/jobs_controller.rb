@@ -1,7 +1,7 @@
 module Api
   module V1
     class JobsController < ApplicationController
-      before_action :set_job, only: [ :show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :activities, :budget_tracking, :merge, :update_stage, :mark_lost, :upload_plan_set, :plan_set, :rename_plans, :generate_contract, :save_contract, :send_contract_for_signing ]
+      before_action :set_job, only: [ :show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :activities, :budget_tracking, :merge, :update_stage, :mark_lost, :upload_plan_set, :plan_set, :rename_plans, :generate_contract, :save_contract, :send_contract_for_signing, :create_storage_folders ]
 
       # GET /api/v1/jobs/pipeline
       # Returns jobs with Enquiry status grouped by stage for the pipeline view
@@ -1224,6 +1224,20 @@ module Api
           success: false,
           error: e.message
         }
+      end
+
+      # POST /api/v1/jobs/:id/create_storage_folders
+      # Creates storage folders for a job that doesn't have them yet
+      def create_storage_folders
+        if @job.storage_folder_status == "completed"
+          render json: { success: true, status: "completed", message: "Folders already exist" }
+          return
+        end
+
+        @job.create_folders_if_needed!
+        render json: { success: true, status: @job.reload.storage_folder_status }
+      rescue StandardError => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
       end
     end
   end

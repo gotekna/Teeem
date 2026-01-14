@@ -300,6 +300,8 @@ interface Job {
   // Construction details
   level?: string;
   dwelling_type?: string;
+  // Storage folder status
+  storage_folder_status?: "not_requested" | "pending" | "processing" | "completed" | "failed";
 }
 
 interface JobType {
@@ -1834,6 +1836,7 @@ export default function JobDetailPage() {
                   jobTitle={job.name}
                   initialCategory={tabValue}
                   categories={categories}
+                  storageFolderStatus={job.storage_folder_status}
                 />
               </TabsContent>
             );

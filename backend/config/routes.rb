@@ -469,6 +469,8 @@ Rails.application.routes.draw do
           get :boq
           # Schedule template link detection
           get :linked_schedule_template
+          # Storage folder creation
+          post :create_storage_folders
         end
 
         # Job contacts (nested under jobs)
