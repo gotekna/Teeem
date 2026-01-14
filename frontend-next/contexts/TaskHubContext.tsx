@@ -104,6 +104,7 @@ export interface SmTask {
 
   // Job relationship
   construction_id: number;
+  job_id?: number; // API write field (backend permits job_id, not construction_id)
   job_name?: string;
 
   // Assignment

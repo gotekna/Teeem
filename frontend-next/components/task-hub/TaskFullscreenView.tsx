@@ -1208,7 +1208,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
   const handleJobChange = async (jobId: number | null) => {
     setLoading('job');
-    await updateTask(task.id, { construction_id: jobId || 0 });
+    // Backend permits job_id, not construction_id. Also update construction_id for optimistic UI.
+    await updateTask(task.id, { job_id: jobId || 0, construction_id: jobId || 0 } as Partial<SmTask>);
     setLoading(null);
   };
 
