@@ -2934,6 +2934,30 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   const [creatingStorageFolders, setCreatingStorageFolders] = useState(false);
   const [folderCreationError, setFolderCreationError] = useState<string | null>(null);
 
+  // Poll for folder creation completion when status is pending/processing
+  useEffect(() => {
+    if (storageFolderStatus !== "pending" && storageFolderStatus !== "processing") {
+      return;
+    }
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const response = await api.get<{ storage_folder_status: string }>(`/api/v1/jobs/${jobId}`);
+        if (response?.storage_folder_status === "completed") {
+          // Folders are ready - reload to show documents
+          window.location.reload();
+        } else if (response?.storage_folder_status === "failed") {
+          // Failed - reload to show error state
+          window.location.reload();
+        }
+      } catch {
+        // Ignore polling errors
+      }
+    }, 3000); // Poll every 3 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [storageFolderStatus, jobId]);
+
   // Handle creating storage folders
   const handleCreateStorageFolders = async () => {
     setCreatingStorageFolders(true);
