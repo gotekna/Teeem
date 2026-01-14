@@ -1067,7 +1067,8 @@ export default function EmailPage() {
   }, [toURLParams, selectedAccount, selectedFolder]);
 
   const fetchFolders = async (accountId: string, account?: EmailAccount, forceSelectInbox = false) => {
-    if (accountFolders[accountId] || loadingFolders.has(accountId)) {
+    // Check length > 0, not just truthy - empty array [] from previous errors should re-fetch
+    if (accountFolders[accountId]?.length > 0 || loadingFolders.has(accountId)) {
       return; // Already loaded or loading
     }
 
