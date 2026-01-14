@@ -2327,6 +2327,20 @@ Rails.application.routes.draw do
           post :start_migration
           post :cancel
           post :send_invite
+          # DNS management
+          get :dns_records
+          post :provision_dns
+          post :verify_dns
+        end
+      end
+
+      # Cloudflare Credentials (admin, for DNS management)
+      resources :cloudflare_credentials, only: [:index, :show, :create, :update, :destroy] do
+        member do
+          post :test
+        end
+        collection do
+          get :zones
         end
       end
 

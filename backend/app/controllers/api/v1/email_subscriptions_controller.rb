@@ -5,7 +5,8 @@ module Api
     class EmailSubscriptionsController < ApplicationController
       before_action :set_subscription, only: [:show, :update, :add_mailbox, :remove_mailbox,
                                                :start_migration, :cancel, :send_invite,
-                                               :add_alias, :remove_alias]
+                                               :add_alias, :remove_alias,
+                                               :dns_records, :provision_dns, :verify_dns]
 
       # GET /api/v1/email_subscriptions
       # List all email subscriptions (admin)
@@ -59,6 +60,12 @@ module Api
         end
 
         if subscription.save
+          # Queue DNS provisioning if Cloudflare is configured
+          if CloudflareCredential.configured?
+            EmailDnsProvisionJob.perform_later(subscription.id)
+            subscription.update!(dns_status: 'provisioning')
+          end
+
           render json: {
             success: true,
             data: subscription_detail_json(subscription)
@@ -343,6 +350,110 @@ module Api
         end
       end
 
+      # GET /api/v1/email_subscriptions/:id/dns_records
+      # Get DNS records and their status for a subscription
+      def dns_records
+        records = @subscription.email_dns_records.order(:name)
+
+        render json: {
+          success: true,
+          data: {
+            dns_status: @subscription.dns_status,
+            domain: @subscription.domain,
+            records: records.map { |r| dns_record_json(r) },
+            cloudflare_configured: CloudflareCredential.configured?
+          }
+        }
+      end
+
+      # POST /api/v1/email_subscriptions/:id/provision_dns
+      # Re-provision DNS records for a subscription
+      def provision_dns
+        unless CloudflareCredential.configured?
+          render json: {
+            success: false,
+            error: "Cloudflare not configured. Please set up Cloudflare credentials first."
+          }, status: :unprocessable_entity
+          return
+        end
+
+        # Queue DNS provisioning job
+        EmailDnsProvisionJob.perform_later(@subscription.id)
+        @subscription.update!(dns_status: 'provisioning')
+
+        render json: {
+          success: true,
+          data: {
+            message: "DNS provisioning queued",
+            dns_status: @subscription.dns_status
+          }
+        }
+      end
+
+      # POST /api/v1/email_subscriptions/:id/verify_dns
+      # Verify DNS records are correct
+      def verify_dns
+        unless CloudflareCredential.configured?
+          render json: {
+            success: false,
+            error: "Cloudflare not configured"
+          }, status: :unprocessable_entity
+          return
+        end
+
+        # Run verification synchronously for immediate feedback
+        cloudflare = CloudflareService.new
+        result = cloudflare.verify_email_dns(@subscription.domain)
+
+        # Update record statuses
+        @subscription.email_dns_records.each do |record|
+          verified = result[:verified].find { |r| r[:name] == record.name && r[:type] == record.record_type }
+          missing = result[:missing].find { |r| r[:name] == record.name && r[:type] == record.record_type }
+          incorrect = result[:incorrect].find { |r| r[:name] == record.name && r[:type] == record.record_type }
+
+          if verified
+            record.mark_verified!
+          elsif missing
+            record.mark_missing!
+          elsif incorrect
+            record.update!(
+              status: :error,
+              error_message: "Expected: #{incorrect[:expected_content]}, Actual: #{incorrect[:actual_content]}"
+            )
+          end
+        end
+
+        # Update subscription dns_status
+        dns_status = case result[:status]
+                     when :verified then 'verified'
+                     when :missing then 'missing'
+                     else 'error'
+                     end
+        @subscription.update!(dns_status: dns_status)
+
+        render json: {
+          success: true,
+          data: {
+            status: result[:status],
+            verified: result[:verified].count,
+            missing: result[:missing].count,
+            incorrect: result[:incorrect].count,
+            dns_status: @subscription.dns_status
+          }
+        }
+      rescue CloudflareService::ZoneNotFoundError => e
+        @subscription.update!(dns_status: 'zone_not_found')
+        render json: {
+          success: false,
+          error: "Domain zone not found in Cloudflare: #{@subscription.domain}"
+        }, status: :unprocessable_entity
+      rescue CloudflareService::ApiError => e
+        render json: {
+          success: false,
+          error: e.message
+        }, status: :unprocessable_entity
+      end
+
       private
 
       def set_subscription
@@ -362,6 +473,7 @@ module Api
           contact_name: sub.contact.display_name,
           domain: sub.domain,
           status: sub.status,
+          dns_status: sub.dns_status,
           plan_type: sub.plan_type,
           mailbox_count: sub.mailbox_count,
           monthly_retail: sub.monthly_retail_amount.to_f,
@@ -380,10 +492,28 @@ module Api
           polaris_account_id: sub.polaris_account_id,
           mailboxes: sub.email_mailboxes.map { |m| mailbox_json(m) },
           aliases: sub.email_aliases.active.map { |a| alias_json(a) },
+          dns_records: sub.email_dns_records.map { |r| dns_record_json(r) },
           migrations: sub.email_migrations.recent.limit(10).map { |m| migration_json(m) },
           invites: sub.email_migration_invites.recent.limit(5).map { |i| invite_json(i) },
           invoices: sub.email_subscription_invoices.recent.limit(10).map { |i| invoice_json(i) }
         )
+      end
+
+      def dns_record_json(record)
+        {
+          id: record.id,
+          record_type: record.record_type,
+          name: record.name,
+          full_name: record.full_name,
+          content: record.content,
+          priority: record.priority,
+          status: record.status,
+          purpose: record.purpose,
+          cloudflare_record_id: record.cloudflare_record_id,
+          error_message: record.error_message,
+          last_verified_at: record.last_verified_at,
+          provisioned_at: record.provisioned_at
+        }
       end
 
       def mailbox_json(mb)

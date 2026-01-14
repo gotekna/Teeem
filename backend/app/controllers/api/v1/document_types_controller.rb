@@ -1,7 +1,7 @@
 module Api
   module V1
     class DocumentTypesController < ApplicationController
-      before_action :set_document_type, only: [ :show, :update, :destroy, :duplicate ]
+      before_action :set_document_type, only: [ :show, :update, :destroy, :duplicate, :detect_signature_fields ]
 
       # GET /api/v1/document_types
       # PERFORMANCE: Eager load entity_tabs to prevent N+1 queries in serialize_document_type

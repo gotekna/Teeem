@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_14_100001) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_14_100005) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1158,6 +1158,23 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_14_100001) do
     t.datetime "updated_at", null: false
     t.index ["is_default"], name: "index_claim_invoice_templates_on_is_default", where: "(is_default = true)"
     t.index ["style_key"], name: "index_claim_invoice_templates_on_style_key"
+  end
+
+  create_table "cloudflare_credentials", force: :cascade do |t|
+    t.bigint "organization_id", null: false
+    t.string "api_token", null: false
+    t.string "account_id", null: false
+    t.string "email"
+    t.integer "status", default: 0, null: false
+    t.boolean "is_active", default: true, null: false
+    t.datetime "last_connected_at"
+    t.datetime "last_error_at"
+    t.string "error_message"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["organization_id", "is_active"], name: "idx_cloudflare_creds_org_active"
+    t.index ["organization_id"], name: "index_cloudflare_credentials_on_organization_id"
   end
 
   create_table "colour_selection_templates", force: :cascade do |t|
@@ -2390,6 +2407,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_14_100001) do
     t.boolean "generates_certificate", default: false
     t.string "certificate_template"
     t.jsonb "filename_patterns", default: []
+    t.jsonb "signature_field_config", default: []
     t.index ["active"], name: "index_document_types_on_active"
     t.index ["aliases"], name: "index_document_types_on_aliases", using: :gin
     t.index ["category"], name: "index_document_types_on_category"
@@ -2628,6 +2646,27 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_14_100001) do
     t.jsonb "folder_paths", default: []
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+  end
+
+  create_table "email_dns_records", force: :cascade do |t|
+    t.bigint "email_subscription_id", null: false
+    t.string "record_type", null: false
+    t.string "name", null: false
+    t.text "content", null: false
+    t.integer "priority"
+    t.boolean "proxied", default: false
+    t.string "cloudflare_record_id"
+    t.string "cloudflare_zone_id"
+    t.integer "status", default: 0, null: false
+    t.string "error_message"
+    t.datetime "last_verified_at"
+    t.datetime "provisioned_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["cloudflare_record_id"], name: "index_email_dns_records_on_cloudflare_record_id"
+    t.index ["email_subscription_id", "record_type", "name"], name: "idx_email_dns_sub_type_name", unique: true
+    t.index ["email_subscription_id"], name: "index_email_dns_records_on_email_subscription_id"
+    t.index ["status"], name: "index_email_dns_records_on_status"
   end
 
   create_table "email_drafts", force: :cascade do |t|
@@ -2887,8 +2926,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_14_100001) do
     t.string "cancellation_reason"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "dns_status", default: "pending"
     t.index ["contact_id", "organization_id"], name: "index_email_subscriptions_on_contact_id_and_organization_id", unique: true
     t.index ["contact_id"], name: "index_email_subscriptions_on_contact_id"
+    t.index ["dns_status"], name: "index_email_subscriptions_on_dns_status"
     t.index ["domain"], name: "index_email_subscriptions_on_domain"
     t.index ["organization_id"], name: "index_email_subscriptions_on_organization_id"
     t.index ["status"], name: "index_email_subscriptions_on_status"
@@ -10527,6 +10568,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_14_100001) do
   add_foreign_key "chat_messages", "jobs"
   add_foreign_key "chat_messages", "projects"
   add_foreign_key "chat_messages", "users"
+  add_foreign_key "cloudflare_credentials", "organizations"
   add_foreign_key "colour_selection_templates", "job_types"
   add_foreign_key "columns", "column_type_definitions"
   add_foreign_key "columns", "foundations"
@@ -10611,6 +10653,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_14_100001) do
   add_foreign_key "e_signature_signers", "e_signature_requests"
   add_foreign_key "email_aliases", "email_subscriptions"
   add_foreign_key "email_attachments", "storage_blobs"
+  add_foreign_key "email_dns_records", "email_subscriptions"
   add_foreign_key "email_drafts", "imap_credentials"
   add_foreign_key "email_drafts", "organizations"
   add_foreign_key "email_drafts", "users"

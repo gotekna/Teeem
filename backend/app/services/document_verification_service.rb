@@ -10,6 +10,212 @@ class DocumentVerificationService
   class ExtractionError < VerificationError; end
   class OneDriveError < VerificationError; end
 
+  # ============================================================================
+  # Class Method: Detect Signature Fields in PDF
+  # Uses Claude Vision to analyze document and find signature positions
+  #
+  # @param pdf_content [String] Binary PDF content
+  # @return [Hash] { success: true, fields: [...] } or { success: false, error: "..." }
+  #
+  # Field format:
+  # {
+  #   signatory_type: "director" | "secretary" | "witness" | "authorized_signatory",
+  #   signatory_name: "John Smith" | nil,
+  #   page_number: 1,
+  #   x_percent: 65.5,
+  #   y_percent: 82.0,
+  #   width_percent: 20.0,
+  #   height_percent: 8.0,
+  #   has_existing_signature: false
+  # }
+  # ============================================================================
+  def self.detect_signature_fields!(pdf_content)
+    api_key = ENV["ANTHROPIC_API_KEY"]
+    raise VerificationError, "ANTHROPIC_API_KEY not configured" unless api_key
+
+    # Convert PDF to images
+    images = convert_pdf_to_images_static(pdf_content)
+
+    if images.empty?
+      return { success: false, error: "Could not convert PDF to images for analysis" }
+    end
+
+    # Build vision message with signature detection prompt
+    client = Anthropic::Client.new(access_token: api_key)
+    content = []
+
+    # Add all page images (limit to 10 for performance)
+    images.first(10).each_with_index do |image_data, idx|
+      content << {
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: "image/png",
+          data: image_data
+        }
+      }
+    end
+
+    # Add the signature detection prompt
+    content << {
+      type: "text",
+      text: signature_detection_prompt(images.length)
+    }
+
+    response = client.messages(
+      parameters: {
+        model: MODEL,
+        max_tokens: 2048,
+        messages: [ { role: "user", content: content } ]
+      }
+    )
+
+    parse_signature_response(response)
+
+  rescue Anthropic::Error => e
+    Rails.logger.error("Signature detection failed: #{e.message}")
+    { success: false, error: "Claude API error: #{e.message}" }
+  rescue StandardError => e
+    Rails.logger.error("Signature detection error: #{e.class} - #{e.message}")
+    Rails.logger.error(e.backtrace.first(5).join("\n"))
+    { success: false, error: e.message }
+  end
+
+  # Static version of convert_pdf_to_images for class method use
+  def self.convert_pdf_to_images_static(pdf_content)
+    images = []
+
+    Tempfile.create([ "doc", ".pdf" ]) do |pdf_file|
+      pdf_file.binmode
+      pdf_file.write(pdf_content)
+      pdf_file.rewind
+
+      begin
+        # Get page count
+        reader = PDF::Reader.new(pdf_file.path)
+        page_count = reader.page_count
+
+        # Convert each page (limit to first 10)
+        [ page_count, 10 ].min.times do |page_num|
+          Tempfile.create([ "page", ".png" ]) do |img_file|
+            MiniMagick::Tool::Convert.new do |convert|
+              convert.density(150)
+              convert << "#{pdf_file.path}[#{page_num}]"
+              convert.resize("1200x1600>")
+              convert.quality(85)
+              convert << img_file.path
+            end
+
+            img_file.rewind
+            image_data = img_file.read
+            images << Base64.strict_encode64(image_data) if image_data.present?
+          end
+        end
+      rescue StandardError => e
+        Rails.logger.error("PDF to image conversion failed: #{e.message}")
+      end
+    end
+
+    images
+  end
+
+  def self.signature_detection_prompt(page_count)
+    <<~PROMPT
+      Analyze this #{page_count}-page document to detect all signature fields.
+
+      For EACH signature field you find, provide:
+      - signatory_type: "director" | "secretary" | "witness" | "authorized_signatory" | "unknown"
+      - signatory_name: Name if labeled near the signature line (e.g., "John Smith") or null
+      - page_number: Which page (1-indexed, first page = 1)
+      - x_percent: Horizontal position of field CENTER as % of page width (0-100)
+      - y_percent: Vertical position of field CENTER as % of page height (0-100, 0 = top)
+      - width_percent: Field width as % of page width (typically 15-25%)
+      - height_percent: Field height as % of page height (typically 5-10%)
+      - has_existing_signature: true if already signed (has ink/marks), false if blank line
+
+      WHAT TO LOOK FOR:
+      1. Horizontal signature lines (____________________) with labels like:
+         - "Signature", "Sign here", "Signed"
+         - "Director", "Secretary", "Witness"
+         - "Authorised Signatory", "Authorised Officer"
+      2. Signature blocks with:
+         - "Signed by:", "Executed by:", "Witnessed by:"
+         - Company execution clauses
+         - Person name labels above/below signature lines
+      3. Existing handwritten signatures (mark has_existing_signature: true)
+
+      POSITIONING NOTES:
+      - x_percent: 0 = left edge, 50 = center, 100 = right edge
+      - y_percent: 0 = top edge, 50 = middle, 100 = bottom edge
+      - Position should be the CENTER of where the signature should go
+      - Standard signature field is about 20% width, 8% height
+
+      Respond with ONLY valid JSON:
+      {
+        "fields": [
+          {
+            "signatory_type": "director",
+            "signatory_name": "John Smith",
+            "page_number": 1,
+            "x_percent": 70,
+            "y_percent": 85,
+            "width_percent": 20,
+            "height_percent": 8,
+            "has_existing_signature": false
+          }
+        ],
+        "analysis_notes": "Brief description of what was found"
+      }
+
+      If NO signature fields are found, return:
+      {
+        "fields": [],
+        "analysis_notes": "No signature fields detected in document"
+      }
+    PROMPT
+  end
+
+  def self.parse_signature_response(response)
+    content = response.dig("content", 0, "text") || response.dig(:content, 0, :text)
+
+    unless content.present?
+      return { success: false, error: "Empty response from Claude" }
+    end
+
+    # Extract JSON from response
+    json_match = content.match(/\{.*\}/m)
+    unless json_match
+      return { success: false, error: "Could not find JSON in response" }
+    end
+
+    json = JSON.parse(json_match[0])
+    fields = json["fields"] || []
+
+    # Validate and normalize fields
+    normalized_fields = fields.map do |field|
+      {
+        signatory_type: field["signatory_type"] || "unknown",
+        signatory_name: field["signatory_name"],
+        page_number: field["page_number"].to_i,
+        x_percent: field["x_percent"].to_f.clamp(0, 100),
+        y_percent: field["y_percent"].to_f.clamp(0, 100),
+        width_percent: field["width_percent"].to_f.clamp(5, 50),
+        height_percent: field["height_percent"].to_f.clamp(3, 20),
+        has_existing_signature: field["has_existing_signature"] == true
+      }
+    end
+
+    {
+      success: true,
+      fields: normalized_fields,
+      analysis_notes: json["analysis_notes"]
+    }
+
+  rescue JSON::ParserError => e
+    Rails.logger.error("Failed to parse signature detection response: #{e.message}")
+    { success: false, error: "Failed to parse AI response" }
+  end
+
   def initialize(document)
     @document = document
     @company = document.corporate_company
