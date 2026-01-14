@@ -326,9 +326,12 @@ class XeroAttachmentSyncService
   end
 
   def guess_document_type(filename)
-    # SSoT: Attachments use "Xero Attachment" DocumentType created in AddXeroDocumentTypes migration
-    # This maps to CorporateCompanyDocument with scope: corporate_entity
-    "Xero Attachment"
+    # SSoT: Attachments use specific types based on parent invoice type
+    # Maps to CorporateCompanyDocument with scope: corporate_entity
+    case external_invoice.invoice_type
+    when "bill" then "Xero Bill Attachment"
+    else "Xero Invoice Attachment"
+    end
   end
 
   # SSoT: Build document attributes for the given model class

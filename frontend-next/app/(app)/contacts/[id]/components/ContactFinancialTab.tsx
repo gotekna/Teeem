@@ -48,6 +48,10 @@ export function ContactFinancialTab({
           <ExternalLink className="h-3.5 w-3.5 mr-1" />
           Xero
         </TabsTrigger>
+        <TabsTrigger value="invoices">
+          <FileText className="h-3.5 w-3.5 mr-1" />
+          Invoices
+        </TabsTrigger>
         {contact["is_supplier?"] && (
           <TabsTrigger value="bills">
             <FileText className="h-3.5 w-3.5 mr-1" />
@@ -76,6 +80,14 @@ export function ContactFinancialTab({
         <XeroSubTab
           contact={contact}
           setContact={setContact}
+          handleViewInvoiceDetail={handleViewInvoiceDetail}
+        />
+      </TabsContent>
+
+      {/* Invoices Sub-Tab */}
+      <TabsContent value="invoices" className="mt-4">
+        <InvoicesSubTab
+          contactId={contact.id}
           handleViewInvoiceDetail={handleViewInvoiceDetail}
         />
       </TabsContent>
@@ -379,6 +391,32 @@ function XeroSubTab({
         onViewInvoiceDetail={handleViewInvoiceDetail}
       />
     </div>
+  );
+}
+
+// ================================
+// Invoices Sub-Tab
+// ================================
+
+interface InvoicesSubTabProps {
+  contactId: number;
+  handleViewInvoiceDetail: (invoiceId: string) => void;
+}
+
+function InvoicesSubTab({ contactId, handleViewInvoiceDetail }: InvoicesSubTabProps) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Invoices</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <XeroInvoicesListByTenant
+          contactId={contactId}
+          type="ACCREC"
+          onViewInvoiceDetail={handleViewInvoiceDetail}
+        />
+      </CardContent>
+    </Card>
   );
 }
 

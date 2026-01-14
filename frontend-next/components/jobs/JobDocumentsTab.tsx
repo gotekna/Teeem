@@ -789,6 +789,14 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   // Track if org status has been checked for this job (prevents duplicate API calls)
   const orgStatusCheckedRef = useRef<string | null>(null);
 
+  // Stable reference for propCategories to prevent unnecessary re-renders
+  // Parent component creates categories inline (new reference each render)
+  // Without this, loadDocumentCategories would trigger on every parent re-render
+  const propCategoriesKey = useMemo(() => {
+    if (!propCategories) return "";
+    return propCategories.map(c => c.id).join(",");
+  }, [propCategories]);
+
   useEffect(() => {
     // Only check org status once per job (not on every category/prop change)
     if (orgStatusCheckedRef.current !== String(jobId)) {
@@ -797,7 +805,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     }
     loadDocumentCategories();
 
-  }, [jobId, initialCategory, propCategories]);  // SSoT: Re-run when initialCategory or propCategories changes
+  }, [jobId, initialCategory, propCategoriesKey]);  // SSoT: Use stable key instead of object reference
 
   // Track if initialCategory has been applied to prevent useEffect from overwriting it
   const initialCategoryAppliedRef = useRef(false);
@@ -1465,6 +1473,11 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   // Use a ref to prevent duplicate in-flight requests
   const loadAllFilesInFlightRef = useRef(false);
 
+  // Stable keys for selected categories to prevent unnecessary reloads
+  // Without this, category reference changes would trigger redundant file loads
+  const selectedCategoryKey = selectedCategory?.id;
+  const selectedSubCategoryKey = selectedSubCategory?.id;
+
   useEffect(() => {
     // Load files for: All Files tab, Document Tasks view (any category)
     const needsFiles = viewMode === "allfiles" || viewMode === "tasks" || viewMode === "treeview";
@@ -1479,7 +1492,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         loadAllFilesInFlightRef.current = false;
       });
     }
-  }, [viewMode, orgStatus.connected, selectedCategory, selectedSubCategory]);
+  }, [viewMode, orgStatus.connected, selectedCategoryKey, selectedSubCategoryKey]);
 
   const getStatusBadge = (task: DocumentTask) => {
     if (task.is_validated) {
