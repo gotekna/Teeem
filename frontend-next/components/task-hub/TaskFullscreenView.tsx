@@ -724,7 +724,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     jobCode?: string;
     options: Array<{
       type: string;
-      job_contact_id: number;
+      job_contact_id?: number;
+      contact_id?: number;
+      user_id?: number;
       role: string;
       name: string;
       label: string;

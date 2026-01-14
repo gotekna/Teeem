@@ -1046,15 +1046,52 @@ module Api
 
       # GET /api/v1/sm_tasks/:id/email_link_options
       # Returns available options for bulk email linking:
+      # - Task's supplier contact (if present)
+      # - Task's assigned user (if present)
       # - If task has a job, returns job contacts with email counts
       # - Always available: manual email input option
       def email_link_options
         options = []
 
+        # Add task's supplier contact (e.g., "Carly Tan" on a dispute task)
+        if @task.supplier.present?
+          emails = @task.supplier.all_emails
+          if emails.any?
+            email_count = EmailWarehouse.involving_email(emails).count
+            options << {
+              type: "contact",
+              contact_id: @task.supplier.id,
+              role: "supplier",
+              name: @task.supplier.name,
+              label: "Supplier (#{@task.supplier.name})",
+              emails: emails,
+              email_count: email_count
+            }
+          end
+        end
+
+        # Add task's assigned user
+        if @task.assigned_user.present? && @task.assigned_user.email.present?
+          emails = [ @task.assigned_user.email ]
+          email_count = EmailWarehouse.involving_email(emails).count
+          options << {
+            type: "user",
+            user_id: @task.assigned_user.id,
+            role: "assigned",
+            name: @task.assigned_user.name,
+            label: "Assigned (#{@task.assigned_user.name})",
+            emails: emails,
+            email_count: email_count
+          }
+        end
+
         # If task has a job, get job contacts with their email counts
         if @task.job_id.present?
           job = @task.job
           job.job_contacts.includes(contact: :contact_emails, user: []).each do |jc|
+            # Skip if already added as supplier
+            next if jc.contact_id.present? && jc.contact_id == @task.supplier_id
+
             # Get email addresses for this contact
             emails = if jc.contact.present?
               jc.contact.all_emails
@@ -1131,6 +1168,7 @@ module Api
       #   - email_address: Email address to search for
       #   - OR job_contact_id: ID of job_contact to use (gets emails from contact)
       #   - OR contact_id: ID of contact to use (gets emails from contact)
+      #   - OR user_id: ID of user to use (gets emails from user)
       def bulk_link_emails
         # Determine which emails to find
         emails_to_search = if params[:job_contact_id].present?
@@ -1145,14 +1183,19 @@ module Api
             []
           end
         elsif params[:contact_id].present?
-          # Link emails from a contact (from search)
+          # Link emails from a contact (from search or supplier)
           contact = Contact.find_by(id: params[:contact_id])
           return render json: { success: false, error: "Contact not found" }, status: :not_found unless contact
           contact.all_emails
+        elsif params[:user_id].present?
+          # Link emails from a user (assigned user)
+          user = User.find_by(id: params[:user_id])
+          return render json: { success: false, error: "User not found" }, status: :not_found unless user
+          [ user.email ].compact
         elsif params[:email_address].present?
           [ params[:email_address].downcase.strip ]
         else
-          return render json: { success: false, error: "email_address, job_contact_id, or contact_id required" }, status: :bad_request
+          return render json: { success: false, error: "email_address, job_contact_id, contact_id, or user_id required" }, status: :bad_request
         end
 
         return render json: { success: false, error: "No email addresses found" }, status: :unprocessable_entity if emails_to_search.empty?
