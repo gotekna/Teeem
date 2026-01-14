@@ -186,6 +186,54 @@ class StorageConfiguration < ApplicationRecord
   end
 
   # ========================================
+  # Path Building Helpers
+  # ========================================
+
+  # Build full path for a job folder
+  # @param job_code [String] The job code (e.g., "JOB-001")
+  # @param subfolder [String] Optional subfolder within job (e.g., "Responses", "Task Attachments")
+  # @return [String] Full path like "/Jobs/JOB-001/Responses"
+  def job_path(job_code, subfolder = nil)
+    # Use template from config (e.g., "{{JobCode}}/{{TabName}}")
+    template = template_for(:job)
+    resolved = template.gsub("{{JobCode}}", job_code.to_s)
+    resolved = resolved.gsub("{{TabName}}", subfolder.to_s) if subfolder.present?
+    # Remove any remaining template tokens if subfolder not provided
+    resolved = resolved.gsub(/\/?\{\{[^\}]+\}\}/, "")
+    base = File.join(root_path, path_for(:job), resolved)
+    base
+  end
+
+  # Build full path for a standalone task folder
+  # @param task_id [Integer, String] The task ID
+  # @param subfolder [String] Optional subfolder within task (e.g., "Task Attachments")
+  # @return [String] Full path like "/Tasks/123/Task Attachments"
+  def task_path(task_id, subfolder = nil)
+    # Use template from config (e.g., "{{TaskId}}" → "123")
+    template = template_for(:task)
+    resolved = template.gsub("{{TaskId}}", task_id.to_s)
+    base = File.join(root_path, path_for(:task), resolved)
+    subfolder.present? ? File.join(base, subfolder) : base
+  end
+
+  # Build full path for any scope with template substitution
+  # @param scope [String, Symbol] The scope name (job, task, contact, etc.)
+  # @param substitutions [Hash] Values to substitute in template (e.g., { JobCode: "JOB-001" })
+  # @return [String] Full resolved path
+  def resolve_path(scope, substitutions = {})
+    base_folder = path_for(scope)
+    template = template_for(scope)
+
+    # Substitute template variables
+    resolved = template.dup
+    substitutions.each do |key, value|
+      resolved.gsub!("{{#{key}}}", value.to_s)
+    end
+
+    File.join(root_path, base_folder, resolved)
+  end
+
+  # ========================================
   # Connection Config Accessors
   # ========================================
 
