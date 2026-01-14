@@ -59,6 +59,10 @@ interface RestoreConflictInfo {
   isLocked: boolean;
   lockReason: string;
   requiredStartDate: Date | null;
+  // For predecessor move option
+  predecessorIsLocked: boolean;
+  predecessorLockReason: string;
+  requiredPredEndDate: Date | null;
 }
 
 export interface GanttDependencyEditorProps {
@@ -318,7 +322,7 @@ export function GanttDependencyEditor({
       }
     }
 
-    // Check if task is locked
+    // Check if successor task (current) is locked
     const isLocked = taskRowData?.supplier_confirm || taskRowData?.confirm || taskRowData?.started || taskRowData?.is_completed;
     const lockReason = taskRowData?.supplier_confirm
       ? 'Supplier Confirmed'
@@ -330,8 +334,31 @@ export function GanttDependencyEditor({
       ? 'Completed'
       : '';
 
-    // If there's a conflict AND task is locked, show dialog
-    if (hasConflict && isLocked) {
+    // Check if predecessor task is locked
+    const predecessorIsLocked = predRowData?.supplier_confirm || predRowData?.confirm || predRowData?.started || predRowData?.is_completed;
+    const predecessorLockReason = predRowData?.supplier_confirm
+      ? 'Supplier Confirmed'
+      : predRowData?.confirm
+      ? 'Confirmed'
+      : predRowData?.started
+      ? 'Started'
+      : predRowData?.is_completed
+      ? 'Completed'
+      : '';
+
+    // Calculate required end date for predecessor (if we move predecessor instead)
+    let requiredPredEndDate: Date | null = null;
+    if (taskRowData?.start_date) {
+      const taskStartDate = new Date(taskRowData.start_date);
+      const lag = brokenDep.lag || 0;
+      if (brokenDep.type === 'FS') {
+        requiredPredEndDate = new Date(taskStartDate);
+        requiredPredEndDate.setDate(requiredPredEndDate.getDate() - lag);
+      }
+    }
+
+    // If there's a conflict, show dialog with options
+    if (hasConflict) {
       setRestoreConflict({
         brokenDep,
         predecessorTask: predTask || null,
@@ -339,6 +366,9 @@ export function GanttDependencyEditor({
         isLocked,
         lockReason,
         requiredStartDate,
+        predecessorIsLocked,
+        predecessorLockReason,
+        requiredPredEndDate,
       });
       return;
     }
@@ -383,6 +413,87 @@ export function GanttDependencyEditor({
       doRestoreDependency(restoreConflict.brokenDep);
     } catch (error) {
       console.error('[GanttDependencyEditor] Failed to unlock task:', error);
+    }
+  };
+
+  // Handle moving the successor (current task) to honor dependency
+  const handleMoveSuccessor = async () => {
+    if (!restoreConflict || !task || !onUpdateTask) return;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const taskRowData = task.rowData as any;
+
+    // Determine which lock to clear
+    const updates: Record<string, unknown> = {};
+    if (taskRowData?.supplier_confirm) {
+      updates.supplier_confirm = false;
+    } else if (taskRowData?.confirm) {
+      updates.confirm = false;
+    }
+
+    try {
+      // Unlock the task if needed
+      if (Object.keys(updates).length > 0) {
+        await onUpdateTask(task.id, updates);
+      }
+      // Then restore the dependency (this will trigger cascade)
+      doRestoreDependency(restoreConflict.brokenDep);
+    } catch (error) {
+      console.error('[GanttDependencyEditor] Failed to move successor:', error);
+    }
+  };
+
+  // Handle moving the predecessor to honor dependency
+  const handleMovePredecessor = async () => {
+    console.log('[GanttDependencyEditor] handleMovePredecessor called');
+    console.log('[GanttDependencyEditor] restoreConflict:', restoreConflict);
+    console.log('[GanttDependencyEditor] onUpdateTask:', !!onUpdateTask);
+
+    if (!restoreConflict || !restoreConflict.predecessorTask || !onUpdateTask) {
+      console.log('[GanttDependencyEditor] Early return - missing:', {
+        restoreConflict: !!restoreConflict,
+        predecessorTask: !!restoreConflict?.predecessorTask,
+        onUpdateTask: !!onUpdateTask,
+      });
+      return;
+    }
+
+    const predTask = restoreConflict.predecessorTask;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const predRowData = predTask.rowData as any;
+
+    console.log('[GanttDependencyEditor] predTask:', predTask.id, predRowData?.task_number);
+    console.log('[GanttDependencyEditor] requiredPredEndDate:', restoreConflict.requiredPredEndDate);
+
+    // Determine which lock to clear on predecessor
+    const updates: Record<string, unknown> = {};
+    if (predRowData?.supplier_confirm) {
+      updates.supplier_confirm = false;
+    } else if (predRowData?.confirm) {
+      updates.confirm = false;
+    }
+
+    // Also update the end date to required date
+    if (restoreConflict.requiredPredEndDate) {
+      updates.end_date = restoreConflict.requiredPredEndDate.toISOString().split('T')[0];
+    }
+
+    console.log('[GanttDependencyEditor] updates to apply:', updates);
+
+    try {
+      // Update predecessor (unlock + move end date)
+      if (Object.keys(updates).length > 0) {
+        console.log('[GanttDependencyEditor] Calling onUpdateTask for predecessor:', predTask.id);
+        await onUpdateTask(predTask.id, updates);
+        console.log('[GanttDependencyEditor] onUpdateTask completed');
+      } else {
+        console.log('[GanttDependencyEditor] No updates needed for predecessor');
+      }
+      // Then restore the dependency
+      console.log('[GanttDependencyEditor] Calling doRestoreDependency');
+      doRestoreDependency(restoreConflict.brokenDep);
+    } catch (error) {
+      console.error('[GanttDependencyEditor] Failed to move predecessor:', error);
     }
   };
 
@@ -1376,56 +1487,96 @@ export function GanttDependencyEditor({
 
       {/* Restore Conflict Dialog */}
       <Dialog open={restoreConflict !== null} onOpenChange={() => setRestoreConflict(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-yellow-500" />
-              Cannot Restore Dependency
+              Restore Dependency - Choose Which Task to Move
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <p className="text-sm text-muted-foreground">
-              Restoring this dependency would require moving task{' '}
-              <strong>#{(task?.rowData as { task_number?: number })?.task_number}</strong> to start on{' '}
-              <strong>
-                {restoreConflict?.requiredStartDate?.toLocaleDateString('en-AU', {
-                  day: 'numeric',
-                  month: 'short',
-                  year: 'numeric',
-                })}
-              </strong>
-              {' '}to honor the dependency.
+              Task <strong>#{(task?.rowData as { task_number?: number })?.task_number}</strong> currently starts before
+              predecessor <strong>#{restoreConflict?.brokenDep.taskNumber}</strong> ends.
+              To restore this dependency, one task must move.
             </p>
 
-            <div className="flex items-center gap-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-              <Lock className="h-4 w-4 text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
-              <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                This task is <strong>{restoreConflict?.lockReason}</strong> and cannot be moved automatically.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Options:</p>
-              <div className="space-y-2">
-                {onUpdateTask && (
+            <div className="space-y-3">
+              {/* Option 1: Move the successor (current task) */}
+              <div className={`border rounded-lg p-3 ${restoreConflict?.isLocked ? 'border-yellow-300 dark:border-yellow-700 bg-yellow-50/50 dark:bg-yellow-900/10' : 'border-border'}`}>
+                <div className="flex items-start gap-3">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">
+                      Move #{(task?.rowData as { task_number?: number })?.task_number} forward
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Start on{' '}
+                      {restoreConflict?.requiredStartDate?.toLocaleDateString('en-AU', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </p>
+                    {restoreConflict?.isLocked && (
+                      <div className="flex items-center gap-1.5 mt-2 text-yellow-700 dark:text-yellow-400">
+                        <Lock className="h-3 w-3" />
+                        <span className="text-xs">{restoreConflict.lockReason} - will unlock</span>
+                      </div>
+                    )}
+                  </div>
                   <Button
-                    variant="outline"
-                    className="w-full justify-start gap-2"
-                    onClick={handleUnlockAndRestore}
+                    size="sm"
+                    onClick={handleMoveSuccessor}
+                    disabled={!onUpdateTask}
                   >
-                    <Unlock className="h-4 w-4" />
-                    Remove {restoreConflict?.lockReason} & Restore Dependency
+                    {restoreConflict?.isLocked && <Unlock className="h-3 w-3 mr-1" />}
+                    Move
                   </Button>
-                )}
-                <Button
-                  variant="outline"
-                  className="w-full justify-start gap-2 text-muted-foreground"
-                  onClick={cancelRestore}
-                >
-                  <X className="h-4 w-4" />
-                  Keep Broken (Don't Restore)
-                </Button>
+                </div>
               </div>
+
+              {/* Option 2: Move the predecessor */}
+              <div className={`border rounded-lg p-3 ${restoreConflict?.predecessorIsLocked ? 'border-yellow-300 dark:border-yellow-700 bg-yellow-50/50 dark:bg-yellow-900/10' : 'border-border'}`}>
+                <div className="flex items-start gap-3">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">
+                      Move #{restoreConflict?.brokenDep.taskNumber} backward
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      End by{' '}
+                      {restoreConflict?.requiredPredEndDate?.toLocaleDateString('en-AU', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </p>
+                    {restoreConflict?.predecessorIsLocked && (
+                      <div className="flex items-center gap-1.5 mt-2 text-yellow-700 dark:text-yellow-400">
+                        <Lock className="h-3 w-3" />
+                        <span className="text-xs">{restoreConflict.predecessorLockReason} - will unlock</span>
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={handleMovePredecessor}
+                    disabled={!onUpdateTask}
+                  >
+                    {restoreConflict?.predecessorIsLocked && <Unlock className="h-3 w-3 mr-1" />}
+                    Move
+                  </Button>
+                </div>
+              </div>
+
+              {/* Cancel option */}
+              <Button
+                variant="ghost"
+                className="w-full justify-center gap-2 text-muted-foreground"
+                onClick={cancelRestore}
+              >
+                <X className="h-4 w-4" />
+                Keep Broken (Don't Restore)
+              </Button>
             </div>
           </div>
         </DialogContent>

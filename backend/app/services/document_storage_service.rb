@@ -353,7 +353,9 @@ class DocumentStorageService
     return error_result("SharePoint not configured", status: :service_unavailable) unless credential
 
     client = MicrosoftGraphClient.new(credential)
-    file_id = record.respond_to?(:sharepoint_file_id) ? record.sharepoint_file_id : nil
+    # SSoT: Use storage_reference fallback pattern (storage_item_id || sharepoint_file_id)
+    file_id = record.respond_to?(:storage_reference) ? record.storage_reference : nil
+    file_id ||= record.respond_to?(:sharepoint_file_id) ? record.sharepoint_file_id : nil
     file_id ||= record.respond_to?(:sharepoint_item_id) ? record.sharepoint_item_id : nil
     return error_result("No SharePoint file ID", status: :not_found) unless file_id
 
@@ -387,7 +389,9 @@ class DocumentStorageService
   end
 
   def has_sharepoint_id?(record)
-    (record.respond_to?(:sharepoint_file_id) && record.sharepoint_file_id.present?) ||
+    # SSoT: Check storage_reference first (storage_item_id || sharepoint_file_id fallback)
+    (record.respond_to?(:storage_reference) && record.storage_reference.present?) ||
+      (record.respond_to?(:sharepoint_file_id) && record.sharepoint_file_id.present?) ||
       (record.respond_to?(:sharepoint_item_id) && record.sharepoint_item_id.present?)
   end
 

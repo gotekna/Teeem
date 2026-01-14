@@ -44,7 +44,10 @@ class TaskResponseUploader
       sharepoint_url: result[:web_url],
       file_id: result[:id],
       filename: filename,
-      folder_path: folder_path
+      folder_path: folder_path,
+      # SSoT: full_path is what gets stored in storage_path column
+      # Must include filename for S3 download to work
+      full_path: result[:path] || "#{folder_path}/#{filename}"
     }
   rescue DocumentProviders::NotConnectedError => e
     Rails.logger.error("[TaskResponseUploader] Storage not connected: #{e.message}")
@@ -69,7 +72,9 @@ class TaskResponseUploader
       # Map provider type to valid storage_provider value
       # wasabi/s3/etc. → s3_compatible, sharepoint stays sharepoint
       storage_provider: normalized_storage_provider,
-      storage_path: upload_result[:folder_path],
+      # SSoT: storage_path must be FULL path including filename (not just folder)
+      # S3 download uses this as the object key
+      storage_path: upload_result[:full_path],
       # Use "other" document type for task uploads (task_response/task_attachment not in valid types)
       document_type: "other",
       folder: folder_name,

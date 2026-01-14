@@ -2020,9 +2020,15 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         lag: p.lag
       }));
 
+      // When saving predecessors, also clear the broken dependency state
+      // This handles restoring previously broken dependencies
       console.log('[handleDependencyEditorSave] Patching row', taskRow.id, 'with predecessor_ids:', newPredecessorIds);
       const result = await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${taskRow.id}`, {
-        row: { predecessor_ids: newPredecessorIds }
+        row: {
+          predecessor_ids: newPredecessorIds,
+          dependency_broken: false,
+          predecessor_ids_backup: []
+        }
       });
       console.log('[handleDependencyEditorSave] Patch result:', result);
 
