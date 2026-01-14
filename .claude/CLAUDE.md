@@ -335,10 +335,20 @@ return (
 - ❌ NEVER pass `columns` prop - auto-fetched from Foundation API
 - ❌ NEVER pass `entries` prop for Foundation-backed tables - use `autoFetchRecords={true}`
 - ❌ NO custom `<h1>` headers - TeeemTableView renders header
+- ❌ NO custom Add buttons in `leftActions` - use `onAddRow` prop instead
 - ✅ ALWAYS use `autoFetchRecords={true}` - enables SSR hydration, infinite scroll, caching
-- ✅ Action buttons in `leftActions`
+- ✅ Non-Add action buttons in `leftActions` (e.g., BackButton, Export)
 - ✅ Edge-to-edge: `-mx-4`, full height: `h-full flex flex-col`
 - ✅ For embedded/filtered tables: `autoFetchRecords={true} initialFilters={[...]}`
+
+**Add Button SSoT (Jan 2026):** TeeemTableView's built-in Add button is THE ONE.
+```tsx
+// ❌ SSoT VIOLATION - Creates duplicate Add buttons
+leftActions={<Button><Plus /> Add User</Button>}
+
+// ✅ CORRECT - Override built-in Add action
+onAddRow={() => setShowModal(true)}
+```
 
 **"Gold Standard Table" = TeeemTableView** - Changes go to `TeeemTableView.tsx`, not `GoldStandardTab.tsx`
 

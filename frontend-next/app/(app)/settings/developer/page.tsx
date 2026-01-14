@@ -37,11 +37,13 @@ export default function DeveloperSettingsPage() {
   const router = useRouter();
 
   // URL is SSoT for tab state (path-based navigation)
-  const activeTab = useMemo(() => {
+  const { activeTab, subtab } = useMemo(() => {
     const parts = pathname.replace("/settings/developer", "").split("/").filter(Boolean);
     const tab = parts[0] || DEFAULT_TAB;
+    const sub = parts[1] || undefined;  // e.g., "document-types" from /settings/developer/components/document-types
     // Validate tab exists
-    return DEVELOPER_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB;
+    const validTab = DEVELOPER_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB;
+    return { activeTab: validTab, subtab: sub };
   }, [pathname]);
 
   // Redirect to default tab if no tab in URL
@@ -72,7 +74,7 @@ export default function DeveloperSettingsPage() {
 
         <div className="mt-6">
           <TabsContent value="components" className="h-full">
-            <GoldStandardTab />
+            <GoldStandardTab subtab={subtab} basePath="/settings/developer/components" />
           </TabsContent>
           <TabsContent value="tools">
             <DeveloperToolsTab />

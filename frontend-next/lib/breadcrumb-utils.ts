@@ -172,7 +172,20 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "api-keys": "API Keys",
   "webhooks": "Webhooks",
   "logs": "Logs",
-  "components": "Components",
+  "components": "Components Lab",
+  "tools": "Developer Tools",
+  "unreal-engine": "Unreal Engine",
+
+  // Settings > Developer > Components Lab subtabs (GoldStandardTab)
+  "table": "Gold Standard Table",
+  "document-types": "Gold Document Types",
+  "invoice": "Gold Bills/Invoice Viewer",
+  "column-info": "Column Info",
+  "sync-check": "Sync Check",
+  "ui-components": "UI Components",
+  "column-types-ssot": "Column Types (SSoT)",
+  "view-table-demo": "ViewTable Demo",
+  "setup-table-demo": "SetupTable Demo",
 
   // Settings > Company > Connections sub-tabs
   "provider": "Storage Provider",

@@ -228,6 +228,9 @@ function GoldStandardDataTab() {
   // Server search state
   const [serverSearchLoading, setServerSearchLoading] = React.useState(false);
 
+  // Foundation ID for view URL sync
+  const [foundationNumericId, setFoundationNumericId] = React.useState<number | null>(null);
+
   // Preloaded views state
   const [preloadedViews, setPreloadedViews] = React.useState<SavedView[] | null>(null);
 
@@ -468,6 +471,9 @@ function GoldStandardDataTab() {
       }>("/api/v1/gold_standard_table");
 
       if (foundationData?.foundation?.columns) {
+        // Store foundation ID for view URL sync
+        setFoundationNumericId(foundationData.foundation.id);
+
         // Build columns from API response, sorted by position
         const sortedCols = [...foundationData.foundation.columns].sort(
           (a, b) => (a.position || 0) - (b.position || 0)
@@ -867,6 +873,7 @@ function GoldStandardDataTab() {
         // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
         totalCount={entries.length}
         foundationId="gold_standard_table"
+        foundationIdNumeric={foundationNumericId || undefined}  // Enables view URL sync
         tableName="Gold Standard Table"
         // SSoT: onView, onEdit, onDelete (Add/Edit/View/Delete buttons) are now auto-enabled
         // by TeeemTableView when foundationIdNumeric is set. No need to pass custom handlers.
@@ -2303,21 +2310,31 @@ function SetupTableDemo() {
   );
 }
 
+const DEFAULT_GOLD_STANDARD_BASE_PATH = "/admin/system/components";
+
 interface GoldStandardTabProps {
   subtab?: string;
+  basePath?: string;
 }
 
-export function GoldStandardTab({ subtab }: GoldStandardTabProps) {
+export function GoldStandardTab({ subtab, basePath = DEFAULT_GOLD_STANDARD_BASE_PATH }: GoldStandardTabProps) {
   const router = useRouter();
   const activeTab = subtab || "table";
 
+  // Redirect to include default subtab in URL if not present
+  React.useEffect(() => {
+    if (!subtab) {
+      router.replace(`${basePath}/table`, { scroll: false });
+    }
+  }, [subtab, basePath, router]);
+
   const setActiveTab = React.useCallback((tab: string) => {
-    router.push(`/admin/system/components/${tab}`, { scroll: false });
-  }, [router]);
+    router.push(`${basePath}/${tab}`, { scroll: false });
+  }, [router, basePath]);
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-      <TabsList className="flex-wrap h-auto gap-1">
+      <TabsList className="flex-wrap h-auto gap-1 justify-start">
         <TabsTrigger value="table" className="flex items-center gap-2">
           <Database className="h-4 w-4" />
           Gold Standard Table

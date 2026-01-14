@@ -410,7 +410,7 @@ const EmailListItem = memo(function EmailListItem({
       {/* Main email row */}
       <div
         className={cn(
-          "group px-0.5 py-1.5 cursor-pointer border-l-2",
+          "group px-0.5 py-1.5 cursor-pointer border-l-2 border-b border-border",
           isSelected
             ? "bg-primary/10 border-l-primary"
             : isChecked
@@ -603,7 +603,9 @@ export default function EmailPage() {
   // Get account from path: /email/robert@teeem.au → params.account = ["robert@teeem.au"]
   // With standalone: /email/robert@teeem.au/standalone → params.account = ["robert@teeem.au", "standalone"]
   const pathSegments = params.account as string[] | undefined;
-  const accountParam = pathSegments?.[0] || searchParams.get("account"); // Legacy query param support
+  // Decode URL param - Next.js may URL-encode special chars like @ → %40
+  const rawAccountParam = pathSegments?.[0] || searchParams.get("account"); // Legacy query param support
+  const accountParam = rawAccountParam ? decodeURIComponent(rawAccountParam) : undefined;
   const emailIdParam = searchParams.get("id");
   // Standalone mode: check path segment first, then legacy query param
   const isStandalone = pathSegments?.includes("standalone") || searchParams.get("standalone") === "true";
@@ -882,6 +884,16 @@ export default function EmailPage() {
   const currentEmails = useMemo(() => {
     return viewMode === "split" ? (splitInbox.currentEmails as Email[]) : emails;
   }, [viewMode, splitInbox.currentEmails, emails]);
+
+  // Virtual scrolling for email list - only renders visible rows
+  // Estimated row height: ~72px (3 lines of content with padding)
+  const EMAIL_ROW_HEIGHT = 72;
+  const emailVirtualizer = useVirtualizer({
+    count: currentEmails.length,
+    getScrollElement: () => emailListScrollRef.current,
+    estimateSize: () => EMAIL_ROW_HEIGHT,
+    overscan: 5, // Render 5 extra rows above/below viewport for smooth scrolling
+  });
 
   // Handle thread toggle
   const handleToggleThread = useCallback(async (email: Email) => {
@@ -2063,99 +2075,92 @@ To: ${email.to_emails?.join(", ") || ""}
           isLoading={bulkActions.isLoading}
         />
 
-        {/* Email List */}
-        <div className="flex-1 overflow-auto">
-          {viewMode === "split" ? (
-            // Split Inbox View
-            splitInbox.loading && !splitInbox.data ? (
-              <div className="flex items-center justify-center py-12">
-                <Spinner />
-              </div>
-            ) : splitInbox.error ? (
-              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                <WifiOff className="h-8 w-8 mb-2 opacity-50 text-amber-500" />
-                <p className="text-sm">{splitInbox.error}</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-2"
-                  onClick={splitInbox.refresh}
-                >
-                  <RefreshCw className="h-3.5 w-3.5 mr-1" />
-                  Try Again
-                </Button>
-              </div>
-            ) : splitInbox.currentEmails.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                <Inbox className="h-8 w-8 mb-2 opacity-50" />
-                <p className="text-sm">No emails in {splitInbox.selectedCategory}</p>
-              </div>
-            ) : (
-              <div className="divide-y">
-                {splitInbox.currentEmails.map((email) => (
-                  <EmailListItem
-                    key={email.id}
-                    email={email as Email}
-                    isSelected={selectedEmail?.id === email.id}
-                    isChecked={selection.isSelected(email.id)}
-                    hasSelections={selection.hasSelection}
-                    onClick={handleEmailRowClick}
-                    onCheckboxChange={handleCheckboxChange}
-                    onQuickAction={handleQuickAction}
-                    onSnooze={handleSnoozeEmail}
-                    onReply={handleReply}
-                    onReplyAll={handleReplyAll}
-                    onForward={handleForward}
-                    threadCount={(email as Email).thread_count || 0}
-                    isExpanded={threads.isExpanded((email as Email).conversation_id || '')}
-                    onToggleThread={handleToggleThread}
-                    threadEmails={threads.getThread((email as Email).conversation_id || '') || []}
-                    isLoadingThread={threads.isLoading((email as Email).conversation_id || '')}
-                  />
-                ))}
-              </div>
-            )
+        {/* Email List - Virtual Scrolling for performance */}
+        <div
+          ref={emailListScrollRef}
+          className="flex-1 overflow-auto"
+        >
+          {/* Loading State */}
+          {(viewMode === "split" ? (splitInbox.loading && !splitInbox.data) : loading) ? (
+            <div className="flex items-center justify-center py-12">
+              <Spinner />
+            </div>
+          ) : /* Error State (split inbox only) */
+          viewMode === "split" && splitInbox.error ? (
+            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+              <WifiOff className="h-8 w-8 mb-2 opacity-50 text-amber-500" />
+              <p className="text-sm">{splitInbox.error}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                onClick={splitInbox.refresh}
+              >
+                <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                Try Again
+              </Button>
+            </div>
+          ) : /* Empty State */
+          currentEmails.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+              <Inbox className="h-8 w-8 mb-2 opacity-50" />
+              <p className="text-sm">
+                {viewMode === "split"
+                  ? `No emails in ${splitInbox.selectedCategory}`
+                  : "No emails"}
+              </p>
+            </div>
           ) : (
-            // Folder View
-            loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Spinner />
-              </div>
-            ) : emails.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                <Inbox className="h-8 w-8 mb-2 opacity-50" />
-                <p className="text-sm">No emails</p>
-              </div>
-            ) : (
-              <div className="divide-y">
-                {emails.map((email) => (
-                  <EmailListItem
+            /* Virtualized Email List */
+            <div
+              style={{
+                height: `${emailVirtualizer.getTotalSize()}px`,
+                width: '100%',
+                position: 'relative',
+              }}
+            >
+              {emailVirtualizer.getVirtualItems().map((virtualRow) => {
+                const email = currentEmails[virtualRow.index];
+                if (!email) return null;
+
+                return (
+                  <div
                     key={email.id}
-                    email={email}
-                    isSelected={selectedEmail?.id === email.id}
-                    isChecked={selection.isSelected(email.id)}
-                    hasSelections={selection.hasSelection}
-                    onClick={handleEmailRowClick}
-                    onCheckboxChange={handleCheckboxChange}
-                    onQuickAction={handleQuickAction}
-                    onSnooze={handleSnoozeEmail}
-                    onReply={handleReply}
-                    onReplyAll={handleReplyAll}
-                    onForward={handleForward}
-                    threadCount={email.thread_count || 0}
-                    isExpanded={threads.isExpanded(email.conversation_id || '')}
-                    onToggleThread={handleToggleThread}
-                    threadEmails={threads.getThread(email.conversation_id || '') || []}
-                    isLoadingThread={threads.isLoading(email.conversation_id || '')}
-                    // Drag-drop props for folder view
-                    enableDrag={true}
-                    accountId={selectedAccount}
-                    accountType={accounts.find(a => String(a.id) === selectedAccount)?.type as "imap" | "outlook" | "ms365" || "outlook"}
-                    sourceFolder={selectedFolder}
-                  />
-                ))}
-              </div>
-            )
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      transform: `translateY(${virtualRow.start}px)`,
+                    }}
+                  >
+                    <EmailListItem
+                      email={email}
+                      isSelected={selectedEmail?.id === email.id}
+                      isChecked={selection.isSelected(email.id)}
+                      hasSelections={selection.hasSelection}
+                      onClick={handleEmailRowClick}
+                      onCheckboxChange={handleCheckboxChange}
+                      onQuickAction={handleQuickAction}
+                      onSnooze={handleSnoozeEmail}
+                      onReply={handleReply}
+                      onReplyAll={handleReplyAll}
+                      onForward={handleForward}
+                      threadCount={email.thread_count || 0}
+                      isExpanded={threads.isExpanded(email.conversation_id || '')}
+                      onToggleThread={handleToggleThread}
+                      threadEmails={threads.getThread(email.conversation_id || '') || []}
+                      isLoadingThread={threads.isLoading(email.conversation_id || '')}
+                      // Drag-drop props (folder view only)
+                      enableDrag={viewMode === "folders"}
+                      accountId={selectedAccount}
+                      accountType={accounts.find(a => String(a.id) === selectedAccount)?.type as "imap" | "outlook" | "ms365" || "outlook"}
+                      sourceFolder={selectedFolder}
+                    />
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
 

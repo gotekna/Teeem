@@ -383,6 +383,7 @@ Total: X issues to fix
 | `/t speed` | **Speed Test** - Live browser timing via Chrome DevTools | ~3 min |
 | `/t deep` | **Code Guardian** - Full agent review | ~20 min |
 | `/t refactor` | **TTV Refactor** - Continue TeeemTableView refactoring | ~10-30 min |
+| `/t tables` | **Table Guardian** - Audit all table implementations | ~10 min |
 
 ## Optional: Performance Audit (`/t perf`)
 
@@ -503,6 +504,32 @@ Current Status (as of 2025-12-29):
 - Before major releases
 - After large features land
 - Weekly codebase health check
+
+## Optional: Table Guardian (`/t tables`)
+
+**Spawns Table Guardian agent to audit all table implementations.**
+
+| # | Check | What It Catches |
+|---|-------|-----------------|
+| 1 | TeeemTableView Standard | Pages not using THE ONE table component |
+| 1b | Add Button SSoT | Custom Add buttons instead of `onAddRow` prop |
+| 2 | State Coverage | Missing loading/empty/error states |
+| 3 | Table Speed | Slow opens (>500ms target) |
+| 4 | Performance | Multi-fetch, missing pagination, N+1 |
+| 5 | Accessibility | Missing ARIA + keyboard nav |
+| 6 | Dark Mode | Theme compliance |
+
+**What the agent does:**
+1. Scans all pages using TeeemTableView
+2. Checks for SSoT violations (custom columns, duplicate Add buttons)
+3. Validates proper layout (`-mx-4`, `h-full`)
+4. Checks for deprecated patterns
+5. Reports compliance score
+
+**When to use:**
+- After adding a new table page
+- When table performance issues arise
+- Before major UI releases
 
 ## Philosophy
 
