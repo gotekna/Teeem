@@ -1469,18 +1469,31 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     setBulkLinkLoading(false);
   };
 
-  // Handle bulk link from job contact
-  const handleBulkLinkContact = async (jobContactId: number) => {
+  // Handle bulk link from suggested option (job contact, contact, or user)
+  const handleBulkLinkOption = async (option: {
+    type: string;
+    job_contact_id?: number;
+    contact_id?: number;
+    user_id?: number;
+  }) => {
     setBulkLinkLoading(true);
     try {
+      // Build payload based on option type
+      const payload: Record<string, number> = {};
+      if (option.type === 'job_contact' && option.job_contact_id) {
+        payload.job_contact_id = option.job_contact_id;
+      } else if (option.type === 'contact' && option.contact_id) {
+        payload.contact_id = option.contact_id;
+      } else if (option.type === 'user' && option.user_id) {
+        payload.user_id = option.user_id;
+      }
+
       const response = await api.post<{
         success: boolean;
         linked_count: number;
         skipped_count: number;
         attachments: TaskAttachment[];
-      }>(`/api/v1/sm_tasks/${task.id}/bulk_link_emails`, {
-        job_contact_id: jobContactId
-      });
+      }>(`/api/v1/sm_tasks/${task.id}/bulk_link_emails`, payload);
 
       if (response?.success) {
         // Add new attachments to local state
@@ -3242,15 +3255,15 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                         </div>
                       )}
 
-                      {/* Job Contacts (Client, Supervisor, etc.) */}
+                      {/* Suggested Contacts (Supplier, Assigned, Client, etc.) */}
                       {!bulkLinkLoading && bulkLinkOptions?.options && bulkLinkOptions.options.length > 0 && (
                         <div className="space-y-1">
-                          <label className="text-xs text-muted-foreground">Job contacts:</label>
-                          {bulkLinkOptions.options.map((opt) => (
+                          <label className="text-xs text-muted-foreground">Suggested:</label>
+                          {bulkLinkOptions.options.map((opt, idx) => (
                             <button
-                              key={opt.job_contact_id}
+                              key={`${opt.type}-${opt.job_contact_id || opt.contact_id || opt.user_id || idx}`}
                               className="w-full flex items-center justify-between p-2 text-sm rounded hover:bg-muted text-left"
-                              onClick={() => handleBulkLinkContact(opt.job_contact_id)}
+                              onClick={() => handleBulkLinkOption(opt)}
                             >
                               <span className="truncate">{opt.label}</span>
                               <Badge variant="secondary" className="text-xs ml-2 shrink-0">
