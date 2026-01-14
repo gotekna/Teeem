@@ -1,16 +1,14 @@
 # frozen_string_literal: true
 
 # TaskResponseUploader
-# Uploads task files to SharePoint
+# Uploads task files to document storage (SharePoint, S3, etc.)
 #
-# For tasks WITH a job:
-#   - "response" → /Jobs/{JobCode}/Task/{TaskId}/Responses/{filename}
-#   - "info" → /Jobs/{JobCode}/Task/{TaskId}/Attachments/{filename}
+# ALL tasks use the same folder structure from StorageConfiguration (SSoT):
+#   - /Tasks/{TaskId}/Responses/{filename}
+#   - /Tasks/{TaskId}/Attachments/{filename}
 #
-# For tasks WITHOUT a job (standalone tasks):
-#   - All files → /Tasks/{TaskId}/{Category}/{filename}
-#
-# SSoT: Paths come from StorageConfiguration.job_path() and StorageConfiguration.task_path()
+# Job linkage is a DATA relationship (stored in document record), not a storage path decision.
+# SSoT: StorageConfiguration.task_path() defines where task files go.
 class TaskResponseUploader
   class UploadError < StandardError; end
 
@@ -102,28 +100,19 @@ class TaskResponseUploader
     category == "response" ? "task_response" : "task_attachment"
   end
 
-  # Target folder path based on whether task has a job
-  # SSoT: Uses StorageConfiguration for path resolution
+  # Target folder path for task files
+  # SSoT: StorageConfiguration.task_path() defines where ALL task files go
+  # Job linkage is a data relationship, not a storage path decision
   def target_folder_path
     config = StorageConfiguration.for_organization(organization)
-    if job.present?
-      # Task has a job - use job/task folder structure
-      # /Jobs/{JobCode}/Task/{TaskId}/Responses or /Attachments
-      base_job_path = config.job_path(job.code, "Task")
-      File.join(base_job_path, task.id.to_s, folder_name)
-    else
-      # Standalone task - use task folder structure
-      # /Tasks/{TaskId}/Responses or /Attachments
-      config.task_path(task.id, folder_name)
-    end
+    # All tasks use the same path structure: /Tasks/{TaskId}/{category}
+    config.task_path(task.id, folder_name)
   end
 
   def ensure_folder_exists(provider, folder_path)
     return if provider.folder_exists?(folder_path)
 
-    # Create the folder
+    # Create the folder - provider handles existing folders gracefully
     provider.create_folder(folder_path, create_parents: true)
-  rescue DocumentProviders::Base::AlreadyExistsError
-    # Folder already exists, that's fine
   end
 end
