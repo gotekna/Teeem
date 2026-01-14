@@ -66,9 +66,12 @@ class TaskResponseUploader
       file_name: upload_result[:filename],
       # SSoT: Use storage_item_id (provider-agnostic) instead of sharepoint_file_id
       storage_item_id: upload_result[:file_id],
-      storage_provider: StorageConfiguration.instance.provider_type,
+      # Map provider type to valid storage_provider value
+      # wasabi/s3/etc. → s3_compatible, sharepoint stays sharepoint
+      storage_provider: normalized_storage_provider,
       storage_path: upload_result[:folder_path],
-      document_type: document_type,
+      # Use "other" document type for task uploads (task_response/task_attachment not in valid types)
+      document_type: "other",
       folder: folder_name,
       source: "task_upload"
     }
@@ -100,9 +103,20 @@ class TaskResponseUploader
     category == "response" ? "Responses" : "Attachments"
   end
 
-  # Document type based on category
-  def document_type
-    category == "response" ? "task_response" : "task_attachment"
+  # Normalize storage provider type to valid CorporateCompanyDocument values
+  # Valid: ["sharepoint", "s3_compatible"]
+  # Maps: wasabi/s3/minio/etc. → s3_compatible
+  def normalized_storage_provider
+    provider_type = StorageConfiguration.instance.provider_type
+    case provider_type
+    when "sharepoint"
+      "sharepoint"
+    when "wasabi", "s3", "minio", "aws_s3"
+      "s3_compatible"
+    else
+      # Default to s3_compatible for unknown providers
+      "s3_compatible"
+    end
   end
 
   # Target folder path for task files
