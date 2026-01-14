@@ -20,8 +20,9 @@ class TaskResponseUploader
     @job = job
     @task = task
     @category = category
-    # SmTask doesn't have .organization - get it through the job association
-    @organization = organization || job&.organization || task&.job&.organization || Organization.current
+    # Get organization - use Organization.first for single-tenant app
+    # Job doesn't have .organization association, so we use the global org
+    @organization = organization || Organization.first
   end
 
   # Upload a file to the appropriate SharePoint folder

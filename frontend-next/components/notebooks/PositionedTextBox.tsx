@@ -67,14 +67,14 @@ export function PositionedTextBox({
       levels: [1, 2, 3],
     }),
     // Explicitly add Blockquote for Quote style
-    Blockquote,
+    Blockquote.configure({}),
     Placeholder.configure({
       placeholder: box.isMainContent ? "Start writing..." : "Type here...",
     }),
-    Underline,
-    TextStyle,
+    Underline.configure({}),
+    TextStyle.configure({}),
     createFontSizeExtension(),
-    Color,
+    Color.configure({}),
     Highlight.configure({
       multicolor: true,
     }),

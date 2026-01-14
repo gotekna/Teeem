@@ -1299,10 +1299,10 @@ export function RichTextEditor({
           showOnlyWhenEditable: true,
           includeChildren: false,
         }),
-        Underline,
-        TextStyle,
+        Underline.configure({}),
+        TextStyle.configure({}),
         FontSize,
-        Color,
+        Color.configure({}),
         Highlight.configure({
           multicolor: true,
         }),
@@ -1341,9 +1341,9 @@ export function RichTextEditor({
             class: "email-signature-table",
           },
         }),
-        TableRow,
-        TableCell,
-        TableHeader,
+        TableRow.configure({}),
+        TableCell.configure({}),
+        TableHeader.configure({}),
         createSlashCommandExtension(onSlashCommand),
       ];
 

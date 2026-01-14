@@ -58,6 +58,8 @@ export interface UnifiedGanttCallbacks {
   onDependencyPopupHide?: () => void;
   /** Called when a cell should be edited (double-click on editable column) */
   onCellEdit?: (task: GanttTask, columnId: string, field: string, currentValue: unknown, cellRect: { x: number; y: number; width: number; height: number }) => void;
+  /** Called when a Gantt bar is clicked (in timeline area, not table) */
+  onGanttBarClick?: (task: GanttTask, event: MouseEvent) => void;
 }
 
 /** Drag operation type */
@@ -2313,6 +2315,12 @@ export class UnifiedGanttCanvas {
         shift: e.shiftKey,
       });
       this.callbacks.onTaskClick?.(task, e);
+
+      // If clicking on a Gantt bar in the timeline area (not table), fire onGanttBarClick
+      if (x >= this.tableWidth) {
+        this.callbacks.onGanttBarClick?.(task, e);
+      }
+
       this.markDirty();
     }
   };
