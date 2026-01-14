@@ -48,7 +48,7 @@ export default function CloudflareSettingsPage() {
   React.useEffect(() => {
     const loadCredential = async () => {
       try {
-        const response = await api.get<CloudflareCredentialResponse>('/cloudflare_credentials');
+        const response = await api.get<CloudflareCredentialResponse>('/api/v1/cloudflare_credentials');
         if (response?.success && response.data) {
           setCredential(response.data);
           setAccountId(response.data.account_id || '');
@@ -70,7 +70,7 @@ export default function CloudflareSettingsPage() {
 
   const loadZones = async () => {
     try {
-      const response = await api.get<CloudflareZonesResponse>('/cloudflare_credentials/zones');
+      const response = await api.get<CloudflareZonesResponse>('/api/v1/cloudflare_credentials/zones');
       if (response?.success && response.data) {
         setZones(response.data);
       }
@@ -101,7 +101,7 @@ export default function CloudflareSettingsPage() {
         payload.api_token = apiToken;
       }
 
-      const response = await api.post<CloudflareCredentialResponse>('/cloudflare_credentials', payload);
+      const response = await api.post<CloudflareCredentialResponse>('/api/v1/cloudflare_credentials', payload);
 
       if (response?.success && response.data) {
         setCredential(response.data);
@@ -112,7 +112,7 @@ export default function CloudflareSettingsPage() {
 
         // Reload after a short delay to get updated status
         setTimeout(async () => {
-          const updated = await api.get<CloudflareCredentialResponse>('/cloudflare_credentials');
+          const updated = await api.get<CloudflareCredentialResponse>('/api/v1/cloudflare_credentials');
           if (updated?.success && updated.data) {
             setCredential(updated.data);
             if (updated.data.status === 'connected') {
@@ -141,7 +141,7 @@ export default function CloudflareSettingsPage() {
     setTesting(true);
     try {
       const response = await api.post<CloudflareTestResponse>(
-        `/cloudflare_credentials/${credential.id}/test`
+        `/api/v1/cloudflare_credentials/${credential.id}/test`
       );
 
       if (response?.success && response.data?.connected) {
@@ -150,7 +150,7 @@ export default function CloudflareSettingsPage() {
         });
 
         // Reload credential to get updated status
-        const updated = await api.get<CloudflareCredentialResponse>('/cloudflare_credentials');
+        const updated = await api.get<CloudflareCredentialResponse>('/api/v1/cloudflare_credentials');
         if (updated?.success && updated.data) {
           setCredential(updated.data);
           loadZones();
@@ -173,7 +173,7 @@ export default function CloudflareSettingsPage() {
     if (!confirm('Are you sure you want to disconnect Cloudflare?')) return;
 
     try {
-      await api.delete(`/cloudflare_credentials/${credential.id}`);
+      await api.delete(`/api/v1/cloudflare_credentials/${credential.id}`);
       setCredential(null);
       setZones([]);
       setApiToken('');
