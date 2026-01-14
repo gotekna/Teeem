@@ -55,50 +55,19 @@ class NotebookPageAttachment < ApplicationRecord
   end
 
   # ========================================
-  # Warehouse Path (for File Warehouse storage)
+  # Warehouse Path (SSoT: StorageConfiguration)
   # ========================================
 
-  # Compute the warehouse path for this attachment
-  # SSoT: Uses StorageConfiguration for base path and template
-  #
+  # SSoT: Full warehouse path including filename
   # Example: "Warehousing/Notes/Robert Harder/2026/report.pdf"
-  #
   def warehouse_path
-    config = StorageConfiguration.instance
-    base = config.path_for(:notes)
-    template = config.template_for(:notes)
-
-    # Resolve template placeholders
-    resolved = resolve_template(template, {
-      "UserName" => uploaded_by&.name || "Unknown",
-      "Year" => created_at&.year&.to_s || Time.current.year.to_s,
-      "Month" => created_at&.strftime("%m") || Time.current.strftime("%m")
-    })
-
-    # Combine: base/template/filename
-    "#{base}/#{resolved}/#{file_name}".gsub(%r{/+}, "/")
+    "#{warehouse_folder_path}/#{file_name}".gsub(%r{/+}, "/")
   end
 
-  # Folder path (without filename)
+  # SSoT: Folder path computed by StorageConfiguration
   def warehouse_folder_path
-    config = StorageConfiguration.instance
-    base = config.path_for(:notes)
-    template = config.template_for(:notes)
-
-    resolved = resolve_template(template, {
-      "UserName" => uploaded_by&.name || "Unknown",
-      "Year" => created_at&.year&.to_s || Time.current.year.to_s,
-      "Month" => created_at&.strftime("%m") || Time.current.strftime("%m")
-    })
-
-    "#{base}/#{resolved}".gsub(%r{/+}, "/")
+    StorageConfiguration.instance.resolve_warehouse_path(self, scope: :notes)
   end
 
   private
-
-  def resolve_template(template, values)
-    result = template.dup
-    values.each { |key, value| result.gsub!("{{#{key}}}", value.to_s) }
-    result
-  end
 end

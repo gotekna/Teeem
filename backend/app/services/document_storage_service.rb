@@ -407,8 +407,16 @@ class DocumentStorageService
     if path.match?(/\.\w{2,5}$/)
       path
     elsif filename.present?
-      # Storage path is just folder - append filename
-      "#{path.chomp('/')}/#{filename}"
+      # Check if path already ends with the filename (even without extension)
+      # This handles cases like: path="Tasks/123/ASIC Registration", filename="ASIC Registration"
+      path_basename = File.basename(path)
+      if path_basename == filename || path_basename == File.basename(filename, ".*")
+        # Path already includes filename - use as-is
+        path
+      else
+        # Storage path is just folder - append filename
+        "#{path.chomp('/')}/#{filename}"
+      end
     else
       # No filename available, use path as-is (will likely fail)
       path

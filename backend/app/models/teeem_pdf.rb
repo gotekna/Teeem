@@ -58,6 +58,25 @@ class TeeemPdf < ApplicationRecord
   scope :for_job, ->(job_id) { where(job_id: job_id) }
   scope :unattached, -> { where(job_id: nil) }
 
+  # ========================================
+  # Warehouse Path (SSoT: StorageConfiguration)
+  # ========================================
+
+  # SSoT: Full warehouse path including filename
+  def warehouse_path
+    "#{warehouse_folder_path}/#{safe_filename}.pdf".gsub(%r{/+}, "/")
+  end
+
+  # SSoT: Folder path computed by StorageConfiguration
+  def warehouse_folder_path
+    StorageConfiguration.instance.resolve_warehouse_path(self, scope: :pdf_documents)
+  end
+
+  # Safe filename (remove special characters)
+  def safe_filename
+    name.gsub(/[^a-zA-Z0-9\s\-_]/, "").strip.presence || "Untitled"
+  end
+
   private
 
   def set_default_data

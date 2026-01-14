@@ -21,40 +21,17 @@ class TeeemSpreadsheet < ApplicationRecord
   scope :unattached, -> { where(job_id: nil) }
 
   # ========================================
-  # Warehouse Path (for File Warehouse storage)
+  # Warehouse Path (SSoT: StorageConfiguration)
   # ========================================
 
-  # Compute the warehouse path for this spreadsheet
-  # SSoT: Uses StorageConfiguration for base path and template
-  #
+  # SSoT: Full warehouse path including filename
   def warehouse_path
     "#{warehouse_folder_path}/#{safe_filename}.xlsx".gsub(%r{/+}, "/")
   end
 
-  # Folder path (without filename)
+  # SSoT: Folder path computed by StorageConfiguration
   def warehouse_folder_path
-    config = StorageConfiguration.instance
-
-    if job.present?
-      # SSoT: StorageConfiguration.path_for(:job) + template_for(:job)
-      base = config.path_for(:job)
-      template = config.template_for(:job)
-      resolved = resolve_template(template, {
-        "JobCode" => job.job_code,
-        "TabName" => "Excel"
-      })
-      "#{base}/#{resolved}".gsub(%r{/+}, "/")
-    else
-      # SSoT: StorageConfiguration.path_for(:excel_documents) + template
-      base = config.path_for(:excel_documents)
-      template = config.template_for(:excel_documents)
-      resolved = resolve_template(template, {
-        "UserName" => user&.name || "Unknown",
-        "Year" => created_at&.year&.to_s || Time.current.year.to_s,
-        "Month" => created_at&.strftime("%m") || Time.current.strftime("%m")
-      })
-      "#{base}/#{resolved}".gsub(%r{/+}, "/")
-    end
+    StorageConfiguration.instance.resolve_warehouse_path(self, scope: :excel_documents)
   end
 
   # Safe filename (remove special characters)
@@ -63,12 +40,6 @@ class TeeemSpreadsheet < ApplicationRecord
   end
 
   private
-
-  def resolve_template(template, values)
-    result = template.dup
-    values.each { |key, value| result.gsub!("{{#{key}}}", value.to_s) }
-    result
-  end
 
 
   def set_default_data

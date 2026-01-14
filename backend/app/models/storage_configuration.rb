@@ -69,6 +69,7 @@ class StorageConfiguration < ApplicationRecord
     "excel_documents" => "Warehousing/Excel",
     "word_documents" => "Warehousing/Word",
     "powerpoint_documents" => "Warehousing/PowerPoint",
+    "pdf_documents" => "Warehousing/PDF",
     # Template scopes
     "templates" => "Warehousing/Templates",
     "bank_statements" => "Warehousing/Templates/Bank Statements",
@@ -177,7 +178,8 @@ class StorageConfiguration < ApplicationRecord
     "notes" => "{{UserName}}/{{Year}}",
     "excel_documents" => "{{UserName}}/{{Year}}",
     "word_documents" => "{{UserName}}/{{Year}}",
-    "powerpoint_documents" => "{{UserName}}/{{Year}}"
+    "powerpoint_documents" => "{{UserName}}/{{Year}}",
+    "pdf_documents" => "{{UserName}}/{{Year}}"
   }.freeze
 
   # Get template for a scope
@@ -198,10 +200,12 @@ class StorageConfiguration < ApplicationRecord
   # @param subfolder [String] Optional subfolder within job (e.g., "Responses", "Task Attachments")
   # @return [String] Full path like "/Jobs/JOB-001/Responses"
   def job_path(job_code, subfolder = nil)
-    # Use template from config (e.g., "{{JobCode}}/{{TabName}}")
+    # Use template from config (e.g., "{{JobCode}}/{{TabName}}" or "{{JobCode}}/{{Category}}")
     template = template_for(:job)
     resolved = template.gsub("{{JobCode}}", job_code.to_s)
+    # Support both {{TabName}} and {{Category}} placeholders
     resolved = resolved.gsub("{{TabName}}", subfolder.to_s) if subfolder.present?
+    resolved = resolved.gsub("{{Category}}", subfolder.to_s) if subfolder.present?
     # Remove any remaining template tokens if subfolder not provided
     resolved = resolved.gsub(/\/?\{\{[^\}]+\}\}/, "")
     base = File.join(root_path, path_for(:job), resolved)
@@ -431,6 +435,59 @@ class StorageConfiguration < ApplicationRecord
       }.compact
     else
       {}
+    end
+  end
+
+  # ========================================
+  # SSoT: Warehouse Path Resolution
+  # ========================================
+
+  # SSoT: Resolve warehouse path for any document entity
+  # This is THE ONE method for computing storage paths for:
+  # - TeeemSpreadsheet, TeeemDocument, TeeemPresentation, TeeemPdf, NotebookPageAttachment
+  #
+  # @param entity [ActiveRecord] The document entity (must respond to :job, :user, :created_at)
+  # @param scope [Symbol] The warehouse scope (:excel_documents, :word_documents, :powerpoint_documents, :notes, :pdf_documents)
+  # @param tab_name [String] Optional tab name for job-attached documents (default: derived from scope)
+  # @return [String] The resolved folder path
+  #
+  # Examples:
+  #   resolve_warehouse_path(spreadsheet, :excel_documents)
+  #   # Job attached: "Jobs/JOB-001/Excel"
+  #   # No job:       "Warehousing/Excel/Robert Harder/2026"
+  #
+  def resolve_warehouse_path(entity, scope:, tab_name: nil)
+    job = entity.respond_to?(:job) ? entity.job : nil
+    user = entity.respond_to?(:user) ? entity.user : nil
+    uploaded_by = entity.respond_to?(:uploaded_by) ? entity.uploaded_by : nil
+    effective_user = user || uploaded_by
+    created_at = entity.respond_to?(:created_at) ? entity.created_at : Time.current
+
+    if job.present?
+      # Job-attached: Use job folder structure
+      # SSoT: EntityTab defines the folder name, but we use tab_name for document type
+      effective_tab_name = tab_name || default_tab_name_for(scope)
+      job_path(job.job_number, effective_tab_name)
+    else
+      # Standalone: Use warehousing folder structure
+      # SSoT: StorageConfiguration.path_for + template_for
+      resolve_path(scope, {
+        UserName: effective_user&.name || "Unknown",
+        Year: created_at&.year&.to_s || Time.current.year.to_s,
+        Month: created_at&.strftime("%m") || Time.current.strftime("%m")
+      })
+    end
+  end
+
+  # Default tab name for each document scope (used when job-attached)
+  def default_tab_name_for(scope)
+    case scope.to_sym
+    when :excel_documents then "Excel"
+    when :word_documents then "Word"
+    when :powerpoint_documents then "PowerPoint"
+    when :pdf_documents then "PDF"
+    when :notes then "Notes"
+    else scope.to_s.titleize
     end
   end
 
