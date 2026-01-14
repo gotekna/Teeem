@@ -354,13 +354,6 @@ export function GanttUnified({
             rect: cellRect,
           });
         },
-        onGanttBarClick: (task) => {
-          // Toggle hold checkbox when clicking on a Gantt bar
-          const rowData = task.rowData as Record<string, unknown> | undefined;
-          const newValue = !rowData?.hold;
-          engine.updateTaskField(task.id, 'hold', newValue);
-          onCheckboxToggle?.(task.id, 'hold', newValue);
-        },
       });
 
       ganttEngineRef.current = engine;

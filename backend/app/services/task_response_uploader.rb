@@ -4,11 +4,11 @@
 # Uploads task files to SharePoint
 #
 # For tasks WITH a job:
-#   - "response" → /Jobs/{JobCode}/Responses/{filename}
-#   - "info" → /Jobs/{JobCode}/Task Attachments/{filename}
+#   - "response" → /Jobs/{JobCode}/Task/{TaskId}/Responses/{filename}
+#   - "info" → /Jobs/{JobCode}/Task/{TaskId}/Attachments/{filename}
 #
 # For tasks WITHOUT a job (standalone tasks):
-#   - All files → /Tasks/Task-{id}/{Category}/{filename}
+#   - All files → /Tasks/{TaskId}/{Category}/{filename}
 #
 # SSoT: Paths come from StorageConfiguration.job_path() and StorageConfiguration.task_path()
 class TaskResponseUploader
@@ -94,7 +94,7 @@ class TaskResponseUploader
 
   # Folder name based on category
   def folder_name
-    category == "response" ? "Responses" : "Task Attachments"
+    category == "response" ? "Responses" : "Attachments"
   end
 
   # Document type based on category
@@ -107,10 +107,13 @@ class TaskResponseUploader
   def target_folder_path
     config = StorageConfiguration.for_organization(organization)
     if job.present?
-      # Task has a job - use job folder structure
-      config.job_path(job.code, folder_name)
+      # Task has a job - use job/task folder structure
+      # /Jobs/{JobCode}/Task/{TaskId}/Responses or /Attachments
+      base_job_path = config.job_path(job.code, "Task")
+      File.join(base_job_path, task.id.to_s, folder_name)
     else
       # Standalone task - use task folder structure
+      # /Tasks/{TaskId}/Responses or /Attachments
       config.task_path(task.id, folder_name)
     end
   end
