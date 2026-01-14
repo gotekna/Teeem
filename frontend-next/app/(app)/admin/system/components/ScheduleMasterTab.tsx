@@ -4834,6 +4834,36 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
               </div>
             )}
 
+            {/* Dependency options - shown when confirming and task has predecessors */}
+            {supplierConfirmDialog.isConfirming && supplierConfirmDialog.hasPredecessors && (
+              <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md p-3 space-y-2">
+                <div className="text-sm font-medium text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+                  <Link2Off className="h-4 w-4" />
+                  This task has dependencies
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Button
+                    variant={supplierConfirmDialog.confirmOption === 'current' ? 'default' : 'outline'}
+                    size="sm"
+                    className="justify-start"
+                    onClick={() => setSupplierConfirmDialog(prev => ({ ...prev, confirmOption: 'current' }))}
+                  >
+                    <Check className="h-4 w-4 mr-2" />
+                    Confirm at current date ({supplierConfirmDialog.task?.startDate.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })})
+                  </Button>
+                  <Button
+                    variant={supplierConfirmDialog.confirmOption === 'break' ? 'default' : 'outline'}
+                    size="sm"
+                    className="justify-start border-orange-300 text-orange-600 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-400 dark:hover:bg-orange-950"
+                    onClick={() => setSupplierConfirmDialog(prev => ({ ...prev, confirmOption: 'break' }))}
+                  >
+                    <Link2Off className="h-4 w-4 mr-2" />
+                    Break dependencies & confirm at current date
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {/* Confirmation method buttons */}
             <div className="space-y-2">
               <label className="text-sm font-medium">
@@ -4946,14 +4976,20 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
             </Button>
             <Button
               size="sm"
-              disabled={!supplierConfirmDialog.method || !supplierConfirmDialog.contactName}
+              disabled={
+                !supplierConfirmDialog.method ||
+                !supplierConfirmDialog.contactName ||
+                (supplierConfirmDialog.isConfirming && supplierConfirmDialog.hasPredecessors && !supplierConfirmDialog.confirmOption)
+              }
               onClick={async () => {
                 if (supplierConfirmDialog.task && supplierConfirmDialog.method && supplierConfirmDialog.contactName) {
-                  // Save confirmation
+                  // Save confirmation (with optional break dependencies)
+                  const breakDeps = supplierConfirmDialog.confirmOption === 'break';
                   await executeSupplierConfirm(
                     supplierConfirmDialog.task,
                     supplierConfirmDialog.method,
-                    supplierConfirmDialog.contactName
+                    supplierConfirmDialog.contactName,
+                    breakDeps
                   );
                   // Send email if checkbox is checked
                   if (supplierConfirmDialog.sendEmail && supplierConfirmDialog.reason.trim()) {
@@ -4967,9 +5003,11 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
                 }
               }}
             >
-              {supplierConfirmDialog.sendEmail
-                ? (supplierConfirmDialog.isConfirming ? 'Confirm & Email' : 'Update & Email')
-                : (supplierConfirmDialog.isConfirming ? 'Confirm' : 'Update')}
+              {supplierConfirmDialog.confirmOption === 'break'
+                ? 'Break & Confirm'
+                : supplierConfirmDialog.sendEmail
+                  ? (supplierConfirmDialog.isConfirming ? 'Confirm & Email' : 'Update & Email')
+                  : (supplierConfirmDialog.isConfirming ? 'Confirm' : 'Update')}
             </Button>
           </DialogFooter>
         </DialogContent>

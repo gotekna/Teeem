@@ -864,7 +864,8 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
   const executeSupplierConfirm = React.useCallback(async (
     task: GanttTask,
     method: 'phone' | 'text' | 'email',
-    contactName: string
+    contactName: string,
+    breakDependencies?: boolean
   ) => {
     if (!apiConfig) return;
 
@@ -880,6 +881,12 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
         hold: true,
         hold_date: dateStr,
       };
+
+      // If breaking dependencies, clear predecessor_ids
+      if (breakDependencies) {
+        updateData.predecessor_ids = [];
+        updateData.dependency_broken = true;
+      }
 
       await api.patch(
         apiConfig.updateUrl(task.id),

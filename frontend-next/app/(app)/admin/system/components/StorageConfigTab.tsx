@@ -140,7 +140,8 @@ interface StorageConfig {
 interface FolderTreeNode {
   name: string;  // Display name (e.g., "Users", "Contracts")
   path: string;  // Full path (e.g., "Users/Contracts")
-  scopeKey: string | null;  // Scope key if this is a scope folder (e.g., "user_contracts")
+  scopeKey: string | null;  // Primary scope key (first one added)
+  scopeKeys: string[];  // ALL scope keys that share this path (for multi-scope folders like Tasks)
   children: FolderTreeNode[];
   tabs?: EntityTab[];  // Tabs under this scope folder
 }
@@ -171,12 +172,19 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
           name: part,
           path: currentPath,
           scopeKey: isLeaf ? key : null,
+          scopeKeys: isLeaf ? [key] : [],
           children: [],
         };
         current.push(node);
-      } else if (isLeaf && !node.scopeKey) {
-        // If this path is a scope folder but was created as intermediate, update it
-        node.scopeKey = key;
+      } else if (isLeaf) {
+        // Multiple scopes share this path - add to scopeKeys array
+        if (!node.scopeKeys.includes(key)) {
+          node.scopeKeys.push(key);
+        }
+        // Set primary scopeKey if not already set
+        if (!node.scopeKey) {
+          node.scopeKey = key;
+        }
       }
 
       current = node.children;
@@ -257,24 +265,29 @@ function TreeNode({
 }: TreeNodeProps) {
   const hasChildren = node.children.length > 0;
   const hasTabs = node.tabs && node.tabs.length > 0;
-  const isEditing = editingKey === node.scopeKey;
+  // Check if we're editing ANY scope in this node's scopeKeys
+  const isEditingThisNode = editingKey && node.scopeKeys?.includes(editingKey);
+  // The currently editing scope key (could be different from node.scopeKey when multiple scopes share path)
+  const currentEditingScopeKey = isEditingThisNode ? editingKey : null;
   const [editValue, setEditValue] = React.useState(node.path);
   // SSoT: Initialize templates from props (loaded from backend), fallback to defaults
+  // Use editingKey when available, otherwise primary scopeKey
+  const activeScopeKey = currentEditingScopeKey || node.scopeKey;
   const [folderTemplate, setFolderTemplate] = React.useState(
-    node.scopeKey
-      ? scopeTemplates[node.scopeKey] || DEFAULT_FOLDER_TEMPLATES[node.scopeKey] || '{{TabName}}'
+    activeScopeKey
+      ? scopeTemplates[activeScopeKey] || DEFAULT_FOLDER_TEMPLATES[activeScopeKey] || '{{TabName}}'
       : '{{TabName}}'
   );
   const [filenameTemplate, setFilenameTemplate] = React.useState(
-    node.scopeKey ? fileNameTemplates[node.scopeKey] || '{{OriginalFileName}}' : '{{OriginalFileName}}'
+    activeScopeKey ? fileNameTemplates[activeScopeKey] || '{{OriginalFileName}}' : '{{OriginalFileName}}'
   );
   // Config link: checkbox + URL for linking to external config page
   // SSoT: Initialize from configLinks prop (loaded from backend)
-  const initialConfigLink = node.scopeKey ? configLinks[node.scopeKey] || '' : '';
+  const initialConfigLink = activeScopeKey ? configLinks[activeScopeKey] || '' : '';
   const [hasConfigLink, setHasConfigLink] = React.useState(!!initialConfigLink);
 
   // SSoT: Simple scopes without config link can expand to show folder template preview
-  const hasTemplatePreview = node.scopeKey && folderTemplate && !hasConfigLink;
+  const hasTemplatePreview = node.scopeKeys?.length > 0 && folderTemplate && !hasConfigLink;
   const hasExpandableContent = hasChildren || hasTabs || hasTemplatePreview;
   const isExpanded = expandedPaths.has(node.path);
   const [configLinkUrl, setConfigLinkUrl] = React.useState(initialConfigLink);
@@ -285,8 +298,8 @@ function TreeNode({
   const hasModified = React.useRef(false);
 
   // Auto-save function with debounce - calls actual API
-  const autoSave = React.useCallback(async (folder: string, filename: string, configLink: string | null) => {
-    if (!node.scopeKey || !hasModified.current) return;
+  const autoSave = React.useCallback(async (scopeKey: string, folder: string, filename: string, configLink: string | null) => {
+    if (!scopeKey || !hasModified.current) return;
 
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -294,7 +307,7 @@ function TreeNode({
     saveTimeoutRef.current = setTimeout(async () => {
       setIsSaving(true);
       try {
-        await onSaveTemplates(node.scopeKey!, folder, filename, configLink);
+        await onSaveTemplates(scopeKey, folder, filename, configLink);
         setLastSaved(new Date());
       } catch (error) {
         console.error('Failed to save templates:', error);
@@ -302,21 +315,21 @@ function TreeNode({
         setIsSaving(false);
       }
     }, 1000); // 1 second debounce
-  }, [node.scopeKey, onSaveTemplates]);
+  }, [onSaveTemplates]);
 
   // Trigger auto-save when templates or config link change
   React.useEffect(() => {
-    if (isEditing && hasModified.current) {
+    if (currentEditingScopeKey && hasModified.current) {
       // Pass null for configLink if checkbox is unchecked (to remove it)
       const linkToSave = hasConfigLink ? configLinkUrl : null;
-      autoSave(folderTemplate, filenameTemplate, linkToSave);
+      autoSave(currentEditingScopeKey, folderTemplate, filenameTemplate, linkToSave);
     }
     return () => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [folderTemplate, filenameTemplate, hasConfigLink, configLinkUrl, isEditing, autoSave]);
+  }, [folderTemplate, filenameTemplate, hasConfigLink, configLinkUrl, currentEditingScopeKey, autoSave]);
 
   // Handle template changes - mark as modified
   const handleFolderTemplateChange = (value: string) => {
@@ -333,12 +346,25 @@ function TreeNode({
   const isInSimpleScope = parentScopeKey ? SIMPLE_SCOPES.includes(parentScopeKey) : false;
   const isSimpleScopeChild = isInSimpleScope && node.scopeKey && !SIMPLE_SCOPES.includes(node.scopeKey);
 
-  // Reset edit value when editing starts
+  // Reset edit value and templates when editing starts or switches to a different scope
   React.useEffect(() => {
-    if (isEditing) {
-      setEditValue(currentPath[node.scopeKey!] || node.path);
+    if (currentEditingScopeKey) {
+      setEditValue(currentPath[currentEditingScopeKey] || node.path);
+      // Reset templates to the editing scope's values
+      setFolderTemplate(
+        scopeTemplates[currentEditingScopeKey] || DEFAULT_FOLDER_TEMPLATES[currentEditingScopeKey] || '{{TabName}}'
+      );
+      setFilenameTemplate(
+        fileNameTemplates[currentEditingScopeKey] || '{{OriginalFileName}}'
+      );
+      const linkValue = configLinks[currentEditingScopeKey] || '';
+      setConfigLinkUrl(linkValue);
+      setHasConfigLink(!!linkValue);
+      // Reset modification tracking
+      hasModified.current = false;
+      setLastSaved(null);
     }
-  }, [isEditing, node.scopeKey, currentPath, node.path]);
+  }, [currentEditingScopeKey, currentPath, node.path, scopeTemplates, fileNameTemplates, configLinks]);
 
   const fullPath = rootPath
     ? `${rootPath}/${node.path}`.replace(/\/+/g, '/')
@@ -350,7 +376,7 @@ function TreeNode({
       <div
         className={cn(
           "flex items-center gap-1 py-1 px-1 rounded-sm hover:bg-muted/50 group",
-          isEditing && "bg-muted"
+          isEditingThisNode && "bg-muted"
         )}
         style={{ paddingLeft: `${level * 16 + 4}px` }}
       >
@@ -377,31 +403,39 @@ function TreeNode({
         {/* Folder name and scope badge */}
         <span className="font-mono text-sm">{node.name}</span>
 
-        {/* Edit button for any scope folder */}
-        {node.scopeKey && !isEditing && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => onStartEdit(node.scopeKey!)}
-            className="h-5 px-1.5 ml-2 text-[10px] text-muted-foreground"
-          >
-            <Pencil className="h-3 w-3 mr-1" />
-            Edit
-          </Button>
-        )}
-
-        {/* Scope badge */}
-        {node.scopeKey && (
-          <Badge
-            variant="outline"
-            className="h-5 text-[10px] px-1.5 ml-2 bg-background"
-          >
-            {getScopeLabel(node.scopeKey)}
-          </Badge>
+        {/* Scope badges - show all scopes that share this path */}
+        {node.scopeKeys && node.scopeKeys.length > 0 && (
+          <div className="flex items-center gap-1 ml-2">
+            {node.scopeKeys.map((sk) => (
+              <div key={sk} className="flex items-center gap-1">
+                {/* Edit button for this scope */}
+                {editingKey !== sk && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onStartEdit(sk)}
+                    className="h-5 px-1.5 text-[10px] text-muted-foreground"
+                  >
+                    <Pencil className="h-3 w-3 mr-1" />
+                    Edit
+                  </Button>
+                )}
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "h-5 text-[10px] px-1.5 bg-background",
+                    editingKey === sk && "ring-2 ring-primary"
+                  )}
+                >
+                  {getScopeLabel(sk)}
+                </Badge>
+              </div>
+            ))}
+          </div>
         )}
 
         {/* Config link - shown when checkbox is enabled and URL is set */}
-        {hasConfigLink && configLinkUrl && !isEditing && (() => {
+        {hasConfigLink && configLinkUrl && !isEditingThisNode && (() => {
           // Get tab name from URL
           const getTabName = (url: string) => {
             if (url.includes('corporate_entity')) return 'Corporate tab';
@@ -427,7 +461,7 @@ function TreeNode({
         )}
 
         {/* Full path preview (on hover) */}
-        {!isEditing && (
+        {!isEditingThisNode && (
           <span className="ml-auto text-[10px] text-muted-foreground font-mono opacity-0 group-hover:opacity-100 transition-opacity">
             {fullPath}
           </span>
@@ -435,7 +469,7 @@ function TreeNode({
       </div>
 
       {/* Editing panel for any scope folder */}
-      {node.scopeKey && isEditing && (
+      {editingKey && node.scopeKeys?.includes(editingKey) && (
         <div
           className="border rounded-lg bg-card py-3 px-4 my-1 shadow-sm"
           style={{ marginLeft: `${level * 16 + 28}px` }}
@@ -465,10 +499,10 @@ function TreeNode({
             />
 
             {/* Folder suffix buttons for task scopes - SSoT: prevents typos */}
-            {(node.scopeKey === 'task_attachments' || node.scopeKey === 'task_responses') && (
+            {(currentEditingScopeKey === 'task_attachments' || currentEditingScopeKey === 'task_responses') && (
               <div className="flex items-center gap-2 -mt-2">
                 <span className="text-xs text-muted-foreground">Add folder suffix:</span>
-                {node.scopeKey === 'task_attachments' && (
+                {currentEditingScopeKey === 'task_attachments' && (
                   <Button
                     type="button"
                     variant="outline"
@@ -483,7 +517,7 @@ function TreeNode({
                     /Attachments
                   </Button>
                 )}
-                {node.scopeKey === 'task_responses' && (
+                {currentEditingScopeKey === 'task_responses' && (
                   <Button
                     type="button"
                     variant="outline"
@@ -608,7 +642,7 @@ function TreeNode({
         <div>
           {/* For simple scopes WITHOUT config link: show folder template preview */}
           {/* Complex scopes with config links have their folder structure defined in entity tabs (SSoT) */}
-          {node.scopeKey && folderTemplate && !isEditing && !hasConfigLink && (
+          {node.scopeKeys?.length > 0 && folderTemplate && !isEditingThisNode && !hasConfigLink && (
             <div className="ml-1">
               {/* Render folder template as nested preview folders */}
               {(() => {
