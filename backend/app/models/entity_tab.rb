@@ -12,8 +12,8 @@
 #
 class EntityTab < ApplicationRecord
   # Valid scopes (xero tabs are children of corporate_entity/xero tab)
-  # System scopes (email, warehouse, task) are read-only in UI - is_system_tab: true
-  SCOPES = %w[corporate_entity people job document contact email warehouse task xero].freeze
+  # System scopes (email, warehouse, task, task_attachments, task_responses) are read-only in UI - is_system_tab: true
+  SCOPES = %w[corporate_entity people job document contact email warehouse task task_attachments task_responses xero].freeze
 
   # Valid tab groups
   # - overview: Main features and data display
@@ -195,6 +195,8 @@ class EntityTab < ApplicationRecord
     when 'email' then :email
     when 'warehouse' then :warehouse
     when 'task' then :task
+    when 'task_attachments' then :task_attachments
+    when 'task_responses' then :task_responses
     when 'document' then :corporate  # Document tabs default to corporate
     else :job  # Default fallback
     end
@@ -391,8 +393,14 @@ class EntityTab < ApplicationRecord
     # Document folder tabs
     seed_document_tabs!
 
-    # Task tabs
+    # Task tabs (legacy - Tasks folder)
     seed_task_tabs!
+
+    # Task Attachments tabs (Tasks/Attachments folder)
+    seed_task_attachments_tabs!
+
+    # Task Response tabs (Tasks/Responses folder)
+    seed_task_responses_tabs!
 
     Rails.logger.info "[EntityTab] Seeded #{count} total tabs"
   end
@@ -566,6 +574,92 @@ class EntityTab < ApplicationRecord
     end
 
     Rails.logger.info "[EntityTab] Seeded #{where(scope: 'task').count} task tabs"
+  end
+
+  # Task Attachments tabs (for task attachments - under Tasks/Attachments)
+  # SSoT: Defines the folder structure for task attachment documents
+  # Base path from StorageConfiguration: "Tasks/Attachments"
+  # Template: "Tasks/Attachments/{{TaskId}}"
+  private_class_method def self.seed_task_attachments_tabs!
+    # Overview tab - task attachments info display
+    find_or_create_by!(scope: 'task_attachments', tab_key: 'overview') do |tab|
+      tab.display_name = 'Overview'
+      tab.tab_group = 'overview'
+      tab.order_position = 0
+      tab.enabled = true
+      tab.is_system_tab = true
+      tab.icon_name = 'Paperclip'
+    end
+
+    # Document folder tabs for task attachments
+    task_attachment_tabs = [
+      { tab_key: 'attachments', display_name: 'Attachments', icon: 'Paperclip', folder: 'Attachments' },
+      { tab_key: 'documents', display_name: 'Documents', icon: 'FileText', folder: 'Documents' },
+      { tab_key: 'photos', display_name: 'Photos', icon: 'Image', folder: 'Photos', is_photo: true }
+    ]
+
+    task_attachment_tabs.each_with_index do |attrs, idx|
+      find_or_create_by!(scope: 'task_attachments', tab_key: attrs[:tab_key]) do |tab|
+        tab.display_name = attrs[:display_name]
+        tab.tab_group = 'documents'
+        tab.order_position = idx + 10
+        tab.enabled = true
+        tab.is_system_tab = true
+        tab.icon_name = attrs[:icon]
+        tab.has_storage_folder = true
+        tab.storage_folder_path = attrs[:folder]
+        tab.is_photo_category = attrs[:is_photo] || false
+      end
+    end
+
+    Rails.logger.info "[EntityTab] Seeded #{where(scope: 'task_attachments').count} task_attachments tabs"
+  end
+
+  # Callable individually for task attachments seeding
+  def self.seed_task_attachments_tabs_only!
+    send(:seed_task_attachments_tabs!)
+  end
+
+  # Task Response tabs (for task responses - separate from attachments)
+  # SSoT: Defines the folder structure for task response documents
+  # Base path from StorageConfiguration: "Tasks/Responses"
+  # Template: "Tasks/Responses/{{TaskId}}"
+  private_class_method def self.seed_task_responses_tabs!
+    # Overview tab - task response info display
+    find_or_create_by!(scope: 'task_responses', tab_key: 'overview') do |tab|
+      tab.display_name = 'Overview'
+      tab.tab_group = 'overview'
+      tab.order_position = 0
+      tab.enabled = true
+      tab.is_system_tab = true
+      tab.icon_name = 'FileOutput'
+    end
+
+    # Document folder tabs for task responses
+    task_response_tabs = [
+      { tab_key: 'responses', display_name: 'Responses', icon: 'FileOutput', folder: 'Responses' },
+      { tab_key: 'documents', display_name: 'Documents', icon: 'FileText', folder: 'Documents' }
+    ]
+
+    task_response_tabs.each_with_index do |attrs, idx|
+      find_or_create_by!(scope: 'task_responses', tab_key: attrs[:tab_key]) do |tab|
+        tab.display_name = attrs[:display_name]
+        tab.tab_group = 'documents'
+        tab.order_position = idx + 10
+        tab.enabled = true
+        tab.is_system_tab = true
+        tab.icon_name = attrs[:icon]
+        tab.has_storage_folder = true
+        tab.storage_folder_path = attrs[:folder]
+      end
+    end
+
+    Rails.logger.info "[EntityTab] Seeded #{where(scope: 'task_responses').count} task_responses tabs"
+  end
+
+  # Callable individually for task responses seeding
+  def self.seed_task_responses_tabs_only!
+    send(:seed_task_responses_tabs!)
   end
 
   # SSoT: Get effective icon name (child tabs inherit from parent)

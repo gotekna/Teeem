@@ -59,7 +59,8 @@ class StorageConfiguration < ApplicationRecord
     "email_attachments" => "Emails/attachments",
     # Warehouse scopes
     "warehouse" => "Warehousing",
-    "task" => "Tasks/Attachments",
+    "task" => "Tasks",
+    "task_attachments" => "Tasks/Attachments",
     "task_responses" => "Tasks/Responses",
     "bill_inbox" => "Warehousing/BillInbox",
     "pricebook_photos" => "Warehousing/Pricebook Photos",
@@ -160,6 +161,7 @@ class StorageConfiguration < ApplicationRecord
     "jobs" => "{{JobCode}}/{{TabName}}",
     "task" => "{{TaskId}}",
     "tasks" => "{{TaskId}}",
+    "task_attachments" => "{{TaskId}}",
     "task_responses" => "{{TaskId}}",
     "corporate" => "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
     "corporate_entity" => "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
