@@ -48,15 +48,18 @@ module DocumentProviderAware
     @storage_config = StorageConfiguration.instance
 
     # SSoT: StorageConfiguration.provider_type determines which provider to use
-    provider_type = @storage_config&.provider_type || "sharepoint"
+    # Only 3 types: sharepoint, s3_compatible, local
+    provider_type = @storage_config&.provider_type || "s3_compatible"
 
     @document_provider = case provider_type
-    when "wasabi", "s3"
+    when "s3_compatible"
       setup_s3_provider
     when "sharepoint"
       setup_sharepoint_provider
+    when "local"
+      setup_local_provider
     else
-      raise DocumentProviders::NotConnectedError, "Unknown provider type: #{provider_type}"
+      raise DocumentProviders::NotConnectedError, "Unknown provider type: #{provider_type}. Valid: sharepoint, s3_compatible, local"
     end
 
     Rails.logger.info "[DocumentProviderAware] Using #{provider_type} provider (#{@document_provider.class.name})"
@@ -70,15 +73,18 @@ module DocumentProviderAware
     @organization = organization
     @storage_config = StorageConfiguration.for_organization(organization)
 
-    provider_type = @storage_config&.provider_type || "sharepoint"
+    # SSoT: Only 3 types - sharepoint, s3_compatible, local
+    provider_type = @storage_config&.provider_type || "s3_compatible"
 
     @document_provider = case provider_type
-    when "wasabi", "s3"
+    when "s3_compatible"
       setup_s3_provider
     when "sharepoint"
       setup_sharepoint_provider
+    when "local"
+      setup_local_provider
     else
-      raise DocumentProviders::NotConnectedError, "Unknown provider type: #{provider_type}"
+      raise DocumentProviders::NotConnectedError, "Unknown provider type: #{provider_type}. Valid: sharepoint, s3_compatible, local"
     end
 
     Rails.logger.info "[DocumentProviderAware] Using #{provider_type} for org #{organization&.name}"
@@ -203,7 +209,7 @@ module DocumentProviderAware
   # ========================================
 
   # Get the current provider type
-  # @return [Symbol] :sharepoint, :wasabi, :s3, etc.
+  # @return [Symbol] :sharepoint, :s3_compatible, or :local
   def current_provider_type
     return nil unless @document_provider
     @document_provider.provider_type
@@ -214,14 +220,20 @@ module DocumentProviderAware
     current_provider_type == :sharepoint
   end
 
-  # Check if using S3-compatible storage (Wasabi, S3, etc.)
+  # Check if using S3-compatible storage (Wasabi, AWS S3, MinIO, etc.)
   def using_s3?
-    [:s3, :wasabi, :s3_compatible].include?(current_provider_type)
+    current_provider_type == :s3_compatible
   end
 
-  # Check if using Wasabi specifically
+  # Alias for using_s3? - all S3-compatible providers are treated the same
+  # SSoT: Only 3 provider types - sharepoint, s3_compatible, local
   def using_wasabi?
-    @storage_config&.provider_type == "wasabi"
+    using_s3?
+  end
+
+  # Check if using local filesystem storage
+  def using_local?
+    current_provider_type == :local
   end
 
   # Get the storage root path
@@ -249,6 +261,11 @@ module DocumentProviderAware
     credential = MicrosoftCredential.sharepoint_credential
     raise DocumentProviders::NotConnectedError, "SharePoint not connected. Check Admin > System > Connections." unless credential
     DocumentProviders::SharePoint.new(credential)
+  end
+
+  def setup_local_provider
+    config = @storage_config || StorageConfiguration.instance
+    DocumentProviders::Local.new(config)
   end
 
   def ensure_provider_configured!

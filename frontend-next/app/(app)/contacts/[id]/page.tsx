@@ -77,6 +77,7 @@ import {
   ContactEmailsTab,
   ContactActivityTab,
   ContactPriceBookTab,
+  ContactTabsRenderer,
 } from "./components";
 import type {
   Contact,
@@ -1821,6 +1822,21 @@ export default function ContactDetailPage() {
     router.push(newUrl);
   };
 
+  // SSoT: Handler for dropdown sub-tab navigation (from ContactTabsRenderer)
+  const handleSubTabChange = (parentKey: string, childKey: string) => {
+    // Navigate to parent tab with sub-tab in URL
+    // e.g., /contacts/123/financial/invoices
+    const defaultSubTabs: Record<string, string> = {
+      financial: "bank",
+      corporate: "identity",
+    };
+    const isDefault = defaultSubTabs[parentKey] === childKey;
+    const newUrl = isDefault
+      ? `/contacts/${id}/${parentKey}`
+      : `/contacts/${id}/${parentKey}/${childKey}`;
+    router.push(newUrl);
+  };
+
   // Get appropriate sub-tab based on active main tab (now from path segments)
   const activeFinancialSubTab = activeTab === "financial" ? (pathSegments.subtab || "bank") : "bank";
 
@@ -1893,80 +1909,23 @@ export default function ContactDetailPage() {
         onXeroLinksChange={setXeroLinks}
       />
 
-      {/* Tabs */}
+      {/* Tabs - SSoT: Rendered dynamically from EntityTabs database */}
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList className="flex-wrap h-auto gap-1">
-          <TabsTrigger value="overview">{tabConfigMap.overview?.display_name || "Overview"}</TabsTrigger>
-          {/* SSoT: visibility_rule = "Has linked corporate" */}
-          {(directorships.length > 0 || shareholdings.length > 0 || (trustRoles && trustRoles.total_count > 0) || memberships.length > 0) && (
-            <TabsTrigger value="corporate">
-              {(() => { const Icon = getIcon(tabConfigMap.corporate?.icon_name || "building-2"); return <Icon className="h-3.5 w-3.5 mr-1" />; })()}
-              {tabConfigMap.corporate?.display_name || "Corporate"}
-              <Badge variant="secondary" className="ml-1.5">
-                {directorships.length + shareholdings.length + (trustRoles?.total_count || 0) + memberships.length}
-              </Badge>
-              {!contact.can_view_confidential && <Lock className="h-3 w-3 ml-1 text-amber-500" />}
-            </TabsTrigger>
-          )}
-          <TabsTrigger value="documents">{tabConfigMap.documents?.display_name || "Documents"}</TabsTrigger>
-          <TabsTrigger value="financial">
-            {tabConfigMap.financial?.display_name || "Financial"}
-            {!contact.can_view_confidential && <Lock className="h-3 w-3 ml-1 text-amber-500" />}
-          </TabsTrigger>
-          <TabsTrigger value="coms">{tabConfigMap.coms?.display_name || "Communications"}</TabsTrigger>
-          {/* SSoT: visibility_rule = "Has linked cases" */}
-          {caseRelationships.length > 0 && (
-            <TabsTrigger value="cases">
-              {(() => { const Icon = getIcon(tabConfigMap.cases?.icon_name || "briefcase"); return <Icon className="h-3.5 w-3.5 mr-1" />; })()}
-              {tabConfigMap.cases?.display_name || "Cases"}
-              <Badge variant="secondary" className="ml-1.5">
-                {caseRelationships.length}
-              </Badge>
-            </TabsTrigger>
-          )}
-          {contact.email && (
-            <TabsTrigger value="emails">
-              {(() => { const Icon = getIcon(tabConfigMap.emails?.icon_name || "mail"); return <Icon className="h-3.5 w-3.5 mr-1" />; })()}
-              {tabConfigMap.emails?.display_name || "Emails"}
-              {emailsPagination && emailsPagination.total > 0 && (
-                <Badge variant="secondary" className="ml-1.5">
-                  {emailsPagination.total}
-                </Badge>
-              )}
-            </TabsTrigger>
-          )}
-          {/* SSoT: visibility_rule = "Has Primary Xero links" - only show if linked to PRIMARY Xero */}
-          {primaryXeroLink && (
-            <TabsTrigger value="invoices">
-              {(() => { const Icon = getIcon(tabConfigMap.invoices?.icon_name || "file-text"); return <Icon className="h-3.5 w-3.5 mr-1" />; })()}
-              {tabConfigMap.invoices?.display_name || "Invoices"}
-            </TabsTrigger>
-          )}
-          {/* SSoT: visibility_rule = "Has Primary Xero links" - only show if linked to PRIMARY Xero */}
-          {primaryXeroLink && (
-            <TabsTrigger value="bills">
-              {(() => { const Icon = getIcon(tabConfigMap.bills?.icon_name || "receipt"); return <Icon className="h-3.5 w-3.5 mr-1" />; })()}
-              {tabConfigMap.bills?.display_name || "Bills"}
-            </TabsTrigger>
-          )}
-          {contact["is_supplier?"] && (
-            <TabsTrigger value="pricebook">{tabConfigMap.pricebook?.display_name || "Price Book"}</TabsTrigger>
-          )}
-          <TabsTrigger value="portal">{tabConfigMap.portal?.display_name || "Portal Access"}</TabsTrigger>
-          <TabsTrigger value="activity">
-            {(() => { const Icon = getIcon(tabConfigMap.activity?.icon_name || "History"); return <Icon className="h-3.5 w-3.5 mr-1" />; })()}
-            {tabConfigMap.activity?.display_name || "Activity"}
-          </TabsTrigger>
-          {directorships.length > 0 && (
-            <TabsTrigger value="directorships">
-              {(() => { const Icon = getIcon(tabConfigMap.directorships?.icon_name || "users"); return <Icon className="h-3.5 w-3.5 mr-1" />; })()}
-              {tabConfigMap.directorships?.display_name || "Directorships"}
-              <Badge variant="secondary" className="ml-1.5">
-                {directorships.filter(d => d.is_current).length}
-              </Badge>
-            </TabsTrigger>
-          )}
-        </TabsList>
+        <ContactTabsRenderer
+          tabs={contactTabs}
+          activeTab={activeTab}
+          activeSubTab={pathSegments.subtab}
+          onTabChange={handleTabChange}
+          onSubTabChange={handleSubTabChange}
+          contact={contact}
+          xeroLinks={xeroLinks}
+          directorshipsCount={directorships.length}
+          shareholdingsCount={shareholdings.length}
+          trustRolesCount={trustRoles?.total_count || 0}
+          membershipsCount={memberships.length}
+          caseRelationshipsCount={caseRelationships.length}
+          emailsCount={emailsPagination?.total}
+        />
 
         {/* Overview Tab - Redesigned Property Panel */}
         <TabsContent value="overview" className="mt-6">

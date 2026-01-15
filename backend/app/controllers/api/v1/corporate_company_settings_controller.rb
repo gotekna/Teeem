@@ -132,10 +132,10 @@ module Api
         new_status = case provider_type
         when "sharepoint"
           (connection_config["site_id"].present? && connection_config["drive_id"].present?) ? "connected" : "disconnected"
-        when "s3", "wasabi"
+        when "s3_compatible"
           (connection_config["endpoint"].present? && connection_config["bucket"].present?) ? "connected" : "disconnected"
         when "local"
-          "connected"  # Local is always "connected"
+          "connected"
         else
           "disconnected"
         end

@@ -35,10 +35,10 @@ module Api
         response.headers['Expires'] = '0'
 
         storage_config = StorageConfiguration.instance
-        provider = storage_config&.provider_type || "wasabi"
+        provider = storage_config&.provider_type || "s3_compatible"
 
         case provider
-        when "wasabi", "s3"
+        when "s3_compatible"
           # SSoT: S3-compatible storage via S3CompatibleCredential
           credential = S3CompatibleCredential.active.first
           if credential&.status == "connected"

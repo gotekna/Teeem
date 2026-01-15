@@ -127,17 +127,7 @@ class StorageBlob < ApplicationRecord
   end
 
   def self.storage_provider
-    config = StorageConfiguration.instance
-    case config.provider_type
-    when "wasabi", "s3"
-      credential = S3CompatibleCredential.active.first
-      DocumentProviders::S3Compatible.new(credential)
-    when "sharepoint"
-      credential = MicrosoftCredential.sharepoint_credential
-      DocumentProviders::SharePoint.new(credential)
-    else
-      raise "Unknown storage provider: #{config.provider_type}"
-    end
+    DocumentProviders.for_organization(Organization.first)
   end
 
   def storage_provider

@@ -2,11 +2,10 @@
 
 # DocumentProviders - Multi-provider document storage abstraction
 #
-# Provides a unified interface for different document storage backends:
-# - SharePoint (Microsoft 365)
-# - S3-compatible (AWS S3, Backblaze B2, MinIO, Wasabi, Synology NAS)
-# - Box (planned)
-# - Google Drive (planned)
+# SSoT: Only 3 provider types (consolidated Jan 2026)
+# - sharepoint: Microsoft SharePoint/OneDrive (Graph API)
+# - s3_compatible: ALL S3-API storage (AWS S3, Wasabi, MinIO, Backblaze B2, etc.)
+# - local: Local filesystem storage
 #
 # Usage:
 #   provider = DocumentProviders.for_organization(organization)
@@ -35,16 +34,12 @@ module DocumentProviders
     case provider_type.to_s
     when "sharepoint"
       DocumentProviders::SharePoint.for_organization(organization)
-    when "s3", "wasabi"
+    when "s3_compatible"
       DocumentProviders::S3Compatible.for_organization(organization)
-    when "box"
-      raise NotConnectedError, "Box provider not yet implemented"
-    when "google_drive"
-      raise NotConnectedError, "Google Drive provider not yet implemented"
     when "local"
-      raise NotConnectedError, "Local storage provider not yet implemented"
+      DocumentProviders::Local.for_organization(organization)
     else
-      raise Error, "Unknown document provider: #{provider_type}. Check StorageConfiguration."
+      raise Error, "Unknown document provider: #{provider_type}. Valid types: sharepoint, s3_compatible, local"
     end
   end
 end

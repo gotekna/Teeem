@@ -117,19 +117,10 @@ class TaskResponseUploader
   end
 
   # Normalize storage provider type to valid CorporateCompanyDocument values
-  # Valid: ["sharepoint", "s3_compatible"]
-  # Maps: wasabi/s3/minio/etc. → s3_compatible
+  # SSoT: Only 3 provider types - sharepoint, s3_compatible, local
+  # StorageConfiguration.provider_type already normalizes legacy values
   def normalized_storage_provider
-    provider_type = StorageConfiguration.instance.provider_type
-    case provider_type
-    when "sharepoint"
-      "sharepoint"
-    when "wasabi", "s3", "minio", "aws_s3"
-      "s3_compatible"
-    else
-      # Default to s3_compatible for unknown providers
-      "s3_compatible"
-    end
+    StorageConfiguration.instance.provider_type
   end
 
   # Target folder path for task files

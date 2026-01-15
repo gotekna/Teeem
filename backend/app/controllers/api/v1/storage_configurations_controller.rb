@@ -26,21 +26,20 @@ module Api
 
         sp = storage_params
 
-        # Get provider type (default to current or sharepoint)
-        provider_type = sp[:provider_type].presence || storage_config.provider_type || "sharepoint"
+        # Get provider type and normalize legacy values (s3/wasabi → s3_compatible)
+        raw_type = sp[:provider_type].presence || storage_config.provider_type || "s3_compatible"
+        provider_type = %w[s3 wasabi].include?(raw_type) ? "s3_compatible" : raw_type
 
         # Build connection_config based on provider type
         connection_config = storage_config.connection_config || {}
 
         case provider_type
         when "sharepoint"
-          # SharePoint connection config
           connection_config["site_url"] = sp[:site_url] if sp.key?(:site_url)
           connection_config["site_id"] = sp[:site_id] if sp.key?(:site_id)
           connection_config["drive_id"] = sp[:drive_id] if sp.key?(:drive_id)
           connection_config["drive_name"] = sp[:drive_name] if sp.key?(:drive_name)
-        when "s3", "wasabi"
-          # S3/Wasabi connection config
+        when "s3_compatible"
           connection_config["endpoint"] = sp[:endpoint] if sp.key?(:endpoint)
           connection_config["bucket"] = sp[:bucket] if sp.key?(:bucket)
           connection_config["region"] = sp[:region] if sp.key?(:region)
@@ -54,10 +53,10 @@ module Api
         new_status = case provider_type
         when "sharepoint"
           (connection_config["site_id"].present? && connection_config["drive_id"].present?) ? "connected" : "disconnected"
-        when "s3", "wasabi"
+        when "s3_compatible"
           (connection_config["endpoint"].present? && connection_config["bucket"].present?) ? "connected" : "disconnected"
         when "local"
-          "connected"  # Local is always "connected"
+          "connected"
         else
           "disconnected"
         end
@@ -128,7 +127,7 @@ module Api
         case storage_config.provider_type
         when "sharepoint"
           test_sharepoint_connection(storage_config)
-        when "s3", "wasabi"
+        when "s3_compatible"
           test_s3_connection(storage_config)
         when "local"
           test_local_connection(storage_config)

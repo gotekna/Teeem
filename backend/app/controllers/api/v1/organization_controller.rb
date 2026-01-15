@@ -156,15 +156,14 @@ module Api
             # Document storage breakdown (Tekna tenant only - org-wide)
             # SSoT: Orphaned documents (sync_status: 'missing') are deleted, not tracked
             document_storage = if org_name == "Tekna"
-              doc_by_provider = { "wasabi" => 0, "sharepoint" => 0, "s3" => 0 }
+              doc_by_provider = { "s3_compatible" => 0, "sharepoint" => 0 }
               [JobDocument, CorporateCompanyDocument, PeopleDocument].each do |klass|
                 next unless defined?(klass)
                 klass.group(:storage_provider).count.each do |provider, count|
                   normalized = case provider
-                               when "s3_compatible", "wasabi" then "wasabi"
+                               when "s3_compatible", "wasabi", "s3" then "s3_compatible"
                                when "sharepoint", nil then "sharepoint"
-                               when "s3" then "s3"
-                               else "sharepoint"
+                               else "s3_compatible"
                                end
                   doc_by_provider[normalized] += count
                 end
@@ -679,44 +678,48 @@ module Api
         s3_credential = S3CompatibleCredential.active.first rescue nil
         ms_credential = MicrosoftCredential.connected.first rescue nil
 
-        # Determine actual provider based on what's connected (prioritize S3/Wasabi if active)
+        # Determine actual provider based on what's connected (prioritize S3 if active)
         actual_provider_type = if s3_credential&.status == "connected"
-          s3_credential.provider_type == "wasabi" ? "wasabi" : "s3"
+          "s3_compatible"
         elsif ms_credential&.status == "connected"
           "sharepoint"
         else
-          storage_config&.provider_type || "sharepoint"
+          storage_config&.provider_type || "s3_compatible"
         end
 
         actual_connected = case actual_provider_type
-        when "wasabi", "s3" then s3_credential&.status == "connected"
+        when "s3_compatible" then s3_credential&.status == "connected"
         when "sharepoint" then ms_credential&.status == "connected"
         else false
         end
 
         # Count synced files and last sync based on actual provider
         synced_files_count, last_sync_time = case actual_provider_type
-        when "wasabi", "s3"
-          # Documents on S3/Wasabi storage
-          # SSoT: storage_provider values are "s3_compatible", "wasabi", or "s3"
-          s3_docs = documents.where(storage_provider: [ "s3", "wasabi", "s3_compatible" ])
-          [ s3_docs.count, s3_docs.maximum(:last_modified_at) || s3_credential&.updated_at ]
+        when "s3_compatible"
+          s3_docs = documents.where(storage_provider: %w[s3 wasabi s3_compatible])
+          [s3_docs.count, s3_docs.maximum(:last_modified_at) || s3_credential&.updated_at]
         when "sharepoint"
-          # Documents synced from SharePoint/OneDrive
           sp_docs = documents.where(storage_provider: "sharepoint")
-          [ sp_docs.count, sp_docs.maximum(:last_modified_at) || ms_credential&.last_sync_at ]
+          [sp_docs.count, sp_docs.maximum(:last_modified_at) || ms_credential&.last_sync_at]
         else
-          [ 0, nil ]
+          [0, nil]
+        end
+
+        # Use credential's display name for S3 sub-types (Wasabi, AWS S3, etc.)
+        display_name = case actual_provider_type
+        when "s3_compatible" then s3_credential&.provider_display_name || "Cloud Storage"
+        when "sharepoint" then "SharePoint"
+        else "Local Storage"
         end
 
         storage_stats = {
           provider_type: actual_provider_type,
-          provider_name: storage_provider_display_name_for(actual_provider_type),
+          provider_name: display_name,
           connected: actual_connected,
           status: actual_connected ? "connected" : "disconnected",
           # Provider-agnostic connection info
           connection_info: storage_connection_info_for(actual_provider_type, s3_credential, ms_credential, storage_config),
-          root_path: storage_config&.root_path || "/Shared Documents",
+          root_path: storage_config&.root_path || "/",
           total_synced: synced_files_count,
           last_sync: last_sync_time
         }
@@ -802,64 +805,10 @@ module Api
 
       private
 
-      # SSoT: Display name for storage provider
-      def storage_provider_display_name(config)
-        return "SharePoint" unless config
-
-        case config.provider_type
-        when "sharepoint" then "SharePoint"
-        when "s3" then "Amazon S3"
-        when "wasabi" then "Wasabi"
-        when "local" then "Local Storage"
-        else config.provider_type.titleize
-        end
-      end
-
-      # SSoT: Provider-specific connection info for display
-      def storage_connection_info(config)
-        return {} unless config
-
-        # Use effective_connection_info to get from stored config or credential
-        effective_config = config.respond_to?(:effective_connection_info) ? config.effective_connection_info : config.connection_config
-
-        case config.provider_type
-        when "sharepoint"
-          {
-            site_url: effective_config["site_url"] || config.site_url,
-            site_id: effective_config["site_id"] || config.site_id,
-            drive_id: effective_config["drive_id"] || config.drive_id,
-            drive_name: effective_config["drive_name"] || config.drive_name
-          }
-        when "s3", "wasabi"
-          {
-            endpoint: effective_config["endpoint"] || config.endpoint,
-            bucket: effective_config["bucket"] || config.bucket,
-            region: effective_config["region"] || config.region
-          }
-        when "local"
-          {
-            path: config.root_path
-          }
-        else
-          {}
-        end
-      end
-
-      # SSoT: Display name from provider type string
-      def storage_provider_display_name_for(provider_type)
-        case provider_type
-        when "sharepoint" then "SharePoint"
-        when "s3" then "Amazon S3"
-        when "wasabi" then "Wasabi"
-        when "local" then "Local Storage"
-        else provider_type&.titleize || "Cloud Storage"
-        end
-      end
-
       # SSoT: Connection info from credentials directly
       def storage_connection_info_for(provider_type, s3_credential, ms_credential, storage_config)
         case provider_type
-        when "wasabi", "s3"
+        when "s3_compatible"
           return {} unless s3_credential
           {
             endpoint: s3_credential.endpoint,
@@ -870,12 +819,14 @@ module Api
           return {} unless ms_credential
           {
             site_url: ms_credential.site_url || "https://#{ms_credential.tenant_id}.sharepoint.com",
-            site_id: ms_credential.sharepoint_site_id,
-            drive_id: ms_credential.sharepoint_drive_id,
-            drive_name: "Shared Documents"
+            site_id: storage_config&.site_id,
+            drive_id: storage_config&.drive_id,
+            drive_name: storage_config&.drive_name || "Shared Documents"
           }
+        when "local"
+          { path: storage_config&.root_path }
         else
-          storage_connection_info(storage_config)
+          {}
         end
       end
     end

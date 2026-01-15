@@ -32,7 +32,11 @@ class StorageConfiguration < ApplicationRecord
   belongs_to :credential, polymorphic: true, optional: true
 
   # Provider types - what storage backend to use
-  PROVIDER_TYPES = %w[sharepoint s3 wasabi local].freeze
+  # SSoT: Only 3 types - consolidated Jan 2026
+  # - sharepoint: Microsoft SharePoint/OneDrive (Graph API)
+  # - s3_compatible: ALL S3-API storage (AWS S3, Wasabi, MinIO, Backblaze B2, etc.)
+  # - local: Local filesystem storage
+  PROVIDER_TYPES = %w[sharepoint s3_compatible local].freeze
 
   # Connection statuses
   STATUSES = %w[disconnected connected error].freeze
@@ -112,14 +116,26 @@ class StorageConfiguration < ApplicationRecord
   end
 
   # Create default configuration for an organization
+  # SSoT: Uses org.document_provider - no hardcoded fallback
   def self.create_default_for(org)
     return nil unless org
 
+    provider = org.document_provider
+    return nil unless provider.present?
+
+    # SSoT: Root path differs by provider
+    # - SharePoint: /Shared Documents (Microsoft convention)
+    # - S3/Wasabi/local: / (bucket root - bucket name is separate)
+    root = case provider
+           when "sharepoint" then "/Shared Documents"
+           else "/" # S3, Wasabi, s3_compatible, local all use bucket/folder root
+           end
+
     create!(
       organization: org,
-      provider_type: org.document_provider || "sharepoint",
+      provider_type: provider,
       status: "disconnected",
-      root_path: "/Shared Documents"
+      root_path: root
     )
   rescue ActiveRecord::RecordNotUnique
     # Handle race condition
@@ -314,7 +330,7 @@ class StorageConfiguration < ApplicationRecord
       )
     when S3CompatibleCredential
       update!(
-        provider_type: credential.provider_type == "wasabi" ? "wasabi" : "s3",
+        provider_type: "s3_compatible",
         connection_config: connection_config.merge(
           "endpoint" => credential.endpoint,
           "bucket" => credential.bucket,
@@ -358,39 +374,55 @@ class StorageConfiguration < ApplicationRecord
 
   # SSoT: provider_type is the stored column value - no detection/derivation
   # Whatever is configured is THE ONE provider
+  # Fallback to s3_compatible for legacy records (handles old "wasabi"/"s3" values)
   def provider_type
-    read_attribute(:provider_type) || "wasabi"
+    stored = read_attribute(:provider_type)
+    case stored
+    when "wasabi", "s3"
+      "s3_compatible"  # Normalize legacy values
+    when nil, ""
+      "s3_compatible"  # Default
+    else
+      stored
+    end
   end
 
   # ========================================
-  # Provider Helpers (use derived provider_type)
+  # Provider Helpers
+  # SSoT: Only 3 provider types - sharepoint, s3_compatible, local
   # ========================================
 
   def sharepoint?
     provider_type == "sharepoint"
   end
 
-  def s3?
-    provider_type == "s3"
-  end
-
-  def wasabi?
-    provider_type == "wasabi"
+  def s3_compatible?
+    provider_type == "s3_compatible"
   end
 
   def local?
     provider_type == "local"
   end
 
+  # Legacy aliases for backwards compatibility during migration
+  # TODO: Remove after all code updated to use s3_compatible?
+  def s3?
+    s3_compatible?
+  end
+
+  def wasabi?
+    s3_compatible?
+  end
+
   # SSoT: Check if a document's storage_provider matches the current provider
-  # Documents store "s3_compatible" for Wasabi/S3, "sharepoint" for SharePoint
+  # Documents store "s3_compatible" for S3/Wasabi, "sharepoint" for SharePoint
   # This is THE ONE method to check provider compatibility
   def document_in_current_provider?(doc_storage_provider)
     return false if doc_storage_provider.blank?
 
     case provider_type
-    when "wasabi", "s3"
-      # Wasabi/S3 documents are stored with "s3_compatible" or the specific provider name
+    when "s3_compatible"
+      # Legacy docs may have "wasabi" or "s3" - treat as s3_compatible
       %w[s3_compatible wasabi s3].include?(doc_storage_provider)
     when "sharepoint"
       doc_storage_provider == "sharepoint"
@@ -402,11 +434,11 @@ class StorageConfiguration < ApplicationRecord
   end
 
   # SSoT: Get the storage_provider values that match the current provider
-  # Use this for filtering queries
+  # Use this for filtering queries (includes legacy values for existing docs)
   def current_provider_storage_values
     case provider_type
-    when "wasabi", "s3"
-      %w[s3_compatible wasabi s3]
+    when "s3_compatible"
+      %w[s3_compatible wasabi s3]  # Include legacy values
     when "sharepoint"
       %w[sharepoint]
     when "local"
@@ -418,27 +450,28 @@ class StorageConfiguration < ApplicationRecord
 
   # SSoT: Get the storage_provider value to use when CREATING new documents
   # This is THE ONE value to set on new JobDocument, CorporateCompanyDocument, etc.
-  # Maps: wasabi/s3 → "s3_compatible", sharepoint → "sharepoint"
   def storage_provider_for_new_documents
     case provider_type
-    when "wasabi", "s3"
+    when "s3_compatible"
       "s3_compatible"
     when "sharepoint"
       "sharepoint"
     when "local"
       "local"
     else
-      "s3_compatible" # Safe default for new documents
+      "s3_compatible"
     end
   end
 
   # SSoT: connected? checks the appropriate credential for the configured provider
   def connected?
     case provider_type
-    when "wasabi", "s3"
+    when "s3_compatible"
       S3CompatibleCredential.active.first&.status == "connected"
     when "sharepoint"
       MicrosoftCredential.sharepoint_credential&.status == "connected"
+    when "local"
+      true  # Local storage is always "connected"
     else
       false
     end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_15_115005) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_16_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1986,23 +1986,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_15_115005) do
     t.jsonb "working_days", default: {"friday"=>true, "monday"=>true, "sunday"=>false, "tuesday"=>true, "saturday"=>false, "thursday"=>true, "wednesday"=>true}, null: false
     t.jsonb "job_cascade_sort"
     t.jsonb "job_folder_name_format"
-    t.string "contact_documents_path"
     t.string "contact_folder_format", default: "id_name"
-    t.string "company_documents_base_path", default: "00 TEEEM PRIVATE"
-    t.string "people_documents_base_path", default: "teeem/Corporate/People"
-    t.string "job_documents_base_path", default: "Jobs"
     t.string "qbcc_license"
     t.string "logo_mobile"
     t.string "logo_dark"
     t.string "website"
-    t.string "sharepoint_site_url"
-    t.string "sharepoint_site_id"
-    t.string "sharepoint_drive_id"
-    t.string "sharepoint_drive_name"
-    t.string "sharepoint_jobs_path", default: "Jobs"
-    t.string "sharepoint_people_path", default: "Corporate/People"
-    t.string "sharepoint_company_path", default: "00 TEEEM PRIVATE"
-    t.string "sharepoint_contacts_path", default: "Contacts"
     t.string "postcode"
     t.jsonb "corporate_entity_types", default: ["Company", "Trust", "Superfund", "Charity", "Corporate Trustee", "Sole Trader"], null: false
     t.date "gl_lock_date"
@@ -2011,7 +1999,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_15_115005) do
     t.string "bank_bsb"
     t.string "bank_account_number"
     t.string "bank_account_name"
-    t.string "sharepoint_tasks_path"
     t.string "internal_email_domains", default: "tekna.com.au,teeem.au,teeem.com", comment: "Comma-separated list of internal email domains"
     t.string "monitored_mailbox_pay", default: "Pay@tekna.com.au", comment: "Mailbox for incoming invoices/bills"
     t.string "monitored_mailbox_newtask", default: "newtask@tekna.com.au", comment: "Mailbox for creating new tasks from emails"
@@ -7050,62 +7037,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_15_115005) do
     t.index ["user_id"], name: "index_notifications_on_user_id"
   end
 
-  create_table "organization_microsoft_app_credentials", force: :cascade do |t|
-    t.string "client_id"
-    t.text "client_secret"
-    t.string "tenant_id"
-    t.text "access_token"
-    t.datetime "token_expires_at", precision: nil
-    t.boolean "is_active", default: true
-    t.string "status", default: "pending"
-    t.text "last_error"
-    t.datetime "admin_consent_granted_at", precision: nil
-    t.string "admin_consent_granted_by"
-    t.jsonb "sync_config", default: {}
-    t.datetime "last_sync_at", precision: nil
-    t.bigint "setup_by_id"
-    t.datetime "created_at", precision: nil, default: -> { "CURRENT_TIMESTAMP" }, null: false
-    t.datetime "updated_at", precision: nil, default: -> { "CURRENT_TIMESTAMP" }, null: false
-    t.string "name"
-    t.string "sharepoint_site_id"
-    t.string "sharepoint_drive_id"
-    t.string "sharepoint_drive_name"
-    t.jsonb "bulk_sync_progress", default: {}
-    t.bigint "organization_id", null: false
-    t.index ["is_active"], name: "index_org_ms_app_creds_on_is_active"
-    t.index ["name", "is_active"], name: "index_org_microsoft_app_creds_on_name_and_active", unique: true, where: "(is_active = true)"
-    t.index ["name"], name: "index_org_ms_app_creds_on_name"
-    t.index ["organization_id", "is_active"], name: "idx_legacy_ms_creds_org_active_unique", unique: true, where: "((is_active = true) AND (organization_id IS NOT NULL))"
-    t.index ["organization_id"], name: "idx_on_organization_id_ec93e8b0f4"
-    t.index ["setup_by_id"], name: "index_organization_microsoft_app_credentials_on_setup_by_id"
-    t.index ["sharepoint_drive_id"], name: "idx_on_sharepoint_drive_id_0a6d5a1255"
-    t.index ["sharepoint_site_id"], name: "idx_on_sharepoint_site_id_47efe5ba09"
-    t.index ["tenant_id"], name: "index_org_microsoft_app_credentials_on_tenant_id"
-  end
-
-  create_table "organization_one_drive_credentials", force: :cascade do |t|
-    t.text "access_token"
-    t.text "refresh_token"
-    t.datetime "token_expires_at"
-    t.string "drive_id"
-    t.string "drive_name"
-    t.string "root_folder_id"
-    t.string "root_folder_path"
-    t.jsonb "metadata", default: {}
-    t.boolean "is_active", default: true
-    t.bigint "connected_by_id"
-    t.datetime "last_synced_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "name"
-    t.index ["connected_by_id"], name: "index_organization_one_drive_credentials_on_connected_by_id"
-    t.index ["drive_id"], name: "index_organization_one_drive_credentials_on_drive_id"
-    t.index ["is_active"], name: "index_org_onedrive_creds_on_is_active"
-    t.index ["name"], name: "index_org_onedrive_creds_on_name"
-    t.index ["root_folder_id"], name: "index_organization_one_drive_credentials_on_root_folder_id"
-    t.index ["token_expires_at"], name: "index_organization_one_drive_credentials_on_token_expires_at"
-  end
-
   create_table "organizations", force: :cascade do |t|
     t.string "name", null: false
     t.string "slug", null: false
@@ -9784,26 +9715,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_15_115005) do
     t.index ["user_id"], name: "index_user_job_tab_configs_on_user_id"
   end
 
-  create_table "user_microsoft_tokens", force: :cascade do |t|
-    t.bigint "user_id", null: false
-    t.text "access_token"
-    t.text "refresh_token"
-    t.datetime "token_expires_at"
-    t.text "scopes"
-    t.string "email"
-    t.string "status", default: "pending"
-    t.datetime "last_sync_at"
-    t.text "sync_error"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.boolean "refresh_token_dead", default: false, null: false
-    t.integer "consecutive_failures", default: 0, null: false
-    t.datetime "last_refresh_attempt_at"
-    t.index ["email"], name: "index_user_microsoft_tokens_on_email"
-    t.index ["status"], name: "index_user_microsoft_tokens_on_status"
-    t.index ["user_id"], name: "index_user_microsoft_tokens_on_user_id"
-  end
-
   create_table "user_navigation_configs", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.bigint "navigation_item_id", null: false
@@ -10507,17 +10418,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_15_115005) do
     t.index ["sync_type", "tenant_id"], name: "index_xero_sync_statuses_on_sync_type_and_tenant_id", unique: true
   end
 
-  create_table "xero_tax_rates", force: :cascade do |t|
-    t.string "code"
-    t.string "name"
-    t.decimal "rate"
-    t.boolean "active"
-    t.string "display_rate"
-    t.string "tax_type"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-  end
-
   add_foreign_key "account_mappings", "accounting_integrations"
   add_foreign_key "accounting_integrations", "contacts"
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
@@ -10547,7 +10447,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_15_115005) do
   add_foreign_key "assets", "corporate_companies", column: "company_id"
   add_foreign_key "assets", "users", column: "assigned_user_id"
   add_foreign_key "ato_effective_life_rates", "ato_effective_life_categories"
-  add_foreign_key "attachments", "organization_microsoft_app_credentials"
   add_foreign_key "balance_sheet_reports", "corporate_companies", column: "company_id"
   add_foreign_key "balance_sheet_reports", "document_types"
   add_foreign_key "bank_accounts", "corporate_companies", column: "company_id"
@@ -11131,9 +11030,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_15_115005) do
   add_foreign_key "notebook_shares", "users", column: "granted_by_id"
   add_foreign_key "notebooks", "users", column: "owner_id"
   add_foreign_key "notifications", "users"
-  add_foreign_key "organization_microsoft_app_credentials", "organizations"
-  add_foreign_key "organization_microsoft_app_credentials", "users", column: "setup_by_id", name: "organization_microsoft_app_credentials_setup_by_id_fkey"
-  add_foreign_key "organization_one_drive_credentials", "users", column: "connected_by_id"
   add_foreign_key "pay_now_requests", "contacts"
   add_foreign_key "pay_now_requests", "pay_now_weekly_limits"
   add_foreign_key "pay_now_requests", "payments"
@@ -11377,7 +11273,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_15_115005) do
   add_foreign_key "user_job_tab_configs", "job_tabs"
   add_foreign_key "user_job_tab_configs", "job_tabs", column: "parent_job_tab_id"
   add_foreign_key "user_job_tab_configs", "users"
-  add_foreign_key "user_microsoft_tokens", "users"
   add_foreign_key "user_navigation_configs", "navigation_items", name: "user_navigation_configs_navigation_item_id_fkey"
   add_foreign_key "user_navigation_configs", "users", name: "user_navigation_configs_user_id_fkey"
   add_foreign_key "user_permissions", "permissions"

@@ -122,18 +122,7 @@ class FolderTemplateReorganizationService
   end
 
   def get_storage_provider
-    case @storage_config.provider_type
-    when "sharepoint"
-      credential = MicrosoftCredential.sharepoint_credential
-      return nil unless credential
-      DocumentProviders::SharePoint.new(credential)
-    when "s3", "wasabi"
-      credential = S3CompatibleCredential.active.first
-      return nil unless credential
-      DocumentProviders::S3Compatible.new(credential)
-    else
-      nil
-    end
+    DocumentProviders.for_organization(Organization.first)
   rescue => e
     Rails.logger.error "[FolderReorg] Failed to get storage provider: #{e.message}"
     nil

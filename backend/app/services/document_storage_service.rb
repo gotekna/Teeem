@@ -251,19 +251,7 @@ class DocumentStorageService
   private
 
   def get_storage_provider
-    case @storage_config.provider_type
-    when "wasabi", "s3"
-      credential = S3CompatibleCredential.active.first
-      return nil unless credential
-      DocumentProviders::S3Compatible.new(credential)
-    when "sharepoint"
-      credential = MicrosoftCredential.sharepoint_credential
-      return nil unless credential
-      DocumentProviders::SharePoint.new(credential)
-    else
-      Rails.logger.error "[DocumentStorage] Unknown provider: #{@storage_config.provider_type}"
-      nil
-    end
+    DocumentProviders.for_organization(Organization.first)
   rescue => e
     Rails.logger.error "[DocumentStorage] Failed to get provider: #{e.message}"
     nil

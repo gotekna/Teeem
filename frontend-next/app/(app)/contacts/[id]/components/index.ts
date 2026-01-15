@@ -9,6 +9,7 @@ export { ContactCasesTab } from "./ContactCasesTab";
 export { ContactEmailsTab } from "./ContactEmailsTab";
 export { ContactActivityTab } from "./ContactActivityTab";
 export { ContactPriceBookTab } from "./ContactPriceBookTab";
+export { ContactTabsRenderer } from "./ContactTabsRenderer";
 
 // Re-export types for convenience
 export type {
