@@ -374,20 +374,40 @@ export function ContactTypesTab() {
 
   const loadSettings = async () => {
     try {
+      // Load contact documents path from company_settings
       const settings = await api.get<any>("/api/v1/company_settings");
       setContactDocPath(settings.contact_documents_path || "");
-      setContactFolderFormat(settings.contact_folder_format || "id_name");
+
+      // SSoT: Load folder format from StorageConfiguration templates
+      const storageConfig = await api.get<{ success: boolean; data: any }>("/api/v1/storage_configuration");
+      const contactTemplate = storageConfig.data?.scope_templates?.contact || "{{ContactId}} - {{ContactName}}";
+      setContactFolderFormat(templateToFormat(contactTemplate));
     } catch (error) {
       console.error("Failed to load settings:", error);
     }
+  };
+
+  // SSoT: Map dropdown value to StorageConfiguration template string
+  const formatToTemplate: Record<string, string> = {
+    id_name: "{{ContactId}} - {{ContactName}}",
+    id_only: "{{ContactId}}",
+    name_only: "{{ContactName}}",
+  };
+
+  const templateToFormat = (template: string): string => {
+    if (template.includes("{{ContactId}}") && template.includes("{{ContactName}}")) return "id_name";
+    if (template.includes("{{ContactId}}") && !template.includes("{{ContactName}}")) return "id_only";
+    if (!template.includes("{{ContactId}}") && template.includes("{{ContactName}}")) return "name_only";
+    return "id_name";
   };
 
   const handleSaveFolderFormat = async (format: string) => {
     setSavingFormat(true);
     setContactFolderFormat(format);
     try {
-      await api.put("/api/v1/company_settings", {
-        company_setting: { contact_folder_format: format },
+      // SSoT: Save to StorageConfiguration templates
+      await api.patch("/api/v1/storage_configuration", {
+        storage: { scope_templates: { contact: formatToTemplate[format] } },
       });
       toast({
         title: "Success",

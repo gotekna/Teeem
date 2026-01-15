@@ -1985,8 +1985,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_16_100006) do
     t.string "timezone", default: "Australia/Brisbane"
     t.jsonb "working_days", default: {"friday"=>true, "monday"=>true, "sunday"=>false, "tuesday"=>true, "saturday"=>false, "thursday"=>true, "wednesday"=>true}, null: false
     t.jsonb "job_cascade_sort"
-    t.jsonb "job_folder_name_format"
-    t.string "contact_folder_format", default: "id_name"
     t.string "qbcc_license"
     t.string "logo_mobile"
     t.string "logo_dark"

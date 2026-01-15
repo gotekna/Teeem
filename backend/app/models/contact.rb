@@ -1267,43 +1267,26 @@ class Contact < ApplicationRecord
     relationships
   end
 
-  # Generate folder name for this contact based on company settings
-  # Used for document storage in OneDrive/SharePoint
-  # @return [String] folder name (e.g., "123 - ABC Supplies" or "ABC Supplies" or "123")
+  # Generate folder name for this contact
+  # SSoT: Uses StorageConfiguration.templates["contact"] for format
+  # @return [String] folder name (e.g., "123 - ABC Supplies")
   def document_folder_name
-    format = CorporateCompanySetting.instance.contact_folder_format || "id_name"
-    # SSoT: Use centralized SharePoint path sanitization
-    sanitized_name = SharePoint::FilenameSanitizer.sanitize_path_segment(display_name || "Unknown")
-
-    case format
-    when "id_name"
-      "#{id} - #{sanitized_name}"
-    when "name_only"
-      sanitized_name
-    when "id_only"
-      id.to_s
-    else
-      "#{id} - #{sanitized_name}"
-    end
+    self.class.generate_folder_name(contact_id: id, display_name: display_name)
   end
 
   # Class method to generate folder name for a contact
-  # Useful when you only have the ID and display_name
-  def self.generate_folder_name(contact_id:, display_name:, format: nil)
-    format ||= CorporateCompanySetting.instance.contact_folder_format || "id_name"
-    # SSoT: Use centralized SharePoint path sanitization
+  # SSoT: StorageConfiguration.template_for(:contact) is THE ONE source
+  # @example Template "{{ContactId}} - {{ContactName}}" => "123 - ABC Supplies"
+  def self.generate_folder_name(contact_id:, display_name:)
+    template = StorageConfiguration.instance&.template_for(:contact) || "{{ContactId}} - {{ContactName}}"
     sanitized_name = SharePoint::FilenameSanitizer.sanitize_path_segment(display_name || "Unknown")
 
-    case format
-    when "id_name"
-      "#{contact_id} - #{sanitized_name}"
-    when "name_only"
-      sanitized_name
-    when "id_only"
-      contact_id.to_s
-    else
-      "#{contact_id} - #{sanitized_name}"
-    end
+    result = template.dup
+    result.gsub!("{{ContactId}}", contact_id.to_s)
+    result.gsub!("{{ContactName}}", sanitized_name)
+    result.gsub!(%r{//+}, "/")
+    result.gsub!(%r{^/|/$}, "")
+    result
   end
 
   # ============================================

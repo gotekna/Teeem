@@ -423,7 +423,7 @@ module Api
           :twilio_enabled,
           :timezone,
           :contact_documents_path,
-          :contact_folder_format,
+          # SSoT: contact_folder_format removed - use StorageConfiguration.template_for(:contact)
           working_days: [
             :monday,
             :tuesday,

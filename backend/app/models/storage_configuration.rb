@@ -169,7 +169,7 @@ class StorageConfiguration < ApplicationRecord
   end
 
   # Default templates for path generation
-  # SSoT: These are fallback defaults. EntityTab.storage_folder_path is the true SSoT.
+  # SSoT: These are fallback defaults. Database `templates` column overrides these.
   SCOPE_TEMPLATES = {
     "job" => "{{JobCode}}/{{TabName}}",
     "jobs" => "{{JobCode}}/{{TabName}}",
@@ -180,9 +180,9 @@ class StorageConfiguration < ApplicationRecord
     "corporate" => "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
     "corporate_entity" => "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
     "company" => "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
-    "people" => "{{ContactName}}/{{TabName}}",
-    "contact" => "{{ContactName}}/{{TabName}}",
-    "contacts" => "{{ContactName}}/{{TabName}}",
+    "people" => "{{ContactId}} - {{ContactName}}/{{TabName}}",
+    "contact" => "{{ContactId}} - {{ContactName}}",
+    "contacts" => "{{ContactId}} - {{ContactName}}/{{TabName}}",
     "account" => "{{Source}}/{{ContactName}}/{{Category}}",
     "accounts" => "{{Source}}/{{ContactName}}/{{Category}}",
     "email" => "{{Year}}/{{Month}}",

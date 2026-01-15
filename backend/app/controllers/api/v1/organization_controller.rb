@@ -6,32 +6,31 @@ module Api
       before_action :require_admin, only: %i[microsoft_org_stats data_stats]
 
       # GET /api/v1/organization_settings
-      # Returns organization settings including job folder name format
+      # SSoT: Returns folder templates from StorageConfiguration
       def settings
-        company_setting = CorporateCompanySetting.instance
+        config = StorageConfiguration.instance
 
         render json: {
           success: true,
-          job_folder_name_format: company_setting.job_folder_name_format || {
-            fields: [ "street_number", "street_name", "suburb" ],
-            separators: { "0" => " ", "1" => ", " }
-          }
+          # SSoT: Use StorageConfiguration.template_for for folder templates
+          job_folder_template: config&.template_for(:job) || "{{JobCode}}/{{TabName}}",
+          contact_folder_template: config&.template_for(:contact) || "{{ContactId}} - {{ContactName}}"
         }
       end
 
       # PATCH /api/v1/organization_settings
-      # Updates organization settings
+      # SSoT: Updates folder templates in StorageConfiguration
       def update_settings
-        company_setting = CorporateCompanySetting.instance
+        config = StorageConfiguration.instance
+        templates = config.templates || {}
 
-        if params[:job_folder_name_format].present?
-          company_setting.job_folder_name_format = params[:job_folder_name_format].to_unsafe_h
-        end
+        templates["job"] = params[:job_folder_template] if params[:job_folder_template].present?
+        templates["contact"] = params[:contact_folder_template] if params[:contact_folder_template].present?
 
-        if company_setting.save
+        if config.update(templates: templates)
           render json: { success: true, message: "Settings updated successfully" }
         else
-          render json: { success: false, errors: company_setting.errors.full_messages }, status: :unprocessable_entity
+          render json: { success: false, errors: config.errors.full_messages }, status: :unprocessable_entity
         end
       end
 
