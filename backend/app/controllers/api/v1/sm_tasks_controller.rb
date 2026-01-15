@@ -1231,7 +1231,22 @@ module Api
       #   - OR user_id: ID of user to use (gets emails from user)
       def bulk_link_emails
         # Determine which emails to find
-        emails_to_search = if params[:job_contact_id].present?
+        emails_to_search = if params[:job_contact_ids].present?
+          # Multiple job contacts (e.g., "All Clients" button)
+          ids = Array(params[:job_contact_ids]).map(&:to_i)
+          job_contacts = @task.job&.job_contacts&.where(id: ids).includes(contact: :contact_emails, user: [])
+          return render json: { success: false, error: "Job contacts not found" }, status: :not_found if job_contacts.blank?
+
+          job_contacts.flat_map do |jc|
+            if jc.contact.present?
+              jc.contact.all_emails
+            elsif jc.user.present?
+              [ jc.user.email ].compact
+            else
+              []
+            end
+          end.uniq
+        elsif params[:job_contact_id].present?
           jc = @task.job&.job_contacts&.find_by(id: params[:job_contact_id])
           return render json: { success: false, error: "Job contact not found" }, status: :not_found unless jc
 

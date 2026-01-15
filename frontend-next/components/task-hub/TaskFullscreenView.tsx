@@ -1536,6 +1536,37 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     setBulkLinkLoading(false);
   };
 
+  // Handle bulk link ALL clients from the job (All Clients button)
+  const handleBulkLinkAllClients = async (clientJobContactIds: number[]) => {
+    if (clientJobContactIds.length === 0) return;
+
+    setBulkLinkLoading(true);
+    try {
+      const response = await api.post<{
+        success: boolean;
+        linked_count: number;
+        skipped_count: number;
+        attachments: TaskAttachment[];
+      }>(`/api/v1/sm_tasks/${task.id}/bulk_link_emails`, {
+        job_contact_ids: clientJobContactIds
+      });
+
+      if (response?.success) {
+        setLocalAttachments(prev => [...prev, ...response.attachments]);
+        setBulkLinkOpen(false);
+        if (response.linked_count > 0) {
+          alert(`Linked ${response.linked_count} emails from all clients to this task`);
+        } else {
+          alert('No new emails to link (all already attached)');
+        }
+      }
+    } catch (err) {
+      console.error('Failed to bulk link all client emails:', err);
+      alert('Failed to link client emails');
+    }
+    setBulkLinkLoading(false);
+  };
+
   // Handle bulk link from a specific email address (used by email picker)
   const handleBulkLinkByEmail = async (email: string) => {
     if (!email.trim()) return;
@@ -3291,12 +3322,32 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
                         if (clients.length === 0) return null;
 
+                        // Get all client job_contact_ids that have emails
+                        const clientsWithEmails = clients.filter(c => c.emails.length > 0 && c.job_contact_id);
+                        const allClientIds = clientsWithEmails.map(c => c.job_contact_id as number);
+                        const totalClientEmails = clientsWithEmails.reduce((sum, c) => sum + c.email_count, 0);
+
                         return (
                           <div className="space-y-2 pb-3 border-b">
-                            <label className="text-xs text-muted-foreground flex items-center gap-1">
-                              <Building2 className="h-3 w-3" />
-                              Job Clients
-                            </label>
+                            <div className="flex items-center justify-between">
+                              <label className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Building2 className="h-3 w-3" />
+                                Job Clients
+                              </label>
+                              {/* All Clients button - links all client emails at once */}
+                              {allClientIds.length > 0 && (
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  className="h-6 px-2 text-xs bg-primary"
+                                  onClick={() => handleBulkLinkAllClients(allClientIds)}
+                                  disabled={bulkLinkLoading}
+                                >
+                                  <Users className="h-3 w-3 mr-1" />
+                                  All Clients ({totalClientEmails})
+                                </Button>
+                              )}
+                            </div>
                             <div className="flex flex-wrap gap-2">
                               {clients.map((client) => {
                                 const clientKey = client.job_contact_id || client.contact_id || 0;
