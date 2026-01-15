@@ -90,7 +90,7 @@ module Api
               provider_type: provider,
               drive_id: storage_config&.drive_id,
               drive_name: storage_config&.drive_name,
-              root_folder_id: credential.root_folder_id,
+              root_folder_id: storage_config&.root_folder_id,  # SSoT: StorageConfiguration
               root_folder_path: storage_config&.root_path,
               connected_at: credential.created_at,
               connected_by: credential.connected_by&.as_json
@@ -335,10 +335,16 @@ module Api
             end
           end
 
-          # Update credential with new root folder info
+          # SSoT: Update StorageConfiguration with root folder info (not credential)
+          storage_config = StorageConfiguration.instance
+          if storage_config
+            storage_config.root_folder_id = current_folder["id"]
+            storage_config.root_folder_path = sanitized_path
+            storage_config.save!
+          end
+
+          # Store metadata in credential (non-config data like URLs, timestamps)
           credential.update!(
-            root_folder_id: current_folder["id"],
-            root_folder_path: sanitized_path,
             metadata: credential.metadata.merge({
               root_folder_name: sanitized_segments.last,
               root_folder_web_url: current_folder["webUrl"],
@@ -408,12 +414,19 @@ module Api
           # Get personal OneDrive info
           drive_info = client.get("/me/drive")
 
-          # Update credential to use personal drive
+          # SSoT: Update StorageConfiguration with new drive info
+          storage_config = StorageConfiguration.instance
+          if storage_config
+            storage_config.update_connection(
+              "drive_id" => drive_info["id"],
+              "drive_name" => drive_info["name"] || "My OneDrive",
+              "root_folder_id" => nil,
+              "root_folder_path" => nil
+            )
+          end
+
+          # Store metadata in credential (non-config data)
           credential.update!(
-            drive_id: drive_info["id"],
-            drive_name: drive_info["name"] || "My OneDrive",
-            root_folder_id: nil,
-            root_folder_path: nil,
             metadata: credential.metadata.merge({
               drive_type: "personal",
               owner_name: drive_info.dig("owner", "user", "displayName"),
@@ -460,11 +473,13 @@ module Api
           client = MicrosoftGraphClient.new(credential)
           result = client.use_sharepoint_site(site_name)
 
-          # Reset root folder since we're switching drives
-          credential.update!(
-            root_folder_id: nil,
-            root_folder_path: nil
-          )
+          # SSoT: Reset root folder in StorageConfiguration (not credential)
+          storage_config = StorageConfiguration.instance
+          if storage_config
+            storage_config.root_folder_id = nil
+            storage_config.root_folder_path = nil
+            storage_config.save!
+          end
 
           render json: {
             message: "Successfully switched to SharePoint site '#{result[:site]['displayName'] || site_name}'",
@@ -736,125 +751,62 @@ module Api
       end
 
       # POST /api/v1/documents/create_all_job_folders
-      # Create folder structure for ALL jobs that don't have folders yet
+      # Queue folder creation for ALL jobs that don't have folders yet
+      # SSoT: Uses Job#create_folders_if_needed! (THE ONE way)
       def create_all_job_folders
-        credential = MicrosoftCredential.sharepoint_credential
+        # Find jobs that need folders (not already completed, pending, or processing)
+        jobs_needing_folders = Job.where(storage_folder_status: [nil, "not_requested", "failed"])
 
-        # Use valid_access_token which auto-refreshes expired tokens
-        unless credential&.valid_access_token
-          return render json: { error: "SharePoint not connected. Please connect in Settings first." }, status: :unauthorized
+        queued_count = 0
+        already_complete_count = Job.where(storage_folder_status: "completed").count
+        in_progress_count = Job.where(storage_folder_status: %w[pending processing]).count
+
+        jobs_needing_folders.find_each do |job|
+          # SSoT: THE ONE way to create job folders
+          job.create_folders_if_needed!
+          queued_count += 1
         end
 
-        # SSoT: Folder structure comes from EntityTab hierarchy (no longer uses FolderTemplate)
-        # template_id parameter is deprecated and ignored
-
-        begin
-          client = MicrosoftGraphClient.new(credential)
-
-          # Get all jobs
-          jobs = Job.all
-          created_count = 0
-          skipped_count = 0
-          errors = []
-
-          jobs.each do |job|
-            begin
-              # Check if job folder already exists
-              existing_folder = client.find_job_folder(job)
-
-              if existing_folder
-                skipped_count += 1
-                Rails.logger.info "Skipping job ##{job.id} - folder already exists"
-                next
-              end
-
-              # Create folder structure for this job (SSoT: uses EntityTab hierarchy)
-              job_folder = client.create_job_folder_structure(job)
-              created_count += 1
-
-              Rails.logger.info "Created folders for job ##{job.id}: #{job_folder['name']}"
-
-            rescue StandardError => e
-              errors << { job_id: job.id, job_title: job.title, error: e.message }
-              Rails.logger.error "Failed to create folders for job ##{job.id}: #{e.message}"
-            end
-          end
-
-          # Mark credential as synced
-          credential.mark_synced!
-
-          render json: {
-            message: "Bulk folder creation completed",
-            total_jobs: jobs.count,
-            created: created_count,
-            skipped: skipped_count,
-            errors: errors
-          }
-
-        rescue MicrosoftGraphClient::AuthenticationError => e
-          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
-        rescue MicrosoftGraphClient::APIError => e
-          render json: { error: "OneDrive API error: #{e.message}" }, status: :bad_gateway
-        rescue StandardError => e
-          Rails.logger.error "Failed to create bulk job folders: #{e.message}"
-          Rails.logger.error e.backtrace.join("\n")
-          render json: { error: "Failed to create folders: #{e.message}" }, status: :internal_server_error
-        end
+        render json: {
+          message: "Bulk folder creation queued",
+          total_jobs: Job.count,
+          queued: queued_count,
+          already_complete: already_complete_count,
+          in_progress: in_progress_count
+        }, status: :accepted
       end
 
       # POST /api/v1/documents/create_job_folders
       # Create folder structure for a specific job
+      # SSoT: Uses Job#create_folders_if_needed! (THE ONE way)
       def create_job_folders
         job = Job.find(params[:job_id])
 
-        credential = MicrosoftCredential.sharepoint_credential
-
-        # Use valid_access_token which auto-refreshes expired tokens
-        unless credential&.valid_access_token
-          return render json: { error: "SharePoint not connected. Please connect in Settings first." }, status: :unauthorized
-        end
-
-        # SSoT: Folder structure comes from EntityTab hierarchy (no longer uses FolderTemplate)
-        # template_id parameter is deprecated and ignored
-
-        begin
-          client = MicrosoftGraphClient.new(credential)
-
-          # Check if job folder already exists
-          existing_folder = client.find_job_folder(job)
-
-          if existing_folder
-            return render json: {
-              message: "Folder structure already exists for this job",
-              job_folder: existing_folder,
-              web_url: existing_folder["webUrl"]
-            }
-          end
-
-          # Create folder structure for this job (SSoT: uses EntityTab hierarchy)
-          job_folder = client.create_job_folder_structure(job)
-
-          # Mark credential as synced
-          credential.mark_synced!
-
-          # SSoT: Get root_path from StorageConfiguration
-          storage_config = StorageConfiguration.instance
-          render json: {
-            message: "Folder structure created successfully",
-            job_folder: job_folder,
-            folder_path: "#{storage_config&.root_path}/#{job_folder['name']}",
-            web_url: job_folder["webUrl"]
+        # Check if already completed
+        if job.storage_folder_status == "completed"
+          return render json: {
+            message: "Folder structure already exists for this job",
+            status: job.storage_folder_status,
+            storage_folder_id: job.storage_folder_id
           }
-
-        rescue MicrosoftGraphClient::AuthenticationError => e
-          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
-        rescue MicrosoftGraphClient::APIError => e
-          render json: { error: "OneDrive API error: #{e.message}" }, status: :bad_gateway
-        rescue StandardError => e
-          Rails.logger.error "Failed to create job folders: #{e.message}"
-          Rails.logger.error e.backtrace.join("\n")
-          render json: { error: "Failed to create folders: #{e.message}" }, status: :internal_server_error
         end
+
+        # Check if already processing
+        if job.storage_folder_status.in?(%w[pending processing])
+          return render json: {
+            message: "Folder creation already in progress",
+            status: job.storage_folder_status
+          }
+        end
+
+        # SSoT: THE ONE way to create job folders
+        job.create_folders_if_needed!
+
+        render json: {
+          message: "Folder creation queued",
+          status: job.storage_folder_status,
+          job_id: job.id
+        }, status: :accepted
       end
 
       # GET /api/v1/documents/job_folders
@@ -2774,10 +2726,16 @@ module Api
           full_path = folder_name
         end
 
-        # Update credential with new root folder info
+        # SSoT: Update StorageConfiguration with root folder info (not credential)
+        storage_config = StorageConfiguration.instance
+        if storage_config
+          storage_config.root_folder_id = folder_response["id"]
+          storage_config.root_folder_path = full_path
+          storage_config.save!
+        end
+
+        # Store metadata in credential (non-config data like URLs, timestamps)
         credential.update!(
-          root_folder_id: folder_response["id"],
-          root_folder_path: full_path,
           metadata: credential.metadata.merge({
             root_folder_name: folder_name,
             root_folder_web_url: folder_response["webUrl"],

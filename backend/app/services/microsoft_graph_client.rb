@@ -296,10 +296,17 @@ class MicrosoftGraphClient
       root_folder = create_folder_strict(folder_name, drive_id: @credential.drive_id)
     end
 
-    # Update credential with root folder info
+    # SSoT: Save root folder info to StorageConfiguration (not credential)
+    # StorageConfiguration is THE ONE source for all storage config
+    config = StorageConfiguration.instance
+    if config
+      config.root_folder_id = root_folder["id"]
+      config.root_folder_path = folder_name
+      config.save!
+    end
+
+    # Store metadata in credential (non-config data like URLs, timestamps)
     @credential.update!(
-      root_folder_id: root_folder["id"],
-      root_folder_path: folder_name,
       metadata: @credential.metadata.merge({
         root_folder_name: folder_name,
         root_folder_web_url: root_folder["webUrl"],

@@ -98,10 +98,8 @@ class MigrateMicrosoftCredentialsJob < ApplicationJob
         refresh_token: old.refresh_token,
         token_expires_at: old.token_expires_at,
         status: old.is_active && old.access_token.present? ? "connected" : "disconnected",
-        drive_id: old.drive_id,
-        drive_name: old.drive_name,
-        root_folder_id: old.root_folder_id,
-        root_folder_path: old.root_folder_path,
+        # SSoT: drive_id, root_folder_id, root_folder_path are now in StorageConfiguration
+        # Not setting here - the migration 20260115115004 moves them to the correct SSoT location
         metadata: old.metadata || {},
         last_sync_at: old.last_synced_at,
         connected_by_id: old.connected_by_id,

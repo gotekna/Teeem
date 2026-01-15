@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_15_115003) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_15_115004) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -6839,8 +6839,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_15_115003) do
     t.datetime "last_refresh_attempt_at"
     t.datetime "admin_consent_granted_at"
     t.string "admin_consent_granted_by"
-    t.string "root_folder_id"
-    t.string "root_folder_path"
     t.jsonb "sync_config", default: {}
     t.jsonb "metadata", default: {}
     t.jsonb "bulk_sync_progress", default: {}

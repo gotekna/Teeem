@@ -407,6 +407,17 @@ class MicrosoftCredential < ApplicationRecord
     StorageConfiguration.instance&.site_id
   end
 
+  # Delegate root_folder_id to StorageConfiguration (SSoT)
+  # Required for backward compatibility with code that calls credential.root_folder_id
+  def root_folder_id
+    StorageConfiguration.instance&.root_folder_id
+  end
+
+  # Delegate root_folder_path to StorageConfiguration (SSoT)
+  def root_folder_path
+    StorageConfiguration.instance&.root_folder_path
+  end
+
   # Test the connection by making a simple API call
   # IMPORTANT: App credentials (client_credentials) cannot call /me - no user context
   # Use different endpoints based on credential type

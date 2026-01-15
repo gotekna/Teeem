@@ -565,18 +565,6 @@ class Job < ApplicationRecord
     end
   end
 
-  # Queue storage folder creation after job is created
-  def queue_storage_folder_creation
-    # SSoT: Only create folders if storage provider is connected
-    return unless StorageConfiguration.instance.connected?
-
-    # Queue the folder creation job (runs in background)
-    CreateJobStorageFoldersJob.perform_later(id)
-    update_column(:storage_folder_status, "pending")
-  rescue StandardError => e
-    Rails.logger.error "Failed to queue storage folder creation for job #{id}: #{e.message}"
-  end
-
   # Activity logging callbacks
   def log_job_created
     JobActivity.log_job_created(self, user: Current.user)

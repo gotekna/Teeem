@@ -259,6 +259,24 @@ class StorageConfiguration < ApplicationRecord
     connection_config["drive_name"]
   end
 
+  # SSoT: Jobs root folder location (SharePoint folder ID where job folders are created)
+  # This was previously stored in MicrosoftCredential (wrong) - now consolidated here
+  def root_folder_id
+    connection_config&.dig("root_folder_id")
+  end
+
+  def root_folder_id=(value)
+    self.connection_config = (connection_config || {}).merge("root_folder_id" => value)
+  end
+
+  def root_folder_path
+    connection_config&.dig("root_folder_path")
+  end
+
+  def root_folder_path=(value)
+    self.connection_config = (connection_config || {}).merge("root_folder_path" => value)
+  end
+
   # S3-specific config
   def endpoint
     connection_config["endpoint"]
