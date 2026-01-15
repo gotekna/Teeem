@@ -861,11 +861,25 @@ class Api::V1::EmailWarehouseController < ApplicationController
     content_type_hint = email_attachment&.attachment&.content_type
 
     # SSoT: Try email_attachments first (primary path since Jan 2026)
-    # Note: has_many_attached :files was removed - use email_attachments instead
+    # Priority 1: Use attachment found by ID if it's stored in Wasabi
+    if email_attachment&.stored?
+      Rails.logger.info "[EmailWarehouse] Downloading attachment from Wasabi by ID: #{email_attachment.id} (#{email_attachment.filename})"
+      content = email_attachment.download
+      if content.present?
+        return send_data(
+          content,
+          filename: email_attachment.filename,
+          type: email_attachment.storage_blob&.content_type || "application/octet-stream",
+          disposition: "attachment"
+        )
+      end
+    end
+
+    # Priority 2: Search by filename if ID lookup didn't work
     if @email.email_attachments.any? && filename_hint.present?
       attachment = @email.email_attachments.find { |a| a.filename == filename_hint }
       if attachment&.stored?
-        Rails.logger.info "[EmailWarehouse] Downloading attachment from email_attachments: #{filename_hint}"
+        Rails.logger.info "[EmailWarehouse] Downloading attachment from Wasabi by filename: #{filename_hint}"
         content = attachment.download
         if content.present?
           return send_data(
