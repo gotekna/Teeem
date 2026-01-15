@@ -1021,7 +1021,7 @@ export function StorageConfigTab() {
     s3_bucket: "",
     s3_region: "",
     // Root path
-    sharepoint_root_path: "",
+    root_path: "",  // SSoT: Matches backend field name
     // SSoT: Scope folders loaded from StorageConfiguration.SCOPE_FOLDERS via API
     scope_folders: {} as ScopeFolders,
     // SSoT: Templates for folder paths and filenames per scope
@@ -1249,7 +1249,7 @@ export function StorageConfigTab() {
           s3_bucket: response.data.bucket || "",
           s3_region: response.data.region || "",
           // Root path
-          sharepoint_root_path: response.data.root_path || "",
+          root_path: response.data.root_path || "",
           // SSoT: Scope folders from StorageConfiguration.SCOPE_FOLDERS
           scope_folders: response.data.scope_folders || {},
           // SSoT: Templates from StorageConfiguration
@@ -1284,8 +1284,7 @@ export function StorageConfigTab() {
             endpoint: formData.s3_endpoint,
             bucket: formData.s3_bucket,
             region: formData.s3_region,
-            // Map root path to backend expected name
-            root_path: formData.sharepoint_root_path,
+            // root_path now matches backend directly (no mapping needed)
           }
         }
       );
@@ -1409,7 +1408,7 @@ export function StorageConfigTab() {
                   setFormData(prev => ({
                     ...prev,
                     provider_type: value,
-                    sharepoint_root_path: defaultRootPath,
+                    root_path: defaultRootPath,
                   }));
                 }}
               >
@@ -1637,8 +1636,8 @@ export function StorageConfigTab() {
             <Label htmlFor="root_path">Root Path</Label>
             <Input
               id="root_path"
-              value={formData.sharepoint_root_path}
-              onChange={(e) => handleChange("sharepoint_root_path", e.target.value)}
+              value={formData.root_path}
+              onChange={(e) => handleChange("root_path", e.target.value)}
               placeholder="/ (drive root)"
               className="font-mono"
             />
@@ -1667,7 +1666,7 @@ export function StorageConfigTab() {
             <div className="flex items-center gap-2 mb-2 pb-2 border-b">
               <Folder className="h-4 w-4 text-amber-500" />
               <span className="font-mono text-sm font-medium">
-                {formData.sharepoint_root_path || "/"}
+                {formData.root_path || "/"}
               </span>
               <span className="text-xs text-muted-foreground">(root)</span>
             </div>
@@ -1695,7 +1694,7 @@ export function StorageConfigTab() {
                     }}
                     onCancelEdit={() => setEditingKey(null)}
                     currentPath={formData.scope_folders}
-                    rootPath={formData.sharepoint_root_path}
+                    rootPath={formData.root_path}
                     editingTabId={editingTabId}
                     onStartTabEdit={setEditingTabId}
                     onSaveTabEdit={saveTabFolderPath}
