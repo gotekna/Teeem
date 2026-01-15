@@ -2546,7 +2546,8 @@ module Api
         items.each do |item|
           item_path = relative_path.present? ? "#{relative_path}/#{item[:name]}" : item[:name]
 
-          if item[:type] == "folder"
+          # Check for folder type (S3 returns symbol :folder, SharePoint returns string "folder")
+          if item[:type].to_s == "folder"
             # Recursively list subfolder
             list_folder_recursive("#{folder_path}/#{item[:name]}", files, item_path)
           else
