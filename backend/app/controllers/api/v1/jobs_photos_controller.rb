@@ -34,17 +34,19 @@ module Api
         end
 
         # Get jobs with the given job types and statuses
-        jobs = Job.includes(:job_status, :job_type)
+        # SSoT: supervisor_id is foreign key to users table
+        jobs = Job.includes(:job_status, :job_type, :supervisor)
                   .where(job_status_id: status_filter)
                   .where(job_type_id: job_type_ids)
-                  .where.not(site_supervisor_name: [nil, ""])
-                  .order(:site_supervisor_name, :name)
+                  .where.not(supervisor_id: nil)
+                  .order(Arel.sql("users.name"), :name)
+                  .joins(:supervisor)
 
         # Build response grouped by supervisor
         grouped_data = {}
 
         jobs.find_each do |job|
-          supervisor = job.site_supervisor_name || "Unassigned"
+          supervisor = job.supervisor&.name || "Unassigned"
 
           # Get latest photos for this job from JobDocument (data warehouse)
           photos = JobDocument.where(job_id: job.id)
@@ -68,8 +70,8 @@ module Api
             pc_date: job.practical_completion_date&.iso8601,
             photos: photos.map do |photo|
               # Build proxy URL for fetching image through backend (bypasses CORS and expired tokens)
-              # SSoT: Same pattern as organization_sharepoint#download
-              proxy_url = "/api/v1/documents/download?file_id=#{photo.sharepoint_item_id}&preview=true"
+              # SSoT: /api/v1/documents/job_document_download - provider-agnostic (S3/SharePoint)
+              proxy_url = "/api/v1/documents/job_document_download?document_id=#{photo.id}&preview=true"
               {
                 id: photo.id,
                 name: photo.file_name,

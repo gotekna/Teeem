@@ -31,6 +31,7 @@ class Job < ApplicationRecord
   belongs_to :job_type, optional: true
   belongs_to :job_status, optional: true
   belongs_to :job_stage, optional: true
+  belongs_to :supervisor, class_name: "User", optional: true
   has_many :chat_messages, dependent: :nullify
   has_many :emails, class_name: 'EmailWarehouse', dependent: :nullify
   has_many :document_tasks, dependent: :destroy

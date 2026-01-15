@@ -329,7 +329,6 @@ export function XeroInvoicesListByTenant({
               onRowClick={handleRowClick}
               viewOnly={true}
               enableExport={true}
-              foundationIdNumeric={0}
             />
           </div>
         )}
@@ -384,7 +383,6 @@ export function XeroInvoicesListByTenant({
                 onRowClick={handleRowClick}
                 viewOnly={true}
                 enableExport={true}
-                foundationIdNumeric={0}
               />
             </div>
           )}
@@ -411,7 +409,6 @@ export function XeroInvoicesListByTenant({
                     onRowClick={handleRowClick}
                     viewOnly={true}
                     enableExport={true}
-                    foundationIdNumeric={0}
                   />
                 </div>
               )}
