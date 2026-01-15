@@ -73,6 +73,8 @@ interface UseEntityTabsReturn {
   groups: TabGroup[];
   loading: boolean;
   error: string | null;
+  // SSoT: Primary Xero account name (from XeroCredential.is_primary)
+  primaryXeroName: string | null;
   // CRUD operations
   createTab: (params: EntityTabCreateParams) => Promise<EntityTab>;
   updateTab: (id: number, params: EntityTabUpdateParams) => Promise<EntityTab>;
@@ -94,6 +96,8 @@ export function useEntityTabs(options: UseEntityTabsOptions): UseEntityTabsRetur
   const [groups, setGroups] = React.useState<TabGroup[]>(cachedInitial?.groups || []);
   const [loading, setLoading] = React.useState(!cachedInitial);
   const [error, setError] = React.useState<string | null>(null);
+  // SSoT: Primary Xero account name
+  const [primaryXeroName, setPrimaryXeroName] = React.useState<string | null>(null);
 
   const fetchTabs = React.useCallback(async (forceRefresh = false) => {
     // Check cache first (unless forcing refresh)
@@ -156,6 +160,8 @@ export function useEntityTabs(options: UseEntityTabsOptions): UseEntityTabsRetur
         });
         setTabs(response.data.tabs);
         setGroups(response.data.groups);
+        // SSoT: Primary Xero account name
+        setPrimaryXeroName(response.data.primary_xero_name || null);
       } else {
         setError("Failed to load tabs");
       }
@@ -276,6 +282,7 @@ export function useEntityTabs(options: UseEntityTabsOptions): UseEntityTabsRetur
     groups,
     loading,
     error,
+    primaryXeroName,
     createTab,
     updateTab,
     deleteTab,

@@ -77,7 +77,6 @@ import {
   ContactEmailsTab,
   ContactActivityTab,
 } from "./components";
-import { ContactXeroTab } from "./components/ContactXeroTab";
 import type {
   Contact,
   ContactPerson,
@@ -220,7 +219,7 @@ export default function ContactDetailPage() {
   const { metadata: entityTypeMetadata } = useEntityTypes();
 
   // SSoT: Tab configuration from EntityTabs API (Phase 5 - unified tabs)
-  const { tabs: contactTabs } = useEntityTabs({ scope: "contact" });
+  const { tabs: contactTabs, primaryXeroName } = useEntityTabs({ scope: "contact" });
 
   // Create a map for quick tab config lookup
   const tabConfigMap = useMemo(() => {
@@ -243,6 +242,12 @@ export default function ContactDetailPage() {
   const [enrichingFromWeb, setEnrichingFromWeb] = useState(false);
   // SSoT: Xero links for Financial tab (from ContactHeader)
   const [xeroLinks, setXeroLinks] = useState<XeroLink[]>([]);
+
+  // SSoT: Filter to only primary Xero account for root Invoices/Bills tabs
+  const primaryXeroLink = useMemo(() => {
+    if (!primaryXeroName || xeroLinks.length === 0) return null;
+    return xeroLinks.find(link => link.xero_tenant_name === primaryXeroName) || null;
+  }, [xeroLinks, primaryXeroName]);
 
   // Track if component is mounted to prevent state updates after deletion/navigation
   const mountedRef = useRef(true);
@@ -1891,15 +1896,14 @@ export default function ContactDetailPage() {
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="overview">{tabConfigMap.overview?.display_name || "Overview"}</TabsTrigger>
-          {contact.linked_company && contact.can_view_corporate && (
+          {/* SSoT: visibility_rule = "Has linked corporate" */}
+          {(directorships.length > 0 || shareholdings.length > 0 || (trustRoles && trustRoles.total_count > 0) || memberships.length > 0) && (
             <TabsTrigger value="corporate">
               {(() => { const Icon = getIcon(tabConfigMap.corporate?.icon_name || "building-2"); return <Icon className="h-3.5 w-3.5 mr-1" />; })()}
               {tabConfigMap.corporate?.display_name || "Corporate"}
-              {(directorships.length > 0 || shareholdings.length > 0 || (trustRoles && trustRoles.total_count > 0) || memberships.length > 0) && (
-                <Badge variant="secondary" className="ml-1.5">
-                  {directorships.length + shareholdings.length + (trustRoles?.total_count || 0) + memberships.length}
-                </Badge>
-              )}
+              <Badge variant="secondary" className="ml-1.5">
+                {directorships.length + shareholdings.length + (trustRoles?.total_count || 0) + memberships.length}
+              </Badge>
               {!contact.can_view_confidential && <Lock className="h-3 w-3 ml-1 text-amber-500" />}
             </TabsTrigger>
           )}
@@ -1908,26 +1912,15 @@ export default function ContactDetailPage() {
             {tabConfigMap.financial?.display_name || "Financial"}
             {!contact.can_view_confidential && <Lock className="h-3 w-3 ml-1 text-amber-500" />}
           </TabsTrigger>
-          {/* SSoT: visibility_rule = "Has Primary Xero links" */}
-          {xeroLinks.length > 0 && (
-            <TabsTrigger value="xero-main">
-              {(() => { const Icon = getIcon(tabConfigMap["xero-main"]?.icon_name || "link"); return <Icon className="h-3.5 w-3.5 mr-1" />; })()}
-              Xero
-              <Badge variant="secondary" className="ml-1.5">
-                {new Set(xeroLinks.map(l => l.xero_tenant_id)).size}
-              </Badge>
-            </TabsTrigger>
-          )}
           <TabsTrigger value="coms">{tabConfigMap.coms?.display_name || "Communications"}</TabsTrigger>
-          {contact.can_view_cases && (
+          {/* SSoT: visibility_rule = "Has linked cases" */}
+          {caseRelationships.length > 0 && (
             <TabsTrigger value="cases">
               {(() => { const Icon = getIcon(tabConfigMap.cases?.icon_name || "briefcase"); return <Icon className="h-3.5 w-3.5 mr-1" />; })()}
               {tabConfigMap.cases?.display_name || "Cases"}
-              {caseRelationships.length > 0 && (
-                <Badge variant="secondary" className="ml-1.5">
-                  {caseRelationships.length}
-                </Badge>
-              )}
+              <Badge variant="secondary" className="ml-1.5">
+                {caseRelationships.length}
+              </Badge>
             </TabsTrigger>
           )}
           {contact.email && (
@@ -1941,11 +1934,18 @@ export default function ContactDetailPage() {
               )}
             </TabsTrigger>
           )}
-          {/* SSoT: visibility_rule = "Has Primary Xero links" */}
-          {xeroLinks.length > 0 && (
+          {/* SSoT: visibility_rule = "Has Primary Xero links" - only show if linked to PRIMARY Xero */}
+          {primaryXeroLink && (
             <TabsTrigger value="invoices">
               {(() => { const Icon = getIcon(tabConfigMap.invoices?.icon_name || "file-text"); return <Icon className="h-3.5 w-3.5 mr-1" />; })()}
               {tabConfigMap.invoices?.display_name || "Invoices"}
+            </TabsTrigger>
+          )}
+          {/* SSoT: visibility_rule = "Has Primary Xero links" - only show if linked to PRIMARY Xero */}
+          {primaryXeroLink && (
+            <TabsTrigger value="bills">
+              {(() => { const Icon = getIcon(tabConfigMap.bills?.icon_name || "receipt"); return <Icon className="h-3.5 w-3.5 mr-1" />; })()}
+              {tabConfigMap.bills?.display_name || "Bills"}
             </TabsTrigger>
           )}
           {contact["is_supplier?"] && (
@@ -2047,15 +2047,6 @@ export default function ContactDetailPage() {
           />
         </TabsContent>
 
-        {/* Xero Tab - SSoT: visibility_rule = "Has Primary Xero links" */}
-        <TabsContent value="xero-main" className="mt-6">
-          <ContactXeroTab
-            contact={contact}
-            xeroLinks={xeroLinks}
-            onViewInvoiceDetail={handleViewInvoiceDetail}
-          />
-        </TabsContent>
-
         {/* Communications Tab */}
         <TabsContent value="coms" className="mt-6">
           <Card>
@@ -2100,23 +2091,39 @@ export default function ContactDetailPage() {
           </Card>
         </TabsContent>
 
-        {/* Invoices Tab */}
-        {contact["is_customer?"] && (
-          <TabsContent value="invoices" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Invoices</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <XeroInvoicesListByTenant
-                  contactId={contact.id}
-                  type="ACCREC"
-                  onViewInvoiceDetail={handleViewInvoiceDetail}
-                />
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
+        {/* Invoices Tab - SSoT: visibility_rule = "Has Primary Xero links" - PRIMARY Xero only */}
+        <TabsContent value="invoices" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Invoices {primaryXeroName && <span className="text-sm font-normal text-muted-foreground">({primaryXeroName})</span>}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <XeroInvoicesListByTenant
+                contactId={contact.id}
+                type="ACCREC"
+                onViewInvoiceDetail={handleViewInvoiceDetail}
+                linkedTenants={primaryXeroLink ? [primaryXeroLink] : []}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Bills Tab - SSoT: visibility_rule = "Has Primary Xero links" - PRIMARY Xero only */}
+        <TabsContent value="bills" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Bills {primaryXeroName && <span className="text-sm font-normal text-muted-foreground">({primaryXeroName})</span>}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <XeroInvoicesListByTenant
+                contactId={contact.id}
+                type="ACCPAY"
+                onViewInvoiceDetail={handleViewInvoiceDetail}
+                linkedTenants={primaryXeroLink ? [primaryXeroLink] : []}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* Portal Access Tab */}
         <TabsContent value="portal" className="mt-6">
