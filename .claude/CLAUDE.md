@@ -367,6 +367,48 @@ onAddRow={() => setShowModal(true)}
 
 **Non-Negotiables:** Dark mode (`dark:` classes), responsive design, accessibility, config colors (not hex).
 
+## 🔴 React Performance (SSoT)
+
+**SSoT:** `.claude/skills/react-best-practices/` (40+ rules from Vercel Engineering)
+
+**Use `/react-best-practices` skill when:**
+- Optimizing React/Next.js performance
+- Reviewing code for performance issues
+- Debugging slow rendering or loading
+- Reducing bundle size
+
+### Critical Priorities (Impact Order)
+
+| Priority | Rule | Example |
+|----------|------|---------|
+| CRITICAL | Defer await until needed | Move awaits into branches where used |
+| CRITICAL | Use `Promise.all()` | Parallelize independent async ops |
+| CRITICAL | Avoid barrel imports | Import directly: `lucide-react/dist/esm/icons/check` |
+| CRITICAL | Dynamic imports | `next/dynamic` for heavy components |
+| HIGH | Strategic Suspense | Stream content while showing layout |
+| MEDIUM | Memoize components | `React.memo()` for expensive renders |
+
+### Quick Patterns
+
+```typescript
+// ❌ Sequential (waterfall)
+const user = await fetchUser();
+const posts = await fetchPosts();
+
+// ✅ Parallel
+const [user, posts] = await Promise.all([fetchUser(), fetchPosts()]);
+```
+
+```tsx
+// ❌ Barrel import (loads entire library)
+import { Check } from 'lucide-react'
+
+// ✅ Direct import (loads only icon)
+import Check from 'lucide-react/dist/esm/icons/check'
+```
+
+**Full guide:** `.claude/skills/react-best-practices/references/react-performance-guidelines.md`
+
 ## 🔴 Git & Deployment
 
 **Rob works directly on `Live` branch.**
