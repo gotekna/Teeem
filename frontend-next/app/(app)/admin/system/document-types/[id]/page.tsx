@@ -193,11 +193,11 @@ export default function DocumentTypeDetailPage() {
     const fetchFolders = async () => {
       try {
         // Use document type scope (for existing) or URL scope (for new), default to corporate_entity
-        const scope = documentType?.scope || urlScope || "company";
+        const scope = (documentType?.scope || urlScope || "company").toLowerCase();
         // Map document type scope to EntityTab scope
         // SSoT: Map document type scope to EntityTab scope
         // "contacts" and legacy "people" both map to "contact" EntityTab scope
-        const entityTabScope = (scope === "contacts" || scope === "people") ? "contact" : scope === "job" ? "job" : "corporate_entity";
+        const entityTabScope = (scope === "contacts" || scope === "people") ? "contact" : scope === "job" || scope === "jobs" ? "job" : "corporate_entity";
 
         // Build folder hierarchy recursively for all depths
         const mapTabRecursive = (tab: any): any => ({
@@ -1368,7 +1368,7 @@ export default function DocumentTypeDetailPage() {
                   >
                     <SelectTrigger className="text-sm">
                       <SelectValue placeholder="Select primary tab">
-                        {selectedId ? findTabName(folderHierarchy) || `Tab ${selectedId}` : "Select..."}
+                        {selectedId ? findTabName(allTabsForLookup) || findTabName(folderHierarchy) || `Tab ${selectedId}` : "Select..."}
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
