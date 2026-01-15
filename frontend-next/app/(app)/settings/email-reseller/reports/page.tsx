@@ -88,24 +88,24 @@ export default function ReportsPage() {
     // Build CSV content
     const headers = ["Customer", "Domain", "Mailboxes", "Retail", "Wholesale", "Margin", "Margin %"];
     const rows = report.by_subscription.map((sub) => [
-      sub.contact_name,
-      sub.domain,
-      sub.mailbox_count,
-      sub.retail.toFixed(2),
-      sub.wholesale.toFixed(2),
-      sub.margin.toFixed(2),
-      `${sub.margin_percentage.toFixed(1)}%`,
+      sub.contact_name || "Unknown",
+      sub.domain || "-",
+      sub.mailbox_count ?? 0,
+      (sub.retail ?? 0).toFixed(2),
+      (sub.wholesale ?? 0).toFixed(2),
+      (sub.margin ?? 0).toFixed(2),
+      `${(sub.margin_percentage ?? 0).toFixed(1)}%`,
     ]);
 
     // Add totals row
     rows.push([
       "TOTAL",
       "",
-      report.summary.mailbox_count,
-      report.summary.total_retail.toFixed(2),
-      report.summary.total_wholesale.toFixed(2),
-      report.summary.total_margin.toFixed(2),
-      `${report.summary.margin_percentage.toFixed(1)}%`,
+      report.summary?.mailbox_count ?? 0,
+      (report.summary?.total_retail ?? 0).toFixed(2),
+      (report.summary?.total_wholesale ?? 0).toFixed(2),
+      (report.summary?.total_margin ?? 0).toFixed(2),
+      `${(report.summary?.margin_percentage ?? 0).toFixed(1)}%`,
     ]);
 
     const csv = [headers.join(","), ...rows.map((row) => row.join(","))].join("\n");
@@ -258,17 +258,17 @@ export default function ReportsPage() {
               ) : (
                 report.by_subscription.map((sub) => (
                   <TableRow key={sub.subscription_id}>
-                    <TableCell className="font-medium">{sub.contact_name}</TableCell>
-                    <TableCell>{sub.domain}</TableCell>
-                    <TableCell className="text-right">{sub.mailbox_count}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(sub.retail)}</TableCell>
+                    <TableCell className="font-medium">{sub.contact_name || "Unknown"}</TableCell>
+                    <TableCell>{sub.domain || "-"}</TableCell>
+                    <TableCell className="text-right">{sub.mailbox_count ?? 0}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(sub.retail ?? 0)}</TableCell>
                     <TableCell className="text-right text-muted-foreground">
-                      {formatCurrency(sub.wholesale)}
+                      {formatCurrency(sub.wholesale ?? 0)}
                     </TableCell>
                     <TableCell className="text-right text-green-600">
-                      {formatCurrency(sub.margin)}
+                      {formatCurrency(sub.margin ?? 0)}
                     </TableCell>
-                    <TableCell className="text-right">{sub.margin_percentage.toFixed(1)}%</TableCell>
+                    <TableCell className="text-right">{(sub.margin_percentage ?? 0).toFixed(1)}%</TableCell>
                   </TableRow>
                 ))
               )}
