@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_15_110002) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_15_115002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -6527,6 +6527,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_15_110002) do
     t.bigint "internal_sales_id"
     t.bigint "client_coordinator_id"
     t.string "sharepoint_folder_status", default: "not_requested"
+    t.string "job_code", null: false
     t.index ["archived_at", "job_status_id"], name: "idx_jobs_archived_status"
     t.index ["archived_at"], name: "index_jobs_on_archived_at"
     t.index ["archived_by_id"], name: "index_jobs_on_archived_by_id"
@@ -6536,6 +6537,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_15_110002) do
     t.index ["created_at"], name: "index_jobs_on_created_at"
     t.index ["estimator_id"], name: "index_jobs_on_estimator_id"
     t.index ["internal_sales_id"], name: "index_jobs_on_internal_sales_id"
+    t.index ["job_code"], name: "index_jobs_on_job_code", unique: true
     t.index ["job_stage_id"], name: "index_jobs_on_job_stage_id"
     t.index ["job_status_id"], name: "index_jobs_on_job_status_id"
     t.index ["job_type_id"], name: "index_jobs_on_job_type_id"
@@ -9190,7 +9192,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_15_110002) do
   end
 
   create_table "storage_blobs", force: :cascade do |t|
-    t.string "content_hash", null: false
+    t.string "content_hash"
     t.string "storage_path", null: false
     t.bigint "file_size"
     t.string "content_type"

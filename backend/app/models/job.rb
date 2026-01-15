@@ -105,11 +105,11 @@ class Job < ApplicationRecord
     id&.to_s&.rjust(4, "0")
   end
 
-  # Job code for display and folder paths (SSoT: "J" + id)
-  # Used by: UI display, storage folder names, document naming
-  def job_code
-    "J#{id}"
-  end
+  # SSoT: job_code is a database column (user-editable)
+  # Default format: "J" + id (e.g., "J201")
+  # Auto-generated on create, can be customized by user
+  validates :job_code, presence: true, uniqueness: true, on: :update
+  after_create :generate_job_code_if_blank
 
   # Description placeholder for document templates
   def description
@@ -696,5 +696,12 @@ class Job < ApplicationRecord
     EmailJobMatcherJob.perform_later(id, trigger: :job_created)
   rescue StandardError => e
     Rails.logger.error "Failed to queue email scan for job ##{id}: #{e.message}"
+  end
+
+  # SSoT: Auto-generate job_code on create (e.g., "J201")
+  # User can customize after creation
+  def generate_job_code_if_blank
+    return if job_code.present?
+    update_column(:job_code, "J#{id}")
   end
 end

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "cgi"
+
 # Migrate job folders in Wasabi from old naming pattern to SSoT
 # Old pattern: /Jobs/201 - 17 Redruth Road...
 # New pattern: /Jobs/0201 (from StorageConfiguration.job_path)
@@ -182,6 +184,8 @@ namespace :storage do
     # In S3, "renaming" a folder means copying all objects then deleting originals
     # List all objects with the old prefix
     items = provider.list_folder(old_path, recursive: true)
+    bucket = provider.instance_variable_get(:@bucket)
+    client = provider.instance_variable_get(:@client)
 
     items.each do |item|
       next unless item[:type] == :file
@@ -190,16 +194,18 @@ namespace :storage do
       relative_path = item[:path].sub(old_path, "")
       new_key = "#{new_path}#{relative_path}".sub(/^\//, "")
 
-      # Copy object
-      provider.instance_variable_get(:@client).copy_object(
-        bucket: provider.instance_variable_get(:@bucket),
-        copy_source: "#{provider.instance_variable_get(:@bucket)}/#{old_key}",
+      # Copy object - copy_source must be URL-encoded for special characters
+      # (parentheses, spaces, etc.)
+      encoded_source = "#{bucket}/#{CGI.escape(old_key).gsub('+', '%20')}"
+      client.copy_object(
+        bucket: bucket,
+        copy_source: encoded_source,
         key: new_key
       )
 
       # Delete original
-      provider.instance_variable_get(:@client).delete_object(
-        bucket: provider.instance_variable_get(:@bucket),
+      client.delete_object(
+        bucket: bucket,
         key: old_key
       )
     end
