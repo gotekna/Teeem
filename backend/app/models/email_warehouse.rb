@@ -735,16 +735,53 @@ class EmailWarehouse < ApplicationRecord
     pdf_texts.presence
   end
 
-  # SSoT: sync_attachments! was REMOVED (Jan 2026)
-  # Email attachments are now created during initial sync via BulkEmailSyncJob.
-  # Access attachments via: email.email_attachments → storage_blob
-  # The old method duplicated attachments to ActiveStorage which violated SSoT.
-  #
-  # If you need to re-sync attachments for an email, use:
-  #   BulkEmailSyncJob.perform_now(credential_id, single_email_id: email.id)
+  # SSoT: Sync attachments from Microsoft Graph to EmailAttachment → StorageBlob
+  # Called automatically for new emails with attachments via OrgEmailSyncJob
   def sync_attachments!(force: false)
-    Rails.logger.info "[EmailWarehouse] sync_attachments! is deprecated - attachments are synced via BulkEmailSyncJob"
-    # No-op - attachments should already exist via email_attachments association
+    return unless has_attachments
+    return if email_attachments.any? && !force
+
+    unless microsoft_credential_id.present? && outlook_id.present? && mailbox_owner_email.present?
+      Rails.logger.warn "[EmailWarehouse] Cannot sync attachments for #{id} - missing credential/outlook_id/mailbox"
+      return
+    end
+
+    cred = MicrosoftCredential.find_by(id: microsoft_credential_id)
+    return unless cred
+
+    client = MicrosoftAppGraphClient.new(cred)
+    attachments = client.get_email_attachments(mailbox_owner_email, outlook_id)
+
+    Rails.logger.info "[EmailWarehouse] Syncing #{attachments.count} attachments for email #{id}"
+
+    attachments.each do |att|
+      next if att["contentBytes"].blank?
+
+      content = Base64.decode64(att["contentBytes"])
+      filename = att["name"]
+      content_type = att["contentType"]
+      byte_size = att["size"].to_i
+
+      # Skip small inline images (likely signatures)
+      next if att["isInline"] && content_type&.start_with?("image/") && byte_size < 50_000
+
+      # Find existing or create new (handle missing auto-increment)
+      ea = email_attachments.find_by(filename: filename)
+      if ea.nil?
+        next_id = (EmailAttachment.maximum(:id) || 0) + 1
+        ea = email_attachments.build(id: next_id, filename: filename)
+        ea.save!
+      end
+
+      # Store content via StorageBlob (handles deduplication)
+      ea.store_content!(content, filename: filename, content_type: content_type)
+      Rails.logger.debug "[EmailWarehouse] Synced attachment: #{filename}"
+    rescue StandardError => e
+      Rails.logger.error "[EmailWarehouse] Failed to sync attachment #{filename}: #{e.message}"
+    end
+
+    # Update attachment count
+    update_column(:attachment_count, email_attachments.reload.count)
   end
 
   private
