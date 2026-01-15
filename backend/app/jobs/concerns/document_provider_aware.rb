@@ -9,7 +9,7 @@
 #
 # Provides a unified interface for jobs to interact with the organization's
 # configured document storage provider (SharePoint, S3-compatible, etc.)
-# The active provider is determined by StorageConfiguration.detected_provider_type.
+# The active provider is determined by StorageConfiguration.provider_type.
 #
 # Usage in a job:
 #   class UploadDocumentJob < ApplicationJob
@@ -47,8 +47,8 @@ module DocumentProviderAware
     @organization = Organization.first
     @storage_config = StorageConfiguration.instance
 
-    # SSoT: StorageConfiguration.detected_provider_type determines which provider to use
-    provider_type = @storage_config&.detected_provider_type || "sharepoint"
+    # SSoT: StorageConfiguration.provider_type determines which provider to use
+    provider_type = @storage_config&.provider_type || "sharepoint"
 
     @document_provider = case provider_type
     when "wasabi", "s3"
@@ -70,7 +70,7 @@ module DocumentProviderAware
     @organization = organization
     @storage_config = StorageConfiguration.for_organization(organization)
 
-    provider_type = @storage_config&.detected_provider_type || "sharepoint"
+    provider_type = @storage_config&.provider_type || "sharepoint"
 
     @document_provider = case provider_type
     when "wasabi", "s3"
@@ -221,7 +221,7 @@ module DocumentProviderAware
 
   # Check if using Wasabi specifically
   def using_wasabi?
-    @storage_config&.detected_provider_type == "wasabi"
+    @storage_config&.provider_type == "wasabi"
   end
 
   # Get the storage root path

@@ -76,10 +76,11 @@ class CorporateCompanyDocument < ApplicationRecord
   has_many :sm_task_attachments, as: :attachable, dependent: :destroy
   has_many :attached_tasks, through: :sm_task_attachments, source: :sm_task
 
-  # Active Storage for file upload
-  has_one_attached :file
+  # ActiveStorage has_one_attached :file was REMOVED (Jan 2026) - it violated SSoT by
+  # duplicating storage location. Files now stored via StorageBlob (belongs_to :storage_blob)
+  # which deduplicates via content_hash and uses StorageConfiguration for provider-agnostic paths.
 
-  # File upload validation (security: prevents storage DoS and malware upload)
+  # Allowed content types (used by upload validation in DocumentStorageService)
   ALLOWED_CONTENT_TYPES = %w[
     application/pdf
     image/jpeg image/png image/tiff image/heic
@@ -88,9 +89,6 @@ class CorporateCompanyDocument < ApplicationRecord
     application/vnd.ms-excel application/msword
     text/plain text/csv
   ].freeze
-
-  validates :file, content_type: ALLOWED_CONTENT_TYPES,
-                   size: { less_than: 50.megabytes, message: "must be less than 50MB" }
 
   # Storage types for Company Register tracking
   STORAGE_TYPES = %w[manual electronic both].freeze

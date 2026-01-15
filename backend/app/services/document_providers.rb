@@ -24,7 +24,7 @@ module DocumentProviders
   class ProviderError < Error; end
 
   # Factory method to get the appropriate provider for an organization
-  # SSoT: StorageConfiguration.detected_provider_type determines which provider to use
+  # SSoT: StorageConfiguration.provider_type determines which provider to use
   # @param organization [Organization] The organization
   # @return [DocumentProviders::Base] The configured provider
   def self.for_organization(organization)

@@ -17,17 +17,18 @@ class BillInbox < ApplicationRecord
   belongs_to :storage_blob, optional: true
 
   has_many :bill_payments, dependent: :destroy
-  has_one_attached :invoice_file
-  has_many_attached :supporting_documents
 
-  # File upload validation (security: prevents storage DoS and malware upload)
-  validates :invoice_file, content_type: %w[application/pdf image/jpeg image/png image/tiff],
-                           size: { less_than: 50.megabytes, message: "must be less than 50MB" }
-  validates :supporting_documents, content_type: %w[
+  # ActiveStorage has_one_attached :invoice_file was REMOVED (Jan 2026) - SSoT is storage_blob
+  # ActiveStorage has_many_attached :supporting_documents was REMOVED - use separate association
+  # Files stored via StorageBlob with deduplication via content_hash
+
+  # Allowed content types (used by upload validation in services)
+  ALLOWED_INVOICE_TYPES = %w[application/pdf image/jpeg image/png image/tiff].freeze
+  ALLOWED_SUPPORTING_TYPES = %w[
     application/pdf image/jpeg image/png image/tiff
     application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
     application/vnd.ms-excel text/csv
-  ], size: { less_than: 50.megabytes, message: "must be less than 50MB each" }
+  ].freeze
 
   # Validations
   validates :source, presence: true
@@ -165,9 +166,9 @@ class BillInbox < ApplicationRecord
   end
 
   def invoice_file_filename
-    # Use original_filename column if stored, or try Active Storage as fallback during migration
+    # SSoT: Use original_filename column or storage_blob
     return original_filename if original_filename.present?
-    invoice_file.attached? ? invoice_file.filename.to_s : nil
+    storage_blob&.original_filename
   end
 
   # Download invoice file from storage (SSoT)
@@ -192,8 +193,8 @@ class BillInbox < ApplicationRecord
   end
 
   def should_upload_to_storage?
-    # Upload if we have an Active Storage file but no storage reference yet
-    invoice_file.attached? && sharepoint_file_id.blank?
+    # Upload only happens when storage_blob is assigned but not yet uploaded
+    storage_blob.present? && storage_blob.storage_path.blank?
   end
 
   def upload_to_storage

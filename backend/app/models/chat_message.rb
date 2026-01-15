@@ -11,7 +11,8 @@ class ChatMessage < ApplicationRecord
   # SSoT: Link to deduplicated file storage (Jan 2026)
   belongs_to :storage_blob, optional: true
 
-  has_one_attached :file
+  # ActiveStorage has_one_attached :file was REMOVED (Jan 2026) - SSoT is storage_blob
+  # Files stored via StorageBlob with deduplication via content_hash
 
   validates :content, presence: true
   validates :message_type, inclusion: { in: %w[text image file] }, allow_nil: true
@@ -46,10 +47,15 @@ class ChatMessage < ApplicationRecord
   end
 
   # Returns the URL for the attached file (for image/file display)
+  # SSoT: Uses storage_blob for file access
   def file_url
-    return nil unless file.attached?
-    # Use rails_blob_url with default URL options (configured per environment)
-    Rails.application.routes.url_helpers.rails_blob_url(file, only_path: false)
+    return nil unless storage_blob.present?
+    # Generate URL via DocumentStorageService
+    Rails.application.routes.url_helpers.api_v1_document_storage_download_url(
+      scope: "chat_messages",
+      record_id: id,
+      host: Rails.application.routes.default_url_options[:host] || "localhost"
+    )
   rescue StandardError => e
     Rails.logger.error("[ChatMessage] Failed to generate file_url for #{id}: #{e.message}")
     nil
@@ -93,7 +99,8 @@ class ChatMessage < ApplicationRecord
   private
 
   def should_upload_to_storage?
-    file.attached? && sharepoint_file_id.blank?
+    # Upload only happens when storage_blob is assigned but not yet uploaded
+    storage_blob.present? && storage_blob.storage_path.blank?
   end
 
   def upload_to_storage
