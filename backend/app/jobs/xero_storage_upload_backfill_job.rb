@@ -9,13 +9,13 @@
 # ║  Uploads to Wasabi, SharePoint, or S3 based on StorageConfiguration║
 # ╚═══════════════════════════════════════════════════════════════════╝
 #
-class XeroSharepointUploadBackfillJob < ApplicationJob
+class XeroStorageUploadBackfillJob < ApplicationJob
   include DocumentProviderAware
 
   queue_as :low
 
-  # Run with: XeroSharepointUploadBackfillJob.perform_now(limit: 50, dry_run: true)
-  # Or enqueue: XeroSharepointUploadBackfillJob.perform_later(limit: 100)
+  # Run with: XeroStorageUploadBackfillJob.perform_now(limit: 50, dry_run: true)
+  # Or enqueue: XeroStorageUploadBackfillJob.perform_later(limit: 100)
   def perform(limit: nil, dry_run: false)
     # Smart skip: Don't consume a worker thread if there's barely any work
     # This prevents the recurring job from blocking critical jobs when backlog is small

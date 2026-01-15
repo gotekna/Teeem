@@ -7,7 +7,7 @@
 # ║  Uploads to Wasabi, SharePoint, or S3 based on StorageConfiguration║
 # ╚═══════════════════════════════════════════════════════════════════╝
 #
-class PayNowSharepointUploadJob < ApplicationJob
+class PayNowStorageUploadJob < ApplicationJob
   include DocumentProviderAware
 
   queue_as :default

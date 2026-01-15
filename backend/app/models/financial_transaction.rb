@@ -136,8 +136,8 @@ class FinancialTransaction < ApplicationRecord
     receipt.attached? && sharepoint_file_id.blank?
   end
 
-  def upload_receipt_to_sharepoint
-    FinancialTransactionSharepointUploadJob.perform_later(id)
+  def upload_receipt_to_storage
+    FinancialTransactionStorageUploadJob.perform_later(id)
   end
 
   # Provider-agnostic storage reference (SSoT: storage_item_id)

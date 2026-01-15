@@ -29,8 +29,10 @@ class StorageBlob < ApplicationRecord
   has_many :bill_inboxes, dependent: :nullify
 
   # Validations
-  validates :content_hash, presence: true, uniqueness: true
-  validates :storage_path, presence: true
+  # content_hash is optional for legacy records (backfill without download)
+  # New uploads always have content_hash for deduplication
+  validates :content_hash, uniqueness: true, allow_nil: true
+  validates :storage_path, presence: true, uniqueness: true
 
   # Scopes
   scope :orphaned, -> { where(reference_count: 0) }

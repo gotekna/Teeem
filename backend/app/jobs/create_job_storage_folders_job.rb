@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 
-# CreateJobSharepointFoldersJob - Creates document storage folders for a job
+# CreateJobStorageFoldersJob - Creates document storage folders for a job
 #
 # Uses the organization's configured document provider (SharePoint or S3-compatible).
 # This job is provider-agnostic and works with any DocumentProviders implementation.
 #
 # Legacy name kept for backwards compatibility with enqueued jobs.
-class CreateJobSharepointFoldersJob < ApplicationJob
+class CreateJobStorageFoldersJob < ApplicationJob
   include DocumentProviderAware
 
   queue_as :default

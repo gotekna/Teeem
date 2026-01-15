@@ -3,16 +3,13 @@
 # StorageConfiguration - SSoT for storage CONNECTION configuration
 #
 # ╔═══════════════════════════════════════════════════════════════════╗
-# ║  SSoT: provider_type is DERIVED from active credentials           ║
+# ║  SSoT: provider_type column IS THE ONE                            ║
 # ║                                                                   ║
-# ║  The active credential (S3CompatibleCredential or                 ║
-# ║  MicrosoftCredential) determines the provider, NOT the stored     ║
-# ║  column. This prevents config drift when switching providers.     ║
+# ║  Whatever is stored in provider_type is THE provider.             ║
+# ║  No detection, no fallbacks, no complexity.                       ║
 # ║                                                                   ║
-# ║  Priority:                                                        ║
-# ║    1. S3CompatibleCredential.active.connected → wasabi/s3         ║
-# ║    2. MicrosoftCredential.connected → sharepoint                  ║
-# ║    3. Stored column (fallback only)                               ║
+# ║  Providers: wasabi | s3 | sharepoint | local                      ║
+# ║  Default: wasabi                                                  ║
 # ╚═══════════════════════════════════════════════════════════════════╝
 #
 # This model handles CONNECTION ONLY:
@@ -338,18 +335,13 @@ class StorageConfiguration < ApplicationRecord
   end
 
   # ========================================
-  # Provider Type (SSoT: Derived from active credential)
+  # Provider Type (SSoT: Stored value is THE ONE)
   # ========================================
 
-  # SSoT: provider_type is DERIVED from which credential is active
-  # The stored column is only a fallback when no credentials exist
+  # SSoT: provider_type is the stored column value - no detection/derivation
+  # Whatever is configured is THE ONE provider
   def provider_type
-    detected_provider_type
-  end
-
-  # Access the raw stored value (for migrations/debugging only)
-  def stored_provider_type
-    read_attribute(:provider_type)
+    read_attribute(:provider_type) || "wasabi"
   end
 
   # ========================================
@@ -422,70 +414,22 @@ class StorageConfiguration < ApplicationRecord
     end
   end
 
-  # SSoT: connected? is DERIVED from active credential status
+  # SSoT: connected? checks the appropriate credential for the configured provider
   def connected?
-    detected_connected?
+    case provider_type
+    when "wasabi", "s3"
+      S3CompatibleCredential.active.first&.status == "connected"
+    when "sharepoint"
+      MicrosoftCredential.sharepoint_credential&.status == "connected"
+    else
+      false
+    end
+  rescue StandardError
+    false
   end
 
   def disconnected?
     !connected?
-  end
-
-  # ========================================
-  # Provider Detection (SSoT: credentials are source of truth)
-  # ========================================
-
-  # Detect the actual provider from credentials
-  # SSoT: Credentials determine which provider is active, not the stored provider_type
-  def detected_provider_type
-    s3_credential = S3CompatibleCredential.active.first rescue nil
-    ms_credential = MicrosoftCredential.connected.first rescue nil
-
-    if s3_credential&.status == "connected"
-      s3_credential.provider_type == "wasabi" ? "wasabi" : "s3"
-    elsif ms_credential&.status == "connected"
-      "sharepoint"
-    else
-      provider_type # Fall back to stored value if no credentials
-    end
-  end
-
-  # Detect if actually connected based on credentials
-  def detected_connected?
-    s3_credential = S3CompatibleCredential.active.first rescue nil
-    ms_credential = MicrosoftCredential.connected.first rescue nil
-
-    case detected_provider_type
-    when "wasabi", "s3" then s3_credential&.status == "connected"
-    when "sharepoint" then ms_credential&.status == "connected"
-    else false
-    end
-  end
-
-  # Get connection info from the active credential
-  def detected_connection_info
-    s3_credential = S3CompatibleCredential.active.first rescue nil
-    ms_credential = MicrosoftCredential.connected.first rescue nil
-
-    case detected_provider_type
-    when "wasabi", "s3"
-      return {} unless s3_credential
-      {
-        "endpoint" => s3_credential.endpoint,
-        "bucket" => s3_credential.bucket,
-        "region" => s3_credential.region
-      }.compact
-    when "sharepoint"
-      return {} unless ms_credential
-      {
-        "site_url" => ms_credential.respond_to?(:site_url) ? ms_credential.site_url : nil,
-        "site_id" => ms_credential.sharepoint_site_id,
-        "drive_id" => ms_credential.sharepoint_drive_id,
-        "drive_name" => ms_credential.respond_to?(:drive_name) ? ms_credential.drive_name : "Shared Documents"
-      }.compact
-    else
-      {}
-    end
   end
 
   # ========================================
@@ -618,27 +562,21 @@ class StorageConfiguration < ApplicationRecord
   # Configuration Export (for API/UI)
   # ========================================
 
-  # Returns config in format expected by SharePointTab.tsx frontend
-  # SSoT: StorageConfiguration handles CONNECTION only
-  # Folder paths are managed by EntityTab (Entity Configurator)
+  # Returns config in format expected by frontend
+  # SSoT: provider_type is the stored value, connected? checks that provider's credential
   def to_config_hash
-    actual_provider = detected_provider_type
-    actual_connected = detected_connected?
-    actual_connection = detected_connection_info
-
     {
-      configured: actual_connected,
-      provider_type: actual_provider,
-      status: actual_connected ? "connected" : "disconnected",
-      # Connection details from active credential
-      site_url: actual_connection["site_url"] || site_url,
-      site_id: actual_connection["site_id"] || site_id,
-      drive_id: actual_connection["drive_id"] || drive_id,
-      drive_name: actual_connection["drive_name"] || drive_name,
-      # S3/Wasabi details from active credential
-      endpoint: actual_connection["endpoint"] || endpoint,
-      bucket: actual_connection["bucket"] || bucket,
-      region: actual_connection["region"] || region,
+      configured: connected?,
+      provider_type: provider_type,
+      status: connected? ? "connected" : "disconnected",
+      # Connection details from connection_config
+      site_url: site_url,
+      site_id: site_id,
+      drive_id: drive_id,
+      drive_name: drive_name,
+      endpoint: endpoint,
+      bucket: bucket,
+      region: region,
       # Root path and scope folders
       root_path: root_path,
       scope_folders: effective_scope_folders,

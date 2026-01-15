@@ -45,7 +45,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { API_TIMEOUT_FILE_UPLOAD } from "@/lib/constants/timeout-constants";
-import { uploadPhoto } from "@/lib/sharepoint-upload";
+import { uploadPhoto } from "@/lib/storage-upload";
 import { EmailPlansModal } from "@/components/plans/EmailPlansModal";
 import { PlanProcessingModal, OperationType } from "@/components/jobs/PlanProcessingModal";
 import { useToast } from "@/components/ui/use-toast";

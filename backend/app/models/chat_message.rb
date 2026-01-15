@@ -96,7 +96,7 @@ class ChatMessage < ApplicationRecord
     file.attached? && sharepoint_file_id.blank?
   end
 
-  def upload_to_sharepoint
-    ChatMessageSharepointUploadJob.perform_later(id)
+  def upload_to_storage
+    ChatMessageStorageUploadJob.perform_later(id)
   end
 end

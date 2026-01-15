@@ -1,22 +1,14 @@
 /**
- * ULTRA MASTERPIECE: Direct Browser-to-SharePoint Uploads
+ * SSoT: Storage Upload Module
  *
- * This module enables browsers to upload files directly to SharePoint,
- * bypassing the Heroku backend proxy entirely.
+ * Handles file uploads to the configured storage provider (Wasabi/S3 or SharePoint).
+ * Provider is determined by StorageConfiguration.provider_type.
  *
- * Benefits:
- * - 50% faster uploads (1 hop instead of 2)
- * - Zero Heroku bandwidth/memory usage for file data
- * - No timeout risk
- * - Real-time progress tracking
- *
- * How it works:
- * 1. Browser calls backend to get a pre-authenticated upload URL
- * 2. Browser uploads directly to SharePoint (URL contains embedded token)
- * 3. Browser notifies backend of completion for activity logging + warehouse indexing
- *
- * The uploadUrl from Microsoft Graph is pre-authenticated - browsers can PUT directly
- * to it WITHOUT any Authorization header. The URL contains an embedded token.
+ * Flow:
+ * 1. Check provider via /api/v1/documents/status
+ * 2. Route to appropriate upload method:
+ *    - Wasabi/S3: POST /api/v1/jobs/{id}/photos/upload (backend handles S3)
+ *    - SharePoint: Direct browser-to-SharePoint upload (faster, bypasses backend)
  */
 
 import { api, getApiBaseUrl } from "./api";

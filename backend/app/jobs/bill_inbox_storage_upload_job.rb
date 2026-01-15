@@ -8,7 +8,7 @@
 # ║  Uploads to Wasabi, SharePoint, or S3 based on StorageConfiguration║
 # ╚═══════════════════════════════════════════════════════════════════╝
 #
-class BillInboxSharepointUploadJob < ApplicationJob
+class BillInboxStorageUploadJob < ApplicationJob
   include DocumentProviderAware
 
   queue_as :default

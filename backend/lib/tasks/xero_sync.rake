@@ -479,7 +479,7 @@ namespace :xero do
     puts "Starting backfill job..."
     puts ""
 
-    stats = XeroSharepointUploadBackfillJob.perform_now(limit: limit, dry_run: dry_run)
+    stats = XeroStorageUploadBackfillJob.perform_now(limit: limit, dry_run: dry_run)
 
     puts ""
     puts "=" * 70

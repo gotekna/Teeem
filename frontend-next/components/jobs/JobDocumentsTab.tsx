@@ -57,7 +57,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { api, getApiBaseUrl } from "@/lib/api";
-import { uploadPhoto, type UploadProgress } from "@/lib/sharepoint-upload";
+import { uploadPhoto, type UploadProgress } from "@/lib/storage-upload";
 
 interface OrgStatus {
   loading: boolean;

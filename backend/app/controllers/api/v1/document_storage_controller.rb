@@ -27,117 +27,88 @@ module Api
 
       # GET /api/v1/documents/status
       # Check if organization has OneDrive connected
-      # Will attempt to refresh expired tokens automatically
-      # Falls back to user's Microsoft token if org credential not set up
+      # SSoT: StorageConfiguration.provider_type determines THE ONE storage backend
+      # No fallback chains - one provider, one credential check
       def status
-        # Prevent browser caching - status can change at any time
         response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
 
-        # Wrap credential loading in rescue - tokens are encrypted and may fail to decrypt
-        # if encrypted with different keys across environments
-        credential = begin
-          cred = MicrosoftCredential.sharepoint_credential
-          # Try to access an encrypted field to verify decryption works
-          cred&.access_token if cred
-          cred
-        rescue ActiveRecord::Encryption::Errors::Decryption => e
-          Rails.logger.warn "[OneDrive Status] Decryption error loading org credential: #{e.message}"
-          nil
-        end
+        storage_config = StorageConfiguration.instance
+        provider = storage_config&.provider_type || "wasabi"
 
-        # If no org credential, check if user has Microsoft credential with OneDrive access
-        unless credential
-          # Try to use user's MicrosoftCredential as fallback (SSoT)
-          begin
-            microsoft_credential = current_user&.microsoft_token
-            if microsoft_credential&.status == "connected" && microsoft_credential&.access_token.present?
-              # User has a connected Microsoft account - use it as the OneDrive connection
-              return render json: {
-                connected: true,
-                source: "microsoft_credential",
-                drive_name: "Personal OneDrive",
-                connected_at: microsoft_credential.created_at,
-                connected_by: current_user&.as_json(),
-                token_expires_at: microsoft_credential.token_expires_at,
-                message: "Using your Microsoft 365 connection for OneDrive access"
-              }
-            end
-          rescue StandardError => e
-            Rails.logger.warn "[OneDrive Status] Error accessing MicrosoftCredential: #{e.message}"
-          end
-
-          # Check if using S3-compatible storage (doesn't need SharePoint/OneDrive credential)
-          storage_config = StorageConfiguration.instance
-          if storage_config&.provider_type&.start_with?("s3") || storage_config&.provider_type == "wasabi"
-            return render json: {
-              connected: true,
-              source: "s3_storage",
-              provider_type: storage_config.provider_type,
-              message: "Using S3-compatible storage"
-            }
-          end
-
-          return render json: {
-            connected: false,
-            provider_type: storage_config&.provider_type || "sharepoint",
-            message: "Not connected"
-          }
-        end
-
-        # If token is expired but we have a refresh token, try to refresh
-        if credential.token_expired? && credential.refresh_token.present?
-          begin
-            Rails.logger.info "[OneDrive Status] Token expired, attempting refresh..."
-            client = MicrosoftGraphClient.new(credential)
-            client.refresh_token!
-            credential.reload
-            Rails.logger.info "[OneDrive Status] Token refreshed successfully"
-          rescue StandardError => e
-            Rails.logger.error "[SharePoint] Token refresh failed: #{e.message}"
-            return render json: {
-              connected: false,
-              message: "Session expired. Please reconnect SharePoint in Admin > System > Connections.",
-              error: "Token refresh failed"
-            }
-          end
-        end
-
-        if credential.valid_credential?
-          # SSoT: Get storage config from StorageConfiguration
-          storage_config = StorageConfiguration.instance
-          render json: {
-            connected: true,
-            source: "organization_credential",
-            provider_type: storage_config&.provider_type || "sharepoint",
-            drive_id: storage_config&.drive_id,
-            drive_name: storage_config&.drive_name,
-            root_folder_id: credential.root_folder_id,
-            root_folder_path: storage_config&.root_path,
-            root_folder_web_url: credential.metadata&.dig("root_folder_web_url"),
-            connected_at: credential.created_at,
-            connected_by: credential.connected_by&.as_json(),
-            metadata: credential.metadata,
-            token_expires_at: credential.token_expires_at
-          }
-        else
-          # Check if using S3-compatible storage (doesn't need SharePoint credential)
-          storage_config = StorageConfiguration.instance
-          if storage_config&.provider_type&.start_with?("s3") || storage_config&.provider_type == "wasabi"
+        case provider
+        when "wasabi", "s3"
+          # SSoT: S3-compatible storage via S3CompatibleCredential
+          credential = S3CompatibleCredential.active.first
+          if credential&.status == "connected"
             render json: {
               connected: true,
-              source: "s3_storage",
-              provider_type: storage_config.provider_type,
-              message: "Using S3-compatible storage"
+              provider_type: provider,
+              bucket: credential.bucket,
+              endpoint: credential.endpoint,
+              region: credential.region,
+              root_path: storage_config&.root_path
             }
           else
             render json: {
               connected: false,
-              provider_type: storage_config&.provider_type || "sharepoint",
-              message: "Credential expired or invalid"
+              provider_type: provider,
+              message: "S3 storage not connected. Configure in Admin > System > Connections."
             }
           end
+
+        when "sharepoint"
+          # SSoT: SharePoint storage via MicrosoftCredential
+          credential = begin
+            cred = MicrosoftCredential.sharepoint_credential
+            cred&.access_token if cred # Verify decryption works
+            cred
+          rescue ActiveRecord::Encryption::Errors::Decryption => e
+            Rails.logger.warn "[Storage Status] Decryption error: #{e.message}"
+            nil
+          end
+
+          if credential&.valid_credential?
+            # Auto-refresh expired tokens
+            if credential.token_expired? && credential.refresh_token.present?
+              begin
+                MicrosoftGraphClient.new(credential).refresh_token!
+                credential.reload
+              rescue StandardError => e
+                Rails.logger.error "[Storage Status] Token refresh failed: #{e.message}"
+                return render json: {
+                  connected: false,
+                  provider_type: provider,
+                  message: "Session expired. Reconnect in Admin > System > Connections."
+                }
+              end
+            end
+
+            render json: {
+              connected: true,
+              provider_type: provider,
+              drive_id: storage_config&.drive_id,
+              drive_name: storage_config&.drive_name,
+              root_folder_id: credential.root_folder_id,
+              root_folder_path: storage_config&.root_path,
+              connected_at: credential.created_at,
+              connected_by: credential.connected_by&.as_json
+            }
+          else
+            render json: {
+              connected: false,
+              provider_type: provider,
+              message: "SharePoint not connected. Configure in Admin > System > Connections."
+            }
+          end
+
+        else
+          render json: {
+            connected: false,
+            provider_type: provider,
+            message: "Unknown storage provider: #{provider}"
+          }
         end
       end
 

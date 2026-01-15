@@ -247,8 +247,8 @@ warehouse_xero_attachments:
 # Upload Xero PDFs to SharePoint - catches any that failed instant upload
 # SSoT: Instant upload happens in XeroAttachmentSyncService.upload_to_sharepoint
 # This backfill catches failures and runs frequently to stay near-live
-warehouse_sharepoint_upload:
-  class: XeroSharepointUploadBackfillJob
+warehouse_storage_upload:
+  class: XeroStorageUploadBackfillJob
   queue: low
   args: [{ limit: 50, dry_run: false }]
   schedule: every 30 minutes

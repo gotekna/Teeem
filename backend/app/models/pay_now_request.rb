@@ -307,8 +307,8 @@ class PayNowRequest < ApplicationRecord
       (proof_photos.attached? && proof_photos_sharepoint_ids.blank?)
   end
 
-  def upload_files_to_sharepoint
-    PayNowSharepointUploadJob.perform_later(id)
+  def upload_files_to_storage
+    PayNowStorageUploadJob.perform_later(id)
   end
 
   # Provider-agnostic storage reference (SSoT: storage_item_id)

@@ -41,17 +41,17 @@ namespace :storage_blob do
     total_skipped = 0
 
     # Process CorporateCompanyDocument
-    # Strategy: Use content_hash + storage_path (already in S3) - no ActiveStorage download needed
+    # Strategy: Use storage_path (already in S3) - content_hash was never computed for these
     puts "-" * 70
     puts "Processing CorporateCompanyDocument"
     puts "-" * 70
 
     # SSoT: Process documents that have storage_path (already in S3) but no storage_blob_id
-    scope = CorporateCompanyDocument.where(storage_blob_id: nil).where.not(storage_path: nil).where.not(content_hash: nil)
+    scope = CorporateCompanyDocument.where(storage_blob_id: nil).where.not(storage_path: nil)
     scope = scope.limit(limit) if limit.present?
 
     total_to_process = scope.count
-    puts "Found #{total_to_process} documents with storage_path+content_hash (no storage_blob_id)"
+    puts "Found #{total_to_process} documents with storage_path (no storage_blob_id)"
 
     if total_to_process == 0
       puts "  Nothing to process"
@@ -64,19 +64,20 @@ namespace :storage_blob do
 
         begin
           if execute
-            # Check if blob with this hash already exists (deduplication)
-            existing_blob = StorageBlob.find_by(content_hash: doc.content_hash)
+            # Check if blob with this storage_path already exists
+            existing_blob = StorageBlob.find_by(storage_path: doc.storage_path)
 
             if existing_blob
-              # Dedupe - reuse existing blob
+              # Reuse existing blob
               doc.update_column(:storage_blob_id, existing_blob.id)
               existing_blob.increment_reference!
               total_deduplicated += 1
               total_migrated += 1
             else
-              # Create new blob from existing S3 data (no download needed!)
+              # Create new blob from existing S3 data
+              # Note: content_hash is nil - can be computed later for deduplication
               blob = StorageBlob.create!(
-                content_hash: doc.content_hash,
+                content_hash: nil,  # Not computed yet
                 storage_path: doc.storage_path,
                 file_size: doc.file_size,
                 original_filename: doc.file_name,
@@ -88,9 +89,9 @@ namespace :storage_blob do
             end
           else
             # Dry run
-            existing = StorageBlob.find_by(content_hash: doc.content_hash)
+            existing = StorageBlob.find_by(storage_path: doc.storage_path)
             if existing
-              puts "  Doc #{doc.id}: Would dedupe to blob #{existing.id}" if index < 5
+              puts "  Doc #{doc.id}: Would reuse blob #{existing.id}" if index < 5
               total_deduplicated += 1
             else
               puts "  Doc #{doc.id}: Would create new blob" if index < 5

@@ -196,7 +196,7 @@ class BillInbox < ApplicationRecord
     invoice_file.attached? && sharepoint_file_id.blank?
   end
 
-  def upload_to_sharepoint
-    BillInboxSharepointUploadJob.perform_later(id)
+  def upload_to_storage
+    BillInboxStorageUploadJob.perform_later(id)
   end
 end

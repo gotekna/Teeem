@@ -557,13 +557,11 @@ class Job < ApplicationRecord
 
   # Queue storage folder creation after job is created
   def queue_storage_folder_creation
-    # Only create folders if storage provider is connected
-    # SSoT: Use MicrosoftCredential
-    credential = MicrosoftCredential.sharepoint_credential
-    return unless credential&.valid_credential?
+    # SSoT: Only create folders if storage provider is connected
+    return unless StorageConfiguration.instance.connected?
 
     # Queue the folder creation job (runs in background)
-    CreateJobSharepointFoldersJob.perform_later(id)
+    CreateJobStorageFoldersJob.perform_later(id)
     update_column(:storage_folder_status, "pending")
   rescue StandardError => e
     Rails.logger.error "Failed to queue storage folder creation for job #{id}: #{e.message}"
