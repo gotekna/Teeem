@@ -1,7 +1,9 @@
 module Api
   module V1
-    # RENAMED: OrganizationOnedriveController → OrganizationSharepointController
-    class OrganizationSharepointController < ApplicationController
+    # SSoT: Provider-agnostic document storage controller
+    # Handles auth, browse, download for all storage providers (SharePoint, S3, Wasabi)
+    # RENAMED: OrganizationOnedriveController → OrganizationSharepointController → DocumentStorageController
+    class DocumentStorageController < ApplicationController
       include DocumentProviderAware
 
       # Skip auth for OAuth callback (comes from Microsoft, not our frontend)
