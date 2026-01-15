@@ -50,11 +50,11 @@ namespace :storage do
     puts "=" * 60
   end
 
-  desc "Rename Contact folders from C{id} format to {id} - {name} format"
+  desc "Rename Contact folders from C{id} format to SSoT format (Contact#document_folder_name)"
   task rename_contact_folders: :environment do
     puts "=" * 60
     puts "Contact Folder Rename Task"
-    puts "Renames: C1310 -> 1310 - Contact Name"
+    puts "SSoT: Uses Contact#document_folder_name for target format"
     puts "=" * 60
     puts ""
 
@@ -66,7 +66,6 @@ namespace :storage do
       exit 1
     end
 
-    # List all folders in Contacts/
     contacts_path = StorageConfiguration.instance.path_for(:contact) || "Contacts"
     puts "Scanning: #{contacts_path}/"
     puts ""
@@ -90,19 +89,20 @@ namespace :storage do
         contact = Contact.find_by(id: contact_id)
 
         if contact
-          new_name = "#{contact_id} - #{contact.display_name}"
+          # SSoT: Use Contact#document_folder_name for consistent naming
+          new_name = contact.document_folder_name
           old_path = "#{contacts_path}/#{name}"
           new_path = "#{contacts_path}/#{new_name}"
 
           puts "Renaming: #{name} -> #{new_name}"
 
           begin
-            result = provider.rename_folder(old_path, new_path)
-            if result[:success]
-              puts "  ✓ Moved #{result[:moved_count]} objects"
+            rename_result = provider.rename_folder(old_path, new_path)
+            if rename_result[:success]
+              puts "  ✓ Moved #{rename_result[:moved_count]} objects"
               renamed += 1
             else
-              puts "  ✗ Failed: #{result[:error]}"
+              puts "  ✗ Failed: #{rename_result[:error]}"
               errors += 1
             end
           rescue => e
@@ -114,17 +114,13 @@ namespace :storage do
           skipped += 1
         end
       else
-        # Already in correct format or unknown format
         skipped += 1
       end
     end
 
     puts ""
     puts "=" * 60
-    puts "Complete!"
-    puts "  Renamed: #{renamed}"
-    puts "  Skipped: #{skipped}"
-    puts "  Errors: #{errors}"
+    puts "Complete! Renamed: #{renamed}, Skipped: #{skipped}, Errors: #{errors}"
     puts "=" * 60
   end
 
