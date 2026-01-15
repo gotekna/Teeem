@@ -2,6 +2,13 @@
 
 # S3PathCleanupJob - Renames S3 objects to clean, human-readable paths
 #
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  SSoT: StorageConfiguration.SCOPE_FOLDERS defines folder names   ║
+# ║  - Jobs/ (with J{id} prefix from job.job_code)                    ║
+# ║  - Corporate/                                                      ║
+# ║  - Corporate/People/                                               ║
+# ╚═══════════════════════════════════════════════════════════════════╝
+#
 # Moves files within S3 (no re-download from SharePoint) using copy + delete.
 # Updates storage_path in database to match new location.
 #
@@ -33,12 +40,13 @@ class S3PathCleanupJob < ApplicationJob
     count
   end
 
-  # Check if path is already clean (lowercase, no spaces, no encoded chars)
+  # Check if path uses SSoT folder structure (TitleCase, proper prefixes)
+  # SSoT: Jobs/J{id}/, Corporate/, Corporate/People/
   def self.clean_path?(path)
     return true if path.blank?
 
-    # Clean paths: lowercase, no spaces, no URL encoding, starts with type prefix
-    path.match?(/\A(jobs|corporate|people)\/\d+\/[a-z0-9\-\/\.]+\z/)
+    # SSoT paths: TitleCase folders, job_code format (J{id}), no URL encoding
+    path.match?(/\A(Jobs\/J\d+|Corporate\/\d+|Corporate\/People\/\d+)\/[a-zA-Z0-9\-\/\._\s]+\z/)
   end
 
   def perform(document_id, options = {})
@@ -134,64 +142,80 @@ class S3PathCleanupJob < ApplicationJob
 
   private
 
-  # Build clean path for document (same logic as DocumentMigrationJob)
+  # Build clean path for document using SSoT from StorageConfiguration
+  # SSoT: StorageConfiguration.SCOPE_FOLDERS defines folder names
   def build_clean_path(document, document_type)
     case document_type
     when 'JobDocument'
       job = document.job
-      subfolder = slugify_path(document.folder_path.presence || "documents")
-      filename = slugify_filename(document.file_name)
-      "jobs/#{job.id}/#{subfolder}/#{filename}"
+      # SSoT: Use job.job_code (e.g., "J49") from database column
+      job_code = job.job_code
+      subfolder = clean_subfolder(document.folder_path.presence || "Documents")
+      filename = clean_filename(document.file_name)
+      # SSoT: Jobs/ folder with J{id} prefix
+      "Jobs/#{job_code}/#{subfolder}/#{filename}"
 
     when 'CorporateCompanyDocument'
       company = document.corporate_company
       if company
-        folder = slugify_path(document.folder.presence || "documents")
-        filename = slugify_filename(document.file_name)
-        "corporate/#{company.id}/#{folder}/#{filename}"
+        folder = clean_subfolder(document.folder.presence || "Documents")
+        filename = clean_filename(document.file_name)
+        # SSoT: Corporate/ folder
+        "Corporate/#{company.id}/#{folder}/#{filename}"
       else
-        "corporate/unassigned/#{slugify_filename(document.file_name)}"
+        "Corporate/unassigned/#{clean_filename(document.file_name)}"
       end
 
     when 'PeopleDocument'
       contact = document.contact
       if contact
-        folder = slugify_path(document.folder.presence || "documents")
-        filename = slugify_filename(document.file_name)
-        "people/#{contact.id}/#{folder}/#{filename}"
+        folder = clean_subfolder(document.folder.presence || "Documents")
+        filename = clean_filename(document.file_name)
+        # SSoT: Corporate/People/ folder
+        "Corporate/People/#{contact.id}/#{folder}/#{filename}"
       else
-        "people/unassigned/#{slugify_filename(document.file_name)}"
+        "Corporate/People/unassigned/#{clean_filename(document.file_name)}"
       end
 
     else
-      "documents/#{slugify_filename(document.file_name)}"
+      "Documents/#{clean_filename(document.file_name)}"
     end
   end
 
-  # Convert path segments to URL-friendly slugs
-  def slugify_path(path)
-    return "documents" if path.blank?
-    path.split('/').map { |segment| slugify(segment) }.join('/')
+  # Clean subfolder path - preserve case, remove problematic characters
+  def clean_subfolder(path)
+    return "Documents" if path.blank?
+    path.split('/').map { |segment| clean_segment(segment) }.join('/')
   end
 
-  # Convert filename to URL-friendly format while preserving extension
-  def slugify_filename(filename)
+  # Clean filename - preserve case, remove problematic characters
+  def clean_filename(filename)
     return "untitled" if filename.blank?
     ext = File.extname(filename)
     base = File.basename(filename, ext)
-    "#{slugify(base)}#{ext.downcase}"
+    "#{clean_segment(base)}#{ext}"
   end
 
-  # Convert string to URL-friendly slug
-  def slugify(text)
-    return "untitled" if text.blank?
+  # Clean a single path segment - preserve case, remove only problematic chars
+  def clean_segment(text)
+    return "item" if text.blank?
     text.to_s
-        .downcase
-        .gsub(/^\d+\s*[-_]?\s*/, '')  # Remove leading numbers like "03 - "
-        .gsub(/[^a-z0-9\s-]/, '')     # Remove special chars except spaces/hyphens
-        .gsub(/\s+/, '-')              # Spaces to hyphens
-        .gsub(/-+/, '-')               # Collapse multiple hyphens
-        .gsub(/^-|-$/, '')             # Trim leading/trailing hyphens
+        .gsub(/[<>:"|?*\\]/, '')      # Remove Windows-invalid chars only
+        .gsub(/\s+/, ' ')              # Normalize whitespace
+        .strip
         .presence || "item"
+  end
+
+  # Legacy methods for backwards compatibility
+  def slugify_path(path)
+    clean_subfolder(path)
+  end
+
+  def slugify_filename(filename)
+    clean_filename(filename)
+  end
+
+  def slugify(text)
+    clean_segment(text)
   end
 end
