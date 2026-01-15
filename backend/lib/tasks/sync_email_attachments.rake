@@ -222,6 +222,44 @@ namespace :email do
     puts "[Worker #{worker_id + 1}] Complete!"
   end
 
+  desc "Link existing attachments from related emails (SSoT - no download needed)"
+  task :link_existing, [:limit] => :environment do |_t, args|
+    limit = (args[:limit] || 1000).to_i
+
+    pending = EmailWarehouse
+      .where(has_attachments: true)
+      .left_joins(:email_attachments)
+      .where(email_attachments: { id: nil })
+      .limit(limit)
+
+    total = pending.count
+    puts "Checking #{total} emails for linkable attachments..."
+    puts ""
+
+    linked = 0
+    need_download = 0
+
+    pending.find_each do |email|
+      if email.link_existing_attachments!
+        linked += 1
+        puts "✓ Linked: #{email.id} - #{email.subject.to_s[0..50]}"
+      else
+        need_download += 1
+      end
+    end
+
+    puts ""
+    puts "=" * 50
+    puts "Done: #{linked} linked from existing, #{need_download} still need download"
+
+    remaining = EmailWarehouse
+      .where(has_attachments: true)
+      .left_joins(:email_attachments)
+      .where(email_attachments: { id: nil })
+      .count
+    puts "Total remaining: #{remaining}"
+  end
+
   desc "Enqueue ALL missing attachments in batches (run multiple times or let queue drain)"
   task :sync_all, [:batch_size] => :environment do |_t, args|
     batch_size = (args[:batch_size] || 500).to_i

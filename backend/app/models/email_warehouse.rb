@@ -735,11 +735,73 @@ class EmailWarehouse < ApplicationRecord
     pdf_texts.presence
   end
 
+  # SSoT: Try to link attachments from related emails without downloading
+  # Checks same internet_message_id (exact copy in another mailbox) or conversation_id (thread)
+  # Returns true if attachments were linked, false if download still needed
+  def link_existing_attachments!
+    return false unless has_attachments
+    return false if email_attachments.any?
+
+    # Find related emails with synced attachments
+    related = EmailWarehouse.where.not(id: id)
+      .where(has_attachments: true)
+      .joins(:email_attachments)
+      .where.not(email_attachments: { storage_blob_id: nil })
+
+    # Priority 1: Same internet_message_id (exact same email, different mailbox)
+    if internet_message_id.present?
+      source = related.find_by(internet_message_id: internet_message_id)
+      if source
+        Rails.logger.info "[EmailWarehouse] Linking attachments from email #{source.id} (same internet_message_id)"
+        return copy_attachments_from!(source)
+      end
+    end
+
+    # Priority 2: Same conversation_id (thread) with matching subject
+    if conversation_id.present?
+      source = related.where(conversation_id: conversation_id).first
+      if source
+        Rails.logger.info "[EmailWarehouse] Linking attachments from email #{source.id} (same conversation_id)"
+        return copy_attachments_from!(source)
+      end
+    end
+
+    false
+  end
+
+  # Copy attachments from another email, linking to same StorageBlobs
+  def copy_attachments_from!(source_email)
+    source_email.email_attachments.each do |src_att|
+      next unless src_att.storage_blob_id
+
+      # Create new EmailAttachment linking to same blob (handle missing auto-increment)
+      next_id = (EmailAttachment.maximum(:id) || 0) + 1
+      ea = EmailAttachment.create!(
+        id: next_id,
+        email_warehouse_id: id,
+        filename: src_att.filename,
+        storage_blob_id: src_att.storage_blob_id
+      )
+
+      # Increment blob reference count
+      src_att.storage_blob&.increment!(:reference_count)
+      Rails.logger.debug "[EmailWarehouse] Linked attachment: #{src_att.filename} → blob #{src_att.storage_blob_id}"
+    end
+
+    # Update attachment count
+    update_column(:attachment_count, email_attachments.reload.count) if email_attachments.any?
+
+    email_attachments.any?
+  end
+
   # SSoT: Sync attachments from Microsoft Graph to EmailAttachment → StorageBlob
   # Called automatically for new emails with attachments via OrgEmailSyncJob
   def sync_attachments!(force: false)
     return unless has_attachments
     return if email_attachments.any? && !force
+
+    # SSoT: Try linking existing attachments first (don't re-download)
+    return if link_existing_attachments!
 
     unless microsoft_credential_id.present? && outlook_id.present? && mailbox_owner_email.present?
       Rails.logger.warn "[EmailWarehouse] Cannot sync attachments for #{id} - missing credential/outlook_id/mailbox"

@@ -9,7 +9,7 @@ module Api
         :show, :update, :destroy, :start, :complete, :spawn_preview,
         :hold, :release_hold, :cascade_preview, :cascade_execute, :move,
         :working_drawings, :process_working_drawings, :override_page_category,
-        :attachments, :add_attachment, :remove_attachment, :upload_attachment,
+        :attachments, :add_attachment, :remove_attachment, :update_attachment, :upload_attachment,
         :download_attachment_for_email, :create_attachment_share_link,
         :follow, :unfollow, :followers, :add_follower, :remove_follower,
         :history,
