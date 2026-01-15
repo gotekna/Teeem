@@ -405,6 +405,9 @@ Rails.application.routes.draw do
       # SSoT: Folder hierarchy matching StorageConfiguration.SCOPE_TEMPLATES
       # Used by File Warehouse to build tree structure that mirrors storage paths
       get "documents/scope_hierarchy", to: "documents#scope_hierarchy"
+      # SSoT: OneDrive-like S3 folder browser - lists actual S3/Wasabi folders
+      # Used by Documents page to mirror exact storage structure for desktop sync
+      get "documents/s3_folders", to: "documents#s3_folders"
 
       # Documents (simple alias for company documents)
       resources :documents, only: [ :index, :create, :show, :update, :destroy ] do

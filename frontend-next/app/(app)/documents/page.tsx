@@ -383,6 +383,14 @@ export default function AllDocumentsPage() {
     people: ScopeHierarchyItem[];
   }>({ corporate: [], job: [], people: [] });
 
+  // SSoT: S3 folder contents - loaded lazily when expanding folders
+  // This mirrors the exact Wasabi/S3 folder structure for OneDrive-like browsing
+  const [s3Folders, setS3Folders] = useState<Record<string, {
+    folders: Array<{ name: string; path: string }>;
+    files: Array<{ name: string; path: string; size: number; content_type: string; url?: string }>;
+  }>>({});
+  const [loadingS3Folders, setLoadingS3Folders] = useState<Set<string>>(new Set());
+
   // Sync settings state
   const [showSyncSettings, setShowSyncSettings] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
@@ -657,6 +665,49 @@ export default function AllDocumentsPage() {
       });
     }
   }, [folderFiles, loadingFolders]);
+
+  // SSoT: Fetch S3 folders from Wasabi - mirrors exact storage structure
+  // This is used for OneDrive-like folder browsing
+  const fetchS3Folders = useCallback(async (path: string) => {
+    // Already loaded or loading
+    if (s3Folders[path] || loadingS3Folders.has(path)) {
+      return;
+    }
+
+    setLoadingS3Folders(prev => new Set(prev).add(path));
+    try {
+      const response = await api.get<{
+        success: boolean;
+        path: string;
+        folders: Array<{ name: string; path: string }>;
+        files: Array<{ name: string; path: string; size: number; content_type: string; last_modified?: string; url?: string }>;
+        count: { folders: number; files: number; total: number };
+      }>(`/api/v1/documents/s3_folders?path=${encodeURIComponent(path)}`);
+
+      if (response?.success) {
+        setS3Folders(prev => ({
+          ...prev,
+          [path]: {
+            folders: response.folders || [],
+            files: response.files || [],
+          },
+        }));
+      }
+    } catch (err) {
+      console.error(`Failed to fetch S3 folders for ${path}:`, err);
+      // Set empty to prevent re-fetching
+      setS3Folders(prev => ({
+        ...prev,
+        [path]: { folders: [], files: [] },
+      }));
+    } finally {
+      setLoadingS3Folders(prev => {
+        const next = new Set(prev);
+        next.delete(path);
+        return next;
+      });
+    }
+  }, [s3Folders, loadingS3Folders]);
 
   // Poll for active background jobs (folder reorganization)
   useEffect(() => {
@@ -954,66 +1005,77 @@ export default function AllDocumentsPage() {
       }));
     };
 
-    // SSoT: Convert ScopeHierarchyItem to TreeNode (recursive)
-    // This maps the backend hierarchy structure to the frontend tree
-    const hierarchyToTree = (items: ScopeHierarchyItem[], scopePrefix: string): TreeNode[] => {
-      return items.map(item => ({
-        id: item.id,
-        name: item.name,
-        type: "folder" as const,
-        fileCount: item.fileCount || 0,
-        children: item.children ? hierarchyToTree(item.children, scopePrefix) : undefined,
-        // Pass through context for fetching files later
-        fullPath: item.entityTabId ? `/entity-tab/${item.entityTabId}` : undefined,
+    // SSoT: Convert S3 folders to TreeNode (recursive)
+    // This builds the tree from actual S3/Wasabi folder structure (OneDrive-like)
+    const s3FoldersToTree = (s3Path: string): TreeNode[] => {
+      const data = s3Folders[s3Path];
+      if (!data) return [];
+
+      const folderNodes: TreeNode[] = data.folders.map(folder => {
+        // Check if this subfolder has been loaded
+        const subfolderData = s3Folders[folder.path];
+        const subChildren = subfolderData ? s3FoldersToTree(folder.path) : undefined;
+
+        return {
+          id: `s3-folder-${folder.path.replace(/\//g, "-")}`,
+          name: folder.name,
+          type: "folder" as const,
+          children: subChildren,
+          // For lazy loading - track the S3 path
+          fullPath: folder.path,
+        };
+      });
+
+      const fileNodes: TreeNode[] = data.files.map(file => ({
+        id: `s3-file-${file.path.replace(/\//g, "-")}`,
+        name: file.name,
+        type: "file" as const,
+        file: {
+          id: 0, // S3 files don't have database IDs
+          source: "corporate" as const,
+          fileName: file.name,
+          displayName: file.name,
+          mimeType: file.content_type || "",
+          fileSize: file.size || 0,
+          fileUrl: file.url || null,
+          folderPath: file.path,
+          storagePath: file.path,
+          storageProvider: "s3_compatible",
+          createdAt: new Date().toISOString(),
+          isImage: /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(file.name),
+        },
       }));
+
+      return [...folderNodes, ...fileNodes];
     };
 
-    // Enhance specific nodes with SSoT hierarchy from scope_hierarchy endpoint
-    // This replaces the flat EntityTab structure with proper template-based hierarchy
+    // SSoT: S3-driven scopes - these show actual Wasabi folder structure
+    const S3_DRIVEN_SCOPES = ["job", "corporate", "corporate_entity", "contact", "contacts"];
+
+    // Enhance specific nodes with S3 folder listing (SSoT: mirrors actual Wasabi structure)
     return dynamicTree.map(node => {
-      // SSoT: Corporate uses template {{CompanyGroup}}/{{CompanyCode}}/{{TabName}}
-      if ((node.id === "corporate" || node.id === "corporate_entity") && scopeHierarchies.corporate.length > 0) {
-        // Use hierarchy from API (CompanyGroup → CompanyCode → TabName)
-        const hierarchyChildren = hierarchyToTree(scopeHierarchies.corporate, "corp");
+      // Get the S3 path for this scope
+      const scopePath = scopeFolders[node.id] || node.name;
+
+      // SSoT: For Jobs, Corporate, Contacts - use S3 folder listing
+      if (S3_DRIVEN_SCOPES.includes(node.id)) {
+        const s3Data = s3Folders[scopePath];
+        if (s3Data) {
+          // Build children from S3 folders
+          const s3Children = s3FoldersToTree(scopePath);
+          return {
+            ...node,
+            children: s3Children.length > 0 ? s3Children : undefined,
+            fileCount: s3Data.folders.length + s3Data.files.length,
+          };
+        }
+        // If S3 data not loaded yet, return node as-is (will be loaded on expand)
         return {
           ...node,
-          children: [...hierarchyChildren, ...(node.children || [])],
+          children: undefined, // Clear any stale children
         };
       }
-      // SSoT: Job uses template {{JobCode}}/{{TabName}}
-      if (node.id === "job" && scopeHierarchies.job.length > 0) {
-        return {
-          ...node,
-          children: hierarchyToTree(scopeHierarchies.job, "job"),
-        };
-      }
-      // SSoT: People/Contact uses template {{ContactName}}/{{TabName}}
-      if (node.id === "contact" && scopeHierarchies.people.length > 0) {
-        return {
-          ...node,
-          children: hierarchyToTree(scopeHierarchies.people, "contact"),
-        };
-      }
-      // Fallback: Use old entityFolders if hierarchy not loaded (backward compatibility)
-      if (node.id === "job" && entityFolders.job.length > 0 && scopeHierarchies.job.length === 0) {
-        return {
-          ...node,
-          children: buildFolderTree(entityFolders.job, filteredDocuments.jobs, "job"),
-        };
-      }
-      if ((node.id === "corporate" || node.id === "corporate_entity") && entityFolders.corporate.length > 0 && scopeHierarchies.corporate.length === 0) {
-        const corpChildren = buildFolderTree(entityFolders.corporate, filteredDocuments.corporate, "corp");
-        return {
-          ...node,
-          children: [...corpChildren, ...(node.children || [])],
-        };
-      }
-      if (node.id === "contact" && entityFolders.contact.length > 0 && scopeHierarchies.people.length === 0) {
-        return {
-          ...node,
-          children: buildFolderTree(entityFolders.contact, filteredDocuments.people, "contact"),
-        };
-      }
+
       // Tasks: Build tree from task documents grouped by taskId
       if (node.id === "task" && filteredDocuments.tasks.length > 0) {
         return {
@@ -1023,27 +1085,38 @@ export default function AllDocumentsPage() {
       }
       return node;
     });
-  }, [filteredDocuments, entityFolders, scopeFolders, scopeTemplates, rootPath, counts, scopeHierarchies]);
+  }, [filteredDocuments, scopeFolders, scopeTemplates, rootPath, counts, s3Folders]);
 
-  // Toggle folder expansion and fetch files if needed
+  // Toggle folder expansion and fetch S3 folders if needed
   const toggleFolder = useCallback((folderId: string, folderPath?: string) => {
+    // Check if already expanded (will collapse) or needs to expand
+    const wasExpanded = expandedFolders.has(folderId);
+
+    // Update expansion state
     setExpandedFolders(prev => {
       const next = new Set(prev);
       if (next.has(folderId)) {
         next.delete(folderId);
       } else {
         next.add(folderId);
-        // Fetch files for this folder if it has a path and is being expanded
-        // SSoT: EntityTab folders (job-folder-*, corp-folder-*, contact-folder-*)
-        // always attempt fetch even without folderPath since they use EntityTab ID
-        const isEntityTabFolder = /^(job|corp|contact)-folder-\d+$/.test(folderId);
-        if (folderPath || isEntityTabFolder) {
-          fetchFolderFiles(folderPath || "", folderId);
-        }
       }
       return next;
     });
-  }, [fetchFolderFiles]);
+
+    // If expanding (not collapsing), fetch data OUTSIDE the state setter
+    if (!wasExpanded && folderPath) {
+      // SSoT: Fetch S3 folders for OneDrive-like browsing
+      // Check if this is an S3-driven folder (Jobs, Corporate, Contacts, or their subfolders)
+      const isS3Folder = folderId.startsWith("s3-folder-") ||
+        ["job", "corporate", "corporate_entity", "contact", "contacts"].includes(folderId);
+
+      if (isS3Folder) {
+        fetchS3Folders(folderPath);
+      } else {
+        fetchFolderFiles(folderPath, folderId);
+      }
+    }
+  }, [expandedFolders, fetchS3Folders, fetchFolderFiles]);
 
   // Open file in new window (for double-click)
   const openFileInNewWindow = useCallback((doc: DocumentItem) => {
@@ -1251,8 +1324,32 @@ export default function AllDocumentsPage() {
 
     // Get folder path for S3 lookup - extract from fullPath or use scopeFolders
     const getFolderPath = (): string | undefined => {
+      // For S3-driven scope folders (job, corporate, contact, etc.),
+      // use the scope folder name directly (e.g., "Jobs"), NOT the fullPath with template tokens
+      const S3_SCOPE_IDS = ["job", "corporate", "corporate_entity", "contact", "contacts"];
+      if (S3_SCOPE_IDS.includes(node.id)) {
+        // Use scopeFolders mapping which gives us just the folder name (e.g., "Jobs")
+        const scopePath = scopeFolders[node.id];
+        return scopePath || node.name;
+      }
+
+      // For S3 subfolder nodes (created from fetchS3Folders results)
+      if (node.id.startsWith("s3-folder-")) {
+        if (node.fullPath) {
+          const parts = node.fullPath.split('/').filter(Boolean);
+          const idx = parts.findIndex(p => p === 'Shared Documents');
+          if (idx >= 0) {
+            return parts.slice(idx + 1).join('/');
+          }
+          return node.fullPath;
+        }
+      }
+
       if (node.fullPath) {
-        // Extract folder path from fullPath (e.g., "/Shared Documents/Users/MyDocs" -> "Users/MyDocs")
+        // Skip paths with template tokens like {{JobCode}}
+        if (node.fullPath.includes('{{')) {
+          return node.name;
+        }
         const parts = node.fullPath.split('/').filter(Boolean);
         // Remove "Shared Documents" prefix if present
         const idx = parts.findIndex(p => p === 'Shared Documents');
@@ -1262,14 +1359,17 @@ export default function AllDocumentsPage() {
         return parts.join('/');
       }
       // Fallback: use scopeFolders mapping
-      const scopePath = scopeFolders[node.id];
-      return scopePath || undefined;
+      return scopeFolders[node.id] || undefined;
     };
 
     const folderPath = getFolderPath();
-    const isLoading = loadingFolders.has(node.id);
+    // Check both folder loading and S3 folder loading states
+    const isLoading = loadingFolders.has(node.id) || (folderPath ? loadingS3Folders.has(folderPath) : false);
     const loadedFiles = folderFiles[node.id] || [];
     const hasLoadedFiles = loadedFiles.length > 0;
+    // Check if S3 folder data is loaded for this path
+    const s3Data = folderPath ? s3Folders[folderPath] : null;
+    const hasS3Data = s3Data && (s3Data.folders.length > 0 || s3Data.files.length > 0);
 
     return (
       <div key={node.id}>
@@ -1282,8 +1382,8 @@ export default function AllDocumentsPage() {
           onClick={() => toggleFolder(node.id, folderPath)}
           title={node.fullPath || undefined}
         >
-          {/* Show chevron if has children OR has files (expandable) */}
-          {(hasChildren || fileCount > 0) ? (
+          {/* Show chevron if has children OR has files OR is S3-driven folder (expandable) */}
+          {(hasChildren || fileCount > 0 || node.id.startsWith("s3-folder-") || ["job", "corporate", "corporate_entity", "contact", "contacts"].includes(node.id)) ? (
             isLoading ? (
               <Loader2 className="h-4 w-4 text-muted-foreground animate-spin shrink-0" />
             ) : (
@@ -1310,12 +1410,18 @@ export default function AllDocumentsPage() {
               </span>
             )}
           </div>
-          <Badge variant="secondary" className="text-xs">
-            {fileCount} {fileCount === 1 ? "file" : "files"}
-          </Badge>
+          {/* Show count - for S3 folders show folder+file count once loaded */}
+          {(fileCount > 0 || hasS3Data) && (
+            <Badge variant="secondary" className="text-xs">
+              {hasS3Data
+                ? `${s3Data!.folders.length + s3Data!.files.length} items`
+                : `${fileCount} ${fileCount === 1 ? "file" : "files"}`
+              }
+            </Badge>
+          )}
         </div>
 
-        {isExpanded && (hasChildren || hasLoadedFiles || isLoading) && (
+        {isExpanded && (hasChildren || hasLoadedFiles || hasS3Data || isLoading) && (
           <div className={cn(depth > 0 && "border-l border-muted ml-6")}>
             {isLoading ? (
               // Loading state
@@ -1386,8 +1492,8 @@ export default function AllDocumentsPage() {
                   };
                   return renderTreeNode(fileNode, depth + 1);
                 })}
-                {/* Show empty state if no children and no loaded files */}
-                {!hasChildren && !hasLoadedFiles && !isLoading && fileCount === 0 && (
+                {/* Show empty state if no children, no loaded files, and no S3 data */}
+                {!hasChildren && !hasLoadedFiles && !hasS3Data && !isLoading && (
                   <div
                     className="py-2 px-3 text-sm text-muted-foreground"
                     style={{ paddingLeft: `${paddingLeft + 32}px` }}

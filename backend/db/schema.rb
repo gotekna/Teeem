@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_15_115004) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_15_115005) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1999,7 +1999,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_15_115004) do
     t.string "sharepoint_site_id"
     t.string "sharepoint_drive_id"
     t.string "sharepoint_drive_name"
-    t.string "sharepoint_root_path", default: "/Shared Documents"
     t.string "sharepoint_jobs_path", default: "Jobs"
     t.string "sharepoint_people_path", default: "Corporate/People"
     t.string "sharepoint_company_path", default: "00 TEEEM PRIVATE"
@@ -8166,7 +8165,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_15_115004) do
     t.string "bucket", null: false
     t.string "access_key_id", null: false
     t.string "secret_access_key", null: false
-    t.string "root_path", default: ""
     t.boolean "is_active", default: true, null: false
     t.string "status", default: "pending"
     t.jsonb "metadata", default: {}

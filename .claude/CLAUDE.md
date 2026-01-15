@@ -155,6 +155,37 @@ When discovering duplicates:
 
 **Examples:** Cache vs live data, same config in multiple files, duplicate constants, same logic in two services.
 
+## 🔴 CRITICAL: Before Adding ANY Database Column
+
+**The root_path problem:** Same column existed in 3 tables. Nobody knew which was THE ONE.
+
+### Pre-Column Checklist
+
+1. **Search first:** `grep -n "column_name" backend/db/schema.rb`
+2. **If found** → SSoT VIOLATION - use existing column
+3. **If similar exists** → Use existing table or extend it
+
+### Column Type Decision Tree
+
+| Data Type | SSoT Location | ❌ NOT Here |
+|-----------|---------------|-------------|
+| Storage paths/config | `StorageConfiguration` | Credential tables, settings |
+| Auth tokens/secrets | Appropriate credential table | Config tables |
+| Company settings | `CompanySetting` | `CorporateCompanySetting` (legacy) |
+| User preferences | `User` model | Settings tables |
+
+### Run Before Creating Migration
+
+```bash
+# Check for existing similar columns
+grep -n "COLUMN_NAME\|similar_name" backend/db/schema.rb
+
+# Run full backend audit
+/duplicate-detector  # Will run backend SSoT audit
+```
+
+**Mantra:** "One concept, one column, one table."
+
 ## 🔴 SSoT - Foundation API
 
 **Foundation API is THE SSoT for all record queries.**

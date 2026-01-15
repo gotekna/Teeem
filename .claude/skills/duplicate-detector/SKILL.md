@@ -135,6 +135,100 @@ echo "╚═══════════════════════�
 
 ---
 
+## Backend Data Model SSoT Checks
+
+**The `root_path` problem:** Same concept stored in 3 tables. Catch this BEFORE it happens.
+
+### Run Before Adding ANY Database Column
+
+```bash
+# 1. Does this column already exist?
+grep -n "COLUMN_NAME" backend/db/schema.rb
+
+# 2. Is there a similar column?
+grep -n "path\|config\|setting" backend/db/schema.rb | grep -i "RELATED_TERM"
+```
+
+**Decision Tree:**
+- Column exists? → **SSoT VIOLATION** - use existing column
+- Config/path data? → Goes in `StorageConfiguration`
+- Credential/auth data? → Goes in appropriate credential table
+- Setting data? → Goes in `CompanySetting` or `CorporateCompanySetting`
+
+### Full Backend SSoT Audit
+
+```bash
+echo "╔══════════════════════════════════════════════════════════════════╗"
+echo "║           BACKEND SSoT AUDITOR                                   ║"
+echo "╚══════════════════════════════════════════════════════════════════╝"
+
+echo ""
+echo "=== 1. DUPLICATE COLUMN NAMES ACROSS TABLES ==="
+for col in root_path site_id drive_id client_id tenant_id endpoint bucket; do
+  count=$(grep -c "\"$col\"" backend/db/schema.rb 2>/dev/null || echo 0)
+  if [ "$count" -gt 1 ]; then
+    echo "⚠️  WARNING: $col appears $count times:"
+    grep -n "\"$col\"" backend/db/schema.rb
+  fi
+done
+echo "(empty = good)"
+
+echo ""
+echo "=== 2. CONFIG-LIKE COLUMNS IN WRONG TABLES ==="
+grep -n "root_path\|site_id\|drive_id" backend/db/schema.rb 2>/dev/null | \
+  grep -v "storage_configurations" || echo "None found (good)"
+
+echo ""
+echo "=== 3. LEGACY SHAREPOINT/ONEDRIVE COLUMNS ==="
+grep -n "sharepoint_\|onedrive_\|outlook_" backend/db/schema.rb 2>/dev/null || echo "None found (good)"
+
+echo ""
+echo "=== 4. PATH COLUMNS OUTSIDE StorageConfiguration ==="
+grep -n "_path\"" backend/db/schema.rb 2>/dev/null | \
+  grep -v "storage_configurations\|file_path\|image_path\|avatar_path" || echo "None found (good)"
+
+echo ""
+echo "╔══════════════════════════════════════════════════════════════════╗"
+echo "║           BACKEND AUDIT COMPLETE                                 ║"
+echo "╚══════════════════════════════════════════════════════════════════╝"
+```
+
+### Common SSoT Violations to Detect
+
+| Pattern | SSoT Location | Red Flag If Found In |
+|---------|--------------|---------------------|
+| `root_path` | `StorageConfiguration` | Any credential or settings table |
+| `site_id`, `drive_id` | `StorageConfiguration.connection_config` | `MicrosoftCredential` |
+| `client_id`, `tenant_id` | `MicrosoftCredential` | `StorageConfiguration` |
+| `*_path` columns | `StorageConfiguration.paths` | `CorporateCompanySetting` |
+| `bucket`, `endpoint` | `S3CompatibleCredential` | `StorageConfiguration` |
+
+### Example Backend SSoT Violation Report
+
+```
+SSoT VIOLATION FOUND
+
+I found `root_path` in 3 different tables:
+
+1. backend/db/schema.rb:156 - s3_compatible_credentials
+   t.string "root_path", default: ""
+
+2. backend/db/schema.rb:234 - corporate_company_settings
+   t.string "sharepoint_root_path", default: "/Shared Documents"
+
+3. backend/db/schema.rb:412 - storage_configurations
+   t.string "root_path"  ← THIS IS THE SSoT
+
+RECOMMENDATION:
+- StorageConfiguration.root_path is THE ONE
+- Remove duplicate columns via migration
+- Update code to read from StorageConfiguration only
+
+Want me to consolidate?
+```
+
+---
+
 ## Red Flags to Watch For
 
 ### Constants & Logic
@@ -182,11 +276,12 @@ Want me to consolidate?
 
 ## Common SSoT Locations in TEEEM
 
+### Frontend
+
 | Thing | SSoT Location |
 |-------|---------------|
 | Column types | `TEEEM_DOCS/GOLD_STANDARD_TABLE.md` |
 | UI components | `frontend-next/lib/component-registry.ts` |
-| API format | Backend controllers |
 | Validation rules | Backend models |
 | Timezone | `CompanySetting` |
 | Loading indicator | `Spinner` from `@/components/ui/spinner` |
@@ -196,3 +291,14 @@ Want me to consolidate?
 | Side panels | `Sheet` from `@/components/ui/sheet` |
 | Modals | `Dialog` from `@/components/ui/dialog` |
 | Table fullscreen | `TeeemTableView` with `enableFullscreen` prop |
+
+### Backend (Data Model)
+
+| Thing | SSoT Location | ❌ NOT Here |
+|-------|---------------|-------------|
+| Storage paths | `StorageConfiguration.paths` | `CorporateCompanySetting.sharepoint_*` |
+| Root path | `StorageConfiguration.root_path` | `S3CompatibleCredential.root_path` |
+| Site ID, Drive ID | `StorageConfiguration.connection_config` | `MicrosoftCredential` |
+| Auth tokens | `MicrosoftCredential` | `StorageConfiguration` |
+| S3 credentials | `S3CompatibleCredential` | Any other table |
+| Company settings | `CompanySetting` | `CorporateCompanySetting` (legacy) |

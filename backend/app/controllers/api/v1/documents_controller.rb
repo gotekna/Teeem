@@ -286,6 +286,92 @@ module Api
         end
       end
 
+      # GET /api/v1/documents/s3_folders
+      # SSoT: OneDrive-like folder browser - lists actual S3 folders and files
+      # This mirrors the exact Wasabi folder structure for the Documents page
+      # Used for desktop sync compatibility - must match actual storage structure
+      #
+      # Params:
+      #   path: The S3 path to list (e.g., "Jobs", "Jobs/J49", "Corporate/Group A")
+      #         Empty/nil returns root folders from StorageConfiguration.SCOPE_FOLDERS
+      #
+      # Returns:
+      #   folders: Array of { name, path } for subfolders
+      #   files: Array of { name, path, size, url, content_type } for files
+      def s3_folders
+        path = params[:path].to_s.strip
+        path = path.gsub(%r{^/+|/+$}, "") # Remove leading/trailing slashes
+
+        begin
+          organization = Organization.first
+          provider = DocumentProviders::S3Compatible.for_organization(organization)
+
+          # List items at this path (non-recursive = immediate children only)
+          items = provider.list_folder(path.presence || "/", recursive: false) || []
+
+          # Separate folders and files
+          folders = items.select { |item| item[:type] == :folder }.map do |item|
+            folder_name = item[:name] || File.basename(item[:path] || "")
+            folder_path = if path.present?
+              "#{path}/#{folder_name}"
+            else
+              folder_name
+            end
+            {
+              name: folder_name,
+              path: folder_path
+            }
+          end
+
+          files = items.select { |item| item[:type] == :file }.map do |item|
+            file_key = item[:id] || item[:key] || item[:name]
+            file_name = File.basename(file_key || "")
+
+            # Generate presigned URL for download
+            url = if file_key.present?
+              provider.download_url(file_key, expires_in: 3600) rescue item[:web_url]
+            else
+              item[:web_url]
+            end
+
+            {
+              name: file_name,
+              path: file_key,
+              size: item[:size] || 0,
+              content_type: item[:content_type] || MiniMime.lookup_by_filename(file_name)&.content_type || "application/octet-stream",
+              last_modified: item[:last_modified]&.iso8601,
+              url: url
+            }
+          end
+
+          # Sort folders alphabetically, files by name
+          folders.sort_by! { |f| f[:name].to_s.downcase }
+          files.sort_by! { |f| f[:name].to_s.downcase }
+
+          render json: {
+            success: true,
+            path: path,
+            folders: folders,
+            files: files,
+            count: {
+              folders: folders.size,
+              files: files.size,
+              total: folders.size + files.size
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.error "[Documents] S3 folder list failed for '#{path}': #{e.message}"
+          render json: {
+            success: false,
+            error: e.message,
+            path: path,
+            folders: [],
+            files: [],
+            count: { folders: 0, files: 0, total: 0 }
+          }, status: :ok
+        end
+      end
+
       # GET /api/v1/documents/folder_files
       # SSoT: Unified endpoint for fetching files from EntityTab folders
       # Used by File Warehouse to display subfolder contents for ALL scopes
