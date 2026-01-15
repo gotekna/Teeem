@@ -40,16 +40,18 @@ namespace :storage_blob do
     total_errors = 0
     total_skipped = 0
 
-    # Process CorporateCompanyDocument (12,783 records)
+    # Process CorporateCompanyDocument (11,512 with ActiveStorage)
     puts "-" * 70
     puts "Processing CorporateCompanyDocument"
     puts "-" * 70
 
-    scope = CorporateCompanyDocument.where(storage_blob_id: nil)
+    # SSoT: Only process documents that have ActiveStorage attachments
+    # Use joins(:file_attachment) to filter to those with ActiveStorage
+    scope = CorporateCompanyDocument.joins(:file_attachment).where(storage_blob_id: nil)
     scope = scope.limit(limit) if limit.present?
 
     total_to_process = scope.count
-    puts "Found #{total_to_process} documents without storage_blob_id"
+    puts "Found #{total_to_process} documents with ActiveStorage (no storage_blob_id)"
 
     if total_to_process == 0
       puts "  Nothing to process"

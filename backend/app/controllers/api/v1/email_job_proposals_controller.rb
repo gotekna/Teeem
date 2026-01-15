@@ -82,7 +82,8 @@ module Api
 
         # Sync PDF attachments if not already synced
         # SSoT: Per-user Outlook credentials removed - uses org credentials
-        if email.has_attachments && !email.files.attached?
+        # Note: has_many_attached :files was removed (Jan 2026) - check email_warehouse_attachments instead
+        if email.has_attachments && email.email_warehouse_attachments.empty?
           begin
             email.sync_attachments!
           rescue StandardError => e
@@ -196,7 +197,8 @@ module Api
 
         # Sync PDF attachments if not already synced
         # SSoT: Per-user Outlook credentials removed - uses org credentials
-        if email.has_attachments && !email.files.attached?
+        # Note: has_many_attached :files was removed (Jan 2026) - check email_warehouse_attachments instead
+        if email.has_attachments && email.email_warehouse_attachments.empty?
           begin
             email.sync_attachments!
             Rails.logger.info "Synced attachments for email #{email.id} during re-extraction"
@@ -274,7 +276,8 @@ module Api
             received_at: proposal.email_warehouse.received_at,
             has_attachments: proposal.email_warehouse.has_attachments,
             attachment_count: proposal.email_warehouse.attachment_count,
-            pdf_count: proposal.email_warehouse.files.count
+            # Note: has_many_attached :files was removed (Jan 2026) - count PDF attachments via email_warehouse_attachments
+            pdf_count: proposal.email_warehouse.email_warehouse_attachments.where(content_type: "application/pdf").count
           } : nil,
 
           # User info (may be nil for system-created proposals)

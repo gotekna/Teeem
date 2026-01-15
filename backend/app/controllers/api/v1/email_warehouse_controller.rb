@@ -860,16 +860,16 @@ class Api::V1::EmailWarehouseController < ApplicationController
     filename_hint = filename_param || email_attachment&.filename || email_attachment&.attachment&.filename
     content_type_hint = email_attachment&.attachment&.content_type
 
-    # SSoT: Try local ActiveStorage files first (most reliable)
-    # This is the primary path - files synced via sync_attachments! are stored here
-    if @email.files.attached? && filename_hint.present?
-      local_file = @email.files.find { |f| f.filename.to_s == filename_hint }
-      if local_file
-        Rails.logger.info "[EmailWarehouse] Downloading attachment from local storage: #{filename_hint}"
+    # SSoT: Try email_warehouse_attachments first (primary path since Jan 2026)
+    # Note: has_many_attached :files was removed - use email_warehouse_attachments instead
+    if @email.email_warehouse_attachments.any? && filename_hint.present?
+      attachment = @email.email_warehouse_attachments.find { |a| a.filename == filename_hint }
+      if attachment&.attachment&.attached?
+        Rails.logger.info "[EmailWarehouse] Downloading attachment from email_warehouse_attachments: #{filename_hint}"
         return send_data(
-          local_file.download,
+          attachment.attachment.download,
           filename: filename_hint,
-          type: local_file.content_type || "application/octet-stream",
+          type: attachment.content_type || "application/octet-stream",
           disposition: "attachment"
         )
       end

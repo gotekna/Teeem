@@ -703,7 +703,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       if (result.success) {
         // FALLBACK: Trigger job-specific document sync to ensure warehouse is updated
         // This handles edge cases where upload_complete is skipped (e.g., missing SharePoint item ID)
-        api.post("/api/v1/documents/sync_job_documents", { job_id: jobId })
+        api.post("/api/v1/organization_onedrive/sync_job_documents", { job_id: jobId })
           .catch(err => console.warn("[PhotoUpload] Fallback sync failed:", err));
 
         // Refresh file list in background to get real SharePoint URLs
@@ -1254,7 +1254,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         message: string;
         imported: { file_id: string; name: string; category: string }[];
         errors: { file_id: string; error: string }[];
-      }>("/api/v1/documents/import_legacy", {
+      }>("/api/v1/organization_onedrive/import_legacy", {
         job_id: jobId,
         file_ids: selectedLegacyFiles,
       });
@@ -1376,7 +1376,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         message: string;
         queued_count?: number;
         total_unanalyzed?: number;
-      }>(`/api/v1/documents/analyze_job_documents`, {
+      }>(`/api/v1/organization_onedrive/analyze_job_documents`, {
         job_id: jobId,
         limit: 25,
       });
@@ -1404,7 +1404,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         success: boolean;
         message: string;
         new_name?: string;
-      }>(`/api/v1/documents/approve_document_rename`, {
+      }>(`/api/v1/organization_onedrive/approve_document_rename`, {
         document_id: documentId,
         action,
       });
@@ -1447,7 +1447,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         dry_run: boolean;
         stats: { total: number; categorized: number; skipped: number; failed: number; recategorized: number };
         details: Array<{ id: number; file_name: string; folder_path?: string; status: string; document_type?: string; entity_tab?: string; reason?: string; old_type?: string }>;
-      }>(`/api/v1/documents/bulk_categorize_job_documents`, {
+      }>(`/api/v1/organization_onedrive/bulk_categorize_job_documents`, {
         job_id: jobId,
         dry_run: dryRun,
         force: force,
