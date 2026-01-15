@@ -192,18 +192,16 @@ class PlanUpload < ApplicationRecord
                       .where("created_at < ?", max_age.ago)
                       .where.not(staging_file_id: nil)
 
-    # SSoT: Use MicrosoftCredential
-    credential = MicrosoftCredential.sharepoint_credential
-    return { cleaned: 0, errors: [] } unless credential
-
-    client = MicrosoftGraphClient.new(credential)
+    # SSoT: Use DocumentStorageService for provider-agnostic cleanup
+    storage_service = DocumentStorageService.new
     cleaned = 0
     errors = []
 
     stale_uploads.find_each do |upload|
       begin
-        client.delete("/drives/#{credential.drive_id}/items/#{upload.staging_file_id}")
-        upload.update!(staging_file_id: nil)
+        file_ref = upload.staging_path.presence || upload.staging_file_id
+        storage_service.delete_file(file_ref) if file_ref.present?
+        upload.update!(staging_file_id: nil, staging_path: nil)
         cleaned += 1
       rescue => e
         errors << { id: upload.id, error: e.message }

@@ -1,7 +1,11 @@
 require "anthropic"
 require "base64"
 
+# Service to review estimate plans using AI
+# SSoT: Uses DocumentProviderAware for provider-agnostic storage operations
 class PlanReviewService
+  include DocumentProviderAware
+
   MAX_FILE_SIZE = 20.megabytes
   MAX_PAGES_PER_PDF = 10
   PLAN_FOLDER_PATHS = [ "01 - Plans", "02 - Engineering", "03 - Specifications" ].freeze
@@ -9,7 +13,7 @@ class PlanReviewService
   class PDFNotFoundError < StandardError; end
   class FileTooLargeError < StandardError; end
   class NoConstructionError < StandardError; end
-  class OneDriveNotConnectedError < StandardError; end
+  class StorageNotConnectedError < StandardError; end
 
   def initialize(estimate)
     @estimate = estimate
@@ -30,8 +34,8 @@ class PlanReviewService
       # Step 1: Validate estimate is matched to a construction/job
       validate_estimate_matched!
 
-      # Step 2: Find and download PDF plans from OneDrive
-      pdf_files = fetch_pdf_plans_from_onedrive
+      # Step 2: Find and download PDF plans from storage
+      pdf_files = fetch_pdf_plans_from_storage
 
       # Step 3: Convert PDFs to base64 for Claude API
       pdf_data = prepare_pdfs_for_analysis(pdf_files)
@@ -71,13 +75,17 @@ class PlanReviewService
       }
 
     rescue PDFNotFoundError => e
-      handle_error("No plan documents found in OneDrive: #{e.message}")
+      handle_error("No plan documents found in storage: #{e.message}")
     rescue FileTooLargeError => e
       handle_error("Plans too large for analysis: #{e.message}")
     rescue NoConstructionError => e
       handle_error("Must be matched to job first: #{e.message}")
-    rescue OneDriveNotConnectedError => e
-      handle_error("SharePoint not connected: #{e.message}")
+    rescue StorageNotConnectedError => e
+      handle_error("Storage not connected: #{e.message}")
+    rescue DocumentProviders::NotConnectedError => e
+      handle_error("Storage not connected: #{e.message}")
+    rescue DocumentProviders::Error => e
+      handle_error("Storage error: #{e.message}")
     rescue StandardError => e
       handle_error("Analysis failed: #{e.message}")
     end
@@ -89,58 +97,66 @@ class PlanReviewService
     raise NoConstructionError, "Estimate must be matched to a construction" unless @estimate.construction
   end
 
-  def fetch_pdf_plans_from_onedrive
+  def fetch_pdf_plans_from_storage
     construction = @estimate.construction
 
-    # Check if OneDrive is connected
-    credential = MicrosoftCredential.sharepoint_credential
-    raise OneDriveNotConnectedError, "No active OneDrive connection" unless credential
+    # Setup provider-agnostic storage
+    begin
+      setup_default_provider!
+    rescue DocumentProviders::NotConnectedError => e
+      raise StorageNotConnectedError, "No active storage connection: #{e.message}"
+    end
 
-    # Initialize Microsoft Graph client
-    client = MicrosoftGraphClient.new(credential)
+    # Check job has storage folder
+    raise PDFNotFoundError, "Job folder not found in storage" unless construction.storage_folder_path.present?
 
-    # Find the job folder
-    job_folder = client.find_job_folder(construction)
-    raise PDFNotFoundError, "Job folder not found in OneDrive" unless job_folder
+    job_folder_path = construction.storage_folder_path
 
     # Search for PDFs in plan folders
     pdf_files = []
+    storage_service = DocumentStorageService.new
 
-    PLAN_FOLDER_PATHS.each do |folder_path|
+    PLAN_FOLDER_PATHS.each do |folder_name|
       begin
-        # Get folder items
-        folder = client.get_folder_by_path("#{job_folder['name']}/#{folder_path}")
-        next unless folder
+        folder_path = "#{job_folder_path}/#{folder_name}"
+
+        # Check if folder exists
+        next unless folder_exists_in_provider?(folder_path)
 
         # List all items in folder
-        items = client.list_folder_items(folder["id"])
+        items = list_folder_in_provider(folder_path)
 
         # Filter for PDF files
-        pdfs = items["value"]&.select { |item| item["name"]&.end_with?(".pdf") } || []
+        pdfs = items.select { |item| !item[:is_folder] && item[:name]&.end_with?(".pdf") }
 
         pdfs.each do |pdf|
           # Check file size
-          if pdf["size"] > MAX_FILE_SIZE
-            Rails.logger.warn "Skipping large PDF: #{pdf['name']} (#{pdf['size']} bytes)"
+          if pdf[:size].present? && pdf[:size] > MAX_FILE_SIZE
+            Rails.logger.warn "Skipping large PDF: #{pdf[:name]} (#{pdf[:size]} bytes)"
             next
           end
 
           # Download file content
-          content = client.download_file(pdf["id"])
+          doc = OpenStruct.new(
+            storage_path: pdf[:path],
+            sharepoint_file_id: pdf[:id]
+          )
+          result = storage_service.download(doc)
+          next unless result[:success] && result[:content].present?
 
           pdf_files << {
-            name: pdf["name"],
-            size: pdf["size"],
-            content: content
+            name: pdf[:name],
+            size: pdf[:size] || result[:content].bytesize,
+            content: result[:content]
           }
         end
-      rescue MicrosoftGraphClient::APIError => e
-        Rails.logger.warn "Could not access folder #{folder_path}: #{e.message}"
+      rescue DocumentProviders::Error => e
+        Rails.logger.warn "Could not access folder #{folder_name}: #{e.message}"
         next
       end
     end
 
-    raise PDFNotFoundError, "No PDF plans found in OneDrive folders" if pdf_files.empty?
+    raise PDFNotFoundError, "No PDF plans found in storage folders" if pdf_files.empty?
 
     pdf_files
   end

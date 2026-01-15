@@ -118,13 +118,13 @@ class BalanceSheetReport < ApplicationRecord
         # Store raw data
         update!(report_data: result[:report])
 
-        # Generate PDF and upload to SharePoint
-        pdf_service = BalanceSheetReportService.new(self)
+        # Generate PDF and upload to storage
+        pdf_service = FinancialReportService.new(self)
         pdf_result = pdf_service.generate
 
         if pdf_result[:success]
           mark_completed!(
-            url: pdf_result[:sharepoint_url],
+            url: pdf_result[:storage_url],
             file_name: pdf_result[:filename],
             file_size: pdf_result[:pdf]&.bytesize
           )

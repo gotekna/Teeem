@@ -1,5 +1,7 @@
-# Service to email plans with attachments from SharePoint
+# Service to email plans with attachments from storage
 class PlanEmailService
+  include StorageUploadable
+
   def initialize(plans:, recipients:, subject:, body:, sender: nil)
     @plans = plans
     @recipients = Array(recipients)
@@ -58,8 +60,9 @@ class PlanEmailService
       next unless revision&.has_file?
 
       begin
-        content = download_from_sharepoint(revision.sharepoint_file_id)
-        next unless content
+        result = download_from_storage(revision.storage_path || revision.sharepoint_file_id)
+        next unless result[:success]
+        content = result[:content]
 
         attachments << {
           filename: revision.file_name || "#{plan.display_name}.pdf",
@@ -73,15 +76,5 @@ class PlanEmailService
     end
 
     attachments
-  end
-
-  def download_from_sharepoint(file_id)
-    return nil if file_id.blank?
-
-    credential = MicrosoftCredential.sharepoint_credential
-    return nil unless credential&.valid_credential?
-
-    client = MicrosoftGraphClient.new(credential)
-    client.download_file(file_id)
   end
 end

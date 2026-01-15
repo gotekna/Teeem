@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 class BillInbox < ApplicationRecord
+  include StorageUploadable
+
   # Associations
   belongs_to :corporate_company, optional: true
   belongs_to :detected_company, class_name: "CorporateCompany", optional: true
@@ -165,18 +167,15 @@ class BillInbox < ApplicationRecord
     invoice_file.attached? ? invoice_file.filename.to_s : nil
   end
 
-  # Download invoice file from SharePoint (SSoT)
+  # Download invoice file from storage (SSoT)
   def download_invoice_file
-    return nil unless sharepoint_file_id.present?
+    file_ref = storage_path.presence || sharepoint_file_id
+    return nil unless file_ref.present?
 
-    # SSoT: Use MicrosoftCredential
-    credential = MicrosoftCredential.sharepoint_credential
-    return nil unless credential
-
-    client = MicrosoftGraphClient.new(credential)
-    client.download_file(sharepoint_file_id)
-  rescue MicrosoftGraphClient::APIError => e
-    Rails.logger.error("[BillInbox] SharePoint download failed for #{id}: #{e.message}")
+    result = download_from_storage(file_ref)
+    result[:success] ? result[:content] : nil
+  rescue StandardError => e
+    Rails.logger.error("[BillInbox] Storage download failed for #{id}: #{e.message}")
     nil
   end
 

@@ -18,6 +18,8 @@
 #   # => { success: true, stats: { renamed: 45, skipped: 5, errors: [], documents_updated: 120 } }
 #
 class EntityTabFolderRenameService
+  include DocumentProviderAware
+
   def initialize(entity_tab:, old_display_name:, new_display_name:)
     @entity_tab = entity_tab
     @old_display_name = old_display_name
@@ -35,11 +37,12 @@ class EntityTabFolderRenameService
 
     Rails.logger.info "[EntityTabFolderRename] Path change: '#{@old_path}' → '#{@new_path}'"
 
-    # Get SharePoint credential
-    @credential = MicrosoftCredential.sharepoint_credential
-    return error_result("No SharePoint credential configured") unless @credential
-
-    @client = MicrosoftGraphClient.new(@credential)
+    # Setup provider-agnostic storage
+    begin
+      setup_default_provider!
+    rescue DocumentProviders::NotConnectedError => e
+      return error_result("Storage not configured: #{e.message}")
+    end
 
     # Step 1: Rename storage folders for all jobs
     rename_storage_folders
@@ -93,48 +96,31 @@ class EntityTabFolderRenameService
   end
 
   def rename_folder_for_job(job)
-    # Find the job's root SharePoint folder
-    job_folder = @client.find_job_folder(job)
-    unless job_folder
+    # Find the job's root storage folder
+    job_folder_path = job.storage_folder_path
+    unless job_folder_path.present?
       @stats[:skipped] += 1
       return
     end
 
-    # Navigate to the target folder using old path
-    target_folder = find_folder_by_path(job_folder['id'], @old_path)
+    # Build the full old path within the job folder
+    old_full_path = "#{job_folder_path}/#{@old_path}"
 
-    if target_folder
-      # Rename the folder to just the new display_name (not full path)
-      new_folder_name = @new_path.split('/').last
-      @client.rename_file(target_folder['id'], new_folder_name)
-      @stats[:renamed] += 1
-      Rails.logger.debug "[EntityTabFolderRename] Renamed folder in job #{job.id}"
-    else
+    # Check if the folder exists
+    unless folder_exists_in_provider?(old_full_path)
       # Folder doesn't exist (job never had uploads to this tab) - that's ok
       @stats[:skipped] += 1
+      return
     end
-  rescue MicrosoftGraphClient::APIError => e
+
+    # Rename the folder to just the new display_name (not full path)
+    new_folder_name = @new_path.split('/').last
+    rename_file_in_provider(old_full_path, new_folder_name)
+    @stats[:renamed] += 1
+    Rails.logger.debug "[EntityTabFolderRename] Renamed folder in job #{job.id}"
+  rescue DocumentProviders::Error => e
     @stats[:errors] << { job_id: job.id, error: e.message }
     Rails.logger.warn "[EntityTabFolderRename] Failed for job #{job.id}: #{e.message}"
-  end
-
-  # Navigate to a folder by path (e.g., "Photo/Supervisor")
-  def find_folder_by_path(parent_folder_id, path)
-    return nil if path.blank?
-
-    path_parts = path.split('/')
-    current_folder_id = parent_folder_id
-
-    path_parts.each do |folder_name|
-      contents = @client.list_folder_contents(current_folder_id)
-      folder = contents.find { |item| item[:is_folder] && item[:name] == folder_name }
-      return nil unless folder
-      current_folder_id = folder[:id]
-    end
-
-    { 'id' => current_folder_id }
-  rescue MicrosoftGraphClient::APIError
-    nil
   end
 
   # Bulk update job_documents.folder_path

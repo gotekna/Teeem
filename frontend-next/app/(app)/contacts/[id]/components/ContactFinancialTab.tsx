@@ -42,10 +42,8 @@ export function ContactFinancialTab({
   handleViewInvoiceDetail,
   xeroLinks,
 }: ContactFinancialTabProps) {
-  // SSoT: Contact must have at least one Xero link to show Invoices/Bills tabs
+  // SSoT: visibility_rule = "Has Primary Xero links" for both Invoices and Bills
   const hasXeroLinks = xeroLinks.length > 0;
-  // Show Bills if supplier (from TEEEM transactions) OR Xero supplier
-  const showBillsTab = hasXeroLinks && (contact["is_supplier?"] || contact.xero_supplier);
 
   return (
     <Tabs value={activeFinancialSubTab} onValueChange={handleFinancialSubTabChange}>
@@ -65,8 +63,8 @@ export function ContactFinancialTab({
             Invoices
           </TabsTrigger>
         )}
-        {/* SSoT: Only show Bills tab if contact has Xero links AND is a supplier */}
-        {showBillsTab && (
+        {/* SSoT: visibility_rule = "Has Primary Xero links" */}
+        {hasXeroLinks && (
           <TabsTrigger value="bills">
             <FileText className="h-3.5 w-3.5 mr-1" />
             Bills
@@ -117,9 +115,9 @@ export function ContactFinancialTab({
         )}
       </TabsContent>
 
-      {/* Bills Sub-Tab - always render TabsContent for URL routing */}
+      {/* Bills Sub-Tab - SSoT: visibility_rule = "Has Primary Xero links" */}
       <TabsContent value="bills" className="mt-4">
-        {showBillsTab ? (
+        {hasXeroLinks ? (
           <BillsSubTab
             contactId={contact.id}
             handleViewInvoiceDetail={handleViewInvoiceDetail}
@@ -129,9 +127,7 @@ export function ContactFinancialTab({
           <Card>
             <CardContent className="pt-6">
               <p className="text-muted-foreground text-center py-8">
-                {!hasXeroLinks
-                  ? "Link this contact to Xero to view bills."
-                  : "This contact is not a supplier."}
+                Link this contact to Xero to view bills.
               </p>
             </CardContent>
           </Card>

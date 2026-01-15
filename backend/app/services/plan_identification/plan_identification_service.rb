@@ -26,6 +26,8 @@ module PlanIdentification
   #   - Any future plan identification → MUST use this service
   #
   class PlanIdentificationService
+    include StorageUploadable
+
     # Confidence thresholds (defaults - can be overridden by AiServiceConfig)
     AUTO_ASSIGN_THRESHOLD = 95       # Auto-assign without review
     SPOT_CHECK_THRESHOLD = 80        # Auto-assign but flag for spot-check
@@ -192,17 +194,14 @@ module PlanIdentification
     # Re-identify an existing job plan (download PDF and run full pipeline)
     def reidentify_plan(job_plan)
       revision = job_plan.current_revision
-      return nil unless revision&.sharepoint_file_id.present?
+      file_ref = revision&.storage_path || revision&.sharepoint_file_id
+      return nil unless file_ref.present?
 
-      # Download the file from SharePoint
-      credential = MicrosoftCredential.sharepoint_credential
-      return nil unless credential
+      # Download the file from storage
+      result = download_from_storage(file_ref)
+      return nil unless result[:success]
 
-      client = MicrosoftGraphClient.new(credential)
-      content = client.download_file(revision.sharepoint_file_id)
-      return nil unless content
-
-      identify_from_pdf(content, 1)
+      identify_from_pdf(result[:content], 1)
     end
 
     # Find the next available variant suffix for a plan type

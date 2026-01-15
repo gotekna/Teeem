@@ -11,9 +11,11 @@ require "hexapdf"
 # SSoT:
 # - Uses PlanType templates for naming (same as individual plans)
 # - Uses HexaPDF for PDF merging (already used throughout codebase)
-# - Uses MicrosoftGraphClient for SharePoint operations
+# - Uses StorageUploadable for provider-agnostic storage operations
 # =============================================================================
 class PlanCombinerService
+  include StorageUploadable
+
   class CombineError < StandardError; end
 
   def initialize(job)
@@ -25,46 +27,25 @@ class PlanCombinerService
     Rails.logger.info "[PlanCombinerService] Starting combine for job #{@job.id}"
 
     plans = get_plans_to_combine
-    if plans.empty?
-      Rails.logger.info "[PlanCombinerService] No plans to combine for job #{@job.id}"
-      return nil
-    end
+    return nil if plans.empty?
 
-    Rails.logger.info "[PlanCombinerService] Combining #{plans.count} plans"
-
-    # Get SharePoint client
-    credential = MicrosoftCredential.sharepoint_credential
-    raise CombineError, "No SharePoint credential available" unless credential
-
-    client = MicrosoftGraphClient.new(credential)
-
-    # Download and combine PDFs
-    combined_content = combine_pdfs(plans, client)
+    combined_content = combine_pdfs(plans)
     return nil unless combined_content
 
-    # Get or create the "All Plans" record
     all_plans_record = find_or_create_all_plans_record
-
-    # Upload to SharePoint
-    folder_id = get_plans_folder_id(client)
+    folder_path = get_plans_folder_path
     filename = build_filename
 
-    result = client.upload_file_content(folder_id, filename, combined_content)
-    raise CombineError, "Failed to upload combined PDF" unless result
+    result = upload_to_storage_path(folder_path, combined_content, filename, content_type: "application/pdf")
+    raise CombineError, "Failed to upload: #{result[:error]}" unless result[:success]
 
-    Rails.logger.info "[PlanCombinerService] Uploaded combined PDF: #{filename}"
-
-    # Update or create revision
-    update_revision(all_plans_record, result, filename)
-
-    # Update display name
+    update_revision(all_plans_record, result[:raw], filename)
     all_plans_record.update!(display_name: build_display_name)
 
     Rails.logger.info "[PlanCombinerService] Completed combine for job #{@job.id}"
     all_plans_record
   rescue => e
-    Rails.logger.error "[PlanCombinerService] Error combining plans: #{e.message}"
-    Rails.logger.error e.backtrace.first(10).join("\n")
+    Rails.logger.error "[PlanCombinerService] Error: #{e.message}"
     raise
   end
 
@@ -75,27 +56,26 @@ class PlanCombinerService
         .regular_plans # exclude existing combined PDF
         .includes(:current_revision, :plan_type)
         .joins(:current_revision)
-        .where.not(job_plan_revisions: { sharepoint_file_id: nil })
+        .where("job_plan_revisions.sharepoint_file_id IS NOT NULL OR job_plan_revisions.storage_path IS NOT NULL")
         .sort_by { |p| p.plan_type&.code || "999" }
   end
 
-  def combine_pdfs(plans, client)
+  def combine_pdfs(plans)
     target = HexaPDF::Document.new
 
     plans.each_with_index do |plan, index|
       revision = plan.current_revision
-      next unless revision&.sharepoint_file_id.present?
+      file_ref = revision&.storage_path || revision&.sharepoint_file_id
+      next unless file_ref
 
-      begin
-        content = client.download_file(revision.sharepoint_file_id)
-        next unless content
+      result = download_from_storage(file_ref)
+      next unless result[:success]
 
-        source = HexaPDF::Document.new(io: StringIO.new(content))
-        source.pages.each { |page| target.pages << target.import(page) }
-        Rails.logger.info "[PlanCombinerService] Added plan #{index + 1}: #{plan.display_name} (#{source.pages.count} pages)"
-      rescue => e
-        Rails.logger.warn "[PlanCombinerService] Could not add plan #{plan.id}: #{e.message}"
-      end
+      source = HexaPDF::Document.new(io: StringIO.new(result[:content]))
+      source.pages.each { |page| target.pages << target.import(page) }
+      Rails.logger.info "[PlanCombinerService] Added plan #{index + 1}: #{plan.display_name} (#{source.pages.count} pages)"
+    rescue => e
+      Rails.logger.warn "[PlanCombinerService] Could not add plan #{plan.id}: #{e.message}"
     end
 
     return nil if target.pages.count == 0
@@ -122,10 +102,11 @@ class PlanCombinerService
     revision = all_plans_record.current_revision
 
     if revision
-      # Update existing revision
+      # Update existing revision - support both SharePoint and S3/Wasabi results
       revision.update!(
-        sharepoint_file_id: upload_result["id"],
-        sharepoint_web_url: upload_result["webUrl"],
+        sharepoint_file_id: upload_result[:id],
+        sharepoint_web_url: upload_result[:web_url] || upload_result[:url],
+        storage_path: upload_result[:path],
         file_name: filename
       )
     else
@@ -133,34 +114,18 @@ class PlanCombinerService
       revision = all_plans_record.revisions.create!(
         revision: "A",
         revision_date: Date.current,
-        sharepoint_file_id: upload_result["id"],
-        sharepoint_web_url: upload_result["webUrl"],
+        sharepoint_file_id: upload_result[:id],
+        sharepoint_web_url: upload_result[:web_url] || upload_result[:url],
+        storage_path: upload_result[:path],
         file_name: filename
       )
       all_plans_record.update!(current_revision: revision)
     end
   end
 
-  def get_plans_folder_id(client)
-    # Get job's storage folder
-    job_folder = client.get_folder_by_path(@job.storage_folder_id)
-    raise CombineError, "Job folder not found" unless job_folder
-
-    # SSoT: Get plans folder name from EntityTab
-    plans_folder_name = EntityTab.folder_name_for("job", "plans", "04 Plans")
-
-    # Look for plans subfolder
-    items_response = client.list_folder_items(job_folder["id"])
-    items = items_response["value"] || []
-    plans_folder = items.find { |item| item["name"] == plans_folder_name && item["folder"].present? }
-
-    if plans_folder
-      plans_folder["id"]
-    else
-      # Create the folder if it doesn't exist
-      result = client.create_folder(plans_folder_name, parent_id: job_folder["id"])
-      result["id"]
-    end
+  def get_plans_folder_path
+    raise CombineError, "Job has no storage folder" unless @job.storage_folder_path.present?
+    "#{@job.storage_folder_path}/#{EntityTab.folder_name_for('job', 'plans', '04 Plans')}"
   end
 
   def build_filename

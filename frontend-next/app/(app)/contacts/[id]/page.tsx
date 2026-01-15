@@ -77,6 +77,7 @@ import {
   ContactEmailsTab,
   ContactActivityTab,
 } from "./components";
+import { ContactXeroTab } from "./components/ContactXeroTab";
 import type {
   Contact,
   ContactPerson,
@@ -1907,6 +1908,16 @@ export default function ContactDetailPage() {
             {tabConfigMap.financial?.display_name || "Financial"}
             {!contact.can_view_confidential && <Lock className="h-3 w-3 ml-1 text-amber-500" />}
           </TabsTrigger>
+          {/* SSoT: visibility_rule = "Has Primary Xero links" */}
+          {xeroLinks.length > 0 && (
+            <TabsTrigger value="xero-main">
+              {(() => { const Icon = getIcon(tabConfigMap["xero-main"]?.icon_name || "link"); return <Icon className="h-3.5 w-3.5 mr-1" />; })()}
+              Xero
+              <Badge variant="secondary" className="ml-1.5">
+                {new Set(xeroLinks.map(l => l.xero_tenant_id)).size}
+              </Badge>
+            </TabsTrigger>
+          )}
           <TabsTrigger value="coms">{tabConfigMap.coms?.display_name || "Communications"}</TabsTrigger>
           {contact.can_view_cases && (
             <TabsTrigger value="cases">
@@ -1930,7 +1941,8 @@ export default function ContactDetailPage() {
               )}
             </TabsTrigger>
           )}
-          {contact["is_customer?"] && (
+          {/* SSoT: visibility_rule = "Has Primary Xero links" */}
+          {xeroLinks.length > 0 && (
             <TabsTrigger value="invoices">
               {(() => { const Icon = getIcon(tabConfigMap.invoices?.icon_name || "file-text"); return <Icon className="h-3.5 w-3.5 mr-1" />; })()}
               {tabConfigMap.invoices?.display_name || "Invoices"}
@@ -2032,6 +2044,15 @@ export default function ContactDetailPage() {
             setContact={setContact}
             handleViewInvoiceDetail={handleViewInvoiceDetail}
             xeroLinks={xeroLinks}
+          />
+        </TabsContent>
+
+        {/* Xero Tab - SSoT: visibility_rule = "Has Primary Xero links" */}
+        <TabsContent value="xero-main" className="mt-6">
+          <ContactXeroTab
+            contact={contact}
+            xeroLinks={xeroLinks}
+            onViewInvoiceDetail={handleViewInvoiceDetail}
           />
         </TabsContent>
 

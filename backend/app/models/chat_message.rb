@@ -1,4 +1,6 @@
 class ChatMessage < ApplicationRecord
+  include StorageUploadable
+
   belongs_to :user
   belongs_to :project, optional: true
   belongs_to :recipient_user, class_name: "User", optional: true
@@ -75,16 +77,13 @@ class ChatMessage < ApplicationRecord
   end
 
   def download_file
-    return nil unless sharepoint_file_id.present?
+    file_ref = storage_item_id.presence || sharepoint_file_id
+    return nil unless file_ref.present?
 
-    # SSoT: Use MicrosoftCredential
-    credential = MicrosoftCredential.sharepoint_credential
-    return nil unless credential
-
-    client = MicrosoftGraphClient.new(credential)
-    client.download_file(sharepoint_file_id)
-  rescue MicrosoftGraphClient::APIError => e
-    Rails.logger.error("[ChatMessage] SharePoint download failed for #{id}: #{e.message}")
+    result = download_from_storage(file_ref)
+    result[:success] ? result[:content] : nil
+  rescue StandardError => e
+    Rails.logger.error("[ChatMessage] Storage download failed for #{id}: #{e.message}")
     nil
   end
 

@@ -145,6 +145,8 @@ class EntityTabQueryService
       hidden_by_default: tab.hidden_by_default,
       component_name: tab.component_name,
       is_system_tab: tab.is_system_tab,
+      # SSoT: Visibility rules - when this tab is shown/hidden
+      visibility_rule: tab.visibility_rule,
       has_storage_folder: tab.has_storage_folder,
       storage_folder_path: tab.storage_folder_path,
       full_storage_path: sharepoint_data[:full_path],
