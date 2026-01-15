@@ -2476,15 +2476,10 @@ module Api
       private
 
       # Build job folder path using SSoT pattern from StorageConfiguration
-      # SSoT: Uses job_number (job_code), NOT job.id
+      # SSoT: Uses job_code ("J" + id), e.g., "J201"
       def build_job_folder_path(job)
         # SSoT: Use StorageConfiguration.job_path for consistent folder naming
-        storage_config&.job_path(job.job_number) || begin
-          # Fallback: Build manually (should not happen if StorageConfiguration is set up)
-          base_folder = scope_folder_path(:job)
-          job_folder_name = job.job_number || job.id.to_s
-          "/#{base_folder}/#{job_folder_name}"
-        end
+        storage_config&.job_path(job.job_code) || "/Jobs/#{job.job_code}"
       end
 
       def sanitize_folder_name(name)

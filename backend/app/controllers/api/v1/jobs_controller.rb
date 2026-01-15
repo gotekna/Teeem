@@ -277,6 +277,9 @@ module Api
         # Include contacts with their relationships in the response
         job_json = @job.as_json
 
+        # SSoT: Include job_code for display (e.g., "J201")
+        job_json[:job_code] = @job.job_code
+
         # Include job_type, job_status, and job_stage associations - all columns
         job_json[:job_type] = @job.job_type&.as_json
         job_json[:job_status] = @job.job_status&.as_json
@@ -1062,7 +1065,7 @@ module Api
 
       # SSoT: Use StorageConfiguration.job_path for consistent folder naming
       def build_job_folder_path(job)
-        storage_config&.job_path(job.job_number) || "/Jobs/#{job.job_number}"
+        storage_config&.job_path(job.job_code) || "/Jobs/#{job.job_code}"
       end
 
       def set_job

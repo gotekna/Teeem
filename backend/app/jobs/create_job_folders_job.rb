@@ -78,7 +78,7 @@ class CreateJobFoldersJob < ApplicationJob
 
   # SSoT: Use StorageConfiguration.job_path for consistent folder naming
   def build_job_folder_path(job)
-    storage_config&.job_path(job.job_number) || "/Jobs/#{job.job_number}"
+    storage_config&.job_path(job.job_code) || "/Jobs/#{job.job_code}"
   end
 
   def create_job_folder_structure(job, job_folder_path)

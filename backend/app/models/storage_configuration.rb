@@ -476,7 +476,7 @@ class StorageConfiguration < ApplicationRecord
       # Job-attached: Use job folder structure
       # SSoT: EntityTab defines the folder name, but we use tab_name for document type
       effective_tab_name = tab_name || default_tab_name_for(scope)
-      job_path(job.job_number, effective_tab_name)
+      job_path(job.job_code, effective_tab_name)
     else
       # Standalone: Use warehousing folder structure
       # SSoT: StorageConfiguration.path_for + template_for

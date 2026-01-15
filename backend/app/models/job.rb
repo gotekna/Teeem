@@ -105,6 +105,12 @@ class Job < ApplicationRecord
     id&.to_s&.rjust(4, "0")
   end
 
+  # Job code for display and folder paths (SSoT: "J" + id)
+  # Used by: UI display, storage folder names, document naming
+  def job_code
+    "J#{id}"
+  end
+
   # Description placeholder for document templates
   def description
     nil

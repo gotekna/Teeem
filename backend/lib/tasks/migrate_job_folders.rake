@@ -72,7 +72,7 @@ namespace :storage do
       end
 
       # Get the SSoT path
-      new_path = config.job_path(job.job_number)
+      new_path = config.job_path(job.job_code)
       new_name = File.basename(new_path)
 
       if old_name == new_name
@@ -130,7 +130,7 @@ namespace :storage do
     config = StorageConfiguration.instance
 
     # Get SSoT path
-    new_path = config.job_path(job.job_number)
+    new_path = config.job_path(job.job_code)
     new_name = File.basename(new_path)
 
     # Find existing folder (try various patterns)
@@ -138,7 +138,7 @@ namespace :storage do
     possible_patterns = [
       "#{job.id} - #{job.title}",
       "#{job.id.to_s.rjust(3, '0')} - #{job.title}",
-      job.job_number,
+      job.job_code,
       job.id.to_s
     ]
 

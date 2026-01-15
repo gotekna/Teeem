@@ -344,8 +344,8 @@ class MicrosoftGraphClient
       create_jobs_root_folder
     end
 
-    # SSoT: Use StorageConfiguration.job_path for consistent folder naming
-    job_folder_path = StorageConfiguration.instance&.job_path(construction.job_number) || "/Jobs/#{construction.job_number}"
+    # SSoT: Use StorageConfiguration.job_path for consistent folder naming (job_code = "J" + id)
+    job_folder_path = StorageConfiguration.instance&.job_path(construction.job_code) || "/Jobs/#{construction.job_code}"
     job_folder_name = File.basename(job_folder_path)
     job_folder = create_folder(job_folder_name, parent_id: @credential.root_folder_id)
 
@@ -476,8 +476,8 @@ class MicrosoftGraphClient
   # Search for job folder by construction
   # Supports both exact match and fuzzy matching for legacy folder naming schemes
   def find_job_folder(construction)
-    # SSoT: Use StorageConfiguration.job_path for consistent folder naming
-    job_folder_path = StorageConfiguration.instance&.job_path(construction.job_number) || "/Jobs/#{construction.job_number}"
+    # SSoT: Use StorageConfiguration.job_path for consistent folder naming (job_code = "J" + id)
+    job_folder_path = StorageConfiguration.instance&.job_path(construction.job_code) || "/Jobs/#{construction.job_code}"
     expected_name = File.basename(job_folder_path)
 
     # Normalize title for fuzzy matching (remove common prefixes like "Lot", lowercase, etc.)
