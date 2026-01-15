@@ -296,14 +296,14 @@ class EmailWarehouse < ApplicationRecord
   end
 
   # Get document attachments only (exclude signature images and inline images)
-  # Uses Active Storage files attached directly to EmailWarehouse
+  # SSoT: Uses email_attachments association (Jan 2026 refactor)
   def document_attachments
-    files.select { |file| !file.content_type&.start_with?('image/') }
+    email_attachments.select { |ea| !ea.storage_blob&.content_type&.start_with?('image/') }
   end
 
   # Get count of document attachments (excluding images)
   def document_attachments_count
-    files.count { |file| !file.content_type&.start_with?('image/') }
+    email_attachments.count { |ea| !ea.storage_blob&.content_type&.start_with?('image/') }
   end
 
   # Job ID patterns to look for in subject line
