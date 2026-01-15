@@ -79,6 +79,9 @@ import {
   ContactPriceBookTab,
   ContactPurchaseOrdersTab,
   ContactTabsRenderer,
+  ContactDocumentsTab,
+  ContactCommunicationsTab,
+  ContactPortalTab,
 } from "./components";
 import type {
   Contact,
@@ -1981,19 +1984,7 @@ export default function ContactDetailPage() {
 
         {/* Documents Tab */}
         <TabsContent value="documents" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <FolderOpen className="h-5 w-5" />
-                Documents
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground text-center py-8">
-                Documents linked to this contact will be shown here.
-              </p>
-            </CardContent>
-          </Card>
+          <ContactDocumentsTab contact={contact} />
         </TabsContent>
 
         {/* Financial Tab with nested sub-tabs (Bank Details, Xero, Bills, Jobs, Purchase Orders) */}

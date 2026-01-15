@@ -307,6 +307,54 @@ module DocumentProviders
       result
     end
 
+    # Rename a folder (all objects with prefix) to new path
+    # S3 has no native folder rename - copies all objects then deletes originals
+    # @param old_path [String] Current folder path (e.g., "Emails/eml")
+    # @param new_path [String] New folder path (e.g., "Emails/Email Body")
+    # @return [Hash] { success: true, moved_count: N } or { success: false, error: "..." }
+    def rename_folder(old_path, new_path)
+      old_prefix = build_key(old_path)
+      old_prefix = old_prefix.end_with?("/") ? old_prefix : "#{old_prefix}/"
+      new_prefix = build_key(new_path)
+      new_prefix = new_prefix.end_with?("/") ? new_prefix : "#{new_prefix}/"
+
+      moved_count = 0
+      continuation_token = nil
+
+      loop do
+        # List all objects with old prefix
+        list_params = { bucket: @bucket, prefix: old_prefix }
+        list_params[:continuation_token] = continuation_token if continuation_token
+        response = @client.list_objects_v2(list_params)
+
+        (response.contents || []).each do |object|
+          old_key = object.key
+          new_key = old_key.sub(old_prefix, new_prefix)
+
+          # Copy to new location
+          @client.copy_object(
+            bucket: @bucket,
+            copy_source: "#{@bucket}/#{URI.encode_www_form_component(old_key)}",
+            key: new_key
+          )
+
+          # Delete old
+          @client.delete_object(bucket: @bucket, key: old_key)
+          moved_count += 1
+          Rails.logger.info "[S3Compatible] Moved: #{old_key} -> #{new_key}"
+        end
+
+        break unless response.is_truncated
+        continuation_token = response.next_continuation_token
+      end
+
+      Rails.logger.info "[S3Compatible] rename_folder complete: #{old_path} -> #{new_path} (#{moved_count} objects)"
+      { success: true, moved_count: moved_count }
+    rescue => e
+      Rails.logger.error "[S3Compatible] rename_folder failed: #{e.message}"
+      { success: false, error: e.message }
+    end
+
     # ====================
     # SEARCH
     # ====================

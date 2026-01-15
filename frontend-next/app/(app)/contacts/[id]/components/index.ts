@@ -2,6 +2,7 @@
 // SSoT: All contact-related tab components are exported from this file
 
 export { ContactOverviewTab } from "./ContactOverviewTab";
+export { ContactCommunicationsTab } from "./ContactCommunicationsTab";
 export { ContactCorporateTab } from "./ContactCorporateTab";
 export { ContactFinancialTab } from "./ContactFinancialTab";
 export { ContactDirectorshipsTab } from "./ContactDirectorshipsTab";
@@ -10,6 +11,10 @@ export { ContactEmailsTab } from "./ContactEmailsTab";
 export { ContactActivityTab } from "./ContactActivityTab";
 export { ContactPriceBookTab } from "./ContactPriceBookTab";
 export { ContactPurchaseOrdersTab } from "./ContactPurchaseOrdersTab";
+export { ContactPortalTab } from "./ContactPortalTab";
+export { ContactInvoicesTab } from "./ContactInvoicesTab";
+export { ContactBillsTab } from "./ContactBillsTab";
+export { ContactDocumentsTab } from "./ContactDocumentsTab";
 export { ContactTabsRenderer } from "./ContactTabsRenderer";
 
 // Re-export types for convenience
