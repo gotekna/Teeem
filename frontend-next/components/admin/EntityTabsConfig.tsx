@@ -872,8 +872,31 @@ export function EntityTabsConfig({
   };
 
   // Get available parent tabs (root-level tabs that can be parents)
+  // SSoT: Filter out parents that already have a child with the same tab_key (prevents duplicate key conflicts)
   const availableParents = React.useMemo(() => {
-    return tabs.filter((t) => !t.parent_id && t.id !== editingTab?.id);
+    if (!editingTab) return [];
+
+    return tabs.filter((t) => {
+      // Must be a root tab (no parent)
+      if (t.parent_id) return false;
+      // Can't be the tab we're editing
+      if (t.id === editingTab.id) return false;
+      // Can't have a child with the same tab_key (would cause duplicate key conflict)
+      const hasChildWithSameKey = t.children?.some(child => child.tab_key === editingTab.tab_key);
+      if (hasChildWithSameKey) return false;
+
+      return true;
+    });
+  }, [tabs, editingTab]);
+
+  // SSoT: Check if moving to root level would conflict with existing root tab
+  const canMoveToRoot = React.useMemo(() => {
+    if (!editingTab) return true;
+    // If already a root tab, can stay root
+    if (!editingTab.parent_id) return true;
+    // Check if there's already a root tab with this tab_key
+    const hasRootTabWithSameKey = tabs.some(t => !t.parent_id && t.tab_key === editingTab.tab_key);
+    return !hasRootTabWithSameKey;
   }, [tabs, editingTab]);
 
   // Handle form submit
@@ -2255,7 +2278,9 @@ export function EntityTabsConfig({
                       <SelectValue placeholder="Select parent tab" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">No parent (root level)</SelectItem>
+                      <SelectItem value="none" disabled={!canMoveToRoot}>
+                        No parent (root level){!canMoveToRoot && " - tab key already exists at root"}
+                      </SelectItem>
                       {availableParents.map((parent) => (
                         <SelectItem key={parent.id} value={parent.id.toString()}>
                           {parent.display_name}

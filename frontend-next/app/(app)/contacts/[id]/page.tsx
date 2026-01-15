@@ -2001,13 +2001,7 @@ export default function ContactDetailPage() {
 
         {/* Communications Tab */}
         <TabsContent value="coms" className="mt-6">
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-muted-foreground text-center py-8">
-                Communication history will be shown here.
-              </p>
-            </CardContent>
-          </Card>
+          <ContactCommunicationsTab contact={contact} />
         </TabsContent>
 
         {/* Cases Tab */}
@@ -2085,13 +2079,7 @@ export default function ContactDetailPage() {
 
         {/* Portal Access Tab */}
         <TabsContent value="portal" className="mt-6">
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-muted-foreground text-center py-8">
-                Portal user access settings will be shown here.
-              </p>
-            </CardContent>
-          </Card>
+          <ContactPortalTab contact={contact} />
         </TabsContent>
 
         {/* Activity Tab - Shows change history and audit log */}
