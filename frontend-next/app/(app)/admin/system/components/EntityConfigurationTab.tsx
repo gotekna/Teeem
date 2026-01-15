@@ -7,9 +7,9 @@ import { EntityTabsConfig } from "@/components/admin/EntityTabsConfig";
 import { DocumentTypesTab } from "./DocumentTypesTab";
 import { StorageConfigTab } from "./StorageConfigTab";
 import { EmailConfigTab } from "./EmailConfigTab";
-import { Building2, Briefcase, X, FileText, Settings, Contact2, Mail } from "lucide-react";
+import { Building2, Briefcase, X, FileText, Settings, Contact2, Mail, ChevronRight, Home } from "lucide-react";
 import { api } from "@/lib/api";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 
 /**
  * EntityConfigurationTab - SSoT for ALL tab configuration
@@ -95,10 +95,33 @@ const scopes = [
   },
 ] as const;
 
+// Build breadcrumb items from path
+function buildBreadcrumbs(pathname: string): Array<{ label: string; path: string }> {
+  const crumbs: Array<{ label: string; path: string }> = [];
+
+  if (pathname.startsWith("/settings/company")) {
+    crumbs.push({ label: "Settings", path: "/settings" });
+    crumbs.push({ label: "Company", path: "/settings/company" });
+    crumbs.push({ label: "Entity Config", path: "/settings/company/entity-config" });
+  } else if (pathname.startsWith("/admin/system")) {
+    crumbs.push({ label: "Admin", path: "/admin" });
+    crumbs.push({ label: "System", path: "/admin/system" });
+    crumbs.push({ label: "Entity Config", path: "/admin/system/entity-config" });
+  } else {
+    crumbs.push({ label: "Entity Config", path: pathname });
+  }
+
+  return crumbs;
+}
+
 export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFAULT_ENTITY_CONFIG_BASE_PATH }: EntityConfigurationTabProps) {
   const router = useRouter();
+  const pathname = usePathname();
   // Support both scope and subTab props (subTab for consistency with other tabs)
   const activeScope = scope || subTab || "corporate_entity";
+
+  // Build breadcrumbs from current path
+  const breadcrumbs = React.useMemo(() => buildBreadcrumbs(pathname), [pathname]);
 
   const setActiveScope = React.useCallback((newScope: string) => {
     router.push(`${basePath}/${newScope}`, { scroll: false });
@@ -156,7 +179,34 @@ export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFA
   // Always render fullscreen - z-[120] to be above breadcrumb (z-110)
   return (
     <div className="fixed inset-0 z-[120] bg-background flex flex-col">
-      <Tabs value={activeScope} onValueChange={setActiveScope} className="flex flex-col h-full">
+      {/* Breadcrumb bar */}
+      <div className="bg-muted/50 border-b px-4 py-1.5 shrink-0">
+        <nav className="flex items-center gap-1 text-sm">
+          <button
+            onClick={() => router.push("/")}
+            className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded hover:bg-muted"
+          >
+            <Home className="h-4 w-4" />
+          </button>
+          {breadcrumbs.map((crumb, index) => (
+            <React.Fragment key={crumb.path}>
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              {index === breadcrumbs.length - 1 ? (
+                <span className="font-medium text-foreground">{crumb.label}</span>
+              ) : (
+                <button
+                  onClick={() => router.push(crumb.path)}
+                  className="text-muted-foreground hover:text-foreground transition-colors px-1 py-0.5 rounded hover:bg-muted"
+                >
+                  {crumb.label}
+                </button>
+              )}
+            </React.Fragment>
+          ))}
+        </nav>
+      </div>
+
+      <Tabs value={activeScope} onValueChange={setActiveScope} className="flex flex-col h-full flex-1 min-h-0">
         {/* Compact header with scope tabs inline */}
         <div className="flex items-center justify-between border-b px-4 py-2 shrink-0 bg-muted/30">
           <div className="flex items-center gap-4">

@@ -196,12 +196,20 @@ class StorageConfiguration < ApplicationRecord
   }.freeze
 
   # Get template for a scope
-  # SSoT: Database `templates` column first, then hardcoded fallback
+  # SSoT: Database `templates` column is authoritative when key exists
   # @param scope [String, Symbol] The scope name
-  # @return [String] The template string for path generation
+  # @return [String] The template string for path generation (empty string = no template)
   def template_for(scope)
-    # SSoT: Check database templates column first
-    templates&.dig(scope.to_s).presence || SCOPE_TEMPLATES[scope.to_s] || "{{Name}}/{{Category}}"
+    scope_key = scope.to_s
+
+    # SSoT: If key exists in templates (even if empty), use that value
+    # Empty string means "no template wanted" - don't fall back to defaults
+    if templates&.key?(scope_key)
+      return templates[scope_key] || ""
+    end
+
+    # Key not in database - use hardcoded fallbacks
+    SCOPE_TEMPLATES[scope_key] || "{{Name}}/{{Category}}"
   end
 
   # ========================================

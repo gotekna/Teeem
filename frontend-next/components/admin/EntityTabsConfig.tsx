@@ -2385,7 +2385,7 @@ export function EntityTabsConfig({
                 {/* Editable folder path (read-only for system tabs) */}
                 <TokenBuilder
                   label={editingTab?.is_system_tab ? "Folder Path (system-managed)" : "Folder Path (add placeholders)"}
-                  value={formData.sharepoint_folder_path || editingTab?.effective_sharepoint_path || (formData.display_name || editingTab?.display_name || "")}
+                  value={formData.sharepoint_folder_path ?? ""}
                   onChange={(value) =>
                     setFormData((prev) => ({
                       ...prev,
