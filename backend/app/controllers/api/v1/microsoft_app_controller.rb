@@ -890,8 +890,8 @@ class Api::V1::MicrosoftAppController < ApplicationController
       return render json: { error: "Organization not connected" }, status: :not_found
     end
 
-    unless MicrosoftCredential.sharepoint_configured?
-      return render json: { error: "SharePoint not configured. Please configure TEEEM's SharePoint first." }, status: :unprocessable_entity
+    unless StorageConfiguration.instance&.connected?
+      return render json: { error: "Storage not configured. Please configure storage provider first." }, status: :unprocessable_entity
     end
 
     # Queue the backfill job
@@ -899,7 +899,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
 
     render json: {
       success: true,
-      message: "Backfill job queued for #{credential.name}. Existing attachments will be uploaded to SharePoint."
+      message: "Backfill job queued for #{credential.name}. Existing attachments will be uploaded to storage."
     }
   rescue StandardError => e
     Rails.logger.error "[MicrosoftApp] Attachment backfill failed: #{e.message}"

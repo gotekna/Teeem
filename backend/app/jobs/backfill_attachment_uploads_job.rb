@@ -1,19 +1,21 @@
-# BackfillAttachmentUploadsJob - Upload existing EmailAttachment records to SharePoint
+# BackfillAttachmentUploadsJob - Upload existing EmailAttachment records to storage
 #
 # This job migrates legacy EmailAttachment records (created before the schema refactor)
-# to the new architecture where attachments are stored in SharePoint with deduplication.
+# to the new architecture where attachments are stored with deduplication.
 #
 # Usage:
 #   BackfillAttachmentUploadsJob.perform_later(credential_id)
 #
 # This job:
 # 1. Finds EmailAttachment records with attachment_id = nil (not yet migrated)
-# 2. Fetches attachment content from Microsoft Graph API
+# 2. Fetches attachment content from Microsoft Graph API (reads FROM user's M365)
 # 3. Checks for existing attachment by content_hash (deduplication)
-# 4. If new, uploads to TEEEM's SharePoint
+# 4. If new, uploads to storage (SSoT: Wasabi/S3/SharePoint via StorageConfiguration)
 # 5. Creates Attachment record and links via EmailAttachment
 #
 class BackfillAttachmentUploadsJob < ApplicationJob
+  include StorageUploadable
+
   queue_as :low
 
   def perform(credential_id)
@@ -25,8 +27,8 @@ class BackfillAttachmentUploadsJob < ApplicationJob
       return
     end
 
-    unless MicrosoftCredential.sharepoint_configured?
-      Rails.logger.error "[BackfillAttachments] SharePoint not configured. Please configure TEEEM's SharePoint first."
+    unless storage_connected?
+      Rails.logger.error "[BackfillAttachments] Storage not configured. Please configure storage provider first."
       return
     end
 
@@ -51,9 +53,6 @@ class BackfillAttachmentUploadsJob < ApplicationJob
     uploaded = 0
     skipped = 0
     errors = 0
-
-    sp_config = MicrosoftCredential.teeem_sharepoint_config
-    teeem_client = MicrosoftAppGraphClient.new(sp_config[:credential])
 
     legacy_attachments.find_each do |legacy|
       begin
@@ -99,15 +98,13 @@ class BackfillAttachmentUploadsJob < ApplicationJob
         existing_attachment = Attachment.find_by(content_hash: content_hash)
 
         if existing_attachment
-          # File already exists in SharePoint - just link it
+          # File already exists in storage - just link it
           legacy.update!(attachment: existing_attachment)
           Rails.logger.info "[BackfillAttachments] Linked existing: #{filename} (#{content_hash[0..7]})"
           skipped += 1
         else
-          # New file - upload to TEEEM's SharePoint
-          result = upload_to_sharepoint(
-            teeem_client,
-            sp_config,
+          # New file - upload to storage (SSoT: Wasabi/S3/SharePoint)
+          result = upload_to_storage(
             filename,
             content_binary,
             content_type,
@@ -155,49 +152,32 @@ class BackfillAttachmentUploadsJob < ApplicationJob
 
   private
 
-  def upload_to_sharepoint(client, sp_config, filename, content, content_type, file_size, email_date)
-    # Build folder path: /emails/attachments/{org_name}/{year}/{month}
+  def upload_to_storage(filename, content, content_type, file_size, email_date)
+    # Build folder path: /emails/attachments/{year}/{month}
     folder_path = build_folder_path(email_date)
 
     # Build filename: {content_hash}_{original_filename}
     content_hash = Attachment.compute_hash(content)
     hash_prefix = content_hash[0..7]
-    safe_filename = sanitize_filename(filename)
+    safe_filename = sanitize_storage_path(filename)
     final_filename = "#{hash_prefix}_#{safe_filename}"
 
-    # Upload based on size (to TEEEM's SharePoint)
-    if client.large_file?(file_size)
-      Rails.logger.info "[BackfillAttachments] Large file detected (#{file_size} bytes), using upload session"
+    # SSoT: Use StorageUploadable for provider-agnostic upload
+    result = upload_to_storage_path(folder_path, content, final_filename, content_type: content_type)
 
-      session = client.create_upload_session(
-        sp_config[:site_id],
-        sp_config[:drive_id],
-        folder_path,
-        final_filename
-      )
-
-      client.upload_large_file(session["uploadUrl"], content)
+    if result[:success]
+      { id: result[:id], path: result[:path] }
     else
-      client.upload_file_content(
-        sp_config[:site_id],
-        sp_config[:drive_id],
-        folder_path,
-        final_filename,
-        content
-      )
+      raise "Storage upload failed: #{result[:error]}"
     end
   end
 
   def build_folder_path(email_date)
     year = email_date.year
     month = email_date.strftime("%m")
-    "#{@credential.attachment_root_path}/#{year}/#{month}"
+    # SSoT: Use StorageConfiguration for base path
+    storage_config = StorageConfiguration.instance
+    base_path = storage_config&.path_for(:emails) || "Emails/Attachments"
+    "#{base_path}/#{year}/#{month}"
   end
-
-  # SSoT: Use centralized SharePoint filename sanitization
-  # See lib/sharepoint/filename_sanitizer.rb for rules
-  def sanitize_filename(filename)
-    SharePoint::FilenameSanitizer.sanitize(filename)
-  end
-
 end
