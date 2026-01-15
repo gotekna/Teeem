@@ -72,23 +72,25 @@ export const Z_DROPDOWN = 1200;
 export const Z_DEBUG = 9999;
 
 // ============================================
-// TAILWIND CLASS HELPERS
+// TAILWIND CLASS HELPERS (derived from values)
 // ============================================
+// These are derived automatically - change the value above,
+// the class updates automatically. No manual sync needed.
 
 /** Use in className for toast positioning */
-export const Z_TOAST_CLASS = 'z-[100]';
+export const Z_TOAST_CLASS = `z-[${Z_TOAST}]` as const;
 
 /** Use in className for fullscreen overlays */
-export const Z_FULLSCREEN_CLASS = 'z-[120]';
+export const Z_FULLSCREEN_CLASS = `z-[${Z_FULLSCREEN_OVERLAY}]` as const;
 
 /** Use in className for side panels */
-export const Z_SHEET_CLASS = 'z-[130]';
+export const Z_SHEET_CLASS = `z-[${Z_SHEET}]` as const;
 
 /** Use in className for modal dialogs */
-export const Z_MODAL_CLASS = 'z-[1100]';
+export const Z_MODAL_CLASS = `z-[${Z_MODAL}]` as const;
 
 /** Use in className for dropdowns */
-export const Z_DROPDOWN_CLASS = 'z-[1200]';
+export const Z_DROPDOWN_CLASS = `z-[${Z_DROPDOWN}]` as const;
 
 /** Use in className for debug tools */
-export const Z_DEBUG_CLASS = 'z-[9999]';
+export const Z_DEBUG_CLASS = `z-[${Z_DEBUG}]` as const;

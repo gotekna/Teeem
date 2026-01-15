@@ -3540,8 +3540,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             key={att.id}
                             draggable
                             onDragStart={(e) => {
-                              e.dataTransfer.setData('attachment_id', att.id.toString());
-                              e.dataTransfer.setData('attachment_type', 'email');
+                              e.dataTransfer.setData('application/x-attachment-id', att.id.toString());
                               e.dataTransfer.effectAllowed = 'move';
                             }}
                             className={cn(

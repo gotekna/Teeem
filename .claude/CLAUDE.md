@@ -112,11 +112,35 @@ For race condition fixes or non-obvious code, use this pattern:
 | `ultra` | Lazy thinking | Present 3 approaches, question assumptions, simplify |
 | `gold` | Wrong component/bad UI | Check THE ONE table, TeeemTableView, Tailwind, dark mode |
 | `frc` | Bandaid bug fix | Stop, investigate root cause, fix the gap not the symptom |
+| `lim` | Adding unnecessary code | Less Is More - search first, reuse, delete > add |
 
 **Before ANY code change:**
-1. **SSoT Check** - Is this defined elsewhere? Search first.
-2. **Ultra Think** (non-trivial) - 3 approaches? Assumptions? Remove instead of add?
-3. **Gold Standard** (UI) - THE ONE component? Tailwind config? Dark mode?
+1. **LIM Check** - Can existing code do this? Search `lib/` first.
+2. **SSoT Check** - Is this defined elsewhere? Search first.
+3. **Ultra Think** (non-trivial) - 3 approaches? Assumptions? Remove instead of add?
+4. **Gold Standard** (UI) - THE ONE component? Tailwind config? Dark mode?
+
+### `lim` - Less Is More (Auto-Trigger)
+
+**BEFORE writing ANY new code, Claude MUST:**
+
+1. **Search First** - Grep/Glob for similar functionality in codebase
+2. **Check SSoT Locations:**
+   - Constants? → `lib/constants/`
+   - Validation? → `lib/formatters/validation-formatters.ts`
+   - Components? → `lib/component-registry.ts`
+   - State? → `lib/table-atoms.ts`
+   - URL utils? → `lib/url-utils.ts`
+3. **If similar exists:** USE IT or EXTEND IT
+4. **If creating new:** Justify why existing code can't work
+
+**The Mantra:**
+- Delete > Add
+- Reuse > Create
+- Extend > Duplicate
+- Search > Assume
+
+**The goal:** Every new file/function should feel inevitable, not optional.
 
 ## 🔴 CRITICAL: SSoT Violations
 
