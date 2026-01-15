@@ -548,17 +548,19 @@ class ImapEmailService
   end
 
   def attach_email_files(email, attachments)
-    # Note: has_many_attached :files was removed (Jan 2026) - create EmailWarehouseAttachment records instead
+    # Note: has_many_attached :files was removed (Jan 2026) - create EmailAttachment records instead
+    # SSoT: EmailAttachment uses store_content! for deduplicated storage via StorageBlob
     attachments.each do |attachment|
       next unless attachment[:content].present?
 
-      email_attachment = email.email_warehouse_attachments.create!(
+      email_attachment = email.email_attachments.create!(
         filename: attachment[:filename],
         content_type: attachment[:content_type],
         file_size: attachment[:content].bytesize
       )
-      email_attachment.attachment.attach(
-        io: StringIO.new(attachment[:content]),
+      # SSoT: Use store_content! which handles deduplication via StorageBlob
+      email_attachment.store_content!(
+        attachment[:content],
         filename: attachment[:filename],
         content_type: attachment[:content_type]
       )

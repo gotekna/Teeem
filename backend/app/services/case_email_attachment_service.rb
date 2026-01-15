@@ -41,10 +41,10 @@ class CaseEmailAttachmentService
 
     @results[:processed_emails] += 1
 
-    # Get attachments from email warehouse (via email_warehouse_attachments)
-    # Note: has_many_attached :files was removed (Jan 2026) - use email_warehouse_attachments instead
-    if email.email_warehouse_attachments.any?
-      email.email_warehouse_attachments.each do |email_attachment|
+    # Get attachments from email warehouse (via email_attachments)
+    # Note: has_many_attached :files was removed (Jan 2026) - use email_attachments instead
+    if email.email_attachments.any?
+      email.email_attachments.each do |email_attachment|
         next unless email_attachment.attachment&.attached?
         process_attachment_from_storage(case_email, email_attachment.attachment)
       end

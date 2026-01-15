@@ -304,9 +304,9 @@ class EmailToJobService
     email_body = @email.body_text.presence || strip_html(@email.body_html)
 
     # Extract text from PDF attachments if present
-    # Note: has_many_attached :files was removed (Jan 2026) - check email_warehouse_attachments instead
+    # Note: has_many_attached :files was removed (Jan 2026) - check email_attachments instead
     pdf_content = nil
-    if @email.email_warehouse_attachments.any?
+    if @email.email_attachments.any?
       pdf_texts = @email.extract_pdf_text
       if pdf_texts.present?
         pdf_content = pdf_texts.map do |pdf|
@@ -1073,13 +1073,13 @@ class EmailToJobService
 
   def sync_pdf_attachments_if_needed
     # Skip if no attachments or already synced
-    # Note: has_many_attached :files was removed (Jan 2026) - check email_warehouse_attachments instead
-    return unless @email.has_attachments && @email.email_warehouse_attachments.empty?
+    # Note: has_many_attached :files was removed (Jan 2026) - check email_attachments instead
+    return unless @email.has_attachments && @email.email_attachments.empty?
 
     begin
       # SSoT: Per-user Outlook credentials removed - use org credentials via sync_attachments!
       @email.sync_attachments!
-      Rails.logger.info "Synced #{@email.email_warehouse_attachments.count} PDF attachments for email #{@email.id}"
+      Rails.logger.info "Synced #{@email.email_attachments.count} PDF attachments for email #{@email.id}"
     rescue StandardError => e
       Rails.logger.error "Failed to sync attachments for email #{@email.id}: #{e.message}"
       # Don't fail the whole process if attachment sync fails

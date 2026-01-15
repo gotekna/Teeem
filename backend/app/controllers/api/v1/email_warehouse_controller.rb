@@ -860,18 +860,21 @@ class Api::V1::EmailWarehouseController < ApplicationController
     filename_hint = filename_param || email_attachment&.filename || email_attachment&.attachment&.filename
     content_type_hint = email_attachment&.attachment&.content_type
 
-    # SSoT: Try email_warehouse_attachments first (primary path since Jan 2026)
-    # Note: has_many_attached :files was removed - use email_warehouse_attachments instead
-    if @email.email_warehouse_attachments.any? && filename_hint.present?
-      attachment = @email.email_warehouse_attachments.find { |a| a.filename == filename_hint }
-      if attachment&.attachment&.attached?
-        Rails.logger.info "[EmailWarehouse] Downloading attachment from email_warehouse_attachments: #{filename_hint}"
-        return send_data(
-          attachment.attachment.download,
-          filename: filename_hint,
-          type: attachment.content_type || "application/octet-stream",
-          disposition: "attachment"
-        )
+    # SSoT: Try email_attachments first (primary path since Jan 2026)
+    # Note: has_many_attached :files was removed - use email_attachments instead
+    if @email.email_attachments.any? && filename_hint.present?
+      attachment = @email.email_attachments.find { |a| a.filename == filename_hint }
+      if attachment&.stored?
+        Rails.logger.info "[EmailWarehouse] Downloading attachment from email_attachments: #{filename_hint}"
+        content = attachment.download
+        if content.present?
+          return send_data(
+            content,
+            filename: filename_hint,
+            type: attachment.content_type || "application/octet-stream",
+            disposition: "attachment"
+          )
+        end
       end
     end
 

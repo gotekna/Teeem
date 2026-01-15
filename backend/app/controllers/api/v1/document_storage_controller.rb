@@ -1757,30 +1757,57 @@ module Api
           }
         end
 
-        # No cached data - fall back to live API and trigger sync
-        credential = get_onedrive_credential
-
-        unless credential
-          return render json: { error: "SharePoint not connected" }, status: :unauthorized
+        # No cached data - fall back to live API (provider-agnostic)
+        # SSoT: Use DocumentProviderAware for Wasabi/S3, SharePoint code for SharePoint
+        begin
+          setup_default_provider!
+        rescue DocumentProviders::NotConnectedError => e
+          return render json: { error: "Storage not connected: #{e.message}" }, status: :unauthorized
         end
 
+        provider_type = current_provider_type
+
         begin
-          client = MicrosoftGraphClient.new(credential)
+          if provider_type == :sharepoint
+            # SharePoint: Use existing MicrosoftGraphClient code
+            credential = get_onedrive_credential
+            unless credential
+              return render json: { error: "SharePoint not connected" }, status: :unauthorized
+            end
 
-          # Find the job folder
-          job_folder = client.find_job_folder(job)
+            client = MicrosoftGraphClient.new(credential)
+            job_folder = client.find_job_folder(job)
 
-          unless job_folder
-            return render json: {
-              success: false,
-              error: "Job folder not found. Please create the folder structure first.",
-              job_folder_exists: false,
-              items: []
-            }, status: :ok
+            unless job_folder
+              return render json: {
+                success: false,
+                error: "Job folder not found. Please create the folder structure first.",
+                job_folder_exists: false,
+                items: []
+              }, status: :ok
+            end
+
+            files = list_all_job_files_recursive(client, credential, job_folder["id"])
+            job_folder_id = job_folder["id"]
+            job_folder_web_url = job_folder["webUrl"]
+          else
+            # Wasabi/S3: Use provider-agnostic listing
+            job_folder_path = build_job_folder_path(job)
+
+            unless folder_exists_in_provider?(job_folder_path)
+              return render json: {
+                success: false,
+                error: "Job folder not found. Please create the folder structure first.",
+                job_folder_exists: false,
+                items: []
+              }, status: :ok
+            end
+
+            # List all files recursively
+            files = list_job_files_from_provider(job_folder_path)
+            job_folder_id = nil
+            job_folder_web_url = nil
           end
-
-          # Recursively list all files in the job folder (live API)
-          files = list_all_job_files_recursive(client, credential, job_folder["id"])
 
           # Load document types ONCE for efficiency (not per-file)
           @cached_doc_types = DocumentType.where(scope: %w[job both]).or(DocumentType.where(scope: nil)).to_a
@@ -1800,8 +1827,8 @@ module Api
             job_title: job.title,
             items: files_with_suggestions,
             count: files_with_suggestions.length,
-            job_folder_id: job_folder["id"],
-            job_folder_web_url: job_folder["webUrl"],
+            job_folder_id: job_folder_id,
+            job_folder_web_url: job_folder_web_url,
             from_cache: false,
             sync_triggered: true
           }
@@ -1810,6 +1837,8 @@ module Api
           render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
         rescue MicrosoftGraphClient::APIError => e
           render json: { error: "OneDrive API error: #{e.message}" }, status: :bad_gateway
+        rescue DocumentProviders::Error => e
+          render json: { error: "Storage error: #{e.message}" }, status: :bad_gateway
         rescue StandardError => e
           Rails.logger.error "[Job All Files] Exception: #{e.message}"
           Rails.logger.error e.backtrace.join("\n")
@@ -2501,6 +2530,41 @@ module Api
 
       def sanitize_folder_name(name)
         name.to_s.gsub(/[<>:"|?*\\]/, "_").strip
+      end
+
+      # List all files recursively from provider (Wasabi/S3)
+      # Returns array of hashes matching the format from SharePoint listing
+      def list_job_files_from_provider(job_folder_path)
+        files = []
+        list_folder_recursive(job_folder_path, files, "")
+        files
+      end
+
+      def list_folder_recursive(folder_path, files, relative_path)
+        items = list_folder_in_provider(folder_path, recursive: false) rescue []
+
+        items.each do |item|
+          item_path = relative_path.present? ? "#{relative_path}/#{item[:name]}" : item[:name]
+
+          if item[:type] == "folder"
+            # Recursively list subfolder
+            list_folder_recursive("#{folder_path}/#{item[:name]}", files, item_path)
+          else
+            # Add file with consistent format
+            files << {
+              id: item[:id],
+              name: item[:name],
+              size: item[:size],
+              web_url: item[:web_url],
+              download_url: item[:download_url],
+              modified: item[:modified],
+              type: "file",
+              folder_path: relative_path,
+              thumbnail_url: nil,
+              storage_provider: current_provider_type.to_s
+            }
+          end
+        end
       end
 
       # Download document content from S3
