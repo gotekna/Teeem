@@ -9,7 +9,7 @@ import { StorageConfigTab } from "./StorageConfigTab";
 import { EmailConfigTab } from "./EmailConfigTab";
 import { Building2, Briefcase, X, FileText, Settings, Contact2, Mail, ChevronRight, Home } from "lucide-react";
 import { api } from "@/lib/api";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 /**
  * EntityConfigurationTab - SSoT for ALL tab configuration
@@ -95,33 +95,46 @@ const scopes = [
   },
 ] as const;
 
-// Build breadcrumb items from path
-function buildBreadcrumbs(pathname: string): Array<{ label: string; path: string }> {
+// Scope label mapping
+const SCOPE_LABELS: Record<string, string> = {
+  corporate_entity: "Corporate",
+  job: "Jobs",
+  contact: "Contacts",
+  document_types: "Document Types",
+  storage_config: "Storage Config",
+  email_config: "Email Config",
+};
+
+// Build breadcrumb items from path and active scope
+function buildBreadcrumbs(basePath: string, activeScope: string): Array<{ label: string; path: string }> {
   const crumbs: Array<{ label: string; path: string }> = [];
 
-  if (pathname.startsWith("/settings/company")) {
+  if (basePath.startsWith("/settings/company")) {
     crumbs.push({ label: "Settings", path: "/settings" });
     crumbs.push({ label: "Company", path: "/settings/company" });
     crumbs.push({ label: "Entity Config", path: "/settings/company/entity-config" });
-  } else if (pathname.startsWith("/admin/system")) {
+  } else if (basePath.startsWith("/admin/system")) {
     crumbs.push({ label: "Admin", path: "/admin" });
     crumbs.push({ label: "System", path: "/admin/system" });
     crumbs.push({ label: "Entity Config", path: "/admin/system/entity-config" });
   } else {
-    crumbs.push({ label: "Entity Config", path: pathname });
+    crumbs.push({ label: "Entity Config", path: basePath });
   }
+
+  // Add active scope as final breadcrumb
+  const scopeLabel = SCOPE_LABELS[activeScope] || activeScope;
+  crumbs.push({ label: scopeLabel, path: `${basePath}/${activeScope}` });
 
   return crumbs;
 }
 
 export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFAULT_ENTITY_CONFIG_BASE_PATH }: EntityConfigurationTabProps) {
   const router = useRouter();
-  const pathname = usePathname();
   // Support both scope and subTab props (subTab for consistency with other tabs)
   const activeScope = scope || subTab || "corporate_entity";
 
-  // Build breadcrumbs from current path
-  const breadcrumbs = React.useMemo(() => buildBreadcrumbs(pathname), [pathname]);
+  // Build breadcrumbs from basePath and active scope
+  const breadcrumbs = React.useMemo(() => buildBreadcrumbs(basePath, activeScope), [basePath, activeScope]);
 
   const setActiveScope = React.useCallback((newScope: string) => {
     router.push(`${basePath}/${newScope}`, { scroll: false });
