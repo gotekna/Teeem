@@ -122,9 +122,14 @@ class JobDocumentSyncJob < ApplicationJob
       job_doc.original_file_name = file[:name]
     end
 
+    # SSoT: Get storage_provider value from StorageConfiguration
+    doc_storage_provider = storage_config&.storage_provider_for_new_documents || "s3_compatible"
+
     job_doc.assign_attributes(
       job: job,
       sharepoint_drive_id: file[:drive_id] || storage_config&.drive_id,
+      storage_provider: doc_storage_provider,
+      storage_path: file[:path] || file[:folder_path],
       file_name: file[:name],
       file_size: file[:size],
       folder_path: file[:folder_path],

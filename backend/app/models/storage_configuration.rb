@@ -406,6 +406,22 @@ class StorageConfiguration < ApplicationRecord
     end
   end
 
+  # SSoT: Get the storage_provider value to use when CREATING new documents
+  # This is THE ONE value to set on new JobDocument, CorporateCompanyDocument, etc.
+  # Maps: wasabi/s3 → "s3_compatible", sharepoint → "sharepoint"
+  def storage_provider_for_new_documents
+    case provider_type
+    when "wasabi", "s3"
+      "s3_compatible"
+    when "sharepoint"
+      "sharepoint"
+    when "local"
+      "local"
+    else
+      "s3_compatible" # Safe default for new documents
+    end
+  end
+
   # SSoT: connected? is DERIVED from active credential status
   def connected?
     detected_connected?

@@ -27,6 +27,9 @@ module StorableDocument
     # Class attribute for storage scope
     class_attribute :document_storage_scope, default: :custom
 
+    # SSoT: Auto-assign storage_provider from StorageConfiguration on create
+    before_validation :assign_storage_provider_from_config, on: :create
+
     # Scopes for migration tracking
     scope :needs_storage_migration, -> { where(storage_path: [nil, ""]).where.not(sharepoint_item_id: [nil, ""]) }
     scope :storage_migrated, -> { where.not(storage_path: [nil, ""]) }
@@ -34,6 +37,16 @@ module StorableDocument
     scope :migration_in_progress, -> { where(migration_status: "in_progress") }
     scope :migration_completed, -> { where(migration_status: "completed") }
     scope :migration_failed, -> { where(migration_status: "failed") }
+  end
+
+  # SSoT: Auto-assign storage_provider from current StorageConfiguration
+  # Called before_validation on create - ensures ALL new documents get correct provider
+  def assign_storage_provider_from_config
+    return if storage_provider.present?
+    return unless respond_to?(:storage_provider=)
+
+    config = StorageConfiguration.instance rescue nil
+    self.storage_provider = config&.storage_provider_for_new_documents || "s3_compatible"
   end
 
   class_methods do
