@@ -57,7 +57,9 @@ module DocumentProviders
       super(credential)
       @client = credential.build_client
       @bucket = credential.bucket
-      @root_path = credential.root_path.to_s.sub(%r{^/+}, "").sub(%r{/+$}, "")
+      # SSoT: root_path comes from StorageConfiguration (THE ONE), not credential
+      config = StorageConfiguration.instance
+      @root_path = config&.root_path.to_s.sub(%r{^/+}, "").sub(%r{/+$}, "")
     end
 
     # ====================

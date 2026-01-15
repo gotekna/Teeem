@@ -131,7 +131,8 @@ class CorporateCompanySetting < ApplicationRecord
       "Use StorageConfiguration.for_organization(org).path_for(scope) instead."
     )
     setting = instance
-    root = setting.sharepoint_root_path.presence || ""
+    # SSoT: root_path now comes from StorageConfiguration
+    root = StorageConfiguration.instance&.root_path.presence || ""
     sub_path = case scope.to_sym
                when :jobs, :job
                  setting.sharepoint_jobs_path.presence || "Jobs"
@@ -165,7 +166,8 @@ class CorporateCompanySetting < ApplicationRecord
       site_id: setting.sharepoint_site_id,
       drive_id: setting.sharepoint_drive_id,
       drive_name: setting.sharepoint_drive_name,
-      root_path: setting.sharepoint_root_path.presence || "",
+      # SSoT: root_path now comes from StorageConfiguration
+      root_path: StorageConfiguration.instance&.root_path.presence || "",
       paths: {
         jobs: setting.sharepoint_jobs_path.presence || "Jobs",
         tasks: setting.sharepoint_tasks_path.presence || "Tasks",

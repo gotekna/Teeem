@@ -129,12 +129,19 @@ class S3CompatibleCredential < ApplicationRecord
     end
   end
 
+  # DEPRECATED: root_path now lives in StorageConfiguration (SSoT)
+  # This method is kept for backward compatibility but will be removed
+  def root_path
+    Rails.logger.warn "[DEPRECATED] S3CompatibleCredential#root_path is deprecated. Use StorageConfiguration.instance.root_path instead."
+    StorageConfiguration.instance&.root_path || read_attribute(:root_path) || ""
+  end
+
   private
 
   def set_defaults
     self.status ||= "pending"
     self.metadata ||= {}
-    self.root_path ||= ""
+    # NOTE: root_path column removed - now lives in StorageConfiguration (SSoT)
 
     # Auto-detect region from endpoint for Backblaze B2
     if provider_type == "backblaze_b2" && endpoint.present? && region.blank?
