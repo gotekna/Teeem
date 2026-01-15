@@ -111,13 +111,13 @@ class XeroAttachmentSyncService
       results[:pdf] = document
       Rails.logger.info("[XeroAttachmentSync] Saved PDF (#{document_model.name}): #{filename}")
 
-      # Also upload to SharePoint
-      upload_result = upload_to_sharepoint(pdf_result[:content], filename)
+      # Also upload to storage
+      upload_result = upload_to_storage(pdf_result[:content], filename)
 
-      # Update document with OneDrive file ID if upload succeeded
+      # Update document with storage file ID if upload succeeded
       if upload_result && upload_result[:id] && document.respond_to?(:sharepoint_file_id=)
         document.update(sharepoint_file_id: upload_result[:id])
-        Rails.logger.info("[XeroAttachmentSync] Updated document with OneDrive file ID: #{upload_result[:id]}")
+        Rails.logger.info("[XeroAttachmentSync] Updated document with storage file ID: #{upload_result[:id]}")
       end
     else
       results[:errors] << "Failed to save PDF: #{document.errors.full_messages.join(', ')}"
@@ -220,13 +220,13 @@ class XeroAttachmentSyncService
       results[:attachments] << document
       Rails.logger.info("[XeroAttachmentSync] Saved attachment (#{document_model.name}): #{filename}")
 
-      # Also upload to SharePoint
-      upload_result = upload_to_sharepoint(download_result[:content], filename)
+      # Also upload to storage
+      upload_result = upload_to_storage(download_result[:content], filename)
 
-      # Update document with OneDrive file ID if upload succeeded
+      # Update document with storage file ID if upload succeeded
       if upload_result && upload_result[:id] && document.respond_to?(:sharepoint_file_id=)
         document.update(sharepoint_file_id: upload_result[:id])
-        Rails.logger.info("[XeroAttachmentSync] Updated document with OneDrive file ID: #{upload_result[:id]}")
+        Rails.logger.info("[XeroAttachmentSync] Updated document with storage file ID: #{upload_result[:id]}")
       end
     else
       results[:errors] << "Failed to save #{filename}: #{document.errors.full_messages.join(', ')}"
@@ -455,7 +455,4 @@ class XeroAttachmentSyncService
       nil
     end
   end
-
-  # Legacy method name for backwards compatibility
-  alias_method :upload_to_sharepoint, :upload_to_storage
 end

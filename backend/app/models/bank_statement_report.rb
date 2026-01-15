@@ -121,8 +121,8 @@ class BankStatementReport < ApplicationRecord
       # SSoT: Use DocumentType template if available, fallback to hardcoded format
       standard_filename = generate_file_name || generate_standard_filename
 
-      # Upload PDF to SharePoint
-      sharepoint_result = upload_to_sharepoint(result[:pdf], standard_filename)
+      # Upload PDF to storage
+      sharepoint_result = upload_to_storage(result[:pdf], standard_filename)
 
       update!(
         status: "completed",

@@ -2370,6 +2370,13 @@ Rails.application.routes.draw do
         end
       end
 
+      # Polaris/EmailArray Credentials (admin, for email reseller)
+      resources :polaris_credentials, only: [:index, :show, :create, :update, :destroy] do
+        member do
+          post :test
+        end
+      end
+
       # Warehouse Bank Transactions (Xero bank statement data)
       resources :warehouse_bank_transactions, only: [ :index, :show ] do
         collection do

@@ -41,7 +41,7 @@ class FinancialTransaction < ApplicationRecord
 
   # Callbacks
   before_validation :set_default_status, on: :create
-  after_commit :upload_receipt_to_sharepoint, on: [:create, :update], if: :should_upload_to_sharepoint?
+  after_commit :upload_receipt_to_storage, on: [:create, :update], if: :should_upload_to_storage?
 
   # Instance Methods
   def income?
@@ -132,7 +132,7 @@ class FinancialTransaction < ApplicationRecord
     status_posted? && !synced?
   end
 
-  def should_upload_to_sharepoint?
+  def should_upload_to_storage?
     receipt.attached? && sharepoint_file_id.blank?
   end
 

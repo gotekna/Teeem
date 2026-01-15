@@ -13,7 +13,11 @@
 # - BankStatementTemplate model (bank_statement_templates table)
 # - Admin UI: Admin > System > Company > Doc Templates > Bank Statements
 #
+# SSoT: Uses StorageUploadable for provider-agnostic storage (Wasabi/S3/SharePoint)
+#
 class CorporateBankStatementsJob < ApplicationJob
+  include StorageUploadable
+
   queue_as :low
 
   # @param options [Hash] Optional configuration
@@ -170,7 +174,7 @@ class CorporateBankStatementsJob < ApplicationJob
     balance
   end
 
-  def upload_to_sharepoint(company, bank_account, pdf_result, month_date)
+  def upload_to_storage(company, bank_account, pdf_result, month_date)
     # Build the filename with month/year
     month_year = month_date.strftime("%Y-%m")
     account_name_safe = (bank_account.account_name || "Account")
@@ -178,47 +182,33 @@ class CorporateBankStatementsJob < ApplicationJob
                         .squeeze("_")
     filename = "Bank_Statement_#{account_name_safe}_#{month_year}.pdf"
 
-    # Get SharePoint path for company BANK folder
+    # Get storage path for company BANK folder
     # SSoT: Uses StorageConfiguration for path resolution
     storage_config = StorageConfiguration.instance
     base_path = File.join(storage_config.root_path, storage_config.path_for(:corporate))
     company_folder = company.sharepoint_folder_name || company.name.gsub(/[^a-zA-Z0-9\-\s]/, "").strip
     folder_path = "#{base_path}/#{company_folder}/BANK"
 
-    begin
-      # Get SharePoint client
-      credential = MicrosoftCredential.active_for_org(Organization.default)
-      return { success: false, error: "No SharePoint credential" } unless credential&.connected?
+    # SSoT: Use StorageUploadable for provider-agnostic upload
+    result = upload_to_storage_path(folder_path, pdf_result[:pdf], filename, content_type: "application/pdf")
 
-      client = MicrosoftAppGraphClient.new(credential)
-
-      # Upload the file
-      upload_result = client.upload_file(
-        path: "#{folder_path}/#{filename}",
-        content: pdf_result[:pdf],
-        content_type: "application/pdf"
+    if result[:success]
+      # Create CorporateCompanyDocument record so it appears in the BANK tab
+      create_document_record(
+        company: company,
+        bank_account: bank_account,
+        filename: filename,
+        folder_path: folder_path,
+        month_date: month_date,
+        pdf_size: pdf_result[:pdf].bytesize,
+        storage_url: result[:url],
+        storage_file_id: result[:id]
       )
 
-      if upload_result[:success]
-        # Create CorporateCompanyDocument record so it appears in the BANK tab
-        create_document_record(
-          company: company,
-          bank_account: bank_account,
-          filename: filename,
-          folder_path: folder_path,
-          month_date: month_date,
-          pdf_size: pdf_result[:pdf].bytesize,
-          sharepoint_url: upload_result[:web_url],
-          sharepoint_file_id: upload_result[:id]
-        )
-
-        { success: true, path: "#{folder_path}/#{filename}", url: upload_result[:web_url] }
-      else
-        { success: false, error: upload_result[:error] }
-      end
-    rescue StandardError => e
-      Rails.logger.error("[CorporateBankStatementsJob] SharePoint upload error: #{e.message}")
-      { success: false, error: e.message }
+      { success: true, path: "#{folder_path}/#{filename}", url: result[:url] }
+    else
+      Rails.logger.error("[CorporateBankStatementsJob] Storage upload error: #{result[:error]}")
+      { success: false, error: result[:error] }
     end
   end
 

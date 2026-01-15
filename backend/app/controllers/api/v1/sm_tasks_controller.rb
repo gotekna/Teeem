@@ -925,10 +925,10 @@ module Api
         category = params[:category] || "info"
 
         begin
-          # Always upload to SharePoint (enables sharing links for email)
-          # Falls back to ActiveStorage only if SharePoint isn't configured
+          # Always upload to storage (enables sharing links for email)
+          # Falls back to ActiveStorage only if storage isn't configured
           if StorageConfiguration.instance&.connected?
-            upload_to_sharepoint(file, category)
+            upload_to_storage(file, category)
           else
             upload_standard_file(file, category)
           end
@@ -941,12 +941,12 @@ module Api
         end
       end
 
-      # Upload file to SharePoint and create SmTaskAttachment
+      # Upload file to storage and create SmTaskAttachment
       # Uses TaskResponseUploader which handles folder paths:
       #   - Tasks with job → /Jobs/{code}/{category}/{filename}
       #   - Standalone tasks → /Tasks/Task-{id}/{category}/{filename}
       # Category determines subfolder: "response" → Responses, other → Task Attachments
-      def upload_to_sharepoint(file, category)
+      def upload_to_storage(file, category)
         uploader = TaskResponseUploader.new(job: @task.job, task: @task, category: category)
         result = uploader.upload(file)
         doc = uploader.create_document_record(result, file)

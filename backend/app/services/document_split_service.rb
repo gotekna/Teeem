@@ -37,8 +37,8 @@ class DocumentSplitService
       # Create new PDF with extracted pages
       new_pdf_content = extract_pages(source_pdf, page_range)
 
-      # Upload to SharePoint
-      new_file_id = upload_to_sharepoint(new_pdf_content, split_config[:title])
+      # Upload to storage
+      new_file_id = upload_to_storage(new_pdf_content, split_config[:title])
 
       # Create new document record
       new_document = create_document_record(split_config, new_file_id, new_pdf_content.bytesize)
@@ -133,7 +133,7 @@ class DocumentSplitService
     output.string
   end
 
-  def upload_to_sharepoint(content, filename)
+  def upload_to_storage(content, filename)
     # SSoT: Use DocumentProviderAware for provider-agnostic upload
     begin
       setup_default_provider!

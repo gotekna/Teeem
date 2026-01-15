@@ -9,6 +9,7 @@ import {
   Users,
   ArrowRightLeft,
   TrendingUp,
+  Settings,
 } from "lucide-react";
 
 const TABS = [
@@ -16,6 +17,7 @@ const TABS = [
   { id: "subscriptions", label: "Subscriptions", icon: Users, path: "/settings/email-reseller/subscriptions" },
   { id: "migrations", label: "Migrations", icon: ArrowRightLeft, path: "/settings/email-reseller/migrations" },
   { id: "reports", label: "Reports", icon: TrendingUp, path: "/settings/email-reseller/reports" },
+  { id: "settings", label: "Settings", icon: Settings, path: "/settings/email-reseller/settings" },
 ];
 
 export default function EmailResellerLayout({
@@ -31,6 +33,7 @@ export default function EmailResellerLayout({
     if (pathname.includes("/subscriptions")) return "subscriptions";
     if (pathname.includes("/migrations")) return "migrations";
     if (pathname.includes("/reports")) return "reports";
+    if (pathname.includes("/settings")) return "settings";
     return "dashboard";
   };
 

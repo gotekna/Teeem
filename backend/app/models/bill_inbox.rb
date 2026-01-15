@@ -53,7 +53,7 @@ class BillInbox < ApplicationRecord
 
   # Callbacks
   before_validation :set_defaults, on: :create
-  after_commit :upload_to_sharepoint, on: [:create, :update], if: :should_upload_to_sharepoint?
+  after_commit :upload_to_storage, on: [:create, :update], if: :should_upload_to_storage?
 
   # Instance methods
   def extract_invoice_data!
@@ -191,8 +191,8 @@ class BillInbox < ApplicationRecord
     self.currency ||= "AUD"
   end
 
-  def should_upload_to_sharepoint?
-    # Upload if we have an Active Storage file but no SharePoint ID yet
+  def should_upload_to_storage?
+    # Upload if we have an Active Storage file but no storage reference yet
     invoice_file.attached? && sharepoint_file_id.blank?
   end
 

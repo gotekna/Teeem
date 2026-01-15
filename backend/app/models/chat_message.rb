@@ -16,8 +16,8 @@ class ChatMessage < ApplicationRecord
   validates :content, presence: true
   validates :message_type, inclusion: { in: %w[text image file] }, allow_nil: true
 
-  # Upload to SharePoint after file is attached
-  after_commit :upload_to_sharepoint, on: [:create, :update], if: :should_upload_to_sharepoint?
+  # Upload to storage after file is attached
+  after_commit :upload_to_storage, on: [:create, :update], if: :should_upload_to_storage?
 
   scope :in_channel, ->(channel) { where(channel: channel).order(created_at: :asc) }
   scope :for_project, ->(project_id) { where(project_id: project_id).order(created_at: :asc) }
@@ -92,7 +92,7 @@ class ChatMessage < ApplicationRecord
 
   private
 
-  def should_upload_to_sharepoint?
+  def should_upload_to_storage?
     file.attached? && sharepoint_file_id.blank?
   end
 
