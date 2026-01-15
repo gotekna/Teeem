@@ -111,4 +111,93 @@ namespace :email do
       .count
     puts "Remaining to sync: #{remaining}"
   end
+
+  desc "Enqueue batch attachment sync jobs (parallel workers)"
+  task :sync_missing_jobs, [:limit] => :environment do |_t, args|
+    limit = (args[:limit] || 500).to_i
+
+    remaining = EmailWarehouse
+      .where(has_attachments: true)
+      .where.not(outlook_id: nil, mailbox_owner_email: nil, microsoft_credential_id: nil)
+      .left_joins(:email_attachments)
+      .where(email_attachments: { id: nil })
+      .count
+
+    puts "Emails needing attachment sync: #{remaining}"
+    puts "Enqueuing #{[limit, remaining].min} jobs..."
+    puts ""
+
+    result = BatchSyncEmailAttachmentsJob.perform_now(limit: limit)
+
+    puts ""
+    puts "=" * 50
+    puts "Enqueued: #{result[:enqueued]} jobs"
+    puts "Remaining after this batch: #{result[:remaining]}"
+    puts ""
+    puts "Jobs will be processed by Solid Queue workers in parallel."
+    puts "Monitor progress: rails email:sync_status"
+  end
+
+  desc "Check attachment sync status"
+  task sync_status: :environment do
+    total_with_attachments = EmailWarehouse.where(has_attachments: true).count
+    synced = EmailWarehouse
+      .where(has_attachments: true)
+      .joins(:email_attachments)
+      .distinct
+      .count
+    pending = EmailWarehouse
+      .where(has_attachments: true)
+      .where.not(outlook_id: nil, mailbox_owner_email: nil, microsoft_credential_id: nil)
+      .left_joins(:email_attachments)
+      .where(email_attachments: { id: nil })
+      .count
+    unsyncable = total_with_attachments - synced - pending
+
+    puts "=" * 50
+    puts "Email Attachment Sync Status"
+    puts "=" * 50
+    puts "Total emails with attachments: #{total_with_attachments}"
+    puts "  Synced:     #{synced}"
+    puts "  Pending:    #{pending} (can be synced)"
+    puts "  Unsyncable: #{unsyncable} (missing outlook_id/credential)"
+    puts ""
+
+    # Check queue status if Solid Queue
+    if defined?(SolidQueue)
+      queued = SolidQueue::Job.where(class_name: "SyncEmailAttachmentsJob").where(finished_at: nil).count
+      puts "Jobs in queue: #{queued}"
+    end
+  end
+
+  desc "Enqueue ALL missing attachments in batches (run multiple times or let queue drain)"
+  task :sync_all, [:batch_size] => :environment do |_t, args|
+    batch_size = (args[:batch_size] || 500).to_i
+
+    remaining = EmailWarehouse
+      .where(has_attachments: true)
+      .where.not(outlook_id: nil, mailbox_owner_email: nil, microsoft_credential_id: nil)
+      .left_joins(:email_attachments)
+      .where(email_attachments: { id: nil })
+      .count
+
+    puts "Total emails needing sync: #{remaining}"
+    puts "Enqueuing in batches of #{batch_size}..."
+    puts ""
+
+    batches = (remaining.to_f / batch_size).ceil
+    total_enqueued = 0
+
+    batches.times do |i|
+      result = BatchSyncEmailAttachmentsJob.perform_now(limit: batch_size)
+      total_enqueued += result[:enqueued]
+      puts "Batch #{i + 1}/#{batches}: enqueued #{result[:enqueued]}, remaining: #{result[:remaining]}"
+      break if result[:remaining] <= 0
+    end
+
+    puts ""
+    puts "=" * 50
+    puts "Total enqueued: #{total_enqueued} jobs"
+    puts "Workers will process these in parallel."
+  end
 end
