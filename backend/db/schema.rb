@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_15_110001) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_15_110002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -693,6 +693,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_15_110001) do
     t.integer "match_confidence"
     t.string "match_source", limit: 30
     t.string "storage_item_id"
+    t.bigint "storage_blob_id"
     t.index ["approved_by_id"], name: "index_bill_inboxes_on_approved_by_id"
     t.index ["corporate_company_id", "status"], name: "index_bill_inboxes_on_corporate_company_id_and_status"
     t.index ["corporate_company_id"], name: "index_bill_inboxes_on_corporate_company_id"
@@ -703,6 +704,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_15_110001) do
     t.index ["matched_purchase_order_id"], name: "index_bill_inboxes_on_matched_purchase_order_id"
     t.index ["sharepoint_file_id"], name: "index_bill_inboxes_on_sharepoint_file_id"
     t.index ["status"], name: "index_bill_inboxes_on_status"
+    t.index ["storage_blob_id"], name: "index_bill_inboxes_on_storage_blob_id"
     t.index ["storage_item_id"], name: "index_bill_inboxes_on_storage_item_id"
     t.index ["supplier_id", "invoice_number"], name: "index_bill_inboxes_on_supplier_id_and_invoice_number", unique: true, where: "(invoice_number IS NOT NULL)"
     t.index ["supplier_id"], name: "index_bill_inboxes_on_supplier_id"
@@ -1128,6 +1130,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_15_110001) do
     t.string "file_name"
     t.string "sharepoint_file_id"
     t.string "storage_item_id"
+    t.bigint "storage_blob_id"
     t.index ["case_id"], name: "index_chat_messages_on_case_id"
     t.index ["channel", "created_at"], name: "index_chat_messages_on_channel_and_created_at"
     t.index ["contact_id"], name: "index_chat_messages_on_contact_id"
@@ -1138,6 +1141,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_15_110001) do
     t.index ["project_id"], name: "index_chat_messages_on_project_id"
     t.index ["recipient_user_id"], name: "index_chat_messages_on_recipient_user_id"
     t.index ["sharepoint_file_id"], name: "index_chat_messages_on_sharepoint_file_id"
+    t.index ["storage_blob_id"], name: "index_chat_messages_on_storage_blob_id"
     t.index ["storage_item_id"], name: "index_chat_messages_on_storage_item_id"
     t.index ["user_id"], name: "index_chat_messages_on_user_id"
   end
@@ -1874,6 +1878,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_15_110001) do
     t.text "migration_error"
     t.string "source_provider"
     t.string "source_item_id"
+    t.bigint "storage_blob_id"
     t.index ["asset_id"], name: "index_corporate_company_documents_on_asset_id"
     t.index ["company_code"], name: "index_corporate_company_documents_on_company_code"
     t.index ["company_id", "ai_verification_status"], name: "idx_company_docs_company_ai_status"
@@ -1899,6 +1904,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_15_110001) do
     t.index ["sm_task_id"], name: "index_corporate_company_documents_on_sm_task_id"
     t.index ["source", "external_id"], name: "index_corporate_company_documents_on_source_and_external_id", unique: true, where: "(external_id IS NOT NULL)"
     t.index ["source"], name: "index_corporate_company_documents_on_source"
+    t.index ["storage_blob_id"], name: "index_corporate_company_documents_on_storage_blob_id"
     t.index ["storage_provider", "migration_status"], name: "idx_corp_docs_provider_migration"
     t.index ["storage_provider"], name: "index_corporate_company_documents_on_storage_provider"
     t.index ["storage_type"], name: "index_corporate_company_documents_on_storage_type"
@@ -10556,6 +10562,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_15_110001) do
   add_foreign_key "bill_inboxes", "corporate_companies", column: "detected_company_id"
   add_foreign_key "bill_inboxes", "external_invoices"
   add_foreign_key "bill_inboxes", "purchase_orders", column: "matched_purchase_order_id"
+  add_foreign_key "bill_inboxes", "storage_blobs"
   add_foreign_key "bill_inboxes", "users", column: "approved_by_id"
   add_foreign_key "bill_payment_batches", "bank_accounts"
   add_foreign_key "bill_payment_batches", "bpmn_process_instances"
@@ -10600,6 +10607,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_15_110001) do
   add_foreign_key "cases", "users", column: "created_by_id"
   add_foreign_key "chat_messages", "jobs"
   add_foreign_key "chat_messages", "projects"
+  add_foreign_key "chat_messages", "storage_blobs"
   add_foreign_key "chat_messages", "users"
   add_foreign_key "cloudflare_credentials", "organizations"
   add_foreign_key "colour_selection_templates", "job_types"
@@ -10644,6 +10652,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_15_110001) do
   add_foreign_key "corporate_company_documents", "corporate_company_loans", column: "loan_id"
   add_foreign_key "corporate_company_documents", "document_types"
   add_foreign_key "corporate_company_documents", "sm_tasks"
+  add_foreign_key "corporate_company_documents", "storage_blobs"
   add_foreign_key "corporate_company_loans", "corporate_companies", column: "borrower_company_id"
   add_foreign_key "corporate_company_loans", "corporate_companies", column: "lender_company_id"
   add_foreign_key "corporate_company_minutes", "corporate_companies", column: "company_id"

@@ -8,6 +8,9 @@ class ChatMessage < ApplicationRecord
   belongs_to :contact, optional: true
   belongs_to :legal_case, class_name: "CaseRecord", foreign_key: "case_id", optional: true
 
+  # SSoT: Link to deduplicated file storage (Jan 2026)
+  belongs_to :storage_blob, optional: true
+
   has_one_attached :file
 
   validates :content, presence: true

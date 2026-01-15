@@ -52,13 +52,19 @@ class DocumentStorageService
 
   # Upload a file and update the record's storage_path
   #
+  # SSoT Architecture (Jan 2026):
+  #   1. Compute content_hash for deduplication
+  #   2. Find or create StorageBlob (same file = same blob)
+  #   3. Link record to StorageBlob
+  #   4. Also set storage_path for backwards compatibility
+  #
   # @param scope [Symbol] The storage scope (:job, :corporate, :contact, etc.)
   # @param record [ActiveRecord::Base] The document record to update
   # @param file [ActionDispatch::Http::UploadedFile, File, String] The file or content
   # @param tokens [Hash] Token values for path template (e.g., { JobCode: "J-001" })
   # @param filename [String] Optional filename override
   # @param content_type [String] Optional content type override
-  # @return [Hash] { success: true/false, path: "...", error: "..." }
+  # @return [Hash] { success: true/false, path: "...", blob_id: ..., deduplicated: true/false }
   def upload(scope:, record:, file:, tokens: {}, filename: nil, content_type: nil)
     unless @provider
       return error_result("No storage provider configured. Check StorageConfiguration.")
@@ -71,31 +77,61 @@ class DocumentStorageService
       return error_result("No file content provided")
     end
 
-    # Build the storage path using StorageConfiguration
-    # SSoT: Pass record so we can use its EntityTab.storage_folder_path template
-    folder_path = build_folder_path(scope, tokens, record: record)
-    full_path = "#{folder_path}/#{sanitize_filename(file_name)}"
+    # SSoT: Compute content_hash for deduplication
+    content_hash = Digest::SHA256.hexdigest(file_content)
+    deduplicated = false
 
-    Rails.logger.info "[DocumentStorage] Uploading to #{full_path} (#{file_content.bytesize} bytes)"
+    # Check if this content already exists (deduplication)
+    existing_blob = StorageBlob.find_by(content_hash: content_hash)
 
-    # Upload to storage provider
-    result = @provider.upload_file(folder_path, file_content, file_name, content_type: mime_type)
+    if existing_blob
+      # Content already exists - reuse the blob (no upload needed)
+      Rails.logger.info "[DocumentStorage] DEDUP: Using existing blob #{existing_blob.id} for #{file_name}"
+      deduplicated = true
+      storage_path = existing_blob.storage_path
+      blob = existing_blob
+    else
+      # Build the storage path using StorageConfiguration
+      # SSoT: Pass record so we can use its EntityTab.storage_folder_path template
+      folder_path = build_folder_path(scope, tokens, record: record)
+      full_path = "#{folder_path}/#{sanitize_filename(file_name)}"
 
-    # Update the record with storage_path
-    if record.respond_to?(:storage_path=)
-      record.update!(
-        storage_path: result[:path],
-        storage_file_id: result[:id]
+      Rails.logger.info "[DocumentStorage] Uploading to #{full_path} (#{file_content.bytesize} bytes)"
+
+      # Upload to storage provider
+      result = @provider.upload_file(folder_path, file_content, file_name, content_type: mime_type)
+      storage_path = result[:path]
+
+      # Create StorageBlob record
+      blob = StorageBlob.create!(
+        content_hash: content_hash,
+        storage_path: storage_path,
+        file_size: file_content.bytesize,
+        original_filename: file_name,
+        content_type: mime_type,
+        reference_count: 0
       )
+
+      Rails.logger.info "[DocumentStorage] SUCCESS: #{storage_path} (blob #{blob.id})"
     end
 
-    Rails.logger.info "[DocumentStorage] SUCCESS: #{result[:path]}"
+    # Update the record with storage_blob + backwards-compatible fields
+    update_attrs = {}
+    update_attrs[:storage_blob_id] = blob.id if record.respond_to?(:storage_blob_id=)
+    update_attrs[:storage_path] = storage_path if record.respond_to?(:storage_path=)
+    update_attrs[:content_hash] = content_hash if record.respond_to?(:content_hash=)
+
+    record.update!(update_attrs) if update_attrs.any?
+
+    # Increment reference count on blob
+    blob.increment_reference!
 
     {
       success: true,
-      path: result[:path],
-      file_id: result[:id],
-      size: file_content.bytesize
+      path: storage_path,
+      blob_id: blob.id,
+      size: file_content.bytesize,
+      deduplicated: deduplicated
     }
   rescue StandardError => e
     Rails.logger.error "[DocumentStorage] Error: #{e.class} - #{e.message}"
@@ -143,31 +179,38 @@ class DocumentStorageService
   # ============================================================================
 
   # Download file content from storage
-  # SSoT: S3/Wasabi - no fallback to SharePoint
   #
-  # @param record [ActiveRecord::Base] Document with storage_path
+  # SSoT Priority (Jan 2026):
+  #   1. StorageBlob (preferred - deduplicated storage)
+  #   2. storage_path (S3/Wasabi direct)
+  #   3. ActiveStorage (legacy fallback)
+  #
+  # @param record [ActiveRecord::Base] Document with storage_blob or storage_path
   # @return [Hash] { success: true, content: binary, content_type: "...", filename: "..." }
   #                or { success: false, error: "...", status: :symbol }
   def download(record)
     return error_result("No record provided", status: :bad_request) unless record
 
-    # SSoT: S3/Wasabi storage
-    if record.respond_to?(:storage_path) && record.storage_path.present?
+    # SSoT: Prefer StorageBlob (deduplicated storage)
+    if record.respond_to?(:storage_blob) && record.storage_blob.present?
+      download_from_storage_blob(record)
+    # Fallback: Direct S3/Wasabi storage
+    elsif record.respond_to?(:storage_path) && record.storage_path.present?
       download_from_s3(record)
-    # ActiveStorage (Rails-native) - valid alternative for some models
+    # Legacy: ActiveStorage (for unmigrated records)
     elsif record.respond_to?(:file) && record.file.attached?
       download_from_active_storage(record)
     else
-      Rails.logger.warn "[DocumentStorage] Document #{record.class.name}##{record.id} has no storage_path - needs migration"
-      error_result("Document not in S3 storage (missing storage_path)", status: :not_found)
+      Rails.logger.warn "[DocumentStorage] Document #{record.class.name}##{record.id} has no storage - needs migration"
+      error_result("Document not in storage (missing storage_blob and storage_path)", status: :not_found)
     end
   end
 
   # Generate presigned download URL (no binary transfer)
-  # SSoT: S3/Wasabi is THE storage provider - no fallback to SharePoint
   #
-  # ⚠️ NO FALLBACK - If document isn't properly configured for S3, return error.
-  # This exposes data integrity issues rather than masking them with broken SharePoint URLs.
+  # SSoT Priority (Jan 2026):
+  #   1. StorageBlob (preferred - deduplicated storage)
+  #   2. storage_path (S3/Wasabi direct)
   #
   # @param record [ActiveRecord::Base] Document model
   # @param expires_in [Integer] URL expiry in seconds (default: 3600)
@@ -175,10 +218,15 @@ class DocumentStorageService
   def download_url(record, expires_in: 3600)
     return error_result("No record provided", status: :bad_request) unless record
 
-    # SSoT: S3/Wasabi storage - generate presigned URL
-    # Check storage_path first (required), then verify provider or assume S3 if path exists
-    if record.respond_to?(:storage_path) && record.storage_path.present?
-      s3_key = build_s3_key(record)
+    # SSoT: Prefer StorageBlob path
+    storage_path = if record.respond_to?(:storage_blob) && record.storage_blob.present?
+      record.storage_blob.storage_path
+    elsif record.respond_to?(:storage_path) && record.storage_path.present?
+      record.storage_path
+    end
+
+    if storage_path.present?
+      s3_key = storage_path.to_s.sub(%r{^/}, "")
       begin
         provider = s3_provider
         return error_result("S3 storage not configured", status: :service_unavailable) unless provider
@@ -194,10 +242,9 @@ class DocumentStorageService
         error_result("Failed to generate S3 URL: #{e.message}", status: :internal_server_error)
       end
     else
-      # No storage_path = document not properly configured
-      # Log for visibility - this indicates data that needs fixing
-      Rails.logger.warn "[DocumentStorage] Document #{record.class.name}##{record.id} has no storage_path - needs migration"
-      error_result("Document not in S3 storage (missing storage_path)", status: :not_found)
+      # No storage = document not properly configured
+      Rails.logger.warn "[DocumentStorage] Document #{record.class.name}##{record.id} has no storage - needs migration"
+      error_result("Document not in storage (missing storage_blob and storage_path)", status: :not_found)
     end
   end
 
@@ -321,6 +368,29 @@ class DocumentStorageService
   # ============================================================================
   # DOWNLOAD HELPERS (Private)
   # ============================================================================
+
+  # Download via StorageBlob (SSoT for deduplicated storage)
+  def download_from_storage_blob(record)
+    blob = record.storage_blob
+    s3_key = blob.storage_path.to_s.sub(%r{^/}, "")
+    provider = s3_provider
+    return error_result("S3 storage not configured", status: :service_unavailable) unless provider
+
+    content = provider.download_file(s3_key)
+    {
+      success: true,
+      content: content,
+      content_type: blob.content_type || detect_content_type(record.file_name),
+      filename: record.file_name || blob.original_filename
+    }
+  rescue DocumentProviders::NotFoundError
+    error_result("File not found in storage: #{s3_key}", status: :not_found)
+  rescue DocumentProviders::NotConnectedError
+    error_result("S3 storage not configured", status: :service_unavailable)
+  rescue => e
+    Rails.logger.error "[DocumentStorage] StorageBlob download error for #{record.class.name}##{record.id}: #{e.message}"
+    error_result("Failed to download file: #{e.message}", status: :internal_server_error)
+  end
 
   def download_from_s3(record)
     s3_key = build_s3_key(record)

@@ -13,6 +13,9 @@ class BillInbox < ApplicationRecord
   belongs_to :email_warehouse, class_name: "EmailWarehouse", optional: true
   belongs_to :bpmn_process_instance, class_name: "BpmnProcessInstance", optional: true
 
+  # SSoT: Link to deduplicated file storage (Jan 2026)
+  belongs_to :storage_blob, optional: true
+
   has_many :bill_payments, dependent: :destroy
   has_one_attached :invoice_file
   has_many_attached :supporting_documents

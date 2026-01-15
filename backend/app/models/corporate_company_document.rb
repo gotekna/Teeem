@@ -51,6 +51,10 @@ class CorporateCompanyDocument < ApplicationRecord
   # Polymorphic association - link to PurchaseOrder, ExternalInvoice, Job, etc.
   belongs_to :documentable, polymorphic: true, optional: true
 
+  # SSoT: Link to deduplicated file storage (Jan 2026)
+  # Same file = same StorageBlob, deduplication via content_hash
+  belongs_to :storage_blob, optional: true
+
   # Activity log for tracking changes
   # Note: foreign_key is :company_document_id (legacy name from before table rename)
   has_many :document_activities, foreign_key: :company_document_id, dependent: :destroy

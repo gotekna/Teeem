@@ -24,6 +24,9 @@
 class StorageBlob < ApplicationRecord
   # Associations
   has_many :email_attachments, dependent: :nullify
+  has_many :corporate_company_documents, dependent: :nullify
+  has_many :chat_messages, dependent: :nullify
+  has_many :bill_inboxes, dependent: :nullify
 
   # Validations
   validates :content_hash, presence: true, uniqueness: true
