@@ -2050,16 +2050,17 @@ module Api
               conversation_id: email.conversation_id,
               thread_count: email.thread_count,
               body_preview: email.body_preview || email.body_text&.truncate(200),
-              # SSoT: Full attachment details for download (replaces content_hashes)
+              # SSoT: Return attachment metadata for display
+              # Download URL: /api/v1/email_warehouse/:email_id/attachments/:attachment_id/download
+              # Frontend constructs download URL from email_id + attachment.id (never expose storage_path)
+              email_id: email.id,
               email_attachments: email.email_attachments.map do |ea|
                 {
                   id: ea.id,
                   filename: ea.filename,
                   # content_type and file_size are on storage_blob (Jan 2026 refactor)
                   content_type: ea.storage_blob&.content_type,
-                  file_size: ea.storage_blob&.file_size,
-                  content_hash: ea.content_hash,
-                  storage_path: ea.storage_blob&.storage_path
+                  file_size: ea.storage_blob&.file_size
                 }
               end
             }
