@@ -47,11 +47,14 @@ namespace :email do
         next
       end
 
-      # Find or create EmailAttachment
-      ea = EmailAttachment.find_or_create_by!(
-        email_warehouse_id: email.id,
-        filename: filename
-      )
+      # Find existing or create new EmailAttachment
+      ea = EmailAttachment.find_by(email_warehouse_id: email.id, filename: filename)
+      if ea.nil?
+        # Table was created without auto-increment, so manually assign ID
+        next_id = (EmailAttachment.maximum(:id) || 0) + 1
+        ea = EmailAttachment.new(id: next_id, email_warehouse_id: email.id, filename: filename)
+        ea.save!
+      end
 
       # Store content (handles blob creation/deduplication)
       ea.store_content!(content, filename: filename, content_type: content_type)
