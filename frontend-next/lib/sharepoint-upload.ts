@@ -490,7 +490,8 @@ export async function uploadPhoto(
       };
 
       // Get auth token and build full URL (needed for Vercel → Heroku)
-      const token = localStorage.getItem("jwt");
+      // SSoT: Token key is 'token' (see api.ts getAuthHeaders)
+      const token = localStorage.getItem("token");
       const baseUrl = getApiBaseUrl();
       xhr.open("POST", `${baseUrl}/api/v1/jobs/${jobId}/photos/upload`);
       if (token) {

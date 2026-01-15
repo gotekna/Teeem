@@ -7,24 +7,10 @@ class EmailWarehouse < ApplicationRecord
 
   # Table renamed from email_warehouse to email_warehouses (Rails convention)
 
-  # ActiveStorage attachments
-  has_many_attached :files
-
-  # File upload validation (security: prevents storage DoS and malware upload)
-  # Email attachments can include various document types
-  ALLOWED_EMAIL_ATTACHMENT_TYPES = %w[
-    application/pdf
-    image/jpeg image/png image/tiff image/gif image/heic
-    application/vnd.openxmlformats-officedocument.wordprocessingml.document
-    application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
-    application/vnd.openxmlformats-officedocument.presentationml.presentation
-    application/vnd.ms-excel application/msword application/vnd.ms-powerpoint
-    text/plain text/csv text/html
-    application/zip
-  ].freeze
-
-  validates :files, content_type: ALLOWED_EMAIL_ATTACHMENT_TYPES,
-                    size: { less_than: 25.megabytes, message: "must be less than 25MB each" }
+  # SSoT: Email attachments use email_attachments → StorageBlob chain (Jan 2026)
+  # ActiveStorage has_many_attached :files was REMOVED - it violated SSoT by
+  # duplicating attachments that should be accessed via email_attachments association.
+  # See: BulkEmailSyncJob which creates EmailAttachment records during sync.
 
   # Associations
   belongs_to :job, optional: true
@@ -743,68 +729,16 @@ class EmailWarehouse < ApplicationRecord
     pdf_texts.presence
   end
 
-  # Sync ALL attachments from Microsoft 365 to local storage (SSoT)
-  # This ensures downloads always work, even if SharePoint/Outlook are unavailable
-  # SSoT: Uses org-level credentials via MicrosoftAppGraphClient
-  # Options:
-  #   force: true - re-sync even if files already attached (for fixing missing attachments)
+  # SSoT: sync_attachments! was REMOVED (Jan 2026)
+  # Email attachments are now created during initial sync via BulkEmailSyncJob.
+  # Access attachments via: email.email_attachments → storage_blob
+  # The old method duplicated attachments to ActiveStorage which violated SSoT.
+  #
+  # If you need to re-sync attachments for an email, use:
+  #   BulkEmailSyncJob.perform_now(credential_id, single_email_id: email.id)
   def sync_attachments!(force: false)
-    return unless outlook_id.present? && has_attachments
-    return if files.attached? && !force  # Already synced (unless forced)
-
-    # SSoT: Use MicrosoftCredential
-    credential = if microsoft_credential_id.present?
-                   MicrosoftCredential.find_by(id: microsoft_credential_id)
-                 else
-                   MicrosoftCredential.app_credentials.connected.first
-                 end
-
-    unless credential&.valid_credential?
-      Rails.logger.warn "[EmailWarehouse] No valid org credential for attachment sync on email #{id}"
-      return
-    end
-
-    # Need the mailbox email to fetch attachments from
-    mailbox = mailbox_owner_email
-    unless mailbox.present?
-      Rails.logger.warn "[EmailWarehouse] No mailbox_owner_email for attachment sync on email #{id}"
-      return
-    end
-
-    begin
-      client = MicrosoftAppGraphClient.new(credential)
-      attachments = client.get_email_attachments(mailbox, outlook_id)
-
-      attachments.each do |attachment|
-        content_type = attachment["contentType"]&.downcase
-
-        # SSoT: Use EmailAttachmentFilterService to skip signatures/embedded/non-file attachments
-        next if EmailAttachmentFilterService.should_skip?(attachment)
-
-        # Only download allowed file types (security)
-        next unless ALLOWED_EMAIL_ATTACHMENT_TYPES.any? { |t| content_type&.start_with?(t.split("/").first) }
-
-        file_data = client.download_email_attachment(mailbox, outlook_id, attachment["id"])
-        next unless file_data
-
-        # Skip if file is too large (> 25MB)
-        next if file_data[:content].bytesize > 25.megabytes
-
-        # Skip if file already attached (for force re-sync)
-        next if files.any? { |f| f.filename.to_s == file_data[:filename] }
-
-        # Attach to EmailWarehouse using ActiveStorage
-        files.attach(
-          io: StringIO.new(file_data[:content]),
-          filename: file_data[:filename],
-          content_type: file_data[:content_type]
-        )
-
-        Rails.logger.info "[EmailWarehouse] Attached #{file_data[:filename]} (#{file_data[:content_type]}) to email #{id}"
-      end
-    rescue StandardError => e
-      Rails.logger.error "[EmailWarehouse] Failed to sync attachments for email #{id}: #{e.message}"
-    end
+    Rails.logger.info "[EmailWarehouse] sync_attachments! is deprecated - attachments are synced via BulkEmailSyncJob"
+    # No-op - attachments should already exist via email_attachments association
   end
 
   private
