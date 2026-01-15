@@ -46,22 +46,36 @@ namespace :storage do
       old_name = folder[:name]
       old_path = folder[:path]
 
-      # Try to extract job ID from old folder name patterns:
-      # Pattern 1: "201 - 17 Redruth Road..." (id - title)
-      # Pattern 2: "0201 - 17 Redruth Road..." (job_number - title)
-      # Pattern 3: "0201" (already SSoT)
+      # Try to extract job ID from folder name patterns:
+      # Pattern 1: "J201" (SSoT format - already correct)
+      # Pattern 2: "201 - 17 Redruth Road..." (old: id - title)
+      # Pattern 3: "0201 - 17 Redruth Road..." (old: job_number - title)
+      # Pattern 4: "0201" (just number)
 
       job_id = nil
-      if old_name =~ /^(\d+)\s*-\s*/
+      already_ssot = false
+
+      if old_name =~ /^J(\d+)$/
+        # Already in SSoT format (J + id)
+        job_id = $1.to_i
+        already_ssot = true
+      elsif old_name =~ /^(\d+)\s*-\s*/
         # Has " - " separator, extract the number part
         job_id = $1.to_i
       elsif old_name =~ /^(\d+)$/
-        # Just a number (already SSoT format)
+        # Just a number
         job_id = $1.to_i
       end
 
       unless job_id
         puts "SKIP: #{old_name} - Cannot determine job ID"
+        skipped += 1
+        next
+      end
+
+      # If already in SSoT format, skip
+      if already_ssot
+        puts "OK: #{old_name} - Already SSoT format"
         skipped += 1
         next
       end
