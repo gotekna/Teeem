@@ -12,6 +12,52 @@ dependencies: []
 
 Comprehensive performance optimization guide for React and Next.js applications with 40+ rules organized by impact level. Designed to help developers eliminate performance bottlenecks and follow best practices.
 
+## ⚠️ TEEEM-Specific Context (FRC Analysis Jan 2026)
+
+**STOP - Before applying these rules blindly, read this:**
+
+### Already Handled by Next.js 16
+
+| Rule | Status | Why |
+|------|--------|-----|
+| Barrel imports (lucide-react) | ✅ AUTO-OPTIMIZED | Next.js `optimizePackageImports` handles this automatically |
+| Barrel imports (date-fns, lodash-es) | ✅ AUTO-OPTIMIZED | In Next.js default optimized list |
+
+**Do NOT change imports like `import { Check } from 'lucide-react'`** - Next.js transforms these to direct imports at build time.
+
+### Often Correct in TEEEM
+
+| Pattern | Why It's OK |
+|---------|-------------|
+| Sequential awaits | Often required due to DATA DEPENDENCIES (e.g., need `foundation.id` before fetching records) |
+| Not using Promise.all() | Check if calls are truly independent - many aren't |
+
+**Example of CORRECT sequential await:**
+```typescript
+// CORRECT - foundation.id needed for records fetch
+const foundation = await api.get(`/foundations/${slug}`);
+const records = await api.get(`/foundations/${foundation.id}/records`);
+```
+
+### Already Using Best Practices
+
+- `useFoundationBySlug.ts` - Uses `Promise.all()` for parallel fetch
+- `foundation-api.ts` - Sequential awaits have valid data dependencies
+- 13 files use `next/dynamic` for heavy components
+
+### When to Apply Rules
+
+| Rule | Apply When |
+|------|-----------|
+| Barrel imports | Only for packages NOT in [Next.js optimized list](https://nextjs.org/docs/app/api-reference/config/next-config-js/optimizePackageImports) |
+| Promise.all() | Only when calls are truly independent (no data dependencies) |
+| Dynamic imports | Heavy components: maps, charts, PDF editors, rich text editors |
+| Suspense boundaries | Streaming SSR for slow external API calls |
+
+**FRC Principle:** Investigate before "fixing" - the codebase may already be optimized.
+
+---
+
 ## When to use this skill
 
 **Use React Best Practices when:**

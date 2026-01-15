@@ -377,37 +377,26 @@ onAddRow={() => setShowModal(true)}
 - Debugging slow rendering or loading
 - Reducing bundle size
 
-### Critical Priorities (Impact Order)
+### ⚠️ FRC Finding (Jan 2026): Most Rules Already Handled
 
-| Priority | Rule | Example |
-|----------|------|---------|
-| CRITICAL | Defer await until needed | Move awaits into branches where used |
-| CRITICAL | Use `Promise.all()` | Parallelize independent async ops |
-| CRITICAL | Avoid barrel imports | Import directly: `lucide-react/dist/esm/icons/check` |
-| CRITICAL | Dynamic imports | `next/dynamic` for heavy components |
-| HIGH | Strategic Suspense | Stream content while showing layout |
-| MEDIUM | Memoize components | `React.memo()` for expensive renders |
+**Before "fixing" performance issues, verify they're real:**
 
-### Quick Patterns
+| Rule | TEEEM Status | Notes |
+|------|--------------|-------|
+| Barrel imports (lucide-react) | ✅ AUTO-OPTIMIZED | Next.js 16 handles via `optimizePackageImports` |
+| Sequential awaits | ✅ OFTEN CORRECT | Many have data dependencies (need ID from first call) |
+| Promise.all() | ✅ ALREADY USING | See `useFoundationBySlug.ts` |
+| Dynamic imports | ✅ 13 files | Maps, charts, PDF editors |
 
-```typescript
-// ❌ Sequential (waterfall)
-const user = await fetchUser();
-const posts = await fetchPosts();
+### When to Actually Apply Rules
 
-// ✅ Parallel
-const [user, posts] = await Promise.all([fetchUser(), fetchPosts()]);
-```
+| Rule | Apply When |
+|------|-----------|
+| Barrel imports | Only for packages NOT in Next.js optimized list |
+| Promise.all() | Only when calls are truly independent |
+| Dynamic imports | Heavy components not yet lazy-loaded |
 
-```tsx
-// ❌ Barrel import (loads entire library)
-import { Check } from 'lucide-react'
-
-// ✅ Direct import (loads only icon)
-import Check from 'lucide-react/dist/esm/icons/check'
-```
-
-**Full guide:** `.claude/skills/react-best-practices/references/react-performance-guidelines.md`
+**Full guide:** `.claude/skills/react-best-practices/SKILL.md` (includes TEEEM context)
 
 ## 🔴 Git & Deployment
 
