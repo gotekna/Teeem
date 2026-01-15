@@ -1400,7 +1400,16 @@ export function StorageConfigTab() {
               <Label>Provider</Label>
               <Select
                 value={formData.provider_type}
-                onValueChange={(value: ProviderType) => handleChange("provider_type", value)}
+                onValueChange={(value: ProviderType) => {
+                  // SSoT: Auto-set default root path based on provider
+                  // SharePoint: /Shared Documents, S3/Wasabi: / (bucket root)
+                  const defaultRootPath = value === "sharepoint" ? "/Shared Documents" : "/";
+                  setFormData(prev => ({
+                    ...prev,
+                    provider_type: value,
+                    sharepoint_root_path: defaultRootPath,
+                  }));
+                }}
               >
                 <SelectTrigger className="w-full md:w-[300px]">
                   <SelectValue />
