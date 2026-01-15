@@ -1176,13 +1176,6 @@ module Api
           return render json: { error: "Authentication required for downloads" }, status: :unauthorized
         end
 
-        credential = MicrosoftCredential.sharepoint_credential
-
-        # Use valid_access_token which auto-refreshes expired tokens
-        unless credential&.valid_access_token
-          return render json: { error: "SharePoint not connected" }, status: :unauthorized
-        end
-
         file_id = params[:file_id]
 
         unless file_id
@@ -1190,68 +1183,29 @@ module Api
         end
 
         begin
-          # Check if using app credentials (requires different API calls)
-          is_app_credential = credential.is_a?(MicrosoftCredential) && credential.credential_type == "app"
+          # SSoT: Check storage provider to route to correct download method
+          storage_config = StorageConfiguration.instance
+          provider_type = storage_config&.provider_type || "sharepoint"
 
-          if is_app_credential
-            # App credentials use MicrosoftAppGraphClient with explicit site/drive
-            client = MicrosoftAppGraphClient.new(credential)
-            storage_config = StorageConfiguration.instance
-
-            unless storage_config&.connected?
-              return render json: { error: "SharePoint not configured" }, status: :unprocessable_entity
-            end
-
-            # Get file metadata
-            file_metadata = client.get_drive_item(storage_config.drive_id, file_id)
-
-            # Download file content
-            file_content = client.get_drive_item_content(
-              drive_id: storage_config.drive_id,
-              item_id: file_id
-            )
+          if provider_type.to_s.in?(%w[wasabi s3])
+            # S3/Wasabi: file_id is the S3 key
+            download_from_s3_by_key(file_id, is_preview)
           else
-            # Delegated credentials use MicrosoftGraphClient with /me endpoints
-            client = MicrosoftGraphClient.new(credential)
-
-            # Get file metadata first
-            file_metadata = client.get_file(file_id)
-
-            # Download file content
-            file_content = client.download_file(file_id)
+            # SharePoint: file_id is the Graph API item ID
+            download_from_sharepoint_by_id(file_id, is_preview)
           end
 
-          # Send file to user (inline for preview, attachment for download)
-          disposition = is_preview ? "inline" : "attachment"
-          mime_type = file_metadata["file"]&.dig("mimeType") || "application/octet-stream"
-
-          # For previews (thumbnails), enable aggressive browser caching
-          # This is the "masterpiece" - browser caches for 7 days, zero cost, infinite scale
-          if is_preview
-            last_modified = file_metadata["lastModifiedDateTime"] || Time.current.iso8601
-            etag = Digest::MD5.hexdigest("#{file_id}-#{last_modified}")
-
-            # Check if client has valid cached version (ETag match)
-            if request.headers["If-None-Match"] == "\"#{etag}\""
-              return head :not_modified
-            end
-
-            response.headers["Cache-Control"] = "public, max-age=604800"  # 7 days
-            response.headers["ETag"] = "\"#{etag}\""
-            response.headers["Last-Modified"] = Time.parse(last_modified).httpdate rescue Time.current.httpdate
-          end
-
-          send_data file_content,
-            filename: file_metadata["name"],
-            type: mime_type,
-            disposition: disposition
-
+        rescue DocumentProviders::NotFoundError => e
+          render json: { error: "File not found: #{e.message}" }, status: :not_found
+        rescue DocumentProviders::NotConnectedError => e
+          render json: { error: "Storage not connected: #{e.message}" }, status: :unauthorized
         rescue MicrosoftGraphClient::AuthenticationError, MicrosoftAppGraphClient::NotConnectedError => e
           render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
         rescue MicrosoftGraphClient::APIError, MicrosoftAppGraphClient::ApiError => e
           render json: { error: "SharePoint API error: #{e.message}" }, status: :bad_gateway
         rescue StandardError => e
           Rails.logger.error "Failed to download file: #{e.message}"
+          Rails.logger.error e.backtrace.first(5).join("\n")
           render json: { error: "Failed to download file: #{e.message}" }, status: :internal_server_error
         end
       end
@@ -2532,6 +2486,25 @@ module Api
         name.to_s.gsub(/[<>:"|?*\\]/, "_").strip
       end
 
+      # Detect MIME type from filename extension
+      def detect_mime_type(filename)
+        ext = File.extname(filename).downcase
+        case ext
+        when ".jpg", ".jpeg" then "image/jpeg"
+        when ".png" then "image/png"
+        when ".gif" then "image/gif"
+        when ".webp" then "image/webp"
+        when ".heic" then "image/heic"
+        when ".pdf" then "application/pdf"
+        when ".doc" then "application/msword"
+        when ".docx" then "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        when ".xls" then "application/vnd.ms-excel"
+        when ".xlsx" then "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        when ".txt" then "text/plain"
+        else "application/octet-stream"
+        end
+      end
+
       # List all files recursively from provider (Wasabi/S3)
       # Returns array of hashes matching the format from SharePoint listing
       def list_job_files_from_provider(job_folder_path)
@@ -2568,7 +2541,94 @@ module Api
         end
       end
 
-      # Download document content from S3
+      # Download file from S3 by key (for photo gallery and direct file access)
+      # SSoT: Uses S3 key directly without requiring a JobDocument record
+      def download_from_s3_by_key(s3_key, is_preview)
+        credential = S3CompatibleCredential.active.connected.first
+
+        unless credential
+          raise DocumentProviders::NotConnectedError, "S3 storage not configured"
+        end
+
+        provider = DocumentProviders::S3Compatible.new(credential)
+
+        # Download file content
+        content = provider.download_file(s3_key)
+        filename = File.basename(s3_key)
+        mime_type = detect_mime_type(filename)
+
+        # Enable browser caching for previews
+        if is_preview
+          etag = Digest::MD5.hexdigest(s3_key)
+
+          if request.headers["If-None-Match"] == "\"#{etag}\""
+            return head :not_modified
+          end
+
+          response.headers["Cache-Control"] = "public, max-age=604800"  # 7 days
+          response.headers["ETag"] = "\"#{etag}\""
+        end
+
+        disposition = is_preview ? "inline" : "attachment"
+        send_data content,
+          filename: filename,
+          type: mime_type,
+          disposition: disposition
+      end
+
+      # Download file from SharePoint by item ID (for photo gallery)
+      def download_from_sharepoint_by_id(file_id, is_preview)
+        credential = MicrosoftCredential.sharepoint_credential
+
+        unless credential&.valid_access_token
+          raise DocumentProviders::NotConnectedError, "SharePoint not connected"
+        end
+
+        is_app_credential = credential.is_a?(MicrosoftCredential) && credential.credential_type == "app"
+
+        if is_app_credential
+          client = MicrosoftAppGraphClient.new(credential)
+          storage_config = StorageConfiguration.instance
+
+          unless storage_config&.connected?
+            raise DocumentProviders::NotConnectedError, "SharePoint not configured"
+          end
+
+          file_metadata = client.get_drive_item(storage_config.drive_id, file_id)
+          file_content = client.get_drive_item_content(
+            drive_id: storage_config.drive_id,
+            item_id: file_id
+          )
+        else
+          client = MicrosoftGraphClient.new(credential)
+          file_metadata = client.get_file(file_id)
+          file_content = client.download_file(file_id)
+        end
+
+        disposition = is_preview ? "inline" : "attachment"
+        mime_type = file_metadata["file"]&.dig("mimeType") || "application/octet-stream"
+
+        # Enable browser caching for previews
+        if is_preview
+          last_modified = file_metadata["lastModifiedDateTime"] || Time.current.iso8601
+          etag = Digest::MD5.hexdigest("#{file_id}-#{last_modified}")
+
+          if request.headers["If-None-Match"] == "\"#{etag}\""
+            return head :not_modified
+          end
+
+          response.headers["Cache-Control"] = "public, max-age=604800"  # 7 days
+          response.headers["ETag"] = "\"#{etag}\""
+          response.headers["Last-Modified"] = Time.parse(last_modified).httpdate rescue Time.current.httpdate
+        end
+
+        send_data file_content,
+          filename: file_metadata["name"],
+          type: mime_type,
+          disposition: disposition
+      end
+
+      # Download document content from S3 (for JobDocument records)
       def download_from_s3(document, is_preview)
         organization = Organization.first
         credential = S3CompatibleCredential.active.connected.first
