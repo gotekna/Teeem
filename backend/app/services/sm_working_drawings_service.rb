@@ -19,7 +19,8 @@ require "base64"
 # See GANTT_ARCHITECTURE_PLAN.md Section 11 (Working Drawings AI System)
 #
 class SmWorkingDrawingsService
-  include DocumentStorageConstants
+  # Note: Don't include DocumentStorageConstants - it has scopes that only work in ActiveRecord models
+  # Reference constants directly instead
 
   CATEGORIES = %w[
     floor_plan
@@ -43,7 +44,7 @@ class SmWorkingDrawingsService
   ].freeze
 
   # SSoT: MAX_FILE_SIZE_FOR_AI_PLANS defined in DocumentStorageConstants
-  MAX_FILE_SIZE = MAX_FILE_SIZE_FOR_AI_PLANS
+  MAX_FILE_SIZE = DocumentStorageConstants::MAX_FILE_SIZE_FOR_AI_PLANS
   MAX_PAGES = 50
 
   class ProcessingError < StandardError; end
