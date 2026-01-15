@@ -1284,6 +1284,8 @@ export function StorageConfigTab() {
             endpoint: formData.s3_endpoint,
             bucket: formData.s3_bucket,
             region: formData.s3_region,
+            // Map root path to backend expected name
+            root_path: formData.sharepoint_root_path,
           }
         }
       );
