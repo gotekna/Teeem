@@ -16,12 +16,14 @@
 class EmailAttachmentFilterService
   # Patterns that indicate an image is likely a signature/embedded element
   SIGNATURE_PATTERNS = [
-    /^image\d{3}\.(png|jpg|jpeg|gif)$/i,                                    # image001.png, image002.jpg (Outlook default)
+    /^image\d{1,3}\.(png|jpg|jpeg|gif|wmz)$/i,                              # image001.png, image2.jpg, image027.wmz (Outlook default)
+    /^image\.(png|jpg|jpeg|gif)$/i,                                          # image.png, image.jpeg (generic inline)
     /^[a-f0-9]{32}\.(png|jpg|jpeg|gif)$/i,                                  # 32-char hex filenames (Outlook Content-IDs)
     /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(png|jpg|jpeg|gif)$/i, # UUID filenames
     /^cid:/i,                                                                # Content-ID references
     /^outlook-signature[_-]/i,                                               # Outlook signature files
-    /^signature[_-]?\d*\.(png|jpg|jpeg|gif)$/i,                             # signature.png, signature_1.jpg
+    /^signature[_-]?[a-f0-9-]*\.(png|jpg|jpeg|gif)$/i,                      # signature.png, signature_uuid.png
+    /email[_-]?signature/i,                                                  # email-signature, email_signature anywhere in name
     /^logo[_-]?\d*\.(png|jpg|jpeg|gif)$/i,                                  # logo.png, logo_1.jpg
     /^icon[_-]?\d*\.(png|jpg|jpeg|gif)$/i,                                  # icon.png, icon_1.jpg
     /^banner[_-]?\d*\.(png|jpg|jpeg|gif)$/i,                                # banner.png

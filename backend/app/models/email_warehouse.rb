@@ -778,10 +778,8 @@ class EmailWarehouse < ApplicationRecord
       attachments.each do |attachment|
         content_type = attachment["contentType"]&.downcase
 
-        # Skip inline/embedded images (signatures, etc.) - they're usually small
-        # and reference-type attachments that can't be downloaded
-        next if attachment["isInline"] == true
-        next if attachment["@odata.type"] == "#microsoft.graph.referenceAttachment"
+        # SSoT: Use EmailAttachmentFilterService to skip signatures/embedded/non-file attachments
+        next if EmailAttachmentFilterService.should_skip?(attachment)
 
         # Only download allowed file types (security)
         next unless ALLOWED_EMAIL_ATTACHMENT_TYPES.any? { |t| content_type&.start_with?(t.split("/").first) }

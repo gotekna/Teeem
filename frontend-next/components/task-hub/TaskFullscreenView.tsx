@@ -41,6 +41,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import {
   ArrowLeft,
+  Building2,
   Calendar as CalendarIcon,
   Check,
   ChevronDown,
@@ -61,6 +62,7 @@ import {
   Plus,
   Send,
   Trash2,
+  User,
   Users,
   X,
 } from "lucide-react";
@@ -483,7 +485,10 @@ function SortableQuestionItem({
             }}
           >
             <span className="text-xs text-green-600 dark:text-green-400">Answer:</span>
-            <p className="text-sm whitespace-pre-wrap">{item.response}</p>
+            <div
+              className="text-sm prose prose-sm dark:prose-invert max-w-none [&>p]:my-0"
+              dangerouslySetInnerHTML={{ __html: item.response || '' }}
+            />
           </div>
         )
       ) : answeringItemId === item.id ? (
@@ -736,6 +741,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   } | null>(null);
   const [bulkLinkLoading, setBulkLinkLoading] = useState(false);
   const [bulkLinkEmail, setBulkLinkEmail] = useState('');
+  // Client email picker state (for clients with multiple emails)
+  const [expandedClientId, setExpandedClientId] = useState<number | null>(null);
   // Contact search state
   const [contactSearchQuery, setContactSearchQuery] = useState('');
   const [contactSearchResults, setContactSearchResults] = useState<Array<{
@@ -1518,6 +1525,40 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         // Show success message (using existing toast or alert system)
         if (response.linked_count > 0) {
           alert(`Linked ${response.linked_count} emails to this task`);
+        } else {
+          alert('No new emails to link (all already attached)');
+        }
+      }
+    } catch (err) {
+      console.error('Failed to bulk link emails:', err);
+      alert('Failed to link emails');
+    }
+    setBulkLinkLoading(false);
+  };
+
+  // Handle bulk link from a specific email address (used by email picker)
+  const handleBulkLinkByEmail = async (email: string) => {
+    if (!email.trim()) return;
+
+    setBulkLinkLoading(true);
+    try {
+      const response = await api.post<{
+        success: boolean;
+        linked_count: number;
+        skipped_count: number;
+        total_found: number;
+        attachments: TaskAttachment[];
+      }>(`/api/v1/sm_tasks/${task.id}/bulk_link_emails`, {
+        email_address: email.trim()
+      });
+
+      if (response?.success) {
+        setLocalAttachments(prev => [...prev, ...response.attachments]);
+        setBulkLinkOpen(false);
+        if (response.linked_count > 0) {
+          alert(`Linked ${response.linked_count} emails to this task`);
+        } else if (response.total_found === 0) {
+          alert('No emails found for this address');
         } else {
           alert('No new emails to link (all already attached)');
         }
@@ -3242,6 +3283,82 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                     <div className="space-y-3">
                       <h4 className="text-sm font-medium">Link emails from:</h4>
 
+                      {/* Client Quick-Add Section */}
+                      {(() => {
+                        const clients = bulkLinkOptions?.options?.filter(opt =>
+                          opt.role?.toLowerCase().includes('client')
+                        ) || [];
+
+                        if (clients.length === 0) return null;
+
+                        return (
+                          <div className="space-y-2 pb-3 border-b">
+                            <label className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Building2 className="h-3 w-3" />
+                              Job Clients
+                            </label>
+                            <div className="flex flex-wrap gap-2">
+                              {clients.map((client) => {
+                                const clientKey = client.job_contact_id || client.contact_id || 0;
+                                const hasMultipleEmails = client.emails.length > 1;
+                                const isExpanded = expandedClientId === clientKey;
+
+                                return (
+                                  <div key={clientKey} className="relative">
+                                    <Button
+                                      variant={isExpanded ? "default" : "outline"}
+                                      size="sm"
+                                      className="h-8 text-xs"
+                                      onClick={() => {
+                                        if (hasMultipleEmails) {
+                                          setExpandedClientId(isExpanded ? null : clientKey);
+                                        } else if (client.emails.length === 1) {
+                                          // Single email - link directly
+                                          handleBulkLinkOption(client);
+                                        }
+                                      }}
+                                      disabled={bulkLinkLoading || client.emails.length === 0}
+                                    >
+                                      <User className="h-3 w-3 mr-1" />
+                                      {client.name}
+                                      {hasMultipleEmails && (
+                                        <ChevronDown className={`h-3 w-3 ml-1 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                      )}
+                                      {client.emails.length === 0 && (
+                                        <span className="ml-1 text-muted-foreground">(no email)</span>
+                                      )}
+                                    </Button>
+
+                                    {/* Email picker dropdown for clients with multiple emails */}
+                                    {isExpanded && hasMultipleEmails && (
+                                      <div className="absolute top-full left-0 mt-1 z-50 bg-popover border rounded-md shadow-lg p-1 min-w-[200px]">
+                                        <div className="text-xs text-muted-foreground px-2 py-1">
+                                          Choose email:
+                                        </div>
+                                        {client.emails.map((email, idx) => (
+                                          <button
+                                            key={idx}
+                                            className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted truncate"
+                                            onClick={() => {
+                                              handleBulkLinkByEmail(email);
+                                              setExpandedClientId(null);
+                                            }}
+                                            disabled={bulkLinkLoading}
+                                          >
+                                            <Mail className="h-3 w-3 inline mr-1" />
+                                            {email}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })()}
+
                       {/* Contact Search */}
                       <div className="space-y-2">
                         <Input
@@ -3294,24 +3411,33 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                         </div>
                       )}
 
-                      {/* Suggested Contacts (Supplier, Assigned, Client, etc.) */}
-                      {!bulkLinkLoading && bulkLinkOptions?.options && bulkLinkOptions.options.length > 0 && (
-                        <div className="space-y-1">
-                          <label className="text-xs text-muted-foreground">Suggested:</label>
-                          {bulkLinkOptions.options.map((opt, idx) => (
-                            <button
-                              key={`${opt.type}-${opt.job_contact_id || opt.contact_id || opt.user_id || idx}`}
-                              className="w-full flex items-center justify-between p-2 text-sm rounded hover:bg-muted text-left"
-                              onClick={() => handleBulkLinkOption(opt)}
-                            >
-                              <span className="truncate">{opt.label}</span>
-                              <Badge variant="secondary" className="text-xs ml-2 shrink-0">
-                                {opt.email_count}
-                              </Badge>
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                      {/* Suggested Contacts (Supplier, Assigned - excluding Clients shown above) */}
+                      {(() => {
+                        const nonClientOptions = bulkLinkOptions?.options?.filter(opt =>
+                          !opt.role?.toLowerCase().includes('client')
+                        ) || [];
+
+                        if (!bulkLinkLoading && nonClientOptions.length > 0) {
+                          return (
+                            <div className="space-y-1">
+                              <label className="text-xs text-muted-foreground">Suggested:</label>
+                              {nonClientOptions.map((opt, idx) => (
+                                <button
+                                  key={`${opt.type}-${opt.job_contact_id || opt.contact_id || opt.user_id || idx}`}
+                                  className="w-full flex items-center justify-between p-2 text-sm rounded hover:bg-muted text-left"
+                                  onClick={() => handleBulkLinkOption(opt)}
+                                >
+                                  <span className="truncate">{opt.label}</span>
+                                  <Badge variant="secondary" className="text-xs ml-2 shrink-0">
+                                    {opt.email_count}
+                                  </Badge>
+                                </button>
+                              ))}
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
 
                       {/* Manual email input */}
                       <div className="space-y-2 border-t pt-3">
