@@ -709,6 +709,14 @@ export default function AllDocumentsPage() {
     }
   }, [s3Folders, loadingS3Folders]);
 
+  // SSoT: Fetch root S3 folders on page load for Pure S3 Browsing
+  // Wasabi = SSoT for DISPLAY (shows actual folder structure)
+  // scope_folders = SSoT for STORAGE (where uploads go)
+  useEffect(() => {
+    // Fetch root folders from Wasabi/S3 to build the tree
+    fetchS3Folders("");
+  }, [fetchS3Folders]);
+
   // Poll for active background jobs (folder reorganization)
   useEffect(() => {
     const pollJobProgress = async () => {
@@ -916,113 +924,48 @@ export default function AllDocumentsPage() {
     };
   }, [documents, searchQuery]);
 
-  // Build tree structure dynamically from StorageConfiguration.scope_folders (SSoT)
-  // Shows ALL configured scopes even if empty, with nested hierarchy
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SSoT: PURE S3 BROWSING - Tree shows 100% what's on Wasabi
+  // Wasabi = SSoT for DISPLAY (actual folder structure)
+  // scope_folders = SSoT for STORAGE (where uploads go, not used for display)
+  // ═══════════════════════════════════════════════════════════════════════════
   const treeData = useMemo((): TreeNode[] => {
-    // Helper to recursively build folder tree from EntityTab (for sub-folders)
-    const buildFolderTree = (
-      tabs: EntityTabFolder[],
-      docs: DocumentItem[],
-      scopePrefix: string
-    ): TreeNode[] => {
-      return tabs.map(tab => {
-        // Count files matching this folder path
-        const folderPath = tab.storage_folder_path || tab.display_name;
-        const matchingDocs = docs.filter(d =>
-          d.folderPath === folderPath ||
-          d.folderPath === tab.display_name ||
-          d.documentTypeName === tab.display_name
-        );
 
-        // Build children if any
-        const childNodes = tab.children && tab.children.length > 0
-          ? buildFolderTree(tab.children, docs, scopePrefix)
-          : matchingDocs.map(file => ({
-              id: `${scopePrefix}-file-${file.id}`,
-              name: file.displayName || file.fileName,
-              type: "file" as const,
-              file,
-            }));
-
-        // Calculate total file count including children
-        const childFileCount = tab.children && tab.children.length > 0
-          ? childNodes.reduce((sum, c) => sum + ('fileCount' in c ? (c.fileCount || 0) : 1), 0)
-          : matchingDocs.length;
-
-        return {
-          id: `${scopePrefix}-folder-${tab.id}`,
-          name: tab.display_name,
-          type: "folder" as const,
-          fileCount: tab.document_count ?? childFileCount,
-          children: childNodes,
-          // SSoT: Include storage folder path from EntityTab
-          fullPath: tab.storage_folder_path || undefined,
-        };
-      });
+    // Map folder names to icons for better UX
+    const getFolderIcon = (name: string): React.ReactNode => {
+      const normalizedName = name.toLowerCase().replace(/[^a-z]/g, '');
+      // Check known scope names
+      if (normalizedName === 'jobs' || normalizedName === 'job') return SCOPE_ICONS.job;
+      if (normalizedName === 'corporate') return SCOPE_ICONS.corporate;
+      if (normalizedName === 'people') return SCOPE_ICONS.people;
+      if (normalizedName === 'contacts' || normalizedName === 'contact') return SCOPE_ICONS.contact;
+      if (normalizedName === 'emails' || normalizedName === 'email') return SCOPE_ICONS.email;
+      if (normalizedName === 'attachments') return SCOPE_ICONS.attachments;
+      if (normalizedName === 'tasks' || normalizedName === 'task') return SCOPE_ICONS.task;
+      if (normalizedName === 'templates') return SCOPE_ICONS.templates;
+      if (normalizedName === 'users') return SCOPE_ICONS.users;
+      return <Folder className="h-4 w-4" />;
     };
 
-    // Use dynamic tree building from scope_folders
-    // This reads from StorageConfiguration and builds nested hierarchy
-    // Filter out undefined values from scopeFolders
-    const definedScopes = Object.fromEntries(
-      Object.entries(scopeFolders).filter((entry): entry is [string, string] => entry[1] !== undefined)
-    );
-    // Pass templates and rootPath from Entity Config (SSoT)
-    const dynamicTree = buildScopeTree(definedScopes, counts, scopeTemplates, rootPath);
-
-    // Build task folder tree - group documents by taskId
-    const buildTaskTree = (docs: DocumentItem[]): TreeNode[] => {
-      // Group documents by taskId
-      const taskGroups = new Map<number, { task: { id: number; name: string; number?: number }; docs: DocumentItem[] }>();
-
-      docs.forEach(doc => {
-        if (doc.taskId) {
-          const existing = taskGroups.get(doc.taskId);
-          if (existing) {
-            existing.docs.push(doc);
-          } else {
-            taskGroups.set(doc.taskId, {
-              task: { id: doc.taskId, name: doc.taskName || `Task ${doc.taskId}`, number: doc.taskNumber },
-              docs: [doc],
-            });
-          }
-        }
-      });
-
-      // Convert to tree nodes
-      return Array.from(taskGroups.values()).map(({ task, docs: taskDocs }) => ({
-        id: `task-folder-${task.id}`,
-        name: task.number ? `${task.number}. ${task.name}` : task.name,
-        type: "folder" as const,
-        fileCount: taskDocs.length,
-        fullPath: `/Tasks/${task.id}`,
-        children: taskDocs.map(doc => ({
-          id: `task-file-${doc.id}`,
-          name: doc.displayName || doc.fileName,
-          type: "file" as const,
-          file: doc,
-        })),
-      }));
-    };
-
-    // SSoT: Convert S3 folders to TreeNode (recursive)
-    // This builds the tree from actual S3/Wasabi folder structure (OneDrive-like)
-    const s3FoldersToTree = (s3Path: string): TreeNode[] => {
+    // Enhanced s3FoldersToTree that adds icons
+    const s3FoldersToTreeWithIcons = (s3Path: string): TreeNode[] => {
       const data = s3Folders[s3Path];
       if (!data) return [];
 
       const folderNodes: TreeNode[] = data.folders.map(folder => {
         // Check if this subfolder has been loaded
         const subfolderData = s3Folders[folder.path];
-        const subChildren = subfolderData ? s3FoldersToTree(folder.path) : undefined;
+        const subChildren = subfolderData ? s3FoldersToTreeWithIcons(folder.path) : undefined;
 
         return {
           id: `s3-folder-${folder.path.replace(/\//g, "-")}`,
           name: folder.name,
           type: "folder" as const,
+          icon: getFolderIcon(folder.name),
           children: subChildren,
           // For lazy loading - track the S3 path
           fullPath: folder.path,
+          fileCount: subfolderData ? subfolderData.folders.length + subfolderData.files.length : undefined,
         };
       });
 
@@ -1049,45 +992,18 @@ export default function AllDocumentsPage() {
       return [...folderNodes, ...fileNodes];
     };
 
-    // SSoT: S3-driven scopes - these show actual Wasabi folder structure
-    const S3_DRIVEN_SCOPES = ["job", "corporate", "corporate_entity", "contact", "contacts"];
+    // Build tree directly from S3 root - shows exactly what's on Wasabi
+    const rootData = s3Folders[""];
+    if (!rootData) {
+      // Root not loaded yet - show loading state or empty
+      return [];
+    }
 
-    // Enhance specific nodes with S3 folder listing (SSoT: mirrors actual Wasabi structure)
-    return dynamicTree.map(node => {
-      // Get the S3 path for this scope
-      const scopePath = scopeFolders[node.id] || node.name;
-
-      // SSoT: For Jobs, Corporate, Contacts - use S3 folder listing
-      if (S3_DRIVEN_SCOPES.includes(node.id)) {
-        const s3Data = s3Folders[scopePath];
-        if (s3Data) {
-          // Build children from S3 folders
-          const s3Children = s3FoldersToTree(scopePath);
-          return {
-            ...node,
-            children: s3Children.length > 0 ? s3Children : undefined,
-            fileCount: s3Data.folders.length + s3Data.files.length,
-          };
-        }
-        // If S3 data not loaded yet, return node as-is (will be loaded on expand)
-        return {
-          ...node,
-          children: undefined, // Clear any stale children
-        };
-      }
-
-      // Tasks: Build tree from task documents grouped by taskId
-      if (node.id === "task" && filteredDocuments.tasks.length > 0) {
-        return {
-          ...node,
-          children: buildTaskTree(filteredDocuments.tasks),
-        };
-      }
-      return node;
-    });
-  }, [filteredDocuments, scopeFolders, scopeTemplates, rootPath, counts, s3Folders]);
+    return s3FoldersToTreeWithIcons("");
+  }, [s3Folders]);
 
   // Toggle folder expansion and fetch S3 folders if needed
+  // SSoT: Pure S3 Browsing - ALL folders come from Wasabi
   const toggleFolder = useCallback((folderId: string, folderPath?: string) => {
     // Check if already expanded (will collapse) or needs to expand
     const wasExpanded = expandedFolders.has(folderId);
@@ -1103,20 +1019,12 @@ export default function AllDocumentsPage() {
       return next;
     });
 
-    // If expanding (not collapsing), fetch data OUTSIDE the state setter
+    // If expanding (not collapsing), fetch S3 folder contents
+    // SSoT: All folders are S3-driven (Pure S3 Browsing)
     if (!wasExpanded && folderPath) {
-      // SSoT: Fetch S3 folders for OneDrive-like browsing
-      // Check if this is an S3-driven folder (Jobs, Corporate, Contacts, or their subfolders)
-      const isS3Folder = folderId.startsWith("s3-folder-") ||
-        ["job", "corporate", "corporate_entity", "contact", "contacts"].includes(folderId);
-
-      if (isS3Folder) {
-        fetchS3Folders(folderPath);
-      } else {
-        fetchFolderFiles(folderPath, folderId);
-      }
+      fetchS3Folders(folderPath);
     }
-  }, [expandedFolders, fetchS3Folders, fetchFolderFiles]);
+  }, [expandedFolders, fetchS3Folders]);
 
   // Open file in new window (for double-click)
   const openFileInNewWindow = useCallback((doc: DocumentItem) => {

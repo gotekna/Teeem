@@ -72,14 +72,26 @@ const DEFAULT_FOLDER_TEMPLATES: Record<string, string> = {
 };
 
 // SSoT: Provider types match StorageConfiguration.PROVIDER_TYPES
-type ProviderType = "sharepoint" | "s3" | "wasabi" | "local";
+// Backend consolidates wasabi/s3 into s3_compatible
+type ProviderType = "sharepoint" | "s3_compatible" | "local";
 
 const PROVIDER_OPTIONS: { value: ProviderType; label: string; icon: React.ElementType; description: string }[] = [
   { value: "sharepoint", label: "SharePoint", icon: Cloud, description: "Microsoft SharePoint / OneDrive for Business" },
-  { value: "wasabi", label: "Wasabi", icon: Database, description: "Wasabi Hot Cloud Storage (S3-compatible)" },
-  { value: "s3", label: "Amazon S3", icon: Cloud, description: "Amazon Simple Storage Service" },
+  { value: "s3_compatible", label: "Wasabi / S3", icon: Database, description: "Wasabi, Amazon S3, or any S3-compatible storage" },
   { value: "local", label: "Local Storage", icon: HardDrive, description: "Local file system (development only)" },
 ];
+
+// SSoT: Normalize legacy provider values from API to current values
+function normalizeProviderType(apiValue: string | null | undefined): ProviderType {
+  if (!apiValue) return "s3_compatible"; // Default
+  // Handle legacy values
+  if (apiValue === "wasabi" || apiValue === "s3") return "s3_compatible";
+  // Return as-is if valid
+  if (["sharepoint", "s3_compatible", "local"].includes(apiValue)) {
+    return apiValue as ProviderType;
+  }
+  return "s3_compatible"; // Fallback
+}
 
 // SSoT: StorageConfiguration handles CONNECTION + root path + scope folders
 // Individual tab folder paths are managed in EntityTab (Entity Configurator)
@@ -115,7 +127,7 @@ const SCOPE_TO_API_SCOPE: Record<string, string> = {
 
 interface StorageConfig {
   configured: boolean;
-  provider_type: ProviderType;
+  provider_type: string; // Can be legacy values (wasabi, s3) - normalized via normalizeProviderType()
   status: string;
   // SharePoint connection
   site_url: string | null;
@@ -1225,8 +1237,8 @@ export function StorageConfigTab() {
       if (response?.success && response.data) {
         setConfig(response.data);
         setFormData({
-          // Provider type
-          provider_type: response.data.provider_type || "sharepoint",
+          // Provider type - normalize legacy values (wasabi/s3 → s3_compatible)
+          provider_type: normalizeProviderType(response.data.provider_type),
           // SharePoint connection
           sharepoint_site_url: response.data.site_url || "",
           sharepoint_site_id: response.data.site_id || "",
@@ -1511,16 +1523,16 @@ export function StorageConfigTab() {
         </Card>
       )}
 
-      {/* S3/Wasabi Connection - shown when provider is s3 or wasabi */}
-      {(formData.provider_type === "s3" || formData.provider_type === "wasabi") && (
+      {/* S3/Wasabi Connection - shown when provider is s3_compatible */}
+      {formData.provider_type === "s3_compatible" && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Database className="h-4 w-4" />
-              {formData.provider_type === "wasabi" ? "Wasabi" : "Amazon S3"} Connection
+              S3-Compatible Storage Connection
             </CardTitle>
             <CardDescription>
-              Configure the {formData.provider_type === "wasabi" ? "Wasabi" : "S3"} bucket where all documents will be stored
+              Configure the bucket where all documents will be stored (Wasabi, AWS S3, MinIO, etc.)
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -1531,10 +1543,10 @@ export function StorageConfigTab() {
                   id="s3_endpoint"
                   value={formData.s3_endpoint}
                   onChange={(e) => handleChange("s3_endpoint", e.target.value)}
-                  placeholder={formData.provider_type === "wasabi" ? "https://s3.wasabisys.com" : "https://s3.amazonaws.com"}
+                  placeholder="https://s3.wasabisys.com"
                 />
                 <p className="text-xs text-muted-foreground">
-                  {formData.provider_type === "wasabi" ? "Wasabi endpoint (e.g., s3.wasabisys.com or s3.ap-southeast-2.wasabisys.com)" : "S3 endpoint URL"}
+                  Endpoint URL (e.g., s3.wasabisys.com for Wasabi, s3.amazonaws.com for AWS)
                 </p>
               </div>
 
@@ -1547,7 +1559,7 @@ export function StorageConfigTab() {
                   placeholder="my-documents-bucket"
                 />
                 <p className="text-xs text-muted-foreground">
-                  The name of your {formData.provider_type === "wasabi" ? "Wasabi" : "S3"} bucket
+                  The name of your storage bucket
                 </p>
               </div>
 
@@ -1557,10 +1569,10 @@ export function StorageConfigTab() {
                   id="s3_region"
                   value={formData.s3_region}
                   onChange={(e) => handleChange("s3_region", e.target.value)}
-                  placeholder={formData.provider_type === "wasabi" ? "ap-southeast-2" : "us-east-1"}
+                  placeholder="ap-southeast-2"
                 />
                 <p className="text-xs text-muted-foreground">
-                  {formData.provider_type === "wasabi" ? "Wasabi region (e.g., ap-southeast-2 for Sydney)" : "AWS region (e.g., us-east-1)"}
+                  Storage region (e.g., ap-southeast-2 for Sydney)
                 </p>
               </div>
             </div>
