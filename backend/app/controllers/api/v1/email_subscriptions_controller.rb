@@ -308,13 +308,14 @@ module Api
         period_end = params[:end_date]&.to_date || Date.current.end_of_month
 
         invoices = EmailSubscriptionInvoice
-                    .includes(email_subscription: :contact)
+                    .includes(email_subscription: [:contact, :email_mailboxes])
                     .where(billing_period_start: period_start..period_end)
                     .paid
 
         total_retail = invoices.sum(:retail_amount)
         total_wholesale = invoices.sum(:wholesale_amount)
         total_margin = total_retail - total_wholesale
+        total_mailboxes = invoices.map { |i| i.email_subscription.email_mailboxes.active.count }.sum
 
         render json: {
           success: true,
@@ -327,18 +328,24 @@ module Api
               total_retail: total_retail.to_f,
               total_wholesale: total_wholesale.to_f,
               total_margin: total_margin.to_f,
-              margin_percent: total_retail.positive? ? (total_margin / total_retail * 100).round(1) : 0,
+              margin_percentage: total_retail.positive? ? (total_margin / total_retail * 100).round(1) : 0,
               invoice_count: invoices.count,
-              subscription_count: invoices.distinct.count(:email_subscription_id)
+              subscription_count: invoices.distinct.count(:email_subscription_id),
+              mailbox_count: total_mailboxes
             },
             by_subscription: invoices.group_by(&:email_subscription).map do |sub, invs|
+              sub_retail = invs.sum(&:retail_amount).to_f
+              sub_wholesale = invs.sum(&:wholesale_amount).to_f
+              sub_margin = sub_retail - sub_wholesale
               {
                 subscription_id: sub.id,
                 domain: sub.domain,
-                contact: sub.contact.display_name,
-                retail: invs.sum(&:retail_amount).to_f,
-                wholesale: invs.sum(&:wholesale_amount).to_f,
-                margin: invs.sum(&:margin_amount).to_f
+                contact_name: sub.contact.display_name,
+                mailbox_count: sub.email_mailboxes.active.count,
+                retail: sub_retail,
+                wholesale: sub_wholesale,
+                margin: sub_margin,
+                margin_percentage: sub_retail.positive? ? (sub_margin / sub_retail * 100).round(1) : 0
               }
             end
           }
