@@ -673,7 +673,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     // This makes uploads feel instant even though they take 10-15 seconds
     const blobUrl = URL.createObjectURL(file);
     const optimisticItem: LegacyItem = {
-      id: `optimistic_${Date.now()}`,
+      id: `optimistic_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
       name: newFilename,
       type: "file",
       folder_path: folderPath,
@@ -740,23 +740,21 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     if (!files || files.length === 0) return;
 
     const totalFiles = files.length;
-    let successCount = 0;
-    let failCount = 0;
 
-    // Upload all selected files sequentially
-    for (let i = 0; i < totalFiles; i++) {
-      // Show progress message for multi-upload
-      if (totalFiles > 1) {
-        setMessage({ type: "info", text: `Uploading photo ${i + 1} of ${totalFiles}...` });
-      }
-
-      const success = await handlePhotoUpload(files[i]);
-      if (success) {
-        successCount++;
-      } else {
-        failCount++;
-      }
+    // Show progress message for multi-upload
+    if (totalFiles > 1) {
+      setMessage({ type: "info", text: `Uploading ${totalFiles} photos...` });
     }
+
+    // Upload all files concurrently for faster performance
+    const uploadPromises = Array.from(files).map((file) => handlePhotoUpload(file));
+    const results = await Promise.allSettled(uploadPromises);
+
+    // Count successes and failures
+    const successCount = results.filter(
+      (r) => r.status === "fulfilled" && r.value === true
+    ).length;
+    const failCount = totalFiles - successCount;
 
     // Show final summary
     if (totalFiles > 1) {
@@ -768,14 +766,16 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         setMessage({ type: "success", text: `${successCount} uploaded, ${failCount} failed.` });
       }
 
-      // ULTRA FIX: Do a final refresh after all uploads complete
-      // This ensures we get the real SharePoint URLs for all photos
-      // Wait longer (5s) to give SharePoint time to index all files
+      // Refresh immediately to show uploaded photos
+      loadAllFiles();
+
+      // Also do a delayed refresh to ensure storage has indexed all files
       setTimeout(() => {
         loadAllFiles();
       }, 5000);
     } else if (successCount === 1) {
       setMessage({ type: "success", text: "Photo uploaded successfully!" });
+      loadAllFiles();
     }
 
     // Reset the input so the same files can be selected again
