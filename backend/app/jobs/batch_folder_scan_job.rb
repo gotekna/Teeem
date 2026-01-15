@@ -104,14 +104,9 @@ class BatchFolderScanJob < ApplicationJob
     end
   end
 
+  # SSoT: Use StorageConfiguration.job_path for consistent folder naming
   def build_job_folder_path(job)
-    base_folder = scope_folder_path(:job)
-    job_folder_name = "#{job.id.to_s.rjust(3, '0')} - #{sanitize_folder_name(job.title)}"
-    "/#{base_folder}/#{job_folder_name}"
-  end
-
-  def sanitize_folder_name(name)
-    name.to_s.gsub(/[<>:"|?*\\]/, "_").strip
+    storage_config&.job_path(job.job_number) || "/Jobs/#{job.job_number}"
   end
 
   def already_processed?(job, storage_file_id)

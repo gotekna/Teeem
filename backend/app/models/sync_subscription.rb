@@ -32,9 +32,9 @@ class SyncSubscription < ApplicationRecord
     config = StorageConfiguration.instance
     case syncable_type
     when "Job"
+      # SSoT: Use StorageConfiguration.job_path for consistent folder naming
       job = syncable
-      base = config&.path_for(:job) || "Jobs"
-      "/#{base}/#{job.job_number} - #{job.title}".gsub(/[<>:"\/\\|?*]/, "_")
+      config&.job_path(job.job_number) || "/Jobs/#{job.job_number}"
     when "CorporateCompany"
       company = syncable
       base = config&.path_for(:corporate) || "Corporate"

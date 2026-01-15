@@ -137,10 +137,9 @@ class OrganizationSharePointCredential < ApplicationRecord
     root_folder_path.presence || StorageConfiguration.instance.path_for(:jobs)
   end
 
-  # Get folder path for a specific construction/job
+  # SSoT: Delegate to StorageConfiguration.job_path for consistent folder naming
   def job_folder_path(construction)
-    job_code = construction.id.to_s.rjust(3, "0")
-    "#{jobs_root_folder_path}/#{job_code} - #{construction.title}"
+    StorageConfiguration.instance&.job_path(construction.job_number) || "/Jobs/#{construction.job_number}"
   end
 
   # Deactivate this credential

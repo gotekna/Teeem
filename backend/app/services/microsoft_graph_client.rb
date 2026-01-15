@@ -344,15 +344,9 @@ class MicrosoftGraphClient
       create_jobs_root_folder
     end
 
-    # Prepare job data for variable resolution
-    job_data = {
-      job_code: construction.id.to_s.rjust(3, "0"),
-      project_name: construction.title,
-      site_supervisor: construction.site_supervisor_name
-    }
-
-    # Create job-specific root folder (e.g., "001 - Malbon Street")
-    job_folder_name = "#{job_data[:job_code]} - #{job_data[:project_name]}"
+    # SSoT: Use StorageConfiguration.job_path for consistent folder naming
+    job_folder_path = StorageConfiguration.instance&.job_path(construction.job_number) || "/Jobs/#{construction.job_number}"
+    job_folder_name = File.basename(job_folder_path)
     job_folder = create_folder(job_folder_name, parent_id: @credential.root_folder_id)
 
     # SSoT: Create subfolders from EntityTab hierarchy (replaces FolderTemplate)
@@ -482,8 +476,9 @@ class MicrosoftGraphClient
   # Search for job folder by construction
   # Supports both exact match and fuzzy matching for legacy folder naming schemes
   def find_job_folder(construction)
-    job_code = construction.id.to_s.rjust(3, "0")
-    expected_name = "#{job_code} - #{construction.title}"
+    # SSoT: Use StorageConfiguration.job_path for consistent folder naming
+    job_folder_path = StorageConfiguration.instance&.job_path(construction.job_number) || "/Jobs/#{construction.job_number}"
+    expected_name = File.basename(job_folder_path)
 
     # Normalize title for fuzzy matching (remove common prefixes like "Lot", lowercase, etc.)
     normalized_title = construction.title.to_s.downcase.gsub(/^lot\s+/i, "").strip

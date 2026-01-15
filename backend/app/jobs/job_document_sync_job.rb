@@ -154,10 +154,14 @@ class JobDocumentSyncJob < ApplicationJob
   end
 
   def build_job_folder_path(job)
-    # SSoT: Get Jobs base path from StorageConfiguration
-    base_folder = scope_folder_path(:job)
-    job_folder_name = "#{job.id.to_s.rjust(3, '0')} - #{sanitize_folder_name(job.title)}"
-    "/#{base_folder}/#{job_folder_name}"
+    # SSoT: Use StorageConfiguration.job_path for consistent folder naming
+    # Uses job_number (job_code), NOT job.id
+    storage_config&.job_path(job.job_number) || begin
+      # Fallback: Build manually (should not happen if StorageConfiguration is set up)
+      base_folder = scope_folder_path(:job)
+      job_folder_name = job.job_number || job.id.to_s
+      "/#{base_folder}/#{job_folder_name}"
+    end
   end
 
   def sanitize_folder_name(name)

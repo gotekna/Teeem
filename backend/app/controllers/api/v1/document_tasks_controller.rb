@@ -142,15 +142,9 @@ module Api
         @job = Job.find(params[:job_id])
       end
 
-      # Build job folder path using SSoT pattern from StorageConfiguration
+      # SSoT: Use StorageConfiguration.job_path for consistent folder naming
       def build_job_folder_path(job)
-        base_folder = scope_folder_path(:job)
-        job_folder_name = "#{job.id.to_s.rjust(3, '0')} - #{sanitize_folder_name(job.title)}"
-        "/#{base_folder}/#{job_folder_name}"
-      end
-
-      def sanitize_folder_name(name)
-        name.to_s.gsub(/[<>:"|?*\\]/, "_").strip
+        storage_config&.job_path(job.job_number) || "/Jobs/#{job.job_number}"
       end
 
       def task_json(task)

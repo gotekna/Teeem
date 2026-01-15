@@ -76,15 +76,9 @@ class CreateJobFoldersJob < ApplicationJob
 
   private
 
+  # SSoT: Use StorageConfiguration.job_path for consistent folder naming
   def build_job_folder_path(job)
-    # SSoT: Get Jobs base path from StorageConfiguration
-    base_folder = scope_folder_path(:job)
-    job_folder_name = "#{job.id.to_s.rjust(3, '0')} - #{sanitize_folder_name(job.title)}"
-    "/#{base_folder}/#{job_folder_name}"
-  end
-
-  def sanitize_folder_name(name)
-    name.to_s.gsub(/[<>:"|?*\\]/, "_").strip
+    storage_config&.job_path(job.job_number) || "/Jobs/#{job.job_number}"
   end
 
   def create_job_folder_structure(job, job_folder_path)
