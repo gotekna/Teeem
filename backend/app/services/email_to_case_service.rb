@@ -1,7 +1,8 @@
 require "anthropic"
 
 class EmailToCaseService
-  CLAUDE_MODEL = "claude-sonnet-4-5-20250929"
+  include AnthropicClient
+  # SSoT: Use AnthropicClient constants for model names
   MAX_TOKENS = 3000
   RATE_LIMIT_PER_HOUR = 20
 
@@ -42,7 +43,7 @@ class EmailToCaseService
       ai_prompt: prompt,
       ai_response_raw: ai_response,
       processing_time_ms: processing_time,
-      ai_model_used: CLAUDE_MODEL,
+      ai_model_used: CLAUDE_SONNET,
       confidence_score: extracted_data["confidence_score"],
       status: "pending"
     )

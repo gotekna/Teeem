@@ -1615,9 +1615,9 @@ module Api
           estimated_remaining_seconds = pdfs_pending * 10
           estimated_remaining_minutes = (estimated_remaining_seconds / 60.0).round(0)
 
-          # Calculate next scheduled sync times (in Brisbane time AEST/AEDT)
-          brisbane_tz = ActiveSupport::TimeZone["Australia/Brisbane"]
-          now_brisbane = Time.current.in_time_zone(brisbane_tz)
+          # Calculate next scheduled sync times (in company timezone)
+          # SSoT: Use CorporateCompanySetting for timezone
+          now_brisbane = CorporateCompanySetting.now
 
           # Invoice sync runs every 5 minutes
           next_invoice_sync = calculate_next_run(now_brisbane, 5, 0)

@@ -261,7 +261,8 @@ class EmailToTaskService
       emails += subject_emails
     end
 
-    # 3. Emails with same external party (not internal @tekna.com.au or @teeem.au)
+    # 3. Emails with same external party (not internal domains)
+    # SSoT: Internal domains checked via CorporateCompanySetting.internal_domain_patterns
     # FRC: Extended to 90 days to match subject matching window
     external_email = find_external_party
     if external_email.present? && emails.size < 10
@@ -314,7 +315,7 @@ class EmailToTaskService
     # Check cc recipients
     @email.cc_emails&.each do |email_addr|
       next if email_addr.blank?
-      next if internal_domains.any? { |d| email_addr.downcase.include?(d) }
+      next if internal_domain_patterns.any? { |d| email_addr.downcase.include?(d) }
       return email_addr
     end
 
@@ -326,7 +327,8 @@ class EmailToTaskService
     @email.to_emails&.each do |email_addr|
       next if email_addr.blank?
       next if email_addr.downcase == @email.from_email&.downcase
-      next if email_addr.downcase == NEW_TASK_EMAIL_ADDRESS.downcase
+      # SSoT: Use CorporateCompanySetting for monitored mailbox
+      next if email_addr.downcase == CorporateCompanySetting.monitored_mailbox_newtask.downcase
 
       add_participant(task, email_addr, "participant")
     end

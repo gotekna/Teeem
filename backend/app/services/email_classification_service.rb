@@ -75,9 +75,9 @@ class EmailClassificationService
     threads.net
   ].freeze
 
-  # Trusted internal/business domains - NEVER classify as spam
-  TRUSTED_DOMAINS = %w[
-    tekna.com.au
+  # Trusted external business partner domains - NEVER classify as spam
+  # SSoT: Internal domains come from CorporateCompanySetting.internal_email_domains
+  EXTERNAL_TRUSTED_DOMAINS = %w[
     bunnings.com.au
     harveynorman.com.au
     joii.org
@@ -88,6 +88,11 @@ class EmailClassificationService
     australianqc.com.au
     titusplus.com
   ].freeze
+
+  # All trusted domains: internal + external partners
+  def self.trusted_domains
+    CorporateCompanySetting.internal_email_domains + EXTERNAL_TRUSTED_DOMAINS
+  end
 
   # Automated/ephemeral emails - short retention period (7 days)
   # These are useful briefly but become noise quickly
@@ -257,8 +262,9 @@ class EmailClassificationService
     subject = @email.subject || ""
 
     # Never classify trusted domains as spam
+    # SSoT: Use trusted_domains method which includes internal + external partners
     from_domain = (@email.from_email || "").split("@").last&.downcase
-    return false if from_domain && TRUSTED_DOMAINS.any? { |td| from_domain.include?(td) }
+    return false if from_domain && self.class.trusted_domains.any? { |td| from_domain.include?(td) }
 
     # All caps with 10+ chars - BUT exclude business patterns
     # (job addresses, legal matters, company names are often caps)

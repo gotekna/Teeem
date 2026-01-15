@@ -3,7 +3,8 @@
 # - Creates CaseEmailQa entries
 # - Updates case.unanswered_questions_count
 class CaseQaExtractionService
-  CLAUDE_MODEL = "claude-3-haiku-20240307"
+  include AnthropicClient
+  # SSoT: Use AnthropicClient constants for model names
   MAX_TOKENS = 2000
 
   attr_reader :case_record, :results
@@ -143,7 +144,7 @@ class CaseQaExtractionService
 
     response = client.messages(
       parameters: {
-        model: CLAUDE_MODEL,
+        model: CLAUDE_HAIKU,
         max_tokens: MAX_TOKENS,
         messages: [ { role: "user", content: prompt } ]
       }

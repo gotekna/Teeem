@@ -3,7 +3,8 @@ require "anthropic"
 # AI-powered email summarization service
 # Generates summaries, extracts action items, and identifies entities for linking
 class EmailSummaryService
-  CLAUDE_MODEL = "claude-sonnet-4-5-20250929"
+  include AnthropicClient
+  # SSoT: Use AnthropicClient constants for model names
   MAX_TOKENS = 1000
 
   class AIError < StandardError; end
@@ -79,7 +80,7 @@ class EmailSummaryService
 
     response = client.messages(
       parameters: {
-        model: CLAUDE_MODEL,
+        model: CLAUDE_SONNET,
         max_tokens: MAX_TOKENS,
         messages: [
           { role: "user", content: prompt }

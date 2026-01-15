@@ -269,9 +269,13 @@ class Api::V1::ImapCredentialsController < ApplicationController
       if current_user.email.present?
         user_domain = current_user.email.split("@").last&.downcase
 
-        # Known domains per org name (SSoT mapping)
+        # Known domains per org name
+        # TODO: Move to MicrosoftCredential.metadata[:email_domains] for SSoT
+        # These are hardcoded because:
+        # 1. Graph API call to get domains was too slow (30+ sec)
+        # 2. Multiple tenants exist with different domains
         known_domains = {
-          "Tekna" => ["tekna.com.au", "teeem.au"],
+          "Tekna" => CorporateCompanySetting.internal_email_domains,
           "100xBestLife" => ["100xbestlife.com"],
           "Homes of Hope" => ["homesofhope.org.au"],
           "Love Your World" => ["loveyourworld.org"]
