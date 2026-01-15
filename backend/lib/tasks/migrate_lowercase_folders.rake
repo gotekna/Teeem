@@ -19,7 +19,7 @@ namespace :storage do
     migrate_lowercase_folder(
       source_path: "/jobs",
       target_base: "/Jobs",
-      id_to_code: ->(id) { "J#{id}" },
+      code_column: :job_code,  # SSoT: Read from database column, NOT hardcoded
       model_class: Job,
       dry_run: dry_run
     )
@@ -99,7 +99,7 @@ namespace :storage do
     end
   end
 
-  def migrate_lowercase_folder(source_path:, target_base:, id_to_code:, model_class:, dry_run:)
+  def migrate_lowercase_folder(source_path:, target_base:, code_column:, model_class:, dry_run:)
     puts "=" * 60
     puts dry_run ? "DRY RUN - No changes will be made" : "APPLYING CHANGES"
     puts "=" * 60
@@ -145,8 +145,8 @@ namespace :storage do
         next
       end
 
-      # Get target folder name using code
-      target_folder = id_to_code.call(record_id)
+      # SSoT: Get target folder name from DATABASE COLUMN, not hardcoded
+      target_folder = record.send(code_column)
       target_path = "#{target_base}/#{target_folder}"
 
       puts "MIGRATE: #{folder_path}"
