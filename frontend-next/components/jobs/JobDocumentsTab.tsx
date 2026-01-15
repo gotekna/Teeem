@@ -57,7 +57,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { api, getApiBaseUrl } from "@/lib/api";
-import { uploadToSharePointDirect, type UploadProgress } from "@/lib/sharepoint-upload";
+import { uploadPhoto, uploadToSharePointDirect, type UploadProgress } from "@/lib/sharepoint-upload";
 
 interface OrgStatus {
   loading: boolean;
@@ -687,16 +687,16 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     setAllFiles((prev) => [...prev, optimisticItem]);
 
     try {
-      // ULTRA MASTERPIECE: Direct upload to SharePoint (skips backend proxy!)
-      // Browser uploads directly to SharePoint using pre-authenticated URL
-      // This is 50% faster than going through Heroku
-      const result = await uploadToSharePointDirect(file, {
+      // SSoT: Upload photo using provider-agnostic function
+      // For SharePoint: Direct browser-to-storage upload (faster)
+      // For S3/Wasabi: Standard multipart upload through backend
+      const result = await uploadPhoto(file, {
         jobId,
         folderPath,
         filename: newFilename,
         onProgress: (progress: UploadProgress) => {
           // Could add progress UI here in the future
-          console.log(`[DirectUpload] ${progress.status}: ${progress.percentage}%`);
+          console.log(`[PhotoUpload] ${progress.status}: ${progress.percentage}%`);
         },
       });
 

@@ -361,6 +361,23 @@ async function uploadLargeFileChunked(
   }
 }
 
+interface StorageStatus {
+  connected: boolean;
+  provider_type?: string;
+}
+
+/**
+ * Get the current storage provider type
+ */
+export async function getStorageProviderType(): Promise<string> {
+  try {
+    const response = await api.get<StorageStatus>("/api/v1/documents/status");
+    return response?.provider_type || "sharepoint";
+  } catch {
+    return "sharepoint";
+  }
+}
+
 /**
  * Check if direct upload is available (SharePoint connected)
  * Can be used to fall back to legacy upload if needed
@@ -368,11 +385,147 @@ async function uploadLargeFileChunked(
 export async function isDirectUploadAvailable(): Promise<boolean> {
   try {
     // Quick check - try to get org status
-    const response = await api.get<{ connected: boolean }>(
+    const response = await api.get<StorageStatus>(
       "/api/v1/documents/status"
     );
-    return response?.connected === true;
+    return response?.connected === true && response?.provider_type === "sharepoint";
   } catch {
     return false;
+  }
+}
+
+/**
+ * Upload a photo to storage - automatically chooses the right method based on provider.
+ * For SharePoint: Uses direct browser-to-storage upload (faster)
+ * For S3/Wasabi: Uses standard multipart upload through backend
+ *
+ * @param file - The file to upload
+ * @param options - Upload options including jobId, folderPath, etc.
+ * @returns Promise with upload result
+ */
+export async function uploadPhoto(
+  file: File,
+  options: DirectUploadOptions
+): Promise<DirectUploadResult> {
+  const { jobId, folderPath, filename, onProgress } = options;
+
+  // Check provider type
+  const providerType = await getStorageProviderType();
+  console.log("[uploadPhoto] Storage provider:", providerType);
+
+  if (providerType === "sharepoint") {
+    // Use direct SharePoint upload (faster)
+    return uploadToSharePointDirect(file, options);
+  }
+
+  // S3/Wasabi: Use standard multipart upload through backend
+  onProgress?.({
+    loaded: 0,
+    total: file.size,
+    percentage: 0,
+    status: "preparing",
+    message: "Preparing upload...",
+  });
+
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    if (folderPath) formData.append("folder_path", folderPath);
+    if (filename) formData.append("filename", filename);
+
+    onProgress?.({
+      loaded: 0,
+      total: file.size,
+      percentage: 0,
+      status: "uploading",
+      message: "Uploading...",
+    });
+
+    // Use XMLHttpRequest for progress tracking
+    const result = await new Promise<DirectUploadResult>((resolve) => {
+      const xhr = new XMLHttpRequest();
+
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percentage = Math.round((event.loaded / event.total) * 100);
+          onProgress?.({
+            loaded: event.loaded,
+            total: event.total,
+            percentage,
+            status: "uploading",
+            message: `Uploading... ${percentage}%`,
+          });
+        }
+      };
+
+      xhr.onload = () => {
+        try {
+          const response = JSON.parse(xhr.responseText);
+          if (xhr.status >= 200 && xhr.status < 300 && response.success) {
+            resolve({
+              success: true,
+              webUrl: response.file?.web_url,
+              itemId: response.file?.id,
+              filename: response.file?.name || filename || file.name,
+            });
+          } else {
+            resolve({
+              success: false,
+              error: response.error || `Upload failed: ${xhr.status}`,
+            });
+          }
+        } catch {
+          resolve({
+            success: false,
+            error: `Upload failed: ${xhr.status}`,
+          });
+        }
+      };
+
+      xhr.onerror = () => {
+        resolve({
+          success: false,
+          error: "Network error during upload",
+        });
+      };
+
+      // Get auth token
+      const token = localStorage.getItem("jwt");
+      xhr.open("POST", `/api/v1/jobs/${jobId}/photos/upload`);
+      if (token) {
+        xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+      }
+      xhr.send(formData);
+    });
+
+    if (result.success) {
+      onProgress?.({
+        loaded: file.size,
+        total: file.size,
+        percentage: 100,
+        status: "done",
+        message: "Upload complete!",
+      });
+    } else {
+      onProgress?.({
+        loaded: 0,
+        total: file.size,
+        percentage: 0,
+        status: "error",
+        message: result.error || "Upload failed",
+      });
+    }
+
+    return result;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Upload failed";
+    onProgress?.({
+      loaded: 0,
+      total: file.size,
+      percentage: 0,
+      status: "error",
+      message: errorMessage,
+    });
+    return { success: false, error: errorMessage };
   }
 }

@@ -66,8 +66,20 @@ module Api
             Rails.logger.warn "[OneDrive Status] Error accessing MicrosoftCredential: #{e.message}"
           end
 
+          # Check if using S3-compatible storage (doesn't need SharePoint/OneDrive credential)
+          storage_config = StorageConfiguration.instance
+          if storage_config&.provider_type&.start_with?("s3") || storage_config&.provider_type == "wasabi"
+            return render json: {
+              connected: true,
+              source: "s3_storage",
+              provider_type: storage_config.provider_type,
+              message: "Using S3-compatible storage"
+            }
+          end
+
           return render json: {
             connected: false,
+            provider_type: storage_config&.provider_type || "sharepoint",
             message: "Not connected"
           }
         end
@@ -96,6 +108,7 @@ module Api
           render json: {
             connected: true,
             source: "organization_credential",
+            provider_type: storage_config&.provider_type || "sharepoint",
             drive_id: storage_config&.drive_id,
             drive_name: storage_config&.drive_name,
             root_folder_id: credential.root_folder_id,
@@ -107,10 +120,22 @@ module Api
             token_expires_at: credential.token_expires_at
           }
         else
-          render json: {
-            connected: false,
-            message: "Credential expired or invalid"
-          }
+          # Check if using S3-compatible storage (doesn't need SharePoint credential)
+          storage_config = StorageConfiguration.instance
+          if storage_config&.provider_type&.start_with?("s3") || storage_config&.provider_type == "wasabi"
+            render json: {
+              connected: true,
+              source: "s3_storage",
+              provider_type: storage_config.provider_type,
+              message: "Using S3-compatible storage"
+            }
+          else
+            render json: {
+              connected: false,
+              provider_type: storage_config&.provider_type || "sharepoint",
+              message: "Credential expired or invalid"
+            }
+          end
         end
       end
 

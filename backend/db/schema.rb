@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_15_110000) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_15_110001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1865,7 +1865,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_15_110000) do
     t.decimal "human_confidence", precision: 5, scale: 2
     t.tsvector "searchable"
     t.bigint "sm_task_id"
-    t.string "storage_provider", default: "sharepoint"
+    t.string "storage_provider"
     t.string "storage_item_id"
     t.string "storage_path"
     t.string "migration_status"
@@ -6194,7 +6194,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_15_110000) do
     t.bigint "contact_id"
     t.bigint "company_id"
     t.bigint "legacy_corporate_document_id"
-    t.string "storage_provider", default: "sharepoint"
+    t.string "storage_provider"
     t.string "storage_item_id"
     t.string "storage_path"
     t.string "migration_status"
@@ -7261,7 +7261,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_15_110000) do
     t.bigint "legacy_corporate_document_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "storage_provider", default: "sharepoint"
+    t.string "storage_provider"
     t.string "storage_item_id"
     t.string "storage_path"
     t.string "migration_status"

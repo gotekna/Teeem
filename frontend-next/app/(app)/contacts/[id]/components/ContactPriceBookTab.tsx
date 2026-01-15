@@ -24,12 +24,11 @@ interface PricebookItem {
 }
 
 interface PricebookResponse {
-  success: boolean;
   items: PricebookItem[];
   pagination: {
-    total: number;
+    total_count: number;
     page: number;
-    per_page: number;
+    limit: number;
     total_pages: number;
   };
 }
@@ -58,9 +57,9 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
         `/api/v1/pricebook?supplier_id=${contactId}&limit=0`
       );
 
-      if (response?.success) {
-        setItems(response.items || []);
-        setTotal(response.pagination?.total || response.items?.length || 0);
+      if (response?.items) {
+        setItems(response.items);
+        setTotal(response.pagination?.total_count || response.items.length);
       } else {
         setError("Failed to load price book items");
       }
