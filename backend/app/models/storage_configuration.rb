@@ -56,8 +56,8 @@ class StorageConfiguration < ApplicationRecord
     "user_contracts" => "Users/Contracts",
     "my_docs" => "Users/MyDocs",
     # Email scopes
-    "email" => "Emails/eml",
-    "email_attachments" => "Emails/attachments",
+    "email" => "Emails/Email Body",
+    "email_attachments" => "Emails/Attachments",
     # Warehouse scopes
     "warehouse" => "Warehousing",
     "task" => "Tasks",
