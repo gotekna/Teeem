@@ -2341,6 +2341,8 @@ Rails.application.routes.draw do
       # Email Subscriptions (admin, requires auth)
       resources :email_subscriptions do
         collection do
+          get :dashboard_stats
+          get :active_migrations
           get :profit_report
           get :discover_mailboxes
           get :pricing

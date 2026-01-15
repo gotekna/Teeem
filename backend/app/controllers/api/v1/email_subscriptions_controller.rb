@@ -267,6 +267,40 @@ module Api
         }
       end
 
+      # GET /api/v1/email_subscriptions/dashboard_stats
+      # Get dashboard statistics
+      def dashboard_stats
+        active_subs = EmailSubscription.active
+        all_mailboxes = EmailMailbox.joins(:email_subscription).where(email_subscriptions: { status: 'active' })
+
+        render json: {
+          success: true,
+          data: {
+            active_subscriptions: active_subs.count,
+            total_mailboxes: all_mailboxes.count,
+            monthly_revenue: active_subs.sum(:monthly_retail_amount).to_f,
+            margin_percentage: calculate_margin_percentage(active_subs),
+            pending_migrations: EmailMigration.pending.count,
+            active_migrations: EmailMigration.in_progress.count,
+            completed_migrations_today: EmailMigration.completed.where("completed_at >= ?", Date.current.beginning_of_day).count
+          }
+        }
+      end
+
+      # GET /api/v1/email_subscriptions/active_migrations
+      # Get currently active migrations
+      def active_migrations
+        migrations = EmailMigration.active
+                      .includes(email_mailbox: { email_subscription: :contact })
+                      .order(started_at: :desc)
+                      .limit(10)
+
+        render json: {
+          success: true,
+          data: migrations.map { |m| active_migration_json(m) }
+        }
+      end
+
       # GET /api/v1/email_subscriptions/profit_report
       # Get profit/margin report
       def profit_report
@@ -581,6 +615,32 @@ module Api
           is_active: email_alias.is_active,
           created_at: email_alias.created_at
         }
+      end
+
+      def active_migration_json(mig)
+        sub = mig.email_mailbox&.email_subscription
+        {
+          id: mig.id,
+          source_email: mig.source_email,
+          contact_name: sub&.contact&.display_name,
+          migration_type: mig.migration_type,
+          status: mig.status,
+          progress: mig.progress_percentage,
+          processed_items: mig.processed_items,
+          total_items: mig.total_items,
+          started_at: mig.started_at
+        }
+      end
+
+      def calculate_margin_percentage(subscriptions)
+        return 0 if subscriptions.empty?
+
+        total_retail = subscriptions.sum(:monthly_retail_amount)
+        total_wholesale = subscriptions.sum(:monthly_wholesale_amount)
+
+        return 0 if total_retail.zero?
+
+        ((total_retail - total_wholesale) / total_retail * 100).round(1)
       end
     end
   end
