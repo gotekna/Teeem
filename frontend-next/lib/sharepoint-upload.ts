@@ -19,7 +19,7 @@
  * to it WITHOUT any Authorization header. The URL contains an embedded token.
  */
 
-import { api } from "./api";
+import { api, getApiBaseUrl } from "./api";
 
 interface UploadSessionResponse {
   success: boolean;
@@ -489,9 +489,10 @@ export async function uploadPhoto(
         });
       };
 
-      // Get auth token
+      // Get auth token and build full URL (needed for Vercel → Heroku)
       const token = localStorage.getItem("jwt");
-      xhr.open("POST", `/api/v1/jobs/${jobId}/photos/upload`);
+      const baseUrl = getApiBaseUrl();
+      xhr.open("POST", `${baseUrl}/api/v1/jobs/${jobId}/photos/upload`);
       if (token) {
         xhr.setRequestHeader("Authorization", `Bearer ${token}`);
       }

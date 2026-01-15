@@ -52,16 +52,15 @@ class EmailToTaskService
       # This enables automatic matching of future related emails
       extract_auto_match_keywords(task)
 
-      # 7. Download and attach email file attachments (PDFs, images, etc.)
-      download_and_attach_email_files(task)
-
-      # 8. Find and attach related emails
+      # 7. Find and attach related emails
+      # NOTE: Email file attachments (PDFs, etc.) are NOT downloaded here.
+      # SSoT: Attachments are accessible via task → email → email_attachments chain.
       find_and_attach_related_emails(task)
 
-      # 9. Add email participants as task contacts
+      # 8. Add email participants as task contacts
       add_email_participants_as_contacts(task)
 
-      # 10. Log activity
+      # 9. Log activity
       log_task_created(task)
 
       task
@@ -219,43 +218,6 @@ class EmailToTaskService
     if keywords.any?
       task.update_column(:email_keywords, keywords.join(", "))
       Rails.logger.info "[EmailToTaskService] Extracted auto-match keywords: #{keywords.join(', ')}"
-    end
-  end
-
-  def download_and_attach_email_files(task)
-    return unless @email.has_attachments
-    return unless @email.microsoft_credential_id.present?
-    return unless @email.mailbox_owner_email.present?
-    return unless @email.outlook_id.present?
-
-    credential = MicrosoftCredential.find_by(id: @email.microsoft_credential_id)
-    return unless credential&.status == "connected"
-
-    begin
-      client = MicrosoftAppGraphClient.new(credential)
-      attachments = client.get_email_attachments(@email.mailbox_owner_email, @email.outlook_id)
-
-      attachments.each do |attachment|
-        # SSoT: Use EmailAttachmentFilterService to skip signatures/embedded images
-        next if EmailAttachmentFilterService.should_skip?(attachment)
-        next unless attachment["contentBytes"].present?
-
-        filename = attachment["name"] || "attachment"
-        content_type = attachment["contentType"] || "application/octet-stream"
-        content = Base64.decode64(attachment["contentBytes"])
-
-        # Attach file directly to task via ActiveStorage
-        task.files.attach(
-          io: StringIO.new(content),
-          filename: filename,
-          content_type: content_type
-        )
-
-        Rails.logger.info "[EmailToTaskService] Attached file: #{filename}"
-      end
-    rescue StandardError => e
-      Rails.logger.error "[EmailToTaskService] Failed to download email attachments: #{e.message}"
-      # Don't fail task creation if attachment download fails
     end
   end
 

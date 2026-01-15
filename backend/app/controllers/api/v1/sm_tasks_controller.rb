@@ -2050,7 +2050,17 @@ module Api
               conversation_id: email.conversation_id,
               thread_count: email.thread_count,
               body_preview: email.body_preview || email.body_text&.truncate(200),
-              attachment_content_hashes: email.email_attachments.pluck(:content_hash).compact
+              # SSoT: Full attachment details for download (replaces content_hashes)
+              email_attachments: email.email_attachments.map do |ea|
+                {
+                  id: ea.id,
+                  filename: ea.filename,
+                  content_type: ea.content_type,
+                  file_size: ea.file_size,
+                  content_hash: ea.content_hash,
+                  storage_url: ea.storage_blob&.download_url
+                }
+              end
             }
           )
         when "CorporateCompanyDocument"
