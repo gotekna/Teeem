@@ -77,6 +77,7 @@ import {
   ContactEmailsTab,
   ContactActivityTab,
   ContactPriceBookTab,
+  ContactPurchaseOrdersTab,
   ContactTabsRenderer,
 } from "./components";
 import type {
@@ -2084,6 +2085,11 @@ export default function ContactDetailPage() {
               />
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Purchase Orders Tab - SSoT: visibility_rule = "is_supplier" - ROOT level for suppliers */}
+        <TabsContent value="purchase-orders" className="mt-6">
+          <ContactPurchaseOrdersTab contact={contact} />
         </TabsContent>
 
         {/* Portal Access Tab */}

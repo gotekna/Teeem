@@ -21,11 +21,17 @@ import {
 import { api } from "@/lib/api";
 
 // Exported for use in other components (ContactFinancialTab)
+// SSoT: Must match types/xero.ts XeroLink for compatibility with XeroTransactionsSection
 export interface XeroLink {
   id: number;
+  contact_id: number;
+  xero_contact_id: string;
   xero_tenant_id: string;
   xero_tenant_name: string;
-  xero_contact_id: string;
+  sync_enabled: boolean;
+  last_synced_at: string | null;
+  created_at: string;
+  updated_at: string;
   invoice_count?: number;
 }
 

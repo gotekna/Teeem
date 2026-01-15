@@ -194,14 +194,12 @@ class EntityTab < ApplicationRecord
   end
 
   # Get the full storage path for this tab
+  # SSoT: Uses storage_base_path (which respects storage_path_type) + storage_folder_path
   def full_storage_path
     return nil unless has_storage_folder && storage_folder_path.present?
 
-    # Get base path from StorageConfiguration (SSoT)
-    config = StorageConfiguration.instance
-    base_path = config&.root_path || ''
-
-    "#{base_path}/#{storage_folder_path}"
+    base = storage_base_path || ''
+    "#{base}/#{storage_folder_path}".gsub(%r{//+}, '/')
   end
 
   # Alias for backwards compatibility

@@ -2294,29 +2294,6 @@ export function EntityTabsConfig({
                 </div>
               )}
 
-              {/* Corporate/Contacts path toggle - only for contact scope */}
-              {scope === "contact" && (
-                <div className="flex items-center gap-2 pt-2">
-                  <Switch
-                    id="corporate_path"
-                    checked={formData.sharepoint_path_type === 'corporate'}
-                    onCheckedChange={(checked) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        sharepoint_path_type: checked ? 'corporate' : 'contacts',
-                      }))
-                    }
-                  />
-                  <div>
-                    <Label htmlFor="corporate_path">Corporate Path</Label>
-                    <p className="text-xs text-muted-foreground">
-                      {formData.sharepoint_path_type === 'corporate'
-                        ? "Uses Corporate/People folder"
-                        : "Uses Contacts folder"}
-                    </p>
-                  </div>
-                </div>
-              )}
 
               {/* Photo Category checkbox - SSoT: Explicit flag for photo gallery view */}
               <div className="flex items-center space-x-3 pt-4 mt-4 border-t">
@@ -2364,20 +2341,45 @@ export function EntityTabsConfig({
             {/* Storage Folder Path */}
             {showSharePointPaths && (
               <div className="space-y-3">
-                {/* Base path from StorageConfiguration (read-only) - SSoT for scope folders */}
+                {/* Base path from StorageConfiguration - SSoT for scope folders */}
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Base Path (from Admin → System → Storage Config)</Label>
-                  <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
-                    <span className="inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border bg-muted dark:bg-slate-800 text-foreground dark:text-muted-foreground border-border dark:border-border">
-                      {/* SSoT: Get base path from StorageConfiguration scope_folders */}
-                      {scope === "contact"
-                        ? (formData.sharepoint_path_type === 'corporate'
-                            ? getBasePath("people")
-                            : getBasePath("contact"))
-                        : (editingTab?.sharepoint_base_path || getBasePath(scope))}
-                    </span>
-                    <span className="text-muted-foreground">/</span>
-                  </div>
+                  <Label className="text-xs text-muted-foreground">Base Path</Label>
+                  {scope === "contact" ? (
+                    // Contacts can use either /Contacts/ or /Corporate/People/ base path
+                    <div className="flex items-center gap-1">
+                      <Select
+                        value={formData.sharepoint_path_type === 'corporate' ? 'people' : 'contact'}
+                        onValueChange={(value) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            sharepoint_path_type: value === 'people' ? 'corporate' : 'contacts',
+                          }))
+                        }
+                      >
+                        <SelectTrigger className="w-full font-mono text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="contact">
+                            <span className="font-mono">/{getBasePath("contact")}/</span>
+                            <span className="text-muted-foreground ml-2">- Contact documents</span>
+                          </SelectItem>
+                          <SelectItem value="people">
+                            <span className="font-mono">/{getBasePath("people")}/</span>
+                            <span className="text-muted-foreground ml-2">- Corporate people</span>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : (
+                    // Other scopes: read-only display
+                    <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
+                      <span className="inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border bg-muted dark:bg-slate-800 text-foreground dark:text-muted-foreground border-border dark:border-border">
+                        {editingTab?.sharepoint_base_path || getBasePath(scope)}
+                      </span>
+                      <span className="text-muted-foreground">/</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Editable folder path (read-only for system tabs) */}

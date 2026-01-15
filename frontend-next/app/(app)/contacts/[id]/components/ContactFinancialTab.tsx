@@ -13,6 +13,7 @@ import {
   CheckCircle,
   AlertTriangle,
   Percent,
+  Building2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,14 +31,22 @@ import type { Contact } from "../types";
 import { formatABN } from "../types";
 import type { XeroLink } from "./ContactHeader";
 
+// =============================================================================
+// SSoT: Financial Tab Structure
+// =============================================================================
+// Level 1: Xero Connection tabs (dynamic - one per xeroLink)
+// Level 2: Under each connection - Bank Details, Xero, Invoices, Bills, Jobs, POs
+//
+// If no Xero connections: Show "No Xero connections" message with link options
+// If 1+ connections: Show tab for each connection name
+// =============================================================================
+
 interface ContactFinancialTabProps {
   contact: Contact;
   activeFinancialSubTab: string;
   handleFinancialSubTabChange: (value: string) => void;
   setContact: (contact: Contact) => void;
   handleViewInvoiceDetail: (invoiceId: string) => void;
-  // SSoT: Xero links determine which company tabs to show in Invoices/Bills
-  // 0 links = hide tabs, 1 link = company tab only, 2+ links = All + company tabs
   xeroLinks: XeroLink[];
 }
 
@@ -49,11 +58,120 @@ export function ContactFinancialTab({
   handleViewInvoiceDetail,
   xeroLinks,
 }: ContactFinancialTabProps) {
-  // SSoT: visibility_rule = "Has Primary Xero links" for both Invoices and Bills
   const hasXeroLinks = xeroLinks.length > 0;
 
+  // Parse the activeFinancialSubTab to get connection and sub-tab
+  // Format: "connection-{index}" or "connection-{index}-{subtab}"
+  const { activeConnectionIndex, activeSubTab } = useMemo(() => {
+    const parts = activeFinancialSubTab.split("-");
+    if (parts[0] === "connection" && parts.length >= 2) {
+      const index = parseInt(parts[1], 10);
+      const subtab = parts.slice(2).join("-") || "bank";
+      return { activeConnectionIndex: isNaN(index) ? 0 : index, activeSubTab: subtab };
+    }
+    // Default to first connection, bank tab
+    return { activeConnectionIndex: 0, activeSubTab: "bank" };
+  }, [activeFinancialSubTab]);
+
+  // Handle connection tab change
+  const handleConnectionChange = (connectionIndex: number) => {
+    handleFinancialSubTabChange(`connection-${connectionIndex}-bank`);
+  };
+
+  // Handle sub-tab change within a connection
+  const handleSubTabChange = (subtab: string) => {
+    handleFinancialSubTabChange(`connection-${activeConnectionIndex}-${subtab}`);
+  };
+
+  // No Xero connections - show setup prompt
+  if (!hasXeroLinks) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Building2 className="h-5 w-5" />
+            Financial
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8 space-y-4">
+            <p className="text-muted-foreground">
+              No Xero connections found for this contact.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Link this contact to a Xero organization to view financial data.
+            </p>
+            <XeroSyncSection
+              contact={contact}
+              onContactUpdate={(updatedContact) => setContact(updatedContact as Contact)}
+            />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
-    <Tabs value={activeFinancialSubTab} onValueChange={handleFinancialSubTabChange}>
+    <div className="space-y-4">
+      {/* Level 1: Xero Connection Tabs */}
+      <Tabs
+        value={`connection-${activeConnectionIndex}`}
+        onValueChange={(v) => {
+          const index = parseInt(v.replace("connection-", ""), 10);
+          handleConnectionChange(index);
+        }}
+      >
+        <TabsList className="mb-4">
+          {xeroLinks.map((link, index) => (
+            <TabsTrigger key={link.xero_tenant_id} value={`connection-${index}`}>
+              <Building2 className="h-3.5 w-3.5 mr-1" />
+              {link.xero_tenant_name}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+
+        {/* Content for each Xero connection */}
+        {xeroLinks.map((link, index) => (
+          <TabsContent key={link.xero_tenant_id} value={`connection-${index}`}>
+            {/* Level 2: Sub-tabs within this connection */}
+            <XeroConnectionSubTabs
+              contact={contact}
+              xeroLink={link}
+              activeSubTab={activeSubTab}
+              onSubTabChange={handleSubTabChange}
+              setContact={setContact}
+              handleViewInvoiceDetail={handleViewInvoiceDetail}
+            />
+          </TabsContent>
+        ))}
+      </Tabs>
+    </div>
+  );
+}
+
+// =============================================================================
+// Level 2: Sub-tabs within a Xero Connection
+// =============================================================================
+
+interface XeroConnectionSubTabsProps {
+  contact: Contact;
+  xeroLink: XeroLink;
+  activeSubTab: string;
+  onSubTabChange: (subtab: string) => void;
+  setContact: (contact: Contact) => void;
+  handleViewInvoiceDetail: (invoiceId: string) => void;
+}
+
+function XeroConnectionSubTabs({
+  contact,
+  xeroLink,
+  activeSubTab,
+  onSubTabChange,
+  setContact,
+  handleViewInvoiceDetail,
+}: XeroConnectionSubTabsProps) {
+  return (
+    <Tabs value={activeSubTab} onValueChange={onSubTabChange}>
       <TabsList className="mb-4">
         <TabsTrigger value="bank">
           <CreditCard className="h-3.5 w-3.5 mr-1" />
@@ -63,20 +181,14 @@ export function ContactFinancialTab({
           <ExternalLink className="h-3.5 w-3.5 mr-1" />
           Xero
         </TabsTrigger>
-        {/* SSoT: Only show Invoices tab if contact has Xero links */}
-        {hasXeroLinks && (
-          <TabsTrigger value="invoices">
-            <FileText className="h-3.5 w-3.5 mr-1" />
-            Invoices
-          </TabsTrigger>
-        )}
-        {/* SSoT: visibility_rule = "Has Primary Xero links" */}
-        {hasXeroLinks && (
-          <TabsTrigger value="bills">
-            <FileText className="h-3.5 w-3.5 mr-1" />
-            Bills
-          </TabsTrigger>
-        )}
+        <TabsTrigger value="invoices">
+          <FileText className="h-3.5 w-3.5 mr-1" />
+          Invoices
+        </TabsTrigger>
+        <TabsTrigger value="bills">
+          <FileText className="h-3.5 w-3.5 mr-1" />
+          Bills
+        </TabsTrigger>
         <TabsTrigger value="jobs">
           <Briefcase className="h-3.5 w-3.5 mr-1" />
           Jobs
@@ -98,47 +210,28 @@ export function ContactFinancialTab({
       <TabsContent value="xero" className="mt-4">
         <XeroSubTab
           contact={contact}
+          xeroLink={xeroLink}
           setContact={setContact}
           handleViewInvoiceDetail={handleViewInvoiceDetail}
         />
       </TabsContent>
 
-      {/* Invoices Sub-Tab - always render TabsContent for URL routing, but content depends on xeroLinks */}
+      {/* Invoices Sub-Tab - filtered to this Xero connection */}
       <TabsContent value="invoices" className="mt-4">
-        {hasXeroLinks ? (
-          <InvoicesSubTab
-            contactId={contact.id}
-            handleViewInvoiceDetail={handleViewInvoiceDetail}
-            xeroLinks={xeroLinks}
-          />
-        ) : (
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-muted-foreground text-center py-8">
-                Link this contact to Xero to view invoices.
-              </p>
-            </CardContent>
-          </Card>
-        )}
+        <InvoicesSubTab
+          contactId={contact.id}
+          handleViewInvoiceDetail={handleViewInvoiceDetail}
+          xeroLink={xeroLink}
+        />
       </TabsContent>
 
-      {/* Bills Sub-Tab - SSoT: visibility_rule = "Has Primary Xero links" */}
+      {/* Bills Sub-Tab - filtered to this Xero connection */}
       <TabsContent value="bills" className="mt-4">
-        {hasXeroLinks ? (
-          <BillsSubTab
-            contactId={contact.id}
-            handleViewInvoiceDetail={handleViewInvoiceDetail}
-            xeroLinks={xeroLinks}
-          />
-        ) : (
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-muted-foreground text-center py-8">
-                Link this contact to Xero to view bills.
-              </p>
-            </CardContent>
-          </Card>
-        )}
+        <BillsSubTab
+          contactId={contact.id}
+          handleViewInvoiceDetail={handleViewInvoiceDetail}
+          xeroLink={xeroLink}
+        />
       </TabsContent>
 
       {/* Jobs Sub-Tab */}
@@ -403,17 +496,19 @@ function BankDetailsSubTab({ contact }: { contact: Contact }) {
 }
 
 // ================================
-// Xero Sub-Tab
+// Xero Sub-Tab (per connection)
 // ================================
 
 interface XeroSubTabProps {
   contact: Contact;
+  xeroLink: XeroLink;
   setContact: (contact: Contact) => void;
   handleViewInvoiceDetail: (invoiceId: string) => void;
 }
 
 function XeroSubTab({
   contact,
+  xeroLink,
   setContact,
   handleViewInvoiceDetail,
 }: XeroSubTabProps) {
@@ -426,7 +521,7 @@ function XeroSubTab({
       />
       <XeroTransactionsSection
         contactId={contact.id}
-        xeroLink={null}
+        xeroLink={xeroLink}
         onViewInvoiceDetail={handleViewInvoiceDetail}
       />
     </div>
@@ -434,27 +529,32 @@ function XeroSubTab({
 }
 
 // ================================
-// Invoices Sub-Tab
+// Invoices Sub-Tab (per connection)
 // ================================
 
 interface InvoicesSubTabProps {
   contactId: number;
   handleViewInvoiceDetail: (invoiceId: string) => void;
-  xeroLinks: XeroLink[];
+  xeroLink: XeroLink;
 }
 
-function InvoicesSubTab({ contactId, handleViewInvoiceDetail, xeroLinks }: InvoicesSubTabProps) {
+function InvoicesSubTab({ contactId, handleViewInvoiceDetail, xeroLink }: InvoicesSubTabProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Invoices</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          Invoices
+          <Badge variant="outline" className="text-xs">
+            {xeroLink.xero_tenant_name}
+          </Badge>
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <XeroInvoicesListByTenant
           contactId={contactId}
           type="ACCREC"
           onViewInvoiceDetail={handleViewInvoiceDetail}
-          linkedTenants={xeroLinks}
+          linkedTenants={[xeroLink]}
         />
       </CardContent>
     </Card>
@@ -462,27 +562,32 @@ function InvoicesSubTab({ contactId, handleViewInvoiceDetail, xeroLinks }: Invoi
 }
 
 // ================================
-// Bills Sub-Tab
+// Bills Sub-Tab (per connection)
 // ================================
 
 interface BillsSubTabProps {
   contactId: number;
   handleViewInvoiceDetail: (invoiceId: string) => void;
-  xeroLinks: XeroLink[];
+  xeroLink: XeroLink;
 }
 
-function BillsSubTab({ contactId, handleViewInvoiceDetail, xeroLinks }: BillsSubTabProps) {
+function BillsSubTab({ contactId, handleViewInvoiceDetail, xeroLink }: BillsSubTabProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Bills</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          Bills
+          <Badge variant="outline" className="text-xs">
+            {xeroLink.xero_tenant_name}
+          </Badge>
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <XeroInvoicesListByTenant
           contactId={contactId}
           type="ACCPAY"
           onViewInvoiceDetail={handleViewInvoiceDetail}
-          linkedTenants={xeroLinks}
+          linkedTenants={[xeroLink]}
         />
       </CardContent>
     </Card>
