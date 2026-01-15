@@ -264,11 +264,15 @@ class Job < ApplicationRecord
   end
 
   # Trigger storage folder creation if not already created
+  # SSoT: THE ONE way to create job folders
+  # - Uses CreateJobStorageFoldersJob (provider-agnostic)
+  # - Subfolder structure from EntityTab hierarchy
+  # - template_id param is DEPRECATED (ignored)
   def create_folders_if_needed!(template_id = nil)
     return unless folders_not_requested?
 
     update!(storage_folder_status: "pending")
-    CreateJobFoldersJob.perform_later(id, template_id)
+    CreateJobStorageFoldersJob.perform_later(id)
   end
 
   # Get primary contact

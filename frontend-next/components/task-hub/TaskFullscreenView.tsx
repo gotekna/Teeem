@@ -1484,11 +1484,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       const response = await api.post<{ success: boolean; share_url?: string; error?: string }>(
         `/api/v1/sm_tasks/${task.id}/attachments/${attachmentId}/share_link`
       );
-      if (response.success && response.share_url) {
+      if (response?.success && response?.share_url) {
         await navigator.clipboard.writeText(response.share_url);
         toast.success('Link copied to clipboard');
       } else {
-        toast.error(response.error || 'Failed to create share link');
+        toast.error(response?.error || 'Failed to create share link');
       }
     } catch (err) {
       console.error('Failed to create share link:', err);
@@ -2952,6 +2952,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                               setDelegatingQuestionId={setDelegatingQuestionId}
                               delegationUsers={delegationUsers}
                               handleDelegateQuestion={handleDelegateQuestion}
+                              handleUndelegateQuestion={handleUndelegateQuestion}
                               onCreateAction={(text) => addActionItem(task.id, text, 'action')}
                             />
                           ))}
@@ -2993,6 +2994,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       setDelegatingQuestionId={setDelegatingQuestionId}
                       delegationUsers={delegationUsers}
                       handleDelegateQuestion={handleDelegateQuestion}
+                      handleUndelegateQuestion={handleUndelegateQuestion}
                       onCreateAction={(text) => addActionItem(task.id, text, 'action')}
                     />
                   ))}
