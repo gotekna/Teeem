@@ -1279,12 +1279,21 @@ export function StorageConfigTab() {
         "/api/v1/storage_configuration",
         {
           storage: {
-            ...formData,
-            // Map S3/Wasabi fields to backend expected names
+            provider_type: formData.provider_type,
+            root_path: formData.root_path,
+            scope_folders: formData.scope_folders,
+            scope_templates: formData.scope_templates,
+            file_name_templates: formData.file_name_templates,
+            config_links: formData.config_links,
+            // Map SharePoint fields (frontend uses sharepoint_* prefix, backend expects bare names)
+            site_url: formData.sharepoint_site_url,
+            site_id: formData.sharepoint_site_id,
+            drive_id: formData.sharepoint_drive_id,
+            drive_name: formData.sharepoint_drive_name,
+            // Map S3/Wasabi fields (frontend uses s3_* prefix, backend expects bare names)
             endpoint: formData.s3_endpoint,
             bucket: formData.s3_bucket,
             region: formData.s3_region,
-            // root_path now matches backend directly (no mapping needed)
           }
         }
       );
@@ -1402,13 +1411,12 @@ export function StorageConfigTab() {
               <Select
                 value={formData.provider_type}
                 onValueChange={(value: ProviderType) => {
-                  // SSoT: Auto-set default root path based on provider
-                  // SharePoint: /Shared Documents, S3/Wasabi: / (bucket root)
-                  const defaultRootPath = value === "sharepoint" ? "/Shared Documents" : "/";
+                  // FRC: Don't auto-change root_path when switching providers
+                  // This prevents accidentally overwriting user's intentional root_path setting
+                  // User can manually update root_path if needed after switching providers
                   setFormData(prev => ({
                     ...prev,
                     provider_type: value,
-                    root_path: defaultRootPath,
                   }));
                 }}
               >
