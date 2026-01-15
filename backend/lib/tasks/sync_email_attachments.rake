@@ -67,4 +67,48 @@ namespace :email do
     puts "Done! Synced: #{synced}, Skipped: #{skipped}"
     puts "Total attachments: #{email.email_attachments.reload.count}"
   end
+
+  desc "Sync attachments for all emails missing them (batch)"
+  task :sync_missing_batch, [:limit] => :environment do |_t, args|
+    limit = (args[:limit] || 100).to_i
+
+    fixable = EmailWarehouse
+      .where(has_attachments: true)
+      .where.not(outlook_id: nil, mailbox_owner_email: nil, microsoft_credential_id: nil)
+      .left_joins(:email_attachments)
+      .where(email_attachments: { id: nil })
+      .order(received_at: :desc)
+      .limit(limit)
+
+    total = fixable.count
+    puts "Processing #{total} emails with missing attachments..."
+    puts ""
+
+    synced = 0
+    failed = 0
+
+    fixable.each_with_index do |email, idx|
+      print "[#{idx + 1}/#{total}] #{email.id}: #{email.subject.to_s[0..50]}... "
+      begin
+        email.sync_attachments!
+        synced += 1
+        puts "OK"
+      rescue StandardError => e
+        failed += 1
+        puts "ERROR: #{e.message[0..50]}"
+      end
+    end
+
+    puts ""
+    puts "=" * 50
+    puts "Batch complete: #{synced} synced, #{failed} failed"
+
+    remaining = EmailWarehouse
+      .where(has_attachments: true)
+      .where.not(outlook_id: nil, mailbox_owner_email: nil, microsoft_credential_id: nil)
+      .left_joins(:email_attachments)
+      .where(email_attachments: { id: nil })
+      .count
+    puts "Remaining to sync: #{remaining}"
+  end
 end
