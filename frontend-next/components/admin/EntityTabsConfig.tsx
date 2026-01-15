@@ -323,6 +323,16 @@ export function EntityTabsConfig({
     return `${rootPath}/${scopePath}`;
   }, [storageConfig]);
 
+  // SSoT: THE ONE function to get full storage path for a tab
+  // Handles storage_path_type override (e.g., Corporate tab using 'people' path)
+  const getTabFullPath = React.useCallback((tab: EntityTab, defaultScope: string): string => {
+    // Determine which scope folder to use based on storage_path_type override
+    const pathScope = tab.sharepoint_path_type === 'corporate' ? 'people' : defaultScope;
+    const basePath = getBasePath(pathScope);
+    const folderPath = tab.sharepoint_folder_path || tab.display_name;
+    return `${basePath}/${folderPath}`;
+  }, [getBasePath]);
+
   // SSoT: Get default folder path template for a scope
   // These match StorageConfiguration::SCOPE_TEMPLATES in the backend
   const getDefaultTemplate = React.useCallback((scopeKey: string): string => {
@@ -1298,28 +1308,11 @@ export function EntityTabsConfig({
                         )}
                       >
                         <FolderOpen className="h-3 w-3 shrink-0" />
-                        <span>{
-                          // SSoT: Use StorageConfiguration (via getBasePath) as THE source for paths
-                          // Determine scope based on storage_path_type override or default scope
-                          (() => {
-                            const pathScope = tab.sharepoint_path_type === 'corporate' ? 'people' : scope;
-                            const basePath = getBasePath(pathScope);
-                            const folderPath = tab.sharepoint_folder_path || tab.display_name;
-                            return `${basePath}/${folderPath}`;
-                          })()
-                        }</span>
+                        <span>{getTabFullPath(tab, scope)}</span>
                       </Badge>
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className="max-w-lg">
-                      <p className="font-mono text-xs break-all">{
-                        // SSoT: Use StorageConfiguration (via getBasePath) as THE source for paths
-                        (() => {
-                          const pathScope = tab.sharepoint_path_type === 'corporate' ? 'people' : scope;
-                          const basePath = getBasePath(pathScope);
-                          const folderPath = tab.sharepoint_folder_path || tab.display_name;
-                          return `${basePath}/${folderPath}`;
-                        })()
-                      }</p>
+                      <p className="font-mono text-xs break-all">{getTabFullPath(tab, scope)}</p>
                       <p className="text-muted-foreground mt-1">{tab.uses_custom_path ? "Custom path" : "Global template"}</p>
                     </TooltipContent>
                   </Tooltip>
