@@ -384,6 +384,8 @@ Total: X issues to fix
 | `/t deep` | **Code Guardian** - Full agent review | ~20 min |
 | `/t refactor` | **TTV Refactor** - Continue TeeemTableView refactoring | ~10-30 min |
 | `/t tables` | **Table Guardian** - Audit all table implementations | ~10 min |
+| `/t dup` | **SSoT Audit** - Backend + Frontend duplicate detection | ~5 min |
+| `/t all` | **All Agents** - Run ALL specialized agents comprehensively | ~30-60 min |
 
 ## Optional: Performance Audit (`/t perf`)
 
@@ -573,3 +575,149 @@ If user types these keywords, Claude should immediately respond:
 | `gold` | Wrong component | Check CLAUDE.md component table |
 | `frc` | Bandaid fix | STOP, investigate root cause, fix the gap not symptom |
 | `slow` | Wasting tokens | Stop reading logs, use Sentry |
+
+## Optional: SSoT Audit (`/t dup`)
+
+**Comprehensive SSoT violation detection across backend and frontend.**
+
+### What It Checks
+
+| # | Check | What It Catches |
+|---|-------|-----------------|
+| 1 | **Duplicate Columns** | Same column name in multiple tables (like `root_path`) |
+| 2 | **Config in Wrong Table** | Storage config in credential tables, etc. |
+| 3 | **Hardcoded Constants** | Timezone, email domains, model names hardcoded |
+| 4 | **AI Model Duplication** | Services not using `AnthropicClient` concern |
+| 5 | **UI Component Duplication** | Lucide loaders, router.back(), custom spinners |
+| 6 | **Unregistered Components** | UI components not in component-registry.ts |
+
+### Backend Data Model Checks
+
+```bash
+echo "╔══════════════════════════════════════════════════════════════════╗"
+echo "║           BACKEND SSoT AUDIT                                      ║"
+echo "╚══════════════════════════════════════════════════════════════════╝"
+
+# 1. Columns that appear in multiple tables (THE root_path problem)
+echo ""
+echo "=== DUPLICATE COLUMN PATTERNS ==="
+for col in root_path site_id drive_id client_id tenant_id; do
+  count=$(grep -c "\"$col\"" backend/db/schema.rb 2>/dev/null || echo 0)
+  if [ "$count" -gt 1 ]; then
+    echo "⚠️  WARNING: $col appears $count times:"
+    grep -n "\"$col\"" backend/db/schema.rb | head -5
+  fi
+done
+echo "(empty = good)"
+
+# 2. Hardcoded timezone (should use CorporateCompanySetting)
+echo ""
+echo "=== HARDCODED TIMEZONE ==="
+grep -rn "Australia/Brisbane" backend/app --include="*.rb" 2>/dev/null | grep -v "CorporateCompanySetting\|#" | head -5
+echo "(empty = good)"
+
+# 3. Hardcoded email domains (should use CorporateCompanySetting)
+echo ""
+echo "=== HARDCODED EMAIL DOMAINS ==="
+grep -rn "tekna\.com\.au" backend/app --include="*.rb" 2>/dev/null | grep -v "CorporateCompanySetting\|#\|\.example" | head -5
+echo "(empty = good)"
+
+# 4. AI services not using AnthropicClient concern
+echo ""
+echo "=== AI SERVICES WITHOUT ANTHROPIC_CLIENT ==="
+for file in $(grep -rl "Anthropic::Client" backend/app/services --include="*.rb" 2>/dev/null); do
+  if ! grep -q "include AnthropicClient" "$file" 2>/dev/null; then
+    echo "⚠️  $file - uses Anthropic but doesn't include AnthropicClient"
+  fi
+done
+echo "(empty = good)"
+
+# 5. Deprecated StorageConfiguration patterns
+echo ""
+echo "=== DEPRECATED STORAGE PATTERNS ==="
+grep -rn "credential\.sharepoint_site_id\|credential\.sharepoint_drive_id\|credential\.drive_id" backend/app --include="*.rb" 2>/dev/null | head -5
+echo "(empty = good)"
+```
+
+### Frontend SSoT Checks
+
+```bash
+echo ""
+echo "╔══════════════════════════════════════════════════════════════════╗"
+echo "║           FRONTEND SSoT AUDIT                                     ║"
+echo "╚══════════════════════════════════════════════════════════════════╝"
+
+# 1. Lucide Loader violations (should use Spinner)
+echo ""
+echo "=== LUCIDE LOADER VIOLATIONS ==="
+grep -rn "Loader.*from.*lucide-react\|from.*lucide-react.*Loader" frontend-next/app frontend-next/components --include="*.tsx" 2>/dev/null | grep -v "spinner.tsx" || echo "✅ None found"
+
+# 2. router.back() violations (should use BackButton)
+echo ""
+echo "=== ROUTER.BACK() VIOLATIONS ==="
+grep -rn "router\.back()" frontend-next/app frontend-next/components --include="*.tsx" 2>/dev/null | grep -v "back-button.tsx" || echo "✅ None found"
+
+# 3. Custom spinner patterns (should use Spinner)
+echo ""
+echo "=== CUSTOM ANIMATE-SPIN ==="
+grep -rn "animate-spin" frontend-next/app frontend-next/components --include="*.tsx" 2>/dev/null | grep -v "spinner.tsx" | head -10 || echo "✅ None found"
+
+# 4. Deprecated imports
+echo ""
+echo "=== DEPRECATED IMPORTS ==="
+grep -rn "from.*@/components/ui/combobox['\"]" frontend-next --include="*.tsx" 2>/dev/null | grep -v "combobox-dropdown" | head -5
+grep -rn "from.*@/components/ui/loader" frontend-next --include="*.tsx" 2>/dev/null | head -5
+grep -rn "from.*@/components/ui/drawer" frontend-next --include="*.tsx" 2>/dev/null | head -5
+echo "(empty = good)"
+
+echo ""
+echo "╔══════════════════════════════════════════════════════════════════╗"
+echo "║           SSoT AUDIT COMPLETE                                     ║"
+echo "╚══════════════════════════════════════════════════════════════════╝"
+```
+
+**When to use:**
+- Before adding any new database column
+- Before adding constants or config values
+- After large refactoring sessions
+- Weekly as part of code health
+
+## Optional: All Agents (`/t all`)
+
+**Runs ALL code quality agents for comprehensive codebase review.**
+
+This is different from `/all-agents` which focuses on health/status checks. `/t all` focuses specifically on code quality and compliance.
+
+### Agents Spawned (in parallel)
+
+| Agent | What It Does | Focus Area |
+|-------|--------------|------------|
+| **Code Guardian** | 8-point audit | SSoT violations, architecture, bugs, security |
+| **Table Guardian** | Table compliance | TeeemTableView patterns, Add button SSoT |
+| **Foundation Validator** | Column type sync | Schema ↔ Foundation metadata (34 types) |
+| **Method Auditor** | NoMethodError prevention | Model method validation |
+| **Frontend Auditor** | UI compliance | Component standards, dark mode |
+| **UI Consistency Scanner** | Visual patterns | Mixed components, spacing, colors |
+
+### Comparison: `/t all` vs `/all-agents`
+
+| Command | Focus | Agents |
+|---------|-------|--------|
+| `/t all` | **Code Quality** | Code Guardian, Table Guardian, Foundation Validator, Method Auditor, Frontend Auditor, UI Scanner |
+| `/all-agents` | **Health/Status** | Backend Dev, Frontend Dev, Bug Hunter, Deploy Manager, Planning, Gantt |
+
+### Execution
+
+This spawns multiple Task agents in parallel. Each produces a focused report, combined into a summary.
+
+**When to use:**
+- Before major releases (code quality gate)
+- After large features land (compliance check)
+- Weekly/monthly codebase health check
+- Before deploying critical changes
+
+**What you get:**
+- Compliance score per category
+- Prioritized issues by severity
+- File:line references for each issue
+- Specific fix recommendations
