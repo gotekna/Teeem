@@ -2059,7 +2059,7 @@ module Api
                   content_type: ea.storage_blob&.content_type,
                   file_size: ea.storage_blob&.file_size,
                   content_hash: ea.content_hash,
-                  storage_url: ea.storage_blob&.download_url
+                  storage_path: ea.storage_blob&.storage_path
                 }
               end
             }
