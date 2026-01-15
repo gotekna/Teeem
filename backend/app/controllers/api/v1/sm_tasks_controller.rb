@@ -969,9 +969,22 @@ module Api
         }
       end
 
-      # Standard file upload using ActiveStorage
+      # Standard file upload using StorageBlob (SSoT for file storage)
       # Creates a CorporateCompanyDocument record to track the file
+      # ActiveStorage was REMOVED (Jan 2026) - use StorageBlob for deduplication
       def upload_standard_file(file, category)
+        # Read file content for StorageBlob
+        content = file.read
+        file.rewind if file.respond_to?(:rewind)
+
+        # SSoT: StorageBlob handles deduplication via content_hash
+        blob = StorageBlob.find_or_create_for_content!(
+          content,
+          filename: file.original_filename,
+          content_type: file.content_type
+        )
+        blob.increment_reference!
+
         # Create a document record for the uploaded file
         # Document ownership: job_id OR contact_id (for personal tasks)
         doc_attrs = {
@@ -980,7 +993,9 @@ module Api
           mime_type: file.content_type,  # Required for PDF/image preview
           document_type: "other",
           filed_by: current_user&.name,
-          uploaded_at: Time.current
+          uploaded_at: Time.current,
+          storage_blob: blob,  # SSoT: Link to StorageBlob (replaces ActiveStorage)
+          content_hash: blob.content_hash
         }
 
         # SSoT: Task is the primary owner for task attachments
@@ -996,9 +1011,6 @@ module Api
         end
 
         doc = CorporateCompanyDocument.create!(doc_attrs)
-
-        # Attach the file to the document
-        doc.file.attach(file)
 
         # Create the task attachment linking to the document
         attachment = @task.sm_task_attachments.create!(
@@ -2076,9 +2088,8 @@ module Api
               display_name: doc.display_name,
               document_type: doc.document_type,
               # SSoT: Use StorableDocument#storage_url for provider-agnostic download URL
-              # Falls back to ActiveStorage URL if not in external storage
+              # ActiveStorage has_one_attached :file was REMOVED (Jan 2026)
               storage_url: doc.storage_url,
-              file_url: doc.file.attached? ? Rails.application.routes.url_helpers.rails_blob_url(doc.file, only_path: true) : nil,
               created_at: doc.created_at,
               content_hash: doc.content_hash
             }
