@@ -248,13 +248,78 @@ If more detail needed, fetch from API directly:
 3. `GET http://localhost:3001/api/v1/performance/anomalies?status=open` - Active anomalies
 4. `GET http://localhost:3001/api/v1/performance/endpoints` - Per-endpoint p95/p99
 
+### Step 2.8: Anti-Pattern Pre-Scan
+
+Before implementing fixes, scan for EXISTING violations of known anti-patterns:
+
+```bash
+# Check for multiple fetch triggers (anti-pattern #1)
+grep -r "setAutoFetchRefreshKey" frontend-next/ --include="*.tsx" | wc -l
+# If >1 location: SSoT violation
+
+# Check for path-based view switching (anti-pattern #3)
+grep -r "router.push.*view/" frontend-next/ --include="*.tsx"
+# If found: Cache wipe risk
+
+# Check for short cache TTL (anti-pattern #6)
+grep -r "CACHE_TTL" frontend-next/lib/ --include="*.ts"
+# If <30 min: Too aggressive
+```
+
+**If existing violations found:** Fix these FIRST before addressing new issues.
+
+### Step 2.9: Root Cause Analysis (MANDATORY)
+
+**🔴 DO NOT PROCEED to fixes until this step is complete.**
+
+For EACH issue found in Steps 1-2 that needs fixing, complete the 5 Whys:
+
+#### FRC Analysis Table
+
+| # | Issue | Why 1 | Why 2 | Why 3 | Root Cause | Prevention |
+|---|-------|-------|-------|-------|------------|------------|
+| 1 | [Issue from check] | [What's happening?] | [Why is that?] | [What's the gap?] | [Real problem] | [Guardrail] |
+
+**Format per issue:**
+```
+Issue: [What was detected - e.g., "Jobs Schedule LCP 4000ms"]
+Why 1: [First level - what's happening? e.g., "Page slow to load"]
+Why 2: [Second level - why? e.g., "Gantt chart is heavy"]
+Why 3: [Third level - what's the actual gap? e.g., "No lazy loading"]
+Root Cause: [The real problem e.g., "Missing dynamic() import"]
+Prevention: [How to stop this class of bug e.g., "Add to dynamic import checklist"]
+```
+
+**Example - The "0 Records" Bug:**
+```
+Issue: Pricebook shows "0 records" but groups have 1000+ items
+Why 1: Header shows wrong count
+Why 2: Using filteredAndSortedEntries.length (client-side)
+Why 3: SSR provides serverTotalRecords but it's not being used
+Root Cause: Header reads from client state before SSR data applied
+Prevention: Add to anti-patterns section, use serverTotalRecords for header
+```
+
+**GATE CHECK before proceeding:**
+- [ ] All WARN/FAIL issues have FRC analysis
+- [ ] Root causes identified (not symptoms)
+- [ ] Prevention steps defined for each
+
+✅ **FRC complete. Proceeding to fixes.**
+
 ### Step 3: Fix Issues Found
 
-**⚠️ BEFORE IMPLEMENTING ANY FIX, REMEMBER:**
-1. **FRC** - WHY does this issue exist? Find root cause, not just symptom
-2. **SSoT** - Is there existing code that should be used/extended?
-3. **Ultra** - Is there a simpler solution? Can we remove code instead of add?
-4. **Gold** - Use approved components from `lib/component-registry.ts`
+**🔴 VERIFY FRC TABLE COMPLETE (Step 2.9) BEFORE PROCEEDING**
+
+Reference your FRC Analysis Table when implementing each fix:
+- Use the identified **ROOT CAUSE** (not symptom)
+- Implement the **PREVENTION** step after each fix
+- Update anti-patterns section if new pattern discovered
+
+**SSoT/Ultra/Gold checks:**
+- **SSoT** - Is there existing code that should be used/extended?
+- **Ultra** - Is there a simpler solution? Can we remove code instead of add?
+- **Gold** - Use approved components from `lib/component-registry.ts`
 
 For each issue detected, implement the appropriate fix:
 
@@ -271,6 +336,27 @@ For each issue detected, implement the appropriate fix:
 - No duplicate implementations created
 - Uses SSoT components/patterns
 - Dark mode supported if UI change
+
+### Step 3.5: Prevention Guardrail
+
+After implementing each fix, add a guardrail to prevent this class of bug:
+
+| Prevention Type | When to Add | How |
+|----------------|-------------|-----|
+| Unit test | Logic bug | Add to `__tests__/` with the exact failing case |
+| Performance budget | Metric violation | Update SLO targets in performance config |
+| Anti-pattern doc | New pattern discovered | Add to anti-patterns section below |
+| TypeScript guard | Type error | Add stricter types to catch at compile time |
+| Code comment | Non-obvious fix | Add `// ⚠️ DO NOT SIMPLIFY` with explanation |
+
+**Example:**
+```
+Fixed: SSR data ignored due to missing ref check
+Prevention:
+1. Added to anti-patterns section (#4)
+2. Added code comment explaining why ref is needed
+3. Added test case for "0 records" scenario
+```
 
 ### Output Format
 
@@ -338,6 +424,44 @@ ISSUES FOUND & FIXED:
 2. Slow query: contacts table - Added index on display_name column
 
 ================================================================================
+```
+
+### Step 4: Regression Check (Baseline Comparison)
+
+Compare current results against baseline stored in `.claude/perf-baseline.json`:
+
+1. **First run:** Save results as baseline
+2. **Subsequent runs:** Compare against baseline
+3. **Flag regressions:** Any metric 20%+ worse = ⚠️ WARN
+
+**Output format:**
+```
+REGRESSION CHECK:
+--------------------------------------------------------------------------------
+Page                    Metric    Now      Baseline   Delta
+--------------------------------------------------------------------------------
+Jobs List               LCP       800ms    750ms      +6.7%
+Jobs > Schedule         CLS       0.15     0.10       +50% ⚠️
+Contacts List           LCP       900ms    950ms      -5.3% ✓
+--------------------------------------------------------------------------------
+```
+
+**After check, ask user:** "Update baseline with new values? (y/n)"
+
+**Baseline file format (.claude/perf-baseline.json):**
+```json
+{
+  "timestamp": "2026-01-15T10:30:00Z",
+  "pages": {
+    "Jobs List": { "lcp": 750, "cls": 0.02 },
+    "Jobs > Schedule": { "lcp": 1100, "cls": 0.10 }
+  },
+  "backend": {
+    "p95": 80,
+    "p99": 392,
+    "error_rate": 1.0
+  }
+}
 ```
 
 ## Chrome DevTools MCP Tools Used
@@ -474,3 +598,23 @@ Before implementing ANY performance fix, verify:
 | Navigation | Will this cause a full page reload? |
 | Cache | Am I working WITH the cache or fighting it? |
 | Refs | Am I adding a ref as a bandaid for a design issue? |
+
+---
+
+### How Each Anti-Pattern Was Discovered (FRC History)
+
+**Learn from past FRC analysis to recognize patterns faster:**
+
+| # | Anti-Pattern | Issue Found | 5 Whys Summary | Date |
+|---|--------------|-------------|----------------|------|
+| 1 | Multiple fetch triggers | Jobs page loaded twice | → Two places called `setAutoFetchRefreshKey` → SSoT violation | 2025-12 |
+| 2 | Volatile useEffect deps | Contacts fetched 3x on load | → `baseFiltersKey` changed during init → dependency too broad | 2025-12 |
+| 3 | Path-based view switch | Cache wiped on view change | → `router.push` unmounts → cache cleared → used path not query | 2026-01 |
+| 4 | SSR data ignored | "0 records" displayed | → Client state read before SSR applied → wrong variable | 2025-01-09 |
+| 5 | Refs as bandaids | Added ref but bug returned | → Ref hid the real issue → effect still ran twice | 2025-12 |
+| 6 | Short cache TTL | Constant reloading | → Reduced TTL "for safety" → but mutations already clear cache | 2025-12 |
+
+**Use this table to:**
+1. Recognize if your current issue matches a known pattern
+2. Learn the 5 Whys process from past bugs
+3. Add new patterns when discovered during `/p` runs
