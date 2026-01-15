@@ -133,11 +133,11 @@ class CorporateBankStatementsJob < ApplicationJob
     if pdf_result[:success]
       result[:statements_generated] += 1
 
-      # Upload to SharePoint
-      upload_result = upload_to_sharepoint(company, bank_account, pdf_result, month_start)
+      # Upload to storage (SSoT: Wasabi/S3/SharePoint via StorageConfiguration)
+      upload_result = upload_to_storage(company, bank_account, pdf_result, month_start)
       if upload_result[:success]
         result[:statements_uploaded] += 1
-        Rails.logger.info("[CorporateBankStatementsJob] Uploaded #{pdf_result[:filename]} to SharePoint")
+        Rails.logger.info("[CorporateBankStatementsJob] Uploaded #{pdf_result[:filename]} to storage")
       else
         result[:errors] << {
           company_id: company.id,
@@ -212,7 +212,7 @@ class CorporateBankStatementsJob < ApplicationJob
     end
   end
 
-  def create_document_record(company:, bank_account:, filename:, folder_path:, month_date:, pdf_size:, sharepoint_url:, sharepoint_file_id:)
+  def create_document_record(company:, bank_account:, filename:, folder_path:, month_date:, pdf_size:, storage_url:, storage_file_id:)
     account_name = bank_account.account_name || "Account"
     month_name = month_date.strftime("%B %Y")
 
