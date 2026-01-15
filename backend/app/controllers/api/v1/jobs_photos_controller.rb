@@ -34,13 +34,15 @@ module Api
         end
 
         # Get jobs with the given job types and statuses
-        # SSoT: supervisor_id is foreign key to users table
-        jobs = Job.includes(:job_status, :job_type, :supervisor)
+        # SSoT: supervisor is stored via job_contacts (role: "supervisor"), NOT supervisor_id FK
+        # Include job_contacts to eager-load the supervisor relationship
+        jobs = Job.includes(:job_status, :job_type, job_contacts: :user)
                   .where(job_status_id: status_filter)
                   .where(job_type_id: job_type_ids)
-                  .where.not(supervisor_id: nil)
-                  .order(Arel.sql("users.name"), :name)
-                  .joins(:supervisor)
+                  .joins(:job_contacts)
+                  .where(job_contacts: { role: "supervisor" })
+                  .distinct
+                  .order(:name)
 
         # SSoT: Only show photos from current storage provider (no fallback)
         storage_config = StorageConfiguration.instance
@@ -50,7 +52,9 @@ module Api
         grouped_data = {}
 
         jobs.find_each do |job|
-          supervisor = job.supervisor&.name || "Unassigned"
+          # SSoT: Get supervisor from job_contacts (role: "supervisor"), not supervisor_id FK
+          supervisor_contact = job.job_contacts.find { |jc| jc.role == "supervisor" }
+          supervisor = supervisor_contact&.user&.name || "Unassigned"
 
           # Get latest photos for this job from JobDocument (data warehouse)
           # SSoT: Filter by current storage provider only - no fallback to other providers
