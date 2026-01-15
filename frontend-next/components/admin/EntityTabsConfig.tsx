@@ -1299,19 +1299,26 @@ export function EntityTabsConfig({
                       >
                         <FolderOpen className="h-3 w-3 shrink-0" />
                         <span>{
-                          // SSoT: Always show full path (base + folder) when available
-                          tab.sharepoint_base_path
-                            ? `${tab.sharepoint_base_path}/${tab.sharepoint_folder_path || tab.effective_sharepoint_path || tab.display_name}`
-                            : (tab.effective_sharepoint_path || tab.hierarchy_path || tab.display_name)
+                          // SSoT: Use StorageConfiguration (via getBasePath) as THE source for paths
+                          // Determine scope based on storage_path_type override or default scope
+                          (() => {
+                            const pathScope = tab.sharepoint_path_type === 'corporate' ? 'people' : scope;
+                            const basePath = getBasePath(pathScope);
+                            const folderPath = tab.sharepoint_folder_path || tab.display_name;
+                            return `${basePath}/${folderPath}`;
+                          })()
                         }</span>
                       </Badge>
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className="max-w-lg">
                       <p className="font-mono text-xs break-all">{
-                        // SSoT: Always show full path (base + folder) when available
-                        tab.sharepoint_base_path
-                          ? `${tab.sharepoint_base_path}/${tab.sharepoint_folder_path || tab.effective_sharepoint_path || tab.display_name}`
-                          : (tab.effective_sharepoint_path || tab.hierarchy_path || tab.display_name)
+                        // SSoT: Use StorageConfiguration (via getBasePath) as THE source for paths
+                        (() => {
+                          const pathScope = tab.sharepoint_path_type === 'corporate' ? 'people' : scope;
+                          const basePath = getBasePath(pathScope);
+                          const folderPath = tab.sharepoint_folder_path || tab.display_name;
+                          return `${basePath}/${folderPath}`;
+                        })()
                       }</p>
                       <p className="text-muted-foreground mt-1">{tab.uses_custom_path ? "Custom path" : "Global template"}</p>
                     </TooltipContent>
