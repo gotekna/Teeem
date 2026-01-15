@@ -206,8 +206,8 @@ class BatchPlanReextractionJob < ApplicationJob
   end
 
   def format_job_code(job)
-    # Format job ID as a code (e.g., "46" -> "J046")
-    "J#{job.id.to_s.rjust(3, '0')}"
+    # SSoT: Use job_code from database column
+    job.job_code
   end
 
   def sanitize_filename(name)

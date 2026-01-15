@@ -159,8 +159,8 @@ class Form43CertificateGenerator
     if document_type.file_name.present?
       document_type.generate_proposed_name(job: job, file_extension: "pdf")
     else
-      # Fallback filename
-      job_code = "J#{job.id.to_s.rjust(3, '0')}"
+      # Fallback filename - SSoT: use database column
+      job_code = job.job_code
       date = Date.current.strftime("%d-%m-%Y")
       "#{job_code} #{document_type.abbreviation || 'CERT'} Form43 #{date}.pdf"
     end

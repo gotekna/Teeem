@@ -146,7 +146,7 @@ class PlanCombinerService
 
   def build_template_values(plan_type)
     {
-      job_code: "J#{@job.id.to_s.rjust(3, '0')}",
+      job_code: @job.job_code,
       job_name: @job.name,
       job_address: @job.name,
       lot_number: @job.lot_number.to_s,

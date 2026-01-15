@@ -353,8 +353,8 @@ class DocumentType < ApplicationRecord
 
     format = file_name.dup
 
-    # Job placeholders with actual data
-    job_code = "J#{job.id.to_s.rjust(3, '0')}"
+    # Job placeholders - SSoT: use database column, not hardcoded pattern
+    job_code = job.job_code
     job_title = job.title.to_s.split(",").first.to_s.strip.gsub(/[^\w\s-]/, "").strip[0..30] # First part of address, sanitized
 
     format.gsub!("{JobCode}", job_code)
