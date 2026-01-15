@@ -1298,21 +1298,19 @@ export function EntityTabsConfig({
                       >
                         <FolderOpen className="h-3 w-3 shrink-0" />
                         <span>{
-                          tab.uses_custom_path
-                            ? (tab.sharepoint_folder_path || tab.display_name)
-                            : (tab.sharepoint_base_path && tab.effective_sharepoint_path
-                                ? `${tab.sharepoint_base_path}/${tab.effective_sharepoint_path}`
-                                : (tab.effective_sharepoint_path || tab.hierarchy_path || tab.display_name))
+                          // SSoT: Always show full path (base + folder) when available
+                          tab.sharepoint_base_path
+                            ? `${tab.sharepoint_base_path}/${tab.sharepoint_folder_path || tab.effective_sharepoint_path || tab.display_name}`
+                            : (tab.effective_sharepoint_path || tab.hierarchy_path || tab.display_name)
                         }</span>
                       </Badge>
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className="max-w-lg">
                       <p className="font-mono text-xs break-all">{
-                        tab.uses_custom_path
-                          ? (tab.sharepoint_folder_path || tab.display_name)
-                          : (tab.sharepoint_base_path && tab.effective_sharepoint_path
-                              ? `${tab.sharepoint_base_path}/${tab.effective_sharepoint_path}`
-                              : (tab.effective_sharepoint_path || tab.hierarchy_path || tab.display_name))
+                        // SSoT: Always show full path (base + folder) when available
+                        tab.sharepoint_base_path
+                          ? `${tab.sharepoint_base_path}/${tab.sharepoint_folder_path || tab.effective_sharepoint_path || tab.display_name}`
+                          : (tab.effective_sharepoint_path || tab.hierarchy_path || tab.display_name)
                       }</p>
                       <p className="text-muted-foreground mt-1">{tab.uses_custom_path ? "Custom path" : "Global template"}</p>
                     </TooltipContent>
@@ -2367,10 +2365,24 @@ export function EntityTabsConfig({
             {showSharePointPaths && (
               <div className="space-y-3">
                 {/* Base path from StorageConfiguration - SSoT for scope folders */}
+                {/* SSoT: Sub-tabs inherit base path from parent - not editable */}
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Base Path</Label>
-                  {scope === "contact" ? (
-                    // Contacts can use either /Contacts/ or /Corporate/People/ base path
+                  <Label className="text-xs text-muted-foreground">
+                    Base Path
+                    {(formData.parent_id || editingTab?.parent_id) && (
+                      <span className="ml-1 text-blue-600 dark:text-blue-400">(inherited from parent)</span>
+                    )}
+                  </Label>
+                  {(formData.parent_id || editingTab?.parent_id) ? (
+                    // Sub-tabs: inherit from parent - read-only display
+                    <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
+                      <span className="inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border bg-muted dark:bg-slate-800 text-foreground dark:text-muted-foreground border-border dark:border-border">
+                        {editingTab?.sharepoint_base_path || getBasePath(scope)}
+                      </span>
+                      <span className="text-muted-foreground">/</span>
+                    </div>
+                  ) : scope === "contact" ? (
+                    // Root contact tabs: can choose between /Contacts/ or /Corporate/People/
                     <div className="flex items-center gap-1">
                       <Select
                         value={formData.sharepoint_path_type === 'corporate' ? 'people' : 'contact'}
