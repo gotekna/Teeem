@@ -99,6 +99,102 @@ namespace :storage do
     end
   end
 
+  desc "FAST parallel migration of /corporate to /Corporate (10 threads)"
+  task :migrate_lowercase_corporate_fast, [:mode] => :environment do |_t, args|
+    dry_run = args[:mode] != "apply"
+    thread_count = 10
+
+    puts "=" * 60
+    puts dry_run ? "DRY RUN - No changes will be made" : "APPLYING CHANGES (#{thread_count} threads)"
+    puts "=" * 60
+
+    credential = S3CompatibleCredential.active.connected.first
+    unless credential
+      puts "ERROR: No S3/Wasabi credential configured"
+      exit 1
+    end
+
+    provider = DocumentProviders::S3Compatible.new(credential)
+    bucket = provider.instance_variable_get(:@bucket)
+
+    # List all files in /corporate
+    puts "\nScanning /corporate folder..."
+    items = provider.list_folder("/corporate", recursive: true)
+    files = items.select { |i| i[:type] == :file }
+
+    puts "Found #{files.count} files to migrate"
+    puts "Using #{thread_count} parallel threads\n\n"
+
+    if dry_run
+      files.first(10).each do |file|
+        old_path = file[:path]
+        new_path = old_path.sub(%r{^/corporate/}, "/Corporate/")
+        puts "MIGRATE: #{old_path}"
+        puts "      -> #{new_path}"
+      end
+      puts "... and #{files.count - 10} more" if files.count > 10
+    else
+      require "concurrent"
+
+      migrated = Concurrent::AtomicFixnum.new(0)
+      errors = Concurrent::Array.new
+
+      pool = Concurrent::FixedThreadPool.new(thread_count)
+      files.each do |file|
+        pool.post do
+          old_path = file[:path]
+          new_path = old_path.sub(%r{^/corporate/}, "/Corporate/")
+
+          begin
+            old_key = old_path.sub(/^\//, "")
+            new_key = new_path.sub(/^\//, "")
+
+            # Each thread gets its own client (thread-safe)
+            client = Aws::S3::Client.new(
+              endpoint: credential.endpoint,
+              region: credential.region,
+              access_key_id: credential.access_key_id,
+              secret_access_key: credential.secret_access_key,
+              force_path_style: true
+            )
+
+            # Copy
+            encoded_source = "#{bucket}/#{CGI.escape(old_key).gsub('+', '%20')}"
+            client.copy_object(
+              bucket: bucket,
+              copy_source: encoded_source,
+              key: new_key
+            )
+
+            # Delete original
+            client.delete_object(bucket: bucket, key: old_key)
+
+            count = migrated.increment
+            print "." if count % 100 == 0
+            print "[#{count}]" if count % 1000 == 0
+          rescue => e
+            errors << { file: old_path, error: e.message }
+          end
+        end
+      end
+
+      pool.shutdown
+      pool.wait_for_termination
+
+      puts "\n\n" + "=" * 60
+      puts "SUMMARY"
+      puts "=" * 60
+      puts "Migrated: #{migrated.value}"
+      puts "Errors: #{errors.count}"
+      errors.first(10).each { |e| puts "  - #{e[:file]}: #{e[:error]}" }
+    end
+
+    if dry_run && files.count > 0
+      puts "\nTo apply changes, run:"
+      puts "  rake storage:migrate_lowercase_corporate_fast[apply]"
+    end
+  end
+
   def migrate_lowercase_folder(source_path:, target_base:, code_column:, model_class:, dry_run:)
     puts "=" * 60
     puts dry_run ? "DRY RUN - No changes will be made" : "APPLYING CHANGES"

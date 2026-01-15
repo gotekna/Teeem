@@ -1065,23 +1065,49 @@ module Api
       # Create anonymous SharePoint sharing link ("Anyone with the link")
       def create_attachment_share_link
         attachment = @task.sm_task_attachments.find(params[:attachment_id])
-        document = attachment.attachable
+        attachable = attachment.attachable
 
-        unless document.is_a?(CorporateCompanyDocument) && document.sharepoint_file_id.present?
-          return render json: { success: false, error: "File not on SharePoint" }, status: :unprocessable_entity
+        # Handle both document and email attachments
+        case attachable
+        when CorporateCompanyDocument
+          unless attachable.sharepoint_file_id.present?
+            return render json: { success: false, error: "Document not on SharePoint" }, status: :unprocessable_entity
+          end
+
+          # Documents use org's SharePoint
+          credential = MicrosoftCredential.active_for_org(current_organization)
+          unless credential
+            return render json: { success: false, error: "SharePoint not configured" }, status: :unprocessable_entity
+          end
+
+          file_id = attachable.sharepoint_file_id
+          drive_id = credential.drive_id
+
+        when EmailWarehouse
+          # Emails use file_id from sharepoint_email_file_id or storage_file_id
+          file_id = attachable.sharepoint_email_file_id || attachable.storage_file_id
+          unless file_id.present?
+            return render json: { success: false, error: "Email not stored in SharePoint" }, status: :unprocessable_entity
+          end
+
+          # Emails use TEEEM's SharePoint (StorageConfiguration)
+          sp_config = MicrosoftCredential.teeem_sharepoint_config
+          unless sp_config
+            return render json: { success: false, error: "SharePoint storage not configured" }, status: :unprocessable_entity
+          end
+
+          credential = sp_config[:credential]
+          drive_id = sp_config[:drive_id]
+
+        else
+          return render json: { success: false, error: "Attachment type not supported for sharing" }, status: :unprocessable_entity
         end
 
-        # Get SharePoint client
-        credential = MicrosoftCredential.active_for_org(current_organization)
-        unless credential
-          return render json: { success: false, error: "SharePoint not configured" }, status: :unprocessable_entity
-        end
-
-        # Create anonymous sharing link using public method
+        # Create anonymous sharing link
         client = MicrosoftAppGraphClient.new(credential)
         result = client.create_share_link(
-          drive_id: credential.drive_id,
-          item_id: document.sharepoint_file_id,
+          drive_id: drive_id,
+          item_id: file_id,
           type: "view",
           scope: "anonymous"  # "Anyone with the link" - no login required
         )
@@ -1623,6 +1649,34 @@ module Api
         else
           render json: { success: false, error: result[:error] }, status: :unprocessable_entity
         end
+      end
+
+      # POST /api/v1/sm_tasks/:id/action_items/:item_id/undelegate
+      # Unlink a delegated task from an action item (optionally delete the task)
+      def undelegate_action_item
+        @task = SmTask.find(params[:id])
+        item = @task.action_items.find(params[:item_id])
+
+        unless item.delegated_task_id.present?
+          return render json: { success: false, error: "No task linked to this item" }, status: :unprocessable_entity
+        end
+
+        delegated_task = SmTask.find_by(id: item.delegated_task_id)
+
+        # Option to also delete the spawned task
+        if params[:delete_task] && delegated_task
+          delegated_task.destroy
+        end
+
+        # Unlink the task from the action item
+        item.update!(delegated_task_id: nil)
+
+        render json: {
+          success: true,
+          action_item: action_item_to_json(item.reload)
+        }
+      rescue ActiveRecord::RecordNotFound => e
+        render json: { success: false, error: "Not found" }, status: :not_found
       end
 
       # POST /api/v1/sm_tasks/:id/action_items/reorder

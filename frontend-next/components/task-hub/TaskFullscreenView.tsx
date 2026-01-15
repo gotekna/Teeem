@@ -68,6 +68,7 @@ import {
 } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 import { useWorkingDays } from '@/lib/hooks/useWorkingDays';
 import { ComboboxDropdown, ComboboxItem } from '@/components/ui/combobox-dropdown';
 import { ExpandChevron } from '@/components/ui/expand-chevron';
@@ -138,6 +139,7 @@ interface SortableQuestionItemProps {
   setDelegatingQuestionId?: (id: number | null) => void;
   delegationUsers?: User[];
   handleDelegateQuestion?: (itemId: number, userId: number) => void;
+  handleUndelegateQuestion?: (itemId: number) => void;  // Unlink a delegated task
   onCreateAction?: (text: string) => void;  // Create action item from question
 }
 
@@ -174,6 +176,7 @@ function SortableQuestionItem({
   setDelegatingQuestionId,
   delegationUsers,
   handleDelegateQuestion,
+  handleUndelegateQuestion,
   onCreateAction,
 }: SortableQuestionItemProps) {
   const [isFileDropTarget, setIsFileDropTarget] = useState(false);
@@ -582,6 +585,15 @@ function SortableQuestionItem({
               ({item.delegated_task.assigned_user_name})
             </span>
           )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
+            onClick={() => handleUndelegateQuestion?.(item.id)}
+            title="Unlink task"
+          >
+            <X className="h-3 w-3" />
+          </Button>
         </div>
       ) : delegatingQuestionId === item.id ? (
         <div className="ml-6 flex gap-2 items-center">
@@ -674,6 +686,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     updateActionItem,
     removeActionItem,
     delegateActionItem,
+    undelegateActionItem,
     toggleIncludeInResponse,
     reorderActionItems,
     setTaskPrivacy,
@@ -1398,6 +1411,19 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     refresh();
   };
 
+  const handleUndelegateQuestion = async (itemId: number) => {
+    setActionItemLoading(itemId);
+    try {
+      await undelegateActionItem(task.id, itemId, false);  // Don't delete the task, just unlink
+      toast.success('Task unlinked');
+    } catch (err) {
+      console.error('Failed to unlink task:', err);
+      toast.error('Failed to unlink task');
+    }
+    setActionItemLoading(null);
+    refresh();
+  };
+
   // Attachments
   const handleAddAttachment = async (attachment: PendingAttachment) => {
     setAttachmentLoading(true);
@@ -1450,6 +1476,24 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       console.error('Failed to remove attachment:', err);
     }
     setAttachmentLoading(false);
+  };
+
+  // Get shareable link for an attachment (email or document) and copy to clipboard
+  const handleCopyShareLink = async (attachmentId: number) => {
+    try {
+      const response = await api.post<{ success: boolean; share_url?: string; error?: string }>(
+        `/api/v1/sm_tasks/${task.id}/attachments/${attachmentId}/share_link`
+      );
+      if (response.success && response.share_url) {
+        await navigator.clipboard.writeText(response.share_url);
+        toast.success('Link copied to clipboard');
+      } else {
+        toast.error(response.error || 'Failed to create share link');
+      }
+    } catch (err) {
+      console.error('Failed to create share link:', err);
+      toast.error('Failed to create share link');
+    }
   };
 
   const handleSaveKeywords = async () => {
@@ -3566,6 +3610,18 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                 )}
                               </div>
                             </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-5 w-5 p-0 text-muted-foreground hover:text-blue-500"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopyShareLink(att.id);
+                              }}
+                              title="Copy shareable link"
+                            >
+                              <Link2 className="h-3 w-3" />
+                            </Button>
                             <Button
                               variant="ghost"
                               size="sm"

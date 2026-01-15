@@ -271,6 +271,7 @@ export interface TaskHubContextType extends TaskHubState {
   updateActionItem: (taskId: number, itemId: number, text: string) => Promise<TaskActionItem>;
   removeActionItem: (taskId: number, itemId: number) => Promise<void>;
   delegateActionItem: (taskId: number, itemId: number, userId: number) => Promise<TaskActionItem>;
+  undelegateActionItem: (taskId: number, itemId: number, deleteTask?: boolean) => Promise<TaskActionItem>;
   toggleIncludeInResponse: (taskId: number, itemId: number) => Promise<void>;
   reorderActionItems: (taskId: number, items: Array<{ id: number; position: number; parent_item_id: number | null }>) => Promise<void>;
 
@@ -1157,6 +1158,27 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     throw new Error('Failed to delegate question');
   }, []);
 
+  const undelegateActionItem = useCallback(async (taskId: number, itemId: number, deleteTask: boolean = false): Promise<TaskActionItem> => {
+    const response = await api.post<{ action_item: TaskActionItem; success: boolean }>(
+      `/api/v1/sm_tasks/${taskId}/action_items/${itemId}/undelegate`,
+      { delete_task: deleteTask }
+    );
+    if (response?.success && response?.action_item) {
+      setTasks(prev => prev.map(t =>
+        t.id === taskId
+          ? {
+              ...t,
+              action_items: (t.action_items || []).map(item =>
+                item.id === itemId ? response.action_item : item
+              )
+            }
+          : t
+      ));
+      return response.action_item;
+    }
+    throw new Error('Failed to unlink task');
+  }, []);
+
   const toggleIncludeInResponse = useCallback(async (taskId: number, itemId: number) => {
     // Find current value
     const currentTask = tasks.find(t => t.id === taskId);
@@ -1449,6 +1471,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     updateActionItem,
     removeActionItem,
     delegateActionItem,
+    undelegateActionItem,
     toggleIncludeInResponse,
     reorderActionItems,
     // Privacy

@@ -1655,6 +1655,7 @@ Rails.application.routes.draw do
           post "action_items/:item_id/toggle", action: :toggle_action_item
           post "action_items/:item_id/answer", action: :answer_action_item
           post "action_items/:item_id/delegate", action: :delegate_action_item
+          post "action_items/:item_id/undelegate", action: :undelegate_action_item
           patch "action_items/:item_id", action: :update_action_item
           delete "action_items/:item_id", action: :destroy_action_item
           post "action_items/reorder", action: :reorder_action_items
