@@ -121,13 +121,14 @@ export function AddSubscriptionDialog({
 
     setSearchingContacts(true);
     try {
-      const response = await api.get<{ data: { id: number; name: string; email?: string }[] }>(
+      // SSoT: Backend returns { success, contacts } with display_name field
+      const response = await api.get<{ success: boolean; contacts: { id: number; display_name: string; email?: string }[] }>(
         `/api/v1/contacts?search=${encodeURIComponent(query)}&limit=10`
       );
 
-      const items: (ComboboxItem & { email?: string })[] = (response.data || []).map((contact) => ({
+      const items: (ComboboxItem & { email?: string })[] = (response.contacts || []).map((contact) => ({
         id: String(contact.id),
-        label: contact.name,
+        label: contact.display_name,
         email: contact.email,
         searchText: contact.email, // Allow searching by email too
       }));
