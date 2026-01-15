@@ -1083,34 +1083,6 @@ class Api::V1::EmailWarehouseController < ApplicationController
     @email = EmailWarehouse.includes(:job).find(params[:id])
   end
 
-  # Check if attachment is a signature/embedded image that should be hidden
-  def signature_attachment?(attachment_data)
-    filename = attachment_data["name"].to_s.downcase
-    is_inline = attachment_data["isInline"] == true
-    file_size = attachment_data["size"].to_i
-    content_type = attachment_data["contentType"].to_s.downcase
-
-    # Only filter images
-    return false unless content_type.start_with?("image/")
-
-    # Signature patterns
-    signature_patterns = [
-      /^image\d{3}\.(png|jpg|jpeg|gif)$/i,  # image001.png, image002.jpg
-      /^[a-f0-9]{32}\.(png|jpg|jpeg|gif)$/i, # 32-char hex filenames
-      /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(png|jpg|jpeg|gif)$/i, # UUID filenames
-      /^cid:/i,                              # Content-ID references
-      /^outlook-signature[_-]/i,             # Outlook signature files
-    ]
-
-    # Filter if matches signature pattern (inline or not)
-    return true if signature_patterns.any? { |pattern| filename.match?(pattern) }
-
-    # Filter very small inline images (< 10KB) - likely icons
-    return true if is_inline && file_size < 10_000
-
-    false
-  end
-
   def email_json(email, include_body: false, include_thread: false, include_thread_count: false, include_suggestions: false, contacts_cache: nil, thread_counts_cache: nil, user_states_cache: nil, thread_emails: nil)
     # Get user's read state - check cache first, then database
     user_state = if user_states_cache
@@ -1241,8 +1213,8 @@ class Api::V1::EmailWarehouseController < ApplicationController
       client = MicrosoftAppGraphClient.new(credential)
       ms_attachments = client.get_email_attachments(mailbox, email.outlook_id)
 
-      # Filter out signature/embedded images
-      filtered = ms_attachments.reject { |att| signature_attachment?(att) }
+      # SSoT: Use EmailAttachmentFilterService to filter out signature/embedded images
+      filtered = EmailAttachmentFilterService.filter_attachments(ms_attachments)
 
       # SSoT: Update attachment_count when we discover actual count from Outlook
       # This ensures the count is accurate for future list views

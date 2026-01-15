@@ -45,7 +45,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { API_TIMEOUT_FILE_UPLOAD } from "@/lib/constants/timeout-constants";
-import { uploadToSharePointDirect } from "@/lib/sharepoint-upload";
+import { uploadPhoto } from "@/lib/sharepoint-upload";
 import { EmailPlansModal } from "@/components/plans/EmailPlansModal";
 import { PlanProcessingModal, OperationType } from "@/components/jobs/PlanProcessingModal";
 import { useToast } from "@/components/ui/use-toast";
@@ -658,8 +658,8 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
           type: selectedFile.type,
         });
 
-        // ULTRA MASTERPIECE: Direct browser-to-SharePoint upload (50% faster)
-        const uploadResult = await uploadToSharePointDirect(renamedFile, {
+        // SSoT: Provider-agnostic upload (SharePoint direct or S3 multipart)
+        const uploadResult = await uploadPhoto(renamedFile, {
           jobId,
           folderPath: "Plans", // Relative to job folder
           filename: renamedFileName,

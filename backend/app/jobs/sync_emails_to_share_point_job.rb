@@ -101,12 +101,9 @@ class SyncEmailsToSharePointJob < ApplicationJob
         attachments = client.get_email_attachments(email.mailbox_owner_email, email.outlook_id)
 
         attachments.each do |attachment_data|
-          # Only process file attachments (skip inline/embedded)
-          next unless attachment_data["@odata.type"] == "#microsoft.graph.fileAttachment"
-
-          # Skip signature images (inline images with signature-like names, or tiny images)
-          if skip_signature_image?(attachment_data)
-            Rails.logger.info "[SyncToSharePoint] Skipping signature image: #{attachment_data['name']} (inline: #{attachment_data['isInline']}, size: #{attachment_data['size']})"
+          # SSoT: Use EmailAttachmentFilterService for filtering signatures/embedded images
+          if EmailAttachmentFilterService.should_skip?(attachment_data)
+            Rails.logger.info "[SyncToSharePoint] Skipping attachment: #{attachment_data['name']} (inline: #{attachment_data['isInline']}, size: #{attachment_data['size']})"
             next
           end
 
@@ -363,38 +360,4 @@ class SyncEmailsToSharePointJob < ApplicationJob
     SharePoint::FilenameSanitizer.sanitize(filename)
   end
 
-  # Skip signature/embedded images that aren't real attachments
-  # Rules:
-  # 1. Inline images with signature-like filenames (image001.png, image002.jpg, etc.)
-  # 2. Very small images (< 10KB) that are likely icons/logos
-  # 3. Images with GUID-like filenames (often Outlook Content-IDs)
-  def skip_signature_image?(attachment_data)
-    filename = attachment_data["name"].to_s.downcase
-    is_inline = attachment_data["isInline"] == true
-    file_size = attachment_data["size"].to_i
-    content_type = attachment_data["contentType"].to_s.downcase
-
-    # Only apply these rules to images
-    return false unless content_type.start_with?("image/")
-
-    # Rule 1: Inline images with signature-like patterns
-    signature_patterns = [
-      /^image\d{3}\.(png|jpg|jpeg|gif)$/i,  # image001.png, image002.jpg
-      /^[a-f0-9]{32}\.(png|jpg|jpeg|gif)$/i, # 32-char hex filenames (Outlook CIDs)
-      /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(png|jpg|jpeg|gif)$/i, # UUID filenames
-      /^cid:/i,                              # Content-ID references
-      /^outlook-signature[_-]/i,             # Outlook signature files
-    ]
-
-    if is_inline && signature_patterns.any? { |pattern| filename.match?(pattern) }
-      return true
-    end
-
-    # Rule 2: Very small INLINE images (< 10KB) are likely icons/social media buttons
-    if is_inline && file_size < 10_000
-      return true
-    end
-
-    false
-  end
 end

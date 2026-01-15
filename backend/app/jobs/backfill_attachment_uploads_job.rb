@@ -79,16 +79,9 @@ class BackfillAttachmentUploadsJob < ApplicationJob
           next
         end
 
-        # Only process file attachments
-        unless attachment_data["@odata.type"] == "#microsoft.graph.fileAttachment"
-          Rails.logger.info "[BackfillAttachments] Skipping non-file attachment: #{attachment_data['name']}"
-          skipped += 1
-          next
-        end
-
-        # Skip signature images (inline images with signature-like names, or tiny images)
-        if skip_signature_image?(attachment_data)
-          Rails.logger.info "[BackfillAttachments] Skipping signature image: #{attachment_data['name']} (inline: #{attachment_data['isInline']}, size: #{attachment_data['size']})"
+        # SSoT: Use EmailAttachmentFilterService to skip signatures/embedded/non-file attachments
+        if EmailAttachmentFilterService.should_skip?(attachment_data)
+          Rails.logger.info "[BackfillAttachments] Skipping attachment: #{attachment_data['name']} (inline: #{attachment_data['isInline']}, size: #{attachment_data['size']})"
           skipped += 1
           next
         end

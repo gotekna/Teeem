@@ -1564,24 +1564,37 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     setBulkLinkLoading(false);
   };
 
-  // Search contacts for email linking (with debounce)
+  // Search contacts for email linking (with debounce and abort support)
+  const contactSearchAbortRef = useRef<AbortController | null>(null);
+
   const handleContactSearch = (query: string) => {
     setContactSearchQuery(query);
+
+    // Cancel any in-flight request
+    if (contactSearchAbortRef.current) {
+      contactSearchAbortRef.current.abort();
+      contactSearchAbortRef.current = null;
+    }
 
     // Clear previous timeout
     if (contactSearchTimeoutRef.current) {
       clearTimeout(contactSearchTimeoutRef.current);
     }
 
-    // Clear results if query too short
+    // Clear results and loading if query too short
     if (query.length < 2) {
       setContactSearchResults([]);
+      setContactSearchLoading(false);
       return;
     }
 
     // Debounce the search
     contactSearchTimeoutRef.current = setTimeout(async () => {
       setContactSearchLoading(true);
+
+      // Create new AbortController for this request
+      contactSearchAbortRef.current = new AbortController();
+
       try {
         const response = await api.get<{
           success: boolean;
@@ -1592,15 +1605,25 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             emails: string[];
             email_count: number;
           }>;
-        }>(`/api/v1/sm_tasks/${task.id}/search_contacts?q=${encodeURIComponent(query)}`);
+        }>(`/api/v1/sm_tasks/${task.id}/search_contacts?q=${encodeURIComponent(query)}`, {
+          signal: contactSearchAbortRef.current.signal
+        });
 
         if (response?.success) {
           setContactSearchResults(response.contacts);
+        } else {
+          setContactSearchResults([]);
         }
       } catch (err) {
+        // Don't log abort errors - they're expected when user types quickly
+        if (err instanceof Error && err.name === 'AbortError') {
+          return; // Don't update state for aborted requests
+        }
         console.error('Failed to search contacts:', err);
+        setContactSearchResults([]);
+      } finally {
+        setContactSearchLoading(false);
       }
-      setContactSearchLoading(false);
     }, 300);
   };
 

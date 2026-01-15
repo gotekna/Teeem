@@ -1190,9 +1190,9 @@ module Api
 
         results = contacts.map do |contact|
           emails = contact.all_emails
-          next nil if emails.empty?
 
-          email_count = EmailWarehouse.involving_email(emails).count
+          # Count emails in warehouse (0 if contact has no emails)
+          email_count = emails.any? ? EmailWarehouse.involving_email(emails).count : 0
 
           {
             id: contact.id,
@@ -1201,11 +1201,12 @@ module Api
             emails: emails,
             email_count: email_count
           }
-        end.compact
+        end
 
+        # Sort by email count (most emails first), then by name
         render json: {
           success: true,
-          contacts: results.sort_by { |c| -c[:email_count] }
+          contacts: results.sort_by { |c| [ -c[:email_count], c[:name].to_s.downcase ] }
         }
       end
 

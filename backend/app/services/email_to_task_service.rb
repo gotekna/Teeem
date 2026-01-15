@@ -236,7 +236,8 @@ class EmailToTaskService
       attachments = client.get_email_attachments(@email.mailbox_owner_email, @email.outlook_id)
 
       attachments.each do |attachment|
-        next unless attachment["@odata.type"] == "#microsoft.graph.fileAttachment"
+        # SSoT: Use EmailAttachmentFilterService to skip signatures/embedded images
+        next if EmailAttachmentFilterService.should_skip?(attachment)
         next unless attachment["contentBytes"].present?
 
         filename = attachment["name"] || "attachment"

@@ -57,7 +57,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { api, getApiBaseUrl } from "@/lib/api";
-import { uploadPhoto, uploadToSharePointDirect, type UploadProgress } from "@/lib/sharepoint-upload";
+import { uploadPhoto, type UploadProgress } from "@/lib/sharepoint-upload";
 
 interface OrgStatus {
   loading: boolean;
@@ -1115,19 +1115,23 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  // ULTRA MASTERPIECE: Direct browser-to-SharePoint file upload
+  // Provider-agnostic file upload (folder browser)
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !uploadFolderId) return;
 
     try {
-      // Direct upload to SharePoint (skips backend proxy!)
-      const result = await uploadToSharePointDirect(file, {
+      // Derive folder path from breadcrumb for S3 fallback
+      const derivedPath = folderPath.map(f => f.name).join("/");
+
+      // SSoT: Use provider-agnostic upload function
+      const result = await uploadPhoto(file, {
         jobId,
-        folderId: uploadFolderId,
+        folderId: uploadFolderId, // For SharePoint direct upload
+        folderPath: derivedPath,  // For S3 fallback
         filename: file.name,
         onProgress: (progress: UploadProgress) => {
-          console.log(`[DirectUpload] ${progress.status}: ${progress.percentage}%`);
+          console.log(`[FileUpload] ${progress.status}: ${progress.percentage}%`);
         },
       });
 
