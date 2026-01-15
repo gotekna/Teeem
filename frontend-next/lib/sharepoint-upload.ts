@@ -170,25 +170,17 @@ export async function uploadToSharePointDirect(
       message: "Finalizing...",
     });
 
-    if (!result.id) {
-      console.warn('[DirectUpload] Upload succeeded but no item ID returned from SharePoint - warehouse sync may be skipped');
-    }
-
-    if (result.id && jobId) {
-      try {
-        await api.post("/api/v1/sharepoint/upload_complete", {
-          job_id: jobId,
-          filename: safeFilename,
-          file_size: file.size,
-          folder_path: folderPath,
-          web_url: result.webUrl,
-          sharepoint_item_id: result.id,
-        });
-      } catch (completeError) {
-        // Don't fail the whole upload if completion notification fails
-        // The file is already in SharePoint
-        console.warn("Upload complete notification failed:", completeError);
-      }
+    // Always call upload_complete if we have a jobId - even without SharePoint ID
+    // This ensures warehouse sync happens. Let backend handle missing ID gracefully.
+    if (jobId) {
+      await api.post("/api/v1/sharepoint/upload_complete", {
+        job_id: jobId,
+        filename: safeFilename,
+        file_size: file.size,
+        folder_path: folderPath,
+        web_url: result.webUrl,
+        sharepoint_item_id: result.id, // May be undefined - backend will sync by path
+      });
     }
 
     onProgress?.({

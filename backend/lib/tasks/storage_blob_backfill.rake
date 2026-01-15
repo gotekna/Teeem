@@ -40,18 +40,18 @@ namespace :storage_blob do
     total_errors = 0
     total_skipped = 0
 
-    # Process CorporateCompanyDocument (11,512 with ActiveStorage)
+    # Process CorporateCompanyDocument
+    # Strategy: Use content_hash + storage_path (already in S3) - no ActiveStorage download needed
     puts "-" * 70
     puts "Processing CorporateCompanyDocument"
     puts "-" * 70
 
-    # SSoT: Only process documents that have ActiveStorage attachments
-    # Use joins(:file_attachment) to filter to those with ActiveStorage
-    scope = CorporateCompanyDocument.joins(:file_attachment).where(storage_blob_id: nil)
+    # SSoT: Process documents that have storage_path (already in S3) but no storage_blob_id
+    scope = CorporateCompanyDocument.where(storage_blob_id: nil).where.not(storage_path: nil).where.not(content_hash: nil)
     scope = scope.limit(limit) if limit.present?
 
     total_to_process = scope.count
-    puts "Found #{total_to_process} documents with ActiveStorage (no storage_blob_id)"
+    puts "Found #{total_to_process} documents with storage_path+content_hash (no storage_blob_id)"
 
     if total_to_process == 0
       puts "  Nothing to process"
@@ -63,63 +63,38 @@ namespace :storage_blob do
         end
 
         begin
-          # Check if file is attached via ActiveStorage
-          unless doc.file.attached?
-            # Check if already has content_hash (migrated via SharePoint)
-            if doc.content_hash.present?
-              if execute
-                blob = find_or_create_blob_from_existing(doc)
-                if blob
-                  doc.update_column(:storage_blob_id, blob.id)
-                  total_migrated += 1
-                  total_deduplicated += 1 if blob.reference_count > 1
-                else
-                  total_skipped += 1
-                end
-              else
-                total_migrated += 1
-              end
-            else
-              total_skipped += 1
-            end
-            next
-          end
-
-          # Download content from ActiveStorage
-          content = doc.file.download
-
           if execute
-            # Find or create StorageBlob (deduplication happens here)
-            blob = StorageBlob.find_or_create_for_content!(
-              content,
-              filename: doc.file_name || doc.file.filename.to_s,
-              content_type: doc.mime_type || doc.file.content_type
-            )
+            # Check if blob with this hash already exists (deduplication)
+            existing_blob = StorageBlob.find_by(content_hash: doc.content_hash)
 
-            # Link document to blob
-            doc.update_column(:storage_blob_id, blob.id)
-
-            # Increment reference count
-            blob.increment_reference!
-
-            # Check if this was a dedupe (blob existed before)
-            if blob.reference_count > 1
+            if existing_blob
+              # Dedupe - reuse existing blob
+              doc.update_column(:storage_blob_id, existing_blob.id)
+              existing_blob.increment_reference!
               total_deduplicated += 1
+              total_migrated += 1
+            else
+              # Create new blob from existing S3 data (no download needed!)
+              blob = StorageBlob.create!(
+                content_hash: doc.content_hash,
+                storage_path: doc.storage_path,
+                file_size: doc.file_size,
+                original_filename: doc.file_name,
+                content_type: doc.mime_type,
+                reference_count: 1
+              )
+              doc.update_column(:storage_blob_id, blob.id)
+              total_migrated += 1
             end
-
-            total_migrated += 1
           else
-            # Dry run - compute hash to check for potential dedupes
-            hash = Digest::SHA256.hexdigest(content)
-            existing = StorageBlob.find_by(content_hash: hash)
-
+            # Dry run
+            existing = StorageBlob.find_by(content_hash: doc.content_hash)
             if existing
-              puts "  Doc #{doc.id}: Would dedupe to existing blob #{existing.id}" if index < 5
+              puts "  Doc #{doc.id}: Would dedupe to blob #{existing.id}" if index < 5
               total_deduplicated += 1
             else
-              puts "  Doc #{doc.id}: Would create new blob (#{content.bytesize} bytes)" if index < 5
+              puts "  Doc #{doc.id}: Would create new blob" if index < 5
             end
-
             total_migrated += 1
           end
 

@@ -1175,7 +1175,7 @@ Rails.application.routes.draw do
         end
       end
 
-      # Microsoft unified auth (Outlook + OneDrive + SharePoint) - User-level OAuth
+      # Microsoft unified auth (Outlook + SharePoint) - User-level OAuth
       resources :microsoft, only: [], controller: "microsoft_auth" do
         collection do
           get :auth_url
@@ -1208,11 +1208,10 @@ Rails.application.routes.draw do
           delete :disconnect
           # Mailbox access configuration (who can see which mailboxes)
           get :organizations_with_mailboxes
-          # SharePoint/OneDrive endpoints
+          # SharePoint endpoints
           get :sharepoint_sites
           get :site_drives
           get :browse
-          get :user_onedrive
           get :search_files
           post :test_sharepoint
           # SharePoint Configuration for Attachments (TEEEM's Single SharePoint)
@@ -2755,7 +2754,7 @@ Rails.application.routes.draw do
           post :reprocess_documents
           patch :folder_settings, action: :update_folder_settings
 
-          # OneDrive folder management
+          # SharePoint folder management
           post :create_folder
           get :folder_info
         end
@@ -2821,19 +2820,6 @@ Rails.application.routes.draw do
           get :validate_abn
           get :validate_acn
           post :auto_populate
-        end
-      end
-
-      # Corporate SharePoint (document scanning for corporate entities)
-      # URL kept as corporate_onedrive for backwards compatibility
-      resources :corporate_onedrive, only: [], controller: "corporate_sharepoint" do
-        collection do
-          get :status
-          get :preview
-          get :browse
-          post :scan
-          post :scan_company
-          post :import_documents
         end
       end
 

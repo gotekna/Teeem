@@ -633,50 +633,8 @@ class Api::V1::MicrosoftAppController < ApplicationController
     end
   end
 
-  # GET /api/v1/microsoft_app/user_onedrive
-  # Access any user's OneDrive
-  def user_onedrive
-    unless current_user_admin?
-      return render json: { error: "Only admins can access user OneDrive" }, status: :forbidden
-    end
-
-    user_email = params[:user_email]
-    unless user_email.present?
-      return render json: { error: "user_email is required" }, status: :bad_request
-    end
-
-    credential = find_credential_with_org_context
-    unless credential&.status == "connected"
-      return render json: { error: "Organization Microsoft access not connected" }, status: :not_found
-    end
-
-    begin
-      client = MicrosoftAppGraphClient.new
-
-      # Get drive info
-      drive = client.get_user_drive(user_email)
-
-      # List root items
-      items = client.list_user_drive_items(
-        user_email,
-        folder_path: params[:folder_path],
-        top: params[:top]&.to_i || 100
-      )
-
-      render json: {
-        user_email: user_email,
-        drive: drive,
-        folder_path: params[:folder_path],
-        items: items,
-        total: items.count
-      }
-    rescue MicrosoftAppGraphClient::ApiError => e
-      render json: { error: e.message }, status: :unprocessable_entity
-    end
-  end
-
   # GET /api/v1/microsoft_app/search_files
-  # Search across all SharePoint and OneDrive in the tenant
+  # Search across all SharePoint sites in the tenant
   def search_files
     unless current_user_admin?
       return render json: { error: "Only admins can search files" }, status: :forbidden
