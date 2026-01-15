@@ -372,6 +372,40 @@ class StorageConfiguration < ApplicationRecord
     provider_type == "local"
   end
 
+  # SSoT: Check if a document's storage_provider matches the current provider
+  # Documents store "s3_compatible" for Wasabi/S3, "sharepoint" for SharePoint
+  # This is THE ONE method to check provider compatibility
+  def document_in_current_provider?(doc_storage_provider)
+    return false if doc_storage_provider.blank?
+
+    case provider_type
+    when "wasabi", "s3"
+      # Wasabi/S3 documents are stored with "s3_compatible" or the specific provider name
+      %w[s3_compatible wasabi s3].include?(doc_storage_provider)
+    when "sharepoint"
+      doc_storage_provider == "sharepoint"
+    when "local"
+      doc_storage_provider == "local"
+    else
+      false
+    end
+  end
+
+  # SSoT: Get the storage_provider values that match the current provider
+  # Use this for filtering queries
+  def current_provider_storage_values
+    case provider_type
+    when "wasabi", "s3"
+      %w[s3_compatible wasabi s3]
+    when "sharepoint"
+      %w[sharepoint]
+    when "local"
+      %w[local]
+    else
+      []
+    end
+  end
+
   # SSoT: connected? is DERIVED from active credential status
   def connected?
     detected_connected?

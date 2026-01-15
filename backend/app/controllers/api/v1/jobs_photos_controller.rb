@@ -42,6 +42,10 @@ module Api
                   .order(Arel.sql("users.name"), :name)
                   .joins(:supervisor)
 
+        # SSoT: Only show photos from current storage provider (no fallback)
+        storage_config = StorageConfiguration.instance
+        valid_providers = storage_config.current_provider_storage_values
+
         # Build response grouped by supervisor
         grouped_data = {}
 
@@ -49,8 +53,10 @@ module Api
           supervisor = job.supervisor&.name || "Unassigned"
 
           # Get latest photos for this job from JobDocument (data warehouse)
+          # SSoT: Filter by current storage provider only - no fallback to other providers
           photos = JobDocument.where(job_id: job.id)
                               .where(file_type: "image")
+                              .where(storage_provider: valid_providers)
                               .where.not(thumbnail_url: [nil, ""])
                               .order(last_modified_at: :desc)
                               .limit(photos_limit)

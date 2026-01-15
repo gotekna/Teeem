@@ -2396,15 +2396,25 @@ module Api
         end
 
         begin
-          # Determine which provider to use based on document's storage_provider
-          storage_provider = document.storage_provider || "sharepoint"
+          # SSoT: Only serve documents from current storage provider (no fallback)
+          storage_config = StorageConfiguration.instance
+          doc_provider = document.storage_provider || "sharepoint"
 
-          case storage_provider
-          when "s3_compatible"
+          unless storage_config.document_in_current_provider?(doc_provider)
+            return render json: {
+              error: "Document not available",
+              reason: "Document is in #{doc_provider} but current provider is #{storage_config.provider_type}"
+            }, status: :gone
+          end
+
+          # Route to correct provider based on document's storage_provider
+          case doc_provider
+          when "s3_compatible", "wasabi", "s3"
             download_from_s3(document, is_preview)
-          else
-            # Default to SharePoint for backwards compatibility
+          when "sharepoint"
             download_from_sharepoint(document, is_preview)
+          else
+            render json: { error: "Unknown storage provider: #{doc_provider}" }, status: :bad_request
           end
 
         rescue DocumentProviders::NotFoundError => e
@@ -2441,19 +2451,32 @@ module Api
         end
 
         begin
-          storage_provider = document.storage_provider || "sharepoint"
+          # SSoT: Only serve documents from current storage provider (no fallback)
+          storage_config = StorageConfiguration.instance
+          doc_provider = document.storage_provider || "sharepoint"
 
-          case storage_provider
-          when "s3_compatible"
+          unless storage_config.document_in_current_provider?(doc_provider)
+            return render json: {
+              success: false,
+              error: "Document not available",
+              reason: "Document is in #{doc_provider} but current provider is #{storage_config.provider_type}"
+            }, status: :gone
+          end
+
+          # Route to correct provider based on document's storage_provider
+          case doc_provider
+          when "s3_compatible", "wasabi", "s3"
             url = get_s3_presigned_url(document)
-          else
+          when "sharepoint"
             url = get_sharepoint_download_url(document)
+          else
+            return render json: { success: false, error: "Unknown storage provider: #{doc_provider}" }, status: :bad_request
           end
 
           render json: {
             success: true,
             download_url: url,
-            storage_provider: storage_provider,
+            storage_provider: doc_provider,
             file_name: document.file_name,
             mime_type: document.mime_type,
             expires_in: 3600

@@ -76,6 +76,7 @@ import {
   ContactCasesTab,
   ContactEmailsTab,
   ContactActivityTab,
+  ContactPriceBookTab,
 } from "./components";
 import type {
   Contact,
@@ -245,11 +246,8 @@ export default function ContactDetailPage() {
 
   // SSoT: Filter to only primary Xero account for root Invoices/Bills tabs
   const primaryXeroLink = useMemo(() => {
-    console.log('[DEBUG] primaryXeroLink calc:', { primaryXeroName, xeroLinksCount: xeroLinks.length, xeroLinks: xeroLinks.map(l => l.xero_tenant_name) });
     if (!primaryXeroName || xeroLinks.length === 0) return null;
-    const found = xeroLinks.find(link => link.xero_tenant_name === primaryXeroName) || null;
-    console.log('[DEBUG] primaryXeroLink result:', found);
-    return found;
+    return xeroLinks.find(link => link.xero_tenant_name === primaryXeroName) || null;
   }, [xeroLinks, primaryXeroName]);
 
   // Track if component is mounted to prevent state updates after deletion/navigation
@@ -2087,9 +2085,10 @@ export default function ContactDetailPage() {
         <TabsContent value="pricebook" className="mt-6">
           <Card>
             <CardContent className="pt-6">
-              <p className="text-muted-foreground text-center py-8">
-                Supplier price book and pricing history will be shown here.
-              </p>
+              <ContactPriceBookTab
+                contactId={contact.id}
+                contactName={contact.display_name}
+              />
             </CardContent>
           </Card>
         </TabsContent>
