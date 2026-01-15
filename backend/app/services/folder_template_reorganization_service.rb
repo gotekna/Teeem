@@ -333,6 +333,7 @@ class FolderTemplateReorganizationService
     when "people", "contact", "contacts"
       contact = doc.contact
       if contact
+        context[:contact_id] = contact.id
         context[:person_code] = contact.code
         context[:person_name] = contact.full_name || contact.name
         context[:contact_name] = contact.full_name || contact.name
@@ -384,6 +385,7 @@ class FolderTemplateReorganizationService
     result.gsub!("{{ProjectName}}", context[:project_name].to_s)
 
     # Person/Contact tokens
+    result.gsub!("{{ContactId}}", context[:contact_id].to_s)
     result.gsub!("{{PersonCode}}", context[:person_code].to_s)
     result.gsub!("{{PersonName}}", context[:person_name].to_s)
     result.gsub!("{{ContactName}}", context[:contact_name].to_s)

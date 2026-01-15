@@ -178,6 +178,20 @@ export default function DocumentTypeDetailPage() {
   } | null>(null);
   const [renaming, setRenaming] = React.useState(false);
 
+  // SSoT: THE ONE function for tab name resolution in this component
+  // Searches recursively through tabs and their children
+  const findTabName = React.useCallback((items: any[], id: number | undefined): string | null => {
+    if (!id || !items?.length) return null;
+    for (const item of items) {
+      if (item.id === id) return item.name;
+      if (item.children?.length) {
+        const found = findTabName(item.children, id);
+        if (found) return found;
+      }
+    }
+    return null;
+  }, []);
+
   const fileNameInputRef = React.useRef<HTMLInputElement>(null);
   const displayNameInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -1347,16 +1361,6 @@ export default function DocumentTypeDetailPage() {
               <Label>Primary Tab</Label>
               {(() => {
                 const selectedId = documentType.entity_tab_ids?.[0];
-                const findTabName = (items: any[]): string | null => {
-                  for (const item of items) {
-                    if (item.id === selectedId) return item.name;
-                    if (item.children?.length) {
-                      const found = findTabName(item.children);
-                      if (found) return found;
-                    }
-                  }
-                  return null;
-                };
                 return (
                   <Select
                     value={selectedId?.toString() || ""}
@@ -1368,7 +1372,7 @@ export default function DocumentTypeDetailPage() {
                   >
                     <SelectTrigger className="text-sm">
                       <SelectValue placeholder="Select primary tab">
-                        {selectedId ? findTabName(allTabsForLookup) || findTabName(folderHierarchy) || `Tab ${selectedId}` : "Select..."}
+                        {selectedId ? findTabName(allTabsForLookup, selectedId) || findTabName(folderHierarchy, selectedId) || `Tab ${selectedId}` : "Select..."}
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
@@ -1390,17 +1394,6 @@ export default function DocumentTypeDetailPage() {
               {(() => {
                 const primaryId = documentType.entity_tab_ids?.[0];
                 const secondaryIds = (documentType.entity_tab_ids || []).slice(1);
-
-                const findTabName = (items: any[], id: number): string | null => {
-                  for (const item of items) {
-                    if (item.id === id) return item.name;
-                    if (item.children?.length) {
-                      const found = findTabName(item.children, id);
-                      if (found) return found;
-                    }
-                  }
-                  return null;
-                };
 
                 const addSecondaryTab = (tabId: number) => {
                   if (!secondaryIds.includes(tabId) && tabId !== primaryId) {
