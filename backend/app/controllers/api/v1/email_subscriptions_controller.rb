@@ -278,7 +278,7 @@ module Api
           data: {
             active_subscriptions: active_subs.count,
             total_mailboxes: all_mailboxes.count,
-            monthly_revenue: active_subs.sum(:monthly_retail_amount).to_f,
+            monthly_revenue: active_subs.sum(:retail_price).to_f,
             margin_percentage: calculate_margin_percentage(active_subs),
             pending_migrations: EmailMigration.pending.count,
             active_migrations: EmailMigration.in_progress.count,
@@ -517,8 +517,8 @@ module Api
           dns_status: sub.dns_status,
           plan_type: sub.plan_type,
           mailbox_count: sub.mailbox_count,
-          monthly_retail: sub.monthly_retail_amount.to_f,
-          monthly_wholesale: sub.monthly_wholesale_amount.to_f,
+          monthly_retail: sub.retail_price.to_f,
+          monthly_wholesale: sub.wholesale_cost.to_f,
           margin: sub.margin_amount.to_f,
           current_period_end: sub.current_period_end,
           created_at: sub.created_at
@@ -642,8 +642,8 @@ module Api
       def calculate_margin_percentage(subscriptions)
         return 0 if subscriptions.empty?
 
-        total_retail = subscriptions.sum(:monthly_retail_amount)
-        total_wholesale = subscriptions.sum(:monthly_wholesale_amount)
+        total_retail = subscriptions.sum(:retail_price)
+        total_wholesale = subscriptions.sum(:wholesale_cost)
 
         return 0 if total_retail.zero?
 
