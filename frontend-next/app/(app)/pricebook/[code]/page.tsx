@@ -44,6 +44,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -794,27 +801,31 @@ export default function PriceBookItemDetailPage() {
                   <div>
                     <dt className="text-sm font-medium text-muted-foreground">Unit of Measure</dt>
                     <dd className="mt-1">
-                      <select
+                      <Select
                         value={
                           // Find case-insensitive match in standard units
                           unitsOfMeasure.find(u => u.code.toLowerCase() === item.unit_of_measure?.toLowerCase())?.code
                           || item.unit_of_measure
-                          || ""
+                          || "__none__"
                         }
-                        onChange={(e) => handleUnitChange(e.target.value)}
+                        onValueChange={(v) => handleUnitChange(v === "__none__" ? "" : v)}
                         disabled={savingUnit}
-                        className="h-9 px-3 py-1 text-base border rounded-md bg-background disabled:opacity-50"
                       >
-                        {/* Show current value only if no case-insensitive match exists */}
-                        {item.unit_of_measure && !unitsOfMeasure.find(u => u.code.toLowerCase() === item.unit_of_measure?.toLowerCase()) && (
-                          <option value={item.unit_of_measure}>{item.unit_of_measure}</option>
-                        )}
-                        {unitsOfMeasure.map((unit) => (
-                          <option key={unit.id} value={unit.code}>
-                            {unit.code}
-                          </option>
-                        ))}
-                      </select>
+                        <SelectTrigger className="h-9 w-[140px]">
+                          <SelectValue placeholder="Select unit..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {/* Show current value only if no case-insensitive match exists */}
+                          {item.unit_of_measure && !unitsOfMeasure.find(u => u.code.toLowerCase() === item.unit_of_measure?.toLowerCase()) && (
+                            <SelectItem value={item.unit_of_measure}>{item.unit_of_measure}</SelectItem>
+                          )}
+                          {unitsOfMeasure.map((unit) => (
+                            <SelectItem key={unit.id} value={unit.code}>
+                              {unit.code}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </dd>
                   </div>
                   <div>
@@ -874,19 +885,23 @@ export default function PriceBookItemDetailPage() {
                   <div>
                     <dt className="text-sm font-medium text-muted-foreground">GST Code</dt>
                     <dd className="mt-1">
-                      <select
-                        value={item.gst_code || ""}
-                        onChange={(e) => handleGstCodeChange(e.target.value)}
+                      <Select
+                        value={item.gst_code || "__none__"}
+                        onValueChange={(v) => handleGstCodeChange(v === "__none__" ? "" : v)}
                         disabled={savingGstCode}
-                        className="h-9 px-3 py-1 text-sm border rounded-md bg-background disabled:opacity-50"
                       >
-                        <option value="">Select GST Code...</option>
-                        {GST_CODE_OPTIONS.map((code) => (
-                          <option key={code} value={code}>
-                            {code}
-                          </option>
-                        ))}
-                      </select>
+                        <SelectTrigger className="h-9 w-[160px]">
+                          <SelectValue placeholder="Select GST Code..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Select GST Code...</SelectItem>
+                          {GST_CODE_OPTIONS.map((code) => (
+                            <SelectItem key={code} value={code}>
+                              {code}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </dd>
                   </div>
                   {item.notes && (
@@ -1008,16 +1023,20 @@ export default function PriceBookItemDetailPage() {
                           {/* LGA Cell */}
                           <TableCell className="py-2 text-sm text-muted-foreground">
                             {isEditing ? (
-                              <select
-                                value={pendingEdit?.lga || history.lga || ''}
-                                onChange={(e) => handleFieldChange(history.id, 'lga', e.target.value)}
-                                className="border rounded px-2 h-9 w-full text-sm"
+                              <Select
+                                value={pendingEdit?.lga || history.lga || "__none__"}
+                                onValueChange={(v) => handleFieldChange(history.id, 'lga', v === "__none__" ? "" : v)}
                               >
-                                <option value="">Select LGA...</option>
-                                {QLD_COUNCILS.map(council => (
-                                  <option key={council} value={council}>{council}</option>
-                                ))}
-                              </select>
+                                <SelectTrigger className="h-9 w-full text-sm">
+                                  <SelectValue placeholder="Select LGA..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="__none__">Select LGA...</SelectItem>
+                                  {QLD_COUNCILS.map(council => (
+                                    <SelectItem key={council} value={council}>{council}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             ) : (
                               <span
                                 className="cursor-pointer hover:bg-muted px-2 py-1 rounded block"
@@ -1157,17 +1176,20 @@ export default function PriceBookItemDetailPage() {
                         />
                       </TableCell>
                       <TableCell className="py-1 border-b" style={{ backgroundColor: '#f1f5f9' }}>
-                        <select
-                          value={newPriceEntry.lga}
-                          onChange={(e) => updateNewPriceEntry('lga', e.target.value)}
-                          className="border rounded px-2 h-9 w-full text-sm"
-                          style={{ backgroundColor: '#f1f5f9' }}
+                        <Select
+                          value={newPriceEntry.lga || "__none__"}
+                          onValueChange={(v) => updateNewPriceEntry('lga', v === "__none__" ? "" : v)}
                         >
-                          <option value="">Select LGA...</option>
-                          {QLD_COUNCILS.map(council => (
-                            <option key={council} value={council}>{council}</option>
-                          ))}
-                        </select>
+                          <SelectTrigger className="h-9 w-full text-sm border-0 rounded-none bg-slate-100">
+                            <SelectValue placeholder="Select LGA..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">Select LGA...</SelectItem>
+                            {QLD_COUNCILS.map(council => (
+                              <SelectItem key={council} value={council}>{council}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </TableCell>
                       <TableCell className="py-1 border-b" style={{ backgroundColor: '#f1f5f9' }}>
                         <Popover
