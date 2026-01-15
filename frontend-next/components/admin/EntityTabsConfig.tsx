@@ -1283,7 +1283,8 @@ export function EntityTabsConfig({
                   </Tooltip>
                 </TooltipProvider>
               )}
-              {tab.has_sharepoint_folder && (
+              {/* SSoT: Show folder path badge if tab has folder OR has children (children inherit parent path) */}
+              {(tab.has_sharepoint_folder || hasChildren) && (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
