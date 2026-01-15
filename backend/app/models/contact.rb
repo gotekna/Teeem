@@ -471,6 +471,12 @@ class Contact < ApplicationRecord
     message: "already exists for another company"
   }, if: -> { entity_type == "company" && is_active? }
 
+  # SSoT: contact_code is a database column (user-editable)
+  # Default format: "C" + id (e.g., "C1310")
+  # Auto-generated on create, can be customized by user
+  validates :contact_code, presence: true, uniqueness: true, on: :update
+  after_create :generate_contact_code_if_blank
+
   # Entity-type specific name validations
   validate :validate_name_fields_for_entity_type
   validate :validate_name_casing          # Block ALL CAPS and lowercase names
@@ -1880,5 +1886,12 @@ class Contact < ApplicationRecord
     end
   rescue StandardError => e
     Rails.logger.error("Contact##{id}: Auto-link invoices failed - #{e.message}")
+  end
+
+  # SSoT: Auto-generate contact_code on create (e.g., "C1310")
+  # User can customize after creation
+  def generate_contact_code_if_blank
+    return if contact_code.present?
+    update_column(:contact_code, "C#{id}")
   end
 end
