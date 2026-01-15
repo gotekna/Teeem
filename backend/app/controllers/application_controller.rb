@@ -1,4 +1,5 @@
 class ApplicationController < ActionController::API
+  include ActionController::Cookies
   include SsotAuthorization
 
   before_action :authorize_request
@@ -15,6 +16,7 @@ class ApplicationController < ActionController::API
   private
 
   def authorize_request
+    # Try JWT token first (Authorization header)
     header = request.headers["Authorization"]
     header = header.split(" ").last if header
 
@@ -22,7 +24,20 @@ class ApplicationController < ActionController::API
       decoded = JsonWebToken.decode(header)
       @current_user = User.find(decoded[:user_id]) if decoded
     rescue ActiveRecord::RecordNotFound, JWT::DecodeError => e
-      # Authentication failed - will be handled below
+      # JWT auth failed - try session cookie fallback
+    end
+
+    # Fallback: Try auth_token cookie (for session-based auth)
+    unless @current_user
+      auth_token = cookies.signed[:auth_token] || cookies[:auth_token]
+      if auth_token.present?
+        begin
+          decoded = JsonWebToken.decode(auth_token)
+          @current_user = User.find(decoded[:user_id]) if decoded
+        rescue ActiveRecord::RecordNotFound, JWT::DecodeError
+          # Cookie auth also failed
+        end
+      end
     end
 
     # Require authentication - no default user fallback

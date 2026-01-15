@@ -91,7 +91,7 @@
     "idb": "^8.0.3",
     "isomorphic-dompurify": "^2.33.0",
     "jotai": "^2.15.1",
-    "jspdf": "^3.0.4",
+    "jspdf": "^4.0.0",
     "jspdf-autotable": "^5.0.2",
     "jszip": "^3.10.1",
     "leaflet": "^1.9.4",
