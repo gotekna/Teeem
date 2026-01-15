@@ -3,6 +3,9 @@
 # Shared validation rules for column types
 # Include this concern in any model that uses TEEEM column types
 #
+# SSoT: ColumnTypeValidator is THE source of truth for validation regex constants.
+# This concern references ColumnTypeValidator constants to avoid duplication.
+#
 # Usage:
 #   class MyModel < ApplicationRecord
 #     include ColumnTypeValidations
@@ -20,10 +23,11 @@
 module ColumnTypeValidations
   extend ActiveSupport::Concern
 
-  PHONE_REGEX = /\A[\d\s\-\(\)\+]+\z/
-  EMAIL_REGEX = URI::MailTo::EMAIL_REGEXP
-  GPS_REGEX = /\A-?\d+\.?\d*,-?\d+\.?\d*\z/
-  HEX_COLOR_REGEX = /\A#[0-9A-Fa-f]{6}\z/
+  # SSoT: These constants reference ColumnTypeValidator (the true source of truth)
+  PHONE_REGEX = ColumnTypeValidator::PHONE_REGEX
+  EMAIL_REGEX = ColumnTypeValidator::EMAIL_REGEX
+  GPS_REGEX = ColumnTypeValidator::GPS_REGEX
+  HEX_COLOR_REGEX = ColumnTypeValidator::HEX_COLOR_REGEX
 
   class_methods do
     def column_type_validations(mappings = {})

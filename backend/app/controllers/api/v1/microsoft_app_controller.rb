@@ -957,8 +957,8 @@ class Api::V1::MicrosoftAppController < ApplicationController
     end
   end
 
-  # DUAL-WRITE: Create/update unified MicrosoftCredential for app credentials
-  # This is part of SSoT migration - eventually replaces OrganizationMicrosoftAppCredential
+  # Create/update unified MicrosoftCredential for app credentials
+  # SSoT: MicrosoftCredential is THE ONE (legacy tables dropped Jan 2026)
   def dual_write_app_credential(old_credential)
     Rails.logger.info "[MicrosoftApp] DUAL-WRITE: Creating/updating MicrosoftCredential for #{old_credential.name}..."
 

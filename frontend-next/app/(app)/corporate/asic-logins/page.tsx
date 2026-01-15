@@ -23,6 +23,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Company {
   id: number;
@@ -101,11 +108,12 @@ export default function AsicLoginsPage() {
     }
   };
 
-  const handleGroupChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const groupId = e.target.value;
-    setSelectedGroup(groupId);
-    if (groupId) {
-      router.push(`/corporate/asic-logins/group/${groupId}`);
+  const handleGroupChange = (groupId: string) => {
+    // Convert "__all__" back to empty string for the API
+    const actualGroupId = groupId === "__all__" ? "" : groupId;
+    setSelectedGroup(actualGroupId);
+    if (actualGroupId) {
+      router.push(`/corporate/asic-logins/group/${actualGroupId}`);
     } else {
       router.push("/corporate/asic-logins");
     }
@@ -132,18 +140,19 @@ export default function AsicLoginsPage() {
             <p className="text-sm text-muted-foreground mt-1">View and manage ASIC portal credentials for all companies</p>
           </div>
         </div>
-        <select
-          value={selectedGroup}
-          onChange={handleGroupChange}
-          className="rounded-md border px-3 py-2 text-sm bg-background"
-        >
-          <option value="">All Company Groups</option>
-          {companyGroups.map((group) => (
-            <option key={group.id} value={group.id}>
-              {group.name}
-            </option>
-          ))}
-        </select>
+        <Select value={selectedGroup || "__all__"} onValueChange={handleGroupChange}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="All Company Groups" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">All Company Groups</SelectItem>
+            {companyGroups.map((group) => (
+              <SelectItem key={group.id} value={String(group.id)}>
+                {group.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Table */}

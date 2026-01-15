@@ -16,6 +16,13 @@ import {
   FunnelIcon,
   CalendarIcon,
 } from "@heroicons/react/24/outline";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Construction {
   id: number;
@@ -533,16 +540,17 @@ export default function PortalSchedule() {
       {/* Filter */}
       <div className="mb-4 flex items-center gap-2">
         <FunnelIcon className="w-5 h-5 text-muted-foreground dark:text-muted-foreground" />
-        <select
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          className="text-sm border-border dark:border-border dark:bg-muted dark:text-white rounded-md"
-        >
-          <option value="all">All Tasks</option>
-          <option value={TASK_STATUS.NOT_STARTED}>Upcoming</option>
-          <option value={TASK_STATUS.STARTED}>In Progress</option>
-          <option value={TASK_STATUS.COMPLETED}>Completed</option>
-        </select>
+        <Select value={filter} onValueChange={setFilter}>
+          <SelectTrigger className="w-[150px] text-sm">
+            <SelectValue placeholder="All Tasks" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Tasks</SelectItem>
+            <SelectItem value={TASK_STATUS.NOT_STARTED}>Upcoming</SelectItem>
+            <SelectItem value={TASK_STATUS.STARTED}>In Progress</SelectItem>
+            <SelectItem value={TASK_STATUS.COMPLETED}>Completed</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Task list */}

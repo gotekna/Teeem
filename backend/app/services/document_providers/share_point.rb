@@ -55,7 +55,7 @@ module DocumentProviders
         return app_cred if app_cred
       end
 
-      # Fall back to legacy OrganizationSharePointCredential (no org filtering - global)
+      # Final fallback: any active SharePoint credential
       MicrosoftCredential.sharepoint_credential
     end
 

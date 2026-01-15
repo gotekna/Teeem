@@ -6,31 +6,25 @@
 # This is the SSoT for Xero contact data. TEEEM Contact is a business entity
 # that may optionally link to warehouse records for Xero integration.
 class WarehouseContact < ApplicationRecord
+  include ExternalSyncConstants
+
   belongs_to :contact, optional: true
 
   # Linked warehouse records
   has_many :warehouse_bank_transactions, dependent: :nullify
   has_many :external_invoices, dependent: :nullify
 
-  # Sources (for future multi-accounting support)
-  SOURCES = %w[xero myob quickbooks].freeze
+  # SSoT: ACCOUNTING_SYSTEMS, RECORD_SYNC_DIRECTIONS, MATCH_TYPES defined in ExternalSyncConstants concern
 
   # Contact statuses from Xero
   STATUSES = %w[ACTIVE ARCHIVED GDPRREQUEST].freeze
 
-  # Sync directions (for TEEEM Contact linking)
-  SYNC_DIRECTIONS = %w[import_only export_only bidirectional].freeze
-
-  # Match types for auto-linking to TEEEM Contact
-  MATCH_TYPES = %w[exact_abn exact_email fuzzy_name manual auto_created].freeze
-
   validates :xero_id, presence: true, uniqueness: { scope: :tenant_id }
   validates :tenant_id, presence: true
-  validates :source, inclusion: { in: SOURCES }
-  validates :sync_direction, inclusion: { in: SYNC_DIRECTIONS }, allow_nil: true
+  validates :source, inclusion: { in: ACCOUNTING_SYSTEMS }
+  validates :sync_direction, inclusion: { in: RECORD_SYNC_DIRECTIONS }, allow_nil: true
 
-  # Scopes by source
-  scope :xero, -> { where(source: "xero") }
+  # SSoT: source scopes (xero, myob, quickbooks, for_source) defined in ExternalSyncConstants
   scope :for_tenant, ->(tenant_id) { where(tenant_id: tenant_id) }
 
   # Scopes by sync status

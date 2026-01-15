@@ -9,6 +9,7 @@
 #
 class ContactDocument < ApplicationRecord
   include StorableDocument
+  include DocumentStorageConstants
 
   # SSoT: Storage scope for this document type
   # Determines path: /Contacts/{ContactName}/{TabName}/filename
@@ -22,11 +23,7 @@ class ContactDocument < ApplicationRecord
   # Active Storage for file upload
   has_one_attached :file
 
-  # Storage providers (SSoT: derived from active credential)
-  STORAGE_PROVIDERS = %w[sharepoint wasabi s3 local].freeze
-
-  # Migration statuses for tracking provider-to-provider migration
-  MIGRATION_STATUSES = %w[pending in_progress completed failed].freeze
+  # SSoT: STORAGE_PROVIDERS, MIGRATION_STATUSES defined in DocumentStorageConstants concern
 
   # Validations
   validates :file_name, presence: true

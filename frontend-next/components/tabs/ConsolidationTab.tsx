@@ -29,6 +29,13 @@ import {
   GitMerge,
   ChevronRight,
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import type { CorporateCompany } from "@/lib/types/corporate";
@@ -390,53 +397,65 @@ export function ConsolidationTab({ company, onUpdate }: ConsolidationTabProps) {
         <CardContent className="p-4 space-y-4">
           <div className="flex items-center gap-4">
             <Label className="whitespace-nowrap w-32">Company Group:</Label>
-            <select
-              value={selectedGroupId}
-              onChange={(e) => handleGroupChange(e.target.value)}
+            <Select
+              value={selectedGroupId || "__none__"}
+              onValueChange={(v) => handleGroupChange(v === "__none__" ? "" : v)}
               disabled={savingGroup}
-              className="block w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
             >
-              <option value="">Select a group...</option>
-              {companyGroups.map((group) => (
-                <option key={group.id} value={group.id}>
-                  {group.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="w-full max-w-md">
+                <SelectValue placeholder="Select a group..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Select a group...</SelectItem>
+                {companyGroups.map((group) => (
+                  <SelectItem key={group.id} value={String(group.id)}>
+                    {group.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {savingGroup && <span className="text-sm text-muted-foreground">Saving...</span>}
           </div>
           <div className="flex items-center gap-4">
             <Label className="whitespace-nowrap w-32">Parent Company:</Label>
-            <select
-              value={selectedParentId}
-              onChange={(e) => handleParentChange(e.target.value)}
+            <Select
+              value={selectedParentId || "__none__"}
+              onValueChange={(v) => handleParentChange(v === "__none__" ? "" : v)}
               disabled={savingParent}
-              className="block w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
             >
-              <option value="">None (Top-level entity)</option>
-              {parentCompanyOptions.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="w-full max-w-md">
+                <SelectValue placeholder="None (Top-level entity)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">None (Top-level entity)</SelectItem>
+                {parentCompanyOptions.map((c) => (
+                  <SelectItem key={c.id} value={String(c.id)}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {savingParent && <span className="text-sm text-muted-foreground">Saving...</span>}
           </div>
           <div className="flex items-center gap-4">
             <Label className="whitespace-nowrap w-32">Trustee For:</Label>
-            <select
-              value={selectedTrustName}
-              onChange={(e) => handleTrusteeChange(e.target.value)}
+            <Select
+              value={selectedTrustName || "__none__"}
+              onValueChange={(v) => handleTrusteeChange(v === "__none__" ? "" : v)}
               disabled={savingTrustee}
-              className="block w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
             >
-              <option value="">Not a trustee</option>
-              {availableTrusts.map((trust) => (
-                <option key={trust.id} value={trust.name}>
-                  {trust.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="w-full max-w-md">
+                <SelectValue placeholder="Not a trustee" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Not a trustee</SelectItem>
+                {availableTrusts.map((trust) => (
+                  <SelectItem key={trust.id} value={trust.name}>
+                    {trust.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {savingTrustee && <span className="text-sm text-muted-foreground">Saving...</span>}
           </div>
           <p className="text-xs text-muted-foreground">

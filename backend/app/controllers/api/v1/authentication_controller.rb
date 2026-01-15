@@ -53,9 +53,9 @@ module Api
       def signup
         user = User.new(signup_params)
 
-        # Auto-approve Tekna employees
-        if user.email&.end_with?("@tekna.com.au")
-          Rails.logger.info "Auto-approving Tekna employee: #{user.email}"
+        # Auto-approve internal employees (SSoT: CorporateCompanySetting)
+        if CorporateCompanySetting.internal_email?(user.email)
+          Rails.logger.info "Auto-approving internal employee: #{user.email}"
         end
 
         if user.save

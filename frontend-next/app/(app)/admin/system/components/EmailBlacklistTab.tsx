@@ -660,7 +660,7 @@ export function EmailBlacklistTab() {
                   </div>
 
                   {testResult.matched_pattern && (
-                    <div className="mt-4 p-3 bg-white rounded-md border">
+                    <div className="mt-4 p-3 bg-card dark:bg-card rounded-md border">
                       <p className="text-sm font-medium mb-2">Matched Pattern:</p>
                       <div className="grid grid-cols-2 gap-2 text-sm">
                         <div>

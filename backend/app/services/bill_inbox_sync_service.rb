@@ -3,11 +3,8 @@
 # Monitors a shared mailbox for incoming supplier invoices
 # Creates BillInbox records for each PDF attachment and queues AI extraction
 #
+# SSoT: Mailbox address configured in CorporateCompanySetting.monitored_mailbox_pay
 class BillInboxSyncService
-  # SSoT: Use CorporateCompanySetting.monitored_mailbox_pay instead of hardcoded constant
-  # DEPRECATED: Use CorporateCompanySetting.monitored_mailbox_pay
-  MONITORED_MAILBOX = "Pay@tekna.com.au"
-
   SUPPORTED_CONTENT_TYPES = [
     "application/pdf",
     "image/png",

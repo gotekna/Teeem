@@ -11,6 +11,7 @@
 #
 class UserDocument < ApplicationRecord
   include StorableDocument
+  include DocumentStorageConstants
 
   # SSoT: Default storage scope (overridden by effective_storage_scope)
   storage_scope :users
@@ -29,11 +30,7 @@ class UserDocument < ApplicationRecord
     "my_docs" => :my_docs          # /Users/MyDocs/
   }.freeze
 
-  # Storage providers (SSoT: derived from active credential)
-  STORAGE_PROVIDERS = %w[sharepoint wasabi s3 local].freeze
-
-  # Migration statuses for tracking provider-to-provider migration
-  MIGRATION_STATUSES = %w[pending in_progress completed failed].freeze
+  # SSoT: STORAGE_PROVIDERS, MIGRATION_STATUSES defined in DocumentStorageConstants concern
 
   # Validations
   validates :file_name, presence: true

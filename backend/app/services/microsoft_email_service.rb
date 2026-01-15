@@ -114,7 +114,8 @@ class MicrosoftEmailService
       me = client.get("/me")
       me["mail"] || me["userPrincipalName"]
     rescue
-      "admin@teknahomes.com.au" # Fallback
+      # SSoT: Fallback to company email from CorporateCompanySetting
+      CorporateCompanySetting.instance.email
     end
   end
 end

@@ -2,6 +2,7 @@ class CorporateCompanyDocument < ApplicationRecord
   include DocumentTemplatable
   include Searchable
   include StorableDocument
+  include DocumentStorageConstants
 
   # SSoT: Storage scope for this document type
   # Determines path: /Corporate/{GroupName}/{CompanyCode}/{TabName}/filename
@@ -80,27 +81,13 @@ class CorporateCompanyDocument < ApplicationRecord
   # duplicating storage location. Files now stored via StorageBlob (belongs_to :storage_blob)
   # which deduplicates via content_hash and uses StorageConfiguration for provider-agnostic paths.
 
-  # Allowed content types (used by upload validation in DocumentStorageService)
-  ALLOWED_CONTENT_TYPES = %w[
-    application/pdf
-    image/jpeg image/png image/tiff image/heic
-    application/vnd.openxmlformats-officedocument.wordprocessingml.document
-    application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
-    application/vnd.ms-excel application/msword
-    text/plain text/csv
-  ].freeze
+  # SSoT: ALLOWED_CONTENT_TYPES defined in DocumentStorageConstants concern
 
   # Storage types for Company Register tracking
   STORAGE_TYPES = %w[manual electronic both].freeze
 
-  # AI verification statuses
-  AI_VERIFICATION_STATUSES = %w[pending verified mismatch needs_review].freeze
-
-  # Storage providers (SSoT: Organization.document_provider)
-  STORAGE_PROVIDERS = %w[sharepoint s3_compatible].freeze
-
-  # Migration statuses for tracking provider-to-provider migration
-  MIGRATION_STATUSES = %w[pending in_progress completed failed].freeze
+  # SSoT: STORAGE_PROVIDERS, MIGRATION_STATUSES, AI_VERIFICATION_STATUSES
+  # defined in DocumentStorageConstants concern
 
   # Focus types - three main categories for organizing documents
   FOCUS_TYPES = %w[company people job].freeze

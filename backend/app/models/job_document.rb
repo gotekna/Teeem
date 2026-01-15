@@ -1,5 +1,6 @@
 class JobDocument < ApplicationRecord
   include StorableDocument
+  include DocumentStorageConstants
 
   # SSoT: Storage scope for this document type
   # Determines path: /Jobs/{JobCode}/{TabName}/filename
@@ -24,19 +25,11 @@ class JobDocument < ApplicationRecord
   # Active Storage for file upload (for migrated documents)
   has_one_attached :file
 
-  # File upload validation (security: prevents storage DoS and malware upload)
-  ALLOWED_CONTENT_TYPES = %w[
-    application/pdf
-    image/jpeg image/png image/tiff image/heic
-    application/vnd.openxmlformats-officedocument.wordprocessingml.document
-    application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
-    application/vnd.ms-excel application/msword
-    text/plain text/csv
-    application/octet-stream
-  ].freeze
+  # SSoT: ALLOWED_CONTENT_TYPES defined in DocumentStorageConstants concern
 
+  # SSoT: MAX_FILE_SIZE defined in DocumentStorageConstants
   validates :file, content_type: ALLOWED_CONTENT_TYPES,
-                   size: { less_than: 100.megabytes, message: "must be less than 100MB" }
+                   size: { less_than: MAX_FILE_SIZE, message: "must be less than 100MB" }
 
   # Activity log
   has_many :document_activities, as: :document, dependent: :destroy
@@ -75,17 +68,8 @@ class JobDocument < ApplicationRecord
     "doc" => "document"
   }.freeze
 
-  # Sync status enum
-  SYNC_STATUSES = %w[pending synced missing error].freeze
-
-  # AI verification statuses
-  AI_VERIFICATION_STATUSES = %w[pending verified mismatch needs_review].freeze
-
-  # Storage providers (SSoT: Organization.document_provider)
-  STORAGE_PROVIDERS = %w[sharepoint s3_compatible].freeze
-
-  # Migration statuses for tracking provider-to-provider migration
-  MIGRATION_STATUSES = %w[pending in_progress completed failed].freeze
+  # SSoT: STORAGE_PROVIDERS, MIGRATION_STATUSES, SYNC_STATUSES, AI_VERIFICATION_STATUSES
+  # are defined in DocumentStorageConstants concern
 
   validates :sharepoint_item_id, presence: true, uniqueness: true
   validates :storage_provider, inclusion: { in: STORAGE_PROVIDERS }, allow_nil: true

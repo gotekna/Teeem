@@ -2,9 +2,6 @@
 class ProcessNewCaseEmailsJob < ApplicationJob
   queue_as :default
 
-  # DEPRECATED: Use CorporateCompanySetting.monitored_mailbox_newcase
-  NEW_CASE_EMAIL_ADDRESS = "newcase@tekna.com.au"
-
   def perform
     # SSoT: Get the monitored mailbox from configuration
     newcase_address = CorporateCompanySetting.monitored_mailbox_newcase

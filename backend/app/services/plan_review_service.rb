@@ -6,7 +6,8 @@ require "base64"
 class PlanReviewService
   include DocumentProviderAware
 
-  MAX_FILE_SIZE = 20.megabytes
+  # SSoT: MAX_FILE_SIZE_FOR_AI defined in DocumentStorageConstants
+  MAX_FILE_SIZE = DocumentStorageConstants::MAX_FILE_SIZE_FOR_AI
   MAX_PAGES_PER_PDF = 10
   PLAN_FOLDER_PATHS = [ "01 - Plans", "02 - Engineering", "03 - Specifications" ].freeze
 

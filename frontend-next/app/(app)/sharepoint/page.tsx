@@ -50,8 +50,12 @@ export default function SharePointPage() {
       sharePointWindow.focus();
     }
 
-    // Navigate back to the previous page
-    router.back();
+    // SSoT: Use fallback navigation - router.back() fails when user arrives from external link
+    if (window.history.length > 1) {
+      router.back();
+    } else {
+      router.push('/');
+    }
   }, [router]);
 
   return (

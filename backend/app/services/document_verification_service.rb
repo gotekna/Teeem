@@ -4,7 +4,8 @@ require "anthropic"
 class DocumentVerificationService
   include DocumentProviderAware
 
-  MAX_FILE_SIZE = 20.megabytes
+  # SSoT: MAX_FILE_SIZE_FOR_AI defined in DocumentStorageConstants
+  MAX_FILE_SIZE = DocumentStorageConstants::MAX_FILE_SIZE_FOR_AI
   MODEL = "claude-sonnet-4-20250514"
 
   class VerificationError < StandardError; end

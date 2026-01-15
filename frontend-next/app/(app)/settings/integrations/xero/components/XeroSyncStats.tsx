@@ -373,7 +373,7 @@ export function XeroSyncStats() {
 
       {/* Pending Reviews Alert */}
       {global.pending_reviews.count > 0 && (
-        <Card className="border-amber-200 bg-amber-50">
+        <Card className="border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -398,7 +398,7 @@ export function XeroSyncStats() {
               {global.pending_reviews.items.slice(0, 5).map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-center justify-between p-2 bg-white rounded border border-amber-200"
+                  className="flex items-center justify-between p-2 bg-white dark:bg-amber-900/20 rounded border border-amber-200 dark:border-amber-800"
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-2">

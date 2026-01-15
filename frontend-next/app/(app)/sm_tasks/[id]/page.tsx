@@ -97,7 +97,14 @@ function TaskDetailContent() {
   return (
     <TaskFullscreenView
       task={task}
-      onClose={() => router.back()}
+      onClose={() => {
+        // SSoT: Use fallback navigation - router.back() fails when user arrives from external link
+        if (window.history.length > 1) {
+          router.back();
+        } else {
+          router.push('/tasks');
+        }
+      }}
     />
   );
 }

@@ -1,9 +1,10 @@
 class WarehouseBankTransaction < ApplicationRecord
+  include ExternalSyncConstants
+
   belongs_to :contact, optional: true
   belongs_to :warehouse_contact, optional: true
 
-  # Sources (for future multi-accounting support)
-  SOURCES = %w[xero myob quickbooks].freeze
+  # SSoT: ACCOUNTING_SYSTEMS defined in ExternalSyncConstants concern
 
   # Transaction types
   TRANSACTION_TYPES = %w[RECEIVE SPEND].freeze
@@ -13,10 +14,9 @@ class WarehouseBankTransaction < ApplicationRecord
 
   validates :xero_id, presence: true, uniqueness: true
   validates :transaction_date, presence: true
-  validates :source, inclusion: { in: SOURCES }
+  validates :source, inclusion: { in: ACCOUNTING_SYSTEMS }
 
-  # Scopes by source
-  scope :xero, -> { where(source: "xero") }
+  # SSoT: source scopes (xero, myob, quickbooks, for_source) defined in ExternalSyncConstants
   scope :for_tenant, ->(tenant_id) { where(tenant_id: tenant_id) }
 
   # Scopes by type

@@ -262,23 +262,23 @@ export default function ContactsRelationalView({ contacts }: ContactsRelationalV
           zoomable
           pannable
         />
-        <Panel position="top-right" className="bg-white p-3 rounded-lg shadow-md text-xs">
+        <Panel position="top-right" className="bg-card dark:bg-card p-3 rounded-lg shadow-md text-xs border">
           <div className="font-semibold mb-2">Legend</div>
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded" style={{ background: "#3b82f6" }} />
+              <div className="w-3 h-3 rounded bg-blue-500" />
               <span>Person</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded" style={{ background: "#10b981" }} />
+              <div className="w-3 h-3 rounded bg-emerald-500" />
               <span>Company</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded" style={{ background: "#8b5cf6" }} />
+              <div className="w-3 h-3 rounded bg-violet-500" />
               <span>Trust</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded" style={{ background: "#f59e0b" }} />
+              <div className="w-3 h-3 rounded bg-amber-500" />
               <span>Sole Trader</span>
             </div>
           </div>
@@ -286,19 +286,19 @@ export default function ContactsRelationalView({ contacts }: ContactsRelationalV
             <div className="font-semibold mb-2">Relationships</div>
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <div className="w-6 h-0.5" style={{ background: "#3b82f6" }} />
+                <div className="w-6 h-0.5 bg-blue-500" />
                 <span>Employment</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-6 h-0.5" style={{ background: "#10b981" }} />
+                <div className="w-6 h-0.5 bg-emerald-500" />
                 <span>Company Roles</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-6 h-0.5" style={{ background: "#8b5cf6" }} />
+                <div className="w-6 h-0.5 bg-violet-500" />
                 <span>Trust Roles</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-6 h-0.5" style={{ background: "#ec4899" }} />
+                <div className="w-6 h-0.5 bg-pink-500" />
                 <span>Family</span>
               </div>
             </div>

@@ -1,5 +1,6 @@
 class PeopleDocument < ApplicationRecord
   include StorableDocument
+  include DocumentStorageConstants
 
   # SSoT: Storage scope for this document type
   # Determines path: /Corporate/People/{ContactName}/{TabName}/filename
@@ -36,11 +37,7 @@ class PeopleDocument < ApplicationRecord
     work_permit
   ].freeze
 
-  # Storage providers (SSoT: Organization.document_provider)
-  STORAGE_PROVIDERS = %w[sharepoint s3_compatible].freeze
-
-  # Migration statuses for tracking provider-to-provider migration
-  MIGRATION_STATUSES = %w[pending in_progress completed failed].freeze
+  # SSoT: STORAGE_PROVIDERS, MIGRATION_STATUSES defined in DocumentStorageConstants concern
 
   # Validations
   validates :title, presence: true

@@ -288,10 +288,10 @@ class DocumentType < ApplicationRecord
     format = file_name.dup
 
     # Replace all placeholders with example values
-    # Corporate placeholders
+    # Corporate placeholders (SSoT: CorporateCompanySetting for company name)
     format.gsub!("{CompanyCode}", abbreviation.presence || "ABC")
     format.gsub!("{CompanyName}", "ABC Property Trust")
-    format.gsub!("{CompanyGroup}", "Tekna Group")
+    format.gsub!("{CompanyGroup}", CorporateCompanySetting.instance.company_name)
     format.gsub!("{LoanID}", "L001")
     format.gsub!("{LenderCode}", "NAB")
     format.gsub!("{AssetCode}", "PROP1")
@@ -326,7 +326,7 @@ class DocumentType < ApplicationRecord
     format.gsub!("{Folder}", folder.presence || "GENERAL")
 
     # Time/DateTime placeholders
-    current_time = Time.current.in_time_zone("Australia/Brisbane")
+    current_time = CorporateCompanySetting.now
     time_24h = current_time.strftime("%H:%M")
     time_12h = current_time.strftime("%l:%M %p").strip
     short_date_time = "#{current_time.strftime('%d-%m-%y')} #{time_24h}"
@@ -375,10 +375,10 @@ class DocumentType < ApplicationRecord
     format.gsub!("{TabCode}", tab_code)
     format.gsub!("{TabName}", tab_name)
 
-    # Corporate placeholders (use abbreviation or defaults)
+    # Corporate placeholders (SSoT: CorporateCompanySetting for company name)
     format.gsub!("{CompanyCode}", abbreviation.presence || "ABC")
     format.gsub!("{CompanyName}", "ABC Property Trust")
-    format.gsub!("{CompanyGroup}", "Tekna Group")
+    format.gsub!("{CompanyGroup}", CorporateCompanySetting.instance.company_name)
     format.gsub!("{LoanID}", "L001")
     format.gsub!("{LenderCode}", "NAB")
     format.gsub!("{AssetCode}", "PROP1")
@@ -398,7 +398,7 @@ class DocumentType < ApplicationRecord
     format.gsub!("{Folder}", folder.presence || "GENERAL")
 
     # Time/DateTime placeholders
-    current_time = Time.current.in_time_zone("Australia/Brisbane")
+    current_time = CorporateCompanySetting.now
     time_24h = current_time.strftime("%H:%M")
     time_12h = current_time.strftime("%l:%M %p").strip
     short_date_time = "#{current_time.strftime('%d-%m-%y')} #{time_24h}"

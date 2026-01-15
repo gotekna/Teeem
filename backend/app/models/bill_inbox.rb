@@ -114,7 +114,8 @@ class BillInbox < ApplicationRecord
   end
 
   def internal_sender?
-    sender_domain == "tekna.com.au"
+    # SSoT: Use CorporateCompanySetting for internal domains
+    CorporateCompanySetting.internal_email_domains.include?(sender_domain)
   end
 
   def variance_percent

@@ -1676,7 +1676,7 @@ export default function CorporateDashboardPage() {
                     setFullScreenPerson(null);
                     router.push(`/contacts/${fullScreenPerson?.id}`);
                   }}
-                  className="bg-white/90 hover:bg-white shadow-sm"
+                  className="bg-white/90 hover:bg-white dark:bg-slate-900/90 dark:hover:bg-slate-900 shadow-sm"
                 >
                   <ExternalLink className="h-4 w-4 mr-1" />
                   View Contact
@@ -1685,7 +1685,7 @@ export default function CorporateDashboardPage() {
                   variant="outline"
                   size="icon"
                   onClick={() => setFullScreenPerson(null)}
-                  className="bg-white/90 hover:bg-white shadow-sm"
+                  className="bg-white/90 hover:bg-white dark:bg-slate-900/90 dark:hover:bg-slate-900 shadow-sm"
                 >
                   <X className="h-5 w-5" />
                 </Button>

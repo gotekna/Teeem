@@ -698,7 +698,7 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
 
           {/* Sync Mode Indicator */}
           {data.pending > 0 && (
-            <div className="mb-3 p-3 bg-white/80 border border-blue-100 rounded-lg">
+            <div className="mb-3 p-3 bg-card/80 dark:bg-card/80 border border-blue-100 dark:border-blue-900 rounded-lg">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   {/* SSoT: Use sync_mode from backend blocker if available */}
@@ -782,7 +782,7 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
           {rateLimits && rateLimits.tenants.length > 0 ? (
             <div className="space-y-2">
               {rateLimits.tenants.map((tenant) => (
-                <div key={tenant.tenant_id} className="p-3 bg-white/80 border border-blue-100 rounded-lg">
+                <div key={tenant.tenant_id} className="p-3 bg-card/80 dark:bg-card/80 border border-blue-100 dark:border-blue-900 rounded-lg">
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-medium text-sm">{tenant.tenant_name}</span>
                     <div className="flex items-center gap-2">

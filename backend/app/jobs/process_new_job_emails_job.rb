@@ -2,9 +2,6 @@
 class ProcessNewJobEmailsJob < ApplicationJob
   queue_as :default
 
-  # DEPRECATED: Use CorporateCompanySetting.monitored_mailbox_newjob
-  NEW_JOB_EMAIL_ADDRESS = "newjob@tekna.com.au"
-
   # Legacy folder name (kept for backwards compatibility)
   NEW_JOB_FOLDER_NAME = "A - New Job"
 

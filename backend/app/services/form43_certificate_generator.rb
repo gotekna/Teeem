@@ -108,9 +108,10 @@ class Form43CertificateGenerator
       licensee_licence_number: supervisor.qbcc_licence_number,
       licensee_licence_class: supervisor.qbcc_licence_class,
       licensee_signature_data_url: supervisor.signature_data_url,
-      licensee_business_name: CompanySetting.trading_name || "Tekna Group",
-      licensee_address: CompanySetting.business_address,
-      licensee_phone: supervisor.mobile_phone || CompanySetting.business_phone,
+      # SSoT: Use CorporateCompanySetting for company details
+      licensee_business_name: CorporateCompanySetting.instance.company_name,
+      licensee_address: CorporateCompanySetting.instance.address,
+      licensee_phone: supervisor.mobile_phone || CorporateCompanySetting.instance.phone,
       licensee_email: supervisor.email,
 
       # Certification details

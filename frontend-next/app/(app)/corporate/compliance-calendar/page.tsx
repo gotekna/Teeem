@@ -28,6 +28,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface ComplianceItem {
   id: number;
@@ -249,18 +256,22 @@ export default function ComplianceCalendarPage() {
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-muted-foreground" />
-              <select
-                value={filters.company_group_id}
-                onChange={(e) => setFilters((prev) => ({ ...prev, company_group_id: e.target.value }))}
-                className="text-sm border rounded-md px-2 py-1 bg-background"
+              <Select
+                value={filters.company_group_id || "__all__"}
+                onValueChange={(v) => setFilters((prev) => ({ ...prev, company_group_id: v === "__all__" ? "" : v }))}
               >
-                <option value="">All Groups</option>
-                {companyGroups.map((group) => (
-                  <option key={group.id} value={group.id}>
-                    {group.name}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="w-[160px] text-sm h-8">
+                  <SelectValue placeholder="All Groups" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All Groups</SelectItem>
+                  {companyGroups.map((group) => (
+                    <SelectItem key={group.id} value={String(group.id)}>
+                      {group.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <label className="flex items-center gap-2 text-sm">
               <input

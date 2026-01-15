@@ -14,14 +14,6 @@
 class EmailToTaskService
   class TaskCreationError < StandardError; end
 
-  # DEPRECATED: Use CorporateCompanySetting.monitored_mailbox_newtask
-  NEW_TASK_EMAIL_ADDRESS = "newtask@tekna.com.au"
-
-  # SSoT: Get the monitored mailbox from configuration
-  def self.newtask_email_address
-    CorporateCompanySetting.monitored_mailbox_newtask
-  end
-
   def initialize(email_warehouse, user: nil)
     @email = email_warehouse
     @user = user || email_warehouse.synced_by_user || User.first

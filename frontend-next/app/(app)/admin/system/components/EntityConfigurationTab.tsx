@@ -142,11 +142,14 @@ export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFA
   }, []);
 
   // Handle close - navigate back to previous page
+  // SSoT: Use fallback navigation - router.back() fails when user arrives from external link
   const handleClose = React.useCallback(() => {
     if (onClose) {
       onClose();
-    } else {
+    } else if (window.history.length > 1) {
       router.back();
+    } else {
+      router.push('/settings');
     }
   }, [onClose, router]);
 

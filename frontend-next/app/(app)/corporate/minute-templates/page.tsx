@@ -16,6 +16,13 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   ArrowLeft,
   Plus,
   Pencil,
@@ -297,18 +304,19 @@ export default function MinuteTemplatesPage() {
       <div className="flex flex-wrap gap-4 items-center">
         <div>
           <label className="block text-sm font-medium text-muted-foreground mb-1">Type</label>
-          <select
-            value={selectedType}
-            onChange={(e) => setSelectedType(e.target.value)}
-            className="rounded-md border px-3 py-2 text-sm bg-background"
-          >
-            <option value="all">All Types</option>
-            {TEMPLATE_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {formatType(type)}
-              </option>
-            ))}
-          </select>
+          <Select value={selectedType} onValueChange={setSelectedType}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="All Types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              {TEMPLATE_TYPES.map((type) => (
+                <SelectItem key={type} value={type}>
+                  {formatType(type)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="flex items-center pt-6 gap-2">
@@ -444,17 +452,18 @@ export default function MinuteTemplatesPage() {
 
               <div>
                 <label className="block text-sm font-medium mb-1">Type</label>
-                <select
-                  value={formData.template_type}
-                  onChange={(e) => handleFormChange("template_type", e.target.value)}
-                  className="w-full rounded-md border px-3 py-2 text-sm bg-background"
-                >
-                  {TEMPLATE_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {formatType(type)}
-                    </option>
-                  ))}
-                </select>
+                <Select value={formData.template_type} onValueChange={(v) => handleFormChange("template_type", v)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TEMPLATE_TYPES.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {formatType(type)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 

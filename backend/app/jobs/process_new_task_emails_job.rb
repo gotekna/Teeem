@@ -12,9 +12,6 @@
 class ProcessNewTaskEmailsJob < ApplicationJob
   queue_as :default
 
-  # DEPRECATED: Use CorporateCompanySetting.monitored_mailbox_newtask
-  NEW_TASK_EMAIL_ADDRESS = "newtask@tekna.com.au"
-
   def perform
     # SSoT: Get the monitored mailbox from configuration
     newtask_address = CorporateCompanySetting.monitored_mailbox_newtask
