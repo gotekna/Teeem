@@ -3,13 +3,11 @@
 import { useState } from "react";
 import {
   Paperclip,
-  Download,
   FileText,
   FileImage,
   FileSpreadsheet,
   File,
   ExternalLink,
-  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -53,21 +51,6 @@ function getFileIcon(contentType?: string, name?: string) {
   return File;
 }
 
-// Check if file type can be previewed in browser
-function isPreviewable(contentType?: string, name?: string): boolean {
-  const type = contentType?.toLowerCase() || "";
-  const ext = name?.split(".").pop()?.toLowerCase() || "";
-
-  // Images and PDFs can be previewed
-  if (type.startsWith("image/") || ["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(ext)) {
-    return true;
-  }
-  if (type === "application/pdf" || ext === "pdf") {
-    return true;
-  }
-  return false;
-}
-
 // Check if attachment is a signature/embedded image that should be hidden
 function isSignatureAttachment(attachment: Attachment): boolean {
   const name = attachment.name?.toLowerCase() || "";
@@ -99,8 +82,8 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
     return null;
   }
 
-  // Open attachment - preview if possible, otherwise download
-  const handleOpen = async (attachment: Attachment) => {
+  // Open attachment in new window (double-click action)
+  const handleOpenInNewWindow = async (attachment: Attachment) => {
     const attachmentId = attachment.id || attachment.outlook_attachment_id;
     if (!emailId || !attachmentId) return;
 
@@ -112,18 +95,8 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
       );
       const url = window.URL.createObjectURL(blob);
 
-      if (isPreviewable(attachment.content_type, attachment.name)) {
-        // Open in new tab for preview
-        window.open(url, "_blank");
-      } else {
-        // Download for non-previewable files
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = attachment.name;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      }
+      // Always open in new tab
+      window.open(url, "_blank");
 
       // Clean up after a delay (let browser open the URL first)
       setTimeout(() => window.URL.revokeObjectURL(url), 1000);
@@ -134,9 +107,9 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
     }
   };
 
-  // Force download (even for previewable files)
-  const handleDownload = async (attachment: Attachment, e: React.MouseEvent) => {
-    e.stopPropagation();
+  // Download attachment (single-click action)
+  const handleDownload = async (attachment: Attachment, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     const attachmentId = attachment.id || attachment.outlook_attachment_id;
     if (!emailId || !attachmentId) return;
 
@@ -171,19 +144,19 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
         {visibleAttachments.map((attachment, idx) => {
           const Icon = getFileIcon(attachment.content_type, attachment.name);
           const isLoading = loading === attachment.name;
-          const canPreview = isPreviewable(attachment.content_type, attachment.name);
           const hasId = emailId && (attachment.id || attachment.outlook_attachment_id);
 
           return (
             <div
               key={attachment.id || idx}
-              onClick={hasId ? () => handleOpen(attachment) : undefined}
+              onClick={hasId ? () => handleDownload(attachment) : undefined}
+              onDoubleClick={hasId ? () => handleOpenInNewWindow(attachment) : undefined}
               className={cn(
                 "flex items-center gap-2 px-3 py-2 rounded-lg border bg-muted/50 transition-colors",
                 hasId && "cursor-pointer hover:bg-muted hover:border-primary/50",
                 isLoading && "opacity-50"
               )}
-              title={canPreview ? "Click to preview" : "Click to download"}
+              title="Click to download, double-click to open in new window"
             >
               <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
               <div className="min-w-0 flex-1">
@@ -196,28 +169,16 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
                   </p>
                 )}
               </div>
-              {hasId && canPreview && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 w-7 p-0"
-                  onClick={(e) => { e.stopPropagation(); handleOpen(attachment); }}
-                  disabled={isLoading}
-                  title="Preview"
-                >
-                  <Eye className={cn("h-4 w-4", isLoading && "animate-pulse")} />
-                </Button>
-              )}
               {hasId && (
                 <Button
                   variant="ghost"
                   size="sm"
                   className="h-7 w-7 p-0"
-                  onClick={(e) => handleDownload(attachment, e)}
+                  onClick={(e) => { e.stopPropagation(); handleOpenInNewWindow(attachment); }}
                   disabled={isLoading}
-                  title="Download"
+                  title="Open in new window"
                 >
-                  <Download className={cn("h-4 w-4", isLoading && "animate-pulse")} />
+                  <ExternalLink className={cn("h-4 w-4", isLoading && "animate-pulse")} />
                 </Button>
               )}
               {attachment.url && (
