@@ -170,6 +170,58 @@ namespace :email do
     end
   end
 
+  desc "Sync batch with offset (for parallel workers)"
+  task :sync_worker, [:worker_id, :total_workers, :batch_size] => :environment do |_t, args|
+    worker_id = (args[:worker_id] || 0).to_i
+    total_workers = (args[:total_workers] || 4).to_i
+    batch_size = (args[:batch_size] || 200).to_i
+
+    puts "Worker #{worker_id + 1}/#{total_workers} starting (batch_size: #{batch_size})..."
+
+    loop do
+      # Get all fixable email IDs
+      all_ids = EmailWarehouse
+        .where(has_attachments: true)
+        .where.not(outlook_id: nil, mailbox_owner_email: nil, microsoft_credential_id: nil)
+        .left_joins(:email_attachments)
+        .where(email_attachments: { id: nil })
+        .order(:id)
+        .pluck(:id)
+
+      break if all_ids.empty?
+
+      # Each worker takes every Nth email (interleaved)
+      my_ids = all_ids.select.with_index { |_, i| i % total_workers == worker_id }
+      my_batch = my_ids.first(batch_size)
+
+      break if my_batch.empty?
+
+      puts "[Worker #{worker_id + 1}] Processing #{my_batch.size} emails (#{all_ids.size} total remaining)..."
+
+      synced = 0
+      failed = 0
+
+      my_batch.each_with_index do |email_id, idx|
+        email = EmailWarehouse.find_by(id: email_id)
+        next unless email
+
+        print "[#{idx + 1}/#{my_batch.size}] #{email_id}... "
+        begin
+          email.sync_attachments!
+          synced += 1
+          puts "OK"
+        rescue StandardError => e
+          failed += 1
+          puts "ERROR: #{e.message[0..40]}"
+        end
+      end
+
+      puts "[Worker #{worker_id + 1}] Batch done: #{synced} synced, #{failed} failed"
+    end
+
+    puts "[Worker #{worker_id + 1}] Complete!"
+  end
+
   desc "Enqueue ALL missing attachments in batches (run multiple times or let queue drain)"
   task :sync_all, [:batch_size] => :environment do |_t, args|
     batch_size = (args[:batch_size] || 500).to_i
