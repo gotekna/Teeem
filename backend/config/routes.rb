@@ -63,6 +63,16 @@ Rails.application.routes.draw do
       post "documents/copy_file", to: "document_storage#copy_file"
       post "documents/create_folder", to: "document_storage#create_folder"
       get "documents/documents_needing_review", to: "document_storage#documents_needing_review"
+      post "documents/sync_job_documents", to: "document_storage#sync_job_documents"
+      post "documents/import_legacy", to: "document_storage#import_legacy"
+      post "documents/analyze_job_documents", to: "document_storage#analyze_job_documents"
+      post "documents/bulk_categorize_job_documents", to: "document_storage#bulk_categorize_job_documents"
+      post "documents/approve_document_rename", to: "document_storage#approve_document_rename"
+      post "documents/bulk_approve_renames", to: "document_storage#bulk_approve_renames"
+      post "documents/create_private_folders", to: "document_storage#create_private_folders"
+      post "documents/copy_files", to: "document_storage#copy_files"
+      post "documents/run_migration", to: "document_storage#run_migration"
+      post "documents/upload_signed_version", to: "document_storage#upload_signed_version"
 
       # All Documents - unified view across JobDocument, CorporateCompanyDocument, PeopleDocument
       get "documents/all", to: "documents#all"
@@ -2408,48 +2418,6 @@ Rails.application.routes.draw do
 
       # NOTE: Documents API routes are defined at TOP of namespace (see "Document Storage API" section)
       # to avoid route collision with `resources :documents` matching /documents/:id
-
-      # ============================================================
-      # BACKWARDS COMPATIBILITY: Legacy organization_onedrive routes
-      # Remove after all clients updated (frontend, iOS app)
-      # ============================================================
-      get "organization_onedrive/status", to: "document_storage#status"
-      get "organization_onedrive/authorize", to: "document_storage#authorize"
-      get "organization_onedrive/callback", to: "document_storage#callback"
-      delete "organization_onedrive/disconnect", to: "document_storage#disconnect"
-      get "organization_onedrive/browse_folders", to: "document_storage#browse_folders"
-      post "organization_onedrive/create_root_folder", to: "document_storage#create_root_folder"
-      get "organization_onedrive/validate_folder", to: "document_storage#validate_folder"
-      patch "organization_onedrive/change_root_folder", to: "document_storage#change_root_folder"
-      post "organization_onedrive/create_job_folders", to: "document_storage#create_job_folders"
-      post "organization_onedrive/create_all_job_folders", to: "document_storage#create_all_job_folders"
-      get "organization_onedrive/job_folders", to: "document_storage#list_job_items"
-      post "organization_onedrive/upload", to: "document_storage#upload"
-      get "organization_onedrive/download", to: "document_storage#download"
-      get "organization_onedrive/download_url", to: "document_storage#download_url"
-      delete "organization_onedrive/delete_file", to: "document_storage#delete_file"
-      get "organization_onedrive/folder_contents", to: "document_storage#folder_contents"
-      get "organization_onedrive/sharepoint_sites", to: "document_storage#sharepoint_sites"
-      post "organization_onedrive/use_sharepoint_site", to: "document_storage#use_sharepoint_site"
-      post "organization_onedrive/use_personal_drive", to: "document_storage#use_personal_drive"
-      post "organization_onedrive/sync_corporate_documents", to: "document_storage#sync_corporate_documents"
-      get "organization_onedrive/search", to: "document_storage#search"
-      get "organization_onedrive/preview_private_folders", to: "document_storage#preview_private_folders"
-      post "organization_onedrive/create_private_folders", to: "document_storage#create_private_folders"
-      post "organization_onedrive/copy_files", to: "document_storage#copy_files"
-      get "organization_onedrive/legacy_files", to: "document_storage#legacy_files"
-      post "organization_onedrive/import_legacy", to: "document_storage#import_legacy"
-      post "organization_onedrive/run_migration", to: "document_storage#run_migration"
-      get "organization_onedrive/job_all_files", to: "document_storage#job_all_files"
-      get "organization_onedrive/job_document_download", to: "document_storage#job_document_download"
-      get "organization_onedrive/job_document_url", to: "document_storage#job_document_url"
-      post "organization_onedrive/sync_job_documents", to: "document_storage#sync_job_documents"
-      post "organization_onedrive/upload_signed_version", to: "document_storage#upload_signed_version"
-      post "organization_onedrive/analyze_job_documents", to: "document_storage#analyze_job_documents"
-      post "organization_onedrive/bulk_categorize_job_documents", to: "document_storage#bulk_categorize_job_documents"
-      get "organization_onedrive/documents_needing_review", to: "document_storage#documents_needing_review"
-      post "organization_onedrive/approve_document_rename", to: "document_storage#approve_document_rename"
-      post "organization_onedrive/bulk_approve_renames", to: "document_storage#bulk_approve_renames"
 
       # ULTRA: Direct browser-to-SharePoint uploads (50% faster, skips backend proxy)
       # POST /api/v1/sharepoint/upload_session - Get pre-authenticated upload URL

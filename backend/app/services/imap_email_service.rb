@@ -548,10 +548,16 @@ class ImapEmailService
   end
 
   def attach_email_files(email, attachments)
+    # Note: has_many_attached :files was removed (Jan 2026) - create EmailWarehouseAttachment records instead
     attachments.each do |attachment|
       next unless attachment[:content].present?
 
-      email.files.attach(
+      email_attachment = email.email_warehouse_attachments.create!(
+        filename: attachment[:filename],
+        content_type: attachment[:content_type],
+        file_size: attachment[:content].bytesize
+      )
+      email_attachment.attachment.attach(
         io: StringIO.new(attachment[:content]),
         filename: attachment[:filename],
         content_type: attachment[:content_type]

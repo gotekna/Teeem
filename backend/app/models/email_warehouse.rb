@@ -704,25 +704,27 @@ class EmailWarehouse < ApplicationRecord
 
   # Extract text from all attached PDF files
   # SSoT: Uses PdfTextExtractionService for all PDF text extraction
+  # Note: has_many_attached :files was removed (Jan 2026) - uses email_warehouse_attachments instead
   def extract_pdf_text
-    return nil unless files.attached?
+    return nil unless email_warehouse_attachments.any?
 
     pdf_texts = []
 
-    files.each do |file|
-      next unless file.content_type == "application/pdf"
+    email_warehouse_attachments.each do |email_attachment|
+      next unless email_attachment.content_type == "application/pdf"
+      next unless email_attachment.attachment&.attached?
 
       begin
-        result = PdfTextExtractionService.extract(file.blob, join_pages: true)
+        result = PdfTextExtractionService.extract(email_attachment.attachment.blob, join_pages: true)
         next unless result[:success]
 
         pdf_texts << {
-          filename: file.filename.to_s,
+          filename: email_attachment.filename,
           text: result[:text],
           pages: result[:page_count]
         }
       rescue StandardError => e
-        Rails.logger.error "Failed to extract PDF text from #{file.filename}: #{e.message}"
+        Rails.logger.error "Failed to extract PDF text from #{email_attachment.filename}: #{e.message}"
       end
     end
 
