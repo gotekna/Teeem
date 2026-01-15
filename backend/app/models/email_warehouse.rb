@@ -711,7 +711,8 @@ class EmailWarehouse < ApplicationRecord
     pdf_texts = []
 
     email_attachments.each do |email_attachment|
-      next unless email_attachment.content_type == "application/pdf"
+      # content_type is on storage_blob, not email_attachment (Jan 2026 refactor)
+      next unless email_attachment.storage_blob&.content_type == "application/pdf"
       next unless email_attachment.stored?
 
       begin

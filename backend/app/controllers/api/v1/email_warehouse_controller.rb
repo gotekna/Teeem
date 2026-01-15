@@ -871,7 +871,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
           return send_data(
             content,
             filename: filename_hint,
-            type: attachment.content_type || "application/octet-stream",
+            type: attachment.storage_blob&.content_type || "application/octet-stream",
             disposition: "attachment"
           )
         end
@@ -1190,9 +1190,10 @@ class Api::V1::EmailWarehouseController < ApplicationController
       return synced.map do |ea|
         {
           id: ea.id,
-          name: ea.filename || ea.attachment&.filename || "Unknown",
-          content_type: ea.attachment&.content_type,
-          size: ea.attachment&.file_size,
+          name: ea.filename || ea.storage_blob&.original_filename || "Unknown",
+          # content_type and file_size are on storage_blob (Jan 2026 refactor)
+          content_type: ea.storage_blob&.content_type,
+          size: ea.storage_blob&.file_size,
           outlook_attachment_id: ea.outlook_attachment_id
         }
       end

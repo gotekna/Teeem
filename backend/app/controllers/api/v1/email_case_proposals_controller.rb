@@ -294,8 +294,8 @@ module Api
             has_attachments: proposal.email_warehouse.has_attachments,
             attachment_count: proposal.email_warehouse.attachment_count,
             conversation_id: proposal.email_warehouse.conversation_id,
-            # Note: has_many_attached :files was removed (Jan 2026) - count PDF attachments via email_attachments
-            pdf_count: proposal.email_warehouse.email_attachments.where(content_type: "application/pdf").count
+            # Note: content_type is on storage_blobs table, not email_attachments (Jan 2026 refactor)
+            pdf_count: proposal.email_warehouse.email_attachments.joins(:storage_blob).where(storage_blobs: { content_type: "application/pdf" }).count
           },
 
           # User info

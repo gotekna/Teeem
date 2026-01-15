@@ -2055,8 +2055,9 @@ module Api
                 {
                   id: ea.id,
                   filename: ea.filename,
-                  content_type: ea.content_type,
-                  file_size: ea.file_size,
+                  # content_type and file_size are on storage_blob (Jan 2026 refactor)
+                  content_type: ea.storage_blob&.content_type,
+                  file_size: ea.storage_blob&.file_size,
                   content_hash: ea.content_hash,
                   storage_url: ea.storage_blob&.download_url
                 }

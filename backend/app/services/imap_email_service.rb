@@ -553,10 +553,9 @@ class ImapEmailService
     attachments.each do |attachment|
       next unless attachment[:content].present?
 
+      # Note: content_type and file_size are stored in storage_blob, not email_attachment (Jan 2026 refactor)
       email_attachment = email.email_attachments.create!(
-        filename: attachment[:filename],
-        content_type: attachment[:content_type],
-        file_size: attachment[:content].bytesize
+        filename: attachment[:filename]
       )
       # SSoT: Use store_content! which handles deduplication via StorageBlob
       email_attachment.store_content!(
