@@ -14,7 +14,8 @@ module Api
         :follow, :unfollow, :followers, :add_follower, :remove_follower,
         :history,
         :compare_to_template, :sync_from_template,
-        :email_supplier
+        :email_supplier,
+        :email_link_options, :bulk_link_emails, :search_contacts
       ]
 
       # GET /api/v1/sm_tasks (global - all tasks across jobs)
