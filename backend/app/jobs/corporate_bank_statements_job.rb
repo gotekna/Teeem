@@ -219,6 +219,9 @@ class CorporateBankStatementsJob < ApplicationJob
     # Calculate financial year (Australian: July-June)
     fy_year = month_date.month >= 7 ? month_date.year + 1 : month_date.year
 
+    # SSoT: storage_type from StorageConfiguration
+    provider = StorageConfiguration.instance&.provider_type || "wasabi"
+
     CorporateCompanyDocument.create!(
       company_id: company.id,
       company_code: company.code,
@@ -226,16 +229,16 @@ class CorporateBankStatementsJob < ApplicationJob
       display_name: "Bank Statement - #{account_name} - #{month_name}",
       document_type: "Bank Statement",
       document_date: month_date.end_of_month,
-      file_url: sharepoint_url,
+      file_url: storage_url,
       file_size: pdf_size,
       mime_type: "application/pdf",
       folder: "BANK",
       register_folder: "BANK",
-      storage_type: "sharepoint",
+      storage_type: provider,
       source: "generated",
       focus: "company",
-      sharepoint_file_id: sharepoint_file_id,
-      sharepoint_download_url: sharepoint_url,
+      sharepoint_file_id: storage_file_id,
+      sharepoint_download_url: storage_url,
       expected_sharepoint_path: "#{folder_path}/#{filename}",
       financial_years: [fy_year],
       uploaded_at: Time.current,
@@ -248,7 +251,7 @@ class CorporateBankStatementsJob < ApplicationJob
 
     Rails.logger.info("[CorporateBankStatementsJob] Created CorporateCompanyDocument for #{filename}")
   rescue StandardError => e
-    # Log but don't fail the job - the PDF is already uploaded to SharePoint
+    # Log but don't fail the job - the PDF is already uploaded to storage
     Rails.logger.error("[CorporateBankStatementsJob] Failed to create document record: #{e.message}")
   end
 end

@@ -1,6 +1,8 @@
-# Service to fetch product images from the internet and upload to SharePoint
+# Service to fetch product images from the internet and upload to storage
 # Uses Google Images + Claude AI for image search and selection
-# Uploads to SharePoint "Warehousing/Photo Test" folder for review
+# Uploads to "Warehousing/Photo Test" folder for review
+#
+# SSoT: Uses StorageUploadable for provider-agnostic storage (Wasabi/S3/SharePoint)
 
 require "httparty"
 require "open-uri"
@@ -11,13 +13,14 @@ require "mini_magick"
 
 class PricebookImageFetcherService
   include HTTParty
+  include StorageUploadable
 
   GOOGLE_SEARCH_API_KEY = ENV["GOOGLE_SEARCH_API_KEY"]
   GOOGLE_CX = ENV["GOOGLE_CX"]
   ANTHROPIC_API_KEY = ENV["ANTHROPIC_API_KEY"]
 
   # SSoT: Get test folder from StorageConfiguration (falls back to pricebook path)
-  def self.sharepoint_test_folder
+  def self.storage_test_folder
     StorageConfiguration.instance&.path_for(:pricebook) || "Warehousing/Pricebook Photos"
   end
 
@@ -27,7 +30,7 @@ class PricebookImageFetcherService
   class FetchError < StandardError; end
 
   def initialize
-    @graph_client = MicrosoftAppGraphClient.new
+    # SSoT: Uses StorageUploadable - no direct client initialization needed
   end
 
   # Fetch images for multiple items
@@ -40,23 +43,16 @@ class PricebookImageFetcherService
       test_folder_url: nil
     }
 
-    # Get SharePoint site and drive info
-    sites = @graph_client.get_all_sites
-    teeem_site = sites.find { |s| s[:display_name]&.include?("TEEEM") || s[:name]&.include?("teeem") }
-    raise FetchError, "TEEEM site not found" unless teeem_site
-
-    drives = @graph_client.get_site_drives(teeem_site[:id])
-    main_drive = drives.first
-    raise FetchError, "No drive found in TEEEM site" unless main_drive
-
-    # Store for later use
-    @site_id = teeem_site[:id]
-    @drive_id = main_drive[:id]
+    # SSoT: Check storage is connected
+    unless storage_connected?
+      raise FetchError, "Storage not connected. Please configure storage provider."
+    end
 
     # Ensure test folder exists
     unless dry_run
-      ensure_test_folder_exists
-      results[:test_folder_url] = "#{teeem_site[:web_url]}/Shared%20Documents/#{self.class.sharepoint_test_folder.gsub('/', '%20')}"
+      folder_path = self.class.storage_test_folder
+      get_or_create_folder_path(folder_path)
+      results[:test_folder_url] = folder_path
     end
 
     items.each_with_index do |item, index|
@@ -117,24 +113,24 @@ class PricebookImageFetcherService
       processed_file = compress_image(temp_file.path)
       return { success: false, error: "Failed to compress image" } unless processed_file
 
-      # Step 5: Upload to SharePoint test folder
+      # Step 5: Upload to storage test folder
       # Use item_name for filename to match existing photo naming convention
       # Include source URL in filename for reference
       # Sanitize filename to prevent folder creation
       filename = sanitize_filename("#{item.item_name} [#{best_image_url}].png")
-      sharepoint_url = upload_to_sharepoint(processed_file.path, filename)
+      storage_url = upload_to_storage(processed_file.path, filename)
 
-      return { success: false, error: "Failed to upload to SharePoint" } unless sharepoint_url
+      return { success: false, error: "Failed to upload to storage" } unless storage_url
 
-      Rails.logger.info "[ImageFetcher] Uploaded to SharePoint: #{sharepoint_url}"
+      Rails.logger.info "[ImageFetcher] Uploaded to storage: #{storage_url}"
 
       # Step 5: Update pricebook item (optional - just mark as fetched)
       item.update(
         image_fetch_status: "fetched_to_test_folder",
-        notes: [ item.notes, "Test image uploaded to SharePoint: #{Time.current}" ].compact.join("\n")
+        notes: [ item.notes, "Test image uploaded to storage: #{Time.current}" ].compact.join("\n")
       )
 
-      { success: true, image_url: sharepoint_url, sharepoint_path: "#{self.class.sharepoint_test_folder}/#{filename}" }
+      { success: true, image_url: storage_url, storage_path: "#{self.class.storage_test_folder}/#{filename}" }
     ensure
       temp_file.close! if temp_file
       processed_file.close! if processed_file
@@ -401,59 +397,27 @@ class PricebookImageFetcherService
     false
   end
 
-  # Upload file to SharePoint test folder
-  def upload_to_sharepoint(file_path, filename)
+  # Upload file to storage test folder
+  # SSoT: Uses StorageUploadable for provider-agnostic upload
+  def upload_to_storage(file_path, filename)
     content = File.read(file_path)
+    folder_path = self.class.storage_test_folder
 
-    result = @graph_client.upload_file_content(
-      @site_id,
-      @drive_id,
-      self.class.sharepoint_test_folder,
-      filename,
-      content
-    )
+    result = upload_to_storage_path(folder_path, content, filename, content_type: "image/png")
 
-    result[:web_url]
+    if result[:success]
+      result[:url]
+    else
+      Rails.logger.error "[ImageFetcher] Storage upload failed: #{result[:error]}"
+      nil
+    end
   rescue StandardError => e
-    Rails.logger.error "[ImageFetcher] SharePoint upload failed: #{e.message}"
+    Rails.logger.error "[ImageFetcher] Storage upload failed: #{e.message}"
     nil
   end
 
-  # SSoT: Use centralized SharePoint filename sanitization
-  # See lib/sharepoint/filename_sanitizer.rb for rules
+  # SSoT: Use centralized filename sanitization
   def sanitize_filename(filename)
-    SharePoint::FilenameSanitizer.sanitize(filename)
-  end
-
-  # Ensure Photo Test folder exists in SharePoint
-  def ensure_test_folder_exists
-    # Get root items
-    root_items = @graph_client.list_drive_items(@drive_id)
-
-    # Find or create Warehousing folder
-    warehousing = root_items.find { |item| item[:is_folder] && item[:name]&.downcase&.include?("warehous") }
-    unless warehousing
-      warehousing = @graph_client.create_folder(@site_id, @drive_id, "", "Warehousing")
-    end
-
-    # Find or create Photo Test subfolder
-    warehousing_items = @graph_client.list_drive_items(@drive_id, folder_id: warehousing[:id])
-    photo_test = warehousing_items.find { |item| item[:is_folder] && item[:name]&.downcase == "photo test" }
-
-    unless photo_test
-      begin
-        photo_test = @graph_client.create_folder(@site_id, @drive_id, "Warehousing", "Photo Test")
-        Rails.logger.info "[ImageFetcher] Created Photo Test folder in SharePoint"
-      rescue StandardError => e
-        # Folder might already exist - try to find it again
-        Rails.logger.warn "[ImageFetcher] Error creating Photo Test folder (#{e.message}), attempting to find it..."
-        warehousing_items = @graph_client.list_drive_items(@drive_id, folder_id: warehousing[:id])
-        photo_test = warehousing_items.find { |item| item[:is_folder] && item[:name]&.downcase == "photo test" }
-
-        raise FetchError, "Could not find or create Photo Test folder: #{e.message}" unless photo_test
-      end
-    end
-
-    photo_test
+    sanitize_storage_path(filename)
   end
 end
