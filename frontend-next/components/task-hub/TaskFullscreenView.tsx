@@ -3538,8 +3538,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                         {emailAttachments.map((att) => (
                           <div
                             key={att.id}
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('attachment_id', att.id.toString());
+                              e.dataTransfer.setData('attachment_type', 'email');
+                              e.dataTransfer.effectAllowed = 'move';
+                            }}
                             className={cn(
-                              "flex items-center gap-2 p-2 hover:bg-muted/50 cursor-pointer text-xs group",
+                              "flex items-center gap-2 p-2 hover:bg-muted/50 cursor-grab text-xs group",
                               selectedEmailForHighlight === att.email?.id && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30"
                             )}
                             onClick={() => {
