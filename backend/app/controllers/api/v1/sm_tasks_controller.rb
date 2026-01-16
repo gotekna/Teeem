@@ -15,7 +15,7 @@ module Api
         :history,
         :compare_to_template, :sync_from_template,
         :email_supplier,
-        :email_link_options, :bulk_link_emails, :search_contacts, :match_keywords
+        :email_link_options, :bulk_link_emails, :search_contacts, :match_keywords, :clear_matched_emails, :link_email_thread
       ]
 
       # GET /api/v1/sm_tasks (global - all tasks across jobs)
@@ -1339,12 +1339,31 @@ module Api
 
       # POST /api/v1/sm_tasks/:id/match_keywords
       # Search emails by task's email_keywords and link matching ones
+      # Params:
+      #   search_type: 'full' (default), 'subject', 'body', 'exact'
+      #   preview: true/false - if true, just return count without linking
       def match_keywords
         keywords = @task.email_keywords.to_s.strip
         return render json: { success: false, error: "No keywords set" }, status: :bad_request if keywords.blank?
 
-        # Search emails using full-text search
-        matching_emails = EmailWarehouse.search_text(keywords)
+        search_type = params[:search_type] || 'full'
+        preview_only = params[:preview] == 'true' || params[:preview] == true
+
+        # Search emails based on search type
+        matching_emails = case search_type
+        when 'subject'
+          # Subject only - case insensitive LIKE
+          EmailWarehouse.where("subject ILIKE ?", "%#{keywords}%")
+        when 'body'
+          # Body only - case insensitive LIKE
+          EmailWarehouse.where("body_text ILIKE ?", "%#{keywords}%")
+        when 'exact'
+          # Exact phrase in subject - case insensitive
+          EmailWarehouse.where("subject ILIKE ?", "%#{keywords}%")
+        else
+          # Full text search (default)
+          EmailWarehouse.search_text(keywords)
+        end
 
         # Get already attached email IDs
         existing_email_ids = @task.sm_task_attachments
@@ -1353,6 +1372,18 @@ module Api
 
         # Filter to only new emails
         new_emails = matching_emails.where.not(id: existing_email_ids)
+        new_count = new_emails.count
+
+        # Preview mode - just return counts
+        if preview_only
+          return render json: {
+            success: true,
+            preview: true,
+            total_found: matching_emails.count,
+            new_count: new_count,
+            already_linked: existing_email_ids.size
+          }
+        end
 
         # Create attachments for each new email
         created_attachments = []
@@ -1361,7 +1392,7 @@ module Api
             attachable: email,
             attachment_type: "email",
             added_by: current_user,
-            notes: "Matched keyword: #{keywords}"
+            notes: "Matched [#{search_type}]: #{keywords}"
           )
           created_attachments << attachment
         end
@@ -1371,10 +1402,71 @@ module Api
           linked_count: created_attachments.size,
           skipped_count: existing_email_ids.size,
           total_found: matching_emails.count,
+          search_type: search_type,
           attachments: created_attachments.map { |a| attachment_to_json(a) }
         }
       rescue => e
         Rails.logger.error "[SmTasksController#match_keywords] Error: #{e.message}"
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
+      # DELETE /api/v1/sm_tasks/:id/clear_matched_emails
+      # Remove all emails that were added via keyword matching
+      def clear_matched_emails
+        # Find attachments that have "Matched" in their notes (added by match_keywords)
+        matched_attachments = @task.sm_task_attachments
+          .where(attachable_type: "EmailWarehouse")
+          .where("notes LIKE ?", "Matched %")
+
+        count = matched_attachments.count
+        matched_attachments.destroy_all
+
+        render json: {
+          success: true,
+          removed_count: count
+        }
+      rescue => e
+        Rails.logger.error "[SmTasksController#clear_matched_emails] Error: #{e.message}"
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
+      # POST /api/v1/sm_tasks/:id/link_email_thread
+      # Link all emails in a conversation thread to this task
+      def link_email_thread
+        email_id = params[:email_id]
+        return render json: { success: false, error: "email_id required" }, status: :bad_request if email_id.blank?
+
+        email = EmailWarehouse.find_by(id: email_id)
+        return render json: { success: false, error: "Email not found" }, status: :not_found unless email
+
+        # Get all emails in the conversation thread
+        thread_emails = email.conversation_thread
+
+        # Get already linked email IDs
+        existing_ids = @task.sm_task_attachments
+          .where(attachable_type: "EmailWarehouse")
+          .pluck(:attachable_id)
+
+        # Link emails that aren't already linked
+        linked_count = 0
+        thread_emails.each do |thread_email|
+          next if existing_ids.include?(thread_email.id)
+
+          @task.sm_task_attachments.create!(
+            attachable: thread_email,
+            notes: "Thread: #{email.subject&.truncate(50)}"
+          )
+          linked_count += 1
+        end
+
+        render json: {
+          success: true,
+          linked_count: linked_count,
+          thread_size: thread_emails.count,
+          message: linked_count > 0 ? "Linked #{linked_count} emails from thread" : "All thread emails already linked"
+        }
+      rescue => e
+        Rails.logger.error "[SmTasksController#link_email_thread] Error: #{e.message}"
         render json: { success: false, error: e.message }, status: :unprocessable_entity
       end
 

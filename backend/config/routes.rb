@@ -1641,6 +1641,8 @@ Rails.application.routes.draw do
           get :search_contacts
           post :bulk_link_emails
           post :match_keywords
+          delete :clear_matched_emails
+          post :link_email_thread
           # Task followers
           post :follow
           delete :unfollow

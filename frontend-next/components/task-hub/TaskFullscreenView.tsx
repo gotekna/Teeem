@@ -13,6 +13,13 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Spinner } from "@/components/ui/spinner";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { TaskAssignmentInline } from './TaskAssignmentInline';
 import { AttachmentPicker, PendingAttachment } from './AttachmentPicker';
 import TeeemTableView from '@/components/table/TeeemTableView';
@@ -58,10 +65,12 @@ import {
   LockOpen,
   Mail,
   Paperclip,
+  MoreVertical,
   Pencil,
   Plus,
   Search,
   Send,
+  Target,
   Trash2,
   User,
   Users,
@@ -736,6 +745,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
   const [attachmentLoading, setAttachmentLoading] = useState(false);
   const [emailKeywords, setEmailKeywords] = useState(task.email_keywords || '');
+  const [emailSearchType, setEmailSearchType] = useState<'subject' | 'body' | 'full' | 'exact'>('subject');
   const [selectedEmailId, setSelectedEmailId] = useState<number | null>(null);
 
   // Email-to-document highlighting state
@@ -1513,12 +1523,13 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   };
 
   // Match emails by keywords and link them to the task
-  const handleMatchKeywords = async () => {
+  const handleMatchKeywords = async (searchType?: 'subject' | 'body' | 'full' | 'exact') => {
     if (!emailKeywords.trim()) return;
 
     // Save keywords first
     await handleSaveKeywords();
 
+    const type = searchType || emailSearchType;
     setLoading('matching');
     try {
       const response = await api.post<{
@@ -1526,19 +1537,21 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         linked_count: number;
         skipped_count: number;
         total_found: number;
+        search_type: string;
         attachments: TaskAttachment[];
         error?: string;
-      }>(`/api/v1/sm_tasks/${task.id}/match_keywords`);
+      }>(`/api/v1/sm_tasks/${task.id}/match_keywords`, { search_type: type });
 
       if (response?.success) {
+        const typeLabel = type === 'subject' ? 'subject' : type === 'body' ? 'body' : type === 'exact' ? 'exact' : 'all';
         if (response.linked_count > 0) {
-          toast.success(`Linked ${response.linked_count} new email${response.linked_count !== 1 ? 's' : ''}`);
+          toast.success(`Linked ${response.linked_count} email${response.linked_count !== 1 ? 's' : ''} (${typeLabel} match)`);
           // Refresh tasks to get updated attachments
           await refresh?.();
         } else if (response.total_found > 0) {
           toast.info(`Found ${response.total_found} emails but all already linked`);
         } else {
-          toast.info('No matching emails found');
+          toast.info(`No emails found matching "${emailKeywords}" in ${typeLabel}`);
         }
       } else {
         toast.error(response?.error || 'Failed to match keywords');
@@ -1548,6 +1561,61 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       toast.error('Failed to search emails');
     } finally {
       setLoading(null);
+    }
+  };
+
+  // Clear all matched emails from the task
+  const handleClearMatchedEmails = async () => {
+    setLoading('clearing');
+    try {
+      const response = await api.delete<{
+        success: boolean;
+        removed_count: number;
+        error?: string;
+      }>(`/api/v1/sm_tasks/${task.id}/clear_matched_emails`);
+
+      if (response?.success) {
+        if (response.removed_count > 0) {
+          toast.success(`Removed ${response.removed_count} matched email${response.removed_count !== 1 ? 's' : ''}`);
+          await refresh?.();
+        } else {
+          toast.info('No matched emails to remove');
+        }
+      } else {
+        toast.error(response?.error || 'Failed to clear emails');
+      }
+    } catch (err) {
+      console.error('[TaskFullscreenView] Failed to clear matched emails:', err);
+      toast.error('Failed to clear emails');
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  // Link all emails in a conversation thread
+  const handleLinkEmailThread = async (emailId: number) => {
+    try {
+      const response = await api.post<{
+        success: boolean;
+        linked_count: number;
+        thread_size: number;
+        message: string;
+        error?: string;
+      }>(`/api/v1/sm_tasks/${task.id}/link_email_thread`, { email_id: emailId });
+
+      if (response?.success) {
+        if (response.linked_count > 0) {
+          toast.success(`Linked ${response.linked_count} email${response.linked_count !== 1 ? 's' : ''} from thread`);
+          await refresh?.();
+        } else {
+          toast.info(response.message || 'All thread emails already linked');
+        }
+      } else {
+        toast.error(response?.error || 'Failed to link thread');
+      }
+    } catch (err) {
+      console.error('[TaskFullscreenView] Failed to link email thread:', err);
+      toast.error('Failed to link email thread');
     }
   };
 
@@ -3622,27 +3690,73 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       onBlur={handleSaveKeywords}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && emailKeywords.trim()) {
-                          handleMatchKeywords();
+                          handleMatchKeywords('subject');
                         }
                       }}
                       className="h-7 text-xs flex-1"
                     />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 px-2 text-xs"
-                      onClick={handleMatchKeywords}
-                      disabled={!emailKeywords.trim() || loading === 'matching'}
-                    >
-                      {loading === 'matching' ? (
-                        <Spinner className="h-3 w-3" />
-                      ) : (
-                        <>
-                          <Search className="h-3 w-3 mr-1" />
-                          Match
-                        </>
-                      )}
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          disabled={loading === 'matching'}
+                        >
+                          {loading === 'matching' ? (
+                            <Spinner className="h-3 w-3" />
+                          ) : (
+                            <>
+                              <Search className="h-3 w-3 mr-1" />
+                              Match
+                              <MoreVertical className="h-3 w-3 ml-1" />
+                            </>
+                          )}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-44">
+                        <DropdownMenuItem
+                          onClick={() => handleMatchKeywords('subject')}
+                          disabled={!emailKeywords.trim()}
+                        >
+                          <Search className="h-3.5 w-3.5 mr-2" />
+                          Subject Only
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleMatchKeywords('body')}
+                          disabled={!emailKeywords.trim()}
+                        >
+                          <FileText className="h-3.5 w-3.5 mr-2" />
+                          Body Only
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleMatchKeywords('full')}
+                          disabled={!emailKeywords.trim()}
+                        >
+                          <Search className="h-3.5 w-3.5 mr-2" />
+                          Full Text
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleMatchKeywords('exact')}
+                          disabled={!emailKeywords.trim()}
+                        >
+                          <Target className="h-3.5 w-3.5 mr-2" />
+                          Exact Match
+                        </DropdownMenuItem>
+                        {emailAttachments.some(att => att.notes?.startsWith('Matched')) && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={handleClearMatchedEmails}
+                              className="text-destructive"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-2" />
+                              Clear Matched
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
 
                   {/* Email list - grouped by month, first month expanded */}
@@ -3757,6 +3871,20 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                             title="Copy shareable link"
                                           >
                                             <Link2 className="h-3 w-3" />
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-5 w-5 p-0 text-muted-foreground hover:text-green-500"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              if (att.email?.id) {
+                                                handleLinkEmailThread(att.email.id);
+                                              }
+                                            }}
+                                            title="Link entire email thread"
+                                          >
+                                            <Users className="h-3 w-3" />
                                           </Button>
                                           <Button
                                             variant="ghost"

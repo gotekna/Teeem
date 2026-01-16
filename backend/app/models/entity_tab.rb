@@ -11,6 +11,9 @@
 #           XeroFeatureTab, UserJobTabConfig
 #
 class EntityTab < ApplicationRecord
+  # Backwards compatibility: alias for has_storage_folder (used in seeds and older code)
+  alias_attribute :has_sharepoint_folder, :has_storage_folder
+
   # Valid scopes (xero tabs are children of corporate_entity/xero tab)
   # System scopes (email, warehouse, task, task_attachments, task_responses) are read-only in UI - is_system_tab: true
   SCOPES = %w[corporate_entity people job document contact email warehouse task task_attachments task_responses xero].freeze

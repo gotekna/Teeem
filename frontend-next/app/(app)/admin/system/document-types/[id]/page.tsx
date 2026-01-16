@@ -227,8 +227,7 @@ export default function DocumentTypeDetailPage() {
         let allDocumentTabs: any[] = [];
 
         if (data.success && data.data?.tabs) {
-          // Filter to tabs with storage folders (has_storage_folder: true) OR documents group
-          // SSoT: Tabs with has_storage_folder are valid document storage locations
+          // SSoT: Filter to tabs that can store documents (has_storage_folder: true OR tab_group: 'documents')
           allDocumentTabs = data.data.tabs.filter((t: any) => t.has_storage_folder || t.tab_group === 'documents');
         }
 
