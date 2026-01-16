@@ -89,11 +89,12 @@ class TaskResponseUploader
       source: "task_upload"
     }
 
-    # Link to job if available, otherwise link to task
+    # SSoT: Always link to task (user uploaded from task context)
+    # Also link to job if available for cross-referencing
+    attrs[:sm_task_id] = task.id
     if job.present?
-      attrs[:documentable] = job
-    else
-      attrs[:sm_task_id] = task.id
+      attrs[:job_id] = job.id
+      attrs[:documentable] = job  # Keep polymorphic for legacy compatibility
     end
 
     CorporateCompanyDocument.create!(attrs)
