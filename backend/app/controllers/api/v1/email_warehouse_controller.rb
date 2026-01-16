@@ -866,8 +866,9 @@ class Api::V1::EmailWarehouseController < ApplicationController
       Rails.logger.info "[EmailWarehouse] Downloading attachment from Wasabi by ID: #{email_attachment.id} (#{email_attachment.filename})"
       content = email_attachment.download
       if content.present?
+        # Force binary encoding to prevent UTF-8 encoding errors with binary file content
         return send_data(
-          content,
+          content.b,
           filename: email_attachment.filename,
           type: email_attachment.storage_blob&.content_type || "application/octet-stream",
           disposition: "attachment"
@@ -882,8 +883,9 @@ class Api::V1::EmailWarehouseController < ApplicationController
         Rails.logger.info "[EmailWarehouse] Downloading attachment from Wasabi by filename: #{filename_hint}"
         content = attachment.download
         if content.present?
+          # Force binary encoding to prevent UTF-8 encoding errors with binary file content
           return send_data(
-            content,
+            content.b,
             filename: filename_hint,
             type: attachment.storage_blob&.content_type || "application/octet-stream",
             disposition: "attachment"
@@ -908,8 +910,9 @@ class Api::V1::EmailWarehouseController < ApplicationController
             filename = filename_hint || "attachment"
             content_type = content_type_hint || "application/octet-stream"
 
+            # Force binary encoding to prevent UTF-8 encoding errors with binary file content
             return send_data(
-              content,
+              content.b,
               filename: filename,
               type: content_type,
               disposition: "attachment"
@@ -949,8 +952,9 @@ class Api::V1::EmailWarehouseController < ApplicationController
       filename = filename_hint || attachment_data[:filename] || "attachment"
       content_type = attachment_data[:content_type] || "application/octet-stream"
 
+      # Force binary encoding to prevent UTF-8 encoding errors with binary file content
       send_data(
-        attachment_data[:content],
+        attachment_data[:content].b,
         filename: filename,
         type: content_type,
         disposition: "attachment"
