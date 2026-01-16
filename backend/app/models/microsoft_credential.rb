@@ -387,15 +387,6 @@ class MicrosoftCredential < ApplicationRecord
     StorageConfiguration.instance&.connected? && sharepoint_credential.present?
   end
 
-  # DEPRECATED: Instance method - use StorageConfiguration.instance.connected? instead
-  def sharepoint_configured?
-    Rails.deprecator.warn(
-      "MicrosoftCredential#sharepoint_configured? is deprecated. " \
-      "Use StorageConfiguration.instance.connected? instead."
-    )
-    StorageConfiguration.instance&.connected?
-  end
-
   # Delegate drive_id to StorageConfiguration (SSoT)
   # Required for backward compatibility with code that calls credential.drive_id
   def drive_id
