@@ -26,6 +26,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 import { TaskAssignmentInline } from './TaskAssignmentInline';
 import { AttachmentPicker, PendingAttachment } from './AttachmentPicker';
 import TeeemTableView from '@/components/table/TeeemTableView';
@@ -2087,6 +2097,15 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     setIsDragging(false);
     setDragTargetColumn(null);
 
+    // Check for existing attachment being dragged (from Emails section)
+    const attachmentId = e.dataTransfer.getData('application/x-attachment-id');
+    if (attachmentId) {
+      console.log('[TaskFullscreenView] handleDrop - Attachment ID detected:', attachmentId);
+      // Open dialog to select which question to attach to
+      setPendingAttachmentForQuestion(parseInt(attachmentId));
+      return;
+    }
+
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
       handleFileDrop(files[0]);
@@ -2110,6 +2129,15 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     e.preventDefault();
     e.stopPropagation();
     setDragTargetColumn(null);
+
+    // Check for existing attachment being dragged (from Emails section)
+    const attachmentId = e.dataTransfer.getData('application/x-attachment-id');
+    if (attachmentId) {
+      console.log('[TaskFullscreenView] handleQuestionsDrop - Attachment ID detected:', attachmentId);
+      // Open dialog to select which question to attach to
+      setPendingAttachmentForQuestion(parseInt(attachmentId));
+      return;
+    }
 
     const files = Array.from(e.dataTransfer.files);
     console.log('[TaskFullscreenView] handleQuestionsDrop - Questions COLUMN drop handler fired, files:', files.length);
@@ -3971,75 +3999,119 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                   {!isCollapsed && (
                                     <div className="divide-y">
                                       {monthEmails.map((att) => (
-                                        <div
-                                          key={att.id}
-                                          draggable
-                                          onDragStart={(e) => {
-                                            e.dataTransfer.setData('application/x-attachment-id', att.id.toString());
-                                            e.dataTransfer.effectAllowed = 'move';
-                                          }}
-                                          className={cn(
-                                            "flex items-center gap-2 p-2 hover:bg-muted/50 cursor-grab text-xs group",
-                                            selectedEmailForHighlight === att.email?.id && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30"
-                                          )}
-                                          onClick={() => {
-                                            if (att.email) {
-                                              setSelectedEmailId(att.email.id);
-                                              handleEmailHighlight(att.email);
-                                            }
-                                          }}
-                                        >
-                                          <Mail className="h-3 w-3 text-muted-foreground shrink-0" />
-                                          <div className="flex-1 min-w-0">
-                                            <div className="font-medium truncate">{att.email?.subject}</div>
-                                            <div className="text-muted-foreground truncate flex items-center gap-2">
-                                              <span className="truncate">{att.email?.from_email}</span>
-                                              {att.email?.received_at && (
-                                                <span className="shrink-0 text-[10px]">
-                                                  {format(new Date(att.email.received_at), 'dd MMM HH:mm')}
-                                                </span>
+                                        <ContextMenu key={att.id}>
+                                          <ContextMenuTrigger asChild>
+                                            <div
+                                              draggable
+                                              onDragStart={(e) => {
+                                                e.dataTransfer.setData('application/x-attachment-id', att.id.toString());
+                                                e.dataTransfer.effectAllowed = 'move';
+                                              }}
+                                              className={cn(
+                                                "flex items-center gap-2 p-2 hover:bg-muted/50 cursor-grab text-xs group",
+                                                selectedEmailForHighlight === att.email?.id && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30"
                                               )}
+                                              onClick={() => {
+                                                if (att.email) {
+                                                  setSelectedEmailId(att.email.id);
+                                                  handleEmailHighlight(att.email);
+                                                }
+                                              }}
+                                            >
+                                              <Mail className="h-3 w-3 text-muted-foreground shrink-0" />
+                                              <div className="flex-1 min-w-0">
+                                                <div className="font-medium truncate">{att.email?.subject}</div>
+                                                <div className="text-muted-foreground truncate flex items-center gap-2">
+                                                  <span className="truncate">{att.email?.from_email}</span>
+                                                  {att.email?.received_at && (
+                                                    <span className="shrink-0 text-[10px]">
+                                                      {format(new Date(att.email.received_at), 'dd MMM HH:mm')}
+                                                    </span>
+                                                  )}
+                                                </div>
+                                              </div>
+                                              <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-5 w-5 p-0 text-muted-foreground hover:text-blue-500"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleCopyShareLink(att.id);
+                                                }}
+                                                title="Copy shareable link"
+                                              >
+                                                <Link2 className="h-3 w-3" />
+                                              </Button>
+                                              <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-5 w-5 p-0 text-muted-foreground hover:text-green-500"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  if (att.email?.id) {
+                                                    handleLinkEmailThread(att.email.id);
+                                                  }
+                                                }}
+                                                title="Link entire email thread"
+                                              >
+                                                <Users className="h-3 w-3" />
+                                              </Button>
+                                              <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleRemoveAttachment(att.id);
+                                                }}
+                                                title="Delete attachment"
+                                              >
+                                                <X className="h-3 w-3" />
+                                              </Button>
                                             </div>
-                                          </div>
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-5 w-5 p-0 text-muted-foreground hover:text-blue-500"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleCopyShareLink(att.id);
-                                            }}
-                                            title="Copy shareable link"
-                                          >
-                                            <Link2 className="h-3 w-3" />
-                                          </Button>
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-5 w-5 p-0 text-muted-foreground hover:text-green-500"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              if (att.email?.id) {
-                                                handleLinkEmailThread(att.email.id);
-                                              }
-                                            }}
-                                            title="Link entire email thread"
-                                          >
-                                            <Users className="h-3 w-3" />
-                                          </Button>
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleRemoveAttachment(att.id);
-                                            }}
-                                            title="Delete attachment"
-                                          >
-                                            <X className="h-3 w-3" />
-                                          </Button>
-                                        </div>
+                                          </ContextMenuTrigger>
+                                          <ContextMenuContent>
+                                            {questionItems.length > 0 && (
+                                              <>
+                                                <ContextMenuSub>
+                                                  <ContextMenuSubTrigger>
+                                                    <HelpCircle className="h-4 w-4 mr-2 text-blue-500" />
+                                                    Link to Question
+                                                  </ContextMenuSubTrigger>
+                                                  <ContextMenuSubContent className="max-w-[300px] max-h-[250px] overflow-y-auto">
+                                                    {questionItems.map((q) => (
+                                                      <ContextMenuItem
+                                                        key={q.id}
+                                                        onClick={() => handleAttachmentDropOnQuestion(att.id, q.id)}
+                                                      >
+                                                        <span className="line-clamp-2 text-sm">{q.text}</span>
+                                                      </ContextMenuItem>
+                                                    ))}
+                                                  </ContextMenuSubContent>
+                                                </ContextMenuSub>
+                                                <ContextMenuSeparator />
+                                              </>
+                                            )}
+                                            <ContextMenuItem onClick={() => handleCopyShareLink(att.id)}>
+                                              <Link2 className="h-4 w-4 mr-2" />
+                                              Copy Link
+                                            </ContextMenuItem>
+                                            {att.email?.id && (
+                                              <ContextMenuItem onClick={() => handleLinkEmailThread(att.email!.id)}>
+                                                <Users className="h-4 w-4 mr-2" />
+                                                Link Thread
+                                              </ContextMenuItem>
+                                            )}
+                                            <ContextMenuSeparator />
+                                            <ContextMenuItem
+                                              onClick={() => handleRemoveAttachment(att.id)}
+                                              className="text-destructive focus:text-destructive"
+                                            >
+                                              <Trash2 className="h-4 w-4 mr-2" />
+                                              Delete
+                                            </ContextMenuItem>
+                                          </ContextMenuContent>
+                                        </ContextMenu>
                                       ))}
                                     </div>
                                   )}
@@ -4441,6 +4513,50 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         onSelect={handleCategorySelect}
         onCancel={handleCategoryCancel}
       />
+
+      {/* Question selector dialog for attachment linking */}
+      <Dialog
+        open={pendingAttachmentForQuestion !== null}
+        onOpenChange={(open) => !open && setPendingAttachmentForQuestion(null)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Link to Question</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground mb-4">
+            Which question should this email be attached to?
+          </p>
+          <div className="space-y-2 max-h-[300px] overflow-y-auto">
+            {questionItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground italic">No questions found. Add a question first.</p>
+            ) : (
+              questionItems.map((q) => (
+                <Button
+                  key={q.id}
+                  variant="outline"
+                  className="w-full justify-start text-left h-auto py-3 px-4"
+                  onClick={async () => {
+                    if (pendingAttachmentForQuestion) {
+                      await handleAttachmentDropOnQuestion(pendingAttachmentForQuestion, q.id);
+                      setPendingAttachmentForQuestion(null);
+                    }
+                  }}
+                >
+                  <HelpCircle className="h-4 w-4 text-blue-500 mr-2 shrink-0" />
+                  <span className="line-clamp-2">{q.text}</span>
+                </Button>
+              ))
+            )}
+          </div>
+          <Button
+            variant="ghost"
+            className="w-full mt-2"
+            onClick={() => setPendingAttachmentForQuestion(null)}
+          >
+            Cancel
+          </Button>
+        </DialogContent>
+      </Dialog>
 
       {/* Compose email modal for responses */}
       {showComposeEmail && (

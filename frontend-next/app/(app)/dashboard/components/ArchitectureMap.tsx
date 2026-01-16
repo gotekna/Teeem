@@ -1,0 +1,852 @@
+"use client";
+
+import { useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Database,
+  Server,
+  Monitor,
+  ArrowRight,
+  ArrowDown,
+  Layers,
+  FolderTree,
+  GitBranch,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  Code2,
+  Table2,
+  Atom,
+  FileCode,
+  Shield,
+  Zap,
+  BookOpen,
+  Search,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+
+// Tooltip wrapper for technical terms
+function TechTerm({ term, definition, children }: { term: string; definition: string; children: React.ReactNode }) {
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="underline decoration-dotted decoration-muted-foreground/50 cursor-help">
+            {children}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs">
+          <p className="font-semibold">{term}</p>
+          <p className="text-xs text-muted-foreground">{definition}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+// Architecture box component for diagrams
+function ArchBox({
+  title,
+  description,
+  icon: Icon,
+  color,
+  className,
+}: {
+  title: string;
+  description?: string;
+  icon: React.ElementType;
+  color: "blue" | "green" | "purple" | "orange" | "gray";
+  className?: string;
+}) {
+  const colorClasses = {
+    blue: "bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300",
+    green: "bg-green-50 dark:bg-green-950/40 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300",
+    purple: "bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300",
+    orange: "bg-orange-50 dark:bg-orange-950/40 border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-300",
+    gray: "bg-muted border-border text-muted-foreground",
+  };
+
+  return (
+    <div className={cn("p-4 rounded-lg border-2 text-center", colorClasses[color], className)}>
+      <Icon className="h-6 w-6 mx-auto mb-2" />
+      <p className="font-semibold text-sm">{title}</p>
+      {description && <p className="text-xs mt-1 opacity-80">{description}</p>}
+    </div>
+  );
+}
+
+// Arrow component for flow diagrams
+function FlowArrow({ direction = "right", label }: { direction?: "right" | "down"; label?: string }) {
+  if (direction === "down") {
+    return (
+      <div className="flex flex-col items-center py-2 text-muted-foreground">
+        <ArrowDown className="h-5 w-5" />
+        {label && <span className="text-xs">{label}</span>}
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center px-2 text-muted-foreground">
+      <ArrowRight className="h-5 w-5" />
+      {label && <span className="text-xs ml-1">{label}</span>}
+    </div>
+  );
+}
+
+// SSoT Reference Table Row
+function SSoTRow({
+  category,
+  location,
+  notHere,
+}: {
+  category: string;
+  location: string;
+  notHere?: string;
+}) {
+  return (
+    <tr className="border-b border-border last:border-0">
+      <td className="py-2 pr-4 font-medium text-sm">{category}</td>
+      <td className="py-2 pr-4">
+        <code className="text-xs bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 px-2 py-0.5 rounded">
+          {location}
+        </code>
+      </td>
+      <td className="py-2">
+        {notHere && (
+          <code className="text-xs bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 px-2 py-0.5 rounded line-through">
+            {notHere}
+          </code>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+// Health Check Item
+function HealthCheckItem({
+  question,
+  tip,
+  checked,
+  onToggle,
+}: {
+  question: string;
+  tip: string;
+  checked: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+        checked
+          ? "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800"
+          : "bg-muted/50 border-border hover:bg-muted"
+      )}
+      onClick={onToggle}
+    >
+      <div className="mt-0.5">
+        {checked ? (
+          <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+        ) : (
+          <div className="h-5 w-5 rounded-full border-2 border-muted-foreground/30" />
+        )}
+      </div>
+      <div className="flex-1">
+        <p className={cn("text-sm font-medium", checked && "text-green-700 dark:text-green-300")}>
+          {question}
+        </p>
+        <p className="text-xs text-muted-foreground mt-1">{tip}</p>
+      </div>
+    </div>
+  );
+}
+
+export default function ArchitectureMap() {
+  const [activeView, setActiveView] = useState("beginner");
+  const [healthChecks, setHealthChecks] = useState<Record<string, boolean>>({});
+
+  const toggleHealthCheck = (id: string) => {
+    setHealthChecks((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Hero Section */}
+      <div className="text-center py-6 border-b">
+        <h2 className="text-3xl font-bold tracking-tight font-serif">TEEEM Architecture</h2>
+        <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
+          A comprehensive guide to understanding the TEEEM codebase structure, patterns, and conventions.
+          Whether you&apos;re a beginner or an experienced developer, this guide will help you navigate the system.
+        </p>
+      </div>
+
+      {/* View Tabs */}
+      <Tabs value={activeView} onValueChange={setActiveView}>
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="beginner" className="gap-2">
+            <BookOpen className="h-4 w-4" />
+            <span className="hidden sm:inline">Beginner</span>
+          </TabsTrigger>
+          <TabsTrigger value="architect" className="gap-2">
+            <Layers className="h-4 w-4" />
+            <span className="hidden sm:inline">Architect</span>
+          </TabsTrigger>
+          <TabsTrigger value="ssot" className="gap-2">
+            <Search className="h-4 w-4" />
+            <span className="hidden sm:inline">SSoT Reference</span>
+          </TabsTrigger>
+          <TabsTrigger value="health" className="gap-2">
+            <Shield className="h-4 w-4" />
+            <span className="hidden sm:inline">Health Check</span>
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Beginner View */}
+        <TabsContent value="beginner" className="space-y-6 mt-6">
+          {/* What is TEEEM */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="h-5 w-5 text-blue-500" />
+                What is TEEEM?
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="prose dark:prose-invert prose-sm max-w-none">
+              <p>
+                TEEEM is a comprehensive business management platform built for the construction industry.
+                It handles jobs, contacts, purchase orders, documents, scheduling, and more. The name
+                represents our values: <strong>T</strong>rust, <strong>E</strong>mpower, <strong>E</strong>volve,{" "}
+                <strong>E</strong>njoy, <strong>M</strong>easure.
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Simple Architecture Diagram */}
+          <Card>
+            <CardHeader>
+              <CardTitle>The Big Picture</CardTitle>
+              <CardDescription>
+                TEEEM has three main parts that work together
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col lg:flex-row items-center justify-center gap-4 lg:gap-2">
+                <ArchBox
+                  title="Frontend"
+                  description="What users see"
+                  icon={Monitor}
+                  color="blue"
+                  className="w-full lg:w-48"
+                />
+                <FlowArrow label="API calls" />
+                <ArchBox
+                  title="Backend"
+                  description="Business logic"
+                  icon={Server}
+                  color="green"
+                  className="w-full lg:w-48"
+                />
+                <FlowArrow label="Queries" />
+                <ArchBox
+                  title="Database"
+                  description="Where data lives"
+                  icon={Database}
+                  color="purple"
+                  className="w-full lg:w-48"
+                />
+              </div>
+
+              <div className="mt-8 grid md:grid-cols-3 gap-4 text-sm">
+                <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                  <h4 className="font-semibold text-blue-700 dark:text-blue-300 mb-2">Frontend (Next.js)</h4>
+                  <ul className="space-y-1 text-blue-600 dark:text-blue-400">
+                    <li>- React components</li>
+                    <li>- User interface</li>
+                    <li>- Forms & tables</li>
+                    <li>- Port 3000</li>
+                  </ul>
+                </div>
+                <div className="p-4 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800">
+                  <h4 className="font-semibold text-green-700 dark:text-green-300 mb-2">Backend (Rails)</h4>
+                  <ul className="space-y-1 text-green-600 dark:text-green-400">
+                    <li>- API endpoints</li>
+                    <li>- Business rules</li>
+                    <li>- Authentication</li>
+                    <li>- Port 3001</li>
+                  </ul>
+                </div>
+                <div className="p-4 rounded-lg bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800">
+                  <h4 className="font-semibold text-purple-700 dark:text-purple-300 mb-2">Database (PostgreSQL)</h4>
+                  <ul className="space-y-1 text-purple-600 dark:text-purple-400">
+                    <li>- Jobs, Contacts, etc.</li>
+                    <li>- Foundation tables</li>
+                    <li>- User data</li>
+                    <li>- Port 5432</li>
+                  </ul>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Folder Structure */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FolderTree className="h-5 w-5" />
+                Folder Structure
+              </CardTitle>
+              <CardDescription>Where to find things in the codebase</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="font-mono text-sm bg-muted p-4 rounded-lg overflow-x-auto">
+                <pre className="text-foreground">{`teeem/
+├── frontend-next/           # Frontend (Next.js)
+│   ├── app/                 # Pages & routes
+│   │   └── (app)/           # Authenticated pages
+│   │       ├── dashboard/
+│   │       ├── jobs/
+│   │       └── contacts/
+│   ├── components/          # Reusable UI
+│   │   ├── ui/              # Base components (Button, Card, etc.)
+│   │   └── table/           # TeeemTableView (THE ONE table)
+│   └── lib/                 # Utilities & constants
+│       ├── constants/       # SSoT for all constants
+│       └── api.ts           # API client
+│
+└── backend/                 # Backend (Rails)
+    ├── app/
+    │   ├── controllers/     # API endpoints
+    │   ├── models/          # Database models
+    │   └── services/        # Business logic
+    └── db/
+        └── schema.rb        # Database structure`}</pre>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Key Concept: Foundation */}
+          <Card className="border-primary/30 bg-primary/5">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Table2 className="h-5 w-5 text-primary" />
+                Key Concept: The Foundation Pattern
+              </CardTitle>
+              <CardDescription>
+                This is the most important pattern to understand
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm">
+                A <TechTerm term="Foundation" definition="A configuration that describes a database table's structure, columns, and how to display them in the UI">
+                  Foundation
+                </TechTerm> is like a blueprint for displaying data. Instead of hardcoding table columns everywhere,
+                we define them once and reuse them.
+              </p>
+
+              <div className="bg-background p-4 rounded-lg border">
+                <p className="text-xs text-muted-foreground mb-2">Example: Jobs Foundation</p>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="secondary">job_number</Badge>
+                  <Badge variant="secondary">client_name</Badge>
+                  <Badge variant="secondary">status</Badge>
+                  <Badge variant="secondary">start_date</Badge>
+                  <Badge variant="secondary">...</Badge>
+                </div>
+                <p className="text-xs text-muted-foreground mt-3">
+                  This Foundation defines ALL columns for the Jobs table. Every page showing jobs uses this same definition.
+                </p>
+              </div>
+
+              <div className="text-sm">
+                <p className="font-semibold mb-2">Why this matters:</p>
+                <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                  <li>Change column names in ONE place, updates everywhere</li>
+                  <li>Consistent data display across the app</li>
+                  <li>No duplicate column definitions</li>
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Architect View */}
+        <TabsContent value="architect" className="space-y-6 mt-6">
+          {/* Data Flow */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <GitBranch className="h-5 w-5" />
+                Data Flow: Request Lifecycle
+              </CardTitle>
+              <CardDescription>
+                How data travels from user click to screen
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {/* Flow diagram */}
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-2 items-center text-center">
+                  <div className="p-3 rounded-lg bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700">
+                    <p className="font-mono text-xs">User clicks</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 mx-auto text-muted-foreground hidden md:block" />
+                  <div className="p-3 rounded-lg bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700">
+                    <p className="font-mono text-xs">React component</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 mx-auto text-muted-foreground hidden md:block" />
+                  <div className="p-3 rounded-lg bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700">
+                    <p className="font-mono text-xs">API call</p>
+                  </div>
+                </div>
+                <div className="flex justify-center">
+                  <ArrowDown className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-2 items-center text-center">
+                  <div className="p-3 rounded-lg bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700">
+                    <p className="font-mono text-xs">Rails controller</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 mx-auto text-muted-foreground hidden md:block" />
+                  <div className="p-3 rounded-lg bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700">
+                    <p className="font-mono text-xs">Service/Model</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 mx-auto text-muted-foreground hidden md:block" />
+                  <div className="p-3 rounded-lg bg-purple-100 dark:bg-purple-900/30 border border-purple-300 dark:border-purple-700">
+                    <p className="font-mono text-xs">Database query</p>
+                  </div>
+                </div>
+                <div className="flex justify-center">
+                  <ArrowDown className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-center text-center max-w-md mx-auto">
+                  <div className="p-3 rounded-lg bg-purple-100 dark:bg-purple-900/30 border border-purple-300 dark:border-purple-700">
+                    <p className="font-mono text-xs">JSON response</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 mx-auto text-muted-foreground hidden md:block" />
+                  <div className="p-3 rounded-lg bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700">
+                    <p className="font-mono text-xs">UI renders</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Foundation API Detail */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Code2 className="h-5 w-5" />
+                Foundation API (SSoT for Queries)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="font-mono text-xs bg-muted p-4 rounded-lg">
+                <p className="text-green-600 dark:text-green-400"># THE ONE endpoint for all record queries</p>
+                <p className="mt-2">GET /api/v1/foundations/{"{slug}"}/records</p>
+                <p className="text-muted-foreground mt-2"># Features included automatically:</p>
+                <p className="text-muted-foreground">- Lookup expansion (foreign key display values)</p>
+                <p className="text-muted-foreground">- Eager loading (no N+1 queries)</p>
+                <p className="text-muted-foreground">- Pagination</p>
+                <p className="text-muted-foreground">- Filtering</p>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="p-3 rounded-lg border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-950/30">
+                  <p className="text-xs font-semibold text-green-700 dark:text-green-300 mb-2">DO use</p>
+                  <code className="text-xs">autoFetchRecords={"{true}"}</code>
+                  <p className="text-xs text-muted-foreground mt-1">in TeeemTableView</p>
+                </div>
+                <div className="p-3 rounded-lg border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950/30">
+                  <p className="text-xs font-semibold text-red-700 dark:text-red-300 mb-2">DON&apos;T use</p>
+                  <code className="text-xs">Custom *_json methods</code>
+                  <p className="text-xs text-muted-foreground mt-1">or manual lookup expansion</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* State Management */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Atom className="h-5 w-5" />
+                State Management (Jotai Atoms)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm">
+                TEEEM uses <TechTerm term="Jotai" definition="A primitive and flexible state management library for React">
+                  Jotai
+                </TechTerm> for global state. Atoms are defined in <code className="text-xs bg-muted px-1 py-0.5 rounded">lib/table-atoms.ts</code>.
+              </p>
+
+              <div className="font-mono text-xs bg-muted p-4 rounded-lg">
+                <p className="text-muted-foreground"># Key atoms (SSoT)</p>
+                <p className="text-blue-600 dark:text-blue-400 mt-2">activeTableModalAtom</p>
+                <p className="text-muted-foreground text-xs">- Which modal is open</p>
+                <p className="text-blue-600 dark:text-blue-400 mt-2">filterUIModeAtom</p>
+                <p className="text-muted-foreground text-xs">- Filter panel visibility</p>
+                <p className="text-blue-600 dark:text-blue-400 mt-2">columnConfigAtom</p>
+                <p className="text-muted-foreground text-xs">- Column visibility/order</p>
+              </div>
+
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-300 dark:border-yellow-700">
+                <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 shrink-0" />
+                <p className="text-xs text-yellow-700 dark:text-yellow-300">
+                  Before adding <code>useState</code> for modals or filters, check if an atom already exists!
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Component Architecture */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Component Hierarchy</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 font-mono text-sm">
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-blue-500">Page</Badge>
+                  <span className="text-muted-foreground">app/(app)/jobs/page.tsx</span>
+                </div>
+                <div className="pl-6 border-l-2 border-muted ml-4 space-y-2 py-2">
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-green-500">Table</Badge>
+                    <span className="text-muted-foreground">TeeemTableView</span>
+                  </div>
+                  <div className="pl-6 border-l-2 border-muted ml-4 space-y-2 py-2">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">Header</Badge>
+                      <span className="text-muted-foreground">+ filters, column config</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">Body</Badge>
+                      <span className="text-muted-foreground">+ rows, cells, pagination</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">Modals</Badge>
+                      <span className="text-muted-foreground">+ edit, add, delete</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* SSoT Reference */}
+        <TabsContent value="ssot" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Single Source of Truth Reference</CardTitle>
+              <CardDescription>
+                Where to find (and where NOT to put) different types of code
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b text-xs text-muted-foreground">
+                      <th className="py-2 pr-4">Category</th>
+                      <th className="py-2 pr-4">SSoT Location</th>
+                      <th className="py-2">NOT Here</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <SSoTRow
+                      category="UI Components"
+                      location="lib/component-registry.ts"
+                      notHere="Random /components folders"
+                    />
+                    <SSoTRow
+                      category="Constants"
+                      location="lib/constants/*.ts"
+                      notHere="Inline magic strings"
+                    />
+                    <SSoTRow
+                      category="Table State"
+                      location="lib/table-atoms.ts"
+                      notHere="useState() in pages"
+                    />
+                    <SSoTRow
+                      category="Column Types"
+                      location="column_type_definitions table"
+                      notHere="Hardcoded arrays"
+                    />
+                    <SSoTRow
+                      category="Validation"
+                      location="lib/formatters/validation-formatters.ts"
+                      notHere="Inline regex"
+                    />
+                    <SSoTRow
+                      category="Cache Invalidation"
+                      location="lib/records-cache.ts"
+                      notHere="Manual refetch calls"
+                    />
+                    <SSoTRow
+                      category="Display Values"
+                      location="DisplayValueResolver service"
+                      notHere="Direct lookup_display_column access"
+                    />
+                    <SSoTRow
+                      category="Storage Paths"
+                      location="StorageConfiguration model"
+                      notHere="Hardcoded path strings"
+                    />
+                    <SSoTRow
+                      category="API Queries"
+                      location="/api/v1/foundations/{slug}/records"
+                      notHere="Custom *_json methods"
+                    />
+                    <SSoTRow
+                      category="User Roles"
+                      location="User::ASSIGNABLE_ROLES"
+                      notHere="Duplicate role arrays"
+                    />
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Accordion type="multiple" className="space-y-2">
+            <AccordionItem value="components" className="border rounded-lg px-4">
+              <AccordionTrigger>Standard UI Components</AccordionTrigger>
+              <AccordionContent>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {[
+                    { name: "Button", from: "@/components/ui/button" },
+                    { name: "Card", from: "@/components/ui/card" },
+                    { name: "Dialog (Modal)", from: "@/components/ui/dialog" },
+                    { name: "Tabs", from: "@/components/ui/tabs" },
+                    { name: "BackButton", from: "@/components/ui/back-button" },
+                    { name: "Spinner", from: "@/components/ui/spinner" },
+                    { name: "ComboboxDropdown", from: "@/components/ui/combobox-dropdown" },
+                    { name: "TeeemTableView", from: "@/components/table/TeeemTableView" },
+                    { name: "Sheet (Side Panel)", from: "@/components/ui/sheet" },
+                  ].map((comp) => (
+                    <div key={comp.name} className="p-2 bg-muted rounded text-xs">
+                      <p className="font-semibold">{comp.name}</p>
+                      <code className="text-muted-foreground">{comp.from}</code>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 p-2 bg-red-50 dark:bg-red-950/30 rounded border border-red-200 dark:border-red-800">
+                  <p className="text-xs font-semibold text-red-700 dark:text-red-300">Deprecated - DO NOT USE:</p>
+                  <p className="text-xs text-red-600 dark:text-red-400">combobox.tsx, loader.tsx, drawer.tsx, data-table.tsx, router.back()</p>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="column-types" className="border rounded-lg px-4">
+              <AccordionTrigger>Column Type Helpers</AccordionTrigger>
+              <AccordionContent>
+                <div className="space-y-3">
+                  <div className="p-3 bg-green-50 dark:bg-green-950/30 rounded border border-green-200 dark:border-green-800">
+                    <p className="text-xs font-semibold text-green-700 dark:text-green-300 mb-2">Frontend (TypeScript)</p>
+                    <code className="text-xs block bg-background p-2 rounded">
+                      {`import { isLookupColumn, isChoiceColumn } from '@/lib/constants/column-types';`}
+                    </code>
+                  </div>
+                  <div className="p-3 bg-green-50 dark:bg-green-950/30 rounded border border-green-200 dark:border-green-800">
+                    <p className="text-xs font-semibold text-green-700 dark:text-green-300 mb-2">Backend (Ruby)</p>
+                    <code className="text-xs block bg-background p-2 rounded">
+                      {`column.column_type.in?(Column::LOOKUP_COLUMN_TYPES)`}
+                    </code>
+                  </div>
+                  <div className="p-3 bg-red-50 dark:bg-red-950/30 rounded border border-red-200 dark:border-red-800">
+                    <p className="text-xs font-semibold text-red-700 dark:text-red-300 mb-2">DON&apos;T do this</p>
+                    <code className="text-xs block bg-background p-2 rounded line-through">
+                      {`column.column_type === 'lookup' // Missing multiple_lookups!`}
+                    </code>
+                  </div>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="foundations" className="border rounded-lg px-4">
+              <AccordionTrigger>Common Foundation Slugs</AccordionTrigger>
+              <AccordionContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {[
+                    "jobs",
+                    "contacts",
+                    "purchase_orders",
+                    "estimates",
+                    "sm_trades",
+                    "sm_tasks",
+                    "feature_trackers",
+                    "documents",
+                  ].map((slug) => (
+                    <code key={slug} className="text-xs bg-muted px-2 py-1 rounded">
+                      {slug}
+                    </code>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-3">
+                  Always use slugs (not numeric IDs) - they&apos;re consistent across environments.
+                </p>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </TabsContent>
+
+        {/* Health Check */}
+        <TabsContent value="health" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Architecture Health Check
+              </CardTitle>
+              <CardDescription>
+                Run through this checklist before making architectural decisions
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm font-medium">Before adding new code, verify:</p>
+
+              <HealthCheckItem
+                question="Have I searched for existing similar code?"
+                tip="Use grep/Glob to search lib/, components/, and existing pages first"
+                checked={healthChecks["search"] || false}
+                onToggle={() => toggleHealthCheck("search")}
+              />
+
+              <HealthCheckItem
+                question="Is there already an SSoT for this?"
+                tip="Check lib/constants/, lib/table-atoms.ts, and component-registry.ts"
+                checked={healthChecks["ssot"] || false}
+                onToggle={() => toggleHealthCheck("ssot")}
+              />
+
+              <HealthCheckItem
+                question="Am I using THE ONE component for this use case?"
+                tip="Tables = TeeemTableView, Modals = Dialog, Navigation = BackButton"
+                checked={healthChecks["component"] || false}
+                onToggle={() => toggleHealthCheck("component")}
+              />
+
+              <HealthCheckItem
+                question="Does this support dark mode?"
+                tip="Use Tailwind dark: classes, never hardcoded colors"
+                checked={healthChecks["darkmode"] || false}
+                onToggle={() => toggleHealthCheck("darkmode")}
+              />
+
+              <HealthCheckItem
+                question="Am I using Foundation API for data queries?"
+                tip="Use autoFetchRecords={true} instead of custom API calls"
+                checked={healthChecks["foundation"] || false}
+                onToggle={() => toggleHealthCheck("foundation")}
+              />
+
+              <HealthCheckItem
+                question="Will this create duplicate logic?"
+                tip="If similar code exists, extend it instead of duplicating"
+                checked={healthChecks["duplicate"] || false}
+                onToggle={() => toggleHealthCheck("duplicate")}
+              />
+            </CardContent>
+          </Card>
+
+          <Card className="border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-950/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-yellow-700 dark:text-yellow-300">
+                <AlertCircle className="h-5 w-5" />
+                Anti-Patterns to Avoid
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {[
+                  {
+                    bad: "Creating a new *_json method in a model",
+                    good: "Use Foundation API with autoFetchRecords",
+                  },
+                  {
+                    bad: "useState for modal visibility",
+                    good: "Use activeTableModalAtom from table-atoms.ts",
+                  },
+                  {
+                    bad: "Hardcoded column arrays in components",
+                    good: "Let TeeemTableView fetch from Foundation",
+                  },
+                  {
+                    bad: "Manual lookup value resolution",
+                    good: "Use DisplayValueResolver service",
+                  },
+                  {
+                    bad: "Direct database column type checks like === 'lookup'",
+                    good: "Use isLookupColumn() helper",
+                  },
+                ].map((pattern, i) => (
+                  <div key={i} className="flex gap-4 text-sm">
+                    <div className="flex-1 p-2 bg-red-100 dark:bg-red-900/30 rounded border border-red-200 dark:border-red-700">
+                      <div className="flex items-center gap-1 text-red-700 dark:text-red-300">
+                        <XCircle className="h-3 w-3" />
+                        <span className="font-semibold text-xs">Bad</span>
+                      </div>
+                      <p className="text-xs text-red-600 dark:text-red-400 mt-1">{pattern.bad}</p>
+                    </div>
+                    <div className="flex-1 p-2 bg-green-100 dark:bg-green-900/30 rounded border border-green-200 dark:border-green-700">
+                      <div className="flex items-center gap-1 text-green-700 dark:text-green-300">
+                        <CheckCircle2 className="h-3 w-3" />
+                        <span className="font-semibold text-xs">Good</span>
+                      </div>
+                      <p className="text-xs text-green-600 dark:text-green-400 mt-1">{pattern.good}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileCode className="h-5 w-5" />
+                Quick Reference Commands
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 font-mono text-xs">
+                <div className="p-2 bg-muted rounded">
+                  <p className="text-muted-foreground"># Find where something is defined</p>
+                  <p>grep -rn &quot;SEARCH_TERM&quot; frontend-next/lib/</p>
+                </div>
+                <div className="p-2 bg-muted rounded">
+                  <p className="text-muted-foreground"># Check for SSoT violations</p>
+                  <p>/duplicate-detector</p>
+                </div>
+                <div className="p-2 bg-muted rounded">
+                  <p className="text-muted-foreground"># Find all uses of a component</p>
+                  <p>grep -rn &quot;ComponentName&quot; frontend-next/app/</p>
+                </div>
+                <div className="p-2 bg-muted rounded">
+                  <p className="text-muted-foreground"># Check schema for existing columns</p>
+                  <p>grep -n &quot;COLUMN_NAME&quot; backend/db/schema.rb</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
