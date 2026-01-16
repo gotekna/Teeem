@@ -508,7 +508,7 @@ module Api
         end
 
         # Get company settings for organization name
-        company_setting = CorporateCompanySetting.first
+        company_setting = CorporateCompanySetting.instance
 
         # Document statistics (all company_documents)
         # SSoT: Count documents WITH files (matches Documents page definition)

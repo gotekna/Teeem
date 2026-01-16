@@ -13,7 +13,7 @@ module Gl
     def initialize(payment_batch)
       @batch = payment_batch
       @company = payment_batch.corporate_company
-      @settings = CorporateCompanySetting.first_or_create
+      @settings = CorporateCompanySetting.instance
     end
 
     def generate
