@@ -608,9 +608,9 @@ function TreeNode({
               </span>
             </div>
 
-            {/* File Name Template */}
+            {/* Send Name Template */}
             <TokenBuilder
-              label={<span className="text-xs font-medium">File Name</span>}
+              label={<span className="text-xs font-medium">Send Name</span>}
               value={filenameTemplate}
               onChange={handleFilenameTemplateChange}
               scope="storage"

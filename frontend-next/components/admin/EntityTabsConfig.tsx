@@ -1123,7 +1123,7 @@ export function EntityTabsConfig({
                   <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground w-20">CODE</TableHead>
                   <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground w-48">NAME</TableHead>
                   <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground w-24">STATUS</TableHead>
-                  <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground">FILE NAME</TableHead>
+                  <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground">SEND NAME</TableHead>
                   <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground">DISPLAY NAME</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1824,9 +1824,9 @@ export function EntityTabsConfig({
                         );
                       })()}
 
-                      {/* File Name template */}
+                      {/* Send Name template */}
                       <TokenBuilder
-                        label={labelWithStatus("File Name")}
+                        label={labelWithStatus("Send Name")}
                         value={fileNameTemplate}
                         onChange={setFileNameTemplate}
                         scope="storage"
@@ -1925,9 +1925,9 @@ export function EntityTabsConfig({
                           );
                         })()}
 
-                        {/* File Name template for attachments */}
+                        {/* Send Name template for attachments */}
                         <TokenBuilder
-                          label={labelWithStatus("File Name")}
+                          label={labelWithStatus("Send Name")}
                           value={attachmentsFileNameTemplate}
                           onChange={setAttachmentsFileNameTemplate}
                           scope="storage"
@@ -2030,9 +2030,9 @@ export function EntityTabsConfig({
                                   <span className="text-green-700 dark:text-green-300">{basePath}{template ? `/${previewPath}` : ''}</span>
                                 </div>
 
-                                {/* File Name Template */}
+                                {/* Send Name Template */}
                                 <TokenBuilder
-                                  label={labelWithStatus("File Name")}
+                                  label={labelWithStatus("Send Name")}
                                   value={fileNameTpl}
                                   onChange={(val) => setWarehouseScopeFileNameTemplate(config.id, val)}
                                   scope="storage"
