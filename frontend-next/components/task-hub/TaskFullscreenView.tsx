@@ -60,6 +60,7 @@ import {
   Paperclip,
   Pencil,
   Plus,
+  Search,
   Send,
   Trash2,
   User,
@@ -876,6 +877,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [emailsCollapsed, setEmailsCollapsed] = useState(false);
   const [documentsCollapsed, setDocumentsCollapsed] = useState(false);
   const [collapsedHeaders, setCollapsedHeaders] = useState<Set<number>>(new Set());
+  const [collapsedEmailMonths, setCollapsedEmailMonths] = useState<Set<string>>(new Set());
 
   // Adding header mode (when user clicks "+ Add Header")
   const [addingHeaderText, setAddingHeaderText] = useState('');
@@ -1506,6 +1508,45 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     if (emailKeywords !== task.email_keywords) {
       setLoading('keywords');
       await updateTask(task.id, { email_keywords: emailKeywords });
+      setLoading(null);
+    }
+  };
+
+  // Match emails by keywords and link them to the task
+  const handleMatchKeywords = async () => {
+    if (!emailKeywords.trim()) return;
+
+    // Save keywords first
+    await handleSaveKeywords();
+
+    setLoading('matching');
+    try {
+      const response = await api.post<{
+        success: boolean;
+        linked_count: number;
+        skipped_count: number;
+        total_found: number;
+        attachments: TaskAttachment[];
+        error?: string;
+      }>(`/api/v1/sm_tasks/${task.id}/match_keywords`);
+
+      if (response?.success) {
+        if (response.linked_count > 0) {
+          toast.success(`Linked ${response.linked_count} new email${response.linked_count !== 1 ? 's' : ''}`);
+          // Refresh tasks to get updated attachments
+          await refresh?.();
+        } else if (response.total_found > 0) {
+          toast.info(`Found ${response.total_found} emails but all already linked`);
+        } else {
+          toast.info('No matching emails found');
+        }
+      } else {
+        toast.error(response?.error || 'Failed to match keywords');
+      }
+    } catch (err) {
+      console.error('[TaskFullscreenView] Failed to match keywords:', err);
+      toast.error('Failed to search emails');
+    } finally {
       setLoading(null);
     }
   };
@@ -3572,79 +3613,173 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
               {!emailsCollapsed && (
                 <>
-                  {/* Keywords input */}
-                  <div className="mb-2">
+                  {/* Keywords input with Match button */}
+                  <div className="mb-2 flex gap-1">
                     <Input
-                      placeholder="Auto-match keywords (e.g., DUNS, Apple)"
+                      placeholder="Search keywords (e.g., Carindale, DUNS)"
                       value={emailKeywords}
                       onChange={(e) => setEmailKeywords(e.target.value)}
                       onBlur={handleSaveKeywords}
-                      className="h-7 text-xs"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && emailKeywords.trim()) {
+                          handleMatchKeywords();
+                        }
+                      }}
+                      className="h-7 text-xs flex-1"
                     />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={handleMatchKeywords}
+                      disabled={!emailKeywords.trim() || loading === 'matching'}
+                    >
+                      {loading === 'matching' ? (
+                        <Spinner className="h-3 w-3" />
+                      ) : (
+                        <>
+                          <Search className="h-3 w-3 mr-1" />
+                          Match
+                        </>
+                      )}
+                    </Button>
                   </div>
 
-                  {/* Email list - no scroll, shows all */}
+                  {/* Email list - grouped by month, first month expanded */}
                   <div className="border rounded-md">
                     {emailAttachments.length > 0 ? (
-                      <div className="divide-y">
-                        {emailAttachments.map((att) => (
-                          <div
-                            key={att.id}
-                            draggable
-                            onDragStart={(e) => {
-                              e.dataTransfer.setData('application/x-attachment-id', att.id.toString());
-                              e.dataTransfer.effectAllowed = 'move';
-                            }}
-                            className={cn(
-                              "flex items-center gap-2 p-2 hover:bg-muted/50 cursor-grab text-xs group",
-                              selectedEmailForHighlight === att.email?.id && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30"
-                            )}
-                            onClick={() => {
-                              if (att.email) {
-                                setSelectedEmailId(att.email.id);
-                                handleEmailHighlight(att.email);
+                      (() => {
+                        // Group emails by month (YYYY-MM format for sorting)
+                        const emailsByMonth = emailAttachments.reduce((acc, att) => {
+                          let monthKey = 'unknown';
+                          try {
+                            const dateStr = att.email?.received_at;
+                            if (dateStr) {
+                              const date = new Date(dateStr);
+                              // Validate the date is valid
+                              if (!isNaN(date.getTime())) {
+                                monthKey = format(date, 'yyyy-MM');
                               }
-                            }}
-                          >
-                            <Mail className="h-3 w-3 text-muted-foreground shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium truncate">{att.email?.subject}</div>
-                              <div className="text-muted-foreground truncate flex items-center gap-2">
-                                <span className="truncate">{att.email?.from_email}</span>
-                                {att.email?.received_at && (
-                                  <span className="shrink-0 text-[10px]">
-                                    {format(new Date(att.email.received_at), 'dd MMM HH:mm')}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-5 w-5 p-0 text-muted-foreground hover:text-blue-500"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCopyShareLink(att.id);
-                              }}
-                              title="Copy shareable link"
-                            >
-                              <Link2 className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRemoveAttachment(att.id);
-                              }}
-                              title="Delete attachment"
-                            >
-                              <X className="h-3 w-3" />
-                            </Button>
+                            }
+                          } catch {
+                            // Fall through to 'unknown'
+                          }
+                          if (!acc[monthKey]) acc[monthKey] = [];
+                          acc[monthKey].push(att);
+                          return acc;
+                        }, {} as Record<string, typeof emailAttachments>);
+
+                        // Sort months descending (most recent first), 'unknown' at end
+                        const sortedMonths = Object.keys(emailsByMonth).sort((a, b) => {
+                          if (a === 'unknown') return 1;
+                          if (b === 'unknown') return -1;
+                          return b.localeCompare(a);
+                        });
+
+                        return (
+                          <div className="divide-y">
+                            {sortedMonths.map((monthKey, monthIndex) => {
+                              const monthEmails = emailsByMonth[monthKey];
+                              // First month (index 0) is expanded, others collapsed by default unless toggled
+                              const isCollapsed = monthIndex > 0 ? !collapsedEmailMonths.has(monthKey) : collapsedEmailMonths.has(monthKey);
+                              const monthLabel = monthKey === 'unknown'
+                                ? 'Unknown Date'
+                                : format(new Date(monthKey + '-01'), 'MMMM yyyy');
+
+                              return (
+                                <div key={monthKey}>
+                                  {/* Month header */}
+                                  <div
+                                    className="flex items-center gap-2 px-2 py-1.5 bg-muted/30 cursor-pointer hover:bg-muted/50"
+                                    onClick={() => {
+                                      setCollapsedEmailMonths(prev => {
+                                        const next = new Set(prev);
+                                        if (next.has(monthKey)) {
+                                          next.delete(monthKey);
+                                        } else {
+                                          next.add(monthKey);
+                                        }
+                                        return next;
+                                      });
+                                    }}
+                                  >
+                                    {isCollapsed ? (
+                                      <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                                    ) : (
+                                      <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                                    )}
+                                    <span className="text-xs font-medium text-muted-foreground">{monthLabel}</span>
+                                    <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{monthEmails.length}</Badge>
+                                  </div>
+
+                                  {/* Month emails */}
+                                  {!isCollapsed && (
+                                    <div className="divide-y">
+                                      {monthEmails.map((att) => (
+                                        <div
+                                          key={att.id}
+                                          draggable
+                                          onDragStart={(e) => {
+                                            e.dataTransfer.setData('application/x-attachment-id', att.id.toString());
+                                            e.dataTransfer.effectAllowed = 'move';
+                                          }}
+                                          className={cn(
+                                            "flex items-center gap-2 p-2 hover:bg-muted/50 cursor-grab text-xs group",
+                                            selectedEmailForHighlight === att.email?.id && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30"
+                                          )}
+                                          onClick={() => {
+                                            if (att.email) {
+                                              setSelectedEmailId(att.email.id);
+                                              handleEmailHighlight(att.email);
+                                            }
+                                          }}
+                                        >
+                                          <Mail className="h-3 w-3 text-muted-foreground shrink-0" />
+                                          <div className="flex-1 min-w-0">
+                                            <div className="font-medium truncate">{att.email?.subject}</div>
+                                            <div className="text-muted-foreground truncate flex items-center gap-2">
+                                              <span className="truncate">{att.email?.from_email}</span>
+                                              {att.email?.received_at && (
+                                                <span className="shrink-0 text-[10px]">
+                                                  {format(new Date(att.email.received_at), 'dd MMM HH:mm')}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-5 w-5 p-0 text-muted-foreground hover:text-blue-500"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleCopyShareLink(att.id);
+                                            }}
+                                            title="Copy shareable link"
+                                          >
+                                            <Link2 className="h-3 w-3" />
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleRemoveAttachment(att.id);
+                                            }}
+                                            title="Delete attachment"
+                                          >
+                                            <X className="h-3 w-3" />
+                                          </Button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
-                        ))}
-                      </div>
+                        );
+                      })()
                     ) : (
                       <p className="text-xs text-muted-foreground text-center py-3">No emails attached</p>
                     )}

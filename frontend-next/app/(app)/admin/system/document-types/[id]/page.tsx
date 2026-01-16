@@ -210,7 +210,7 @@ export default function DocumentTypeDetailPage() {
         const scope = (documentType?.scope || urlScope || "company").toLowerCase();
         // Map document type scope to EntityTab scope
         // SSoT: Map document type scope to EntityTab scope
-        // "contacts" and legacy "people" both map to "contact" EntityTab scope
+        // "contacts" maps to "contact" (migrations create tabs there), "people" also to "contact"
         const entityTabScope = (scope === "contacts" || scope === "people") ? "contact" : scope === "job" || scope === "jobs" ? "job" : "corporate_entity";
 
         // Build folder hierarchy recursively for all depths
@@ -227,14 +227,15 @@ export default function DocumentTypeDetailPage() {
         let allDocumentTabs: any[] = [];
 
         if (data.success && data.data?.tabs) {
-          // Filter to documents group tabs (Xero is now in documents group with children nested)
-          allDocumentTabs = data.data.tabs.filter((t: any) => t.tab_group === 'documents');
+          // Filter to tabs with storage folders (has_storage_folder: true) OR documents group
+          // SSoT: Tabs with has_storage_folder are valid document storage locations
+          allDocumentTabs = data.data.tabs.filter((t: any) => t.has_storage_folder || t.tab_group === 'documents');
         }
 
         // SSoT: Fetch ALL tabs from ALL scopes for name lookups
         // This ensures we can display tab names even for tabs from other scopes
         // (e.g., a company doc type referencing a job or contact tab)
-        const allScopes = ['corporate_entity', 'job', 'contact'];
+        const allScopes = ['corporate_entity', 'job', 'contact', 'people'];
         const allTabsFromAllScopes: any[] = [];
         for (const scope of allScopes) {
           try {

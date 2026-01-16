@@ -15,7 +15,7 @@ module Api
         :history,
         :compare_to_template, :sync_from_template,
         :email_supplier,
-        :email_link_options, :bulk_link_emails, :search_contacts
+        :email_link_options, :bulk_link_emails, :search_contacts, :match_keywords
       ]
 
       # GET /api/v1/sm_tasks (global - all tasks across jobs)
@@ -1334,6 +1334,47 @@ module Api
         }
       rescue => e
         Rails.logger.error "[SmTasksController#bulk_link_emails] Error: #{e.message}"
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
+      # POST /api/v1/sm_tasks/:id/match_keywords
+      # Search emails by task's email_keywords and link matching ones
+      def match_keywords
+        keywords = @task.email_keywords.to_s.strip
+        return render json: { success: false, error: "No keywords set" }, status: :bad_request if keywords.blank?
+
+        # Search emails using full-text search
+        matching_emails = EmailWarehouse.search_text(keywords)
+
+        # Get already attached email IDs
+        existing_email_ids = @task.sm_task_attachments
+          .where(attachable_type: "EmailWarehouse")
+          .pluck(:attachable_id)
+
+        # Filter to only new emails
+        new_emails = matching_emails.where.not(id: existing_email_ids)
+
+        # Create attachments for each new email
+        created_attachments = []
+        new_emails.find_each do |email|
+          attachment = @task.sm_task_attachments.create!(
+            attachable: email,
+            attachment_type: "email",
+            added_by: current_user,
+            notes: "Matched keyword: #{keywords}"
+          )
+          created_attachments << attachment
+        end
+
+        render json: {
+          success: true,
+          linked_count: created_attachments.size,
+          skipped_count: existing_email_ids.size,
+          total_found: matching_emails.count,
+          attachments: created_attachments.map { |a| attachment_to_json(a) }
+        }
+      rescue => e
+        Rails.logger.error "[SmTasksController#match_keywords] Error: #{e.message}"
         render json: { success: false, error: e.message }, status: :unprocessable_entity
       end
 
