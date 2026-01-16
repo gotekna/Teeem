@@ -20,6 +20,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { TASK_STATUS } from "@/lib/constants/task-status";
+import { PhotoCapture } from "@/components/offline";
 
 // ============================================
 // Types
@@ -477,18 +478,20 @@ export default function SmFieldPage() {
             )}
 
             {activeTab === "photos" && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Photo Capture</CardTitle>
-                </CardHeader>
-                <CardContent className="flex items-center justify-center py-12">
-                  <div className="text-center text-muted-foreground">
-                    <CameraIcon className="mx-auto mb-4 h-12 w-12 opacity-50" />
-                    <p>Photo capture component</p>
-                    <p className="mt-2 text-sm">Coming soon</p>
-                  </div>
-                </CardContent>
-              </Card>
+              <PhotoCapture
+                jobId={Number(constructionId)}
+                taskId={selectedTask.id}
+                taskName={selectedTask.name}
+                onPhotoCaptured={(photo) => {
+                  toast({
+                    title: "Photo captured",
+                    description: photo.syncStatus === "pending"
+                      ? "Photo saved. Will sync when online."
+                      : "Photo saved and syncing...",
+                  });
+                }}
+                showGallery={true}
+              />
             )}
 
             {activeTab === "checkin" && (

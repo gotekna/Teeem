@@ -27,6 +27,7 @@ class StorageBlob < ApplicationRecord
   has_many :corporate_company_documents, dependent: :nullify
   has_many :chat_messages, dependent: :nullify
   has_many :bill_inboxes, dependent: :nullify
+  has_many :warehouse_documents, dependent: :nullify  # Phase 3: Universal document table
 
   # Validations
   # content_hash is optional for legacy records (backfill without download)

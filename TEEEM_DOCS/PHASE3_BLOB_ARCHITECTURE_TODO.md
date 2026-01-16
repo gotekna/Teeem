@@ -82,10 +82,12 @@ EmailAttachment (unchanged)
   - JobDocument: 78 migrated
   - ContactDocument: 16 migrated
   - **Total: 139,088 WarehouseDocuments created**
-- ✅ **Month 5 IN PROGRESS** - API Updates:
+- ✅ **Month 5 BACKEND COMPLETE** - API Updates:
   - /api/v1/documents/all includes warehouse_total and warehouse_by_source
   - New /api/v1/documents/warehouse endpoint (unified query)
   - SendNameResolver fixed for document_type associations
+  - S3 download_url accepts filename param for Content-Disposition
+  - All 139,088 WarehouseDocuments queryable with proper serialization
 
 ---
 
@@ -262,9 +264,9 @@ EmailAttachment (unchanged)
 
 ---
 
-## MONTH 5: API Updates ✅ IN PROGRESS
+## MONTH 5: API Updates ✅ BACKEND COMPLETE
 
-### Week 1-2: Documents Controller
+### Week 1-2: Documents Controller ✅ COMPLETE
 
 - [x] **5.1** Update /api/v1/documents/all to include warehouse counts
   ```ruby
@@ -285,11 +287,14 @@ EmailAttachment (unchanged)
   # Fixed: CorporateCompany.company_group is string column, not association
   ```
 
-### Week 3-4: File Warehouse UI Integration
+- [x] **5.4** Test API query and serialization (139,088 documents, all source types)
+- [x] **5.5** Verify S3 download_url accepts filename parameter (Content-Disposition)
 
-- [ ] **5.4** Verify frontend works with new API responses
-- [ ] **5.5** Test tree view, search, preview
-- [ ] **5.6** Test download, email, copy link actions
+### Week 3-4: File Warehouse UI Integration (Manual Testing)
+
+- [ ] **5.6** Verify frontend works with new API responses
+- [ ] **5.7** Test tree view, search, preview
+- [ ] **5.8** Test download, email, copy link actions
 
 ---
 

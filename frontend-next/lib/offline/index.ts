@@ -74,3 +74,44 @@ export {
   type UseCachedDocumentOptions,
   type UseCachedDocumentResult,
 } from "./use-cached-document";
+
+// Photo cache operations
+export {
+  storePhoto,
+  getPhoto,
+  getJobPhotos,
+  getPendingPhotos,
+  getErrorPhotos,
+  updatePhotoSyncStatus,
+  deletePhoto,
+  deleteSyncedPhotos,
+  clearPhotoCache,
+  getPhotoCacheStats,
+  compressPhoto,
+  createPhotoBlobUrl,
+  revokePhotoBlobUrl,
+  MAX_PHOTO_SIZE_BYTES,
+  type PendingPhoto,
+  type PhotoSyncStatus,
+  type PhotoCacheStats,
+} from "./photo-cache";
+
+// Photo sync operations
+export {
+  syncPhoto,
+  syncAllPendingPhotos,
+  retryFailedPhotos,
+  cleanupSyncedPhotos,
+  hasPendingPhotos,
+  getPendingPhotoCount,
+  type PhotoSyncResult,
+  type PhotoSyncBatchResult,
+  type PhotoSyncProgress,
+} from "./photo-sync";
+
+// Photo capture hook
+export {
+  usePhotoCapture,
+  type UsePhotoCaptureOptions,
+  type UsePhotoCaptureResult,
+} from "./use-photo-capture";

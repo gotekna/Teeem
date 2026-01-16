@@ -5,3 +5,4 @@
  */
 
 export { OfflineSyncManager, OfflineSyncIndicator } from "./OfflineSyncManager";
+export { PhotoCapture } from "./PhotoCapture";
