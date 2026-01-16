@@ -159,8 +159,8 @@ export default function DocumentTypeDetailPage() {
   const [placeholderSearch, setPlaceholderSearch] = React.useState("");
   const [hidePlaceholderDescriptions, setHidePlaceholderDescriptions] = React.useState(false);
   const [folderOptions, setFolderOptions] = React.useState<string[]>([]); // Root folders only (for Folder/Primary Tab dropdowns)
-  const [folderHierarchy, setFolderHierarchy] = React.useState<Array<{ id?: number; name: string; tab_key?: string; children: Array<{ id?: number; name: string; tab_key?: string }> }>>([]); // SSoT: EntityTab hierarchy for Additional Tabs
-  const [allTabsForLookup, setAllTabsForLookup] = React.useState<Array<{ id?: number; name: string; tab_key?: string; children: Array<{ id?: number; name: string; tab_key?: string }> }>>([]); // All tabs (any group) for name lookups
+  const [folderHierarchy, setFolderHierarchy] = React.useState<Array<{ id?: number; name: string; tab_key?: string; storage_path?: string; children: Array<{ id?: number; name: string; tab_key?: string; storage_path?: string }> }>>([]); // SSoT: EntityTab hierarchy for Additional Tabs
+  const [allTabsForLookup, setAllTabsForLookup] = React.useState<Array<{ id?: number; name: string; tab_key?: string; storage_path?: string; children: Array<{ id?: number; name: string; tab_key?: string; storage_path?: string }> }>>([]); // All tabs (any group) for name lookups
   const [xeroTabs, setXeroTabs] = React.useState<Array<{ id?: number; name: string; key: string; children: Array<{ id?: number; name: string; key: string }> }>>([]);
   const [focusTextToken, setFocusTextToken] = React.useState<{ field: string; index: number } | null>(null);
   const [allDocumentTypes, setAllDocumentTypes] = React.useState<Array<{ id: number; name: string; scope: string }>>([]);
@@ -186,6 +186,19 @@ export default function DocumentTypeDetailPage() {
       if (item.id === id) return item.name;
       if (item.children?.length) {
         const found = findTabName(item.children, id);
+        if (found) return found;
+      }
+    }
+    return null;
+  }, []);
+
+  // SSoT: Returns storage_path for display (shows full folder path)
+  const findTabPath = React.useCallback((items: any[], id: number | undefined): string | null => {
+    if (!id || !items?.length) return null;
+    for (const item of items) {
+      if (item.id === id) return item.storage_path || item.name;
+      if (item.children?.length) {
+        const found = findTabPath(item.children, id);
         if (found) return found;
       }
     }
@@ -218,6 +231,8 @@ export default function DocumentTypeDetailPage() {
           id: tab.id,
           name: tab.display_name,
           tab_key: tab.tab_key,
+          // SSoT: Include storage path for display in dropdown
+          storage_path: tab.effective_storage_path || tab.storage_folder_path || tab.hierarchy_path,
           children: (tab.children || []).map(mapTabRecursive)
         });
 
@@ -1372,14 +1387,18 @@ export default function DocumentTypeDetailPage() {
                   >
                     <SelectTrigger className="text-sm">
                       <SelectValue placeholder="Select primary tab">
-                        {selectedId ? findTabName(allTabsForLookup, selectedId) || findTabName(folderHierarchy, selectedId) || `Tab ${selectedId}` : "Select..."}
+                        {selectedId ? findTabPath(allTabsForLookup, selectedId) || findTabPath(folderHierarchy, selectedId) || `Tab ${selectedId}` : "Select..."}
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {folderHierarchy.filter(p => p.id).flatMap(parent => [
-                        <SelectItem key={parent.id} value={parent.id!.toString()}>{parent.name}</SelectItem>,
+                        <SelectItem key={parent.id} value={parent.id!.toString()} className="font-medium">
+                          📁 {parent.name}
+                        </SelectItem>,
                         ...(parent.children || []).filter((c: any) => c.id).map((child: any) => (
-                          <SelectItem key={child.id} value={child.id.toString()} className="pl-6">↳ {child.name}</SelectItem>
+                          <SelectItem key={child.id} value={child.id.toString()} className="pl-6 text-muted-foreground">
+                            └─ {child.name}
+                          </SelectItem>
                         ))
                       ])}
                     </SelectContent>
@@ -1412,7 +1431,7 @@ export default function DocumentTypeDetailPage() {
                       <div className="flex flex-wrap gap-1">
                         {secondaryIds.map((tabId) => (
                           <Badge key={tabId} variant="secondary" className="text-xs">
-                            {findTabName(allTabsForLookup, tabId) || findTabName(folderHierarchy, tabId) || `Tab ${tabId}`}
+                            {findTabPath(allTabsForLookup, tabId) || findTabPath(folderHierarchy, tabId) || `Tab ${tabId}`}
                             <button onClick={() => removeSecondaryTab(tabId)} className="ml-1 hover:text-destructive">
                               <X className="h-2 w-2" />
                             </button>
@@ -1434,13 +1453,17 @@ export default function DocumentTypeDetailPage() {
                           // Only show if not already selected
                           if (parent.id !== primaryId && !secondaryIds.includes(parent.id!)) {
                             items.push(
-                              <SelectItem key={parent.id} value={parent.id!.toString()}>{parent.name}</SelectItem>
+                              <SelectItem key={parent.id} value={parent.id!.toString()} className="font-medium">
+                                📁 {parent.name}
+                              </SelectItem>
                             );
                           }
                           // Add children
                           (parent.children || []).filter((c: any) => c.id && c.id !== primaryId && !secondaryIds.includes(c.id)).forEach((child: any) => {
                             items.push(
-                              <SelectItem key={child.id} value={child.id.toString()} className="pl-6">↳ {child.name}</SelectItem>
+                              <SelectItem key={child.id} value={child.id.toString()} className="pl-6 text-muted-foreground">
+                                └─ {child.name}
+                              </SelectItem>
                             );
                           });
                           return items;

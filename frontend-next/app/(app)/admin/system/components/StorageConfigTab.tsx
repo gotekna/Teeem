@@ -1092,6 +1092,8 @@ export function StorageConfigTab() {
 
   // Toggle tree node expansion
   const toggleExpanded = (path: string) => {
+    const isCollapsing = expandedPaths.has(path);
+
     setExpandedPaths(prev => {
       const next = new Set(prev);
       if (next.has(path)) {
@@ -1101,6 +1103,16 @@ export function StorageConfigTab() {
       }
       return next;
     });
+
+    // When collapsing, also close any edit panels for scopes at or under this path
+    if (isCollapsing && editingKey) {
+      const scopesAtPath = Object.entries(formData.scope_folders)
+        .filter(([, folderPath]) => folderPath === path || folderPath.startsWith(path + '/'))
+        .map(([scopeKey]) => scopeKey);
+      if (scopesAtPath.includes(editingKey)) {
+        setEditingKey(null);
+      }
+    }
   };
 
   // Save tab folder path, template, and filename template via API
