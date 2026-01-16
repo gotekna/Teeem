@@ -66,6 +66,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { DocumentActions } from "@/components/documents/DocumentActions";
 
 // Types for API response
 interface DocumentItem {
@@ -1804,20 +1805,19 @@ export default function AllDocumentsPage() {
                       >
                         <Maximize2 className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => {
-                          const link = document.createElement('a');
-                          link.href = previewDocument.fileUrl!;
-                          link.download = previewDocument.displayName || previewDocument.fileName;
-                          link.click();
+                      <DocumentActions
+                        document={{
+                          id: previewDocument.id,
+                          fileName: previewDocument.fileName,
+                          displayName: previewDocument.displayName,
+                          fileUrl: previewDocument.fileUrl,
+                          storagePath: previewDocument.storagePath,
+                          mimeType: previewDocument.mimeType,
+                          source: previewDocument.source,
                         }}
-                        title="Download"
-                      >
-                        <Download className="h-4 w-4" />
-                      </Button>
+                        variant="inline"
+                        size="icon"
+                      />
                     </>
                   )}
                   <Button

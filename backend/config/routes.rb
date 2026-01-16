@@ -414,6 +414,7 @@ Rails.application.routes.draw do
         member do
           get :download  # Human-readable download URL (redirects to S3)
           get :preview   # Universal document preview (Excel/Word/PDF)
+          patch :move    # Move file to different folder (File Warehouse action)
         end
         collection do
           post :analyze

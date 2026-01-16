@@ -11,6 +11,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Calendar } from '@/components/ui/calendar';
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -816,6 +822,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragTargetColumn, setDragTargetColumn] = useState<'attachments' | 'questions' | null>(null);
+
+  // State for attachment-to-question linking dialog
+  const [pendingAttachmentForQuestion, setPendingAttachmentForQuestion] = useState<number | null>(null);
 
   // Editing answers inline
   const [editingAnswerId, setEditingAnswerId] = useState<number | null>(null);

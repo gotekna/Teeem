@@ -3,7 +3,7 @@
 module Api
   module V1
     class DocumentsController < ApplicationController
-      before_action :set_document, only: [ :show, :update, :destroy, :download, :preview ]
+      before_action :set_document, only: [ :show, :update, :destroy, :download, :preview, :move ]
 
       # GET /api/v1/documents/all
       # Returns file counts for the entire warehouse (fast)
@@ -638,6 +638,49 @@ module Api
           render json: { success: false, error: "File not found: #{e.message}" }, status: :not_found
         rescue StandardError => e
           Rails.logger.error "[Documents] Rename failed: #{e.message}"
+          render json: { success: false, error: e.message }, status: :unprocessable_entity
+        end
+      end
+
+      # PATCH /api/v1/documents/:id/move
+      # Move a document to a different folder
+      # SSoT: Updates folder_path in database (virtual folder) and optionally S3 path
+      # Params:
+      #   folder_path: The new folder path (e.g., "Jobs/J-001/Plans")
+      #   move_s3: Whether to physically move the file in S3 (default: false for blob architecture)
+      def move
+        new_folder_path = params[:folder_path]
+        move_s3 = params[:move_s3] == "true"
+
+        unless new_folder_path.present?
+          return render json: { success: false, error: "Missing folder_path parameter" }, status: :bad_request
+        end
+
+        begin
+          # Update the database record's folder_path (virtual folder)
+          @document.update!(folder: new_folder_path)
+
+          # Optionally move the actual S3 file (for non-blob architecture)
+          if move_s3 && @document.storage_path.present?
+            organization = Organization.first
+            provider = DocumentProviders::S3Compatible.for_organization(organization)
+
+            # Build new S3 path: folder_path/filename
+            new_s3_path = "#{new_folder_path}/#{@document.file_name}"
+            result = provider.move_file(@document.storage_path, new_s3_path)
+
+            @document.update!(storage_path: result[:path]) if result[:success]
+          end
+
+          render json: {
+            success: true,
+            message: "Document moved successfully",
+            document: document_to_json(@document)
+          }
+        rescue ActiveRecord::RecordInvalid => e
+          render json: { success: false, error: e.message }, status: :unprocessable_entity
+        rescue StandardError => e
+          Rails.logger.error "[Documents] Move failed: #{e.message}"
           render json: { success: false, error: e.message }, status: :unprocessable_entity
         end
       end
