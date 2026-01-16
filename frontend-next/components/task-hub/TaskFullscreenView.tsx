@@ -752,6 +752,13 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [selectedEmailForHighlight, setSelectedEmailForHighlight] = useState<number | null>(null);
   const [highlightedDocHashes, setHighlightedDocHashes] = useState<Set<string>>(new Set());
 
+  // Email source filter - filter emails by which source they came from
+  const [emailSourceFilter, setEmailSourceFilter] = useState<{
+    type: 'all' | 'contact' | 'matched' | 'thread';
+    emails?: string[];  // For contact filter - the email addresses to match
+    label?: string;     // Display label for the filter
+  }>({ type: 'all' });
+
   // Bulk email linking state
   const [bulkLinkOpen, setBulkLinkOpen] = useState(false);
   const [bulkLinkOptions, setBulkLinkOptions] = useState<{
@@ -911,13 +918,47 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   }, [task]);
 
   // Filter attachments - emails sorted by date (latest first)
-  const emailAttachments = localAttachments
+  const allEmailAttachments = localAttachments
     .filter(a => a.email)
     .sort((a, b) => {
       const dateA = a.email?.received_at ? new Date(a.email.received_at).getTime() : 0;
       const dateB = b.email?.received_at ? new Date(b.email.received_at).getTime() : 0;
       return dateB - dateA; // DESC - latest first
     });
+
+  // Apply email source filter
+  const emailAttachments = allEmailAttachments.filter(att => {
+    if (emailSourceFilter.type === 'all') return true;
+    if (emailSourceFilter.type === 'matched') {
+      return att.notes?.startsWith('Matched');
+    }
+    if (emailSourceFilter.type === 'thread') {
+      return att.notes?.startsWith('Thread:');
+    }
+    if (emailSourceFilter.type === 'contact' && emailSourceFilter.emails) {
+      const fromEmail = att.email?.from_email?.toLowerCase();
+      const toEmails = att.email?.to_emails?.map((e: string) => e.toLowerCase()) || [];
+      const allParticipants = [fromEmail, ...toEmails].filter(Boolean);
+      return emailSourceFilter.emails.some(e => allParticipants.includes(e.toLowerCase()));
+    }
+    return true;
+  });
+
+  // Calculate linked email counts per source
+  const getLinkedCountForEmails = (emails: string[]): number => {
+    if (!emails.length) return 0;
+    const lowerEmails = emails.map(e => e.toLowerCase());
+    return allEmailAttachments.filter(att => {
+      const fromEmail = att.email?.from_email?.toLowerCase();
+      const toEmails = att.email?.to_emails?.map((e: string) => e.toLowerCase()) || [];
+      const allParticipants = [fromEmail, ...toEmails].filter(Boolean);
+      return lowerEmails.some(e => allParticipants.includes(e));
+    }).length;
+  };
+
+  const matchedEmailCount = allEmailAttachments.filter(att => att.notes?.startsWith('Matched')).length;
+  const threadEmailCount = allEmailAttachments.filter(att => att.notes?.startsWith('Thread:')).length;
+
   const documentAttachments = localAttachments.filter(a => a.document && !a.email);
 
   // Split document attachments by category
@@ -3446,7 +3487,46 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   {emailsCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   <Mail className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm font-medium text-muted-foreground">Emails</span>
-                  <Badge variant="secondary" className="text-xs">{emailAttachments.length}</Badge>
+                  <Badge variant="secondary" className="text-xs">
+                    {emailSourceFilter.type !== 'all' ? `${emailAttachments.length}/${allEmailAttachments.length}` : allEmailAttachments.length}
+                  </Badge>
+                  {/* Quick filter chips */}
+                  {!emailsCollapsed && matchedEmailCount > 0 && (
+                    <Button
+                      variant={emailSourceFilter.type === 'matched' ? 'default' : 'ghost'}
+                      size="sm"
+                      className="h-5 px-1.5 text-[10px]"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (emailSourceFilter.type === 'matched') {
+                          setEmailSourceFilter({ type: 'all' });
+                        } else {
+                          setEmailSourceFilter({ type: 'matched', label: 'Matched' });
+                        }
+                      }}
+                    >
+                      <Target className="h-3 w-3 mr-0.5" />
+                      {matchedEmailCount}
+                    </Button>
+                  )}
+                  {!emailsCollapsed && threadEmailCount > 0 && (
+                    <Button
+                      variant={emailSourceFilter.type === 'thread' ? 'default' : 'ghost'}
+                      size="sm"
+                      className="h-5 px-1.5 text-[10px]"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (emailSourceFilter.type === 'thread') {
+                          setEmailSourceFilter({ type: 'all' });
+                        } else {
+                          setEmailSourceFilter({ type: 'thread', label: 'Thread' });
+                        }
+                      }}
+                    >
+                      <Users className="h-3 w-3 mr-0.5" />
+                      {threadEmailCount}
+                    </Button>
+                  )}
                 </div>
 
                 {/* Bulk Link Emails Button */}
@@ -3514,32 +3594,63 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                 const clientKey = client.job_contact_id || client.contact_id || 0;
                                 const hasMultipleEmails = client.emails.length > 1;
                                 const isExpanded = expandedClientId === clientKey;
+                                const linkedCount = getLinkedCountForEmails(client.emails);
 
                                 return (
                                   <div key={clientKey} className="relative">
-                                    <Button
-                                      variant={isExpanded ? "default" : "outline"}
-                                      size="sm"
-                                      className="h-8 text-xs"
-                                      onClick={() => {
-                                        if (hasMultipleEmails) {
-                                          setExpandedClientId(isExpanded ? null : clientKey);
-                                        } else if (client.emails.length === 1) {
-                                          // Single email - link directly
-                                          handleBulkLinkOption(client);
-                                        }
-                                      }}
-                                      disabled={bulkLinkLoading || client.emails.length === 0}
-                                    >
-                                      <User className="h-3 w-3 mr-1" />
-                                      {client.name}
-                                      {hasMultipleEmails && (
-                                        <ChevronDown className={`h-3 w-3 ml-1 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                    <div className="flex items-center gap-0.5">
+                                      {/* Main button - click to filter emails */}
+                                      <Button
+                                        variant={isExpanded ? "default" : linkedCount > 0 ? "secondary" : "outline"}
+                                        size="sm"
+                                        className="h-8 text-xs rounded-r-none"
+                                        onClick={() => {
+                                          if (client.emails.length > 0) {
+                                            setEmailSourceFilter({
+                                              type: 'contact',
+                                              emails: client.emails,
+                                              label: client.name
+                                            });
+                                            setBulkLinkOpen(false);
+                                          }
+                                        }}
+                                        disabled={client.emails.length === 0}
+                                      >
+                                        <User className="h-3 w-3 mr-1" />
+                                        {client.name}
+                                        {linkedCount > 0 && (
+                                          <Badge variant="default" className="ml-1 h-4 px-1 text-[10px] bg-green-600">
+                                            {linkedCount}
+                                          </Badge>
+                                        )}
+                                        {client.emails.length === 0 && (
+                                          <span className="ml-1 text-muted-foreground">(no email)</span>
+                                        )}
+                                      </Button>
+                                      {/* Link button - click to link emails */}
+                                      {client.emails.length > 0 && (
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-8 px-1.5 rounded-l-none border-l-0"
+                                          onClick={() => {
+                                            if (hasMultipleEmails) {
+                                              setExpandedClientId(isExpanded ? null : clientKey);
+                                            } else if (client.emails.length === 1) {
+                                              handleBulkLinkOption(client);
+                                            }
+                                          }}
+                                          disabled={bulkLinkLoading}
+                                          title="Link emails from this contact"
+                                        >
+                                          {hasMultipleEmails ? (
+                                            <ChevronDown className={`h-3 w-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                          ) : (
+                                            <Plus className="h-3 w-3" />
+                                          )}
+                                        </Button>
                                       )}
-                                      {client.emails.length === 0 && (
-                                        <span className="ml-1 text-muted-foreground">(no email)</span>
-                                      )}
-                                    </Button>
+                                    </div>
 
                                     {/* Email picker dropdown for clients with multiple emails */}
                                     {isExpanded && hasMultipleEmails && (
@@ -3758,6 +3869,27 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
+
+                  {/* Email filter indicator */}
+                  {emailSourceFilter.type !== 'all' && (
+                    <div className="mb-2 flex items-center gap-2 px-2 py-1.5 bg-blue-50 dark:bg-blue-950/30 rounded-md border border-blue-200 dark:border-blue-800">
+                      <span className="text-xs text-blue-700 dark:text-blue-300">
+                        Showing: {emailSourceFilter.label || emailSourceFilter.type}
+                      </span>
+                      <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
+                        {emailAttachments.length} of {allEmailAttachments.length}
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 px-1.5 text-xs text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-100 ml-auto"
+                        onClick={() => setEmailSourceFilter({ type: 'all' })}
+                      >
+                        <X className="h-3 w-3 mr-1" />
+                        Clear
+                      </Button>
+                    </div>
+                  )}
 
                   {/* Email list - grouped by month, first month expanded */}
                   <div className="border rounded-md">

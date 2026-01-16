@@ -1392,12 +1392,22 @@ export default function DocumentTypeDetailPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {folderHierarchy.filter(p => p.id).flatMap(parent => [
-                        <SelectItem key={parent.id} value={parent.id!.toString()} className="font-medium">
-                          📁 {parent.name}
+                        <SelectItem key={parent.id} value={parent.id!.toString()}>
+                          <div className="flex flex-col">
+                            <span className="font-medium">📁 {parent.name}</span>
+                            {parent.storage_path && parent.storage_path !== parent.name && (
+                              <span className="text-xs text-muted-foreground">{parent.storage_path}</span>
+                            )}
+                          </div>
                         </SelectItem>,
                         ...(parent.children || []).filter((c: any) => c.id).map((child: any) => (
-                          <SelectItem key={child.id} value={child.id.toString()} className="pl-6 text-muted-foreground">
-                            └─ {child.name}
+                          <SelectItem key={child.id} value={child.id.toString()} className="pl-6">
+                            <div className="flex flex-col">
+                              <span>└─ {child.name}</span>
+                              {child.storage_path && child.storage_path !== child.name && (
+                                <span className="text-xs text-muted-foreground ml-4">{child.storage_path}</span>
+                              )}
+                            </div>
                           </SelectItem>
                         ))
                       ])}
@@ -1453,16 +1463,26 @@ export default function DocumentTypeDetailPage() {
                           // Only show if not already selected
                           if (parent.id !== primaryId && !secondaryIds.includes(parent.id!)) {
                             items.push(
-                              <SelectItem key={parent.id} value={parent.id!.toString()} className="font-medium">
-                                📁 {parent.name}
+                              <SelectItem key={parent.id} value={parent.id!.toString()}>
+                                <div className="flex flex-col">
+                                  <span className="font-medium">📁 {parent.name}</span>
+                                  {parent.storage_path && parent.storage_path !== parent.name && (
+                                    <span className="text-xs text-muted-foreground">{parent.storage_path}</span>
+                                  )}
+                                </div>
                               </SelectItem>
                             );
                           }
                           // Add children
                           (parent.children || []).filter((c: any) => c.id && c.id !== primaryId && !secondaryIds.includes(c.id)).forEach((child: any) => {
                             items.push(
-                              <SelectItem key={child.id} value={child.id.toString()} className="pl-6 text-muted-foreground">
-                                └─ {child.name}
+                              <SelectItem key={child.id} value={child.id.toString()} className="pl-6">
+                                <div className="flex flex-col">
+                                  <span>└─ {child.name}</span>
+                                  {child.storage_path && child.storage_path !== child.name && (
+                                    <span className="text-xs text-muted-foreground ml-4">{child.storage_path}</span>
+                                  )}
+                                </div>
                               </SelectItem>
                             );
                           });
