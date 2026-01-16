@@ -12,10 +12,12 @@
 ### Email Storage
 - **Stored as:** `{id}.eml` (e.g., "12345.eml") in S3
 - **Subject in:** `email_warehouses.subject` column
-- **Current:** Display & Send both show "12345.eml" (useless!)
-- **Goal:** Display & Send BOTH use subject line:
-  - Display Name: "RE: Invoice Question" (shown in UI)
-  - Send Name: "RE Invoice Question - 2026-01-17.eml" (download)
+- **Current:** `{{OriginalFileName}}` = "12345.eml" (useless!)
+- **Fix:** Add `{{Subject}}` placeholder token
+- **Then configure in Storage Config:**
+  - Send Name: `{{Subject}} - {{Date}}.eml`
+  - Display Name: `{{Subject}}`
+- **User can customize** the template in Settings > Entity Config > Storage Config
 
 ### Two Names Per Document
 | Name | Purpose | Example |
@@ -60,17 +62,18 @@
 
 ### Week 3-4: Email Subject Token
 
-- [ ] **1.4** Add {{Subject}} token for emails
+- [ ] **1.4** Add {{Subject}} placeholder token for emails
   ```
-  Find where tokens are defined (StorageConfiguration or similar)
-  Map {{Subject}} → email_warehouse.subject
+  Find where tokens are defined (likely StorageConfiguration)
+  Add new token: {{Subject}} → email_warehouse.subject
+  Make available in Storage Config UI for Email scope
   ```
 
-- [ ] **1.5** Update default Email Body Send Name template
+- [ ] **1.5** Set default template (user can change in Storage Config)
   ```
-  From: {{OriginalFileName}} (results in "12345.eml")
-  To: {{Subject}} - {{Date}}.eml
-  Result: "RE Invoice Question - 2026-01-17.eml"
+  Send Name: {{Subject}} - {{Date}}.eml
+  Display Name: {{Subject}}
+  (User can customize at Settings > Entity Config > Storage Config > Emails)
   ```
 
 - [ ] **1.6** Test all download scenarios
@@ -205,6 +208,14 @@ Table: email_warehouses
 - subject: "RE: Invoice Question"
 - storage_path: "Emails/2026/01/12345.eml"
 
-Current: Downloads as "12345.eml"
-Goal: Downloads as "RE Invoice Question - 2026-01-17.eml"
+New placeholder: {{Subject}} → email_warehouse.subject
+
+Storage Config (user configurable):
+- Send Name template: {{Subject}} - {{Date}}.eml
+- Display Name template: {{Subject}}
+
+Result:
+- File in S3: "12345.eml"
+- Shown in UI: "RE: Invoice Question"
+- Downloads as: "RE Invoice Question - 2026-01-17.eml"
 ```

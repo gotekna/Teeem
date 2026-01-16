@@ -393,6 +393,452 @@ export default function ArchitectureMap() {
           </Card>
         </TabsContent>
 
+        {/* Teaching View - Step-by-step coding guide for beginners */}
+        <TabsContent value="teaching" className="space-y-6 mt-6">
+          {/* Welcome */}
+          <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <GraduationCap className="h-6 w-6 text-primary" />
+                Learn to Code in TEEEM
+              </CardTitle>
+              <CardDescription>
+                A step-by-step guide to writing your first feature - no AI required!
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                This guide walks you through the exact steps to add a feature to TEEEM.
+                Follow along, and by the end you&apos;ll understand how all the pieces connect.
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Lesson 1: Understanding the Stack */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 font-bold text-sm">
+                  1
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Lesson 1: The Tech Stack</CardTitle>
+                  <CardDescription>What technologies are we using?</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="p-4 rounded-lg border bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Monitor className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    <h4 className="font-semibold text-blue-700 dark:text-blue-300">Frontend</h4>
+                  </div>
+                  <ul className="text-sm space-y-1 text-blue-600 dark:text-blue-400">
+                    <li><strong>Next.js 14</strong> - React framework</li>
+                    <li><strong>TypeScript</strong> - JavaScript with types</li>
+                    <li><strong>Tailwind CSS</strong> - Styling</li>
+                    <li><strong>Jotai</strong> - State management</li>
+                  </ul>
+                </div>
+                <div className="p-4 rounded-lg border bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Server className="h-5 w-5 text-green-600 dark:text-green-400" />
+                    <h4 className="font-semibold text-green-700 dark:text-green-300">Backend</h4>
+                  </div>
+                  <ul className="text-sm space-y-1 text-green-600 dark:text-green-400">
+                    <li><strong>Ruby on Rails 7</strong> - API framework</li>
+                    <li><strong>PostgreSQL</strong> - Database</li>
+                    <li><strong>REST API</strong> - JSON responses</li>
+                    <li><strong>Foundation Pattern</strong> - Data structure</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-700">
+                <div className="flex items-start gap-2">
+                  <Lightbulb className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mt-0.5 shrink-0" />
+                  <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                    <strong>Key insight:</strong> Frontend and Backend are separate apps that talk via API calls.
+                    Frontend runs on port 3000, Backend on port 3001.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Lesson 2: Your First Task */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 font-bold text-sm">
+                  2
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Lesson 2: Adding a Simple Page</CardTitle>
+                  <CardDescription>Create your first page in TEEEM</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Let&apos;s say you want to add a new page at <code className="bg-muted px-1 rounded">/my-page</code>
+              </p>
+
+              <div className="space-y-3">
+                <div className="flex gap-3">
+                  <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold shrink-0">a</div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Create the folder and file</p>
+                    <code className="text-xs bg-muted px-2 py-1 rounded block mt-1">
+                      frontend-next/app/(app)/my-page/page.tsx
+                    </code>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold shrink-0">b</div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Add basic page structure</p>
+                    <div className="mt-2 font-mono text-xs bg-muted p-3 rounded-lg overflow-x-auto">
+                      <pre>{`"use client";
+
+export default function MyPage() {
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold">My Page</h1>
+      <p>Hello world!</p>
+    </div>
+  );
+}`}</pre>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold shrink-0">c</div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Visit <code className="bg-muted px-1 rounded">localhost:3000/my-page</code></p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-700">
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
+                  <p className="text-sm text-green-700 dark:text-green-300">
+                    <strong>That&apos;s it!</strong> Next.js uses file-based routing. The folder name = the URL path.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Lesson 3: Using Components */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 font-bold text-sm">
+                  3
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Lesson 3: Using UI Components</CardTitle>
+                  <CardDescription>Import and use existing components</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                TEEEM has pre-built components. Here&apos;s how to use them:
+              </p>
+
+              <div className="font-mono text-xs bg-muted p-3 rounded-lg overflow-x-auto">
+                <pre>{`"use client";
+
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+
+export default function MyPage() {
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold">My Page</h1>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Welcome</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p>This is a card component</p>
+          <Badge className="mt-2">Status</Badge>
+          <Button className="mt-4">Click me</Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}`}</pre>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                <div className="p-2 bg-muted rounded text-center">
+                  <p className="font-semibold">Button</p>
+                  <code className="text-muted-foreground">ui/button</code>
+                </div>
+                <div className="p-2 bg-muted rounded text-center">
+                  <p className="font-semibold">Card</p>
+                  <code className="text-muted-foreground">ui/card</code>
+                </div>
+                <div className="p-2 bg-muted rounded text-center">
+                  <p className="font-semibold">Badge</p>
+                  <code className="text-muted-foreground">ui/badge</code>
+                </div>
+                <div className="p-2 bg-muted rounded text-center">
+                  <p className="font-semibold">Dialog</p>
+                  <code className="text-muted-foreground">ui/dialog</code>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Lesson 4: Fetching Data */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 font-bold text-sm">
+                  4
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Lesson 4: Fetching Data from API</CardTitle>
+                  <CardDescription>Get data from the backend</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Use the <code className="bg-muted px-1 rounded">api</code> helper to fetch data:
+              </p>
+
+              <div className="font-mono text-xs bg-muted p-3 rounded-lg overflow-x-auto">
+                <pre>{`"use client";
+
+import { useState, useEffect } from "react";
+import { api } from "@/lib/api";
+
+export default function MyPage() {
+  const [jobs, setJobs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadJobs() {
+      const response = await api.get("/api/v1/jobs");
+      if (response?.success) {
+        setJobs(response.jobs);
+      }
+      setLoading(false);
+    }
+    loadJobs();
+  }, []);
+
+  if (loading) return <p>Loading...</p>;
+
+  return (
+    <div>
+      <h1>Jobs ({jobs.length})</h1>
+      {jobs.map(job => (
+        <p key={job.id}>{job.job_number}</p>
+      ))}
+    </div>
+  );
+}`}</pre>
+              </div>
+
+              <div className="p-3 rounded-lg bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-700">
+                <div className="flex items-start gap-2">
+                  <Lightbulb className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mt-0.5 shrink-0" />
+                  <div className="text-sm text-yellow-700 dark:text-yellow-300">
+                    <strong>Pattern:</strong> useEffect for loading data, useState for storing it.
+                    Always check <code className="bg-yellow-100 dark:bg-yellow-900 px-1 rounded">response?.success</code> before using data.
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Lesson 5: TeeemTableView */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 font-bold text-sm">
+                  5
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Lesson 5: Display Data in a Table</CardTitle>
+                  <CardDescription>Use TeeemTableView - THE ONE table component</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                For tables, always use <code className="bg-muted px-1 rounded">TeeemTableView</code>. It handles everything automatically:
+              </p>
+
+              <div className="font-mono text-xs bg-muted p-3 rounded-lg overflow-x-auto">
+                <pre>{`"use client";
+
+import TeeemTableView from "@/components/table/TeeemTableView";
+
+export default function JobsPage() {
+  return (
+    <div className="flex flex-col h-full -mx-4">
+      <TeeemTableView
+        foundationId="jobs"
+        autoFetchRecords={true}
+      />
+    </div>
+  );
+}`}</pre>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-3">
+                <div className="p-3 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-700">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                    <span className="text-sm font-semibold text-green-700 dark:text-green-300">TeeemTableView gives you:</span>
+                  </div>
+                  <ul className="text-xs text-green-600 dark:text-green-400 space-y-1">
+                    <li>- Automatic column detection</li>
+                    <li>- Sorting & filtering</li>
+                    <li>- Pagination</li>
+                    <li>- Edit/Add/Delete modals</li>
+                    <li>- Export to CSV</li>
+                  </ul>
+                </div>
+                <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-700">
+                  <div className="flex items-center gap-2 mb-2">
+                    <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                    <span className="text-sm font-semibold text-red-700 dark:text-red-300">Don&apos;t do this:</span>
+                  </div>
+                  <ul className="text-xs text-red-600 dark:text-red-400 space-y-1">
+                    <li>- Build custom tables from scratch</li>
+                    <li>- Pass hardcoded columns</li>
+                    <li>- Manually fetch records</li>
+                  </ul>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Lesson 6: Backend Basics */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400 font-bold text-sm">
+                  6
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Lesson 6: Backend Basics (Rails)</CardTitle>
+                  <CardDescription>Understanding the API side</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                The backend follows Rails conventions. Here&apos;s where things live:
+              </p>
+
+              <div className="font-mono text-xs bg-muted p-3 rounded-lg overflow-x-auto">
+                <pre>{`backend/
+├── app/
+│   ├── controllers/api/v1/   # API endpoints
+│   │   └── jobs_controller.rb
+│   ├── models/               # Database models
+│   │   └── job.rb
+│   └── services/             # Business logic
+│       └── job_service.rb
+└── db/
+    ├── schema.rb             # Database structure
+    └── migrate/              # Database changes`}</pre>
+              </div>
+
+              <div className="space-y-3">
+                <div className="p-3 rounded-lg border">
+                  <p className="text-xs font-semibold text-muted-foreground mb-1">Controller (handles API requests)</p>
+                  <code className="text-xs">backend/app/controllers/api/v1/jobs_controller.rb</code>
+                </div>
+                <div className="p-3 rounded-lg border">
+                  <p className="text-xs font-semibold text-muted-foreground mb-1">Model (database table)</p>
+                  <code className="text-xs">backend/app/models/job.rb</code>
+                </div>
+                <div className="p-3 rounded-lg border">
+                  <p className="text-xs font-semibold text-muted-foreground mb-1">Service (complex logic)</p>
+                  <code className="text-xs">backend/app/services/job_service.rb</code>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Lesson 7: The Golden Rules */}
+          <Card className="border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-950/30">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-yellow-200 dark:bg-yellow-800 text-yellow-700 dark:text-yellow-300 font-bold text-sm">
+                  <Target className="h-4 w-4" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg text-yellow-800 dark:text-yellow-200">The Golden Rules</CardTitle>
+                  <CardDescription className="text-yellow-700 dark:text-yellow-400">Remember these and you&apos;ll be fine!</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {[
+                  { rule: "Search before creating", tip: "Something similar probably exists already" },
+                  { rule: "Use TeeemTableView for tables", tip: "It handles 90% of table needs" },
+                  { rule: "Use existing components", tip: "Check @/components/ui/ first" },
+                  { rule: "Foundation API for data", tip: "Use autoFetchRecords={true}" },
+                  { rule: "Dark mode always", tip: "Use Tailwind dark: classes" },
+                  { rule: "TypeScript types", tip: "Define interfaces for your data" },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-start gap-3 p-2 rounded bg-yellow-100 dark:bg-yellow-900/30">
+                    <CheckCircle2 className="h-4 w-4 text-yellow-600 dark:text-yellow-400 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-yellow-800 dark:text-yellow-200">{item.rule}</p>
+                      <p className="text-xs text-yellow-700 dark:text-yellow-400">{item.tip}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Next Steps */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Rocket className="h-5 w-5 text-primary" />
+                Next Steps
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid md:grid-cols-3 gap-3">
+                <div className="p-3 rounded-lg border hover:border-primary/50 transition-colors">
+                  <h4 className="font-semibold text-sm mb-1">Explore existing pages</h4>
+                  <p className="text-xs text-muted-foreground">Look at /jobs, /contacts to see real examples</p>
+                </div>
+                <div className="p-3 rounded-lg border hover:border-primary/50 transition-colors">
+                  <h4 className="font-semibold text-sm mb-1">Read the SSoT tab</h4>
+                  <p className="text-xs text-muted-foreground">Learn where everything lives</p>
+                </div>
+                <div className="p-3 rounded-lg border hover:border-primary/50 transition-colors">
+                  <h4 className="font-semibold text-sm mb-1">Try the Health Check</h4>
+                  <p className="text-xs text-muted-foreground">Validate your code before committing</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* Architect View */}
         <TabsContent value="architect" className="space-y-6 mt-6">
           {/* Data Flow */}
