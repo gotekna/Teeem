@@ -541,7 +541,7 @@ function SortableQuestionItem({
         </div>
       )}
 
-      {/* Attached response documents/emails - displayed as hyperlinks (v2 - handles both document and email types) */}
+      {/* Attached response documents/emails - displayed as hyperlinks (v3 - handles both document and email types, empty emails return null) */}
       {item.attachments && item.attachments.length > 0 && (
         <div className="ml-6 space-y-1">
           {item.attachments.map((att) => {
