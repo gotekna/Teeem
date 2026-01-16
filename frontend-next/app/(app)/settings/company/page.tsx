@@ -16,6 +16,7 @@ import { JobSetupTab } from "@/app/(app)/admin/system/components/JobSetupTab";
 import { DocumentsTab } from "@/app/(app)/admin/system/components/DocumentsTab";
 import { EntityConfigurationTab } from "@/app/(app)/admin/system/components/EntityConfigurationTab";
 import CompanyInfoTab from "@/app/(app)/admin/system/components/CompanyInfoTab";
+import { OfflineTab } from "@/app/(app)/admin/system/components/OfflineTab";
 
 /**
  * Company Settings Page - Organization Settings
@@ -43,6 +44,7 @@ const COMPANY_TABS = [
   { id: "connections", label: "Connections" },
   { id: "job-setup", label: "Job Setup" },
   { id: "entity-config", label: "Entity Config" },
+  { id: "offline", label: "Offline" },
 ];
 
 const DEFAULT_TAB = "info";
@@ -122,6 +124,9 @@ export default function CompanySettingsPage() {
           </TabsContent>
           <TabsContent value="entity-config">
             <EntityConfigurationTab subTab={subTab} basePath="/settings/company/entity-config" />
+          </TabsContent>
+          <TabsContent value="offline">
+            <OfflineTab />
           </TabsContent>
         </div>
       </Tabs>
