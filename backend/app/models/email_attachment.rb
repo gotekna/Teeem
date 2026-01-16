@@ -12,6 +12,9 @@ class EmailAttachment < ApplicationRecord
   belongs_to :storage_blob, optional: true  # SSoT: Deduplicated file storage
   belongs_to :attachment, optional: true  # Legacy: Link to Attachment model (deprecated)
 
+  # Phase 3: Universal warehouse metadata (SSoT for display_name, send_name, folder)
+  has_one :warehouse_document, as: :documentable, dependent: :destroy
+
   # Scopes
   scope :linked_to_document, -> { where(is_existing_doc: true) }
   scope :standalone, -> { where(is_existing_doc: false) }

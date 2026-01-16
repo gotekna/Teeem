@@ -2244,7 +2244,8 @@ module Api
           category: attachment.category || "info",
           notes: attachment.notes,
           added_by: attachment.added_by&.name,
-          created_at: attachment.created_at
+          created_at: attachment.created_at,
+          action_item_id: attachment.action_item_id
         }
 
         case attachment.attachable_type

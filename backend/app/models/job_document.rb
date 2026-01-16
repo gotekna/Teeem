@@ -50,6 +50,9 @@ class JobDocument < ApplicationRecord
            as: :new_document,
            dependent: :nullify
 
+  # Phase 3: Universal warehouse metadata (SSoT for display_name, send_name, folder)
+  has_one :warehouse_document, as: :documentable, dependent: :destroy
+
   # File type enum based on extension
   FILE_TYPE_MAP = {
     "rvt" => "revit_project",

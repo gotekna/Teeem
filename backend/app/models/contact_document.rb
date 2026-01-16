@@ -23,6 +23,9 @@ class ContactDocument < ApplicationRecord
   # Active Storage for file upload
   has_one_attached :file
 
+  # Phase 3: Universal warehouse metadata (SSoT for display_name, send_name, folder)
+  has_one :warehouse_document, as: :documentable, dependent: :destroy
+
   # SSoT: STORAGE_PROVIDERS, MIGRATION_STATUSES defined in DocumentStorageConstants concern
 
   # Validations

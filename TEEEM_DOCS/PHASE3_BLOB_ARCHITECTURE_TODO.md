@@ -1,169 +1,318 @@
-# Phase 3: Blob Architecture - Master Todo List
+# Phase 3: Blob Architecture - Master Todo List (v2 - Universal Table)
 
 > **Last Updated:** 2026-01-17
 > **Status:** In Progress
 > **Timeline:** 7 months
 > **Recovery:** If session lost, resume from first unchecked item
+> **Design:** Universal `warehouse_documents` table (SSoT for all documents)
+
+---
+
+## Architecture Overview
+
+### Universal Table Design (Simplified)
+
+Instead of adding storage_blob_id to 10+ separate models, ONE universal table:
+
+```ruby
+warehouse_documents
+├── documentable_type: "JobDocument" / "EmailAttachment" / "CorporateCompanyDocument" / etc.
+├── documentable_id: 123
+├── storage_blob_id: FK to StorageBlob (deduplication via content_hash)
+├── display_name: "Tax Return FY2024" (shown in File Warehouse UI)
+├── send_name: "TA Tax Return 2024.pdf" (filename on download/email)
+├── folder: "Corporate/TH/Tab 10" (virtual folder path)
+└── timestamps
+```
+
+**Why this is better:**
+1. **ONE migration** instead of 10
+2. **ONE model** instead of updating 10 existing models
+3. **Single SSoT** for all warehouse metadata
+4. **Existing models untouched** - JobDocument, EmailAttachment, etc. stay as-is
+5. **Polymorphic** - can link ANY model to warehouse storage
+
+### Relationships
+
+```
+JobDocument (unchanged)
+    └── has_one :warehouse_document, as: :documentable
+            └── belongs_to :storage_blob
+                    └── content_hash (deduplication)
+                    └── storage_path (S3 key: "Blobs/ab/abc123.pdf")
+
+EmailAttachment (unchanged)
+    └── has_one :warehouse_document, as: :documentable
+            └── belongs_to :storage_blob
+```
 
 ---
 
 ## Quick Reference
 
 ### Email Storage
-- **Stored as:** `{id}.eml` (e.g., "12345.eml") in S3
+- **Stored as:** `{id}.eml` in S3
 - **Subject in:** `email_warehouses.subject` column
-- **Current:** `{{OriginalFileName}}` = "12345.eml" (useless!)
 - **Fix:** Add `{{Subject}}` placeholder token
-- **Then configure in Storage Config:**
+- **Configure in Storage Config:**
   - Send Name: `{{Subject}} - {{Date}}.eml`
   - Display Name: `{{Subject}}`
-- **User can customize** the template in Settings > Entity Config > Storage Config
 
 ### Two Names Per Document
 | Name | Purpose | Example |
 |------|---------|---------|
-| **Display Name** | What user SEES in UI | "Accountant Advice" |
-| **Send Name** | What file CALLED when downloaded/emailed | "TA Example 17-01-2026.pdf" |
+| **Display Name** | What user SEES in UI | "RE: Invoice Question" |
+| **Send Name** | What file CALLED when downloaded | "RE Invoice Question - 2026-01-17.eml" |
 
-### Current State (55% Complete)
+### Current State
 - ✅ StorageBlob model with deduplication
-- ✅ File Warehouse UI
-- ✅ 4 models with storage_blob_id: corporate_company_documents, email_attachments, bill_inboxes, chat_messages
-- ❌ 10+ models WITHOUT storage_blob_id: job_documents, people_documents, contact_documents, etc.
-- ❌ Downloads don't use Send Name
-- ❌ ActiveStorage still used by people_documents, contact_documents
+- ✅ File Warehouse UI (tree/list/gallery views)
+- ✅ Storage Config UI with placeholder tokens
+- ✅ Universal warehouse_documents table (migration + model created)
+- ✅ All document models have has_one :warehouse_document (including EmailWarehouse)
+- ✅ S3Compatible.download_url accepts filename parameter
+- ✅ DocumentStorageService.download_url uses Send Name
+- ✅ {Subject} token for emails (Month 2 COMPLETE)
+- ✅ SendNameResolver service with full sanitization
+- ✅ Email default template: "{Subject} - {ReceivedDate}.eml"
 
 ---
 
-## MONTH 1: Send Name in Downloads
+## MONTH 1: Foundation
 
-### Week 1-2: S3 Download with Send Name
+### Week 1-2: Create warehouse_documents Table
 
-- [ ] **1.1** Update S3Compatible.download_url to accept filename
+- [x] **1.1** Create migration for warehouse_documents table
+  ```ruby
+  create_table :warehouse_documents do |t|
+    t.references :documentable, polymorphic: true, null: false
+    t.references :storage_blob, foreign_key: true
+    t.string :display_name, null: false
+    t.string :send_name
+    t.string :folder
+    t.string :source_type  # "email", "corporate", "job", "task", etc.
+    t.timestamps
+
+    t.index [:documentable_type, :documentable_id], unique: true
+    t.index [:folder]
+    t.index [:source_type]
+  end
+  ```
+
+- [x] **1.2** Create WarehouseDocument model
+  ```ruby
+  class WarehouseDocument < ApplicationRecord
+    belongs_to :documentable, polymorphic: true
+    belongs_to :storage_blob, optional: true
+
+    validates :display_name, presence: true
+
+    # SSoT: Get download filename
+    def download_filename
+      send_name.presence || display_name
+    end
+
+    # SSoT: Get storage path from blob
+    def storage_path
+      storage_blob&.storage_path
+    end
+  end
+  ```
+
+- [x] **1.3** Add has_one :warehouse_document to existing models (7 models updated)
+  ```ruby
+  # In JobDocument, EmailAttachment, CorporateCompanyDocument, etc.
+  has_one :warehouse_document, as: :documentable, dependent: :destroy
+  ```
+
+### Week 3-4: Send Name in Downloads
+
+- [x] **1.4** Update S3Compatible.download_url to accept filename
   ```
   File: backend/app/services/document_providers/s3_compatible.rb
-  Line: 225
   Add: response_content_disposition parameter
   ```
 
-- [ ] **1.2** Update DocumentStorageService.download_url to pass Send Name
+- [x] **1.5** Update DocumentStorageService to use warehouse_document.send_name
   ```
   File: backend/app/services/document_storage_service.rb
-  Line: 218
-  Get Send Name from document's DocumentType template
+  Get send_name from warehouse_document
+  Pass to download_url
   ```
 
-- [ ] **1.3** Add send_name method to StorableDocument concern
-  ```
-  File: backend/app/models/concerns/storable_document.rb
-  Add: expand template with document values
-  Fallback: file_name if no template
-  ```
-
-### Week 3-4: Email Subject Token
-
-- [ ] **1.4** Add {{Subject}} placeholder token for emails
-  ```
-  Find where tokens are defined (likely StorageConfiguration)
-  Add new token: {{Subject}} → email_warehouse.subject
-  Make available in Storage Config UI for Email scope
-  ```
-
-- [ ] **1.5** Set default template (user can change in Storage Config)
-  ```
-  Send Name: {{Subject}} - {{Date}}.eml
-  Display Name: {{Subject}}
-  (User can customize at Settings > Entity Config > Storage Config > Emails)
-  ```
-
-- [ ] **1.6** Test all download scenarios
-  - Corporate doc → DocumentType template
-  - Email → Subject line
-  - Job doc → file_name
+- [ ] **1.6** Test downloads use Send Name (runtime test needed)
 
 ---
 
-## MONTH 2: Database Schema
+## MONTH 2: Email Subject Token ✅ COMPLETE
 
-### Week 1-2: Migrations
+### Week 1-2: Add {Subject} Token
 
-- [ ] **2.1** Migration: add storage_blob_id to job_documents
-- [ ] **2.2** Migration: add storage_blob_id to people_documents
-- [ ] **2.3** Migration: add storage_blob_id to contact_documents
-- [ ] **2.4** Migration: add storage_blob_id to document_templates
-- [ ] **2.5** Migration: add storage_blob_id to user_documents
-- [ ] **2.6** Migration: add storage_blob_id to purchase_order_documents
-- [ ] **2.7** Migration: add storage_blob_id to case_documents
+- [x] **2.1** Find where placeholder tokens are defined
+  ```
+  Found: DocumentTemplatable concern uses {Token} syntax
+  SendNameResolver uses same {Token} syntax with defaults per source_type
+  ```
 
-### Week 3-4: Model Updates
+- [x] **2.2** Add {Subject} token to DocumentTemplatable
+  ```
+  Added tokens: {Subject}, {SubjectShort}, {FromName}, {FromEmail}, {ReceivedDate}
+  File: backend/app/models/concerns/document_templatable.rb
+  ```
 
-- [ ] **2.8** JobDocument: add belongs_to :storage_blob
-- [ ] **2.9** PeopleDocument: add belongs_to, REMOVE has_one_attached
-- [ ] **2.10** ContactDocument: add belongs_to, REMOVE has_one_attached
-- [ ] **2.11** Update remaining 5 document models
+- [x] **2.3** Set default Email templates
+  ```
+  Send Name: {Subject} - {ReceivedDate}.eml (in SendNameResolver DEFAULT_TEMPLATES)
+  Display Name: Use subject when creating WarehouseDocument
+  ```
 
----
+### Week 3-4: Template Expansion + Full Sanitization
 
-## MONTH 3: StorableDocument Concern (SSoT)
+- [x] **2.4** Create SendNameResolver service with FULL SANITIZATION
+  ```
+  File: backend/app/services/send_name_resolver.rb
+  - MAX_FILENAME_LENGTH = 200
+  - INVALID_FILENAME_CHARS for Windows + Unix
+  - Template expansion with fallback chain
+  - Full sanitization (invalid chars, control chars, spaces)
+  - Extension inference from content_type or original_filename
+  ```
 
-- [ ] **3.1** Create/update StorableDocument concern with:
-  - storage_location (blob path or legacy path)
-  - send_name (expanded template)
-  - display_name_resolved (UI display)
+- [x] **2.5** Hook into download flow
+  ```
+  - WarehouseDocument.download_filename uses SendNameResolver
+  - DocumentStorageService.resolve_send_name uses warehouse_document
+  - S3Compatible.download_url accepts filename parameter
+  - Added has_one :warehouse_document to EmailWarehouse
+  ```
 
-- [ ] **3.2** Add expand_send_name_template method
-
-- [ ] **3.3** Include in all document models:
-  - [ ] CorporateCompanyDocument
-  - [ ] JobDocument
-  - [ ] PeopleDocument
-  - [ ] ContactDocument
-  - [ ] EmailAttachment
-  - [ ] DocumentTemplate
-  - [ ] UserDocument
-  - [ ] PurchaseOrderDocument
-  - [ ] CaseDocument
-
----
-
-## MONTH 4: Bulk Migration
-
-- [ ] **4.1** Create blob:migrate:job_documents rake task
-- [ ] **4.2** Create blob:migrate:people_documents rake task
-- [ ] **4.3** Create blob:migrate:contact_documents rake task
-- [ ] **4.4** Create blob:migrate:all master task
-- [ ] **4.5** Run on staging (~60k records)
-- [ ] **4.6** Run on production
+- [x] **2.6** Test edge cases (verified in code):
+  - Email with "RE: Invoice" subject → "RE Invoice - 17-01-2026.eml" (colon sanitized)
+  - Very long subject (300 chars) → truncated to 200 with "..." before extension
+  - Empty subject → falls back to display_name → original_filename → "document"
+  - Missing extension → inferred from content_type or defaults to .pdf/.eml
 
 ---
 
-## MONTH 5: Remove ActiveStorage
+## MONTH 3: Migration - Existing Documents
 
-- [ ] **5.1** Verify all PeopleDocument have storage_blob_id
-- [ ] **5.2** Verify all ContactDocument have storage_blob_id
-- [ ] **5.3** Remove has_one_attached from PeopleDocument
-- [ ] **5.4** Remove has_one_attached from ContactDocument
-- [ ] **5.5** Clean up orphaned ActiveStorage blobs
+### Week 1-2: Corporate Documents
+
+- [ ] **3.1** Create rake task: warehouse:migrate:corporate_documents
+  ```ruby
+  # For each CorporateCompanyDocument:
+  # 1. Create WarehouseDocument record
+  # 2. Link existing storage_blob_id (if present)
+  # 3. Copy display_name, folder, etc.
+  ```
+
+- [ ] **3.2** Run on staging
+- [ ] **3.3** Verify data integrity
+- [ ] **3.4** Run on production
+
+### Week 3-4: Email Attachments
+
+- [ ] **3.5** Create rake task: warehouse:migrate:email_attachments
+- [ ] **3.6** Run on staging
+- [ ] **3.7** Run on production
 
 ---
 
-## MONTH 6: Garbage Collection
+## MONTH 4: Migration - Remaining Models
+
+### Week 1-2: Job Documents
+
+- [ ] **4.1** Create rake task: warehouse:migrate:job_documents
+  ```ruby
+  # For each JobDocument:
+  # 1. Create WarehouseDocument
+  # 2. Create StorageBlob from existing storage_path
+  # 3. Link together
+  ```
+
+- [ ] **4.2** Run on staging (~50k records)
+- [ ] **4.3** Run on production
+
+### Week 3-4: People/Contact Documents
+
+- [ ] **4.4** Create rake task: warehouse:migrate:people_documents
+  ```ruby
+  # Migrate from ActiveStorage to StorageBlob
+  ```
+
+- [ ] **4.5** Create rake task: warehouse:migrate:contact_documents
+- [ ] **4.6** Run migrations
+
+---
+
+## MONTH 5: API Updates
+
+### Week 1-2: Documents Controller
+
+- [ ] **5.1** Update /api/v1/documents endpoints to use WarehouseDocument
+  ```ruby
+  # Return display_name and send_name from warehouse_document
+  # Use storage_blob for file operations
+  ```
+
+- [ ] **5.2** Update /api/v1/documents/all to query warehouse_documents
+- [ ] **5.3** Update folder hierarchy queries
+
+### Week 3-4: File Warehouse UI Integration
+
+- [ ] **5.4** Verify frontend works with new API responses
+- [ ] **5.5** Test tree view, search, preview
+- [ ] **5.6** Test download, email, copy link actions
+
+---
+
+## MONTH 6: Cleanup & Garbage Collection
+
+### Week 1-2: Garbage Collection
 
 - [ ] **6.1** Create blob:cleanup:orphaned rake task
-- [ ] **6.2** Create blob:audit:reference_counts task
-- [ ] **6.3** Add Heroku Scheduler for weekly cleanup
-- [ ] **6.4** Add monitoring for orphan growth
+  ```ruby
+  # Find StorageBlob where no WarehouseDocument references it
+  # Delete from S3 and database
+  ```
+
+- [ ] **6.2** Create blob:audit:integrity task
+- [ ] **6.3** Schedule weekly cleanup
+
+### Week 3-4: ActiveStorage Cleanup (Optional)
+
+- [ ] **6.4** Verify all migrated documents work without ActiveStorage
+- [ ] **6.5** Remove has_one_attached from models (optional)
+- [ ] **6.6** Clean orphaned ActiveStorage blobs (optional)
 
 ---
 
-## MONTH 7: Testing & Polish
+## MONTH 7: Testing & Documentation
 
-- [ ] **7.1** Deduplication test (same file → 1 blob)
-- [ ] **7.2** Download rename test (Send Name works)
-- [ ] **7.3** Folder move test (instant, no S3 copy)
-- [ ] **7.4** Garbage collection test
-- [ ] **7.5** Performance test (10k files < 500ms)
-- [ ] **7.6** Update CLAUDE.md documentation
+- [ ] **7.1** Deduplication test
+  ```
+  Upload same file to 3 jobs → 1 StorageBlob, 3 WarehouseDocuments
+  ```
+
+- [ ] **7.2** Download rename test
+  ```
+  Download corporate doc → uses Send Name from template
+  Download email → uses Subject line
+  ```
+
+- [ ] **7.3** Folder move test
+  ```
+  Move file → only updates warehouse_document.folder (instant)
+  ```
+
+- [ ] **7.4** Performance test
+  ```
+  Browse folder with 10k files < 500ms
+  Search across 100k documents < 1s
+  ```
+
+- [ ] **7.5** Update CLAUDE.md with architecture docs
+- [ ] **7.6** Update TEEEM_DOCS with user guide
 
 ---
 
@@ -171,13 +320,12 @@
 
 | File | Purpose |
 |------|---------|
-| `backend/app/services/document_providers/s3_compatible.rb` | S3 download URL generation |
-| `backend/app/services/document_storage_service.rb` | Storage abstraction layer |
-| `backend/app/models/concerns/storable_document.rb` | SSoT for document storage |
-| `backend/app/models/storage_blob.rb` | Blob deduplication model |
-| `backend/app/models/job_document.rb` | Needs storage_blob_id |
-| `backend/app/models/people_document.rb` | Needs storage_blob_id, remove ActiveStorage |
-| `backend/app/models/contact_document.rb` | Needs storage_blob_id, remove ActiveStorage |
+| `backend/db/migrate/XXXXX_create_warehouse_documents.rb` | NEW - Universal table |
+| `backend/app/models/warehouse_document.rb` | NEW - Universal model |
+| `backend/app/services/document_providers/s3_compatible.rb` | Add filename to download |
+| `backend/app/services/document_storage_service.rb` | Use warehouse_document.send_name |
+| `backend/app/services/send_name_resolver.rb` | NEW - Template expansion |
+| `backend/lib/tasks/warehouse_migration.rake` | NEW - Migration tasks |
 
 ---
 
@@ -185,37 +333,67 @@
 
 | Checkpoint | What's Done |
 |------------|-------------|
-| Month 1 | Downloads use Send Name |
-| Month 2 | All models have storage_blob_id column |
-| Month 3 | StorableDocument concern is SSoT |
-| Month 4 | Existing documents migrated to blobs |
-| Month 5 | ActiveStorage removed |
+| Month 1 | warehouse_documents table created, downloads use Send Name |
+| Month 2 | {{Subject}} token works, emails use subject line |
+| Month 3 | Corporate + Email documents migrated |
+| Month 4 | Job + People + Contact documents migrated |
+| Month 5 | API updated, UI working |
 | Month 6 | Garbage collection running |
 | Month 7 | Tested and documented |
 
 ---
 
+## Database Schema (Final State)
+
+```
+storage_blobs (existing)
+├── content_hash: unique SHA256
+├── storage_path: "Blobs/ab/abc123.pdf"
+├── file_size
+├── content_type
+├── reference_count
+
+warehouse_documents (NEW - SSoT)
+├── documentable_type: "JobDocument"
+├── documentable_id: 123
+├── storage_blob_id: FK
+├── display_name: "Tax Return FY2024"
+├── send_name: "TA Tax Return 2024.pdf"
+├── folder: "Corporate/TH/Tab 10"
+├── source_type: "corporate"
+
+job_documents (unchanged)
+├── ... existing columns ...
+└── (no storage_blob_id needed!)
+
+email_attachments (unchanged)
+├── ... existing columns ...
+├── storage_blob_id (keep for now, migrate to warehouse_document)
+```
+
+---
+
 ## Notes
 
-### Why Blob Architecture?
-1. **Deduplication** - Same file sent to 100 people = 1 storage copy
-2. **Lightning fast folders** - Moving files is instant (DB update only)
-3. **Send Name** - Files download with proper names, not blob keys
+### Why Universal Table?
+1. **Simpler** - ONE table instead of modifying 10+ models
+2. **SSoT** - All warehouse metadata in one place
+3. **Flexible** - Easy to add new document types
+4. **Non-invasive** - Existing models stay unchanged
 
 ### Email Storage Details
 ```
-Table: email_warehouses
-- subject: "RE: Invoice Question"
-- storage_path: "Emails/2026/01/12345.eml"
+email_warehouses.subject: "RE: Invoice Question"
+storage_path: "Emails/2026/01/12345.eml"
 
-New placeholder: {{Subject}} → email_warehouse.subject
+New: {{Subject}} placeholder token
 
 Storage Config (user configurable):
-- Send Name template: {{Subject}} - {{Date}}.eml
-- Display Name template: {{Subject}}
+- Send Name: {{Subject}} - {{Date}}.eml
+- Display Name: {{Subject}}
 
 Result:
-- File in S3: "12345.eml"
-- Shown in UI: "RE: Invoice Question"
+- S3 file: "12345.eml"
+- UI shows: "RE: Invoice Question"
 - Downloads as: "RE Invoice Question - 2026-01-17.eml"
 ```

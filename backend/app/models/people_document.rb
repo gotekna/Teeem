@@ -13,6 +13,9 @@ class PeopleDocument < ApplicationRecord
   # Active Storage for file upload
   has_one_attached :file
 
+  # Phase 3: Universal warehouse metadata (SSoT for display_name, send_name, folder)
+  has_one :warehouse_document, as: :documentable, dependent: :destroy
+
   # Duplicate tracking
   has_many :duplicate_reviews_as_existing,
            class_name: "DocumentDuplicateReview",

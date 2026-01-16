@@ -11,6 +11,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "sonner";
 import { DynamicTitle } from "@/components/dynamic-title";
 import { CompanyColorsProvider } from "@/components/providers/company-colors-provider";
+import { OfflineProvider } from "@/components/providers/offline-provider";
+import type { Metadata, Viewport } from "next";
 
 const hedvigSerif = Hedvig_Letters_Serif({
   weight: "400",
@@ -19,9 +21,26 @@ const hedvigSerif = Hedvig_Letters_Serif({
   variable: "--font-hedvig-serif",
 });
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "Teeem",
   description: "Project management for construction",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "TEEEM",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#4f46e5",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
@@ -48,10 +67,12 @@ export default function RootLayout({
             <QueryProvider>
               <AuthProvider>
                 <CompanyColorsProvider>
-                  <DynamicTitle />
-                  {children}
-                  <Toaster />
-                  <SonnerToaster />
+                  <OfflineProvider>
+                    <DynamicTitle />
+                    {children}
+                    <Toaster />
+                    <SonnerToaster />
+                  </OfflineProvider>
                 </CompanyColorsProvider>
               </AuthProvider>
             </QueryProvider>

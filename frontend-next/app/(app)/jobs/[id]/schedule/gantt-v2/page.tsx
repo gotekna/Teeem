@@ -48,6 +48,8 @@ import { ImageLightbox } from '@/components/ui/image-lightbox';
 import { useGanttDataManager } from '@/lib/gantt/hooks';
 import { EditRowDialog, type EditRowData, type EditRowFormData } from '@/components/schedule/EditRowDialog';
 import { clearCachedRecords } from '@/lib/records-cache';
+import { GanttSyncIndicator } from '@/components/ui/gantt-sync-indicator';
+import { useAutoGanttCache, useGanttOfflineCache } from '@/lib/offline';
 
 // =============================================================================
 // Types
@@ -69,11 +71,29 @@ export default function GanttV2Page() {
   const { toast } = useToast();
   const jobId = Number(params.id);
 
+  // Job-specific state (must be declared before offline hooks that reference it)
+  const [job, setJob] = React.useState<Job | null>(null);
+
   // SSoT: Use shared hook for all Gantt behavior
   const gantt = useGanttDataManager({ mode: 'job', jobId });
 
-  // Job-specific state
-  const [job, setJob] = React.useState<Job | null>(null);
+  // Offline cache - tracks sync status and auto-caches when online
+  const offlineCache = useGanttOfflineCache({
+    mode: 'job',
+    id: jobId,
+    name: job?.name || job?.title || `Job ${jobId}`,
+  });
+
+  // Auto-cache Gantt data when loaded online
+  useAutoGanttCache({
+    mode: 'job',
+    id: jobId,
+    name: job?.name || job?.title || `Job ${jobId}`,
+    tasks: gantt.tasks,
+    dependencies: gantt.dependencies,
+    rows: gantt.rows,
+    loading: gantt.loading,
+  });
 
   // Photo panel state (job-specific feature)
   const [showPhotoPanel, setShowPhotoPanel] = React.useState(false);
@@ -415,7 +435,16 @@ export default function GanttV2Page() {
   if (gantt.loading) {
     return (
       <div className="flex flex-col h-full">
-        <Header job={job} jobId={jobId} onOpenOldGantt={handleOpenOldGantt} />
+        <Header
+          job={job}
+          jobId={jobId}
+          onOpenOldGantt={handleOpenOldGantt}
+          lastSyncedAt={offlineCache.lastSyncedAt}
+          lastSyncedDisplay={offlineCache.lastSyncedDisplay}
+          isStale={offlineCache.isStale}
+          isLoading={gantt.loading}
+          isOfflineCached={offlineCache.isOfflineCached}
+        />
         <div className="flex-1 flex items-center justify-center">
           <div className="flex flex-col items-center gap-4">
             <Spinner />
@@ -429,7 +458,16 @@ export default function GanttV2Page() {
   if (gantt.error) {
     return (
       <div className="flex flex-col h-full">
-        <Header job={job} jobId={jobId} onOpenOldGantt={handleOpenOldGantt} />
+        <Header
+          job={job}
+          jobId={jobId}
+          onOpenOldGantt={handleOpenOldGantt}
+          lastSyncedAt={offlineCache.lastSyncedAt}
+          lastSyncedDisplay={offlineCache.lastSyncedDisplay}
+          isStale={offlineCache.isStale}
+          isLoading={gantt.loading}
+          isOfflineCached={offlineCache.isOfflineCached}
+        />
         <div className="flex-1 flex items-center justify-center">
           <div className="flex flex-col items-center gap-4">
             <p className="text-sm text-destructive">{gantt.error}</p>
@@ -442,7 +480,16 @@ export default function GanttV2Page() {
 
   return (
     <div className="flex flex-col h-full">
-      <Header job={job} jobId={jobId} onOpenOldGantt={handleOpenOldGantt} />
+      <Header
+          job={job}
+          jobId={jobId}
+          onOpenOldGantt={handleOpenOldGantt}
+          lastSyncedAt={offlineCache.lastSyncedAt}
+          lastSyncedDisplay={offlineCache.lastSyncedDisplay}
+          isStale={offlineCache.isStale}
+          isLoading={gantt.loading}
+          isOfflineCached={offlineCache.isOfflineCached}
+        />
 
       {/* Gantt Chart + Photo Panel */}
       <div className="flex-1 min-h-0 flex">
@@ -914,9 +961,24 @@ interface HeaderProps {
   job: Job | null;
   jobId: number;
   onOpenOldGantt: () => void;
+  // Offline sync status
+  lastSyncedAt: Date | null;
+  lastSyncedDisplay: string;
+  isStale: boolean;
+  isLoading: boolean;
+  isOfflineCached: boolean;
 }
 
-function Header({ job, jobId, onOpenOldGantt }: HeaderProps) {
+function Header({
+  job,
+  jobId,
+  onOpenOldGantt,
+  lastSyncedAt,
+  lastSyncedDisplay,
+  isStale,
+  isLoading,
+  isOfflineCached,
+}: HeaderProps) {
   return (
     <div className="flex items-center justify-between px-4 py-3 border-b bg-background">
       <div className="flex items-center gap-4">
@@ -925,7 +987,17 @@ function Header({ job, jobId, onOpenOldGantt }: HeaderProps) {
           <h1 className="text-lg font-semibold">
             Gantt V2 {job ? `- ${job.name || job.title}` : ''}
           </h1>
-          <p className="text-xs text-muted-foreground">SSoT Hook Architecture</p>
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-muted-foreground">SSoT Hook Architecture</p>
+            <span className="text-muted-foreground">•</span>
+            <GanttSyncIndicator
+              lastSyncedAt={lastSyncedAt}
+              lastSyncedDisplay={lastSyncedDisplay}
+              isStale={isStale}
+              isLoading={isLoading}
+              isOfflineCached={isOfflineCached}
+            />
+          </div>
         </div>
         {/* Quick Links - Plans, PO, Claims, Site (SSoT: same as old Gantt page) */}
         <div className="flex items-center gap-1 ml-2">

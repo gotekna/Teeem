@@ -222,17 +222,34 @@ module DocumentProviders
       raise NotFoundError, "File not found: #{path_or_id}"
     end
 
+    # Generate presigned download URL
+    # @param path_or_id [String] File path or S3 key
+    # @param options [Hash] Options
+    # @option options [Integer] :expires_in Expiry time in seconds (default: 3600)
+    # @option options [String] :filename Custom download filename (Send Name)
+    #   When provided, browser downloads will save with this name instead of S3 key
+    # @return [String] Presigned download URL
     def download_url(path_or_id, options = {})
       key = resolve_key(path_or_id)
       expires_in = options.fetch(:expires_in, 3600)
+      filename = options[:filename]
 
-      signer = Aws::S3::Presigner.new(client: @client)
-      signer.presigned_url(
-        :get_object,
+      presign_params = {
         bucket: @bucket,
         key: key,
         expires_in: expires_in
-      )
+      }
+
+      # SSoT: Send Name - custom filename for downloads
+      # Uses Content-Disposition header to override browser download filename
+      if filename.present?
+        # Sanitize and encode filename for Content-Disposition header
+        safe_filename = sanitize_download_filename(filename)
+        presign_params[:response_content_disposition] = "attachment; filename=\"#{safe_filename}\""
+      end
+
+      signer = Aws::S3::Presigner.new(client: @client)
+      signer.presigned_url(:get_object, presign_params)
     end
 
     def get_file(path_or_id)
@@ -566,6 +583,25 @@ module DocumentProviders
     # Sanitize filename for S3 (remove special characters)
     def sanitize_filename(filename)
       filename.to_s.gsub(/[<>:"|?*\\]/, "_").strip
+    end
+
+    # Sanitize filename for HTTP Content-Disposition header
+    # Used for Send Name - the custom download filename
+    # More restrictive than S3 filename sanitization (no quotes, control chars)
+    def sanitize_download_filename(filename)
+      return "document" if filename.blank?
+
+      # Remove control characters and quotes (break Content-Disposition header)
+      safe = filename.to_s.gsub(/[\x00-\x1f\x7f"\\]/, " ")
+
+      # Replace invalid filesystem characters
+      safe = safe.gsub(/[<>:|?*\/]/, " ")
+
+      # Collapse multiple spaces and trim
+      safe = safe.gsub(/\s+/, " ").strip
+
+      # Ensure we have something left
+      safe.presence || "document"
     end
 
     # Build the full S3 key including root path

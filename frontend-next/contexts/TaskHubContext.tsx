@@ -46,6 +46,7 @@ export interface TaskAttachment {
   email?: TaskAttachmentEmail;
   document?: TaskAttachmentDocument;
   sharepoint_url?: string; // For response files uploaded to SharePoint
+  action_item_id?: number; // Links attachment to a specific question as response
 }
 
 export type ActionItemType = 'action' | 'question' | 'header';

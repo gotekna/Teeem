@@ -77,6 +77,9 @@ class CorporateCompanyDocument < ApplicationRecord
   has_many :sm_task_attachments, as: :attachable, dependent: :destroy
   has_many :attached_tasks, through: :sm_task_attachments, source: :sm_task
 
+  # Phase 3: Universal warehouse metadata (SSoT for display_name, send_name, folder)
+  has_one :warehouse_document, as: :documentable, dependent: :destroy
+
   # ActiveStorage has_one_attached :file was REMOVED (Jan 2026) - it violated SSoT by
   # duplicating storage location. Files now stored via StorageBlob (belongs_to :storage_blob)
   # which deduplicates via content_hash and uses StorageConfiguration for provider-agnostic paths.

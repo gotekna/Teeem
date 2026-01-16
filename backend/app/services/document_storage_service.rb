@@ -212,9 +212,13 @@ class DocumentStorageService
   #   1. StorageBlob (preferred - deduplicated storage)
   #   2. storage_path (S3/Wasabi direct)
   #
+  # Phase 3 (Jan 2026): Send Name support
+  #   Downloads use warehouse_document.download_filename for custom filename
+  #   This enables files to rename on download based on configured templates
+  #
   # @param record [ActiveRecord::Base] Document model
   # @param expires_in [Integer] URL expiry in seconds (default: 3600)
-  # @return [Hash] { success: true, url: "..." }
+  # @return [Hash] { success: true, url: "...", filename: "..." }
   def download_url(record, expires_in: 3600)
     return error_result("No record provided", status: :bad_request) unless record
 
@@ -231,8 +235,12 @@ class DocumentStorageService
         provider = s3_provider
         return error_result("S3 storage not configured", status: :service_unavailable) unless provider
 
-        url = provider.download_url(s3_key, expires_in: expires_in)
-        { success: true, url: url }
+        # SSoT: Get Send Name from warehouse_document (Phase 3)
+        # This is the filename used when downloading (Content-Disposition header)
+        send_name = resolve_send_name(record)
+
+        url = provider.download_url(s3_key, expires_in: expires_in, filename: send_name)
+        { success: true, url: url, filename: send_name }
       rescue DocumentProviders::NotFoundError
         error_result("File not found in S3 storage: #{s3_key}", status: :not_found)
       rescue DocumentProviders::NotConnectedError
@@ -469,5 +477,39 @@ class DocumentStorageService
       credential = S3CompatibleCredential.active.connected.first
       DocumentProviders::S3Compatible.new(credential) if credential
     end
+  end
+
+  # ============================================================================
+  # SEND NAME RESOLUTION (Phase 3)
+  # ============================================================================
+
+  # SSoT: Resolve the Send Name for a document download
+  #
+  # Priority:
+  #   1. warehouse_document.download_filename (Phase 3 SSoT - sanitized + templated)
+  #   2. record.file_name (original filename)
+  #   3. storage_blob.original_filename (fallback)
+  #   4. "document" (last resort)
+  #
+  # @param record [ActiveRecord::Base] Document model
+  # @return [String] The filename to use for download
+  def resolve_send_name(record)
+    # 1. Try warehouse_document (Phase 3 SSoT)
+    if record.respond_to?(:warehouse_document) && record.warehouse_document.present?
+      return record.warehouse_document.download_filename
+    end
+
+    # 2. Try record's file_name
+    if record.respond_to?(:file_name) && record.file_name.present?
+      return record.file_name
+    end
+
+    # 3. Try storage_blob's original_filename
+    if record.respond_to?(:storage_blob) && record.storage_blob&.original_filename.present?
+      return record.storage_blob.original_filename
+    end
+
+    # 4. Last resort fallback
+    "document"
   end
 end

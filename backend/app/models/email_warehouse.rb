@@ -40,6 +40,10 @@ class EmailWarehouse < ApplicationRecord
   has_many :sm_task_attachments, as: :attachable, dependent: :destroy
   has_many :attached_tasks, through: :sm_task_attachments, source: :sm_task
 
+  # Phase 3: Universal warehouse metadata (SSoT for display_name, send_name, folder)
+  # The .eml file itself uses SendNameResolver with template "{Subject} - {ReceivedDate}.eml"
+  has_one :warehouse_document, as: :documentable, dependent: :destroy
+
   # Direction constants (for SSoT tracking)
   DIRECTIONS = %w[sent received cc bcc].freeze
 

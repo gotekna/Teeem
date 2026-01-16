@@ -167,6 +167,7 @@ interface SortableQuestionItemProps {
   handleDelegateQuestion?: (itemId: number, userId: number) => void;
   handleUndelegateQuestion?: (itemId: number) => void;  // Unlink a delegated task
   onCreateAction?: (text: string) => void;  // Create action item from question
+  setSelectedEmailId?: (id: number | null) => void;  // For viewing linked emails
 }
 
 function SortableQuestionItem({
@@ -204,6 +205,7 @@ function SortableQuestionItem({
   handleDelegateQuestion,
   handleUndelegateQuestion,
   onCreateAction,
+  setSelectedEmailId,
 }: SortableQuestionItemProps) {
   const [isFileDropTarget, setIsFileDropTarget] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -594,8 +596,21 @@ function SortableQuestionItem({
                 </div>
               );
             }
-            // Email attachments not yet supported in TaskAttachmentEmail interface
-            // TODO: Add email_attachments array to interface when backend returns this data
+            // Handle email attachments (EmailWarehouse)
+            if (att.email) {
+              const subject = att.email.subject || '(No subject)';
+              return (
+                <div key={att.id} className="flex items-center gap-2 text-xs">
+                  <Mail className="h-3 w-3 text-green-600 shrink-0" />
+                  <button
+                    onClick={() => setSelectedEmailId?.(att.email!.id)}
+                    className="text-green-600 hover:text-green-700 hover:underline font-medium text-left"
+                  >
+                    {subject}
+                  </button>
+                </div>
+              );
+            }
             return null;
           })}
         </div>
@@ -982,7 +997,13 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
   // Split document attachments by category
   const infoAttachments = documentAttachments.filter(a => a.category !== 'response');
-  const responseAttachments = documentAttachments.filter(a => a.category === 'response');
+  const responseDocuments = documentAttachments.filter(a => a.category === 'response');
+
+  // Emails linked to questions are also response items
+  const responseEmails = allEmailAttachments.filter(a => a.action_item_id);
+
+  // Combined response attachments (documents + emails linked to questions)
+  const responseAttachments = [...responseDocuments, ...responseEmails];
 
   // Initialize default email options for response attachments
   // Default: 'link' for SharePoint files, 'attach' for ActiveStorage files
@@ -3147,6 +3168,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                               handleDelegateQuestion={handleDelegateQuestion}
                               handleUndelegateQuestion={handleUndelegateQuestion}
                               onCreateAction={(text) => addActionItem(task.id, text, 'action')}
+                              setSelectedEmailId={setSelectedEmailId}
                             />
                           ))}
                         </div>
@@ -3189,6 +3211,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       handleDelegateQuestion={handleDelegateQuestion}
                       handleUndelegateQuestion={handleUndelegateQuestion}
                       onCreateAction={(text) => addActionItem(task.id, text, 'action')}
+                      setSelectedEmailId={setSelectedEmailId}
                     />
                   ))}
                 </SortableContext>
@@ -3235,7 +3258,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
               )}
             </div>
 
-            {/* Response Documents section - shows attached documents for the response */}
+            {/* Response section - shows documents and emails attached as responses */}
             {responseAttachments.length > 0 && (
               <div className="mt-3 pt-3 border-t shrink-0">
                 <div className="flex items-center gap-2 mb-2">
@@ -3253,10 +3276,24 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       }}
                       className="flex items-center gap-2 p-2 rounded bg-green-50 dark:bg-green-950/30 text-sm group cursor-grab active:cursor-grabbing"
                     >
-                      <FileText className="h-4 w-4 text-green-600 shrink-0" />
-                      <span className="flex-1 truncate font-medium">
-                        {att.document?.display_name || att.document?.file_name}
-                      </span>
+                      {att.email ? (
+                        <>
+                          <Mail className="h-4 w-4 text-green-600 shrink-0" />
+                          <button
+                            onClick={() => setSelectedEmailId(att.email!.id)}
+                            className="flex-1 truncate font-medium text-left hover:underline"
+                          >
+                            {att.email.subject || '(No subject)'}
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="h-4 w-4 text-green-600 shrink-0" />
+                          <span className="flex-1 truncate font-medium">
+                            {att.document?.display_name || att.document?.file_name}
+                          </span>
+                        </>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -4056,6 +4093,20 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                               >
                                                 <Users className="h-3 w-3" />
                                               </Button>
+                                              {questionItems.length > 0 && (
+                                                <Button
+                                                  variant="ghost"
+                                                  size="sm"
+                                                  className="h-5 w-5 p-0 text-muted-foreground hover:text-blue-500"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setPendingAttachmentForQuestion(att.id);
+                                                  }}
+                                                  title="Link to question"
+                                                >
+                                                  <HelpCircle className="h-3 w-3" />
+                                                </Button>
+                                              )}
                                               <Button
                                                 variant="ghost"
                                                 size="sm"
@@ -4078,15 +4129,47 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                                     <HelpCircle className="h-4 w-4 mr-2 text-blue-500" />
                                                     Link to Question
                                                   </ContextMenuSubTrigger>
-                                                  <ContextMenuSubContent className="max-w-[300px] max-h-[250px] overflow-y-auto">
-                                                    {questionItems.map((q) => (
-                                                      <ContextMenuItem
-                                                        key={q.id}
-                                                        onClick={() => handleAttachmentDropOnQuestion(att.id, q.id)}
-                                                      >
-                                                        <span className="line-clamp-2 text-sm">{q.text}</span>
-                                                      </ContextMenuItem>
+                                                  <ContextMenuSubContent className="max-w-[350px] max-h-[300px] overflow-y-auto">
+                                                    {/* Grouped questions with headers */}
+                                                    {groupedQuestions.headers.map((header, headerIdx) => (
+                                                      <div key={header.id}>
+                                                        <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
+                                                          {headerIdx + 1}. {header.text}
+                                                        </div>
+                                                        {header.children.map((q, qIdx) => (
+                                                          <ContextMenuItem
+                                                            key={q.id}
+                                                            onClick={() => handleAttachmentDropOnQuestion(att.id, q.id)}
+                                                          >
+                                                            <Badge variant="secondary" className="mr-2 shrink-0 text-[10px] font-mono px-1">
+                                                              {headerIdx + 1}.{qIdx + 1}
+                                                            </Badge>
+                                                            <span className="line-clamp-2 text-sm">{q.text}</span>
+                                                          </ContextMenuItem>
+                                                        ))}
+                                                      </div>
                                                     ))}
+                                                    {/* Ungrouped questions */}
+                                                    {groupedQuestions.ungrouped.length > 0 && (
+                                                      <div>
+                                                        {groupedQuestions.headers.length > 0 && (
+                                                          <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
+                                                            Other
+                                                          </div>
+                                                        )}
+                                                        {groupedQuestions.ungrouped.map((q, qIdx) => (
+                                                          <ContextMenuItem
+                                                            key={q.id}
+                                                            onClick={() => handleAttachmentDropOnQuestion(att.id, q.id)}
+                                                          >
+                                                            <Badge variant="secondary" className="mr-2 shrink-0 text-[10px] font-mono px-1">
+                                                              {groupedQuestions.headers.length > 0 ? `${groupedQuestions.headers.length + 1}.${qIdx + 1}` : qIdx + 1}
+                                                            </Badge>
+                                                            <span className="line-clamp-2 text-sm">{q.text}</span>
+                                                          </ContextMenuItem>
+                                                        ))}
+                                                      </div>
+                                                    )}
                                                   </ContextMenuSubContent>
                                                 </ContextMenuSub>
                                                 <ContextMenuSeparator />
@@ -4270,12 +4353,15 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   {responseAttachments.map((att) => {
                     const hasExternalStorage = att.document?.storage_url;
                     const emailOption = attachmentEmailOptions[att.id] || 'link';
+                    const isEmail = !!att.email;
                     return (
                       <div key={att.id} className="p-2 text-xs">
                         <div
                           className="flex items-center gap-2 group hover:bg-muted/50 cursor-pointer rounded p-1 -m-1"
                           onClick={() => {
-                            if (att.document) {
+                            if (att.email) {
+                              setSelectedEmailId(att.email.id);
+                            } else if (att.document) {
                               const docUrl = `${getApiBaseUrl()}/api/v1/company_documents/${att.document.id}/content`;
                               setViewerDocument({
                                 url: docUrl,
@@ -4285,10 +4371,16 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             }
                           }}
                         >
-                          <FileText className="h-3 w-3 text-primary shrink-0" />
+                          {isEmail ? (
+                            <Mail className="h-3 w-3 text-primary shrink-0" />
+                          ) : (
+                            <FileText className="h-3 w-3 text-primary shrink-0" />
+                          )}
                           <div className="flex-1 min-w-0">
                             <div className="font-medium truncate">
-                              {att.document?.display_name || att.document?.file_name}
+                              {isEmail
+                                ? (att.email?.subject || '(No subject)')
+                                : (att.document?.display_name || att.document?.file_name)}
                             </div>
                           </div>
                           <Button
@@ -4304,7 +4396,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             <X className="h-3 w-3" />
                           </Button>
                         </div>
-                        {/* Email inclusion options */}
+                        {/* Email inclusion options - only for documents, not email attachments */}
+                        {!isEmail && (
                         <div className="flex items-center gap-3 mt-1.5 ml-5 text-[10px]">
                           <label className="flex items-center gap-1 cursor-pointer">
                             <input
@@ -4339,6 +4432,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             <span>Skip</span>
                           </label>
                         </div>
+                        )}
                       </div>
                     );
                   })}
@@ -4530,22 +4624,64 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             {questionItems.length === 0 ? (
               <p className="text-sm text-muted-foreground italic">No questions found. Add a question first.</p>
             ) : (
-              questionItems.map((q) => (
-                <Button
-                  key={q.id}
-                  variant="outline"
-                  className="w-full justify-start text-left h-auto py-3 px-4"
-                  onClick={async () => {
-                    if (pendingAttachmentForQuestion) {
-                      await handleAttachmentDropOnQuestion(pendingAttachmentForQuestion, q.id);
-                      setPendingAttachmentForQuestion(null);
-                    }
-                  }}
-                >
-                  <HelpCircle className="h-4 w-4 text-blue-500 mr-2 shrink-0" />
-                  <span className="line-clamp-2">{q.text}</span>
-                </Button>
-              ))
+              <>
+                {/* Questions grouped under headers */}
+                {groupedQuestions.headers.map((header, headerIdx) => (
+                  <div key={header.id} className="space-y-1">
+                    {/* Header label */}
+                    <div className="text-xs font-medium text-muted-foreground px-2 pt-2">
+                      {headerIdx + 1}. {header.text}
+                    </div>
+                    {/* Questions under this header */}
+                    {header.children.map((q, qIdx) => (
+                      <Button
+                        key={q.id}
+                        variant="outline"
+                        className="w-full justify-start text-left h-auto py-2 px-4"
+                        onClick={async () => {
+                          if (pendingAttachmentForQuestion) {
+                            await handleAttachmentDropOnQuestion(pendingAttachmentForQuestion, q.id);
+                            setPendingAttachmentForQuestion(null);
+                          }
+                        }}
+                      >
+                        <Badge variant="secondary" className="mr-2 shrink-0 text-xs font-mono">
+                          {headerIdx + 1}.{qIdx + 1}
+                        </Badge>
+                        <span className="line-clamp-2">{q.text}</span>
+                      </Button>
+                    ))}
+                  </div>
+                ))}
+                {/* Ungrouped questions */}
+                {groupedQuestions.ungrouped.length > 0 && (
+                  <div className="space-y-1">
+                    {groupedQuestions.headers.length > 0 && (
+                      <div className="text-xs font-medium text-muted-foreground px-2 pt-2">
+                        Other Questions
+                      </div>
+                    )}
+                    {groupedQuestions.ungrouped.map((q, qIdx) => (
+                      <Button
+                        key={q.id}
+                        variant="outline"
+                        className="w-full justify-start text-left h-auto py-2 px-4"
+                        onClick={async () => {
+                          if (pendingAttachmentForQuestion) {
+                            await handleAttachmentDropOnQuestion(pendingAttachmentForQuestion, q.id);
+                            setPendingAttachmentForQuestion(null);
+                          }
+                        }}
+                      >
+                        <Badge variant="secondary" className="mr-2 shrink-0 text-xs font-mono">
+                          {groupedQuestions.headers.length > 0 ? `${groupedQuestions.headers.length + 1}.${qIdx + 1}` : qIdx + 1}
+                        </Badge>
+                        <span className="line-clamp-2">{q.text}</span>
+                      </Button>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
           <Button

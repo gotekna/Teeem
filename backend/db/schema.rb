@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_16_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_16_222553) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9882,6 +9882,27 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_16_120000) do
     t.index ["xero_id", "tenant_id"], name: "idx_warehouse_contacts_xero_tenant", unique: true
   end
 
+  create_table "warehouse_documents", force: :cascade do |t|
+    t.string "documentable_type", null: false
+    t.bigint "documentable_id", null: false
+    t.bigint "storage_blob_id"
+    t.string "display_name", null: false
+    t.string "send_name"
+    t.string "folder"
+    t.string "source_type", null: false
+    t.string "original_filename"
+    t.bigint "file_size"
+    t.string "content_type"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["display_name"], name: "index_warehouse_documents_on_display_name"
+    t.index ["documentable_type", "documentable_id"], name: "idx_warehouse_docs_documentable_unique", unique: true
+    t.index ["documentable_type", "documentable_id"], name: "index_warehouse_documents_on_documentable"
+    t.index ["folder"], name: "index_warehouse_documents_on_folder"
+    t.index ["source_type"], name: "index_warehouse_documents_on_source_type"
+    t.index ["storage_blob_id"], name: "index_warehouse_documents_on_storage_blob_id"
+  end
+
   create_table "whs_action_items", force: :cascade do |t|
     t.string "actionable_type", null: false
     t.bigint "actionable_id", null: false
@@ -11283,6 +11304,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_16_120000) do
   add_foreign_key "warehouse_bank_transactions", "contacts"
   add_foreign_key "warehouse_bank_transactions", "warehouse_contacts"
   add_foreign_key "warehouse_contacts", "contacts"
+  add_foreign_key "warehouse_documents", "storage_blobs"
   add_foreign_key "whs_action_items", "sm_tasks"
   add_foreign_key "whs_action_items", "users", column: "assigned_to_user_id"
   add_foreign_key "whs_action_items", "users", column: "created_by_id"
