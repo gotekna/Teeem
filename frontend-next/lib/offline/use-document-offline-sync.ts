@@ -3,6 +3,13 @@
  *
  * Provides functionality for supervisors to sync all documents
  * for their assigned active jobs for offline access.
+ *
+ * SSoT Architecture:
+ * - Document list: /api/v1/documents/job_all_files (WarehouseDocument/JobDocument)
+ * - Download URL: Provided directly in job_all_files response (no separate API call)
+ * - Storage: IndexedDB via document-cache.ts
+ *
+ * Works on all devices: phones, tablets, laptops via PWA
  */
 
 "use client";
@@ -83,18 +90,25 @@ export interface UseDocumentOfflineSyncResult {
 }
 
 // =============================================================================
-// API Types
+// API Types - Matches /api/v1/documents/job_all_files response (SSoT)
 // =============================================================================
 
 interface JobDocument {
-  id: number;
-  file_name: string;
-  display_name?: string;
-  file_size?: number;
-  mime_type?: string;
-  folder?: string;
-  document_type?: string;
-  storage_item_id?: string;
+  // IDs
+  id: string;              // sharepoint_item_id
+  document_id: number;     // JobDocument.id (database ID)
+  // File info
+  name: string;            // file_name
+  original_name?: string;
+  size?: number;           // file_size
+  // URLs - SSoT: download_url is the one true way to download
+  web_url?: string;
+  download_url: string;    // Already includes auth, works for both SharePoint and S3
+  thumbnail_url?: string;
+  // Metadata
+  folder_path?: string;
+  document_type_name?: string;
+  storage_provider?: string;
 }
 
 interface AssignedJob {
@@ -220,17 +234,17 @@ export function useDocumentOfflineSync(): UseDocumentOfflineSyncResult {
 
     try {
       // Fetch documents for this job
+      // SSoT: /api/v1/documents/job_all_files returns all document info including download_url
       const response = await api.get<{
         success: boolean;
         items?: JobDocument[];
-        documents?: JobDocument[];
       }>(`/api/v1/documents/job_all_files?job_id=${jobId}`);
 
-      const documents = response?.items || response?.documents || [];
+      const documents = response?.items || [];
 
       // Filter to syncable documents (skip very large files)
       const syncableDocuments = documents.filter(doc => {
-        const size = doc.file_size || 0;
+        const size = doc.size || 0;
         return size <= MAX_DOCUMENT_SIZE_BYTES;
       });
 
@@ -245,53 +259,48 @@ export function useDocumentOfflineSync(): UseDocumentOfflineSyncResult {
       let totalSizeBytes = 0;
 
       // Download and cache each document
+      // SSoT: Use download_url from job_all_files response - no separate API call needed
       for (const doc of syncableDocuments) {
         try {
           setSyncProgress(prev => prev ? {
             ...prev,
-            currentDocument: doc.display_name || doc.file_name,
+            currentDocument: doc.name,
           } : null);
 
-          // Fetch the document blob
-          const previewResponse = await api.get<{
-            success: boolean;
-            preview_url?: string;
-            download_url?: string;
-          }>(`/api/v1/job_documents/${doc.id}/preview`);
-
-          const downloadUrl = previewResponse?.preview_url || previewResponse?.download_url;
-
-          if (downloadUrl) {
-            // Fetch the actual file
-            const blobResponse = await fetch(downloadUrl);
+          // SSoT: download_url is already provided by job_all_files endpoint
+          // It handles auth and works for both SharePoint and S3 storage
+          if (doc.download_url) {
+            // Fetch the actual file blob
+            const blobResponse = await fetch(doc.download_url);
             if (blobResponse.ok) {
               const blob = await blobResponse.blob();
+              const contentType = blobResponse.headers.get("content-type") || blob.type || "application/octet-stream";
 
-              // Store in cache
+              // Store in cache using document_id (database ID) as the key
               await setDocumentInCache(
                 jobId,
-                doc.id,
-                doc.file_name,
-                doc.display_name || doc.file_name,
-                doc.mime_type || blob.type || "application/octet-stream",
+                doc.document_id,
+                doc.name,
+                doc.original_name || doc.name,
+                contentType,
                 blob,
-                doc.folder,
-                doc.document_type
+                doc.folder_path,
+                doc.document_type_name
               );
 
               totalSizeBytes += blob.size;
               completed++;
             } else {
               failed++;
-              console.warn(`[DocumentSync] Failed to fetch ${doc.file_name}:`, blobResponse.status);
+              console.warn(`[DocumentSync] Failed to fetch ${doc.name}:`, blobResponse.status);
             }
           } else {
             failed++;
-            console.warn(`[DocumentSync] No download URL for ${doc.file_name}`);
+            console.warn(`[DocumentSync] No download URL for ${doc.name}`);
           }
         } catch (docError) {
           failed++;
-          console.warn(`[DocumentSync] Error syncing ${doc.file_name}:`, docError);
+          console.warn(`[DocumentSync] Error syncing ${doc.name}:`, docError);
         }
 
         // Update progress

@@ -408,6 +408,9 @@ Rails.application.routes.draw do
       # SSoT: OneDrive-like S3 folder browser - lists actual S3/Wasabi folders
       # Used by Documents page to mirror exact storage structure for desktop sync
       get "documents/s3_folders", to: "documents#s3_folders"
+      # Phase 3: Universal warehouse documents endpoint (SSoT for all document types)
+      # Queries WarehouseDocument table with filters: source_type, folder, search
+      get "documents/warehouse", to: "documents#warehouse"
 
       # Documents (simple alias for company documents)
       resources :documents, only: [ :index, :create, :show, :update, :destroy ] do

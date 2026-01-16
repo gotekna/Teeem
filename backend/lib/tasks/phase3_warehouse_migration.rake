@@ -216,7 +216,7 @@ namespace :phase3 do
             source_type: "job",
             original_filename: doc.file_name,
             file_size: doc.file_size,
-            content_type: doc.content_type
+            content_type: blob&.content_type || infer_content_type(doc.file_name)
           )
           migrated += 1
         rescue ActiveRecord::RecordInvalid => e
@@ -510,10 +510,10 @@ namespace :phase3 do
       # Create new blob record
       StorageBlob.create!(
         storage_path: storage_path,
-        content_type: doc.content_type,
+        content_type: infer_content_type(doc.file_name),
         original_filename: doc.file_name,
         file_size: doc.file_size,
-        content_hash: doc.content_hash
+        content_hash: doc.try(:content_hash)
       )
     rescue ActiveRecord::RecordInvalid
       nil

@@ -10,17 +10,26 @@ module Api
       # Used by the File Warehouse page
       # SSoT: Counts ALL file types - documents, emails, attachments, tasks
       # NOTE: Scope keys match StorageConfiguration.SCOPE_FOLDERS for consistency
+      #
+      # Phase 3: Now uses WarehouseDocument as SSoT for migrated documents
       def all
-        # Document counts (records with actual files)
-        job_count = JobDocument.where.not(file_name: [nil, ""]).count
-        corp_count = CorporateCompanyDocument.where.not(file_name: [nil, ""]).count
-        people_count = PeopleDocument.where.not(title: [nil, ""]).count
+        # Phase 3: WarehouseDocument counts by source_type (SSoT for migrated docs)
+        warehouse_counts = WarehouseDocument.group(:source_type).count
+        warehouse_total = WarehouseDocument.count
 
-        # Email counts (EML files stored)
-        email_eml_count = EmailWarehouse.where.not(sharepoint_email_path: [nil, ""]).count
+        # Legacy counts (for documents not yet migrated or for comparison)
+        job_count = warehouse_counts["job"] || JobDocument.where.not(file_name: [nil, ""]).count
+        corp_count = warehouse_counts["corporate"] || CorporateCompanyDocument.where.not(file_name: [nil, ""]).count
+        people_count = warehouse_counts["people"] || PeopleDocument.where.not(title: [nil, ""]).count
 
-        # Email attachment counts (files stored)
-        email_attachment_count = EmailAttachment.where.not(sharepoint_path: [nil, ""]).count
+        # Email counts - use warehouse_document counts (source_type: "email" covers both)
+        email_total = warehouse_counts["email"] || 0
+        # Split between EML files and attachments based on documentable_type
+        email_eml_count = WarehouseDocument.where(source_type: "email", documentable_type: "EmailWarehouse").count
+        email_attachment_count = WarehouseDocument.where(source_type: "email", documentable_type: "EmailAttachment").count
+        # Fallback to legacy counts if no warehouse documents
+        email_eml_count = EmailWarehouse.where.not(sharepoint_email_path: [nil, ""]).count if email_eml_count == 0
+        email_attachment_count = EmailAttachment.where.not(sharepoint_path: [nil, ""]).count if email_attachment_count == 0
 
         # Task attachment counts - documents uploaded against task IDs
         # These are CorporateCompanyDocuments linked via SmTaskAttachment
@@ -123,8 +132,71 @@ module Api
             pdf_documents: pdf_count,
             # System storage
             active_storage: active_storage_count,
+            # Phase 3: Warehouse document counts (SSoT)
+            warehouse_total: warehouse_total,
+            warehouse_by_source: warehouse_counts,
             # Total
             total: total
+          }
+        }
+      end
+
+      # GET /api/v1/documents/warehouse
+      # Phase 3: Unified endpoint for ALL warehouse documents
+      # SSoT: Queries WarehouseDocument table (universal metadata)
+      # Params:
+      #   source_type: Filter by source (corporate, job, email, people, contact)
+      #   folder: Filter by virtual folder path
+      #   search: Full-text search on display_name
+      #   documentable_type: Filter by underlying model (EmailWarehouse, EmailAttachment, etc.)
+      #   limit: Max results (default: 100)
+      #   offset: Pagination offset
+      def warehouse
+        documents = WarehouseDocument.includes(:documentable, :storage_blob)
+                                     .order(created_at: :desc)
+
+        # Filter by source_type
+        if params[:source_type].present?
+          documents = documents.where(source_type: params[:source_type])
+        end
+
+        # Filter by documentable_type
+        if params[:documentable_type].present?
+          documents = documents.where(documentable_type: params[:documentable_type])
+        end
+
+        # Filter by folder
+        if params[:folder].present?
+          documents = documents.where("folder LIKE ?", "#{params[:folder]}%")
+        end
+
+        # Full-text search on display_name
+        if params[:search].present?
+          search_term = "%#{params[:search].downcase}%"
+          documents = documents.where("LOWER(display_name) LIKE ? OR LOWER(original_filename) LIKE ?", search_term, search_term)
+        end
+
+        # Pagination
+        limit = (params[:limit] || 100).to_i.clamp(1, 500)
+        offset = (params[:offset] || 0).to_i
+        total_count = documents.count
+        documents = documents.limit(limit).offset(offset)
+
+        # Get folder counts for this query
+        folder_counts = WarehouseDocument.where(source_type: params[:source_type])
+                                         .where.not(folder: [nil, ""])
+                                         .group(:folder)
+                                         .count
+
+        render json: {
+          success: true,
+          documents: documents.map { |doc| warehouse_document_to_json(doc) },
+          folders: folder_counts.keys.sort.map { |f| { name: f, count: folder_counts[f] } },
+          pagination: {
+            total: total_count,
+            limit: limit,
+            offset: offset,
+            has_more: (offset + limit) < total_count
           }
         }
       end
@@ -1127,6 +1199,110 @@ module Api
           verified_at: doc.user_validated_at&.iso8601,
           verified_by: doc.user_validated_by&.name
         }
+      end
+
+      # Phase 3: Serialize WarehouseDocument (universal format)
+      # SSoT: Uses WarehouseDocument metadata with documentable context
+      def warehouse_document_to_json(wd)
+        documentable = wd.documentable
+        blob = wd.storage_blob
+
+        # Build download URL using WarehouseDocument.download_filename for Send Name
+        download_url = if blob&.storage_path.present?
+          organization = Organization.first
+          provider = DocumentProviders::S3Compatible.for_organization(organization)
+          provider.download_url(blob.storage_path, expires_in: 3600, filename: wd.download_filename) rescue nil
+        end
+
+        # Get parent context based on documentable type
+        parent_info = extract_parent_info(documentable)
+
+        {
+          id: wd.id,
+          source: wd.source_type,
+          documentableType: wd.documentable_type,
+          documentableId: wd.documentable_id,
+          # Names (SSoT from WarehouseDocument)
+          displayName: wd.display_name,
+          sendName: wd.download_filename,  # Resolved via SendNameResolver
+          originalFilename: wd.original_filename,
+          # File info
+          mimeType: wd.content_type || blob&.content_type || "application/octet-stream",
+          fileSize: wd.file_size || blob&.file_size || 0,
+          # URLs
+          fileUrl: download_url,
+          storagePath: blob&.storage_path,
+          # Virtual folder (instant move - just DB update)
+          folder: wd.folder,
+          # Timestamps
+          createdAt: wd.created_at&.iso8601,
+          updatedAt: wd.updated_at&.iso8601,
+          # Parent context (job, company, contact, email, etc.)
+          **parent_info,
+          # Metadata
+          isImage: image_file?(wd.original_filename),
+          # Blob deduplication info
+          storageBlobId: blob&.id,
+          contentHash: blob&.content_hash
+        }
+      end
+
+      # Extract parent context from documentable
+      def extract_parent_info(documentable)
+        return {} unless documentable
+
+        case documentable
+        when CorporateCompanyDocument
+          {
+            companyId: documentable.company_id,
+            companyName: documentable.corporate_company&.name,
+            companyCode: documentable.company_code,
+            documentTypeId: documentable.document_type_id,
+            documentTypeName: documentable.document_type_record&.name
+          }
+        when JobDocument
+          {
+            jobId: documentable.job_id,
+            jobNumber: documentable.job&.job_number,
+            jobTitle: documentable.job&.title,
+            documentTypeId: documentable.document_type_id,
+            documentTypeName: documentable.document_type&.name
+          }
+        when EmailWarehouse
+          {
+            emailSubject: documentable.subject,
+            emailFrom: documentable.from_email,
+            emailFromName: documentable.from_name,
+            emailReceivedAt: documentable.received_at&.iso8601,
+            jobId: documentable.job_id,
+            contactId: documentable.contact_id
+          }
+        when EmailAttachment
+          email = documentable.email_warehouse
+          {
+            emailSubject: email&.subject,
+            emailFrom: email&.from_email,
+            emailReceivedAt: email&.received_at&.iso8601,
+            attachmentIndex: documentable.attachment_index
+          }
+        when ContactDocument
+          {
+            contactId: documentable.contact_id,
+            contactName: documentable.contact&.display_name,
+            documentTypeId: documentable.document_type_id,
+            documentTypeName: documentable.document_type_record&.name
+          }
+        when PeopleDocument
+          {
+            contactId: documentable.contact_id,
+            contactName: documentable.contact&.display_name,
+            documentTypeId: documentable.document_type_id,
+            documentTypeName: documentable.document_type_record&.name,
+            expiryDate: documentable.expiry_date&.iso8601
+          }
+        else
+          {}
+        end
       end
 
       # Serializers for all documents endpoint

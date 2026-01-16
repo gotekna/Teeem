@@ -20,7 +20,9 @@ import {
   TrendingUp,
   Calendar,
   FileText,
+  CloudOff,
 } from "lucide-react";
+import { OfflineSyncManager } from "@/components/offline";
 
 // Foundation ID for Portal Users table
 
@@ -75,6 +77,10 @@ export default function PortalPage() {
           <TabsList>
             <TabsTrigger value="users">Portal Users</TabsTrigger>
             <TabsTrigger value="leaderboard">Kudos Leaderboard</TabsTrigger>
+            <TabsTrigger value="offline" className="flex items-center gap-1.5">
+              <CloudOff className="h-3.5 w-3.5" />
+              Offline
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -189,6 +195,10 @@ export default function PortalPage() {
             </Card>
           </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="offline" className="mt-4 px-4">
+          <OfflineSyncManager />
         </TabsContent>
       </Tabs>
     </TablePage>

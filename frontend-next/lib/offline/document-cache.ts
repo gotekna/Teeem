@@ -9,6 +9,11 @@
  * - Organized by job (sync all docs for a job at once)
  * - 7-day TTL for offline access
  * - Tracks sync progress per job
+ *
+ * SSoT: Documents fetched via /api/v1/documents/job_all_files
+ * (which reads from WarehouseDocument/JobDocument - the data warehouse)
+ *
+ * Works on all devices: phones, tablets, laptops via PWA
  */
 
 import { openDB, DBSchema, IDBPDatabase } from "idb";

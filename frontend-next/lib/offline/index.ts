@@ -65,3 +65,12 @@ export {
   type DocumentSyncProgress,
   type UseDocumentOfflineSyncResult,
 } from "./use-document-offline-sync";
+
+// Cached document viewing
+export {
+  useCachedDocument,
+  useIsDocumentOffline,
+  openCachedDocument,
+  type UseCachedDocumentOptions,
+  type UseCachedDocumentResult,
+} from "./use-cached-document";

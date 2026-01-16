@@ -116,8 +116,10 @@ class SendNameResolver
     end
 
     # 2. Try DocumentType.file_name template
-    if documentable.respond_to?(:document_type) && documentable.document_type&.file_name.present?
-      return documentable.document_type.file_name
+    # Note: Use document_type_record (association) not document_type (string column)
+    doc_type_record = documentable.try(:document_type_record) || documentable.try(:document_type)
+    if doc_type_record.respond_to?(:file_name) && doc_type_record.file_name.present?
+      return doc_type_record.file_name
     end
 
     # 3. Use source-specific default template
@@ -179,17 +181,18 @@ class SendNameResolver
     # Company context
     if documentable.respond_to?(:corporate_company) && documentable.corporate_company
       company = documentable.corporate_company
-      context[:company_code] = company.code
+      context[:company_code] = company.company_code || company.code
       context[:company_name] = company.name
-      context[:company_group] = company.group&.name
+      context[:company_group] = company.company_group  # String column, not association
     end
 
     # Document type context
-    if documentable.respond_to?(:document_type) && documentable.document_type
-      dt = documentable.document_type
-      context[:doc_type_name] = dt.name
-      context[:doc_type_code] = dt.abbreviation || dt.code
-      context[:category] = dt.category
+    # Note: Use document_type_record (association) not document_type (string column)
+    doc_type_record = documentable.try(:document_type_record)
+    if doc_type_record
+      context[:doc_type_name] = doc_type_record.name
+      context[:doc_type_code] = doc_type_record.abbreviation || doc_type_record.try(:code)
+      context[:category] = doc_type_record.category
     end
 
     # User context
