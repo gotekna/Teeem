@@ -16,35 +16,6 @@ module Api
         end
       end
 
-      # GET /api/v1/system_settings/sharepoint_path_templates
-      # Get SharePoint path templates
-      def sharepoint_path_templates
-        templates = SystemSetting.sharepoint_path_templates
-        render json: { templates: templates }
-      end
-
-      # PUT /api/v1/system_settings/sharepoint_path_templates
-      # Update SharePoint path templates
-      def update_sharepoint_path_templates
-        templates = params.require(:templates).permit(:company, :job, :people)
-
-        SystemSetting.update_sharepoint_path_templates(
-          company: templates[:company],
-          job: templates[:job],
-          people: templates[:people]
-        )
-
-        render json: {
-          success: true,
-          templates: SystemSetting.sharepoint_path_templates
-        }
-      rescue StandardError => e
-        render json: {
-          success: false,
-          error: e.message
-        }, status: :unprocessable_entity
-      end
-
       # PUT /api/v1/system_settings/:key
       # Update a single setting
       def update

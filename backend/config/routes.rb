@@ -2883,12 +2883,7 @@ Rails.application.routes.draw do
       end
 
       # System Settings
-      resources :system_settings, only: [ :index, :update ] do
-        collection do
-          get :sharepoint_path_templates
-          put :update_sharepoint_path_templates
-        end
-      end
+      resources :system_settings, only: [ :index, :update ]
 
       # Bank Accounts
       resources :bank_accounts
