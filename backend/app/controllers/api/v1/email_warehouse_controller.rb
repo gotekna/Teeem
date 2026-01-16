@@ -961,9 +961,9 @@ class Api::V1::EmailWarehouseController < ApplicationController
       render json: { error: "Attachment not available - it may have been deleted from email server" }, status: :not_found
     end
   rescue StandardError => e
-    Rails.logger.error "[EmailWarehouse] Attachment download failed: email_id=#{@email.id}, attachment_id=#{params[:attachment_id]}, error=#{e.class}: #{e.message}"
-    Rails.logger.error e.backtrace.first(5).join("\n")
-    render json: { error: "Download failed - please try again or contact support" }, status: :internal_server_error
+    Rails.logger.error "[EmailWarehouse] Attachment download failed: email_id=#{@email&.id}, attachment_id=#{params[:attachment_id]}, error=#{e.class}: #{e.message}"
+    Rails.logger.error "[EmailWarehouse] Backtrace: #{e.backtrace.first(10).join("\n")}"
+    render json: { error: "Download failed: #{e.class} - #{e.message.truncate(100)}" }, status: :internal_server_error
   end
 
   # GET /api/v1/email_warehouse/rules
