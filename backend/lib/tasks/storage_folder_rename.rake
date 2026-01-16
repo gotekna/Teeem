@@ -50,11 +50,11 @@ namespace :storage do
     puts "=" * 60
   end
 
-  desc "Merge & rename Contact folders to SSoT format (Contact#document_folder_name)"
-  task rename_contact_folders: :environment do
+  desc "Clean up duplicate Contact folders - delete old formats if SSoT folder exists"
+  task cleanup_contact_folders: :environment do
     puts "=" * 60
-    puts "Contact Folder Merge & Rename Task"
-    puts "SSoT: Uses Contact#document_folder_name for target format"
+    puts "Contact Folder Cleanup Task"
+    puts "SSoT: Deletes old C{id} and {id} - {name} folders if name-only exists"
     puts "=" * 60
     puts ""
 
@@ -66,106 +66,106 @@ namespace :storage do
       exit 1
     end
 
+    client = provider.instance_variable_get(:@client)
+    bucket = provider.instance_variable_get(:@bucket)
+
     contacts_path = StorageConfiguration.instance.path_for(:contact) || "Contacts"
     template = StorageConfiguration.instance.template_for(:contact) || "{{ContactName}}"
     puts "Contacts folder: #{contacts_path}/"
     puts "Target template: #{template}"
     puts ""
 
-    result = provider.list_folder(contacts_path)
-    folders = result.select { |item| item[:type] == :folder }
+    # List all folders in Contacts
+    resp = client.list_objects_v2(bucket: bucket, prefix: "#{contacts_path}/", delimiter: "/")
+    folders = resp.common_prefixes&.map { |p| p.prefix.chomp("/").split("/").last } || []
 
     puts "Found #{folders.count} folders"
     puts ""
 
-    # Group folders by contact ID
-    # Patterns to match:
-    #   C{id} -> contact_id
-    #   {id} - {name} -> contact_id
-    #   {name} only -> skip (already in target format if no ID prefix)
-    contact_folders = {}
+    # Group folders by contact
+    contact_groups = {}
 
-    folders.each do |folder|
-      name = folder[:name]
-
+    folders.each do |name|
       contact_id = nil
       if name =~ /^C(\d+)$/
-        # C1310 format
         contact_id = $1.to_i
-      elsif name =~ /^(\d+)\s*-\s*.+$/
-        # 1310 - Principal Finance format
+      elsif name =~ /^(\d+)\s*-\s*(.+)$/
         contact_id = $1.to_i
       end
 
       if contact_id
-        contact_folders[contact_id] ||= []
-        contact_folders[contact_id] << name
+        contact = Contact.find_by(id: contact_id)
+        if contact
+          target_name = contact.document_folder_name
+          contact_groups[target_name] ||= { target: target_name, contact_id: contact_id, old_folders: [] }
+          contact_groups[target_name][:old_folders] << name unless name == target_name
+        end
       end
     end
 
-    puts "Found #{contact_folders.keys.count} contacts with folders to process"
+    puts "Found #{contact_groups.count} contacts with potential duplicates"
     puts ""
 
-    merged = 0
-    renamed = 0
+    deleted = 0
     skipped = 0
     errors = 0
 
-    contact_folders.each do |contact_id, folder_names|
-      contact = Contact.find_by(id: contact_id)
+    contact_groups.each do |target_name, group|
+      next if group[:old_folders].empty?
 
-      unless contact
-        puts "Skipping contact #{contact_id} (not found in database)"
-        folder_names.each { |n| puts "  - #{n}" }
-        skipped += folder_names.count
+      # Check if SSoT folder exists
+      target_prefix = "#{contacts_path}/#{target_name}/"
+      target_resp = client.list_objects_v2(bucket: bucket, prefix: target_prefix, max_keys: 1)
+      target_exists = target_resp.contents&.any?
+
+      unless target_exists
+        puts "Skipping #{target_name} - SSoT folder doesn't exist (would need migration)"
+        skipped += group[:old_folders].count
         next
       end
 
-      # SSoT: Get target folder name from Contact model
-      target_name = contact.document_folder_name
-      target_path = "#{contacts_path}/#{target_name}"
+      puts "Contact: #{target_name} (id: #{group[:contact_id]})"
+      puts "  SSoT folder exists - deleting old duplicates:"
 
-      puts "Contact #{contact_id}: #{contact.display_name}"
-      puts "  Target: #{target_name}"
-      puts "  Source folders: #{folder_names.join(', ')}"
+      group[:old_folders].each do |old_name|
+        old_prefix = "#{contacts_path}/#{old_name}/"
 
-      # Check if any folder already has the target name
-      already_correct = folder_names.include?(target_name)
+        # Delete all objects with this prefix
+        continuation_token = nil
+        delete_count = 0
 
-      folder_names.each do |source_name|
-        next if source_name == target_name # Skip if already correct
+        loop do
+          list_params = { bucket: bucket, prefix: old_prefix }
+          list_params[:continuation_token] = continuation_token if continuation_token
+          list_resp = client.list_objects_v2(list_params)
 
-        source_path = "#{contacts_path}/#{source_name}"
+          objects = list_resp.contents || []
+          break if objects.empty?
 
-        begin
-          # Move/merge folder contents to target
-          rename_result = provider.rename_folder(source_path, target_path)
-
-          if rename_result[:success]
-            if rename_result[:moved_count] > 0
-              puts "  ✓ Merged #{source_name} -> #{target_name} (#{rename_result[:moved_count]} objects)"
-              merged += 1
-            else
-              puts "  ✓ Renamed #{source_name} -> #{target_name}"
-              renamed += 1
+          # Delete objects in batch
+          objects.each do |obj|
+            begin
+              client.delete_object(bucket: bucket, key: obj.key)
+              delete_count += 1
+            rescue => e
+              puts "    ✗ Failed to delete #{obj.key}: #{e.message}"
+              errors += 1
             end
-          else
-            puts "  ✗ Failed #{source_name}: #{rename_result[:error]}"
-            errors += 1
           end
-        rescue => e
-          puts "  ✗ Error #{source_name}: #{e.message}"
-          errors += 1
-        end
-      end
 
+          break unless list_resp.is_truncated
+          continuation_token = list_resp.next_continuation_token
+        end
+
+        puts "    ✓ Deleted #{old_name}/ (#{delete_count} objects)"
+        deleted += 1
+      end
       puts ""
     end
 
     puts "=" * 60
     puts "Complete!"
-    puts "  Merged: #{merged}"
-    puts "  Renamed: #{renamed}"
+    puts "  Deleted: #{deleted} old folders"
     puts "  Skipped: #{skipped}"
     puts "  Errors: #{errors}"
     puts "=" * 60
