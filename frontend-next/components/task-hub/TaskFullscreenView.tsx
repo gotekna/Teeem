@@ -541,30 +541,55 @@ function SortableQuestionItem({
         </div>
       )}
 
-      {/* Attached response documents - displayed as hyperlinks */}
+      {/* Attached response documents/emails - displayed as hyperlinks */}
       {item.attachments && item.attachments.length > 0 && (
         <div className="ml-6 space-y-1">
           {item.attachments.map((att) => {
-            // SSoT: Use storage_url (provider-agnostic) first, then file_url (ActiveStorage legacy)
-            const url = att.document?.storage_url || att.document?.file_url;
-            const fileName = att.document?.display_name || att.document?.file_name || 'Document';
-            return (
-              <div key={att.id} className="flex items-center gap-2 text-xs">
-                <Paperclip className="h-3 w-3 text-green-600 shrink-0" />
-                {url ? (
-                  <a
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-green-600 hover:text-green-700 hover:underline font-medium"
-                  >
-                    {fileName}
-                  </a>
-                ) : (
-                  <span className="text-green-600 font-medium">{fileName}</span>
-                )}
-              </div>
-            );
+            // Handle document attachments (CorporateCompanyDocument)
+            if (att.document) {
+              // SSoT: Use storage_url (provider-agnostic) first, then file_url (ActiveStorage legacy)
+              const url = att.document?.storage_url || att.document?.file_url;
+              const fileName = att.document?.display_name || att.document?.file_name || 'Document';
+              return (
+                <div key={att.id} className="flex items-center gap-2 text-xs">
+                  <Paperclip className="h-3 w-3 text-green-600 shrink-0" />
+                  {url ? (
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-green-600 hover:text-green-700 hover:underline font-medium"
+                    >
+                      {fileName}
+                    </a>
+                  ) : (
+                    <span className="text-green-600 font-medium">{fileName}</span>
+                  )}
+                </div>
+              );
+            }
+            // Handle email attachments (EmailWarehouse) - show email's file attachments
+            if (att.email?.email_attachments && att.email.email_attachments.length > 0) {
+              return att.email.email_attachments.map((emailAtt: { id: number; filename: string; content_type?: string; file_size?: number }) => {
+                // SSoT: Download URL pattern from AttachmentList.tsx
+                const downloadUrl = `/api/v1/email_warehouse/${att.email.email_id}/attachments/${emailAtt.id}/download?filename=${encodeURIComponent(emailAtt.filename)}`;
+                return (
+                  <div key={`${att.id}-${emailAtt.id}`} className="flex items-center gap-2 text-xs">
+                    <Paperclip className="h-3 w-3 text-green-600 shrink-0" />
+                    <a
+                      href={downloadUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-green-600 hover:text-green-700 hover:underline font-medium"
+                    >
+                      {emailAtt.filename}
+                    </a>
+                  </div>
+                );
+              });
+            }
+            // Fallback for email without attachments
+            return null;
           })}
         </div>
       )}
