@@ -36,6 +36,12 @@ import {
   Zap,
   BookOpen,
   Search,
+  GraduationCap,
+  Terminal,
+  Lightbulb,
+  Rocket,
+  Target,
+  Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -196,10 +202,14 @@ export default function ArchitectureMap() {
 
       {/* View Tabs */}
       <Tabs value={activeView} onValueChange={setActiveView}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="beginner" className="gap-2">
             <BookOpen className="h-4 w-4" />
             <span className="hidden sm:inline">Beginner</span>
+          </TabsTrigger>
+          <TabsTrigger value="teaching" className="gap-2">
+            <GraduationCap className="h-4 w-4" />
+            <span className="hidden sm:inline">Teaching</span>
           </TabsTrigger>
           <TabsTrigger value="architect" className="gap-2">
             <Layers className="h-4 w-4" />
