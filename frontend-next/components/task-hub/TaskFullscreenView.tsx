@@ -545,8 +545,8 @@ function SortableQuestionItem({
       {item.attachments && item.attachments.length > 0 && (
         <div className="ml-6 space-y-1">
           {item.attachments.map((att) => {
-            // Try SharePoint URL first, then ActiveStorage file_url
-            const url = att.document?.file_url;
+            // SSoT: Use storage_url (provider-agnostic) first, then file_url (ActiveStorage legacy)
+            const url = att.document?.storage_url || att.document?.file_url;
             const fileName = att.document?.display_name || att.document?.file_name || 'Document';
             return (
               <div key={att.id} className="flex items-center gap-2 text-xs">
@@ -2053,9 +2053,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           if (q.attachments && q.attachments.length > 0) {
             q.attachments.forEach(att => {
               const fileName = att.document?.display_name || att.document?.file_name || 'Document';
-              // Use SharePoint share link if available, otherwise fall back to file_url
+              // Use SharePoint share link if available, otherwise fall back to storage_url or file_url
               const shareUrl = shareLinksMap[att.id];
-              const fallbackUrl = att.document?.file_url;
+              const fallbackUrl = att.document?.storage_url || att.document?.file_url;
               const url = shareUrl || fallbackUrl;
               body += `<p>&nbsp;&nbsp;&nbsp;📎 See attached: ${formatFileLink(fileName, url)}</p>\n`;
             });
@@ -2111,7 +2111,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         const fileName = att.document?.display_name || att.document?.file_name || 'Document';
         // Use SharePoint share link if available, otherwise fall back to existing URL
         const shareUrl = shareLinksMap[att.id];
-        const fallbackUrl = att.document?.file_url;
+        const fallbackUrl = att.document?.storage_url || att.document?.file_url;
         const url = shareUrl || fallbackUrl;
         body += `<li>${formatFileLink(fileName, url)}</li>\n`;
       });
