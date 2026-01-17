@@ -610,6 +610,109 @@ CorporateCompanySetting.contact_documents_path       # Use StorageConfiguration.
 - Edit path templates with drag-and-drop tokens
 - View SharePoint connection status
 
+## 🔴 File Warehouse (Phase 3: Universal Documents)
+
+**WarehouseDocument is THE SSoT for all document metadata in the File Warehouse.**
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    WarehouseDocument                         │
+│                 (Universal SSoT Table)                       │
+├─────────────────────────────────────────────────────────────┤
+│  documentable_type: "JobDocument" / "EmailWarehouse" / etc. │
+│  documentable_id:   FK to source record                     │
+│  storage_blob_id:   FK to StorageBlob (deduplicated)        │
+│  display_name:      What user SEES in UI                    │
+│  send_name:         Template for download filename          │
+│  folder:            Virtual path (instant moves)            │
+│  source_type:       "corporate" / "email" / "job" / etc.    │
+└─────────────────────────────────────────────────────────────┘
+         ↓ links to
+┌─────────────────────────────────────────────────────────────┐
+│  StorageBlob (content-hash deduplication)                   │
+│  - Same file stored ONCE, referenced by many documents      │
+│  - content_hash: SHA256 for deduplication                   │
+│  - storage_path: "Blobs/ab/abc123.pdf"                      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Two Names Per Document
+
+| Name | Purpose | Example |
+|------|---------|---------|
+| **display_name** | What user SEES in UI | "RE: Invoice Question" |
+| **send_name** | Download filename (from template) | "RE Invoice Question - 2026-01-17.eml" |
+
+### Send Name Templates
+
+```ruby
+# SendNameResolver expands templates with document context
+# Default templates by source_type:
+"email"     → "{Subject} - {ReceivedDate}.eml"
+"corporate" → "{CompanyCode} {DocTypeName} {Date}"
+"job"       → "{JobCode} {DocTypeName} {Date}"
+
+# Available tokens:
+# Email: {Subject}, {FromName}, {FromEmail}, {ReceivedDate}
+# Job: {JobCode}, {JobName}, {JobTitle}
+# Company: {CompanyCode}, {CompanyName}, {CompanyGroup}
+# Doc Type: {DocTypeName}, {DocTypeCode}, {Category}
+# Dates: {Date}, {DDMMYYYY}, {YYYYMMDD}
+```
+
+### SSoT Lookups
+
+| Need | SSoT | ❌ NOT This |
+|------|------|-------------|
+| Download filename | `warehouse_document.download_filename` | Manual template expansion |
+| Storage path | `warehouse_document.storage_path` | Direct blob access |
+| Presigned URL | `warehouse_document.download_url` | Manual S3 presigning |
+| Move to folder | `warehouse_document.move_to_folder(path)` | S3 copy operations |
+
+### API Endpoints
+
+```ruby
+# Counts (includes warehouse totals)
+GET /api/v1/documents/all
+# Returns: { warehouse_total: 139088, warehouse_by_source: {...} }
+
+# Universal query endpoint
+GET /api/v1/documents/warehouse
+# Params: source_type, folder, search, documentable_type, limit, offset
+# Returns: documents[], folders[], pagination
+```
+
+### Maintenance Tasks
+
+```bash
+# Full health check with recommendations
+rails blob:health
+
+# Fix reference count mismatches
+rails blob:audit:integrity[fix]
+
+# Delete orphaned blobs (30-day safety threshold)
+rails blob:cleanup:orphaned[execute,30]
+
+# Audit WarehouseDocument links
+rails blob:audit:warehouse
+
+# Run Phase 3 test suite
+rails phase3:test:all
+```
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `app/models/warehouse_document.rb` | Universal document table |
+| `app/models/storage_blob.rb` | Deduplicated blob storage |
+| `app/services/send_name_resolver.rb` | Template expansion + sanitization |
+| `lib/tasks/phase3_garbage_collection.rake` | Cleanup & audit tasks |
+| `lib/tasks/phase3_tests.rake` | Test suite |
+
 ## 🔴 API Response Format
 
 ```json

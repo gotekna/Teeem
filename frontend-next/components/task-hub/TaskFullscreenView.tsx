@@ -993,6 +993,34 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const matchedEmailCount = allEmailAttachments.filter(att => att.notes?.startsWith('Matched')).length;
   const threadEmailCount = allEmailAttachments.filter(att => att.notes?.startsWith('Thread:')).length;
 
+  // Calculate unique senders from attached emails with counts
+  // This allows filtering by sender even if they're not a job contact
+  const uniqueEmailSenders = useMemo(() => {
+    const senderMap = new Map<string, { email: string; name: string; count: number }>();
+
+    allEmailAttachments.forEach(att => {
+      const fromEmail = att.email?.from_email?.toLowerCase();
+      const fromName = att.email?.from_name || fromEmail || 'Unknown';
+
+      if (fromEmail) {
+        const existing = senderMap.get(fromEmail);
+        if (existing) {
+          existing.count++;
+        } else {
+          senderMap.set(fromEmail, {
+            email: fromEmail,
+            name: fromName,
+            count: 1
+          });
+        }
+      }
+    });
+
+    // Sort by count descending, then by name
+    return Array.from(senderMap.values())
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  }, [allEmailAttachments]);
+
   const documentAttachments = localAttachments.filter(a => a.document && !a.email);
 
   // Split document attachments by category
@@ -3600,6 +3628,46 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       <Users className="h-3 w-3 mr-0.5" />
                       {threadEmailCount}
                     </Button>
+                  )}
+                  {/* Sender filter chips - show unique senders with email counts */}
+                  {!emailsCollapsed && uniqueEmailSenders.length > 0 && (
+                    <div className="flex flex-wrap gap-1 ml-2 pl-2 border-l border-border">
+                      {uniqueEmailSenders.slice(0, 5).map((sender) => {
+                        const isActive = emailSourceFilter.type === 'contact' &&
+                          emailSourceFilter.emails?.some(e => e.toLowerCase() === sender.email);
+                        return (
+                          <Button
+                            key={sender.email}
+                            variant={isActive ? 'default' : 'ghost'}
+                            size="sm"
+                            className="h-5 px-1.5 text-[10px] max-w-[120px]"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (isActive) {
+                                setEmailSourceFilter({ type: 'all' });
+                              } else {
+                                setEmailSourceFilter({
+                                  type: 'contact',
+                                  emails: [sender.email],
+                                  label: sender.name
+                                });
+                              }
+                            }}
+                            title={`${sender.name} (${sender.email})`}
+                          >
+                            <span className="truncate">{sender.name.split(' ')[0]}</span>
+                            <Badge variant="secondary" className="ml-1 h-3 px-1 text-[9px]">
+                              {sender.count}
+                            </Badge>
+                          </Button>
+                        );
+                      })}
+                      {uniqueEmailSenders.length > 5 && (
+                        <span className="text-[10px] text-muted-foreground self-center">
+                          +{uniqueEmailSenders.length - 5} more
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
 
