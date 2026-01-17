@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/dialog';
 import { Calendar } from '@/components/ui/calendar';
 import { Spinner } from "@/components/ui/spinner";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -930,6 +931,13 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [collapsedHeaders, setCollapsedHeaders] = useState<Set<number>>(new Set());
   const [collapsedEmailMonths, setCollapsedEmailMonths] = useState<Set<string>>(new Set());
 
+  // Email tree view expansion state (by source category)
+  const [emailTreeExpanded, setEmailTreeExpanded] = useState<Record<string, boolean>>({
+    thread: true,      // Thread expanded by default
+    matched: false,    // Auto-matched collapsed
+    linked: false,     // Linked collapsed
+  });
+
   // Adding header mode (when user clicks "+ Add Header")
   const [addingHeaderText, setAddingHeaderText] = useState('');
   const [showAddHeader, setShowAddHeader] = useState(false);
@@ -1020,6 +1028,47 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     return Array.from(senderMap.values())
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
   }, [allEmailAttachments]);
+
+  // Categorize emails by source (for tree view)
+  const categorizedEmails = useMemo(() => {
+    const thread: typeof allEmailAttachments = [];
+    const matched: typeof allEmailAttachments = [];
+    const linked: typeof allEmailAttachments = [];
+
+    allEmailAttachments.forEach(att => {
+      if (att.notes?.startsWith('Thread:')) {
+        thread.push(att);
+      } else if (att.notes?.startsWith('Matched')) {
+        matched.push(att);
+      } else {
+        linked.push(att);
+      }
+    });
+
+    return { thread, matched, linked };
+  }, [allEmailAttachments]);
+
+  // Apply person filter to each category (for tree view)
+  const filteredCategories = useMemo(() => {
+    const filterEmails = (emails: typeof allEmailAttachments) => {
+      if (emailSourceFilter.type !== 'contact' || !emailSourceFilter.emails?.length) {
+        return emails;
+      }
+      const filterAddrs = emailSourceFilter.emails.map(e => e.toLowerCase());
+      return emails.filter(att => {
+        const from = att.email?.from_email?.toLowerCase();
+        const to = att.email?.to_emails?.map((e: string) => e.toLowerCase()) || [];
+        const all = [from, ...to].filter(Boolean);
+        return filterAddrs.some(f => all.includes(f));
+      });
+    };
+
+    return {
+      thread: filterEmails(categorizedEmails.thread),
+      matched: filterEmails(categorizedEmails.matched),
+      linked: filterEmails(categorizedEmails.linked),
+    };
+  }, [categorizedEmails, emailSourceFilter]);
 
   const documentAttachments = localAttachments.filter(a => a.document && !a.email);
 
@@ -4033,77 +4082,29 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                     </div>
                   )}
 
-                  {/* Email list - grouped by month, first month expanded */}
+                  {/* Email Tree View - grouped by source */}
                   <div className="border rounded-md">
-                    {emailAttachments.length > 0 ? (
-                      (() => {
-                        // Group emails by month (YYYY-MM format for sorting)
-                        const emailsByMonth = emailAttachments.reduce((acc, att) => {
-                          let monthKey = 'unknown';
-                          try {
-                            const dateStr = att.email?.received_at;
-                            if (dateStr) {
-                              const date = new Date(dateStr);
-                              // Validate the date is valid
-                              if (!isNaN(date.getTime())) {
-                                monthKey = format(date, 'yyyy-MM');
-                              }
-                            }
-                          } catch {
-                            // Fall through to 'unknown'
-                          }
-                          if (!acc[monthKey]) acc[monthKey] = [];
-                          acc[monthKey].push(att);
-                          return acc;
-                        }, {} as Record<string, typeof emailAttachments>);
-
-                        // Sort months descending (most recent first), 'unknown' at end
-                        const sortedMonths = Object.keys(emailsByMonth).sort((a, b) => {
-                          if (a === 'unknown') return 1;
-                          if (b === 'unknown') return -1;
-                          return b.localeCompare(a);
-                        });
-
-                        return (
-                          <div className="divide-y">
-                            {sortedMonths.map((monthKey, monthIndex) => {
-                              const monthEmails = emailsByMonth[monthKey];
-                              // First month (index 0) is expanded, others collapsed by default unless toggled
-                              const isCollapsed = monthIndex > 0 ? !collapsedEmailMonths.has(monthKey) : collapsedEmailMonths.has(monthKey);
-                              const monthLabel = monthKey === 'unknown'
-                                ? 'Unknown Date'
-                                : format(new Date(monthKey + '-01'), 'MMMM yyyy');
-
-                              return (
-                                <div key={monthKey}>
-                                  {/* Month header */}
-                                  <div
-                                    className="flex items-center gap-2 px-2 py-1.5 bg-muted/30 cursor-pointer hover:bg-muted/50"
-                                    onClick={() => {
-                                      setCollapsedEmailMonths(prev => {
-                                        const next = new Set(prev);
-                                        if (next.has(monthKey)) {
-                                          next.delete(monthKey);
-                                        } else {
-                                          next.add(monthKey);
-                                        }
-                                        return next;
-                                      });
-                                    }}
-                                  >
-                                    {isCollapsed ? (
-                                      <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                                    ) : (
-                                      <ChevronDown className="h-3 w-3 text-muted-foreground" />
-                                    )}
-                                    <span className="text-xs font-medium text-muted-foreground">{monthLabel}</span>
-                                    <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{monthEmails.length}</Badge>
-                                  </div>
-
-                                  {/* Month emails */}
-                                  {!isCollapsed && (
-                                    <div className="divide-y">
-                                      {monthEmails.map((att) => (
+                    {allEmailAttachments.length > 0 ? (
+                      <div className="divide-y">
+                        {/* Thread Emails Branch */}
+                        {categorizedEmails.thread.length > 0 && (
+                          <Collapsible
+                            open={emailTreeExpanded.thread}
+                            onOpenChange={(open: boolean) => setEmailTreeExpanded(prev => ({ ...prev, thread: open }))}
+                          >
+                            <CollapsibleTrigger className="flex items-center gap-2 w-full px-2 py-1.5 bg-muted/30 hover:bg-muted/50">
+                              {emailTreeExpanded.thread ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                              <Mail className="h-3 w-3 text-blue-500" />
+                              <span className="text-xs font-medium">Thread</span>
+                              <Badge variant="secondary" className="ml-auto text-[10px] h-4 px-1.5">
+                                {filteredCategories.thread.length}
+                                {emailSourceFilter.type === 'contact' && filteredCategories.thread.length !== categorizedEmails.thread.length &&
+                                  ` / ${categorizedEmails.thread.length}`}
+                              </Badge>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent>
+                              <div className="divide-y">
+                                {filteredCategories.thread.map((att) => (
                                         <ContextMenu key={att.id}>
                                           <ContextMenuTrigger asChild>
                                             <div
@@ -4264,14 +4265,205 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                           </ContextMenuContent>
                                         </ContextMenu>
                                       ))}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        );
-                      })()
+                              </div>
+                            </CollapsibleContent>
+                          </Collapsible>
+                        )}
+
+                        {/* Auto-Matched Emails Branch */}
+                        {categorizedEmails.matched.length > 0 && (
+                          <Collapsible
+                            open={emailTreeExpanded.matched}
+                            onOpenChange={(open: boolean) => setEmailTreeExpanded(prev => ({ ...prev, matched: open }))}
+                          >
+                            <CollapsibleTrigger className="flex items-center gap-2 w-full px-2 py-1.5 bg-muted/30 hover:bg-muted/50">
+                              {emailTreeExpanded.matched ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                              <Search className="h-3 w-3 text-amber-500" />
+                              <span className="text-xs font-medium">Auto-Matched</span>
+                              <Badge variant="secondary" className="ml-auto text-[10px] h-4 px-1.5">
+                                {filteredCategories.matched.length}
+                                {emailSourceFilter.type === 'contact' && filteredCategories.matched.length !== categorizedEmails.matched.length &&
+                                  ` / ${categorizedEmails.matched.length}`}
+                              </Badge>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent>
+                              <div className="divide-y">
+                                {filteredCategories.matched.map((att) => (
+                                  <ContextMenu key={att.id}>
+                                    <ContextMenuTrigger asChild>
+                                      <div
+                                        draggable
+                                        onDragStart={(e) => {
+                                          e.dataTransfer.setData('application/x-attachment-id', att.id.toString());
+                                          e.dataTransfer.effectAllowed = 'move';
+                                        }}
+                                        className={cn(
+                                          "flex items-center gap-2 p-2 hover:bg-muted/50 cursor-grab text-xs group",
+                                          selectedEmailForHighlight === att.email?.id && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30"
+                                        )}
+                                        onClick={() => {
+                                          if (att.email) {
+                                            setSelectedEmailId(att.email.id);
+                                            handleEmailHighlight(att.email);
+                                          }
+                                        }}
+                                      >
+                                        <Mail className="h-3 w-3 text-muted-foreground shrink-0" />
+                                        <div className="flex-1 min-w-0">
+                                          <div className="font-medium truncate">{att.email?.subject}</div>
+                                          <div className="text-muted-foreground truncate flex items-center gap-2">
+                                            <span className="truncate">{att.email?.from_email}</span>
+                                            {att.email?.received_at && (
+                                              <span className="shrink-0 text-[10px]">
+                                                {format(new Date(att.email.received_at), 'dd MMM HH:mm')}
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-5 w-5 p-0 text-muted-foreground hover:text-blue-500"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleCopyShareLink(att.id);
+                                          }}
+                                          title="Copy shareable link"
+                                        >
+                                          <Link2 className="h-3 w-3" />
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleRemoveAttachment(att.id);
+                                          }}
+                                          title="Delete attachment"
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                    </ContextMenuTrigger>
+                                    <ContextMenuContent>
+                                      <ContextMenuItem onClick={() => handleCopyShareLink(att.id)}>
+                                        <Link2 className="h-4 w-4 mr-2" />
+                                        Copy Link
+                                      </ContextMenuItem>
+                                      <ContextMenuSeparator />
+                                      <ContextMenuItem
+                                        onClick={() => handleRemoveAttachment(att.id)}
+                                        className="text-destructive focus:text-destructive"
+                                      >
+                                        <Trash2 className="h-4 w-4 mr-2" />
+                                        Delete
+                                      </ContextMenuItem>
+                                    </ContextMenuContent>
+                                  </ContextMenu>
+                                ))}
+                              </div>
+                            </CollapsibleContent>
+                          </Collapsible>
+                        )}
+
+                        {/* Manually Linked Emails Branch */}
+                        {categorizedEmails.linked.length > 0 && (
+                          <Collapsible
+                            open={emailTreeExpanded.linked}
+                            onOpenChange={(open: boolean) => setEmailTreeExpanded(prev => ({ ...prev, linked: open }))}
+                          >
+                            <CollapsibleTrigger className="flex items-center gap-2 w-full px-2 py-1.5 bg-muted/30 hover:bg-muted/50">
+                              {emailTreeExpanded.linked ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                              <Link2 className="h-3 w-3 text-green-500" />
+                              <span className="text-xs font-medium">Linked</span>
+                              <Badge variant="secondary" className="ml-auto text-[10px] h-4 px-1.5">
+                                {filteredCategories.linked.length}
+                                {emailSourceFilter.type === 'contact' && filteredCategories.linked.length !== categorizedEmails.linked.length &&
+                                  ` / ${categorizedEmails.linked.length}`}
+                              </Badge>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent>
+                              <div className="divide-y">
+                                {filteredCategories.linked.map((att) => (
+                                  <ContextMenu key={att.id}>
+                                    <ContextMenuTrigger asChild>
+                                      <div
+                                        draggable
+                                        onDragStart={(e) => {
+                                          e.dataTransfer.setData('application/x-attachment-id', att.id.toString());
+                                          e.dataTransfer.effectAllowed = 'move';
+                                        }}
+                                        className={cn(
+                                          "flex items-center gap-2 p-2 hover:bg-muted/50 cursor-grab text-xs group",
+                                          selectedEmailForHighlight === att.email?.id && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30"
+                                        )}
+                                        onClick={() => {
+                                          if (att.email) {
+                                            setSelectedEmailId(att.email.id);
+                                            handleEmailHighlight(att.email);
+                                          }
+                                        }}
+                                      >
+                                        <Mail className="h-3 w-3 text-muted-foreground shrink-0" />
+                                        <div className="flex-1 min-w-0">
+                                          <div className="font-medium truncate">{att.email?.subject}</div>
+                                          <div className="text-muted-foreground truncate flex items-center gap-2">
+                                            <span className="truncate">{att.email?.from_email}</span>
+                                            {att.email?.received_at && (
+                                              <span className="shrink-0 text-[10px]">
+                                                {format(new Date(att.email.received_at), 'dd MMM HH:mm')}
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-5 w-5 p-0 text-muted-foreground hover:text-blue-500"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleCopyShareLink(att.id);
+                                          }}
+                                          title="Copy shareable link"
+                                        >
+                                          <Link2 className="h-3 w-3" />
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleRemoveAttachment(att.id);
+                                          }}
+                                          title="Delete attachment"
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                    </ContextMenuTrigger>
+                                    <ContextMenuContent>
+                                      <ContextMenuItem onClick={() => handleCopyShareLink(att.id)}>
+                                        <Link2 className="h-4 w-4 mr-2" />
+                                        Copy Link
+                                      </ContextMenuItem>
+                                      <ContextMenuSeparator />
+                                      <ContextMenuItem
+                                        onClick={() => handleRemoveAttachment(att.id)}
+                                        className="text-destructive focus:text-destructive"
+                                      >
+                                        <Trash2 className="h-4 w-4 mr-2" />
+                                        Delete
+                                      </ContextMenuItem>
+                                    </ContextMenuContent>
+                                  </ContextMenu>
+                                ))}
+                              </div>
+                            </CollapsibleContent>
+                          </Collapsible>
+                        )}
+                      </div>
                     ) : (
                       <p className="text-xs text-muted-foreground text-center py-3">No emails attached</p>
                     )}
