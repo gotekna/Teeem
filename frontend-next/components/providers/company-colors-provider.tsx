@@ -32,7 +32,7 @@ interface BrandResponse {
   };
 }
 
-// Default colors (Tekna brand) - fallback if API fails
+// Default colors (Teeem brand) - fallback if API fails
 const DEFAULT_COLORS: BrandColors = {
   primary: '161 63% 13%',
   primaryForeground: '0 0% 100%',

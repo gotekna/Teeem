@@ -116,7 +116,7 @@ interface HealthDashboard {
 
 // Pre-defined organizations that can be connected
 const AVAILABLE_ORGANIZATIONS = [
-  { name: "Tekna", description: "Tekna Group Microsoft 365" },
+  { name: "Teeem", description: "Teeem Group Microsoft 365" },
   { name: "100xBestLife", description: "100x Best Life Microsoft 365" },
   { name: "Homes of Hope", description: "Homes of Hope Microsoft 365" },
   { name: "Love Your World", description: "Love Your World Microsoft 365" },

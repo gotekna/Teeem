@@ -236,7 +236,7 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
         <div>
           <p className="text-sm text-muted-foreground">
             AI-generated job proposals from emails sent to{" "}
-            <code className="text-xs bg-muted px-1.5 py-0.5 rounded">newjob@tekna.com.au</code>
+            <code className="text-xs bg-muted px-1.5 py-0.5 rounded">newjob@teeem.com.au</code>
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={loadProposals}>
@@ -408,7 +408,7 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
           <Mail className="mx-auto h-12 w-12 text-muted-foreground" />
           <h3 className="mt-2 text-sm font-medium">No proposals yet</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Forward emails to newjob@tekna.com.au to create proposals
+            Forward emails to newjob@teeem.com.au to create proposals
           </p>
         </div>
       )}

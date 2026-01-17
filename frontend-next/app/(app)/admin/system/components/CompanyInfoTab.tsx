@@ -721,7 +721,7 @@ export default function CompanyInfoTab() {
                 id="bank_account_name"
                 value={settings.bank_account_name || ""}
                 onChange={(e) => handleChange("bank_account_name", e.target.value)}
-                placeholder="e.g. Tekna Homes Pty Ltd"
+                placeholder="e.g. Teeem Homes Pty Ltd"
               />
             </div>
           </div>

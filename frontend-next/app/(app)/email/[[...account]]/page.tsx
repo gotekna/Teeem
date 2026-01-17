@@ -1581,7 +1581,7 @@ To: ${email.to_emails?.join(", ") || ""}
     setComposeOpen(true);
   }, [selectedAccount, setComposeOpen]);
 
-  // Create a task from email (same as forwarding to newtask@tekna.com.au)
+  // Create a task from email (same as forwarding to newtask@teeem.com.au)
   const handleCreateTaskFromEmail = async (email: Email) => {
     if (creatingTask) return;
 

@@ -8,7 +8,7 @@ export default {
   theme: {
     extend: {
       /* ========================================
-         TEKNA BRAND GUIDELINES - TAILWIND TOKENS
+         TEEEM BRAND GUIDELINES - TAILWIND TOKENS
          ======================================== */
 
       fontFamily: {

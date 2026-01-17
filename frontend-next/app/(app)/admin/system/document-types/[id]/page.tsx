@@ -420,13 +420,11 @@ export default function DocumentTypeDetailPage() {
         const corporateLinkedCompanies = companiesData.filter((c: any) => c.company_group_id != null);
         setCompanies(corporateLinkedCompanies);
 
-        // Auto-select Tekna Homes (TH) as default if no preview company is set
+        // Auto-select first company as default if no preview company is set
         if (corporateLinkedCompanies.length > 0 && previewCompanyId === null) {
-          // Try to find Tekna Homes by code "TH" or name containing "Tekna"
-          const teknaHomes = corporateLinkedCompanies.find((c: any) =>
-            c.code === "TH" || c.name?.toLowerCase().includes("tekna")
-          );
-          setPreviewCompanyId(teknaHomes ? teknaHomes.id : corporateLinkedCompanies[0].id);
+          // Try to find a company by code "TH" or use first available
+          const defaultCompany = corporateLinkedCompanies.find((c: any) => c.code === "TH");
+          setPreviewCompanyId(defaultCompany ? defaultCompany.id : corporateLinkedCompanies[0].id);
         }
       } else {
         console.warn("Companies data is not an array:", companiesData);
@@ -908,10 +906,10 @@ export default function DocumentTypeDetailPage() {
 
     let preview = value;
 
-    // Get selected company data or use defaults (Tekna Homes)
+    // Get selected company data or use defaults (Teeem Homes)
     const selectedCompany = previewCompanyId ? companies.find(c => c.id === previewCompanyId) : null;
     const companyCode = selectedCompany?.code || "TH";
-    const companyName = selectedCompany?.name || "Tekna Homes";
+    const companyName = selectedCompany?.name || "Teeem Homes";
 
     // Get selected person data or use current user (auto-detected)
     const selectedPerson = previewPersonId ? people.find(p => p.id === previewPersonId) : null;
@@ -1649,7 +1647,7 @@ export default function DocumentTypeDetailPage() {
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="default">TH - Tekna Homes</SelectItem>
+                    <SelectItem value="default">TH - Teeem Homes</SelectItem>
                     {companies.map(company => (
                       <SelectItem key={company.id} value={company.id.toString()}>
                         {company.code} - {company.name}

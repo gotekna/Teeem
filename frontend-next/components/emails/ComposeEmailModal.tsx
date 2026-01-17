@@ -179,7 +179,7 @@ export function ComposeEmailModal({
     return () => clearTimeout(timer);
   }, [contactSearch, ccSearch, bccSearch]);
 
-  // Generate signature from current user data (SSoT: branded Tekna signature)
+  // Generate signature from current user data (SSoT: branded Teeem signature)
   const getUserSignature = (): string => {
     if (!currentUser) return "";
     return generateEmailSignature(

@@ -144,7 +144,7 @@ export function EmailConfigTab() {
               id="internal_domains"
               value={formData.internal_email_domains}
               onChange={(e) => handleChange("internal_email_domains", e.target.value)}
-              placeholder="tekna.com.au, teeem.au, teeem.com"
+              placeholder="teeem.com.au, company.com.au"
             />
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               <Info className="h-3 w-3" />

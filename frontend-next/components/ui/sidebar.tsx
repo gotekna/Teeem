@@ -882,17 +882,17 @@ export function Sidebar() {
             </button>
             <button
               type="button"
-              onMouseDown={() => console.log('[DEBUG] Tekna mousedown!')}
+              onMouseDown={() => console.log('[DEBUG] Teeem mousedown!')}
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                console.log('[DEBUG] Direct Tekna click!');
+                console.log('[DEBUG] Direct Teeem click!');
                 tenantContext.switchTenant(76);
               }}
               className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600"
               style={{ pointerEvents: 'auto', position: 'relative', zIndex: 9999 }}
             >
-              Tekna (76)
+              Teeem (76)
             </button>
           </div>
         )}

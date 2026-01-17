@@ -150,7 +150,7 @@ export default function FinancePage() {
               Bill Inbox
             </CardTitle>
             <CardDescription>
-              Incoming invoices from Pay@tekna.com.au. AI-powered extraction and PO matching.
+              Incoming invoices from Pay@teeem.com.au. AI-powered extraction and PO matching.
             </CardDescription>
           </CardHeader>
           <CardContent>

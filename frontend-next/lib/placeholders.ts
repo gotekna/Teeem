@@ -8,7 +8,7 @@
  *
  * Placeholder Format:
  * - SHORT: {Code} → "TH" (for file names, compact)
- * - LONG: {CodeLong} → "Tekna Homes" (for display, human-readable)
+ * - LONG: {CodeLong} → "Teeem Homes" (for display, human-readable)
  */
 
 // =============================================================================
@@ -22,7 +22,7 @@ export interface PlaceholderToken {
   example: string;
   /** Long code variant (optional), e.g., "{CompanyName}" */
   longCode?: string;
-  /** Example value for long code, e.g., "Tekna Homes" */
+  /** Example value for long code, e.g., "Teeem Homes" */
   longExample?: string;
   /** Display label (optional), overrides code for display */
   label?: string;
@@ -50,13 +50,13 @@ export const COMPANY_PLACEHOLDERS: PlaceholderToken[] = [
     code: "{CompanyCode}",
     example: "TH",
     longCode: "{CompanyName}",
-    longExample: "Tekna Homes",
+    longExample: "Teeem Homes",
     color: "purple",
     description: "Company abbreviation/code",
   },
   {
     code: "{CompanyGroup}",
-    example: "Tekna Group",
+    example: "Teeem Group",
     color: "purple",
     description: "Parent company group name",
   },
@@ -429,7 +429,7 @@ export const STORAGE_PLACEHOLDERS: PlaceholderToken[] = [
   },
   {
     code: "{{CompanyGroup}}",
-    example: "Tekna Group",
+    example: "Teeem Group",
     color: "purple",
     description: "Company group name",
   },
@@ -508,7 +508,7 @@ export const STORAGE_PLACEHOLDERS: PlaceholderToken[] = [
   },
   {
     code: "{{Mailbox}}",
-    example: "robert@tekna.com.au",
+    example: "robert@teeem.com.au",
     color: "gray",
     description: "Email mailbox address",
   },
@@ -689,12 +689,12 @@ export function resolveSharePointPath(template: string): string {
     "{{JobName}}": "Tulum Street Jimboomba",
     "{{JobTitle}}": "Tulum Street Jimboomba QLD",
     // Double brace format - Company examples
-    "{{CompanyGroup}}": "Tekna Group",
+    "{{CompanyGroup}}": "Teeem Group",
     "{{CompanyCode}}": "TH",
     "{{TabName}}": "Finance",
     "{{SubTabName}}": "Photos",
     "{{ContactName}}": "Robert Harder",
-    "{{EntityName}}": "Tekna Homes Pty Ltd",
+    "{{EntityName}}": "Teeem Homes Pty Ltd",
     // Single brace format (also common in paths)
     "{JobCode}": "077",
     "{Category}": "Contract Drawings",
@@ -703,7 +703,7 @@ export function resolveSharePointPath(template: string): string {
     "{JobTitle}": "Tulum Street Jimboomba QLD",
     "{TabName}": "Finance",
     "{SubTabName}": "Photos",
-    "{CompanyGroup}": "Tekna Group",
+    "{CompanyGroup}": "Teeem Group",
     "{CompanyCode}": "TH",
   };
 

@@ -181,8 +181,8 @@ export function DocumentTemplatesTab({ innerTab: innerTabProp, basePath = DEFAUL
 
     return [
       {
-        title: "Tekna Branded Documents",
-        description: "Professional documents with Tekna branding, logo, and design system",
+        title: "Teeem Branded Documents",
+        description: "Professional documents with Teeem branding, logo, and design system",
         icon: Building2,
         templates: teknaTemplates,
       },
@@ -221,7 +221,7 @@ export function DocumentTemplatesTab({ innerTab: innerTabProp, basePath = DEFAUL
       return <Badge variant="destructive" className="text-xs">QBCC</Badge>;
     }
     if (layout === "tekna") {
-      return <Badge className="bg-blue-600 text-white text-xs">TEKNA</Badge>;
+      return <Badge className="bg-blue-600 text-white text-xs">TEEEM</Badge>;
     }
     if (layout === "none") {
       return <Badge variant="outline" className="text-xs">PASSTHROUGH</Badge>;
@@ -515,7 +515,7 @@ export function DocumentTemplatesTab({ innerTab: innerTabProp, basePath = DEFAUL
                       </CardTitle>
                       {selectedTemplate && (
                         <CardDescription className="text-xs">
-                          {selectedTemplate.template_key} • {selectedTemplate.layout === "tekna" ? "Tekna Branded" : selectedTemplate.layout === "qbcc_official" ? "QBCC Official" : "Passthrough"}
+                          {selectedTemplate.template_key} • {selectedTemplate.layout === "tekna" ? "Teeem Branded" : selectedTemplate.layout === "qbcc_official" ? "QBCC Official" : "Passthrough"}
                         </CardDescription>
                       )}
                     </div>

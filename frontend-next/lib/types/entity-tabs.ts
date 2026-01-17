@@ -36,7 +36,7 @@ export interface EntityTab {
   visibility_rule: string | null;  // Human-readable condition (e.g., "Has Xero links AND is supplier")
   // SSoT: Xero integration fields
   xero_scope: 'primary' | null;  // Which Xero account this tab uses
-  xero_account_name: string | null;  // Resolved name (e.g., "Tekna Homes")
+  xero_account_name: string | null;  // Resolved name (e.g., "Teeem Homes")
   has_sharepoint_folder: boolean;
   sharepoint_folder_path: string | null;
   full_sharepoint_path: string | null;

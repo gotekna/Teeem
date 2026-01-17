@@ -1811,7 +1811,7 @@ export function EntityTabsConfig({
                               .replace(/\{\{UserCode\}\}/g, "RH")
                               .replace(/\{\{UserName\}\}/g, "Robert Harder")
                               .replace(/\{\{JobCode\}\}/g, "J069")
-                              .replace(/\{\{CompanyGroup\}\}/g, "Tekna Group")
+                              .replace(/\{\{CompanyGroup\}\}/g, "Teeem Group")
                               .replace(/\{\{CompanyCode\}\}/g, "TH")
                               .replace(/\{\{ContactName\}\}/g, "John Smith")}`
                           : '';
@@ -2482,7 +2482,7 @@ export function EntityTabsConfig({
                     .replace(/\{\{TabName\}\}/g, parentTabName || currentTabName)
                     .replace(/\{\{JobCode\}\}/g, "077")
                     .replace(/\{\{Category\}\}/g, currentTabName)
-                    .replace(/\{\{CompanyGroup\}\}/g, "Tekna Group")
+                    .replace(/\{\{CompanyGroup\}\}/g, "Teeem Group")
                     .replace(/\{\{CompanyCode\}\}/g, "TH")
                     .replace(/\{\{ContactName\}\}/g, "Robert Harder");
 

@@ -1551,7 +1551,7 @@ export function StorageConfigTab() {
                   id="site_url"
                   value={formData.sharepoint_site_url}
                   onChange={(e) => handleChange("sharepoint_site_url", e.target.value)}
-                  placeholder="https://gotekna.sharepoint.com/sites/TEEEM"
+                  placeholder="https://yourcompany.sharepoint.com/sites/YourSite"
                 />
                 <p className="text-xs text-muted-foreground">
                   The full URL to your SharePoint site
@@ -1564,7 +1564,7 @@ export function StorageConfigTab() {
                   id="site_id"
                   value={formData.sharepoint_site_id}
                   onChange={(e) => handleChange("sharepoint_site_id", e.target.value)}
-                  placeholder="gotekna.sharepoint.com,abc123..."
+                  placeholder="yourcompany.sharepoint.com,abc123..."
                   className="font-mono text-xs"
                 />
                 <p className="text-xs text-muted-foreground">

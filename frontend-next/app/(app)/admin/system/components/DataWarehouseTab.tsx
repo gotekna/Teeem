@@ -404,7 +404,7 @@ export function DataWarehouseTab() {
       // Set mock data for now
       setStats({
         organization: {
-          name: "Tekna Homes",
+          name: "Teeem Homes",
           total_companies: 45,
           total_jobs: 127,
         },
@@ -455,7 +455,7 @@ export function DataWarehouseTab() {
         },
         xero: {
           connected: true,
-          tenant_name: "Tekna Homes",
+          tenant_name: "Teeem Homes",
           companies_connected: 12,
           last_sync: new Date().toISOString(),
         },
@@ -1117,7 +1117,7 @@ export function DataWarehouseTab() {
                             );
                           })()}
 
-                          {/* Document Storage Progress - Tekna only */}
+                          {/* Document Storage Progress */}
                           {org.stats.storage_location.documents && (
                             (() => {
                               const docs = org.stats.storage_location.documents;

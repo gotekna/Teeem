@@ -19,13 +19,13 @@ interface SignatureCompanyData {
 
 // Default company details (fallback if not in settings)
 const DEFAULT_COMPANY = {
-  address: "160 Alperton Road",
-  city_state: "Burbank QLD 4156",
-  website: "tekna.com.au",
+  address: "123 Example Street",
+  city_state: "Brisbane QLD 4000",
+  website: "teeem.com.au",
 };
 
 /**
- * Generates HTML email signature matching Tekna branding
+ * Generates HTML email signature matching company branding
  * Adapts if job_title is not set (hides that line)
  * Uses logo_dark from company settings if available
  */
@@ -45,8 +45,8 @@ export function generateEmailSignature(
 
   // Use logo_dark from company settings, or fallback to text
   const logoHtml = company?.logo_dark
-    ? `<img src="${company.logo_dark}" alt="TEKNA" style="height: 28px; width: auto;" />`
-    : `<span style="color: white; font-weight: bold; font-size: 18px; letter-spacing: 2px;">▸ TEKNA</span>`;
+    ? `<img src="${company.logo_dark}" alt="Company Logo" style="height: 28px; width: auto;" />`
+    : `<span style="color: white; font-weight: bold; font-size: 18px; letter-spacing: 2px;">▸ TEEEM</span>`;
 
   const address = company?.address || DEFAULT_COMPANY.address;
   const cityState = company?.city_state || DEFAULT_COMPANY.city_state;

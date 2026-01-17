@@ -147,7 +147,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const mockUser: User = {
       id: 1,
       name: 'Jake Baird',
-      email: 'jake@tekna.com.au',
+      email: 'jake@teeem.com.au',
       permissions: ['view_jobs', 'edit_jobs', 'view_contacts', 'edit_contacts', 'view_estimates', 'edit_estimates', 'view_purchase_orders', 'edit_purchase_orders', 'admin'],
       preferred_theme: 'dark' // Jake prefers dark mode
     };

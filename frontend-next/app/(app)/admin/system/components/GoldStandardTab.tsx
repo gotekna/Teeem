@@ -1309,8 +1309,8 @@ function GoldDocumentTypeEditor() {
   // Placeholder definitions
   const BASE_PLACEHOLDERS = {
     company: [
-      { code: "{CompanyCode}", example: "TH", longCode: "{CompanyName}", longExample: "Tekna Homes", color: "purple" },
-      { code: "{CompanyGroup}", example: "Tekna Group", color: "purple" },
+      { code: "{CompanyCode}", example: "TH", longCode: "{CompanyName}", longExample: "Teeem Homes", color: "purple" },
+      { code: "{CompanyGroup}", example: "Teeem Group", color: "purple" },
       { code: "{LoanID}", example: "L001", longCode: "{LoanName}", longExample: "Loan to ABC Trust", color: "purple" },
       { code: "{AssetCode}", example: "PROP1", longCode: "{AssetName}", longExample: "123 Main Street", color: "purple" },
       { code: "{FY}", label: "FY{FY}", example: "FY25", color: "purple" },
@@ -1372,10 +1372,10 @@ function GoldDocumentTypeEditor() {
         const corporateLinkedCompanies = companiesData.filter((c: any) => c.company_group_id != null);
         setCompanies(corporateLinkedCompanies);
         if (corporateLinkedCompanies.length > 0) {
-          const teknaHomes = corporateLinkedCompanies.find((c: any) =>
-            c.code === "TH" || c.name?.toLowerCase().includes("tekna")
+          const teeemHomes = corporateLinkedCompanies.find((c: any) =>
+            c.code === "TH" || c.name?.toLowerCase().includes("teeem")
           );
-          setPreviewCompanyId(teknaHomes ? teknaHomes.id : corporateLinkedCompanies[0].id);
+          setPreviewCompanyId(teeemHomes ? teeemHomes.id : corporateLinkedCompanies[0].id);
         }
       }
     } catch (error) {
@@ -1505,7 +1505,7 @@ function GoldDocumentTypeEditor() {
     preview = preview.replace(/\{DocTypeCode\}/g, documentType?.abbreviation || "");
     preview = preview.replace(/\{DocTypeName\}/g, documentType?.name?.replace(/^[A-Z0-9]+\s*-\s*/, "").trim() || "");
     preview = preview.replace(/\{CompanyCode\}/g, selectedCompany?.code || "TH");
-    preview = preview.replace(/\{CompanyName\}/g, selectedCompany?.name || "Tekna Homes");
+    preview = preview.replace(/\{CompanyName\}/g, selectedCompany?.name || "Teeem Homes");
     preview = preview.replace(/\{Date\}/g, new Date().toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-"));
     preview = preview.replace(/\{Description\}/g, "Example");
     return preview.trim();

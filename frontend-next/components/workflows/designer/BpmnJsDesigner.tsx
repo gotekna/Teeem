@@ -1390,7 +1390,7 @@ export default function BpmnJsDesigner({
                           <div className="mt-2 space-y-2">
                             <p className="text-xs text-muted-foreground">
                               <FileText className="h-3 w-3 inline mr-1" />
-                              {selectedTemplate.category} • {selectedTemplate.layout === "tekna" ? "Tekna Branded" : "QBCC Official"}
+                              {selectedTemplate.category} • {selectedTemplate.layout === "tekna" ? "Teeem Branded" : "QBCC Official"}
                             </p>
                             <Button
                               variant="outline"
