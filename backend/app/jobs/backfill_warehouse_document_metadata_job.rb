@@ -140,8 +140,8 @@ class BackfillWarehouseDocumentMetadataJob < ApplicationJob
       "document_type" => doc.document_type&.name,
       "document_type_id" => doc.document_type_id,
       "folder_path" => doc.respond_to?(:folder_path) ? doc.folder_path : nil,
-      "filename" => doc.filename,
-      "file_size" => doc.respond_to?(:file_size) ? doc.file_size : nil,
+      "filename" => doc.file_name,
+      "file_size" => doc.file_size,
       "version_status" => doc.respond_to?(:version_status) ? doc.version_status : nil
     }.compact
   end
@@ -154,9 +154,9 @@ class BackfillWarehouseDocumentMetadataJob < ApplicationJob
       "company_name" => company&.name,
       "document_type" => doc.document_type_record&.name,
       "document_type_id" => doc.document_type_id,
-      "filename" => doc.filename,
-      "file_size" => doc.respond_to?(:file_size) ? doc.file_size : nil,
-      "description" => doc.respond_to?(:description) ? doc.description : nil
+      "filename" => doc.file_name,
+      "file_size" => doc.file_size,
+      "description" => doc.description
     }.compact
   end
 
@@ -165,8 +165,9 @@ class BackfillWarehouseDocumentMetadataJob < ApplicationJob
     {
       "contact_id" => contact&.id,
       "contact_name" => contact&.display_name,
-      "document_type" => doc.respond_to?(:document_type) ? doc.document_type&.name : nil,
-      "filename" => doc.respond_to?(:filename) ? doc.filename : nil
+      "document_type" => doc.document_type&.name,
+      "filename" => doc.file_name,
+      "file_size" => doc.file_size
     }.compact
   end
 
