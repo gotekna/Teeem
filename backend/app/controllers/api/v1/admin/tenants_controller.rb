@@ -69,11 +69,12 @@ module Api
           end
 
           # Store in signed cookie for tenant override (API doesn't have sessions)
+          # Note: same_site: :none required for cross-origin requests (Vercel → Heroku)
           cookies.signed[:admin_tenant_id] = {
             value: tenant.id,
             httponly: true,
             secure: Rails.env.production?,
-            same_site: :lax
+            same_site: Rails.env.production? ? :none : :lax
           }
 
           Rails.logger.info "[TenantSwitch] User #{current_user.id} (#{current_user.email}) switched to tenant #{tenant.id} (#{tenant.name})"

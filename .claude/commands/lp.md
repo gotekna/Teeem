@@ -25,7 +25,7 @@ git status --short
 ### Step 2 - ALWAYS Pull and Check for Stashes
 **CRITICAL: Always run these - don't skip!**
 ```bash
-git pull origin Live
+git pull origin staging
 git stash list
 ```
 *If stashes exist, pop them: `git stash pop`*
@@ -111,7 +111,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 ### Step 6 - Push to GitHub
 ```bash
-git push origin Live
+git push origin staging
 ```
 *Frontend auto-deploys from this push*
 
@@ -273,7 +273,7 @@ heroku run rails runner "
 
 If any step fails:
 1. Report which step failed
-2. Stay on Live branch
+2. Stay on staging branch
 3. Provide recovery instructions
 
 ### Release Command Failures (Expected)

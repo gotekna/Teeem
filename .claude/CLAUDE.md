@@ -455,15 +455,25 @@ onAddRow={() => setShowModal(true)}
 
 ## 🔴 Git & Deployment
 
-**Rob works directly on `Live` branch.**
+**Rob works directly on `staging` branch.**
 
-| Environment | Heroku App | URL |
-|-------------|-----------|-----|
-| Production | `teeemlive` | teeemlive-ce8e2660a615.herokuapp.com |
-| Rob Dev | `teeem-rob-dev` | - |
-| Sam Dev | `teeem-sam-dev` | - |
+### Branch Pipeline
+```
+staging → beta → production
+```
+- **staging**: Active development, deploys to `teeem-staging` (Tekna testing)
+- **beta**: UAT, deploys to `teeem-beta` (early adopters)
+- **production**: Live customers, deploys to `teeemlive`
 
-**Deploy:** Use `/l` command (SSoT)
+| Environment | Heroku App | Branch | URL |
+|-------------|-----------|--------|-----|
+| Staging | `teeem-staging` | staging | - |
+| Beta | `teeem-beta` | beta | - |
+| Production | `teeemlive` | production | teeemlive-ce8e2660a615.herokuapp.com |
+| Rob Dev | `teeem-rob-dev` | - | - |
+| Sam Dev | `teeem-sam-dev` | - | - |
+
+**Deploy:** Use `/l` command (SSoT) - deploys staging to production
 
 **Local:** Frontend port 3000, Backend port 3001
 
@@ -471,7 +481,7 @@ onAddRow={() => setShowModal(true)}
 
 **This is a monorepo. NEVER push directly to Heroku.**
 
-- ❌ WRONG: `git push heroku Live:main` (pushes full monorepo, Puma can't find config)
+- ❌ WRONG: `git push heroku staging:main` (pushes full monorepo, Puma can't find config)
 - ✅ RIGHT: Use `/l` or `/lp` commands (extracts `backend/` only)
 
 **Why:** Heroku expects Rails app at root. The monorepo has `backend/` subdirectory, so direct push breaks with `config/puma.rb not found`.
