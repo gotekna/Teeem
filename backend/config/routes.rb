@@ -4103,9 +4103,11 @@ Rails.application.routes.draw do
         # GET    /api/v1/admin/tenants/:id      -> Single tenant details
         # POST   /api/v1/admin/tenants/:id/switch -> Switch to tenant (TEEEM staff only)
         # DELETE /api/v1/admin/tenants/switch   -> Clear tenant override
+        # PATCH  /api/v1/admin/tenants/environment -> Update tenant environment (all users)
         resources :tenants, only: [:index, :show] do
           collection do
             get :current
+            patch :environment, action: :update_environment
             delete :switch, action: :clear_switch
           end
           member do

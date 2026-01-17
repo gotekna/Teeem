@@ -4,7 +4,7 @@ module Api
   module V1
     module Admin
       class TenantsController < ApplicationController
-        before_action :require_teeem_staff!, except: [:current]
+        before_action :require_teeem_staff!, except: [:current, :update_environment]
 
         # GET /api/v1/admin/tenants
         # Returns all tenants (for TEEEM staff) or just user's tenant
@@ -105,6 +105,40 @@ module Api
             message: "Returned to default tenant",
             tenant: current_user.corporate_group ? tenant_json(current_user.corporate_group) : nil
           }
+        end
+
+        # PATCH /api/v1/admin/tenants/environment
+        # Update current tenant's environment (staging/beta/production)
+        def update_environment
+          tenant = ActsAsTenant.current_tenant
+
+          unless tenant
+            return render json: { success: false, error: "No tenant context" }, status: :bad_request
+          end
+
+          # Validate environment value
+          valid_environments = CorporateGroup.environments.keys
+          unless valid_environments.include?(params[:environment])
+            return render json: {
+              success: false,
+              error: "Invalid environment. Must be one of: #{valid_environments.join(', ')}"
+            }, status: :unprocessable_entity
+          end
+
+          if tenant.update(environment: params[:environment])
+            Rails.logger.info "[TenantEnvironment] User #{current_user.id} changed tenant #{tenant.id} environment to #{params[:environment]}"
+
+            render json: {
+              success: true,
+              message: "Environment changed to #{params[:environment]}",
+              tenant: tenant_json(tenant)
+            }
+          else
+            render json: {
+              success: false,
+              error: tenant.errors.full_messages.join(", ")
+            }, status: :unprocessable_entity
+          end
         end
 
         private
