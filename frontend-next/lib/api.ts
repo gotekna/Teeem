@@ -12,7 +12,7 @@
 import { API_TIMEOUT_DEFAULT, API_RETRY_DELAY_BASE } from './constants/timeout-constants';
 
 // Production backend is always the "router" for login
-const PRODUCTION_API_URL = 'https://teeem-production-cb7898c69bd3.herokuapp.com';
+const PRODUCTION_API_URL = 'https://teeem-production-121159e1ff9d.herokuapp.com';
 
 // Default API URL (production) - used if no stored api_url
 const DEFAULT_API_URL = (process.env.NEXT_PUBLIC_API_URL || PRODUCTION_API_URL).trim();
