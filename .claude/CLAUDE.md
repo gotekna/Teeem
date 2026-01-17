@@ -477,6 +477,33 @@ staging → beta → production
 
 **Local:** Frontend port 3000, Backend port 3001
 
+### 🔴 CRITICAL: Hotfix Deployments (All Environments Share Same Database, NOT Same Code)
+
+**All environments share the production DATABASE but run SEPARATE CODE.**
+
+| What | Shared? | Deploy needed? |
+|------|---------|----------------|
+| Database records, settings | ✅ Shared | No - changes appear everywhere |
+| Code (CORS, features, fixes) | ❌ Separate | Yes - each environment needs deploy |
+
+**When deploying hotfixes (CORS, security, critical bugs), ALWAYS deploy to ALL THREE:**
+
+```bash
+# Deploy to all environments (in order):
+# 1. Staging (teeem-staging)
+# 2. Beta (teeem-beta)
+# 3. Production (teeem-production)
+```
+
+**Ask user:** "This is a hotfix. Should I deploy to staging, beta, AND production?"
+
+| Change Type | Deploy To |
+|-------------|-----------|
+| Bug fix / critical | All three |
+| CORS / config / security | All three immediately |
+| New feature (testing) | Staging only first |
+| Database migration | One (shared DB) |
+
 ### 🔴 CRITICAL: Heroku Backend Deploy Method
 
 **This is a monorepo. NEVER push directly to Heroku.**
