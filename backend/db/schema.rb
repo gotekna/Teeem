@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_17_100007) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_17_100008) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1552,7 +1552,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_17_100007) do
     t.bigint "company_group_id"
     t.index ["company_group_id", "name"], name: "idx_contact_types_tenant_name", unique: true, where: "(company_group_id IS NOT NULL)"
     t.index ["company_group_id"], name: "index_contact_types_on_company_group_id"
-    t.index ["name"], name: "index_contact_types_on_name", unique: true
     t.index ["position"], name: "index_contact_types_on_position"
   end
 

@@ -258,9 +258,9 @@ import { ActiveFiltersIndicator } from "./sections/ActiveFiltersIndicator";
 // Virtualization components (Phase 2 refactoring)
 import { VirtualizedGroupTable, VirtualizedFlatTable } from "./core/virtualization";
 
-// Mobile card view (Phase 2 mobile responsive)
+// Mobile/tablet card view (Phase 2 mobile responsive)
 import { TableCardView } from "./TableCardView";
-import { useIsMobile } from "@/lib/hooks/use-device-context";
+import { useDeviceContext } from "@/lib/hooks/use-device-context";
 
 // Modals (Phase 7 refactoring)
 import { ExportModal } from "./modals/ExportModal";
@@ -595,9 +595,9 @@ export default function TeeemTableView({
   const debugGrid = searchParams.get("debug") === "grid";
   const { toast } = useToast();
 
-  // Mobile card view detection
-  const isMobileViewport = useIsMobile();
-  // Show cards when: forced OR (mobile AND enabled AND enough columns to benefit)
+  // Mobile/tablet card view detection
+  const { isMobile, isTablet } = useDeviceContext();
+  // Show cards when: forced OR ((mobile OR tablet) AND enabled AND enough columns to benefit)
   // Card view is beneficial when there are >5 visible columns that would require scrolling
 
   // ============================================================================
@@ -3866,18 +3866,18 @@ export default function TeeemTableView({
     }, 0);
   }, [visibleColumnsInOrder, columnWidths]);
 
-  // Mobile card view detection
-  // Show card view when: forced OR (mobile AND enabled AND enough columns to benefit from cards)
+  // Mobile/tablet card view detection
+  // Show card view when: forced OR ((mobile OR tablet) AND enabled AND enough columns to benefit from cards)
   // Card view is beneficial when there are >5 data columns that would require horizontal scrolling
   const shouldShowCardView = useMemo(() => {
     if (forceCardView) return true;
-    if (!enableMobileCardView || !isMobileViewport) return false;
+    if (!enableMobileCardView || (!isMobile && !isTablet)) return false;
     // Count data columns (excluding select and actions)
     const dataColumnCount = visibleColumnsInOrder.filter(
       col => col.key !== 'select' && col.key !== 'actions'
     ).length;
     return dataColumnCount > 5;
-  }, [forceCardView, enableMobileCardView, isMobileViewport, visibleColumnsInOrder]);
+  }, [forceCardView, enableMobileCardView, isMobile, isTablet, visibleColumnsInOrder]);
 
   // Get all data columns (excluding select and actions)
   const allDataColumns = useMemo(() => {
