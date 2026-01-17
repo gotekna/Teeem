@@ -129,23 +129,27 @@ export const TenantProvider = ({ children }: TenantProviderProps) => {
 
   // Switch to a different tenant
   const switchTenant = useCallback(async (tenantId: number): Promise<boolean> => {
+    console.log('[TenantSwitch] Attempting to switch to tenant:', tenantId);
     try {
       setIsLoading(true);
       setError(null);
 
       const response = await api.post<SwitchResponse>(`/api/v1/admin/tenants/${tenantId}/switch`);
+      console.log('[TenantSwitch] API response:', response);
 
       if (response?.success && response?.tenant) {
+        console.log('[TenantSwitch] Success! Reloading page...');
         setCurrentTenant(response.tenant);
         // Reload the page to refresh all data with new tenant context
         window.location.reload();
         return true;
       } else {
+        console.error('[TenantSwitch] Failed:', response?.error);
         setError(response?.error || 'Failed to switch tenant');
         return false;
       }
     } catch (err) {
-      console.error('Failed to switch tenant:', err);
+      console.error('[TenantSwitch] Exception:', err);
       setError('Failed to switch tenant');
       return false;
     } finally {
