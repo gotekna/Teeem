@@ -1,17 +1,17 @@
-# Deploy ALL Changes to Production
+# Deploy ALL Changes to Staging
 
-**Shortcut:** `/lp` (Live Push - Everything)
+**Shortcut:** `/sa` (Staging All - Everything)
 
-Commits ALL pending changes from ALL chat sessions and deploys to production.
+Commits ALL pending changes from ALL chat sessions and deploys to staging environment.
 
-**Use `/l` to commit and deploy only THIS chat's changes instead.**
+**Use `/s` to commit and deploy only THIS chat's changes instead.**
 
-> **NOTE:** This file and `/l.md` share the same deployment logic.
+> **NOTE:** This file and `/s.md` share the same deployment logic.
 > If you update one, update the other to stay in sync.
 
-## PRODUCTION DEPLOY
+## STAGING DEPLOY
 
-- Backend: Heroku (`teeemlive`) - manual deploy via FAST orphan method
+- Backend: Heroku (`teeem-staging`) - manual deploy via FAST orphan method
 - Frontend: Auto-deploys from GitHub push (no version tracking)
 
 ## Instructions
@@ -122,7 +122,7 @@ git diff --name-only HEAD~1 HEAD | grep backend/
 ```
 **If backend files were in `git status` but NOT in the commit diff, STOP and investigate!**
 
-### Step 7 - Deploy Backend (ONLY if backend changed)
+### Step 7 - Deploy Backend to Staging (ONLY if backend changed)
 
 **Check if backend files were in the commit:**
 ```bash
@@ -171,7 +171,7 @@ cd "$DEPLOY_DIR"
 git init
 git add .
 git commit -m "Deploy $(date +%Y%m%d-%H%M%S)"
-git remote add heroku https://git.heroku.com/teeemlive.git
+git remote add heroku https://git.heroku.com/teeem-staging.git
 git push heroku HEAD:main --force
 cd /Users/robertharder/GitHub/teeem
 rm -rf "$DEPLOY_DIR"
@@ -184,7 +184,7 @@ rm -rf "$DEPLOY_DIR"
 **Get version and show deploy status:**
 
 ```bash
-BACKEND_VERSION=$(curl -s https://teeemlive-ce8e2660a615.herokuapp.com/version | jq -r '.version' 2>/dev/null || echo "unknown")
+BACKEND_VERSION=$(curl -s https://teeem-staging-*.herokuapp.com/version | jq -r '.version' 2>/dev/null || echo "unknown")
 BRISBANE_TIME=$(TZ='Australia/Brisbane' date '+%H:%M %d/%m')
 BACKEND_DEPLOYED=$(git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && echo "deployed" || echo "skipped")
 ```
@@ -192,82 +192,12 @@ BACKEND_DEPLOYED=$(git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && ech
 **Output format:**
 ```
 ========================================
-DEPLOYED: HH:MM DD/MM (Brisbane)
+STAGING DEPLOYED: HH:MM DD/MM (Brisbane)
 Commit: [hash] - [message]
 ----------------------------------------
 Backend: v[XXX] - [deployed/skipped]
 ========================================
 ```
-
-### Step 9 - Post-Deploy Verification (Backend only)
-
-**If backend was deployed, verify critical systems are healthy:**
-
-```bash
-# Wait for dyno to restart
-sleep 10
-
-# 1. Check recurring tasks are registered
-heroku run rails runner "
-  tasks = SolidQueue::RecurringTask.pluck(:key)
-  critical = ['xero_health_monitor', 'refresh_integration_tokens', 'daily_health_check']
-  missing = critical - tasks
-  if missing.any?
-    puts '❌ MISSING RECURRING TASKS: ' + missing.join(', ')
-    exit 1
-  else
-    puts '✅ Recurring tasks OK (' + tasks.count.to_s + ' registered)'
-  end
-" --app teeemlive
-
-# 2. Check recent health monitor ran successfully
-heroku run rails runner "
-  last = XeroSyncEvent.where(sync_type: 'health_check').order(created_at: :desc).first
-  if last.nil?
-    puts '⚠️  No health monitor runs found'
-  elsif last.event_type == 'completed'
-    puts '✅ Health monitor OK (last: ' + last.created_at.in_time_zone('Australia/Brisbane').strftime('%H:%M') + ')'
-  else
-    puts '❌ Health monitor failed: ' + (last.error_message || 'unknown')
-  end
-" --app teeemlive
-
-# 3. Check Xero credentials status
-heroku run rails runner "
-  total = XeroCredential.count
-  expired = XeroCredential.all.count { |c| c.expired? }
-  if expired > 0
-    puts '⚠️  Xero: ' + expired.to_s + '/' + total.to_s + ' tokens expired (will auto-refresh)'
-  else
-    puts '✅ Xero: ' + total.to_s + ' credentials, all tokens valid'
-  end
-" --app teeemlive
-
-# 4. Check Xero sync health (are syncs running? check ALL tenants)
-heroku run rails runner "
-  stale_threshold = 60.minutes.ago
-  stale_count = 0
-  total = 0
-  XeroSyncStatus.where(sync_type: 'invoices').where.not(tenant_id: nil).each do |s|
-    total += 1
-    if s.last_synced_at.nil? || s.last_synced_at < stale_threshold
-      stale_count += 1
-    end
-  end
-  if stale_count > 0
-    puts '❌ STALE SYNCS: ' + stale_count.to_s + '/' + total.to_s + ' tenants not synced in 60min'
-    puts '   Run: heroku run rails runner \"XeroHealthMonitorJob.perform_now\" --app teeemlive'
-  else
-    puts '✅ Xero syncs OK (' + total.to_s + ' tenants all synced within 60min)'
-  end
-" --app teeemlive
-```
-
-**If any check fails:**
-- Recurring tasks missing → Check `config/recurring.yml` syntax
-- Health monitor failed → Check logs: `heroku logs --app teeemlive -n 100 | grep -i health`
-- Tokens expired → Will auto-refresh on next health monitor run (every 15 min)
-- Stale syncs → Run health monitor manually to trigger self-heal
 
 ## Error Handling
 
@@ -283,18 +213,11 @@ The Heroku release command (`deploy:prepare` + `increment_version`) may fail wit
 release command failed: too many connections for role
 ```
 
-**This is OK!** The code still deploys successfully. This happens when:
-- Database connection pool is saturated (workers/jobs using all connections)
-- Release command can't get a DB connection to run migrations
-
-**What happens:**
-- ✅ App restarts with new code (deploy succeeds)
-- ❌ Release command fails (migrations/version increment)
-- Both have error handling and retry logic
+**This is OK!** The code still deploys successfully.
 
 **If you need migrations to run:**
 ```bash
-heroku run rails db:migrate --app teeemlive
+heroku run rails db:migrate --app teeem-staging
 ```
 
 ## Notes
@@ -302,3 +225,4 @@ heroku run rails db:migrate --app teeemlive
 - No pre-configured Heroku remote needed - the deploy script creates it on-the-fly
 - Frontend auto-deploys from GitHub push (no version tracking needed)
 - Backend only deploys if changes detected in `backend/` directory
+- Staging is for Tekna testing and early feature development
