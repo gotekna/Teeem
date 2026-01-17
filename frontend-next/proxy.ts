@@ -2,35 +2,102 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 /**
- * URL Migration Proxy
+ * URL Migration Proxy + Multi-Tenant Subdomain Routing
  *
- * Redirects old query-param URLs to new path-based URLs.
- * This ensures backward compatibility with bookmarks and shared links.
+ * This proxy handles two responsibilities:
  *
- * Example redirects:
- * - /admin/system?tab=company&subtab=info → /admin/system/company/info
- * - /contacts/123?tab=overview → /contacts/123/overview
- * - /financial?company=456 → /financial/company/456
+ * 1. TENANT ROUTING: Extracts subdomain from hostname and sets tenant context
+ *    - Sets x-tenant-subdomain header for API requests
+ *    - Sets tenant-subdomain cookie for client-side access
+ *    - Skips reserved subdomains (www, teeem, staging, etc.)
+ *
+ * 2. URL MIGRATION: Redirects old query-param URLs to new path-based URLs
+ *    - /admin/system?tab=company&subtab=info → /admin/system/company/info
+ *    - /contacts/123?tab=overview → /contacts/123/overview
+ *    - /financial?company=456 → /financial/company/456
  */
+
+// Reserved subdomains that should NOT route to tenants
+const RESERVED_SUBDOMAINS = new Set([
+  "www",
+  "teeem",
+  "staging",
+  "beta",
+  "api",
+  "admin",
+  "app",
+  "localhost",
+]);
+
+/**
+ * Extract tenant subdomain from hostname
+ * Handles both production (pilgrim.teeem.com.au) and local (pilgrim.localhost:3000)
+ */
+function extractSubdomain(hostname: string): string | null {
+  // Remove port if present
+  const host = hostname.split(":")[0];
+
+  // Handle localhost development
+  if (host.endsWith(".localhost") || host.includes(".localhost")) {
+    const parts = host.split(".");
+    if (parts.length >= 2 && parts[0] !== "localhost") {
+      return parts[0];
+    }
+    return null;
+  }
+
+  // Handle production domains (*.teeem.com.au)
+  const parts = host.split(".");
+  if (parts.length >= 3) {
+    const subdomain = parts[0];
+    return subdomain;
+  }
+
+  return null;
+}
 
 export function proxy(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
 
+  // === TENANT SUBDOMAIN ROUTING ===
+  const hostname = request.headers.get("host") || "";
+  const subdomain = extractSubdomain(hostname);
+  let tenantSubdomain: string | null = null;
+
+  // Only set tenant context for non-reserved subdomains
+  if (subdomain && !RESERVED_SUBDOMAINS.has(subdomain.toLowerCase())) {
+    tenantSubdomain = subdomain;
+  }
+
+  // Helper to create response with tenant context
+  const createResponse = (response: NextResponse): NextResponse => {
+    if (tenantSubdomain) {
+      response.headers.set("x-tenant-subdomain", tenantSubdomain);
+      response.cookies.set("tenant-subdomain", tenantSubdomain, {
+        path: "/",
+        httpOnly: false, // Allow client-side access
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+      });
+    }
+    return response;
+  };
+
   // Skip if no query params (already using new format)
   if (searchParams.toString() === "") {
-    return NextResponse.next();
+    return createResponse(NextResponse.next());
   }
 
   // Skip OAuth callbacks - these MUST keep query params
   if (pathname.startsWith("/xero/callback") ||
       pathname.includes("/oauth") ||
       pathname.includes("/callback")) {
-    return NextResponse.next();
+    return createResponse(NextResponse.next());
   }
 
   // Skip API routes
   if (pathname.startsWith("/api/")) {
-    return NextResponse.next();
+    return createResponse(NextResponse.next());
   }
 
   // Build redirect URL based on pattern
@@ -557,10 +624,11 @@ export function proxy(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = redirectPath;
     url.search = ""; // Clear query params
+    // Note: Redirects don't need tenant context as the browser will make a new request
     return NextResponse.redirect(url, { status: 301 });
   }
 
-  return NextResponse.next();
+  return createResponse(NextResponse.next());
 }
 
 export const config = {
