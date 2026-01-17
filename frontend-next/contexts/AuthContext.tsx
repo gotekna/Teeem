@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { useTheme } from 'next-themes';
-import { api } from '@/lib/api';
+import { api, setApiUrl, clearApiUrl, setEnvironment, clearEnvironment, getCurrentEnvironment } from '@/lib/api';
 import { loadTypeDefinitions } from '@/lib/column-type-registry';
 
 interface User {
@@ -21,6 +21,8 @@ interface AuthContextType {
   refreshUser: () => Promise<void>;
   loading: boolean;
   isAuthenticated: boolean;
+  /** Get current API environment ('production', 'beta', 'staging') */
+  getEnvironment: () => string;
 }
 
 interface AuthResponse {
@@ -29,6 +31,10 @@ interface AuthResponse {
   user?: User;
   error?: string;
   errors?: string[];
+  /** API URL for the company's chosen environment (returned from login) */
+  api_url?: string;
+  /** Environment name ('production', 'beta', 'staging') */
+  environment?: string;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -165,7 +171,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      const response = await api.post<AuthResponse>('/api/v1/auth/login', {
+      // Use loginToProduction - production backend is the "router" that returns api_url
+      // for the company's chosen environment
+      const response = await api.loginToProduction<AuthResponse>({
         user: { email, password }
       });
 
@@ -174,6 +182,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setToken(response.token);
         setUser(response.user);
         applyUserTheme(response.user);
+
+        // Store the API URL and environment from login response
+        // This enables environment switching - frontend will use api_url for all subsequent requests
+        if (response.api_url) {
+          setApiUrl(response.api_url);
+        }
+        if (response.environment) {
+          setEnvironment(response.environment);
+        }
+
         // Load column type definitions from SSoT (fires in background)
         loadTypeDefinitions();
         return { success: true };
@@ -228,12 +246,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const logout = () => {
     if (typeof window !== 'undefined') {
       clearAuthToken();
+      // Clear the stored API URL and environment on logout
+      clearApiUrl();
+      clearEnvironment();
     }
     setToken(null);
     setUser(null);
     // Reset theme to default so next login applies user's database preference
     setTheme('light');
   };
+
+  // Get the current API environment
+  const getEnvironment = () => getCurrentEnvironment();
 
   const refreshUser = async () => {
     if (devModeBypass) {
@@ -250,7 +274,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     logout,
     refreshUser,
     loading,
-    isAuthenticated: !!user
+    isAuthenticated: !!user,
+    getEnvironment
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

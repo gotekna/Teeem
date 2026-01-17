@@ -91,10 +91,16 @@ module Api
           # Update last login timestamp
           user.update_column(:last_login_at, Time.current)
 
+          # Get the company's API environment config (SSoT: CorporateCompanySetting)
+          # Production backend acts as "router" - returns api_url for the company's chosen environment
+          env_config = CorporateCompanySetting.api_environment_config
+
           token = JsonWebToken.encode(user_id: user.id)
           render json: {
             success: true,
             token: token,
+            api_url: env_config[:api_url],
+            environment: env_config[:environment],
             user: {
               id: user.id,
               email: user.email,

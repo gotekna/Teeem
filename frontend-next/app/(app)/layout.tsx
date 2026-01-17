@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/ui/sidebar";
 import { HeaderBar } from "@/components/layout/HeaderBar";
 import { FloatingHelpButton } from "@/components/help/FloatingHelpButton";
+import { EnvironmentBadge } from "@/components/layout/EnvironmentBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import { SidebarProvider, useSidebar } from "@/contexts/SidebarContext";
 import { ViewModeProvider } from "@/contexts/ViewModeContext";
@@ -109,6 +110,9 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
       {/* Mobile Bottom Navigation - only renders on mobile */}
       <MobileBottomNav />
+
+      {/* Environment Badge - fixed bottom left, shows when not on production */}
+      <EnvironmentBadge />
     </div>
   );
 }

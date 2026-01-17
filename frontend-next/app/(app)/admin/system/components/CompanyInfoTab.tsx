@@ -33,6 +33,25 @@ const TIMEZONES = [
   { value: "UTC", label: "UTC" },
 ];
 
+// API Environment options (SSoT: CorporateCompanySetting::VALID_API_ENVIRONMENTS)
+const API_ENVIRONMENTS = [
+  {
+    value: "production",
+    label: "Production (Recommended)",
+    description: "Stable, live data - for everyday use",
+  },
+  {
+    value: "beta",
+    label: "Beta",
+    description: "New features, early access - may have minor issues",
+  },
+  {
+    value: "staging",
+    label: "Staging",
+    description: "Internal testing only - not for production use",
+  },
+];
+
 interface CompanySettings {
   company_name: string;
   abn: string;
@@ -50,6 +69,8 @@ interface CompanySettings {
   bank_bsb: string;
   bank_account_number: string;
   bank_account_name: string;
+  // API Environment (production backend is "router")
+  api_environment: string;
   working_days: {
     monday: boolean;
     tuesday: boolean;
@@ -96,6 +117,8 @@ export default function CompanyInfoTab() {
     bank_bsb: "",
     bank_account_number: "",
     bank_account_name: "",
+    // API Environment
+    api_environment: "production",
     working_days: {
       monday: true,
       tuesday: true,
@@ -346,6 +369,44 @@ export default function CompanyInfoTab() {
           <p className="text-xs text-muted-foreground">
             Queensland Building and Construction Commission license number
           </p>
+        </div>
+
+        {/* API Environment Section */}
+        <div className="space-y-2">
+          <Label>Environment</Label>
+          <p className="text-sm text-muted-foreground">
+            Select which backend environment this company uses. Change takes effect on next login.
+          </p>
+          <Select
+            value={settings.api_environment || "production"}
+            onValueChange={(value) => handleChange("api_environment", value)}
+          >
+            <SelectTrigger className="w-full max-w-md">
+              <SelectValue placeholder="Select environment" />
+            </SelectTrigger>
+            <SelectContent>
+              {API_ENVIRONMENTS.map((env) => (
+                <SelectItem key={env.value} value={env.value}>
+                  <div className="flex flex-col">
+                    <span>{env.label}</span>
+                    <span className="text-xs text-muted-foreground">{env.description}</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {settings.api_environment && settings.api_environment !== "production" && (
+            <div className={cn(
+              "mt-2 p-3 rounded-md text-sm",
+              settings.api_environment === "staging"
+                ? "bg-orange-50 dark:bg-orange-900/20 text-orange-800 dark:text-orange-200 border border-orange-200 dark:border-orange-800"
+                : "bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-800"
+            )}>
+              <strong>Warning:</strong> You are using a non-production environment.
+              {settings.api_environment === "staging" && " Staging is for internal testing only."}
+              {settings.api_environment === "beta" && " Beta may have experimental features."}
+            </div>
+          )}
         </div>
 
         {/* Primary Xero Account Section */}

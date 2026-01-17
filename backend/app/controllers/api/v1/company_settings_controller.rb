@@ -99,7 +99,7 @@ module Api
 
       # Standard JSON response for settings
       def settings_json(settings)
-        {
+        base = {
           company_name: settings.company_name,
           abn: settings.abn,
           qbcc_license: settings.qbcc_license,
@@ -120,6 +120,13 @@ module Api
           bank_account_number: settings.bank_account_number,
           bank_account_name: settings.bank_account_name
         }
+
+        # Add api_environment for CorporateCompanySetting (production backend is the "router")
+        if settings.respond_to?(:api_environment)
+          base[:api_environment] = settings.api_environment || "production"
+        end
+
+        base
       end
 
       def default_working_days
@@ -157,6 +164,8 @@ module Api
           :bank_bsb,
           :bank_account_number,
           :bank_account_name,
+          # API Environment (production backend is the "router")
+          :api_environment,
           working_days: [ :monday, :tuesday, :wednesday, :thursday, :friday, :saturday, :sunday ],
           team_email_domains: []
         )
