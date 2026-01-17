@@ -84,7 +84,7 @@ Rails.application.configure do
   # ActionCable WebSocket allowed origins
   # Allow connections from Vercel frontend and Heroku backend
   config.action_cable.allowed_request_origins = [
-    "https://teeemlive.vercel.app",
+    "https://teeem.vercel.app",
     "https://teeemlive-ce8e2660a615.herokuapp.com",
     %r{https://teeem.*\.vercel\.app},  # Preview deployments
   ]

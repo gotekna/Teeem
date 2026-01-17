@@ -545,7 +545,7 @@ module Api
       end
 
       def frontend_url
-        ENV.fetch("FRONTEND_URL", "https://teeemlive.vercel.app")
+        ENV.fetch("FRONTEND_URL", "https://teeem.vercel.app")
       end
 
       # Default organization for single-tenant system

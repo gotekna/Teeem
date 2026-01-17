@@ -4,7 +4,7 @@
   // Configuration
   const CONFIG = {
     apiUrl: 'https://teeemlive-ce8e2660a615.herokuapp.com',
-    portalUrl: 'https://teeemlive.vercel.app/portal',
+    portalUrl: 'https://teeem.vercel.app/portal',
     containerId: 'teeem-portal-login'
   };
 

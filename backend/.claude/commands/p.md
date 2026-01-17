@@ -82,8 +82,8 @@ Then try the MCP tool again.
 6. Wait for redirect to `/dashboard`
 7. Verify login successful by checking for dashboard content
 
-**For Production (teeemlive.vercel.app):**
-1. Navigate to `https://teeemlive.vercel.app/login`
+**For Production (teeem.vercel.app):**
+1. Navigate to `https://teeem.vercel.app/login`
 2. Same login flow as above
 3. Verify login successful
 
@@ -257,7 +257,7 @@ ISSUES FOUND & FIXED:
 | Environment | Frontend URL | Backend API |
 |-------------|--------------|-------------|
 | Local | http://localhost:3000 | http://localhost:3001 |
-| Production | https://teeemlive.vercel.app | https://teeemlive-ce8e2660a615.herokuapp.com |
+| Production | https://teeem.vercel.app | https://teeemlive-ce8e2660a615.herokuapp.com |
 
 **Run checks on BOTH environments** and compare results.
 

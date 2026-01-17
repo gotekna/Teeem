@@ -501,7 +501,7 @@ cd /Users/robertharder/GitHub/teeem && rm -rf "$DEPLOY_DIR"
 
 | Environment | URL | Notes |
 |-------------|-----|-------|
-| Production | `https://teeemlive.vercel.app` | SSoT production URL (3 e's in teeem) |
+| Production | `https://teeem.vercel.app` | SSoT production URL (3 e's in teeem) |
 | Backend API | `https://teeem-production-121159e1ff9d.herokuapp.com` | Heroku |
 
 **Chrome DevTools MCP Access:**

@@ -214,7 +214,7 @@ return (
 ### Heroku Apps
 | Environment | App | Branch | URLs |
 |-------------|-----|--------|------|
-| **Production** | `teeemlive` | Live | Backend: `teeemlive-ce8e2660a615.herokuapp.com`, Frontend: `teeemlive.vercel.app` |
+| **Production** | `teeemlive` | Live | Backend: `teeemlive-ce8e2660a615.herokuapp.com`, Frontend: `teeem.vercel.app` |
 | **Rob Dev** | `teeem-rob-dev` | Live | - |
 | **Sam Dev** | `teeem-sam-dev` | - | - |
 

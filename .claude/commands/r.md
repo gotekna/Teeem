@@ -85,7 +85,7 @@ Local Servers:
 URLs:
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:3001
-- Production: https://teeemlive.vercel.app
+- Production: https://teeem.vercel.app
 
 View logs:
 - Backend: screen -r backend

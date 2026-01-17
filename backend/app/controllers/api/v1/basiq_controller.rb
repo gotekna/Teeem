@@ -111,7 +111,7 @@ module Api
         end
 
         # Redirect to frontend bank feeds page
-        frontend_url = ENV["FRONTEND_URL"] || "https://teeemlive.vercel.app"
+        frontend_url = ENV["FRONTEND_URL"] || "https://teeem.vercel.app"
         redirect_to "#{frontend_url}/financial?tab=bank-feeds&connection=complete", allow_other_host: true
       end
 
