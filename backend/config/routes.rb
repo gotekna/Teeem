@@ -411,6 +411,10 @@ Rails.application.routes.draw do
       # Phase 3: Universal warehouse documents endpoint (SSoT for all document types)
       # Queries WarehouseDocument table with filters: source_type, folder, search
       get "documents/warehouse", to: "documents#warehouse"
+      # Phase 4: Virtual File Warehouse - Database-driven folder tree
+      # Returns folder tree from WarehouseDocument.folder instead of S3
+      # Params: scope (email, task, etc.), path (optional filter)
+      get "documents/virtual_tree", to: "documents#virtual_tree"
 
       # Documents (simple alias for company documents)
       resources :documents, only: [ :index, :create, :show, :update, :destroy ] do

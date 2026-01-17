@@ -618,6 +618,52 @@ class StorageConfiguration < ApplicationRecord
   end
 
   # ========================================
+  # Virtual File Warehouse (Phase 4)
+  # ========================================
+
+  # SSoT: Check if scope renders from database (virtual) vs S3 (physical)
+  # Virtual scopes:
+  # - Folder tree renders from WarehouseDocument.folder (database)
+  # - Reorganization is instant (bulk DB update)
+  # - Physical storage stays at Blobs/{hash}.ext (never moves)
+  #
+  # Configured via admin UI at /settings/company/entity-config/storage_config
+  # Stored in virtual_scopes JSONB column: { "email" => true, "email_attachments" => true }
+  #
+  # @param scope [String, Symbol] The scope name (email, task, job, etc.)
+  # @return [Boolean] true if scope is virtual (database-driven), false if physical (S3-driven)
+  def virtual_scope?(scope)
+    (virtual_scopes || {})[scope.to_s] == true
+  end
+
+  # Get all virtual scopes (for UI display)
+  def effective_virtual_scopes
+    virtual_scopes || {}
+  end
+
+  # Default templates for virtual folder paths
+  # SSoT: These are fallback defaults. Database `templates` column overrides these.
+  VIRTUAL_SCOPE_TEMPLATES = {
+    "email" => "{{Mailbox}}/Email Body/{{Year}}/{{Month}}",
+    "email_attachments" => "{{Mailbox}}/Attachments/{{Year}}/{{Month}}"
+  }.freeze
+
+  # Get template for a virtual scope folder path
+  # @param scope [String, Symbol] The scope name
+  # @return [String] The template string for virtual folder generation
+  def virtual_template_for(scope)
+    scope_key = scope.to_s
+
+    # SSoT: If key exists in templates (even if empty), use that value
+    if templates&.key?(scope_key)
+      return templates[scope_key] || ""
+    end
+
+    # Key not in database - use virtual scope defaults
+    VIRTUAL_SCOPE_TEMPLATES[scope_key] || SCOPE_TEMPLATES[scope_key] || ""
+  end
+
+  # ========================================
   # Configuration Export (for API/UI)
   # ========================================
 
@@ -645,7 +691,10 @@ class StorageConfiguration < ApplicationRecord
       # Config links for scope folders (URL to external config page)
       config_links: config_links || {},
       # Document routing configuration (SSoT for model selection)
-      document_routing: effective_document_routing
+      document_routing: effective_document_routing,
+      # Virtual scopes (Phase 4: Virtual File Warehouse)
+      # Scopes marked as virtual render from database, not S3
+      virtual_scopes: effective_virtual_scopes
     }
   end
 end

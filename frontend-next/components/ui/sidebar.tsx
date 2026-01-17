@@ -36,9 +36,28 @@ import {
 import { Badge } from "./badge";
 import { api } from "@/lib/api";
 import { COMPANY_TIMEZONE } from "@/lib/timezone-utils";
+import { useTenantOptional } from "@/contexts/TenantContext";
+import { Building2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useNavigation, useToggleNavCollapse, type NavigationItem, type NavigationChildItem } from "@/hooks/useNavigation";
 import { getIcon } from "@/lib/icon-map";
 import { SIDEBAR_NAVIGATION_EVENT } from "@/contexts/BreadcrumbContext";
+
+// Tenant info for sidebar display
+interface TenantInfo {
+  currentTenant: { id: number; name: string; slug: string; environment: string } | null;
+  tenants: { id: number; name: string; slug: string; environment: string }[];
+  isTeeemStaff: boolean;
+  canSwitchTenants: boolean;
+  switchTenant: (id: number) => Promise<boolean>;
+  isLoading: boolean;
+}
 
 // Props interface for SidebarContent - extracted to maintain stable component identity
 interface SidebarContentProps {
@@ -57,6 +76,7 @@ interface SidebarContentProps {
   resolvedTheme: string | undefined;
   setTheme: (theme: string) => void;
   handleLogout: () => void;
+  tenantInfo: TenantInfo | null;
 }
 
 // SidebarContent extracted OUTSIDE Sidebar to maintain stable React component identity
@@ -77,7 +97,21 @@ function SidebarContent({
   resolvedTheme,
   setTheme,
   handleLogout,
+  tenantInfo,
 }: SidebarContentProps) {
+  // Environment badge variant
+  const getEnvironmentBadgeVariant = (env: string) => {
+    switch (env) {
+      case 'production':
+        return 'default';
+      case 'beta':
+        return 'secondary';
+      case 'staging':
+        return 'outline';
+      default:
+        return 'outline';
+    }
+  };
   return (
     <div className="flex flex-col h-full">
       {/* Logo - only on mobile sheet */}
@@ -133,92 +167,81 @@ function SidebarContent({
         </div>
       )}
 
-      {/* User Profile */}
+      {/* Company/Tenant Info - shows company name + environment for all users */}
+      {/* TEEEM staff can switch tenants, regular users just see their company */}
       <div className="p-2 border-t border-border">
-        <Popover>
-          <PopoverTrigger asChild>
+        {tenantInfo?.currentTenant ? (
+          tenantInfo.isTeeemStaff && tenantInfo.canSwitchTenants ? (
+            // TEEEM staff: dropdown to switch tenants
             <div
               className={cn(
-                "flex items-center gap-3 p-2 hover:bg-secondary/50 transition-colors cursor-pointer rounded-md",
+                "flex items-center gap-2 p-2",
                 !isExpanded && !mobile && "justify-center"
               )}
             >
-              <Avatar className="w-8 h-8">
-                <AvatarImage src="" />
-                <AvatarFallback>
-                  {user?.name
-                    ?.split(" ")
-                    .map((n) => n[0])
-                    .join("")
-                    .toUpperCase() || "U"}
-                </AvatarFallback>
-              </Avatar>
-              {(isExpanded || mobile) && (
-                <div className="flex flex-col overflow-hidden flex-1">
-                  <span className="text-sm font-medium truncate">{user?.name || "User"}</span>
-                  <span className="text-xs text-muted-foreground truncate">
-                    {user?.email || ""}
-                  </span>
+              <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+              {(isExpanded || mobile) ? (
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <Select
+                    value={tenantInfo.currentTenant.id.toString()}
+                    onValueChange={(val) => tenantInfo.switchTenant(parseInt(val, 10))}
+                    disabled={tenantInfo.isLoading}
+                  >
+                    <SelectTrigger className="h-7 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tenantInfo.tenants.map((t) => (
+                        <SelectItem key={t.id} value={t.id.toString()}>
+                          <span className="truncate">{t.name}</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Badge
+                    variant={getEnvironmentBadgeVariant(tenantInfo.currentTenant.environment)}
+                    className="text-[10px] w-fit"
+                  >
+                    {tenantInfo.currentTenant.environment}
+                  </Badge>
+                </div>
+              ) : (
+                // Collapsed: just show tooltip on hover
+                <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 border shadow-sm whitespace-nowrap">
+                  {tenantInfo.currentTenant.name}
                 </div>
               )}
             </div>
-          </PopoverTrigger>
-          <PopoverContent side="right" align="end" className="w-56 p-2 ml-2">
-            <div className="flex flex-col gap-1">
-              <Link
-                href="/profile"
-                prefetch={false}
-                className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors"
-              >
-                <Users className="h-4 w-4" />
-                Profile
-              </Link>
-              <Link
-                href="/settings"
-                prefetch={false}
-                className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors"
-              >
-                <Settings className="h-4 w-4" />
-                Settings
-              </Link>
-              <div className="my-1 border-t border-border" />
-              <button
-                onClick={() => {
-                  // Only toggle if we have a resolved theme to avoid race conditions
-                  if (mounted && resolvedTheme) {
-                    setTheme(resolvedTheme === "dark" ? "light" : "dark");
-                  }
-                }}
-                className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors w-full text-left"
-              >
-                {/* Show consistent icon based on actual resolved theme, with fallback for SSR */}
-                {mounted && resolvedTheme ? (
-                  resolvedTheme === "dark" ? (
-                    <Sun className="h-4 w-4" />
-                  ) : (
-                    <Moon className="h-4 w-4" />
-                  )
-                ) : (
-                  // Neutral placeholder during hydration to prevent flash
-                  <div className="h-4 w-4" />
-                )}
-                {mounted && resolvedTheme
-                  ? resolvedTheme === "dark"
-                    ? "Light mode"
-                    : "Dark mode"
-                  : "Loading..."}
-              </button>
-              <div className="my-1 border-t border-border" />
-              <button
-                onClick={handleLogout}
-                className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors w-full text-left text-destructive"
-              >
-                <LogOut className="h-4 w-4" />
-                Sign out
-              </button>
+          ) : (
+            // Regular users: just display company name + environment
+            <div
+              className={cn(
+                "flex items-center gap-2 p-2 group relative",
+                !isExpanded && !mobile && "justify-center"
+              )}
+            >
+              <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+              {(isExpanded || mobile) ? (
+                <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+                  <span className="text-sm font-medium truncate">
+                    {tenantInfo.currentTenant.name}
+                  </span>
+                  <Badge
+                    variant={getEnvironmentBadgeVariant(tenantInfo.currentTenant.environment)}
+                    className="text-[10px] w-fit"
+                  >
+                    {tenantInfo.currentTenant.environment}
+                  </Badge>
+                </div>
+              ) : (
+                // Collapsed: show tooltip on hover
+                <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 border shadow-sm whitespace-nowrap">
+                  {tenantInfo.currentTenant.name}
+                </div>
+              )}
             </div>
-          </PopoverContent>
-        </Popover>
+          )
+        ) : null}
       </div>
     </div>
   );
@@ -241,6 +264,9 @@ export function Sidebar() {
   const router = useRouter();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { user, logout, isAuthenticated } = useAuth();
+
+  // Tenant context for company/environment display
+  const tenantContext = useTenantOptional();
 
   // Track mounted state for theme hydration (next-themes fix)
   const [mounted, setMounted] = useState(false);
@@ -733,6 +759,16 @@ export function Sidebar() {
   };
 
   // Common props for SidebarContent
+  // Build tenant info for sidebar display
+  const tenantInfo: TenantInfo | null = tenantContext ? {
+    currentTenant: tenantContext.currentTenant,
+    tenants: tenantContext.tenants,
+    isTeeemStaff: tenantContext.isTeeemStaff,
+    canSwitchTenants: tenantContext.canSwitchTenants,
+    switchTenant: tenantContext.switchTenant,
+    isLoading: tenantContext.isLoading,
+  } : null;
+
   const sidebarContentProps = {
     isExpanded,
     navRef,
@@ -748,6 +784,7 @@ export function Sidebar() {
     resolvedTheme,
     setTheme,
     handleLogout,
+    tenantInfo,
   };
 
   return (

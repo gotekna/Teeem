@@ -201,6 +201,88 @@ module Api
         }
       end
 
+      # GET /api/v1/documents/virtual_tree
+      # Phase 4: Virtual File Warehouse - Database-driven folder tree
+      # Returns folder tree from WarehouseDocument.folder instead of S3
+      #
+      # When a scope is marked as virtual in StorageConfiguration:
+      # - Folder tree renders from database (instant)
+      # - Reorganization is instant (bulk DB update)
+      # - Physical storage stays at Blobs/{hash}.ext (never moves)
+      #
+      # Params:
+      #   scope: The scope to query (email, email_attachments, task, etc.)
+      #   path: Optional base path to filter (e.g., "robert@tekna.com.au/Email Body/2025")
+      #   search: Optional search term for display_name
+      #
+      # Returns:
+      #   folders: Array of { name, path, count } for subfolders
+      #   files: Array of warehouse_document_to_json for files at this level
+      #   count: { folders, files, total }
+      def virtual_tree
+        scope = params[:scope].to_s
+        base_path = params[:path].to_s.strip.gsub(%r{^/+|/+$}, "")
+
+        # Verify scope is virtual (configured in admin UI)
+        config = StorageConfiguration.instance
+        unless config.virtual_scope?(scope)
+          return render json: {
+            success: false,
+            error: "Scope '#{scope}' is not configured as virtual",
+            path: base_path,
+            folders: [],
+            files: []
+          }, status: :bad_request
+        end
+
+        # Query WarehouseDocument by source_type
+        documents = WarehouseDocument.where(source_type: scope)
+                                     .includes(:documentable, :storage_blob)
+
+        # Filter by base path if provided
+        if base_path.present?
+          documents = documents.where("folder LIKE ?", "#{base_path}%")
+        end
+
+        # Search filter
+        if params[:search].present?
+          search_term = "%#{params[:search].downcase}%"
+          documents = documents.where("LOWER(display_name) LIKE ? OR LOWER(original_filename) LIKE ?", search_term, search_term)
+        end
+
+        # Build folder tree from unique folder paths
+        folder_tree = build_virtual_folder_tree(documents, base_path)
+
+        # Get files at EXACTLY this level (folder matches base_path exactly)
+        files_at_level = if base_path.present?
+          documents.where(folder: base_path).limit(500)
+        else
+          documents.where(folder: [nil, ""]).limit(500)
+        end
+
+        render json: {
+          success: true,
+          path: base_path,
+          scope: scope,
+          folders: folder_tree[:folders],
+          files: files_at_level.map { |doc| warehouse_document_to_json(doc) },
+          count: {
+            folders: folder_tree[:folders].size,
+            files: files_at_level.size,
+            total: folder_tree[:folders].size + files_at_level.size
+          }
+        }
+      rescue StandardError => e
+        Rails.logger.error "[Documents] virtual_tree failed for scope=#{scope}, path=#{base_path}: #{e.message}"
+        render json: {
+          success: false,
+          error: e.message,
+          path: base_path,
+          folders: [],
+          files: []
+        }, status: :ok
+      end
+
       # GET /api/v1/documents
       # Returns documents with folder structure for the documents page
       # Params:
@@ -770,6 +852,55 @@ module Api
       end
 
       private
+
+      # Phase 4: Build virtual folder tree from WarehouseDocument.folder paths
+      # Groups documents by folder path segments to create nested folder structure
+      #
+      # @param documents [ActiveRecord::Relation] WarehouseDocument query
+      # @param base_path [String] Current path to get immediate children of
+      # @return [Hash] { folders: [{ name, path, count }...], total_files: Integer }
+      def build_virtual_folder_tree(documents, base_path)
+        # Get all unique folder paths
+        all_folders = documents.where.not(folder: [nil, ""])
+                               .distinct
+                               .pluck(:folder)
+
+        # Find immediate child folders (one level deeper than base_path)
+        child_folders = {}
+
+        all_folders.each do |folder_path|
+          next if folder_path.blank?
+
+          # Get the relative path from base_path
+          relative = if base_path.present?
+            # Skip folders that don't start with base_path
+            next unless folder_path.start_with?(base_path)
+            # Get the part after base_path
+            folder_path.sub("#{base_path}/", "")
+          else
+            folder_path
+          end
+
+          next if relative.blank? || relative == base_path
+
+          # Get just the first segment (immediate child folder)
+          first_segment = relative.split("/").first
+          next if first_segment.blank?
+
+          # Build full path for this child folder
+          full_child_path = base_path.present? ? "#{base_path}/#{first_segment}" : first_segment
+
+          # Count documents in this folder subtree
+          child_folders[first_segment] ||= { name: first_segment, path: full_child_path, count: 0 }
+          # Count documents whose folder starts with this child path
+          child_folders[first_segment][:count] = documents.where("folder LIKE ?", "#{full_child_path}%").count
+        end
+
+        # Sort folders alphabetically
+        sorted_folders = child_folders.values.sort_by { |f| f[:name].to_s.downcase }
+
+        { folders: sorted_folders }
+      end
 
       # SSoT: Build folder hierarchy matching StorageConfiguration.SCOPE_TEMPLATES
       # Template tokens ({{CompanyGroup}}, {{CompanyCode}}, {{TabName}}) define the tree structure

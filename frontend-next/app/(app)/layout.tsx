@@ -14,24 +14,16 @@ import { BreadcrumbTrail, BREADCRUMB_BAR_HEIGHT } from "@/components/navigation/
 import { Spinner } from "@/components/ui/spinner";
 import { initVitals } from "@/lib/performance/vitals";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
-import { TenantSwitcher } from "@/components/admin/TenantSwitcher";
-import { useTenantOptional } from "@/contexts/TenantContext";
-
-// Height of tenant switcher banner when visible
-const TENANT_SWITCHER_HEIGHT = 40;
-
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
   const { sidebarWidth } = useSidebar();
   const { containerClassName, contentClassName, shouldHideSidebar } = useLayoutMode();
-  const tenantContext = useTenantOptional();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const vitalsInitialized = useRef(false);
 
-  // Check if tenant switcher banner should be shown (TEEEM staff only)
-  const showTenantSwitcher = tenantContext?.isTeeemStaff ?? false;
-  const headerOffset = showTenantSwitcher ? 48 + TENANT_SWITCHER_HEIGHT : 48;
+  // Header offset is just the header height (tenant switcher moved to sidebar)
+  const headerOffset = 48;
 
   // Note: Breadcrumb trail is rendered by BreadcrumbTrail component
   // Padding is always reserved (48 + BREADCRUMB_BAR_HEIGHT) to prevent CLS
@@ -64,17 +56,9 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="h-screen bg-background overflow-hidden">
-      {/* Tenant Switcher Banner - only visible to TEEEM staff */}
-      {showTenantSwitcher && (
-        <div className="fixed top-0 left-0 right-0 z-[60]">
-          <TenantSwitcher />
-        </div>
-      )}
-
       {/* Fixed Header Bar - single instance for both desktop and mobile */}
       <div
-        className="fixed left-0 right-0 z-50"
-        style={{ top: showTenantSwitcher ? TENANT_SWITCHER_HEIGHT : 0 }}
+        className="fixed left-0 right-0 z-50 top-0"
       >
         <HeaderBar onMenuClick={() => setSidebarOpen(true)} />
       </div>

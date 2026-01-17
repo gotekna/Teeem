@@ -97,6 +97,14 @@ module Api
           update_attrs[:document_routing] = existing_routing.merge(sp[:document_routing].to_h)
         end
 
+        # Phase 4: Virtual scopes (which scopes render from DB instead of S3)
+        if sp.key?(:virtual_scopes)
+          existing_virtual = storage_config.virtual_scopes || {}
+          # Merge and convert values to booleans
+          merged_virtual = existing_virtual.merge(sp[:virtual_scopes].to_h.transform_values { |v| v.to_s == "true" })
+          update_attrs[:virtual_scopes] = merged_virtual
+        end
+
         if storage_config.update(update_attrs)
           enqueue_folder_reorganization_jobs(old_templates, new_templates) if new_templates
 
@@ -153,7 +161,8 @@ module Api
           scope_templates: {},
           file_name_templates: {},
           config_links: {},
-          document_routing: {}  # SSoT: Which model to use for each document source
+          document_routing: {},  # SSoT: Which model to use for each document source
+          virtual_scopes: {}     # Phase 4: Virtual File Warehouse - which scopes render from DB
         )
       end
 

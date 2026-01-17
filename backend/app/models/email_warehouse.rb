@@ -23,6 +23,9 @@ class EmailWarehouse < ApplicationRecord
   belongs_to :microsoft_credential, class_name: "MicrosoftCredential", optional: true
   belongs_to :primary_contact, class_name: "Contact", optional: true
   belongs_to :imap_credential, optional: true  # For IMAP-sourced emails
+  # Phase 4: Virtual File Warehouse - FK to EmailMailbox for virtual folder organization
+  # Enables grouping emails by mailbox: Emails/{{Mailbox}}/Email Body/{{Year}}/{{Month}}
+  belongs_to :email_mailbox, optional: true
 
   # SSoT associations
   has_many :email_recipients, dependent: :destroy
@@ -57,6 +60,8 @@ class EmailWarehouse < ApplicationRecord
   after_create_commit :broadcast_new_email
   after_create_commit :inherit_job_from_thread
   after_destroy_commit :broadcast_email_deleted
+  # Phase 4: Update warehouse_document.folder on relevant field changes
+  after_save :update_warehouse_document_folder, if: :should_update_virtual_folder?
 
   # Scopes
   scope :unassigned, -> { where(job_id: nil) }
@@ -311,6 +316,37 @@ class EmailWarehouse < ApplicationRecord
   # Get count of document attachments (excluding images)
   def document_attachments_count
     email_attachments.count { |ea| !ea.storage_blob&.content_type&.start_with?('image/') }
+  end
+
+  # ========================================
+  # Phase 4: Virtual File Warehouse
+  # ========================================
+
+  # Compute virtual folder path for organizing emails by mailbox
+  # Returns path like: "robert@tekna.com.au/Email Body/2025/01"
+  #
+  # Used for:
+  # - Setting WarehouseDocument.folder for database-driven folder rendering
+  # - Instant reorganization (change mailbox_owner_email = instant move)
+  #
+  # Physical storage stays at Blobs/{hash}.eml (never moves)
+  def virtual_folder_path
+    # Use email_mailbox if linked, otherwise fall back to mailbox_owner_email
+    mailbox_name = email_mailbox&.email_address || mailbox_owner_email || "Unknown"
+    year = received_at&.year || Time.current.year
+    month = format("%02d", received_at&.month || 1)
+
+    "#{mailbox_name}/Email Body/#{year}/#{month}"
+  end
+
+  # Compute virtual folder path for email attachments
+  # Returns path like: "robert@tekna.com.au/Attachments/2025/01"
+  def virtual_attachments_folder_path
+    mailbox_name = email_mailbox&.email_address || mailbox_owner_email || "Unknown"
+    year = received_at&.year || Time.current.year
+    month = format("%02d", received_at&.month || 1)
+
+    "#{mailbox_name}/Attachments/#{year}/#{month}"
   end
 
   # Job ID patterns to look for in subject line
@@ -862,6 +898,28 @@ class EmailWarehouse < ApplicationRecord
     self.from_email = from_email&.downcase
     self.to_emails = to_emails&.map(&:downcase) if to_emails.present?
     self.cc_emails = cc_emails&.map(&:downcase) if cc_emails.present?
+  end
+
+  # Phase 4: Determine if virtual folder needs updating
+  # Returns true if received_at, mailbox_owner_email, or email_mailbox_id changed
+  def should_update_virtual_folder?
+    saved_change_to_received_at? ||
+      saved_change_to_mailbox_owner_email? ||
+      saved_change_to_email_mailbox_id?
+  end
+
+  # Phase 4: Update warehouse_document.folder when virtual folder path changes
+  # This enables instant reorganization - just change the DB, don't move files
+  def update_warehouse_document_folder
+    return unless warehouse_document.present?
+
+    new_folder = virtual_folder_path
+    return if warehouse_document.folder == new_folder
+
+    warehouse_document.update_column(:folder, new_folder)
+    Rails.logger.debug "[EmailWarehouse] Updated warehouse_document folder to: #{new_folder}"
+  rescue StandardError => e
+    Rails.logger.error "[EmailWarehouse] Failed to update warehouse_document folder: #{e.message}"
   end
 
   def update_searchable_vector
