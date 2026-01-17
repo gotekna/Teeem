@@ -1,4 +1,7 @@
 class EmailWarehouse < ApplicationRecord
+  # Multi-tenancy: Scope all queries to current tenant
+  acts_as_tenant :corporate_group, foreign_key: :company_group_id
+
   include Searchable
 
   # Searchable columns for full-text search (GIN index)
@@ -48,7 +51,7 @@ class EmailWarehouse < ApplicationRecord
   DIRECTIONS = %w[sent received cc bcc].freeze
 
   # Validations
-  validates :internet_message_id, presence: true, uniqueness: true
+  validates :internet_message_id, presence: true, uniqueness: { scope: :company_group_id }
 
   # Callbacks - Real-time sync via ActionCable
   after_create_commit :broadcast_new_email

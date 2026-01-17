@@ -2,7 +2,11 @@ class ApplicationController < ActionController::API
   include ActionController::Cookies
   include SsotAuthorization
 
+  # Multi-tenancy: Set up tenant scoping
+  set_current_tenant_through_filter
+
   before_action :authorize_request
+  before_action :set_tenant  # Must be after authorize_request to have current_user
   after_action :update_last_seen
 
   # Global exception handlers
@@ -14,6 +18,39 @@ class ApplicationController < ActionController::API
   rescue_from ActiveStorage::FileNotFoundError, with: :handle_file_not_found
 
   private
+
+  # Multi-tenancy: Determine and set the current tenant
+  # Priority order:
+  # 1. Admin override (for TEEEM staff switching tenants via session)
+  # 2. Subdomain (pilgrim.teeem.com.au → Pilgrim tenant)
+  # 3. User's assigned tenant
+  def set_tenant
+    tenant = determine_tenant
+    set_current_tenant(tenant)
+  end
+
+  def determine_tenant
+    # Priority 1: Admin override (for TEEEM staff switching tenants)
+    if current_user&.teeem_staff? && session[:admin_tenant_id]
+      tenant = CorporateGroup.find_by(id: session[:admin_tenant_id])
+      return tenant if tenant
+    end
+
+    # Priority 2: Subdomain
+    subdomain = request.subdomain
+    if subdomain.present? && !%w[www api staging beta].include?(subdomain)
+      tenant = CorporateGroup.find_by(slug: subdomain)
+      return tenant if tenant
+    end
+
+    # Priority 3: User's assigned tenant
+    # Note: This will be nil if user has no corporate_group
+    current_user&.corporate_group
+  end
+
+  def current_tenant
+    ActsAsTenant.current_tenant
+  end
 
   def authorize_request
     # Try JWT token first (Authorization header)

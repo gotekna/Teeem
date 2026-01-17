@@ -1,4 +1,7 @@
 class Estimate < ApplicationRecord
+  # Multi-tenancy: Scope all queries to current tenant
+  acts_as_tenant :corporate_group, foreign_key: :company_group_id
+
   # Associations
   belongs_to :construction, optional: true
   has_many :estimate_line_items, dependent: :destroy

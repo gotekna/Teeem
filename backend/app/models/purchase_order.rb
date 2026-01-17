@@ -1,4 +1,7 @@
 class PurchaseOrder < ApplicationRecord
+  # Multi-tenancy: Scope all queries to current tenant
+  acts_as_tenant :corporate_group, foreign_key: :company_group_id
+
   include Searchable
 
   # Searchable columns for full-text search (GIN index)
@@ -97,7 +100,7 @@ class PurchaseOrder < ApplicationRecord
 
   # Validations
   # purchase_order_number is generated from ID after create, so only validate on update
-  validates :purchase_order_number, presence: true, uniqueness: true, on: :update
+  validates :purchase_order_number, presence: true, uniqueness: { scope: :company_group_id }, on: :update
   validates :job_id, presence: true
   validates :status, presence: true, inclusion: {
     in: %w[draft pending approved sent received invoiced paid cancelled]

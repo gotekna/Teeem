@@ -3,6 +3,7 @@ class User < ApplicationRecord
 
   belongs_to :user_group, optional: true
   belongs_to :contact, optional: true  # Link user to their contact record for data sync
+  belongs_to :corporate_group, optional: true  # Multi-tenancy: User's assigned tenant
   has_many :grok_plans, dependent: :destroy
   has_many :chat_messages, dependent: :destroy
   has_many :foundation_views, dependent: :destroy
@@ -88,6 +89,36 @@ class User < ApplicationRecord
 
   def builder?
     roles.exists?(name: "builder")
+  end
+
+  # =============================================================================
+  # Multi-Tenancy Methods
+  # =============================================================================
+
+  # Check if user is TEEEM staff (has god-mode access to all tenants)
+  # TEEEM staff are identified by:
+  # 1. Email ending with @teeem.com.au
+  # 2. Having the 'super_admin' role
+  def teeem_staff?
+    email&.ends_with?("@teeem.com.au") || roles.exists?(name: "super_admin")
+  end
+
+  # Check if user can access a specific tenant
+  def can_access_tenant?(tenant)
+    return false unless tenant
+
+    teeem_staff? || corporate_group_id == tenant.id
+  end
+
+  # Get all tenants this user can access
+  def available_tenants
+    if teeem_staff?
+      CorporateGroup.all
+    elsif corporate_group_id.present?
+      CorporateGroup.where(id: corporate_group_id)
+    else
+      CorporateGroup.none
+    end
   end
 
   # Get user initials from name (e.g., "Robert Harder" -> "RH")

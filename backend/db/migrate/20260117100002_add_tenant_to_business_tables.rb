@@ -41,14 +41,14 @@ class AddTenantToBusinessTables < ActiveRecord::Migration[8.0]
     # Business data - Meetings
     add_reference :meetings, :company_group, foreign_key: { to_table: :corporate_groups }, index: true if table_exists?(:meetings)
 
-    # Business data - Invoices (if not already tenant-scoped)
-    unless column_exists?(:invoices, :company_group_id)
-      add_reference :invoices, :company_group, foreign_key: { to_table: :corporate_groups }, index: true if table_exists?(:invoices)
+    # Business data - Invoices (if exists and not already tenant-scoped)
+    if table_exists?(:invoices) && !column_exists?(:invoices, :company_group_id)
+      add_reference :invoices, :company_group, foreign_key: { to_table: :corporate_groups }, index: true
     end
 
-    # Business data - Bills (if exists)
-    unless column_exists?(:bills, :company_group_id)
-      add_reference :bills, :company_group, foreign_key: { to_table: :corporate_groups }, index: true if table_exists?(:bills)
+    # Business data - Bills (if exists and not already tenant-scoped)
+    if table_exists?(:bills) && !column_exists?(:bills, :company_group_id)
+      add_reference :bills, :company_group, foreign_key: { to_table: :corporate_groups }, index: true
     end
 
     # Add tenant-scoped unique index for job codes
