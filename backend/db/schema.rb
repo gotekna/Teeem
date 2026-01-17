@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_17_100009) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_17_110002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -3091,6 +3091,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_17_100009) do
     t.string "storage_path"
     t.string "storage_file_id"
     t.bigint "company_group_id"
+    t.bigint "email_mailbox_id"
     t.index "((email_classification ->> 'email_type'::text))", name: "idx_email_warehouse_classification_type", where: "(email_classification IS NOT NULL)"
     t.index "((email_classification ->> 'email_type'::text))", name: "idx_email_warehouse_email_type"
     t.index ["cc_emails"], name: "idx_email_warehouse_cc_emails_gin", using: :gin
@@ -3098,6 +3099,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_17_100009) do
     t.index ["contact_ids"], name: "idx_email_warehouse_contact_ids_gin", using: :gin
     t.index ["conversation_id", "is_latest_in_thread"], name: "idx_email_warehouse_conversation_latest"
     t.index ["direction"], name: "index_email_warehouses_on_direction"
+    t.index ["email_mailbox_id"], name: "index_email_warehouses_on_email_mailbox_id"
     t.index ["from_email"], name: "idx_email_warehouse_from_email"
     t.index ["id"], name: "idx_email_warehouse_unassigned", where: "(job_id IS NULL)"
     t.index ["imap_credential_id", "uid"], name: "idx_email_warehouse_imap_uid", where: "(uid IS NOT NULL)"
@@ -9226,6 +9228,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_17_100009) do
     t.jsonb "file_name_templates", default: {}, null: false
     t.jsonb "config_links", default: {}, null: false
     t.jsonb "document_routing", default: {"sharepoint_scan"=>{"model"=>"CorporateCompanyDocument", "scope"=>"corporate_entity", "description"=>"SharePoint scanned documents"}, "xero_attachment"=>{"model"=>"CorporateCompanyDocument", "scope"=>"corporate_entity", "description"=>"Xero invoice/bill attachments"}, "email_attachment"=>{"model"=>"CorporateCompanyDocument", "scope"=>"corporate_entity", "description"=>"Email attachments"}, "xero_primary_invoice"=>{"model"=>"ContactDocument", "scope"=>"contact", "description"=>"Primary Xero invoice/bill PDF"}}, null: false
+    t.jsonb "virtual_scopes", default: {}, null: false
     t.index ["credential_type", "credential_id"], name: "index_storage_configurations_on_credential"
     t.index ["organization_id"], name: "index_storage_configurations_on_organization_id", unique: true
   end
@@ -10791,6 +10794,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_17_100009) do
   add_foreign_key "email_user_states", "email_warehouses"
   add_foreign_key "email_user_states", "users"
   add_foreign_key "email_warehouses", "corporate_groups", column: "company_group_id"
+  add_foreign_key "email_warehouses", "email_mailboxes"
   add_foreign_key "entity_tab_document_types", "document_types"
   add_foreign_key "entity_tab_document_types", "entity_tabs"
   add_foreign_key "entity_tabs", "corporate_groups", column: "company_group_id"

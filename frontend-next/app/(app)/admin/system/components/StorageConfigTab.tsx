@@ -146,6 +146,8 @@ interface StorageConfig {
   file_name_templates: Record<string, string>;
   // SSoT: Config links for scope folders (URL to external config page)
   config_links: Record<string, string>;
+  // Phase 4: Virtual scopes (render from DB instead of S3)
+  virtual_scopes: Record<string, boolean>;
 }
 
 // Tree node structure for folder hierarchy
@@ -252,6 +254,9 @@ interface TreeNodeProps {
   fileNameTemplates: Record<string, string>;
   configLinks: Record<string, string>;
   onSaveTemplates: (scopeKey: string, folderTemplate: string, filenameTemplate: string, configLink: string | null) => Promise<void>;
+  // Phase 4: Virtual scopes
+  virtualScopes: Record<string, boolean>;
+  onToggleVirtual: (scopeKey: string, isVirtual: boolean) => Promise<void>;
 }
 
 function TreeNode({
@@ -274,6 +279,8 @@ function TreeNode({
   fileNameTemplates,
   configLinks,
   onSaveTemplates,
+  virtualScopes,
+  onToggleVirtual,
 }: TreeNodeProps) {
   const hasChildren = node.children.length > 0;
   const hasTabs = node.tabs && node.tabs.length > 0;
@@ -619,6 +626,32 @@ function TreeNode({
               defaultExpanded={false}
             />
 
+            {/* Phase 4: Virtual Folder Toggle */}
+            <div className="space-y-2 pt-2 border-t">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id={`virtual-${currentEditingScopeKey}`}
+                  checked={virtualScopes[currentEditingScopeKey || ''] ?? false}
+                  onCheckedChange={(checked) => {
+                    if (currentEditingScopeKey) {
+                      onToggleVirtual(currentEditingScopeKey, checked === true);
+                    }
+                  }}
+                />
+                <label
+                  htmlFor={`virtual-${currentEditingScopeKey}`}
+                  className="text-xs font-medium cursor-pointer flex items-center gap-1.5"
+                >
+                  <Database className="h-3.5 w-3.5" />
+                  Virtual Folder (Phase 4)
+                </label>
+              </div>
+              <p className="text-[10px] text-muted-foreground ml-6">
+                When enabled, folder tree renders from database instead of S3.
+                Reorganization is instant (bulk DB update). Physical storage stays at Blobs/&#123;hash&#125;.ext.
+              </p>
+            </div>
+
             {/* Config Link - checkbox + URL */}
             <div className="space-y-2 pt-2 border-t">
               <div className="flex items-center gap-2">
@@ -828,6 +861,8 @@ function TreeNode({
                 fileNameTemplates={fileNameTemplates}
                 configLinks={configLinks}
                 onSaveTemplates={onSaveTemplates}
+                virtualScopes={virtualScopes}
+                onToggleVirtual={onToggleVirtual}
               />
             ))
           )}
@@ -1029,6 +1064,8 @@ export function StorageConfigTab() {
     file_name_templates: {} as Record<string, string>,
     // SSoT: Config links for scope folders
     config_links: {} as Record<string, string>,
+    // Phase 4: Virtual scopes (render from DB instead of S3)
+    virtual_scopes: {} as Record<string, boolean>,
   });
   // Tree view state
   const [expandedPaths, setExpandedPaths] = React.useState<Set<string>>(new Set());
@@ -1215,6 +1252,40 @@ export function StorageConfigTab() {
     }
   }, [toast]);
 
+  // Phase 4: Toggle virtual scope via API
+  const toggleVirtualScope = React.useCallback(async (scopeKey: string, isVirtual: boolean) => {
+    try {
+      const response = await api.patch<{ success: boolean; data: StorageConfig }>(
+        "/api/v1/storage_configuration",
+        {
+          storage: {
+            virtual_scopes: { [scopeKey]: isVirtual },
+          }
+        }
+      );
+      if (response?.success) {
+        // Update local state
+        setFormData(prev => ({
+          ...prev,
+          virtual_scopes: { ...prev.virtual_scopes, [scopeKey]: isVirtual },
+        }));
+        toast({
+          title: "Saved",
+          description: `${scopeKey} is now ${isVirtual ? 'virtual (database-driven)' : 'physical (S3-driven)'}`,
+        });
+      } else {
+        throw new Error('Failed to save virtual scope setting');
+      }
+    } catch (error) {
+      console.error("Failed to toggle virtual scope:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save virtual scope setting",
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
+
   // Expand all nodes initially (folders with children or tabs)
   React.useEffect(() => {
     if (Object.keys(formData.scope_folders).length > 0 && expandedPaths.size === 0) {
@@ -1269,6 +1340,8 @@ export function StorageConfigTab() {
           file_name_templates: response.data.file_name_templates || {},
           // SSoT: Config links from StorageConfiguration
           config_links: response.data.config_links || {},
+          // Phase 4: Virtual scopes from StorageConfiguration
+          virtual_scopes: response.data.virtual_scopes || {},
         });
       }
     } catch (error) {
@@ -1297,6 +1370,7 @@ export function StorageConfigTab() {
             scope_templates: formData.scope_templates,
             file_name_templates: formData.file_name_templates,
             config_links: formData.config_links,
+            virtual_scopes: formData.virtual_scopes,  // Phase 4: Virtual File Warehouse
             // Map SharePoint fields (frontend uses sharepoint_* prefix, backend expects bare names)
             site_url: formData.sharepoint_site_url,
             site_id: formData.sharepoint_site_id,
@@ -1723,6 +1797,8 @@ export function StorageConfigTab() {
                     fileNameTemplates={formData.file_name_templates}
                     configLinks={formData.config_links}
                     onSaveTemplates={saveScopeTemplates}
+                    virtualScopes={formData.virtual_scopes}
+                    onToggleVirtual={toggleVirtualScope}
                   />
                 ))}
               </div>

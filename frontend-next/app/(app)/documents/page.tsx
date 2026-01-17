@@ -368,6 +368,8 @@ export default function AllDocumentsPage() {
 
   // SSoT: Root path from StorageConfiguration
   const [rootPath, setRootPath] = useState<string>("/Shared Documents");
+  // Phase 4: Virtual scopes (render from DB instead of S3)
+  const [virtualScopes, setVirtualScopes] = useState<Record<string, boolean>>({});
 
   // SSoT: All configured folders from Entity Configurator
   const [entityFolders, setEntityFolders] = useState<{
@@ -441,6 +443,7 @@ export default function AllDocumentsPage() {
             scope_folders?: ScopeFolders;
             scope_templates?: Record<string, string>;
             root_path?: string;
+            virtual_scopes?: Record<string, boolean>;  // Phase 4
           };
         }>("/api/v1/storage_configuration");
         if (response?.success && response.data) {
@@ -453,6 +456,10 @@ export default function AllDocumentsPage() {
           }
           if (response.data.root_path) {
             setRootPath(response.data.root_path);
+          }
+          // Phase 4: Virtual scopes from StorageConfiguration
+          if (response.data.virtual_scopes) {
+            setVirtualScopes(response.data.virtual_scopes);
           }
         }
       } catch (err) {
@@ -667,7 +674,25 @@ export default function AllDocumentsPage() {
     }
   }, [folderFiles, loadingFolders]);
 
-  // SSoT: Fetch S3 folders from Wasabi - mirrors exact storage structure
+  // Phase 4: Helper to determine scope from a folder path
+  // Maps paths like "Emails", "Emails/robert@tekna.com.au" to scope key "email"
+  const getScopeFromPath = useCallback((path: string): string | null => {
+    if (!path) return null;
+
+    // Get the first segment of the path (e.g., "Emails" from "Emails/robert@tekna.com.au/...")
+    const firstSegment = path.split('/')[0];
+
+    // Find which scope folder starts with this segment
+    for (const [scopeKey, scopePath] of Object.entries(scopeFolders)) {
+      if (scopePath && (scopePath === firstSegment || scopePath.startsWith(firstSegment + '/'))) {
+        return scopeKey;
+      }
+    }
+
+    return null;
+  }, [scopeFolders]);
+
+  // SSoT: Fetch folders - routes to virtual_tree for virtual scopes, s3_folders for physical
   // This is used for OneDrive-like folder browsing
   const fetchS3Folders = useCallback(async (path: string) => {
     // Already loaded or loading
@@ -677,25 +702,78 @@ export default function AllDocumentsPage() {
 
     setLoadingS3Folders(prev => new Set(prev).add(path));
     try {
-      const response = await api.get<{
-        success: boolean;
-        path: string;
-        folders: Array<{ name: string; path: string }>;
-        files: Array<{ name: string; path: string; size: number; content_type: string; last_modified?: string; url?: string }>;
-        count: { folders: number; files: number; total: number };
-      }>(`/api/v1/documents/s3_folders?path=${encodeURIComponent(path)}`);
+      // Phase 4: Check if this path belongs to a virtual scope
+      const scope = getScopeFromPath(path);
+      const isVirtual = scope && virtualScopes[scope];
 
-      if (response?.success) {
-        setS3Folders(prev => ({
-          ...prev,
-          [path]: {
-            folders: response.folders || [],
-            files: response.files || [],
-          },
-        }));
+      if (isVirtual && scope) {
+        // Virtual scope: Use database-driven virtual_tree endpoint
+        // Convert path to relative path within scope (e.g., "Emails/robert@tekna.com.au" -> "robert@tekna.com.au")
+        const scopeFolder = scopeFolders[scope] || '';
+        const relativePath = path.startsWith(scopeFolder + '/')
+          ? path.slice(scopeFolder.length + 1)
+          : (path === scopeFolder ? '' : path);
+
+        const response = await api.get<{
+          success: boolean;
+          path: string;
+          scope: string;
+          folders: Array<{ name: string; path: string; count: number }>;
+          files: Array<{
+            id: number;
+            displayName: string;
+            originalFilename: string;
+            folder: string;
+            sourceType: string;
+            size: number;
+            contentType: string;
+            url?: string;
+          }>;
+          count: { folders: number; files: number; total: number };
+        }>(`/api/v1/documents/virtual_tree?scope=${encodeURIComponent(scope)}&path=${encodeURIComponent(relativePath)}`);
+
+        if (response?.success) {
+          // Map virtual_tree response to s3_folders format for UI compatibility
+          setS3Folders(prev => ({
+            ...prev,
+            [path]: {
+              folders: (response.folders || []).map(f => ({
+                name: f.name,
+                // Prepend scope folder to make full path
+                path: scopeFolder ? `${scopeFolder}/${f.path}` : f.path,
+              })),
+              files: (response.files || []).map(f => ({
+                name: f.displayName || f.originalFilename,
+                path: f.folder ? `${scopeFolder}/${f.folder}/${f.displayName}` : `${scopeFolder}/${f.displayName}`,
+                size: f.size || 0,
+                content_type: f.contentType || 'application/octet-stream',
+                url: f.url,
+              })),
+            },
+          }));
+        }
+      } else {
+        // Physical scope: Use S3/Wasabi folder listing
+        const response = await api.get<{
+          success: boolean;
+          path: string;
+          folders: Array<{ name: string; path: string }>;
+          files: Array<{ name: string; path: string; size: number; content_type: string; last_modified?: string; url?: string }>;
+          count: { folders: number; files: number; total: number };
+        }>(`/api/v1/documents/s3_folders?path=${encodeURIComponent(path)}`);
+
+        if (response?.success) {
+          setS3Folders(prev => ({
+            ...prev,
+            [path]: {
+              folders: response.folders || [],
+              files: response.files || [],
+            },
+          }));
+        }
       }
     } catch (err) {
-      console.error(`Failed to fetch S3 folders for ${path}:`, err);
+      console.error(`Failed to fetch folders for ${path}:`, err);
       // Set empty to prevent re-fetching
       setS3Folders(prev => ({
         ...prev,
@@ -708,7 +786,7 @@ export default function AllDocumentsPage() {
         return next;
       });
     }
-  }, [s3Folders, loadingS3Folders]);
+  }, [s3Folders, loadingS3Folders, getScopeFromPath, virtualScopes, scopeFolders]);
 
   // SSoT: Fetch root S3 folders on page load for Pure S3 Browsing
   // Wasabi = SSoT for DISPLAY (shows actual folder structure)
