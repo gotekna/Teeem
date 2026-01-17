@@ -112,9 +112,9 @@ class BackfillWarehouseDocumentMetadataJob < ApplicationJob
       "cc_emails" => email.cc_emails,
       "received_at" => email.received_at&.iso8601,
       "mailbox" => email.mailbox_owner_email,
-      "message_id" => email.message_id,
-      "direction" => email.respond_to?(:direction) ? email.direction : nil,
-      "has_attachments" => email.respond_to?(:has_attachments?) ? email.has_attachments? : false
+      "message_id" => email.internet_message_id,
+      "direction" => email.direction,
+      "has_attachments" => email.has_attachments
     }.compact
   end
 
@@ -122,8 +122,7 @@ class BackfillWarehouseDocumentMetadataJob < ApplicationJob
     email = att.email_warehouse
     {
       "filename" => att.filename,
-      "content_type" => att.content_type,
-      "file_size" => att.file_size,
+      "content_hash" => att.content_hash,
       "parent_email_id" => email&.id,
       "parent_email_subject" => email&.subject,
       "received_at" => email&.received_at&.iso8601,
