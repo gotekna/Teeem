@@ -331,4 +331,23 @@ namespace :storage do
       puts "#{prefix} #{item[:name]}"
     end
   end
+
+  # Parallel email rename by year - run ALL years concurrently
+  # Run: heroku run rails storage:rename_emails:year_2024 --app teeemlive
+  namespace :rename_emails do
+    (2020..2026).each do |year|
+      desc "Rename Emails/eml/#{year} -> Emails/Email Body/#{year}"
+      task :"year_#{year}" => :environment do
+        puts "Renaming emails for #{year}..."
+        org = Organization.first
+        provider = DocumentProviders.for_organization(org)
+        result = provider.rename_folder("Emails/eml/#{year}", "Emails/Email Body/#{year}")
+        if result[:success]
+          puts "✓ #{year}: Moved #{result[:moved_count]} objects"
+        else
+          puts "✗ #{year}: #{result[:error]}"
+        end
+      end
+    end
+  end
 end

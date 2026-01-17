@@ -45,14 +45,58 @@ namespace :tenants do
       puts "\n[Step 6] Assigning users to appropriate tenants..."
       assign_users_to_tenants(teeem, tekna)
 
-      # Step 7: Copy Tekna config to TEEEM as master templates (future feature)
-      puts "\n[Step 7] Template sync will be done after TemplateExportService is created"
+      # Step 7: Copy Tekna config to TEEEM as master templates
+      puts "\n[Step 7] Syncing Tekna configuration to TEEEM master templates..."
+      sync_templates(tekna, teeem)
 
       puts "\n" + "=" * 60
       puts "Migration complete!"
       puts "  TEEEM tenant: ID #{teeem.id} (#{teeem.slug}) - Master tenant"
       puts "  Tekna tenant: ID #{tekna.id} (#{tekna.slug}) - First customer"
       puts "=" * 60
+    end
+  end
+
+  desc "Sync templates from Tekna to TEEEM master tenant"
+  task sync_templates: :environment do
+    puts "Syncing templates from Tekna to TEEEM..."
+    puts "=" * 60
+
+    tekna = CorporateGroup.find_by(slug: "tekna-homes")
+    teeem = CorporateGroup.find_by(slug: "teeem")
+
+    unless tekna && teeem
+      puts "ERROR: Both Tekna and TEEEM tenants must exist"
+      puts "  Run 'rails tenants:migrate' first"
+      exit 1
+    end
+
+    sync_templates(tekna, teeem)
+  end
+
+  desc "Sync schedule master templates only from Tekna to TEEEM"
+  task sync_schedule_masters: :environment do
+    puts "Syncing schedule master templates from Tekna to TEEEM..."
+    puts "=" * 60
+
+    tekna = CorporateGroup.find_by(slug: "tekna-homes")
+    teeem = CorporateGroup.find_by(slug: "teeem")
+
+    unless tekna && teeem
+      puts "ERROR: Both Tekna and TEEEM tenants must exist"
+      exit 1
+    end
+
+    service = TenantSyncService.new(source_tenant: tekna, target_tenant: teeem)
+    result = service.sync_schedule_masters!
+
+    if result[:success]
+      puts "✓ Schedule masters synced successfully"
+      puts "  Imported: #{result[:imported]}"
+      puts "  Pack created: #{result[:pack_name]} (ID: #{result[:pack_id]})"
+    else
+      puts "✗ Sync failed with errors:"
+      result[:errors].each { |e| puts "  - #{e}" }
     end
   end
 
@@ -324,5 +368,21 @@ namespace :tenants do
 
     model.where(column => nil).update_all(column => tenant.id)
     puts "  ✓ #{model.name}: #{count} records assigned to #{tenant.name}"
+  end
+
+  def sync_templates(source_tenant, target_tenant)
+    service = TenantSyncService.new(source_tenant: source_tenant, target_tenant: target_tenant)
+    result = service.sync_all!
+
+    if result[:success]
+      puts "  ✓ Templates synced successfully"
+      puts "    Pack created: #{result[:pack_name]} (ID: #{result[:pack_id]})"
+      result[:imported].each do |item_type, count|
+        puts "    - #{item_type}: #{count} records"
+      end
+    else
+      puts "  ⚠ Template sync had errors:"
+      result[:errors].each { |e| puts "    - #{e}" }
+    end
   end
 end

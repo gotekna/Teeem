@@ -4055,6 +4055,41 @@ Rails.application.routes.draw do
       end
 
       # =============================================================
+      # Signup API (public - no authentication required)
+      # =============================================================
+      # POST   /api/v1/signup                -> Create new tenant (self-service signup)
+      # GET    /api/v1/signup/check_availability -> Check if company name available
+      # GET    /api/v1/signup/template_packs -> List available starter templates
+      # GET    /api/v1/signup/tiers          -> List available pricing tiers
+      resource :signup, only: [:create], controller: "signup" do
+        collection do
+          get :check_availability
+          get :template_packs
+          get :tiers
+        end
+      end
+
+      # =============================================================
+      # Onboarding API (data import/export for new tenants)
+      # =============================================================
+      # GET    /api/v1/onboarding/status     -> Get onboarding progress
+      # GET    /api/v1/onboarding/templates  -> Download all import templates (ZIP)
+      # GET    /api/v1/onboarding/template/:type -> Download single template
+      # POST   /api/v1/onboarding/validate   -> Validate import files (dry run)
+      # POST   /api/v1/onboarding/import     -> Import data from files
+      # GET    /api/v1/onboarding/export/:type -> Export current data
+      resource :onboarding, only: [], controller: "onboarding" do
+        collection do
+          get :status
+          get :templates
+          get "template/:type", action: :template
+          post :validate
+          post :import
+          get "export/:type", action: :export
+        end
+      end
+
+      # =============================================================
       # Admin API (TEEEM staff internal tools)
       # =============================================================
       namespace :admin do
@@ -4071,6 +4106,27 @@ Rails.application.routes.draw do
           end
           member do
             post :switch
+          end
+        end
+
+        # Template Packs (configuration sharing between tenants)
+        # GET    /api/v1/admin/template_packs          -> List available packs
+        # GET    /api/v1/admin/template_packs/:id      -> Pack details with items
+        # POST   /api/v1/admin/template_packs/export   -> Export current tenant config
+        # POST   /api/v1/admin/template_packs/:id/import -> Import pack into current tenant
+        # POST   /api/v1/admin/template_packs/:id/validate -> Validate import (dry run)
+        # DELETE /api/v1/admin/template_packs/:id      -> Delete pack
+        # POST   /api/v1/admin/template_packs/sync     -> Sync between tenants (TEEEM staff)
+        # GET    /api/v1/admin/template_packs/sync_preview -> Preview sync
+        resources :template_packs, only: [:index, :show, :destroy] do
+          collection do
+            post :export
+            post :sync
+            get :sync_preview
+          end
+          member do
+            post :import
+            post :validate
           end
         end
       end
