@@ -2,7 +2,7 @@
 
 **Shortcut:** `/bp` (Beta → Production)
 
-Deploys the current beta code to the production Heroku environment (teeemlive). No branch merging - just deploys.
+Deploys the current beta code to the production Heroku environment (teeemproduction). No branch merging - just deploys.
 
 ## Pipeline Position
 ```
@@ -48,7 +48,7 @@ cd "$DEPLOY_DIR"
 git init
 git add .
 git commit -m "Deploy to Production $(date +%Y%m%d-%H%M%S)"
-git remote add heroku https://git.heroku.com/teeemlive.git
+git remote add heroku https://git.heroku.com/teeemproduction.git
 git push heroku HEAD:main --force
 cd /Users/robertharder/GitHub/teeem
 rm -rf "$DEPLOY_DIR"
@@ -71,7 +71,7 @@ heroku run rails runner "
   else
     puts '✅ Recurring tasks OK (' + tasks.count.to_s + ' registered)'
   end
-" --app teeemlive
+" --app teeemproduction
 
 # 2. Check health monitor status
 heroku run rails runner "
@@ -83,7 +83,7 @@ heroku run rails runner "
   else
     puts '❌ Health monitor failed: ' + (last.error_message || 'unknown')
   end
-" --app teeemlive
+" --app teeemproduction
 
 # 3. Check Xero credentials
 heroku run rails runner "
@@ -94,7 +94,7 @@ heroku run rails runner "
   else
     puts '✅ Xero: ' + total.to_s + ' credentials, all tokens valid'
   end
-" --app teeemlive
+" --app teeemproduction
 ```
 
 ### Step 5 - Report Status
@@ -111,7 +111,7 @@ BRISBANE_TIME=$(TZ='Australia/Brisbane' date '+%H:%M %d/%m')
 PRODUCTION DEPLOYED: HH:MM DD/MM (Brisbane)
 Source: staging branch
 ----------------------------------------
-Backend: v[XXX] - deployed to teeemlive
+Backend: v[XXX] - deployed to teeemproduction
 ========================================
 ```
 
@@ -119,7 +119,7 @@ Backend: v[XXX] - deployed to teeemlive
 
 If deploy fails:
 1. Report the error
-2. Check Heroku logs: `heroku logs --app teeemlive -n 50`
+2. Check Heroku logs: `heroku logs --app teeemproduction -n 50`
 3. Retry if needed
 
 ## Notes

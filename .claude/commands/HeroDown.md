@@ -1,12 +1,12 @@
 # HeroDown - Pull Production Database to Local & Sam Dev
 
-Pull the production database (teeemlive) to both local environment AND teeem-sam-dev.
+Pull the production database (teeemproduction) to both local environment AND teeem-sam-dev.
 
 ## Data Flow
 
 ```
 ┌─────────────────────┐
-│  teeemlive (PROD)   │
+│  teeemproduction (PROD)   │
 │  Heroku PostgreSQL  │
 └──────────┬──────────┘
            │
@@ -36,12 +36,12 @@ psql -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHER
 # Step 2: Capture fresh backup and get URL
 cd /Users/samharder/Documents/GitHub/TeknaTrapid/backend
 echo "📸 Capturing fresh backup from production..."
-heroku pg:backups:capture --app teeemlive 2>&1 | tail -5
-BACKUP_URL=$(heroku pg:backups:url --app teeemlive)
+heroku pg:backups:capture --app teeemproduction 2>&1 | tail -5
+BACKUP_URL=$(heroku pg:backups:url --app teeemproduction)
 
 # Step 3: Copy backup to teeem-sam-dev (Heroku to Heroku - fast!)
 echo "🚀 Copying database to teeem-sam-dev..."
-heroku pg:copy teeemlive::DATABASE_URL DATABASE_URL --app teeem-sam-dev --confirm teeem-sam-dev 2>&1 | tail -10
+heroku pg:copy teeemproduction::DATABASE_URL DATABASE_URL --app teeem-sam-dev --confirm teeem-sam-dev 2>&1 | tail -10
 
 # Step 4: Run migrations on sam-dev
 echo "🔄 Running migrations on teeem-sam-dev..."
@@ -112,8 +112,8 @@ echo "└───────────────────────�
 | Step | From | To | Method |
 |------|------|-----|--------|
 | 1 | - | - | Kill local connections |
-| 2 | teeemlive | S3 | `pg:backups:capture` (fresh) |
-| 3 | teeemlive | teeem-sam-dev | `pg:copy` (Heroku-to-Heroku, fast) |
+| 2 | teeemproduction | S3 | `pg:backups:capture` (fresh) |
+| 3 | teeemproduction | teeem-sam-dev | `pg:copy` (Heroku-to-Heroku, fast) |
 | 4 | - | teeem-sam-dev | `db:migrate` |
 | 5 | S3 | local file | `aria2c -x 16` (parallel, ~30s) |
 | 6 | local file | teeem_development | `pg_restore` |

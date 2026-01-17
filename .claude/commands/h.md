@@ -1,12 +1,12 @@
 # Pull Heroku Database from Production
 
-Pull the production database (teeemlive) to local environment.
+Pull the production database (teeemproduction) to local environment.
 
 ## Data Flow
 
 ```
 ┌─────────────────────┐
-│  teeemlive (PROD)   │
+│  teeemproduction (PROD)   │
 │  Heroku PostgreSQL  │
 └──────────┬──────────┘
            │
@@ -43,8 +43,8 @@ psql -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHER
 # Step 2: Capture fresh backup and get URL
 cd /Users/robertharder/GitHub/teeem/backend
 echo "📸 Capturing fresh backup from production..."
-heroku pg:backups:capture --app teeemlive 2>&1 | tail -5
-BACKUP_URL=$(heroku pg:backups:url --app teeemlive)
+heroku pg:backups:capture --app teeemproduction 2>&1 | tail -5
+BACKUP_URL=$(heroku pg:backups:url --app teeemproduction)
 
 # Step 3: Download with aria2c (16 parallel connections, resume-capable)
 rm -f latest.dump
@@ -98,7 +98,7 @@ echo "👆 Connect SharePoint in the browser to enable document features locally
 | Step | From | To | Method |
 |------|------|-----|--------|
 | 1 | - | - | Kill local connections |
-| 2 | teeemlive | S3 | `pg:backups:capture` (fresh) |
+| 2 | teeemproduction | S3 | `pg:backups:capture` (fresh) |
 | 3 | S3 | local file | `aria2c -x 16` (parallel, ~30s) |
 | 4 | local file | teeem_development | `pg_restore` |
 | 5 | - | - | `db:migrate` + `create_system_foundations` |
