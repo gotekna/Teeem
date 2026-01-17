@@ -11,7 +11,7 @@ class CorporateCompanySetting < ApplicationRecord
   VALID_API_ENVIRONMENTS = %w[production beta staging].freeze
 
   API_ENVIRONMENT_URLS = {
-    "production" => "https://teeem-production-cb7898c69bd3.herokuapp.com",
+    "production" => "https://teeem-production-121159e1ff9d.herokuapp.com",
     "beta" => "https://teeem-beta-6e3e9cb59225.herokuapp.com",
     "staging" => "https://teeem-staging-d60a657ed68a.herokuapp.com"
   }.freeze
@@ -311,12 +311,22 @@ class CorporateCompanySetting < ApplicationRecord
   end
 
   # Get full API environment config for login response
+  # In development mode, don't return a remote api_url - let frontend use local backend
   def self.api_environment_config
     env = api_environment
-    {
-      environment: env,
-      api_url: API_ENVIRONMENT_URLS[env] || API_ENVIRONMENT_URLS["production"]
-    }
+
+    # Don't redirect to remote URL in development - keep using local backend
+    if Rails.env.development?
+      {
+        environment: "development",
+        api_url: nil
+      }
+    else
+      {
+        environment: env,
+        api_url: API_ENVIRONMENT_URLS[env] || API_ENVIRONMENT_URLS["production"]
+      }
+    end
   end
 
   private
