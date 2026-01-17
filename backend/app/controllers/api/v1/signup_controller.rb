@@ -3,8 +3,8 @@
 module Api
   module V1
     class SignupController < ApplicationController
-      skip_before_action :authenticate_user!, only: [:create, :check_availability, :template_packs, :tiers]
-      skip_before_action :set_current_tenant, only: [:create, :check_availability, :template_packs, :tiers], raise: false
+      skip_before_action :authorize_request, only: [:create, :check_availability, :template_packs, :tiers]
+      skip_before_action :set_tenant, only: [:create, :check_availability, :template_packs, :tiers], raise: false
 
       # POST /api/v1/signup
       # Create a new tenant (self-service signup)

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_17_100008) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_17_100009) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2446,11 +2446,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_17_100008) do
     t.index ["active"], name: "index_document_types_on_active"
     t.index ["aliases"], name: "index_document_types_on_aliases", using: :gin
     t.index ["category"], name: "index_document_types_on_category"
+    t.index ["company_group_id", "name", "scope"], name: "idx_document_types_tenant_name_scope", unique: true, where: "(company_group_id IS NOT NULL)"
     t.index ["company_group_id"], name: "index_document_types_on_company_group_id"
     t.index ["file_extensions"], name: "index_document_types_on_file_extensions", using: :gin
     t.index ["filename_patterns"], name: "index_document_types_on_filename_patterns", using: :gin
     t.index ["folder"], name: "index_document_types_on_folder"
-    t.index ["name", "scope"], name: "index_document_types_on_name_and_scope", unique: true
     t.index ["primary_tab"], name: "index_document_types_on_primary_tab"
     t.index ["scope"], name: "index_document_types_on_scope"
     t.index ["supports_versioning"], name: "index_document_types_on_supports_versioning"
