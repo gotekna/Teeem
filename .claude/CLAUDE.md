@@ -469,7 +469,7 @@ staging → beta → production
 |-------------|-----------|--------|-----|
 | Staging | `teeem-staging` | staging | teeem-staging-d60a657ed68a.herokuapp.com |
 | Beta | `teeem-beta` | beta | teeem-beta-6e3e9cb59225.herokuapp.com |
-| Production | `teeem-production` | production | teeem-production-cb7898c69bd3.herokuapp.com |
+| Production | `teeem-production` | production | teeem-production-121159e1ff9d.herokuapp.com |
 | Rob Dev | `teeem-rob-dev` | - | - |
 | Sam Dev | `teeem-sam-dev` | - | - |
 
@@ -502,7 +502,7 @@ cd /Users/robertharder/GitHub/teeem && rm -rf "$DEPLOY_DIR"
 | Environment | URL | Notes |
 |-------------|-----|-------|
 | Production | `https://teeemlive.vercel.app` | SSoT production URL (3 e's in teeem) |
-| Backend API | `https://teeem-production-cb7898c69bd3.herokuapp.com` | Heroku |
+| Backend API | `https://teeem-production-121159e1ff9d.herokuapp.com` | Heroku |
 
 **Chrome DevTools MCP Access:**
 - Vercel team member `robert-8688` has been granted access
