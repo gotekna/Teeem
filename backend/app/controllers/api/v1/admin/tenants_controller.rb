@@ -68,8 +68,13 @@ module Api
             return render json: { success: false, error: "Access denied to this tenant" }, status: :forbidden
           end
 
-          # Store in session for tenant override
-          session[:admin_tenant_id] = tenant.id
+          # Store in signed cookie for tenant override (API doesn't have sessions)
+          cookies.signed[:admin_tenant_id] = {
+            value: tenant.id,
+            httponly: true,
+            secure: Rails.env.production?,
+            same_site: :lax
+          }
 
           Rails.logger.info "[TenantSwitch] User #{current_user.id} (#{current_user.email}) switched to tenant #{tenant.id} (#{tenant.name})"
 
@@ -83,8 +88,8 @@ module Api
         # DELETE /api/v1/admin/tenants/switch
         # Clear tenant override (return to user's default tenant)
         def clear_switch
-          previous_tenant_id = session[:admin_tenant_id]
-          session.delete(:admin_tenant_id)
+          previous_tenant_id = cookies.signed[:admin_tenant_id]
+          cookies.delete(:admin_tenant_id)
 
           Rails.logger.info "[TenantSwitch] User #{current_user.id} (#{current_user.email}) cleared tenant override (was: #{previous_tenant_id})"
 

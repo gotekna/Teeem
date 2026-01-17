@@ -31,8 +31,9 @@ class ApplicationController < ActionController::API
 
   def determine_tenant
     # Priority 1: Admin override (for TEEEM staff switching tenants)
-    if current_user&.teeem_staff? && session[:admin_tenant_id]
-      tenant = CorporateGroup.find_by(id: session[:admin_tenant_id])
+    # Using signed cookies since ActionController::API doesn't have sessions
+    if current_user&.teeem_staff? && cookies.signed[:admin_tenant_id]
+      tenant = CorporateGroup.find_by(id: cookies.signed[:admin_tenant_id])
       return tenant if tenant
     end
 
