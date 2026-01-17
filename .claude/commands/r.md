@@ -13,7 +13,7 @@ Run health checks in parallel:
 brew services list | grep postgresql@17
 
 # Check Heroku production status
-/opt/homebrew/bin/heroku ps --app teeemproduction 2>&1 | head -5
+/opt/homebrew/bin/heroku ps --app teeem-production 2>&1 | head -5
 
 # Check for pending migrations locally
 cd /Users/robertharder/GitHub/teeem/backend && bin/rails db:migrate:status 2>&1 | grep "^\s*down" | wc -l
@@ -74,7 +74,7 @@ System Health:
 - PostgreSQL: Running ✓ (teeem_development connected)
 - Pending Migrations: 0 (all up to date)
 - SECRET_KEY_BASE: ✓ (backend/.env)
-- Heroku (teeemproduction): web.1 up | worker.1 up
+- Heroku (teeem-production): web.1 up | worker.1 up
 
 Local Servers:
 - Backend (port 3001): Running (PID: X) - screen session: backend
@@ -94,7 +94,7 @@ View logs:
 - Detach from screen: Ctrl+A then D
 
 ⚠️ If pending migrations > 0: Run `cd backend && bin/rails db:migrate`
-⚠️ If Heroku web/worker down: Check `/opt/homebrew/bin/heroku logs --app teeemproduction --tail`
+⚠️ If Heroku web/worker down: Check `/opt/homebrew/bin/heroku logs --app teeem-production --tail`
 ```
 
 ## Performance

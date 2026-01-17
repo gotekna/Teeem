@@ -463,13 +463,13 @@ staging → beta → production
 ```
 - **staging**: Active development, deploys to `teeem-staging` (Tekna testing)
 - **beta**: UAT, deploys to `teeem-beta` (early adopters)
-- **production**: Live customers, deploys to `teeemproduction`
+- **production**: Live customers, deploys to `teeem-production`
 
 | Environment | Heroku App | Branch | URL |
 |-------------|-----------|--------|-----|
 | Staging | `teeem-staging` | staging | teeem-staging-d60a657ed68a.herokuapp.com |
 | Beta | `teeem-beta` | beta | teeem-beta-6e3e9cb59225.herokuapp.com |
-| Production | `teeemproduction` | production | teeemproduction-cb7898c69bd3.herokuapp.com |
+| Production | `teeem-production` | production | teeem-production-cb7898c69bd3.herokuapp.com |
 | Rob Dev | `teeem-rob-dev` | - | - |
 | Sam Dev | `teeem-sam-dev` | - | - |
 
@@ -492,7 +492,7 @@ cd /Users/robertharder/GitHub/teeem
 DEPLOY_DIR=$(mktemp -d)
 cp -r backend/* "$DEPLOY_DIR/"
 cd "$DEPLOY_DIR" && git init && git add . && git commit -m "Fix deploy"
-git remote add heroku https://git.heroku.com/teeemproduction.git
+git remote add heroku https://git.heroku.com/teeem-production.git
 git push heroku HEAD:main --force
 cd /Users/robertharder/GitHub/teeem && rm -rf "$DEPLOY_DIR"
 ```
@@ -502,7 +502,7 @@ cd /Users/robertharder/GitHub/teeem && rm -rf "$DEPLOY_DIR"
 | Environment | URL | Notes |
 |-------------|-----|-------|
 | Production | `https://teeemlive.vercel.app` | SSoT production URL (3 e's in teeem) |
-| Backend API | `https://teeemproduction-cb7898c69bd3.herokuapp.com` | Heroku |
+| Backend API | `https://teeem-production-cb7898c69bd3.herokuapp.com` | Heroku |
 
 **Chrome DevTools MCP Access:**
 - Vercel team member `robert-8688` has been granted access
