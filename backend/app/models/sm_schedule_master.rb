@@ -11,6 +11,9 @@
 # - Use add_to_template/remove_from_template to manage membership
 #
 class SmScheduleMaster < ApplicationRecord
+  # Multi-tenancy: Scope all queries to current tenant
+  acts_as_tenant :corporate_group, foreign_key: :company_group_id
+
   # Table renamed from sm_schedule_master to sm_schedule_masters (Rails convention)
 
   # SSoT: Roles come from Role model (see Role.for_select)

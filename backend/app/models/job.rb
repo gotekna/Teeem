@@ -1,4 +1,7 @@
 class Job < ApplicationRecord
+  # Multi-tenancy: Scope all queries to current tenant
+  acts_as_tenant :corporate_group, foreign_key: :company_group_id
+
   # Explicitly set table name since it was renamed from 'constructions' to 'jobs'
   self.table_name = "jobs"
 
@@ -108,7 +111,7 @@ class Job < ApplicationRecord
   # SSoT: job_code is a database column (user-editable)
   # Default format: "J" + id (e.g., "J201")
   # Auto-generated on create, can be customized by user
-  validates :job_code, presence: true, uniqueness: true, on: :update
+  validates :job_code, presence: true, uniqueness: { scope: :company_group_id }, on: :update
   after_create :generate_job_code_if_blank
 
   # Description placeholder for document templates

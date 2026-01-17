@@ -416,6 +416,18 @@ module Api
             }
           end
 
+          # SSoT: Filter root folders using StorageConfiguration.SCOPE_FOLDERS
+          # Only show valid user-facing folders (hides internal folders like Blobs, Attachments)
+          if path.blank?
+            valid_roots = StorageConfiguration::SCOPE_FOLDERS.values
+              .map { |v| v.split("/").first }
+              .uniq
+
+            folders = folders.select do |f|
+              valid_roots.any? { |v| v.casecmp?(f[:name]) }
+            end
+          end
+
           # Sort folders alphabetically, files by name
           folders.sort_by! { |f| f[:name].to_s.downcase }
           files.sort_by! { |f| f[:name].to_s.downcase }

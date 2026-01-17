@@ -84,6 +84,9 @@ gem "twilio-ruby", "~> 7.3"  # Twilio SDK for SMS messaging
 # Payment processing
 gem "stripe", "~> 13.0"  # Stripe SDK for payment portal
 
+# Multi-tenancy
+gem "acts_as_tenant", "~> 1.0"  # Row-level multi-tenant data isolation
+
 # AI integration for plan analysis
 gem "anthropic", "~> 0.3.0"  # Claude API for AI-powered plan review
 

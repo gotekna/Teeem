@@ -8,7 +8,8 @@ namespace :storage do
       ["Emails/eml", "Emails/Email Body"],
       ["Emails/attachments", "Emails/Attachments"],
       ["corporate", "Corporate"],
-      ["people", "Corporate/People"]
+      ["people", "Corporate/People"],
+      ["jobs", "Jobs"]
     ]
 
     puts "=" * 60

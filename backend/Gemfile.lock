@@ -79,6 +79,8 @@ GEM
       securerandom (>= 0.3)
       tzinfo (~> 2.0, >= 2.0.5)
       uri (>= 0.13.1)
+    acts_as_tenant (1.0.1)
+      rails (>= 6.0)
     addressable (2.8.8)
       public_suffix (>= 2.0.2, < 8.0)
     afm (1.0.0)
@@ -557,6 +559,7 @@ PLATFORMS
 
 DEPENDENCIES
   active_storage_validations (~> 2.0)
+  acts_as_tenant (~> 1.0)
   anthropic (~> 0.3.0)
   aws-sdk-s3 (~> 1.170)
   bcrypt (~> 3.1.7)

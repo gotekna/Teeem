@@ -11,6 +11,8 @@
 #           XeroFeatureTab, UserJobTabConfig
 #
 class EntityTab < ApplicationRecord
+  # Multi-tenancy: Scope all queries to current tenant
+  acts_as_tenant :corporate_group, foreign_key: :company_group_id
   # Valid scopes (xero tabs are children of corporate_entity/xero tab)
   # System scopes (email, warehouse, task, task_attachments, task_responses) are read-only in UI - is_system_tab: true
   SCOPES = %w[corporate_entity people job document contact email warehouse task task_attachments task_responses xero].freeze
@@ -89,9 +91,9 @@ class EntityTab < ApplicationRecord
   validates :display_mode, inclusion: { in: DISPLAY_MODES }, allow_blank: true
   validates :xero_scope, inclusion: { in: XERO_SCOPES }, allow_blank: true
 
-  # Uniqueness within scope + job + parent (allows same tab_key under different parents)
+  # Uniqueness within scope + job + parent + tenant (allows same tab_key under different parents)
   # SSoT: Child tabs under different parents can have the same display_name (e.g., "Site" under Documents vs "Site" under Photos)
-  validates :tab_key, uniqueness: { scope: [:scope, :job_id, :parent_id] }
+  validates :tab_key, uniqueness: { scope: [:company_group_id, :scope, :job_id, :parent_id] }
 
   # SSoT: Icon uniqueness - root tabs must have unique icons within scope
   validate :icon_uniqueness_for_root_tabs

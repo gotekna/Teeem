@@ -1,8 +1,11 @@
 # frozen_string_literal: true
 
 class ContactType < ApplicationRecord
+  # Multi-tenancy: Scope all queries to current tenant
+  acts_as_tenant :corporate_group, foreign_key: :company_group_id
+
   # Validations
-  validates :name, presence: true, uniqueness: true
+  validates :name, presence: true, uniqueness: { scope: :company_group_id }
   validates :display_name, presence: true
   validates :position, presence: true, numericality: { only_integer: true, greater_than: 0 }
 

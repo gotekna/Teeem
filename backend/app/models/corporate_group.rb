@@ -1,5 +1,23 @@
 class CorporateGroup < ApplicationRecord
+  # =============================================================================
+  # Multi-Tenancy Configuration
+  # =============================================================================
+  # CorporateGroup serves as the Tenant model for multi-tenant SaaS.
+  # Each tenant has isolated data via acts_as_tenant scoping.
+  #
+  # Tier: shared (default) = shared infrastructure, dedicated = isolated resources
+  # Environment: staging (dev/testing), beta (UAT), production (live customers)
+  # =============================================================================
+
+  # Enums for multi-tenancy
+  enum :tier, { shared: 0, dedicated: 1 }, prefix: true
+  enum :environment, { staging: 0, beta: 1, production: 2 }, prefix: true
+
+  # =============================================================================
   # Associations
+  # =============================================================================
+
+  # Existing associations
   has_many :corporate_companies, foreign_key: :company_group_id, dependent: :nullify
   has_many :xero_chart_of_accounts, dependent: :destroy
   has_many :reconciliation_reports, dependent: :destroy
@@ -8,11 +26,45 @@ class CorporateGroup < ApplicationRecord
   has_many :contact_memberships, class_name: "ContactCorporateGroupMembership", foreign_key: :company_group_id, dependent: :destroy
   has_many :contacts, through: :contact_memberships
 
-  # Validations
-  validates :name, presence: true, uniqueness: true
+  # Tenant settings (per-tenant configuration)
+  has_one :tenant_setting, dependent: :destroy
 
+  # Configuration tables (tenant-scoped)
+  has_many :job_types, foreign_key: :company_group_id, dependent: :destroy
+  has_many :job_statuses, foreign_key: :company_group_id, dependent: :destroy
+  has_many :job_stages, foreign_key: :company_group_id, dependent: :destroy
+  has_many :contact_types, foreign_key: :company_group_id, dependent: :destroy
+  has_many :document_types, foreign_key: :company_group_id, dependent: :destroy
+  has_many :sm_schedule_master_templates, foreign_key: :company_group_id, dependent: :destroy
+  has_many :public_holidays, foreign_key: :company_group_id, dependent: :destroy
+  has_many :entity_tabs, foreign_key: :company_group_id, dependent: :destroy
+
+  # Business data (tenant-scoped)
+  has_many :jobs, foreign_key: :company_group_id, dependent: :destroy
+  has_many :sm_schedule_masters, foreign_key: :company_group_id, dependent: :destroy
+  has_many :sm_trades, foreign_key: :company_group_id, dependent: :destroy
+  has_many :pricebooks, foreign_key: :company_group_id, dependent: :destroy
+  has_many :pricebook_categories, foreign_key: :company_group_id, dependent: :destroy
+  has_many :purchase_orders, foreign_key: :company_group_id, dependent: :destroy
+  has_many :estimates, foreign_key: :company_group_id, dependent: :destroy
+  has_many :assets, foreign_key: :company_group_id, dependent: :destroy
+  has_many :email_warehouses, foreign_key: :company_group_id, dependent: :destroy
+
+  # Template packs (for sharing configuration between tenants)
+  has_many :template_packs, foreign_key: :source_tenant_id, dependent: :destroy
+
+  # =============================================================================
+  # Validations
+  # =============================================================================
+  validates :name, presence: true, uniqueness: true
+  validates :slug, uniqueness: true, allow_nil: true
+
+  # =============================================================================
   # Scopes
+  # =============================================================================
   scope :active, -> { where(active: true) }
+  scope :master_tenant, -> { where(is_master_tenant: true) }
+  scope :customer_tenants, -> { where(is_master_tenant: false) }
 
   def display_name
     name
@@ -65,5 +117,44 @@ class CorporateGroup < ApplicationRecord
   # Beneficiaries in this group
   def beneficiaries
     contact_memberships.beneficiaries.active.includes(:contact).map(&:contact).uniq
+  end
+
+  # =============================================================================
+  # Multi-Tenant Methods
+  # =============================================================================
+
+  # Check if this is the master TEEEM tenant
+  def master_tenant?
+    is_master_tenant? || slug == "teeem"
+  end
+
+  # Get subdomain for this tenant
+  def subdomain
+    slug&.parameterize || name.parameterize
+  end
+
+  # Get login URL for this tenant
+  def login_url
+    "https://#{subdomain}.teeem.com.au"
+  end
+
+  # Class method to find the master tenant
+  def self.find_master_tenant
+    find_by(is_master_tenant: true) || find_by(slug: "teeem")
+  end
+
+  # Get or create tenant settings for this tenant
+  def settings
+    tenant_setting || build_tenant_setting
+  end
+
+  # Check if tenant is in production environment
+  def production?
+    environment_production?
+  end
+
+  # Check if tenant is a paying customer (not master tenant)
+  def paying_customer?
+    !master_tenant? && environment_production?
   end
 end

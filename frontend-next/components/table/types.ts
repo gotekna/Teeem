@@ -277,6 +277,14 @@ export interface TeeemTableViewProps {
   // Start with all groups collapsed (showing only group headers, no expanded items)
   // Useful for pages with many grouped items where users want to see categories first
   initialGroupsCollapsed?: boolean;
+
+  // Mobile Card View
+  /** Enable card view on mobile (default: true when columns > 5) */
+  enableMobileCardView?: boolean;
+  /** Force card view regardless of viewport (useful for testing) */
+  forceCardView?: boolean;
+  /** Maximum key fields to show on cards (default: 3) */
+  cardViewMaxFields?: number;
 }
 
 // Column visibility state

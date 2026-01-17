@@ -1,6 +1,9 @@
 class PublicHoliday < ApplicationRecord
+  # Multi-tenancy: Scope all queries to current tenant
+  acts_as_tenant :corporate_group, foreign_key: :company_group_id
+
   validates :name, presence: true
-  validates :date, presence: true, uniqueness: { scope: :region }
+  validates :date, presence: true, uniqueness: { scope: [:company_group_id, :region] }
   validates :region, presence: true
 
   scope :for_region, ->(region) { where(region: region) }

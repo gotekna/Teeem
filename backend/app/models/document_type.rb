@@ -1,4 +1,7 @@
 class DocumentType < ApplicationRecord
+  # Multi-tenancy: Scope all queries to current tenant
+  acts_as_tenant :corporate_group, foreign_key: :company_group_id
+
   # Associations
   has_many :corporate_company_documents, dependent: :nullify
   has_many :job_documents, dependent: :nullify
@@ -85,7 +88,7 @@ class DocumentType < ApplicationRecord
   # Validations
   # Name must be unique within each scope (company, job, people, both)
   # This allows the same name in different scopes (e.g., "Invoice" for both company and job)
-  validates :name, presence: true, uniqueness: { scope: :scope, message: "has already been taken for this scope" }
+  validates :name, presence: true, uniqueness: { scope: [:company_group_id, :scope], message: "has already been taken for this scope" }
   # Note: category field is deprecated - tabs/folders (EntityTab) are now the primary organization method
 
   # Scopes
