@@ -10040,12 +10040,28 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_17_110002) do
     t.string "content_type"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id"
+    t.jsonb "metadata", default: {}
+    t.bigint "parent_document_id"
+    t.string "linkable_type"
+    t.bigint "linkable_id"
+    t.uuid "version_group_id"
+    t.integer "version_number", default: 1
+    t.boolean "is_latest_version", default: true
     t.index ["display_name"], name: "index_warehouse_documents_on_display_name"
     t.index ["documentable_type", "documentable_id"], name: "idx_warehouse_docs_documentable_unique", unique: true
     t.index ["documentable_type", "documentable_id"], name: "index_warehouse_documents_on_documentable"
     t.index ["folder"], name: "index_warehouse_documents_on_folder"
+    t.index ["linkable_type", "linkable_id"], name: "idx_warehouse_docs_linkable"
+    t.index ["metadata"], name: "idx_warehouse_docs_metadata", using: :gin
+    t.index ["parent_document_id"], name: "idx_warehouse_docs_parent"
+    t.index ["source_type", "folder"], name: "idx_warehouse_docs_scope_folder"
     t.index ["source_type"], name: "index_warehouse_documents_on_source_type"
+    t.index ["storage_blob_id", "source_type"], name: "idx_warehouse_docs_blob_source"
     t.index ["storage_blob_id"], name: "index_warehouse_documents_on_storage_blob_id"
+    t.index ["tenant_id", "source_type", "folder"], name: "idx_warehouse_docs_tenant_scope_folder"
+    t.index ["tenant_id"], name: "idx_warehouse_docs_tenant"
+    t.index ["version_group_id", "is_latest_version"], name: "idx_warehouse_docs_version_group"
   end
 
   create_table "whs_action_items", force: :cascade do |t|
@@ -11482,6 +11498,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_17_110002) do
   add_foreign_key "warehouse_bank_transactions", "warehouse_contacts"
   add_foreign_key "warehouse_contacts", "contacts"
   add_foreign_key "warehouse_documents", "storage_blobs"
+  add_foreign_key "warehouse_documents", "warehouse_documents", column: "parent_document_id", on_delete: :nullify, validate: false
   add_foreign_key "whs_action_items", "sm_tasks"
   add_foreign_key "whs_action_items", "users", column: "assigned_to_user_id"
   add_foreign_key "whs_action_items", "users", column: "created_by_id"

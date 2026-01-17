@@ -169,6 +169,16 @@ function SidebarContent({
 
       {/* Company/Tenant Info - shows company name + environment for all users */}
       {/* TEEEM staff can switch tenants, regular users just see their company */}
+      {console.log('[Sidebar] TenantInfo:', {
+        currentTenant: tenantInfo?.currentTenant?.name,
+        currentTenantId: tenantInfo?.currentTenant?.id,
+        tenants: tenantInfo?.tenants?.map(t => ({ id: t.id, name: t.name })),
+        isTeeemStaff: tenantInfo?.isTeeemStaff,
+        canSwitchTenants: tenantInfo?.canSwitchTenants,
+        isLoading: tenantInfo?.isLoading,
+        isExpanded,
+        mobile
+      })}
       <div className="p-2 border-t border-border">
         {tenantInfo?.currentTenant ? (
           tenantInfo.isTeeemStaff && tenantInfo.canSwitchTenants ? (
@@ -182,22 +192,21 @@ function SidebarContent({
               <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
               {(isExpanded || mobile) ? (
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
-                  <Select
+                  <select
                     value={tenantInfo.currentTenant.id.toString()}
-                    onValueChange={(val) => tenantInfo.switchTenant(parseInt(val, 10))}
+                    onChange={(e) => {
+                      console.log('[Sidebar] Native select changed to:', e.target.value);
+                      tenantInfo.switchTenant(parseInt(e.target.value, 10));
+                    }}
                     disabled={tenantInfo.isLoading}
+                    className="h-7 text-xs w-full border border-border bg-background px-2 py-1 rounded"
                   >
-                    <SelectTrigger className="h-7 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {tenantInfo.tenants.map((t) => (
-                        <SelectItem key={t.id} value={t.id.toString()}>
-                          <span className="truncate">{t.name}</span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    {tenantInfo.tenants.map((t) => (
+                      <option key={t.id} value={t.id.toString()}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
                   <Badge
                     variant={getEnvironmentBadgeVariant(tenantInfo.currentTenant.environment)}
                     className="text-[10px] w-fit"

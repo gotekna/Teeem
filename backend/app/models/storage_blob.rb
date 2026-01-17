@@ -86,6 +86,19 @@ class StorageBlob < ApplicationRecord
     provider.download_file(storage_path)
   end
 
+  # Get presigned download URL
+  # @param expires_in [Integer] Expiry time in seconds (default: 3600)
+  # @param filename [String] Custom download filename (optional)
+  # @return [String] Presigned download URL
+  def presigned_url(expires_in: 3600, filename: nil)
+    provider = storage_provider
+    provider.download_url(
+      storage_path,
+      expires_in: expires_in,
+      filename: filename || original_filename
+    )
+  end
+
   # Delete file from storage (only if orphaned)
   def delete_from_storage!
     return false unless orphaned?

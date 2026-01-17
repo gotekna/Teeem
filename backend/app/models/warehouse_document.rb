@@ -5,12 +5,15 @@
 # This is THE universal table for all document warehouse metadata.
 # Links ANY document type (JobDocument, EmailAttachment, etc.) to StorageBlob.
 #
-# Architecture:
-#   JobDocument / EmailAttachment / CorporateCompanyDocument
-#       └── has_one :warehouse_document, as: :documentable
-#               └── belongs_to :storage_blob
-#                       └── content_hash (deduplication)
-#                       └── storage_path (S3 key)
+# Architecture (Phase 6: Ultra Design):
+#   WarehouseDocument (THE ONE table for 5000 clients)
+#   ├── documentable (polymorphic link to source record - optional for new docs)
+#   ├── storage_blob (deduplicated file content)
+#   ├── folder (virtual path - instant reorganization)
+#   ├── metadata (JSONB - flexible type-specific fields)
+#   ├── parent_document (attachment→email, version→original)
+#   ├── linkable (optional link to Job/Contact/etc for filtering)
+#   └── version tracking (version_group_id, version_number, is_latest_version)
 #
 # Two Names:
 #   - display_name: What user SEES in File Warehouse UI ("Tax Return FY2024")
@@ -20,24 +23,60 @@
 #   - folder: Virtual path, changing is instant (DB update only, no S3 copy)
 #
 class WarehouseDocument < ApplicationRecord
-  # Polymorphic association to any document model
-  belongs_to :documentable, polymorphic: true
+  # ========================================
+  # Associations
+  # ========================================
+
+  # Polymorphic association to any document model (legacy - optional for new Phase 6 docs)
+  belongs_to :documentable, polymorphic: true, optional: true
 
   # Link to deduplicated storage blob
   belongs_to :storage_blob, optional: true
 
+  # Phase 6: Parent/child relationship (attachment→email, version→original)
+  belongs_to :parent_document, class_name: "WarehouseDocument", optional: true
+  has_many :child_documents, class_name: "WarehouseDocument", foreign_key: :parent_document_id, dependent: :nullify
+
+  # Phase 6: Optional link to domain object (Job, Contact, Company, etc.)
+  belongs_to :linkable, polymorphic: true, optional: true
+
+  # ========================================
   # Validations
+  # ========================================
+
   validates :display_name, presence: true
   validates :source_type, presence: true, inclusion: {
-    in: %w[corporate job email task people contact user template],
+    in: %w[corporate job email email_attachment task people contact user template],
     message: "%{value} is not a valid source type"
   }
+  validates :version_number, numericality: { greater_than: 0 }, allow_nil: true
 
+  # ========================================
   # Scopes
+  # ========================================
+
+  # Basic scopes
   scope :by_source, ->(source) { where(source_type: source) }
   scope :in_folder, ->(folder) { where(folder: folder) }
   scope :with_blob, -> { where.not(storage_blob_id: nil) }
   scope :without_blob, -> { where(storage_blob_id: nil) }
+
+  # Phase 6: Multi-tenant scopes
+  scope :for_tenant, ->(tenant_id) { where(tenant_id: tenant_id) }
+
+  # Phase 6: Version scopes
+  scope :latest_versions, -> { where(is_latest_version: true) }
+  scope :all_versions, -> { where.not(version_group_id: nil) }
+  scope :in_version_group, ->(group_id) { where(version_group_id: group_id).order(:version_number) }
+
+  # Phase 6: Parent/child scopes
+  scope :root_documents, -> { where(parent_document_id: nil) }
+  scope :attachments_for, ->(parent_id) { where(parent_document_id: parent_id) }
+
+  # Phase 6: Linkable scopes
+  scope :linked_to, ->(linkable) { where(linkable: linkable) }
+  scope :for_job, ->(job) { where(linkable_type: "Job", linkable_id: job.is_a?(Integer) ? job : job.id) }
+  scope :for_contact, ->(contact) { where(linkable_type: "Contact", linkable_id: contact.is_a?(Integer) ? contact : contact.id) }
 
   # Constants for filename sanitization (Full Sanitization mode)
   MAX_FILENAME_LENGTH = 200
@@ -71,12 +110,14 @@ class WarehouseDocument < ApplicationRecord
   end
 
   # SSoT: Get presigned download URL with custom filename
+  # Falls back to legacy path for unmigrated files (Phase 5 compatibility)
   def download_url(expires_in: 3600)
-    return nil unless storage_blob&.storage_path
+    path = storage_blob&.storage_path || legacy_storage_path
+    return nil unless path.present?
 
     provider = DocumentProviders.for_organization(Organization.first)
     provider.download_url(
-      storage_blob.storage_path,
+      path,
       expires_in: expires_in,
       filename: download_filename
     )
@@ -87,7 +128,246 @@ class WarehouseDocument < ApplicationRecord
     update!(folder: new_folder)
   end
 
+  # ========================================
+  # Phase 6: Metadata Accessors (JSONB)
+  # ========================================
+
+  # Get metadata value with symbol/string key support
+  def meta(key)
+    (metadata || {})[key.to_s]
+  end
+
+  # Set metadata value (merges with existing)
+  def set_meta(key, value)
+    self.metadata = (metadata || {}).merge(key.to_s => value)
+  end
+
+  # Bulk set metadata (merges with existing)
+  def set_metadata(hash)
+    self.metadata = (metadata || {}).merge(hash.stringify_keys)
+  end
+
+  # Email-specific metadata accessors
+  def email_subject
+    meta("subject")
+  end
+
+  def email_from
+    meta("from_email")
+  end
+
+  def email_received_at
+    meta("received_at")&.then { |t| Time.parse(t) rescue nil }
+  end
+
+  def email_mailbox
+    meta("mailbox")
+  end
+
+  # Job-specific metadata accessors
+  def job_code
+    meta("job_code")
+  end
+
+  def document_type_name
+    meta("document_type")
+  end
+
+  # ========================================
+  # Phase 6: Version Tracking
+  # ========================================
+
+  # Get all versions of this document (including self)
+  def versions
+    return WarehouseDocument.none unless version_group_id.present?
+    WarehouseDocument.in_version_group(version_group_id)
+  end
+
+  # Get the latest version in this version chain
+  def latest_version
+    return self unless version_group_id.present?
+    versions.latest_versions.first || self
+  end
+
+  # Get the original (first) version
+  def original_version
+    return self unless version_group_id.present?
+    versions.order(:version_number).first || self
+  end
+
+  # Check if this is the latest version
+  def latest?
+    is_latest_version == true
+  end
+
+  # Create a new version of this document
+  # @param blob [StorageBlob] The storage blob for the new version
+  # @param attributes [Hash] Additional attributes for the new version
+  # @return [WarehouseDocument] The newly created version
+  def create_new_version(blob:, **attributes)
+    # Ensure we have a version group
+    group_id = version_group_id || SecureRandom.uuid
+    update!(version_group_id: group_id, is_latest_version: false) if version_group_id.nil?
+
+    # Mark all existing versions as not latest
+    versions.update_all(is_latest_version: false)
+
+    # Create new version
+    new_version = WarehouseDocument.create!(
+      attributes.merge(
+        display_name: display_name,
+        source_type: source_type,
+        folder: folder,
+        storage_blob: blob,
+        parent_document: self,
+        version_group_id: group_id,
+        version_number: (versions.maximum(:version_number) || 0) + 1,
+        is_latest_version: true,
+        tenant_id: tenant_id,
+        linkable: linkable,
+        metadata: metadata
+      )
+    )
+
+    new_version
+  end
+
+  # ========================================
+  # Phase 6: Attachment Helpers
+  # ========================================
+
+  # Get attachments for this document (e.g., email attachments)
+  def attachments
+    child_documents.where(source_type: "email_attachment")
+  end
+
+  # Check if this document has attachments
+  def has_attachments?
+    child_documents.exists?
+  end
+
+  # Get the parent email (if this is an attachment)
+  def parent_email
+    return nil unless source_type == "email_attachment"
+    parent_document
+  end
+
+  # ========================================
+  # Phase 5: Flat Storage Migration
+  # ========================================
+
+  # Get legacy S3 path for files not yet migrated to blob storage
+  # Used by MigrateAllDocumentsToBlobStorageJob to find source files
+  #
+  # @return [String, nil] The S3 key where the file is currently stored
+  def legacy_storage_path
+    return nil unless documentable.present?
+
+    # Try to get storage_path directly from documentable first
+    # (most models have this field already populated)
+    if documentable.respond_to?(:storage_path) && documentable.storage_path.present?
+      return documentable.storage_path
+    end
+
+    # Fallback: model-specific legacy paths
+    case documentable_type
+    when "EmailWarehouse"
+      email = documentable
+      # Try various path fields in order of preference
+      email.storage_path.presence ||
+        email.sharepoint_email_path.presence ||
+        compute_email_legacy_path(email)
+
+    when "EmailAttachment"
+      att = documentable
+      att.sharepoint_path.presence ||
+        compute_attachment_legacy_path(att)
+
+    when "JobDocument"
+      doc = documentable
+      doc.storage_path.presence ||
+        compute_job_document_legacy_path(doc)
+
+    when "CorporateCompanyDocument"
+      doc = documentable
+      doc.sharepoint_path.presence ||
+        compute_corporate_document_legacy_path(doc)
+
+    when "ContactDocument"
+      doc = documentable
+      doc.respond_to?(:storage_path) ? doc.storage_path : nil
+
+    when "PeopleDocument"
+      doc = documentable
+      doc.respond_to?(:storage_path) ? doc.storage_path : nil
+
+    when "UserDocument"
+      doc = documentable
+      doc.respond_to?(:storage_path) ? doc.storage_path : nil
+
+    when "DocumentTemplate"
+      doc = documentable
+      doc.respond_to?(:storage_path) ? doc.storage_path : nil
+
+    else
+      nil
+    end
+  end
+
+  # Check if document has file content available for migration
+  def has_legacy_file?
+    legacy_storage_path.present? && storage_blob_id.nil?
+  end
+
   private
+
+  # Compute email legacy path if not stored
+  def compute_email_legacy_path(email)
+    return nil unless email.id.present?
+
+    year = email.received_at&.year || Time.current.year
+    month = format("%02d", email.received_at&.month || 1)
+    "Emails/Email Body/#{year}/#{month}/#{email.id}.eml"
+  end
+
+  # Compute attachment legacy path if not stored
+  def compute_attachment_legacy_path(att)
+    return nil unless att.id.present? && att.filename.present?
+
+    email = att.email_warehouse
+    return nil unless email
+
+    year = email.received_at&.year || Time.current.year
+    month = format("%02d", email.received_at&.month || 1)
+    safe_filename = att.filename.gsub(/[<>:"|?*\\\/]/, "_")
+    "Emails/Attachments/#{year}/#{month}/#{att.id}_#{safe_filename}"
+  end
+
+  # Compute job document legacy path if not stored
+  def compute_job_document_legacy_path(doc)
+    return nil unless doc.id.present?
+
+    job = doc.job
+    return nil unless job
+
+    doc_type = doc.document_type&.name || "Documents"
+    filename = doc.filename.presence || "#{doc.id}"
+    safe_filename = filename.gsub(/[<>:"|?*\\\/]/, "_")
+    "Jobs/#{job.job_code}/#{doc_type}/#{safe_filename}"
+  end
+
+  # Compute corporate document legacy path if not stored
+  def compute_corporate_document_legacy_path(doc)
+    return nil unless doc.id.present?
+
+    company = doc.corporate_company
+    return nil unless company
+
+    doc_type = doc.document_type_record&.name || "Documents"
+    filename = doc.filename.presence || "#{doc.id}"
+    safe_filename = filename.gsub(/[<>:"|?*\\\/]/, "_")
+    "Corporate/#{company.company_code}/#{doc_type}/#{safe_filename}"
+  end
 
   # Full sanitization for 100% accurate filenames
   def sanitize_filename(name)
