@@ -14,10 +14,9 @@ import { atom } from "jotai";
 /**
  * Whether the browser currently has network connectivity.
  * Automatically updated by the useOfflineDetection hook.
+ * Defaults to true since if the page loaded, we're online.
  */
-export const isOnlineAtom = atom<boolean>(
-  typeof navigator !== "undefined" ? navigator.onLine : true
-);
+export const isOnlineAtom = atom<boolean>(true);
 
 /**
  * Whether we're running in PWA/standalone mode (installed on device).

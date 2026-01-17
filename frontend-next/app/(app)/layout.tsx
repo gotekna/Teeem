@@ -13,6 +13,7 @@ import { BreadcrumbProvider } from "@/contexts/BreadcrumbContext";
 import { BreadcrumbTrail, BREADCRUMB_BAR_HEIGHT } from "@/components/navigation/BreadcrumbTrail";
 import { Spinner } from "@/components/ui/spinner";
 import { initVitals } from "@/lib/performance/vitals";
+import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
@@ -83,7 +84,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
        * transition-all caused non-composited border-color animations triggering CLS
        * Only padding-left needs to animate (for sidebar resize) */}
       <main
-        className={`sidebar-content-area h-screen overflow-hidden ${containerClassName} transition-[padding-left] duration-300 ease-in-out`}
+        className={`sidebar-content-area h-screen overflow-hidden ${containerClassName} transition-[padding-left] duration-300 ease-in-out pb-16 md:pb-0`}
         style={{ paddingTop: shouldHideSidebar ? 48 : 48 + BREADCRUMB_BAR_HEIGHT }}
       >
         <div className={`h-full overflow-auto ${contentClassName}`}>
@@ -98,6 +99,9 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
       {/* Breadcrumb Trail - floating overlay below header (hidden in fullscreen) */}
       {!shouldHideSidebar && <BreadcrumbTrail />}
+
+      {/* Mobile Bottom Navigation - only renders on mobile */}
+      <MobileBottomNav />
     </div>
   );
 }
