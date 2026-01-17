@@ -3,62 +3,22 @@ module Api
     class CompanySettingsController < ApplicationController
       # GET /api/v1/company_settings
       def show
-        settings = CorporateCompanySetting.instance
+        settings = current_tenant_settings
         render json: {
           success: true,
-          data: {
-            company_name: settings.company_name,
-            abn: settings.abn,
-            qbcc_license: settings.qbcc_license,
-            gst_number: settings.gst_number,
-            email: settings.email,
-            phone: settings.phone,
-            website: settings.website,
-            address: settings.address,
-            logo_url: settings.logo_url,
-            logo_mobile: settings.logo_mobile,
-            logo_dark: settings.logo_dark,
-            timezone: settings.timezone,
-            working_days: settings.working_days,
-            team_email_domains: settings.team_email_domains || [],
-            # Bank details for invoices
-            bank_name: settings.bank_name,
-            bank_bsb: settings.bank_bsb,
-            bank_account_number: settings.bank_account_number,
-            bank_account_name: settings.bank_account_name
-          }
+          data: settings_json(settings)
         }
       end
 
       # PUT/PATCH /api/v1/company_settings
       def update
-        settings = CorporateCompanySetting.instance
+        settings = current_tenant_settings
 
         if settings.update(company_settings_params)
           render json: {
             success: true,
             message: "Settings updated successfully",
-            data: {
-              company_name: settings.company_name,
-              abn: settings.abn,
-              qbcc_license: settings.qbcc_license,
-              gst_number: settings.gst_number,
-              email: settings.email,
-              phone: settings.phone,
-              website: settings.website,
-              address: settings.address,
-              logo_url: settings.logo_url,
-              logo_mobile: settings.logo_mobile,
-              logo_dark: settings.logo_dark,
-              timezone: settings.timezone,
-              working_days: settings.working_days,
-              team_email_domains: settings.team_email_domains || [],
-              # Bank details for invoices
-              bank_name: settings.bank_name,
-              bank_bsb: settings.bank_bsb,
-              bank_account_number: settings.bank_account_number,
-              bank_account_name: settings.bank_account_name
-            }
+            data: settings_json(settings)
           }
         else
           render json: {
@@ -70,7 +30,7 @@ module Api
 
       # POST /api/v1/company_settings/test_twilio
       def test_twilio
-        settings = CorporateCompanySetting.instance
+        settings = current_tenant_settings
 
         unless settings.twilio_enabled && settings.twilio_account_sid.present? && settings.twilio_auth_token.present? && settings.twilio_phone_number.present?
           return render json: { success: false, error: "Twilio is not configured" }, status: :bad_request
@@ -90,7 +50,7 @@ module Api
 
       # POST /api/v1/company_settings/upload_logo
       def upload_logo
-        settings = CorporateCompanySetting.instance
+        settings = current_tenant_settings
 
         unless params[:logo].present?
           return render json: { success: false, error: "No logo file provided" }, status: :bad_request
@@ -124,6 +84,55 @@ module Api
       end
 
       private
+
+      # Get TenantSetting for the current tenant (multi-tenant aware)
+      def current_tenant_settings
+        tenant = ActsAsTenant.current_tenant
+        if tenant
+          tenant.settings || tenant.create_tenant_setting!
+        else
+          # Fallback to legacy singleton if no tenant context (shouldn't happen)
+          Rails.logger.warn "[CompanySettings] No tenant context, falling back to CorporateCompanySetting"
+          CorporateCompanySetting.instance
+        end
+      end
+
+      # Standard JSON response for settings
+      def settings_json(settings)
+        {
+          company_name: settings.company_name,
+          abn: settings.abn,
+          qbcc_license: settings.qbcc_license,
+          gst_number: settings.gst_number,
+          email: settings.email,
+          phone: settings.phone,
+          website: settings.website,
+          address: settings.address,
+          logo_url: settings.logo_url,
+          logo_mobile: settings.logo_mobile,
+          logo_dark: settings.logo_dark,
+          timezone: settings.timezone,
+          working_days: settings.working_days || default_working_days,
+          team_email_domains: settings.team_email_domains || [],
+          # Bank details for invoices
+          bank_name: settings.bank_name,
+          bank_bsb: settings.bank_bsb,
+          bank_account_number: settings.bank_account_number,
+          bank_account_name: settings.bank_account_name
+        }
+      end
+
+      def default_working_days
+        {
+          monday: true,
+          tuesday: true,
+          wednesday: true,
+          thursday: true,
+          friday: true,
+          saturday: false,
+          sunday: true
+        }
+      end
 
       def company_settings_params
         params.require(:company_setting).permit(

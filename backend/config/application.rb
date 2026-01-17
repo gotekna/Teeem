@@ -43,6 +43,10 @@ module Backend
     # Skip views, helpers and assets when generating a new resource.
     config.api_only = true
 
+    # Re-enable cookies middleware for tenant switching (signed cookies)
+    # API-only mode disables this by default, but we need it for admin_tenant_id cookie
+    config.middleware.use ActionDispatch::Cookies
+
     # Response compression (performance: reduces large JSON responses by 70-90%)
     # Compresses responses larger than 1KB using gzip/deflate
     config.middleware.use Rack::Deflater

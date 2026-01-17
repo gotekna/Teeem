@@ -62,6 +62,8 @@ module Api
         # POST /api/v1/admin/tenants/:id/switch
         # Switch to a different tenant (TEEEM staff only)
         def switch
+          puts "[DEBUG] TenantSwitch#switch called with id=#{params[:id]}"
+          Rails.logger.info "[DEBUG] TenantSwitch#switch called with id=#{params[:id]}"
           tenant = CorporateGroup.find(params[:id])
 
           unless current_user.can_access_tenant?(tenant)
@@ -69,13 +71,17 @@ module Api
           end
 
           # Store in signed cookie for tenant override (API doesn't have sessions)
-          # Note: same_site: :none required for cross-origin requests (Vercel → Heroku)
+          # Cross-origin (frontend:3000 → backend:3001) requires SameSite=None + Secure
+          # Chrome treats localhost as secure, so this works in development
           cookies.signed[:admin_tenant_id] = {
             value: tenant.id,
             httponly: true,
-            secure: Rails.env.production?,
-            same_site: Rails.env.production? ? :none : :lax
+            secure: true,  # Required for SameSite=None, Chrome treats localhost as secure
+            same_site: :none,  # Required for cross-origin cookie setting
+            domain: Rails.env.development? ? 'localhost' : nil  # Share across ports in dev
           }
+
+          Rails.logger.info "[TenantSwitch] Cookie set for tenant #{tenant.id}"
 
           Rails.logger.info "[TenantSwitch] User #{current_user.id} (#{current_user.email}) switched to tenant #{tenant.id} (#{tenant.name})"
 

@@ -136,12 +136,17 @@ export const TenantProvider = ({ children }: TenantProviderProps) => {
 
       const response = await api.post<SwitchResponse>(`/api/v1/admin/tenants/${tenantId}/switch`);
       console.log('[TenantSwitch] API response:', response);
+      console.log('[TenantSwitch] Document cookies:', document.cookie);
 
       if (response?.success && response?.tenant) {
-        console.log('[TenantSwitch] Success! Reloading page...');
+        console.log('[TenantSwitch] Success! Check cookies in DevTools > Application > Cookies');
+        console.log('[TenantSwitch] Will reload in 3 seconds...');
         setCurrentTenant(response.tenant);
-        // Reload the page to refresh all data with new tenant context
-        window.location.reload();
+        // DEBUG: Delay reload so we can see the logs and check cookies
+        setTimeout(() => {
+          console.log('[TenantSwitch] Reloading now...');
+          window.location.reload();
+        }, 3000);
         return true;
       } else {
         console.error('[TenantSwitch] Failed:', response?.error);

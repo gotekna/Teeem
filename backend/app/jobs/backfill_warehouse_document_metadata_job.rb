@@ -136,7 +136,7 @@ class BackfillWarehouseDocumentMetadataJob < ApplicationJob
     {
       "job_id" => job&.id,
       "job_code" => job&.job_code,
-      "job_name" => job&.job_name,
+      "job_name" => job&.name,
       "document_type" => doc.document_type&.name,
       "document_type_id" => doc.document_type_id,
       "folder_path" => doc.respond_to?(:folder_path) ? doc.folder_path : nil,
@@ -151,7 +151,7 @@ class BackfillWarehouseDocumentMetadataJob < ApplicationJob
     {
       "company_id" => company&.id,
       "company_code" => company&.company_code,
-      "company_name" => company&.company_name,
+      "company_name" => company&.name,
       "document_type" => doc.document_type_record&.name,
       "document_type_id" => doc.document_type_id,
       "filename" => doc.filename,

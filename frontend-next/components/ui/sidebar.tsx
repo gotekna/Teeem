@@ -192,14 +192,16 @@ function SidebarContent({
               <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
               {(isExpanded || mobile) ? (
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <div className="flex gap-2">
                   <select
                     value={tenantInfo.currentTenant.id.toString()}
                     onChange={(e) => {
                       console.log('[Sidebar] Native select changed to:', e.target.value);
                       tenantInfo.switchTenant(parseInt(e.target.value, 10));
                     }}
+                    onClick={() => console.log('[Sidebar] Select clicked')}
                     disabled={tenantInfo.isLoading}
-                    className="h-7 text-xs w-full border border-border bg-background px-2 py-1 rounded"
+                    className="h-7 text-xs flex-1 border border-border bg-background px-2 py-1 rounded"
                   >
                     {tenantInfo.tenants.map((t) => (
                       <option key={t.id} value={t.id.toString()}>
@@ -207,6 +209,16 @@ function SidebarContent({
                       </option>
                     ))}
                   </select>
+                  <button
+                    onClick={() => {
+                      console.log('[Sidebar] TEST BUTTON - switching to Pilgrim (77)');
+                      tenantInfo.switchTenant(77);
+                    }}
+                    className="h-7 px-2 text-xs bg-blue-500 text-white rounded"
+                  >
+                    Test
+                  </button>
+                </div>
                   <Badge
                     variant={getEnvironmentBadgeVariant(tenantInfo.currentTenant.environment)}
                     className="text-[10px] w-fit"
@@ -281,6 +293,23 @@ export function Sidebar() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  // DEBUG: Global click listener to see if ANY clicks are registered
+  useEffect(() => {
+    const handleGlobalClick = (e: MouseEvent) => {
+      console.log('[DEBUG GLOBAL] Click detected on:', (e.target as HTMLElement)?.tagName, (e.target as HTMLElement)?.className?.slice(0, 50));
+    };
+    const handleGlobalPointerDown = (e: PointerEvent) => {
+      console.log('[DEBUG GLOBAL] PointerDown on:', (e.target as HTMLElement)?.tagName, (e.target as HTMLElement)?.className?.slice(0, 50));
+    };
+    document.addEventListener('click', handleGlobalClick, true); // capture phase
+    document.addEventListener('pointerdown', handleGlobalPointerDown, true);
+    console.log('[DEBUG] Global click listeners attached');
+    return () => {
+      document.removeEventListener('click', handleGlobalClick, true);
+      document.removeEventListener('pointerdown', handleGlobalPointerDown, true);
+    };
   }, []);
 
   // Prevent duplicate fetches (React StrictMode double-mount)
@@ -825,6 +854,48 @@ export function Sidebar() {
           isExpanded ? "w-[240px]" : "w-[70px]"
         )}
       >
+        {/* DEBUG: Direct tenant switch buttons - NOT in SidebarContent */}
+        {tenantContext?.isTeeemStaff && tenantContext?.canSwitchTenants && isExpanded && (
+          <div
+            className="p-2 bg-red-100 dark:bg-red-900 border-b border-red-300 flex gap-1"
+            onMouseDown={() => console.log('[DEBUG] Container mousedown!')}
+            onPointerDown={() => console.log('[DEBUG] Container pointerdown!')}
+          >
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                console.log('[DEBUG] Button mousedown!', e.target);
+              }}
+              onPointerDown={(e) => {
+                console.log('[DEBUG] Button pointerdown!', e.target);
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('[DEBUG] Direct Pilgrim click!');
+                tenantContext.switchTenant(77);
+              }}
+              className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600"
+              style={{ pointerEvents: 'auto', position: 'relative', zIndex: 9999 }}
+            >
+              Pilgrim (77)
+            </button>
+            <button
+              type="button"
+              onMouseDown={() => console.log('[DEBUG] Tekna mousedown!')}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('[DEBUG] Direct Tekna click!');
+                tenantContext.switchTenant(76);
+              }}
+              className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600"
+              style={{ pointerEvents: 'auto', position: 'relative', zIndex: 9999 }}
+            >
+              Tekna (76)
+            </button>
+          </div>
+        )}
         <SidebarContent {...sidebarContentProps} />
         {/* Chevron Toggle Button */}
         <button

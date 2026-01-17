@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_17_110002) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_17_110003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9684,6 +9684,19 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_17_110002) do
     t.bigint "saas_customer_contact_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "gst_number"
+    t.string "logo_mobile"
+    t.string "logo_dark"
+    t.string "bank_name"
+    t.string "bank_bsb"
+    t.string "bank_account_number"
+    t.string "bank_account_name"
+    t.string "twilio_account_sid"
+    t.string "twilio_auth_token"
+    t.string "twilio_phone_number"
+    t.boolean "twilio_enabled"
+    t.jsonb "working_days", default: {"friday"=>true, "monday"=>true, "sunday"=>true, "tuesday"=>true, "saturday"=>false, "thursday"=>true, "wednesday"=>true}
+    t.jsonb "team_email_domains", default: []
     t.index ["corporate_group_id"], name: "index_tenant_settings_on_corporate_group_id", unique: true
     t.index ["saas_customer_contact_id"], name: "index_tenant_settings_on_saas_customer_contact_id"
     t.index ["stripe_customer_id"], name: "index_tenant_settings_on_stripe_customer_id"
