@@ -51,6 +51,65 @@ namespace :storage do
     puts "=" * 60
   end
 
+  # Individual rename tasks for parallel execution
+  # Run ALL 6 in parallel: heroku run rails storage:rename:X --app teeemlive
+  namespace :rename do
+    desc "Rename Emails/eml -> Emails/Email Body"
+    task emails_eml: :environment do
+      StorageRenameHelper.run("Emails/eml", "Emails/Email Body")
+    end
+
+    desc "Rename Emails/attachments -> Emails/Attachments"
+    task emails_attachments: :environment do
+      StorageRenameHelper.run("Emails/attachments", "Emails/Attachments")
+    end
+
+    desc "Rename corporate -> Corporate"
+    task corporate: :environment do
+      StorageRenameHelper.run("corporate", "Corporate")
+    end
+
+    desc "Rename people -> Corporate/People"
+    task people: :environment do
+      StorageRenameHelper.run("people", "Corporate/People")
+    end
+
+    desc "Rename jobs -> Jobs"
+    task jobs: :environment do
+      StorageRenameHelper.run("jobs", "Jobs")
+    end
+
+    desc "Clean up root Attachments folder"
+    task root_attachments: :environment do
+      Rake::Task["storage:cleanup_root_attachments"].invoke
+    end
+  end
+
+  # Helper module for rename operations
+  module StorageRenameHelper
+    def self.run(old_path, new_path)
+      puts "=" * 60
+      puts "Rename: #{old_path} -> #{new_path}"
+      puts "=" * 60
+
+      org = Organization.first
+      provider = DocumentProviders.for_organization(org)
+
+      unless provider.is_a?(DocumentProviders::S3Compatible)
+        puts "ERROR: S3-compatible storage required"
+        exit 1
+      end
+
+      result = provider.rename_folder(old_path, new_path)
+
+      if result[:success]
+        puts "✓ Moved #{result[:moved_count]} objects"
+      else
+        puts "✗ Failed: #{result[:error]}"
+      end
+    end
+  end
+
   desc "Clean up duplicate Contact folders - delete old formats if SSoT folder exists"
   task cleanup_contact_folders: :environment do
     puts "=" * 60

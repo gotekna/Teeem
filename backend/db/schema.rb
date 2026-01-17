@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_17_100006) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_17_100007) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9907,8 +9907,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_17_100006) do
     t.string "job_title"
     t.string "qbcc_licence_number"
     t.string "qbcc_licence_class"
+    t.bigint "corporate_group_id"
     t.index "lower((email)::text)", name: "idx_users_lower_email"
     t.index ["contact_id"], name: "index_users_on_contact_id_unique", unique: true, where: "(contact_id IS NOT NULL)"
+    t.index ["corporate_group_id"], name: "index_users_on_corporate_group_id"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["user_group_id"], name: "index_users_on_user_group_id"
     t.index ["wphs_appointee"], name: "index_users_on_wphs_appointee"
@@ -11470,6 +11472,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_17_100006) do
   add_foreign_key "user_roles", "roles"
   add_foreign_key "user_roles", "users"
   add_foreign_key "users", "contacts"
+  add_foreign_key "users", "corporate_groups"
   add_foreign_key "users", "user_groups"
   add_foreign_key "vip_senders", "users"
   add_foreign_key "warehouse_bank_transactions", "contacts"

@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { TenantProvider } from "@/contexts/TenantContext";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { JotaiProvider } from "@/components/providers/jotai-provider";
 import { Toaster } from "@/components/ui/toaster";
@@ -66,14 +67,16 @@ export default function RootLayout({
           <JotaiProvider>
             <QueryProvider>
               <AuthProvider>
-                <CompanyColorsProvider>
-                  <OfflineProvider>
-                    <DynamicTitle />
-                    {children}
-                    <Toaster />
-                    <SonnerToaster />
-                  </OfflineProvider>
-                </CompanyColorsProvider>
+                <TenantProvider>
+                  <CompanyColorsProvider>
+                    <OfflineProvider>
+                      <DynamicTitle />
+                      {children}
+                      <Toaster />
+                      <SonnerToaster />
+                    </OfflineProvider>
+                  </CompanyColorsProvider>
+                </TenantProvider>
               </AuthProvider>
             </QueryProvider>
           </JotaiProvider>

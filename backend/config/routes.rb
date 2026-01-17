@@ -4054,6 +4054,27 @@ Rails.application.routes.draw do
         post "refresh", to: "warehouse_status#refresh", as: :refresh
       end
 
+      # =============================================================
+      # Admin API (TEEEM staff internal tools)
+      # =============================================================
+      namespace :admin do
+        # Tenant Management (multi-tenancy)
+        # GET    /api/v1/admin/tenants          -> List all tenants (TEEEM staff only)
+        # GET    /api/v1/admin/tenants/current  -> Current tenant info (all users)
+        # GET    /api/v1/admin/tenants/:id      -> Single tenant details
+        # POST   /api/v1/admin/tenants/:id/switch -> Switch to tenant (TEEEM staff only)
+        # DELETE /api/v1/admin/tenants/switch   -> Clear tenant override
+        resources :tenants, only: [:index, :show] do
+          collection do
+            get :current
+            delete :switch, action: :clear_switch
+          end
+          member do
+            post :switch
+          end
+        end
+      end
+
       # External integrations (API endpoints for third-party systems)
       namespace :external do
         post "unreal_estimates", to: "unreal_estimates#create"
