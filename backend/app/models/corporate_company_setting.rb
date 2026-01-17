@@ -2,8 +2,23 @@ class CorporateCompanySetting < ApplicationRecord
   # Encrypt sensitive credentials (SSoT pattern from MicrosoftCredential)
   encrypts :twilio_auth_token
 
+  # ========================================
+  # API Environment Configuration (SSoT)
+  # ========================================
+  # Allows company-wide backend environment selection.
+  # Production backend is the "router" - stores all companies' env preferences.
+  # Returns appropriate api_url on login.
+  VALID_API_ENVIRONMENTS = %w[production beta staging].freeze
+
+  API_ENVIRONMENT_URLS = {
+    "production" => "https://teeem-production-cb7898c69bd3.herokuapp.com",
+    "beta" => "https://teeem-beta-6e3e9cb59225.herokuapp.com",
+    "staging" => "https://teeem-staging-d60a657ed68a.herokuapp.com"
+  }.freeze
+
   # Validations
   validates :company_name, presence: true
+  validates :api_environment, inclusion: { in: VALID_API_ENVIRONMENTS }, allow_nil: true
 
   # Singleton pattern - only one company settings record should exist
   def self.instance
@@ -278,6 +293,30 @@ class CorporateCompanySetting < ApplicationRecord
     updates[:brand_color_accent] = hex_to_hsl(colors[:accent]) if colors[:accent].present?
 
     instance.update!(updates) if updates.any?
+  end
+
+  # ========================================
+  # API Environment Methods (SSoT)
+  # ========================================
+
+  # Get the current API environment setting (defaults to 'production')
+  def self.api_environment
+    instance.api_environment.presence || "production"
+  end
+
+  # Get the API URL for the current environment
+  # Used in login response to direct frontend to correct backend
+  def self.api_url
+    API_ENVIRONMENT_URLS[api_environment] || API_ENVIRONMENT_URLS["production"]
+  end
+
+  # Get full API environment config for login response
+  def self.api_environment_config
+    env = api_environment
+    {
+      environment: env,
+      api_url: API_ENVIRONMENT_URLS[env] || API_ENVIRONMENT_URLS["production"]
+    }
   end
 
   private

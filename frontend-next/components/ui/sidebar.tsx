@@ -169,16 +169,6 @@ function SidebarContent({
 
       {/* Company/Tenant Info - shows company name + environment for all users */}
       {/* TEEEM staff can switch tenants, regular users just see their company */}
-      {console.log('[Sidebar] TenantInfo:', {
-        currentTenant: tenantInfo?.currentTenant?.name,
-        currentTenantId: tenantInfo?.currentTenant?.id,
-        tenants: tenantInfo?.tenants?.map(t => ({ id: t.id, name: t.name })),
-        isTeeemStaff: tenantInfo?.isTeeemStaff,
-        canSwitchTenants: tenantInfo?.canSwitchTenants,
-        isLoading: tenantInfo?.isLoading,
-        isExpanded,
-        mobile
-      })}
       <div className="p-2 border-t border-border">
         {tenantInfo?.currentTenant ? (
           tenantInfo.isTeeemStaff && tenantInfo.canSwitchTenants ? (
@@ -297,11 +287,17 @@ export function Sidebar() {
 
   // DEBUG: Global click listener to see if ANY clicks are registered
   useEffect(() => {
+    // Helper to safely get className as string (SVG elements have SVGAnimatedString, not string)
+    const getClassString = (el: EventTarget | null): string => {
+      if (!el || !(el instanceof Element)) return '';
+      const cn = el.className;
+      return typeof cn === 'string' ? cn : ((cn as SVGAnimatedString)?.baseVal ?? '');
+    };
     const handleGlobalClick = (e: MouseEvent) => {
-      console.log('[DEBUG GLOBAL] Click detected on:', (e.target as HTMLElement)?.tagName, (e.target as HTMLElement)?.className?.slice(0, 50));
+      console.log('[DEBUG GLOBAL] Click detected on:', (e.target as Element)?.tagName, getClassString(e.target).slice(0, 50));
     };
     const handleGlobalPointerDown = (e: PointerEvent) => {
-      console.log('[DEBUG GLOBAL] PointerDown on:', (e.target as HTMLElement)?.tagName, (e.target as HTMLElement)?.className?.slice(0, 50));
+      console.log('[DEBUG GLOBAL] PointerDown on:', (e.target as Element)?.tagName, getClassString(e.target).slice(0, 50));
     };
     document.addEventListener('click', handleGlobalClick, true); // capture phase
     document.addEventListener('pointerdown', handleGlobalPointerDown, true);

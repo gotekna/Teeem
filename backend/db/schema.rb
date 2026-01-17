@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_17_110003) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_17_120001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2011,6 +2011,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_17_110003) do
     t.string "brand_color_secondary"
     t.string "brand_color_muted"
     t.string "brand_color_accent"
+    t.string "api_environment", default: "production"
   end
 
   create_table "corporate_company_shareholdings", force: :cascade do |t|
