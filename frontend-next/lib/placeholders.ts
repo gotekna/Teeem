@@ -512,6 +512,18 @@ export const STORAGE_PLACEHOLDERS: PlaceholderToken[] = [
     color: "gray",
     description: "Email mailbox address",
   },
+  {
+    code: "{{Subject}}",
+    example: "RE Invoice Question",
+    color: "blue",
+    description: "Email subject line (sanitized for folder names)",
+  },
+  {
+    code: "{{ReceivedTime}}",
+    example: "14-30",
+    color: "green",
+    description: "Time email was received (HH-MM)",
+  },
 ];
 
 // Backwards compatibility alias

@@ -31,8 +31,9 @@ class SendNameResolver
   INVALID_FILENAME_CHARS = /[:\/*?"<>|\\]/
 
   # Default templates by source type
+  # Email template includes time for chronological ordering
   DEFAULT_TEMPLATES = {
-    "email" => "{Subject} - {ReceivedDate}.eml",
+    "email" => "{ReceivedDateSort} {ReceivedTime} - {Subject}.eml",
     "corporate" => "{CompanyCode} {DocTypeName} {Date}",
     "job" => "{JobCode} {DocTypeName} {Date}",
     "task" => "Task {Number} - {Description}",
@@ -226,8 +227,13 @@ class SendNameResolver
     result.gsub!("{FromName}", context[:from_name].to_s) if context[:from_name]
     result.gsub!("{FromEmail}", context[:from_email].to_s) if context[:from_email]
     if context[:received_date]
-      recv_date = context[:received_date].to_date rescue doc_date
+      recv_datetime = context[:received_date]
+      recv_date = recv_datetime.to_date rescue doc_date
       result.gsub!("{ReceivedDate}", recv_date.strftime("%d-%m-%Y"))
+      # Sortable date format YYYY-MM-DD for chronological ordering
+      result.gsub!("{ReceivedDateSort}", recv_date.strftime("%Y-%m-%d"))
+      # Time format HH-MM for filename safety (no colons)
+      result.gsub!("{ReceivedTime}", recv_datetime.strftime("%H-%M"))
     end
 
     # Job tokens

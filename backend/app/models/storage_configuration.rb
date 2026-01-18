@@ -55,9 +55,9 @@ class StorageConfiguration < ApplicationRecord
     "user_photos" => "Users/Photos",
     "user_contracts" => "Users/Contracts",
     "my_docs" => "Users/MyDocs",
-    # Email scopes
-    "email" => "Emails/Email Body",
-    "email_attachments" => "Emails/Attachments",
+    # Email scopes (base folder only - template adds mailbox/year/month)
+    "email" => "Emails",
+    "email_attachments" => "Emails",
     # Warehouse scopes
     "warehouse" => "Warehousing",
     "task" => "Tasks",
@@ -185,8 +185,9 @@ class StorageConfiguration < ApplicationRecord
     "contacts" => "{{ContactId}} - {{ContactName}}/{{TabName}}",
     "account" => "{{Source}}/{{ContactName}}/{{Category}}",
     "accounts" => "{{Source}}/{{ContactName}}/{{Category}}",
-    "email" => "{{Year}}/{{Month}}",
-    "emails" => "{{Year}}/{{Month}}",
+    "email" => "{{Mailbox}}/Email Body/{{Year}}/{{Month}}",
+    "emails" => "{{Mailbox}}/Email Body/{{Year}}/{{Month}}",
+    "email_attachments" => "{{Mailbox}}/Attachments/{{Year}}/{{Month}}",
     # Warehouse document scopes
     "notes" => "{{UserName}}/{{Year}}",
     "excel_documents" => "{{UserName}}/{{Year}}",

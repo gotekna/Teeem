@@ -322,8 +322,19 @@ class EmailWarehouse < ApplicationRecord
   # Phase 4: Virtual File Warehouse
   # ========================================
 
-  # Compute virtual folder path for organizing emails by mailbox
-  # Returns path like: "robert@tekna.com.au/Email Body/2025/01"
+  # Invalid characters for folder names (Windows + Unix combined)
+  INVALID_FOLDER_CHARS = /[:\/*?"<>|\\]/
+
+  # Compute virtual folder path for organizing emails
+  # Reads template from StorageConfiguration.virtual_template_for(:email)
+  # Default template: "{{Mailbox}}/Email Body/{{Year}}/{{Month}}"
+  #
+  # Available tokens:
+  # - {{Mailbox}} - email address (e.g., robert@tekna.com.au)
+  # - {{Subject}} - sanitized email subject (e.g., RE Invoice Question)
+  # - {{Year}} - 4-digit year (e.g., 2026)
+  # - {{Month}} - 2-digit month (e.g., 01)
+  # - {{ReceivedTime}} - time received HH-MM (e.g., 14-30)
   #
   # Used for:
   # - Setting WarehouseDocument.folder for database-driven folder rendering
@@ -331,23 +342,62 @@ class EmailWarehouse < ApplicationRecord
   #
   # Physical storage stays at Blobs/{hash}.eml (never moves)
   def virtual_folder_path
-    # Use email_mailbox if linked, otherwise fall back to mailbox_owner_email
-    mailbox_name = email_mailbox&.email_address || mailbox_owner_email || "Unknown"
-    year = received_at&.year || Time.current.year
-    month = format("%02d", received_at&.month || 1)
-
-    "#{mailbox_name}/Email Body/#{year}/#{month}"
+    resolve_virtual_path(:email)
   end
 
   # Compute virtual folder path for email attachments
-  # Returns path like: "robert@tekna.com.au/Attachments/2025/01"
+  # Reads template from StorageConfiguration.virtual_template_for(:email_attachments)
+  # Default template: "{{Mailbox}}/Attachments/{{Year}}/{{Month}}"
   def virtual_attachments_folder_path
-    mailbox_name = email_mailbox&.email_address || mailbox_owner_email || "Unknown"
-    year = received_at&.year || Time.current.year
-    month = format("%02d", received_at&.month || 1)
-
-    "#{mailbox_name}/Attachments/#{year}/#{month}"
+    resolve_virtual_path(:email_attachments)
   end
+
+  private
+
+  # Resolve virtual path using template from StorageConfiguration
+  def resolve_virtual_path(scope)
+    # Get template from StorageConfiguration (SSoT)
+    config = StorageConfiguration.instance
+    template = config&.virtual_template_for(scope) || default_template_for(scope)
+
+    # Build substitution values
+    mailbox_name = email_mailbox&.email_address || mailbox_owner_email || "Unknown"
+    received = received_at || Time.current
+    sanitized_subject = sanitize_for_folder(subject || "No Subject")
+
+    # Replace all tokens
+    result = template.dup
+    result.gsub!("{{Mailbox}}", mailbox_name)
+    result.gsub!("{{Subject}}", sanitized_subject)
+    result.gsub!("{{Year}}", received.year.to_s)
+    result.gsub!("{{Month}}", format("%02d", received.month))
+    result.gsub!("{{ReceivedTime}}", received.strftime("%H-%M"))
+
+    result
+  end
+
+  # Default templates if StorageConfiguration doesn't have one
+  def default_template_for(scope)
+    case scope.to_sym
+    when :email then "{{Mailbox}}/Email Body/{{Year}}/{{Month}}"
+    when :email_attachments then "{{Mailbox}}/Attachments/{{Year}}/{{Month}}"
+    else "{{Year}}/{{Month}}"
+    end
+  end
+
+  # Sanitize text for use in folder names
+  def sanitize_for_folder(text)
+    return "Unknown" if text.blank?
+
+    text.to_s
+        .gsub(INVALID_FOLDER_CHARS, " ")  # Remove invalid chars
+        .gsub(/\s+/, " ")                  # Collapse whitespace
+        .strip
+        .truncate(100, omission: "")       # Limit length for filesystem
+        .presence || "Unknown"
+  end
+
+  public
 
   # Job ID patterns to look for in subject line
   # Matches: id:20, id.20, id;20, #20, job:20, job.20, job;20, [20], (20)
