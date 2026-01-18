@@ -11,6 +11,8 @@ Rails.application.config.middleware.insert_before 0, Rack::Cors do
     # See: OWASP CORS misconfiguration - wildcards can match attacker-controlled subdomains
     origins(
       "https://teeem.vercel.app",          # Production frontend (universal URL)
+      "https://teeem-staging.vercel.app",  # Staging frontend (dev testing)
+      "https://teeem-beta.vercel.app",     # Beta frontend (UAT testing)
       "https://teeemrob.vercel.app",       # Rob's dev frontend
       "https://teeemsam.vercel.app",       # Sam's dev frontend
       "https://oldfrontend-one.vercel.app", # Legacy frontend deployment
