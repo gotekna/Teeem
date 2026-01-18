@@ -141,29 +141,50 @@ class DatabaseBackupJob < ApplicationJob
     uri = URI.parse("https://api.heroku.com/apps/#{HEROKU_APP}/addon-attachments")
     request = Net::HTTP::Get.new(uri)
     request["Accept"] = "application/vnd.heroku+json; version=3"
+    request["Accept-Encoding"] = "identity"  # Prevent compression
     request["Authorization"] = "Bearer #{heroku_api_key}"
 
     response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) do |http|
       http.request(request)
     end
 
+    body = decompress_response(response)
+
     unless response.code == "200"
-      Rails.logger.error "[DatabaseBackup] Failed to get add-ons: #{response.code} - #{response.body}"
+      Rails.logger.error "[DatabaseBackup] Failed to get add-ons: #{response.code} - #{body}"
       return nil
     end
 
-    attachments = JSON.parse(response.body)
+    attachments = JSON.parse(body)
     # Find the Postgres attachment (typically named DATABASE or HEROKU_POSTGRESQL_*)
-    pg_attachment = attachments.find { |a| a["addon"]["name"]&.include?("postgresql") }
+    pg_attachment = attachments.find { |a| a.dig("addon", "name")&.include?("postgresql") }
 
     unless pg_attachment
-      Rails.logger.error "[DatabaseBackup] No Postgres add-on found"
+      Rails.logger.error "[DatabaseBackup] No Postgres add-on found. Attachments: #{attachments.map { |a| a['name'] }.join(', ')}"
       return nil
     end
 
+    Rails.logger.info "[DatabaseBackup] Found database attachment: #{pg_attachment['name']}"
     pg_attachment["name"]
   rescue => e
-    Rails.logger.error "[DatabaseBackup] Failed to fetch database attachment: #{e.message}"
+    Rails.logger.error "[DatabaseBackup] Failed to fetch database attachment: #{e.class} - #{e.message}"
     nil
+  end
+
+  def decompress_response(response)
+    body = response.body
+    case response["content-encoding"]
+    when "gzip"
+      require "zlib"
+      Zlib::GzipReader.new(StringIO.new(body)).read
+    when "deflate"
+      require "zlib"
+      Zlib::Inflate.inflate(body)
+    else
+      body
+    end
+  rescue => e
+    Rails.logger.warn "[DatabaseBackup] Failed to decompress: #{e.message}, using raw body"
+    response.body
   end
 end
