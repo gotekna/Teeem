@@ -4,7 +4,10 @@
 
 Commits ALL pending changes and deploys through the entire pipeline: staging → beta → production.
 
-**This is `/sa` + `/mp` combined.**
+**Use `/p` to commit and deploy only THIS chat's changes instead.**
+
+> **NOTE:** This file and `/p.md` share the same deployment logic.
+> If you update one, update the other to stay in sync.
 
 ## Pipeline Flow
 ```
@@ -243,9 +246,10 @@ If any step fails:
 
 ## Notes
 
-- Commits ALL changes from all chat sessions
-- Deploys to ALL THREE environments: staging, beta, production
+- Commits ALL changes from ALL chat sessions
+- Deploys to ALL THREE environments: Staging, Beta, Production
 - Frontend auto-deploys via Vercel on GitHub push
-- Post-deploy verification runs for production only
-- Use `/sa` if you only want to deploy to staging
-- Use `/mp` if changes are already committed and you just want to deploy
+- Post-deploy verification runs for Production only
+- Use `/p` if you only want to commit THIS chat's changes
+- Use `/ba` if you only want to deploy up to Beta
+- Use `/sa` if you only want to deploy to Staging

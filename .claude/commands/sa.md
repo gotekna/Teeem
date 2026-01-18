@@ -222,7 +222,10 @@ heroku run rails db:migrate --app teeem-staging
 
 ## Notes
 
-- No pre-configured Heroku remote needed - the deploy script creates it on-the-fly
+- Commits ALL changes from ALL chat sessions
+- Deploys to Staging ONLY
 - Frontend auto-deploys from GitHub push (no version tracking needed)
 - Backend only deploys if changes detected in `backend/` directory
-- Staging is for Tekna testing and early feature development
+- Use `/ba` to also deploy to Beta
+- Use `/pa` to deploy all the way to Production
+- Use `/s` to commit only THIS chat's changes

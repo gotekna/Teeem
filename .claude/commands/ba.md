@@ -1,17 +1,25 @@
-# Deploy THIS Chat's Changes to Staging
+# Deploy ALL Changes to Beta
 
-**Shortcut:** `/s` (Staging - This Chat Only)
+**Shortcut:** `/ba` (Beta All - Everything)
 
-Commits only THIS chat session's changes and deploys to staging environment.
+Commits ALL pending changes from ALL chat sessions and deploys to Staging AND Beta environments.
 
-**Use `/sa` to commit ALL pending changes from ALL sessions instead.**
+**Use `/b` to commit and deploy only THIS chat's changes instead.**
 
-> **NOTE:** This file and `/sa.md` share the same deployment logic.
+> **NOTE:** This file and `/b.md` share the same deployment logic.
 > If you update one, update the other to stay in sync.
 
-## STAGING DEPLOY
+## Pipeline Flow
+```
+[commit ALL] ──► Staging ──► Beta
+                    │          │
+                    └──────────┘
+                  Deploy pipeline
+```
 
-- Backend: Heroku (`teeem-staging`) - manual deploy via FAST orphan method
+## BETA DEPLOY
+
+- Backend: Heroku (`teeem-staging` + `teeem-beta`) - manual deploy via FAST orphan method
 - Frontend: Auto-deploys from GitHub push (no version tracking)
 
 ## Instructions
@@ -22,14 +30,21 @@ git branch --show-current
 git status --short
 ```
 
-**IMPORTANT: Note if ANY backend/ files are shown above. After commit, verify they were included.**
-
-### Step 1.5 - Pull Latest (if needed)
+### Step 2 - ALWAYS Pull and Check for Stashes
+**CRITICAL: Always run these - don't skip!**
 ```bash
-git pull origin staging
+git pull origin Staging
+git stash list
 ```
+*If stashes exist, pop them: `git stash pop`*
 
-### Step 2 - Pre-Commit Validation (BEFORE commit!)
+### Step 3 - Verify Backend Changes Before Commit
+**IMPORTANT: If `git status --short` shows ANY backend/ files, note them here.**
+**After commit, verify they were included with `git diff --name-only HEAD~1 HEAD | grep backend/`**
+
+If backend files were shown in status but NOT in the committed diff, STOP and investigate.
+
+### Step 4 - Pre-Commit Validation (BEFORE commit!)
 
 **CRITICAL: Run these checks on working directory BEFORE committing to catch errors early.**
 
@@ -79,9 +94,9 @@ echo "✅ Pre-commit validation passed"
 
 **If any check fails, fix the errors before proceeding.**
 
-### Step 3 - Commit This Chat's Changes
+### Step 5 - Auto-Generate Commit Message and Commit
 
-**Auto-generate commit message based on changes:**
+**Analyze ALL changes and auto-generate message:**
 
 Rules (in priority order):
 1. Only `package.json` version → `chore: Bump version to X.X.X`
@@ -92,6 +107,7 @@ Rules (in priority order):
 6. Multiple types → Combine appropriately
 7. Default → `chore: Update project files`
 
+**Auto-commit ALL changes (including untracked):**
 ```bash
 git add -A
 git commit -m "[auto-generated message]
@@ -101,93 +117,97 @@ git commit -m "[auto-generated message]
 Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
 
-### Step 4 - Push to GitHub
+### Step 6 - Push to GitHub
 ```bash
-git push origin staging
+git push origin Staging
 ```
 *Frontend auto-deploys from this push*
 
-### Step 4.5 - Verify Backend Changes Were Committed
+### Step 6.5 - Verify Backend Changes Were Committed
 **CRITICAL: If Step 1 showed backend/ files, verify they're in the commit:**
 ```bash
 git diff --name-only HEAD~1 HEAD | grep backend/
 ```
 **If backend files were in `git status` but NOT in the commit diff, STOP and investigate!**
 
-### Step 5 - Deploy Backend to Staging (ONLY if backend changed)
+### Step 7 - Deploy Backend to Staging (ONLY if backend changed)
 
 **Check if backend files were in the commit:**
 ```bash
 git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && echo "BACKEND: Deploy needed" || echo "BACKEND: No changes, skip Heroku"
 ```
 
-**If backend changed**, run additional backend checks then deploy:
+**If backend changed**, deploy to Staging:
 ```bash
-# Check migrations can run locally
-if git diff --name-only HEAD~1 HEAD | grep "^backend/db/migrate/" > /dev/null; then
-  echo "Checking migrations..."
-  cd backend && bin/rails db:migrate:status > /dev/null 2>&1 || {
-    echo "❌ Migration check failed - fix locally first"
-    cd ..
-    exit 1
-  }
-  cd ..
-  echo "✅ Migrations OK"
-fi
+echo "📦 Deploying → Staging..."
 
-# ULTRA-FAST DEPLOY - direct push from temp directory (~5 seconds total)
-# Avoids slow git subtree split entirely
 cd /Users/robertharder/GitHub/teeem
 
-# CRITICAL: Ensure all file writes are flushed to disk before copying
 sync
 sleep 1
 
 DEPLOY_DIR=$(mktemp -d)
 cp -r backend/* "$DEPLOY_DIR/"
 
-# VERIFICATION: Check that latest changes are in copied directory
-# Compare git HEAD with copied files to ensure Edit tool changes are included
-if git diff --name-only HEAD~1 HEAD | grep "^backend/" > /dev/null; then
-  echo "✅ Verifying copied files match git commit..."
-  git diff --name-only HEAD~1 HEAD | grep "^backend/" | while read file; do
-    if [ -f "$file" ] && [ -f "$DEPLOY_DIR/${file#backend/}" ]; then
-      if ! diff -q "$file" "$DEPLOY_DIR/${file#backend/}" > /dev/null 2>&1; then
-        echo "⚠️  Warning: $file differs between git and deploy directory"
-      fi
-    fi
-  done
-fi
-
 cd "$DEPLOY_DIR"
 git init
 git add .
-git commit -m "Deploy $(date +%Y%m%d-%H%M%S)"
+git commit -m "Deploy to Staging $(date +%Y%m%d-%H%M%S)"
 git remote add heroku https://git.heroku.com/teeem-staging.git
 git push heroku HEAD:main --force
 cd /Users/robertharder/GitHub/teeem
 rm -rf "$DEPLOY_DIR"
+
+echo "✅ Staging deployed"
 ```
 
-**If no backend changes, skip this step entirely.**
+### Step 8 - Deploy Backend to Beta
 
-### Step 6 - Report Status
+**If backend changed**, deploy to Beta:
+```bash
+echo "📦 Deploying → Beta..."
+
+cd /Users/robertharder/GitHub/teeem
+
+sync
+sleep 1
+
+DEPLOY_DIR=$(mktemp -d)
+cp -r backend/* "$DEPLOY_DIR/"
+
+cd "$DEPLOY_DIR"
+git init
+git add .
+git commit -m "Deploy to Beta $(date +%Y%m%d-%H%M%S)"
+git remote add heroku https://git.heroku.com/teeem-beta.git
+git push heroku HEAD:main --force
+cd /Users/robertharder/GitHub/teeem
+rm -rf "$DEPLOY_DIR"
+
+echo "✅ Beta deployed"
+```
+
+**If no backend changes, skip Steps 7 and 8 entirely.**
+
+### Step 9 - Report Status
 
 **Get version and show deploy status:**
 
 ```bash
-BACKEND_VERSION=$(curl -s https://teeem-staging-*.herokuapp.com/version | jq -r '.version' 2>/dev/null || echo "unknown")
 BRISBANE_TIME=$(TZ='Australia/Brisbane' date '+%H:%M %d/%m')
+COMMIT_HASH=$(git rev-parse --short HEAD)
+COMMIT_MSG=$(git log -1 --pretty=%s)
 BACKEND_DEPLOYED=$(git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && echo "deployed" || echo "skipped")
 ```
 
 **Output format:**
 ```
 ========================================
-STAGING DEPLOYED: HH:MM DD/MM (Brisbane)
+BETA DEPLOYED: HH:MM DD/MM (Brisbane)
 Commit: [hash] - [message]
 ----------------------------------------
-Backend: v[XXX] - [deployed/skipped]
+✅ Staging: [deployed/skipped]
+✅ Beta: [deployed/skipped]
 ========================================
 ```
 
@@ -195,29 +215,14 @@ Backend: v[XXX] - [deployed/skipped]
 
 If any step fails:
 1. Report which step failed
-2. Stay on staging branch
+2. Do NOT proceed to next environment
 3. Provide recovery instructions
-
-### Release Command Failures (Expected)
-
-The Heroku release command (`deploy:prepare` + `increment_version`) may fail with:
-```
-release command failed: too many connections for role
-```
-
-**This is OK!** The code still deploys successfully.
-
-**If you need migrations to run:**
-```bash
-heroku run rails db:migrate --app teeem-staging
-```
 
 ## Notes
 
-- Commits only THIS chat session's changes
-- Deploys to Staging ONLY
-- Frontend auto-deploys from GitHub push (no version tracking needed)
-- Backend only deploys if changes detected in `backend/` directory
-- Use `/b` to also deploy to Beta
-- Use `/p` to deploy all the way to Production
-- Use `/sa` to commit ALL pending changes
+- Commits ALL changes from ALL chat sessions
+- Deploys to Staging AND Beta
+- Frontend auto-deploys via Vercel on GitHub push
+- Use `/b` if you only want to commit THIS chat's changes
+- Use `/sa` if you only want to deploy to Staging
+- Use `/pa` to go all the way to Production
