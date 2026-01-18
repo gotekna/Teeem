@@ -11,11 +11,15 @@
 
 import { API_TIMEOUT_DEFAULT, API_RETRY_DELAY_BASE } from './constants/timeout-constants';
 
-// Production backend is always the "router" for login
+// Production backend is always the "router" for login (except in dev mode)
 const PRODUCTION_API_URL = 'https://teeem-production-121159e1ff9d.herokuapp.com';
 
 // Default API URL (production) - used if no stored api_url
 const DEFAULT_API_URL = (process.env.NEXT_PUBLIC_API_URL || PRODUCTION_API_URL).trim();
+
+// Check if running in dev mode (dev backends contain "-dev" in URL)
+// Dev frontends skip the production router and login directly to their own backend
+const IS_DEV_MODE = DEFAULT_API_URL.includes('-dev');
 
 /**
  * Get the current API base URL
@@ -716,9 +720,11 @@ export const api = {
   async loginToProduction<T = unknown>(data: { user: { email: string; password: string } }): Promise<T | null> {
     const { timeout = DEFAULT_TIMEOUT, retries = MAX_RETRIES } = {};
 
-    // ALWAYS use production URL for login - it's the "router"
+    // In dev mode: login directly to dev backend (skip production router)
+    // In production mode: use production URL as the "router" for environment switching
+    const loginUrl = IS_DEV_MODE ? DEFAULT_API_URL : PRODUCTION_API_URL;
     const response = await withRetry(
-      () => fetchWithTimeout(`${PRODUCTION_API_URL}/api/v1/auth/login`, {
+      () => fetchWithTimeout(`${loginUrl}/api/v1/auth/login`, {
         method: 'POST',
         headers: getAuthHeaders(),
         credentials: 'include',
