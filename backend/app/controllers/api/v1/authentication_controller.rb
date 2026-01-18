@@ -95,12 +95,17 @@ module Api
           # Production backend acts as "router" - returns api_url for the company's chosen environment
           env_config = CorporateCompanySetting.api_environment_config
 
+          # TEEEM staff (email ends with @teeem.com.au) stay on production frontend
+          # They use TenantSwitcher to view different companies without redirect
+          is_teeem_staff = user.email.to_s.end_with?('@teeem.com.au')
+          frontend_url = is_teeem_staff ? nil : env_config[:frontend_url]
+
           token = JsonWebToken.encode(user_id: user.id)
           render json: {
             success: true,
             token: token,
             api_url: env_config[:api_url],
-            frontend_url: env_config[:frontend_url],
+            frontend_url: frontend_url,
             environment: env_config[:environment],
             user: {
               id: user.id,
