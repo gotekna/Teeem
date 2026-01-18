@@ -67,6 +67,7 @@ class BackupStorageService
     end
 
     # Upload from a URL (for Heroku backup URLs)
+    # Streams the download to a temp file to avoid memory issues with large files.
     # @param key [String] The storage key (path)
     # @param url [String] URL to download from
     # @param metadata [Hash] Optional metadata
@@ -74,10 +75,104 @@ class BackupStorageService
     def upload_from_url(key:, url:, metadata: {})
       ensure_configured!
 
-      require "open-uri"
-      content = URI.parse(url).open.read
+      require "net/http"
+      require "tempfile"
 
-      upload(key: key, content: content, metadata: metadata)
+      # Use a temp file to avoid loading the entire backup into memory
+      # Heroku one-off dynos have ~20GB disk quota, plenty for DB backups
+      Tempfile.create(["backup", ".dump"]) do |temp_file|
+        temp_file.binmode
+
+        # Stream download to temp file
+        uri = URI.parse(url)
+        total_size = 0
+
+        Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https") do |http|
+          http.request_get(uri.request_uri) do |response|
+            if response.code != "200"
+              raise "Download failed: HTTP #{response.code}"
+            end
+
+            response.read_body do |chunk|
+              temp_file.write(chunk)
+              total_size += chunk.bytesize
+            end
+          end
+        end
+
+        Rails.logger.info "[BackupStorage] Downloaded #{total_size} bytes to temp file"
+        temp_file.rewind
+
+        # Stream upload to S3
+        # For files > 100MB, use multipart upload for reliability
+        if total_size > 100 * 1024 * 1024
+          upload_multipart(key: key, file: temp_file, size: total_size, metadata: metadata)
+        else
+          client.put_object(
+            bucket: bucket,
+            key: key,
+            body: temp_file,
+            metadata: metadata.transform_values(&:to_s)
+          )
+        end
+
+        Rails.logger.info "[BackupStorage] Uploaded: #{key} (#{total_size} bytes)"
+
+        {
+          key: key,
+          size: total_size,
+          uploaded_at: Time.current
+        }
+      end
+    end
+
+    # Multipart upload for large files (> 100MB)
+    # Uses 10MB parts for efficient upload of large database backups
+    def upload_multipart(key:, file:, size:, metadata: {})
+      part_size = 10 * 1024 * 1024  # 10MB parts
+
+      # Initiate multipart upload
+      create_response = client.create_multipart_upload(
+        bucket: bucket,
+        key: key,
+        metadata: metadata.transform_values(&:to_s)
+      )
+      upload_id = create_response.upload_id
+
+      parts = []
+      part_number = 1
+
+      begin
+        while (chunk = file.read(part_size))
+          upload_response = client.upload_part(
+            bucket: bucket,
+            key: key,
+            upload_id: upload_id,
+            part_number: part_number,
+            body: chunk
+          )
+
+          parts << { etag: upload_response.etag, part_number: part_number }
+          Rails.logger.info "[BackupStorage] Uploaded part #{part_number} (#{chunk.bytesize} bytes)"
+          part_number += 1
+        end
+
+        # Complete the multipart upload
+        client.complete_multipart_upload(
+          bucket: bucket,
+          key: key,
+          upload_id: upload_id,
+          multipart_upload: { parts: parts }
+        )
+      rescue => e
+        # Abort on error to clean up incomplete upload
+        client.abort_multipart_upload(
+          bucket: bucket,
+          key: key,
+          upload_id: upload_id
+        )
+        raise e
+      end
     end
 
     # Download content from backup storage

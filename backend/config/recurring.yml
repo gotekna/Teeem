@@ -487,6 +487,15 @@ database_backup_weekly:
   queue: low
   schedule: at 3am on Sunday
 
+# Per-tenant backup dispatcher
+# Checks all BackupConfiguration schedules and queues due backups
+# Runs every 15 minutes to check tenant-specific schedules
+# Enables tenants to have different backup schedules (hourly, daily, weekly)
+tenant_backup_dispatcher:
+  class: TenantBackupDispatcherJob
+  queue: default
+  schedule: every 15 minutes
+
 # ============================================
 # SSOT COMPLIANCE
 # ============================================

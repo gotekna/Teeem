@@ -78,17 +78,22 @@ class DatabaseBackupJob < ApplicationJob
     require "net/http"
     require "uri"
 
-    # Heroku pg-backups uses a separate API (pg-api.heroku.com)
+    # Heroku pg-backups uses a separate API (api.data.heroku.com)
     # First get the database attachment name from the app
     attachment_name = fetch_database_attachment
     return nil unless attachment_name
 
     # Step 1: List backups using Heroku Data API (with redirect following)
-    list_body = fetch_with_redirects(
+    # Returns both body AND final URL (after any redirects)
+    list_result = fetch_with_redirects(
       "https://api.data.heroku.com/client/v11/databases/#{attachment_name}/transfers",
-      :get
+      :get,
+      return_final_url: true
     )
-    return nil unless list_body
+    return nil unless list_result
+
+    list_body = list_result[:body]
+    final_url = list_result[:final_url]
 
     transfers = JSON.parse(list_body)
     # Find the latest completed backup (succeeded=true, to_type=gof3r means backup)
@@ -105,13 +110,16 @@ class DatabaseBackupJob < ApplicationJob
     Rails.logger.info "[DatabaseBackup] Found backup ##{backup_num} from #{latest_backup['finished_at']}"
 
     # Step 2: Get the public URL for this backup
-    url_body = fetch_with_redirects(
-      "https://api.data.heroku.com/client/v11/databases/#{attachment_name}/transfers/#{backup_num}/actions/public-url",
-      :post
-    )
-    return nil unless url_body
+    # Use the same base URL pattern that Step 1 was redirected to
+    # e.g., if redirected to https://postgres-api.heroku.com/client/v11/apps/{uuid}/transfers
+    # then use https://postgres-api.heroku.com/client/v11/apps/{uuid}/transfers/{num}/actions/public-url
+    public_url_endpoint = "#{final_url}/#{backup_num}/actions/public-url"
+    Rails.logger.info "[DatabaseBackup] Getting public URL from: #{public_url_endpoint}"
 
-    JSON.parse(url_body)["url"]
+    url_result = fetch_with_redirects(public_url_endpoint, :post, return_final_url: true)
+    return nil unless url_result
+
+    JSON.parse(url_result[:body])["url"]
   rescue => e
     Rails.logger.error "[DatabaseBackup] Failed to fetch backup URL: #{e.message}"
     nil
@@ -157,7 +165,7 @@ class DatabaseBackupJob < ApplicationJob
     nil
   end
 
-  def fetch_with_redirects(url, method = :get, max_redirects = 5)
+  def fetch_with_redirects(url, method = :get, return_final_url: false, max_redirects: 5)
     require "net/http"
     require "uri"
 
@@ -176,7 +184,14 @@ class DatabaseBackupJob < ApplicationJob
 
       case response.code
       when "200", "201"
-        return decompress_response(response)
+        body = decompress_response(response)
+        if return_final_url
+          # Return both body and the final URL (without query string)
+          final_url = "#{uri.scheme}://#{uri.host}#{uri.path}"
+          return { body: body, final_url: final_url }
+        else
+          return body
+        end
       when "301", "302", "303", "307", "308"
         redirects += 1
         if redirects > max_redirects

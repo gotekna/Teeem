@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_17_120001) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_18_084110) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -468,6 +468,43 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_17_120001) do
     t.index ["job_type", "status"], name: "index_background_job_progress_on_job_type_and_status"
     t.index ["job_type"], name: "index_background_job_progress_on_job_type"
     t.index ["status"], name: "index_background_job_progress_on_status"
+  end
+
+  create_table "backup_configurations", force: :cascade do |t|
+    t.bigint "organization_id", null: false
+    t.boolean "enabled", default: false, null: false
+    t.string "database_schedule", default: "weekly_sunday", null: false
+    t.string "document_schedule", default: "daily_2am", null: false
+    t.integer "retention_days", default: 90, null: false
+    t.boolean "mirror_enabled", default: false, null: false
+    t.bigint "primary_credential_id"
+    t.bigint "secondary_credential_id"
+    t.datetime "last_database_backup_at"
+    t.datetime "last_document_backup_at"
+    t.datetime "last_mirror_sync_at"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["organization_id"], name: "index_backup_configurations_on_organization_id", unique: true
+    t.index ["primary_credential_id"], name: "index_backup_configurations_on_primary_credential_id"
+    t.index ["secondary_credential_id"], name: "index_backup_configurations_on_secondary_credential_id"
+  end
+
+  create_table "backup_logs", force: :cascade do |t|
+    t.bigint "backup_configuration_id", null: false
+    t.string "backup_type", null: false
+    t.string "status", null: false
+    t.bigint "size_bytes"
+    t.integer "duration_seconds"
+    t.integer "files_count"
+    t.string "storage_key"
+    t.string "provider_name"
+    t.text "error_message"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["backup_configuration_id", "backup_type", "created_at"], name: "idx_backup_logs_config_type_created"
+    t.index ["backup_configuration_id"], name: "index_backup_logs_on_backup_configuration_id"
   end
 
   create_table "balance_sheet_reports", force: :cascade do |t|
@@ -10642,6 +10679,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_17_120001) do
   add_foreign_key "assets", "corporate_groups", column: "company_group_id"
   add_foreign_key "assets", "users", column: "assigned_user_id"
   add_foreign_key "ato_effective_life_rates", "ato_effective_life_categories"
+  add_foreign_key "backup_configurations", "organizations"
+  add_foreign_key "backup_configurations", "s3_compatible_credentials", column: "primary_credential_id"
+  add_foreign_key "backup_configurations", "s3_compatible_credentials", column: "secondary_credential_id"
+  add_foreign_key "backup_logs", "backup_configurations"
   add_foreign_key "balance_sheet_reports", "corporate_companies", column: "company_id"
   add_foreign_key "balance_sheet_reports", "document_types"
   add_foreign_key "bank_accounts", "corporate_companies", column: "company_id"

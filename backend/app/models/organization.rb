@@ -12,10 +12,14 @@ class Organization < ApplicationRecord
   # Associations - credentials belong to organizations
   has_many :microsoft_credentials, dependent: :destroy
   has_many :organization_microsoft_app_credentials, dependent: :destroy
+  has_many :s3_compatible_credentials, dependent: :destroy
   belongs_to :document_provider_credential, class_name: 'S3CompatibleCredential', optional: true
 
   # SSoT: Storage configuration for document paths and provider settings
   has_one :storage_configuration, dependent: :destroy
+
+  # SSoT: Backup configuration for per-tenant backup settings
+  has_one :backup_configuration, dependent: :destroy
 
   # Validations
   validates :name, presence: true, uniqueness: true

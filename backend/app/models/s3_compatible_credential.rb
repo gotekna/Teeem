@@ -129,6 +129,14 @@ class S3CompatibleCredential < ApplicationRecord
     end
   end
 
+  # Alias for provider_display_name (used by backup controller)
+  alias_method :provider_name, :provider_display_name
+
+  # Check if connection is active and verified
+  def connected?
+    status == "connected" && is_active?
+  end
+
   # DEPRECATED: root_path now lives in StorageConfiguration (SSoT)
   # This method is kept for backward compatibility but will be removed
   def root_path

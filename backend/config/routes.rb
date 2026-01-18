@@ -1450,6 +1450,24 @@ Rails.application.routes.draw do
         post :test, on: :collection, action: :test_connection
       end
 
+      # Backup Configuration (Per-tenant backup settings)
+      # SSoT: Backup schedules, storage providers, and retention policies
+      resource :backup_configuration, only: [:show, :update] do
+        collection do
+          post :run_now       # Trigger immediate backup (type: "database" or "documents")
+          get :history        # Get recent backup logs
+          get :schedule_presets # Get available schedule presets
+        end
+      end
+
+      # S3-Compatible Storage Credentials
+      # Used for backup storage (Wasabi, Backblaze B2, etc.)
+      resources :s3_compatible_credentials, only: [:index, :show, :create, :update, :destroy] do
+        member do
+          post :test  # Test connection
+        end
+      end
+
       # Corporate Company Settings (document paths, Email SSoT)
       resource :corporate_company_settings, only: [] do
         get :document_paths, on: :collection
