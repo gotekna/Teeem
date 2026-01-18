@@ -15,6 +15,7 @@ Rails.application.config.middleware.insert_before 0, Rack::Cors do
       "https://teeem-beta.vercel.app",     # Beta frontend (UAT testing)
       "https://teeemrob.vercel.app",       # Rob's dev frontend
       "https://teeemsam.vercel.app",       # Sam's dev frontend
+      "https://teeemjake.vercel.app",      # Jake's dev frontend
       "https://oldfrontend-one.vercel.app", # Legacy frontend deployment
       # Vercel preview deployments - explicit pattern for teeem-next project only
       # Format: teeem-next-<hash>-<team>.vercel.app (Vercel's project name format)
