@@ -31,7 +31,7 @@ git status --short
 
 ### Step 2 - Pull and Check for Stashes
 ```bash
-git pull origin staging
+git pull origin Staging
 git stash list
 ```
 *If stashes exist, pop them: `git stash pop`*
@@ -87,7 +87,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 ### Step 5 - Push to GitHub (Frontend Auto-Deploys)
 ```bash
-git push origin staging
+git push origin Staging
 ```
 
 ### Step 6 - Deploy Backend to Staging (if backend changed)

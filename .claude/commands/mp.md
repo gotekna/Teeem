@@ -2,20 +2,20 @@
 
 **Shortcut:** `/mp` (Merge to Production)
 
-Deploys staging code through beta to production. Full release pipeline.
+Deploys Staging code through Beta to Live (production). Full release pipeline.
 
 ## Pipeline Flow
 ```
-staging ──► beta ──► production
-   │          │          │
-   └──────────┴──────────┘
-      Deploy pipeline flow
+Staging ──► Beta ──► Live
+   │          │        │
+   └──────────┴────────┘
+     Deploy pipeline flow
 ```
 
 ## ⚠️ PRODUCTION DEPLOY - USE CAUTION
 
 This deploys to the live production environment. Ensure:
-- Changes have been tested on staging
+- Changes have been tested on Staging
 - No known issues
 - You have approval to deploy to production
 
@@ -27,18 +27,18 @@ git branch --show-current
 git status --short
 ```
 
-**IMPORTANT: Working tree must be clean. Commit changes with `/sa` first if needed.**
+**IMPORTANT: Working tree must be clean. Commit changes first if needed.**
 
 ### Step 2 - Ensure Staging is Up to Date
 ```bash
-git checkout staging
-git pull origin staging
+git checkout Staging
+git pull origin Staging
 ```
 
 ### Step 3 - Deploy to Beta
 
 ```bash
-echo "📦 Deploying staging → beta..."
+echo "📦 Deploying Staging → Beta..."
 
 cd /Users/robertharder/GitHub/teeem
 
@@ -139,7 +139,7 @@ BRISBANE_TIME=$(TZ='Australia/Brisbane' date '+%H:%M %d/%m')
 ```
 ========================================
 FULL PIPELINE DEPLOYED: HH:MM DD/MM (Brisbane)
-Source: staging branch
+Source: Staging branch
 ----------------------------------------
 ✅ Beta: deployed to teeem-beta
 ✅ Production: v[XXX] - deployed to teeem-production

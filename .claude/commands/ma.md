@@ -2,22 +2,22 @@
 
 **Shortcut:** `/ma` (Merge All)
 
-Merges production changes back through beta to staging. Use this after hotfixes to sync all branches.
+Merges Live changes back through Beta to Staging. Use this after hotfixes to sync all branches.
 
 ## Pipeline Flow
 ```
-staging ◄── beta ◄── production
-   ▲          ▲          │
-   │          │          │
-   └──────────┴──────────┘
+Staging ◄── Beta ◄── Live
+   ▲          ▲        │
+   │          │        │
+   └──────────┴────────┘
         Back-merge flow
 ```
 
 ## When to Use
 
-- After hotfixes were applied to production
+- After hotfixes were applied to Live
 - To sync all branches before continuing development
-- To ensure staging has all production and beta changes
+- To ensure Staging has all Live and Beta changes
 
 ## Instructions
 
@@ -38,14 +38,14 @@ fi
 
 ### Step 3 - Fetch All Branches
 ```bash
-git fetch origin production beta staging
+git fetch origin Live Beta Staging
 ```
 
-### Step 4 - Merge Production into Beta
+### Step 4 - Merge Live into Beta
 ```bash
-git checkout beta
-git pull origin beta
-git merge origin/production --no-edit
+git checkout Beta
+git pull origin Beta
+git merge origin/Live --no-edit
 ```
 
 **If merge conflicts occur:**
@@ -54,15 +54,15 @@ git merge origin/production --no-edit
 - Wait for user input before proceeding
 
 ```bash
-git push origin beta
-echo "✅ Production → Beta merge complete"
+git push origin Beta
+echo "✅ Live → Beta merge complete"
 ```
 
 ### Step 5 - Merge Beta into Staging
 ```bash
-git checkout staging
-git pull origin staging
-git merge origin/beta --no-edit
+git checkout Staging
+git pull origin Staging
+git merge origin/Beta --no-edit
 ```
 
 **If merge conflicts occur:**
@@ -71,7 +71,7 @@ git merge origin/beta --no-edit
 - Wait for user input before proceeding
 
 ```bash
-git push origin staging
+git push origin Staging
 echo "✅ Beta → Staging merge complete"
 ```
 
@@ -95,7 +95,7 @@ BRISBANE_TIME=$(TZ='Australia/Brisbane' date '+%H:%M %d/%m')
 ========================================
 MERGED ALL: HH:MM DD/MM (Brisbane)
 ----------------------------------------
-✅ Production → Beta: merged
+✅ Live → Beta: merged
 ✅ Beta → Staging: merged
 ----------------------------------------
 All branches synchronized
@@ -119,6 +119,6 @@ If any step fails:
 ## Notes
 
 - This does NOT deploy - it only merges branches
-- Use `/sa` after this to deploy staging if needed
-- Ends on staging branch
+- Use `/sa` after this to deploy Staging if needed
+- Ends on Staging branch
 - Automatically stashes and restores local changes
