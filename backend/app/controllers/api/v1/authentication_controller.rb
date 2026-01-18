@@ -100,6 +100,7 @@ module Api
             success: true,
             token: token,
             api_url: env_config[:api_url],
+            frontend_url: env_config[:frontend_url],
             environment: env_config[:environment],
             user: {
               id: user.id,

@@ -33,6 +33,8 @@ interface AuthResponse {
   errors?: string[];
   /** API URL for the company's chosen environment (returned from login) */
   api_url?: string;
+  /** Frontend URL for the company's chosen environment (returned from login) */
+  frontend_url?: string;
   /** Environment name ('production', 'beta', 'staging') */
   environment?: string;
 }
@@ -178,6 +180,28 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       });
 
       if (response?.success && response.token && response.user) {
+        // Check if we need to redirect to a different frontend deployment
+        // (e.g., staging company → teeem-staging.vercel.app)
+        if (
+          response.frontend_url &&
+          typeof window !== 'undefined' &&
+          response.frontend_url !== window.location.origin
+        ) {
+          // Redirect to the correct frontend with token in URL for cross-domain login
+          const redirectUrl = new URL('/login', response.frontend_url);
+          redirectUrl.searchParams.set('token', response.token);
+          redirectUrl.searchParams.set('redirect', '/dashboard');
+          if (response.api_url) {
+            redirectUrl.searchParams.set('api_url', response.api_url);
+          }
+          if (response.environment) {
+            redirectUrl.searchParams.set('environment', response.environment);
+          }
+          window.location.href = redirectUrl.toString();
+          // Return success but the page will redirect
+          return { success: true };
+        }
+
         setAuthToken(response.token);
         setToken(response.token);
         setUser(response.user);

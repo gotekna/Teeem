@@ -16,6 +16,12 @@ class CorporateCompanySetting < ApplicationRecord
     "staging" => "https://teeem-staging-d60a657ed68a.herokuapp.com"
   }.freeze
 
+  FRONTEND_ENVIRONMENT_URLS = {
+    "production" => "https://teeem.vercel.app",
+    "beta" => "https://teeem-beta.vercel.app",
+    "staging" => "https://teeem-staging.vercel.app"
+  }.freeze
+
   # Validations
   validates :company_name, presence: true
   validates :api_environment, inclusion: { in: VALID_API_ENVIRONMENTS }, allow_nil: true
@@ -319,12 +325,14 @@ class CorporateCompanySetting < ApplicationRecord
     if Rails.env.development?
       {
         environment: "development",
-        api_url: nil
+        api_url: nil,
+        frontend_url: nil
       }
     else
       {
         environment: env,
-        api_url: API_ENVIRONMENT_URLS[env] || API_ENVIRONMENT_URLS["production"]
+        api_url: API_ENVIRONMENT_URLS[env] || API_ENVIRONMENT_URLS["production"],
+        frontend_url: FRONTEND_ENVIRONMENT_URLS[env] || FRONTEND_ENVIRONMENT_URLS["production"]
       }
     end
   end

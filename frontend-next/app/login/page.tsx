@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/contexts/AuthContext";
 import { Spinner } from "@/components/ui/spinner";
-import { getApiBaseUrl } from "@/lib/api";
+import { getApiBaseUrl, setApiUrl, setEnvironment } from "@/lib/api";
 import Link from "next/link";
 
 function LoginForm() {
@@ -21,6 +21,32 @@ function LoginForm() {
   const { login, isAuthenticated, loading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // Check for token in URL (cross-domain redirect from another frontend deployment)
+  // This happens when user logs in on production frontend but their company
+  // is configured for staging/beta environment
+  useEffect(() => {
+    const tokenParam = searchParams.get('token');
+    if (tokenParam) {
+      // Store the token in localStorage and cookie
+      localStorage.setItem('token', tokenParam);
+      document.cookie = `auth_token=${tokenParam}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
+
+      // Store api_url and environment if provided
+      const apiUrlParam = searchParams.get('api_url');
+      const envParam = searchParams.get('environment');
+      if (apiUrlParam) {
+        setApiUrl(apiUrlParam);
+      }
+      if (envParam) {
+        setEnvironment(envParam);
+      }
+
+      // Redirect to the specified path or dashboard
+      const redirectPath = searchParams.get('redirect') || '/dashboard';
+      router.push(redirectPath);
+    }
+  }, [searchParams, router]);
 
   // Check for session expired redirect
   useEffect(() => {
