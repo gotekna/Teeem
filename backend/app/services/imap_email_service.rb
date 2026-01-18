@@ -112,85 +112,17 @@ class ImapEmailService
   def sync_to_warehouse(full_sync: false)
     results = { synced: 0, skipped: 0, errors: 0, new_emails: [] }
 
-    begin
-      # Sync from multiple folders
-      all_emails = []
-      SYNC_FOLDERS.each do |folder|
-        # Use date-based sync for both full and incremental
-        # UID-based sync was broken because UIDs are folder-specific but we stored one global last_uid
-        since_date = if full_sync
-                       90.days.ago
-                     else
-                       # For incremental, sync emails from last sync time minus 1 hour buffer
-                       # The buffer handles timezone issues and any emails that arrived just before last sync
-                       # Duplicates are handled by internet_message_id uniqueness check
-                       (credential.last_synced_at || 7.days.ago) - 1.hour
-                     end
-        emails = fetch_emails(folder: folder, since: since_date, limit: full_sync ? 500 : 250)
-        all_emails.concat(emails)
-      rescue => e
-        Rails.logger.warn "[ImapEmailService] Skipping folder #{folder}: #{e.message}"
-      end
+    # SSoT: Set tenant context for multi-tenancy
+    # EmailWarehouse uses acts_as_tenant which requires corporate_group to be set
+    corporate_group = credential.user&.corporate_group
+    unless corporate_group
+      Rails.logger.error "[ImapEmailService] Cannot sync: user #{credential.user&.id} has no corporate_group"
+      credential.mark_sync_error!("User has no corporate_group assigned")
+      return results
+    end
 
-      all_emails.each do |email_data|
-        begin
-          # Check for existing email by message ID
-          existing = EmailWarehouse.find_by(internet_message_id: email_data[:internet_message_id])
-
-          if existing
-            # Update read status from server (in case it changed)
-            existing.update!(is_read: email_data[:is_read]) if existing.is_read != email_data[:is_read]
-            results[:skipped] += 1
-            next
-          end
-
-          # Create new email warehouse entry
-          email = EmailWarehouse.create!(
-            internet_message_id: email_data[:internet_message_id],
-            source_type: "imap",
-            imap_credential: credential,
-            mailbox_owner_email: credential.email_address,  # SSoT: Required for filtering by mailbox
-            uid: email_data[:uid],
-            subject: email_data[:subject],
-            body_text: email_data[:body_text],
-            body_html: email_data[:body_html],
-            from_email: email_data[:from_email],
-            from_name: email_data[:from_name],
-            to_emails: email_data[:to_emails],
-            cc_emails: email_data[:cc_emails],
-            received_at: email_data[:received_at],
-            has_attachments: email_data[:has_attachments],
-            attachment_count: email_data[:attachment_count],
-            is_read: email_data[:is_read],
-            folder_name: email_data[:folder_name],
-            in_reply_to: email_data[:in_reply_to],
-            references: email_data[:references],
-            first_synced_at: Time.current,
-            last_synced_at: Time.current,
-            synced_by_user: credential.user
-          )
-
-          # Attach files if present
-          attach_email_files(email, email_data[:attachments]) if email_data[:attachments].present?
-
-          # Apply email rules to newly synced email
-          apply_rules_to_email(email)
-
-          results[:synced] += 1
-          results[:new_emails] << email
-        rescue ActiveRecord::RecordInvalid => e
-          Rails.logger.warn "[ImapEmailService] Skipping invalid email: #{e.message}"
-          results[:skipped] += 1
-        rescue => e
-          Rails.logger.error "[ImapEmailService] Error syncing email: #{e.message}"
-          results[:errors] += 1
-        end
-      end
-
-      credential.mark_sync_success!
-    rescue => e
-      credential.mark_sync_error!(e.message)
-      raise
+    ActsAsTenant.with_tenant(corporate_group) do
+      sync_emails_with_tenant(full_sync: full_sync, results: results)
     end
 
     results
@@ -385,6 +317,90 @@ class ImapEmailService
   end
 
   private
+
+  # Internal sync method that runs within tenant context
+  def sync_emails_with_tenant(full_sync:, results:)
+    begin
+      # Sync from multiple folders
+      all_emails = []
+      SYNC_FOLDERS.each do |folder|
+        # Use date-based sync for both full and incremental
+        # UID-based sync was broken because UIDs are folder-specific but we stored one global last_uid
+        since_date = if full_sync
+                       90.days.ago
+                     else
+                       # For incremental, sync emails from last sync time minus 1 hour buffer
+                       # The buffer handles timezone issues and any emails that arrived just before last sync
+                       # Duplicates are handled by internet_message_id uniqueness check
+                       (credential.last_synced_at || 7.days.ago) - 1.hour
+                     end
+        emails = fetch_emails(folder: folder, since: since_date, limit: full_sync ? 500 : 250)
+        all_emails.concat(emails)
+      rescue => e
+        Rails.logger.warn "[ImapEmailService] Skipping folder #{folder}: #{e.message}"
+      end
+
+      all_emails.each do |email_data|
+        begin
+          # Check for existing email by message ID
+          existing = EmailWarehouse.find_by(internet_message_id: email_data[:internet_message_id])
+
+          if existing
+            # Update read status from server (in case it changed)
+            existing.update!(is_read: email_data[:is_read]) if existing.is_read != email_data[:is_read]
+            results[:skipped] += 1
+            next
+          end
+
+          # Create new email warehouse entry
+          email = EmailWarehouse.create!(
+            internet_message_id: email_data[:internet_message_id],
+            source_type: "imap",
+            imap_credential: credential,
+            mailbox_owner_email: credential.email_address,  # SSoT: Required for filtering by mailbox
+            uid: email_data[:uid],
+            subject: email_data[:subject],
+            body_text: email_data[:body_text],
+            body_html: email_data[:body_html],
+            from_email: email_data[:from_email],
+            from_name: email_data[:from_name],
+            to_emails: email_data[:to_emails],
+            cc_emails: email_data[:cc_emails],
+            received_at: email_data[:received_at],
+            has_attachments: email_data[:has_attachments],
+            attachment_count: email_data[:attachment_count],
+            is_read: email_data[:is_read],
+            folder_name: email_data[:folder_name],
+            in_reply_to: email_data[:in_reply_to],
+            references: email_data[:references],
+            first_synced_at: Time.current,
+            last_synced_at: Time.current,
+            synced_by_user: credential.user
+          )
+
+          # Attach files if present
+          attach_email_files(email, email_data[:attachments]) if email_data[:attachments].present?
+
+          # Apply email rules to newly synced email
+          apply_rules_to_email(email)
+
+          results[:synced] += 1
+          results[:new_emails] << email
+        rescue ActiveRecord::RecordInvalid => e
+          Rails.logger.warn "[ImapEmailService] Skipping invalid email: #{e.message}"
+          results[:skipped] += 1
+        rescue => e
+          Rails.logger.error "[ImapEmailService] Error syncing email: #{e.message}"
+          results[:errors] += 1
+        end
+      end
+
+      credential.mark_sync_success!
+    rescue => e
+      credential.mark_sync_error!(e.message)
+      raise
+    end
+  end
 
   def with_imap_connection
     imap = Net::IMAP.new(

@@ -84,13 +84,9 @@ screen -dmS frontend-next bash -c 'cd /Users/robertharder/GitHub/teeem/frontend-
 
 echo "✅ Database synced and servers restarted (screen sessions: backend, frontend-next)"
 
-# Step 9: Wait for servers to start, then open SharePoint connection page
 echo "⏳ Waiting for servers to start..."
-sleep 5
-echo "🔗 Opening SharePoint connection page..."
-open "http://localhost:3000/admin/system?tab=connections"
-echo ""
-echo "👆 Connect SharePoint in the browser to enable document features locally"
+sleep 3
+echo "🎉 Done! Local environment ready at http://localhost:3000"
 ```
 
 ## Summary
@@ -102,10 +98,9 @@ echo "👆 Connect SharePoint in the browser to enable document features locally
 | 3 | S3 | local file | `aria2c -x 16` (parallel, ~30s) |
 | 4 | local file | teeem_development | `pg_restore` |
 | 5 | - | - | `db:migrate` + `create_system_foundations` |
-| 6 | - | - | Clear encrypted credentials (MS, SharePoint, S3 - prod keys don't work locally) |
+| 6 | - | - | Clear encrypted credentials (prod keys don't work locally) |
 | 7 | - | - | Verify data counts |
 | 8 | - | localhost:3000 + 3001 | Restart servers (screen) |
-| 9 | - | browser | Open SharePoint connection page |
 
 ## Notes
 
