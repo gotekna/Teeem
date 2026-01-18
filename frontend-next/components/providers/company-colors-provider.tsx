@@ -49,6 +49,17 @@ export function CompanyColorsProvider({ children }: { children: React.ReactNode 
 
   useEffect(() => {
     async function loadBrandColors() {
+      // Check for auth token before making request
+      // This prevents 401 errors on login page
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+
+      if (!token) {
+        // Not authenticated - use default colors, don't hit API
+        applyColors(DEFAULT_COLORS);
+        setIsLoaded(true);
+        return;
+      }
+
       try {
         // Use cached if available
         if (cachedColors) {
