@@ -98,7 +98,14 @@ module Api
           # TEEEM staff (email ends with @teeem.com.au) stay on production frontend
           # They use TenantSwitcher to view different companies without redirect
           is_teeem_staff = user.email.to_s.end_with?('@teeem.com.au')
-          frontend_url = is_teeem_staff ? nil : env_config[:frontend_url]
+
+          # Local development should stay local - don't redirect localhost requests
+          # Check Origin or Referer header for localhost
+          request_origin = request.headers['Origin'] || request.headers['Referer'] || ''
+          is_localhost = request_origin.include?('localhost') || request_origin.include?('127.0.0.1')
+
+          # Skip redirect for TEEEM staff OR localhost requests
+          frontend_url = (is_teeem_staff || is_localhost) ? nil : env_config[:frontend_url]
 
           token = JsonWebToken.encode(user_id: user.id)
           render json: {
