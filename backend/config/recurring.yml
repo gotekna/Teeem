@@ -457,6 +457,37 @@ monthly_saas_billing:
   schedule: every month on the 3rd at 6am
 
 # ============================================
+# BACKUP JOBS (Backblaze B2)
+# ============================================
+# Disaster recovery backups to Backblaze B2
+# SSoT: BackupStorageService (configured via BACKUP_S3_* env vars)
+
+# Daily document backup - incremental (modified in last day)
+# Runs at 2am Brisbane time (off-peak)
+document_backup_daily:
+  class: DocumentBackupJob
+  queue: low
+  args: ["daily"]
+  schedule: at 2am every day
+
+# Weekly full document backup - catches any missed files
+# Runs Sunday 4am Brisbane time (off-peak)
+document_backup_weekly:
+  class: DocumentBackupJob
+  queue: low
+  args: ["all"]
+  schedule: at 4am on Sunday
+
+# Weekly database backup to Backblaze B2
+# Downloads Heroku backup and uploads to B2
+# Requires HEROKU_API_KEY env var
+# Runs Sunday 3am Brisbane time (before document backup)
+database_backup_weekly:
+  class: DatabaseBackupJob
+  queue: low
+  schedule: at 3am on Sunday
+
+# ============================================
 # SSOT COMPLIANCE
 # ============================================
 
