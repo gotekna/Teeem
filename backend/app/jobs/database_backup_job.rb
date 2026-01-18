@@ -83,22 +83,25 @@ class DatabaseBackupJob < ApplicationJob
     attachment_name = fetch_database_attachment
     return nil unless attachment_name
 
-    # Step 1: List backups using the pg-api
-    list_uri = URI.parse("https://pg-api.heroku.com/client/v11/databases/#{attachment_name}/transfers")
+    # Step 1: List backups using Heroku Data API
+    list_uri = URI.parse("https://api.data.heroku.com/client/v11/databases/#{attachment_name}/transfers")
     list_request = Net::HTTP::Get.new(list_uri)
     list_request["Accept"] = "application/json"
+    list_request["Accept-Encoding"] = "identity"
     list_request["Authorization"] = "Bearer #{heroku_api_key}"
 
     list_response = Net::HTTP.start(list_uri.hostname, list_uri.port, use_ssl: true) do |http|
       http.request(list_request)
     end
 
+    body = decompress_response(list_response)
+
     unless list_response.code == "200"
-      Rails.logger.error "[DatabaseBackup] Failed to list backups: #{list_response.code} - #{list_response.body}"
+      Rails.logger.error "[DatabaseBackup] Failed to list backups: #{list_response.code} - #{body}"
       return nil
     end
 
-    transfers = JSON.parse(list_response.body)
+    transfers = JSON.parse(body)
     # Find the latest completed backup (succeeded=true, to_type=gof3r means backup)
     latest_backup = transfers
       .select { |t| t["succeeded"] && t["to_type"] == "gof3r" }
@@ -113,19 +116,22 @@ class DatabaseBackupJob < ApplicationJob
     Rails.logger.info "[DatabaseBackup] Found backup ##{backup_num} from #{latest_backup['finished_at']}"
 
     # Step 2: Get the public URL for this backup
-    url_uri = URI.parse("https://pg-api.heroku.com/client/v11/databases/#{attachment_name}/transfers/#{backup_num}/actions/public-url")
+    url_uri = URI.parse("https://api.data.heroku.com/client/v11/databases/#{attachment_name}/transfers/#{backup_num}/actions/public-url")
     url_request = Net::HTTP::Post.new(url_uri)
     url_request["Accept"] = "application/json"
+    url_request["Accept-Encoding"] = "identity"
     url_request["Authorization"] = "Bearer #{heroku_api_key}"
 
     url_response = Net::HTTP.start(url_uri.hostname, url_uri.port, use_ssl: true) do |http|
       http.request(url_request)
     end
 
+    url_body = decompress_response(url_response)
+
     if url_response.code == "200" || url_response.code == "201"
-      JSON.parse(url_response.body)["url"]
+      JSON.parse(url_body)["url"]
     else
-      Rails.logger.error "[DatabaseBackup] Failed to get backup URL: #{url_response.code} - #{url_response.body}"
+      Rails.logger.error "[DatabaseBackup] Failed to get backup URL: #{url_response.code} - #{url_body}"
       nil
     end
   rescue => e
