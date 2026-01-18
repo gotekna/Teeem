@@ -163,6 +163,7 @@ class DatabaseBackupJob < ApplicationJob
 
     attachments = JSON.parse(body)
     # Find the Postgres attachment (typically named DATABASE or HEROKU_POSTGRESQL_*)
+    # The addon.name contains the actual addon ID like "postgresql-curved-12345"
     pg_attachment = attachments.find { |a| a.dig("addon", "name")&.include?("postgresql") }
 
     unless pg_attachment
@@ -170,8 +171,9 @@ class DatabaseBackupJob < ApplicationJob
       return nil
     end
 
-    Rails.logger.info "[DatabaseBackup] Found database attachment: #{pg_attachment['name']}"
-    pg_attachment["name"]
+    addon_name = pg_attachment.dig("addon", "name")
+    Rails.logger.info "[DatabaseBackup] Found database addon: #{addon_name} (attachment: #{pg_attachment['name']})"
+    addon_name
   rescue => e
     Rails.logger.error "[DatabaseBackup] Failed to fetch database attachment: #{e.class} - #{e.message}"
     nil
