@@ -13,14 +13,17 @@ Commits ALL pending changes from ALL chat sessions and deploys to Staging AND Be
 ```
 [commit ALL] ──► Staging ──► Beta
                     │          │
-                    └──────────┘
-                  Deploy pipeline
+               Frontend   Frontend
+               (Vercel)   (Vercel)
+                    │          │
+               Backend    Backend
+               (Heroku)   (Heroku)
 ```
 
 ## BETA DEPLOY
 
+- Frontend: Vercel auto-deploys when branches are merged (Staging → Beta)
 - Backend: Heroku (`teeem-staging` + `teeem-beta`) - manual deploy via FAST orphan method
-- Frontend: Auto-deploys from GitHub push (no version tracking)
 
 ## Instructions
 
@@ -121,7 +124,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ```bash
 git push origin Staging
 ```
-*Frontend auto-deploys from this push*
+*Staging frontend auto-deploys from this push*
 
 ### Step 6.5 - Verify Backend Changes Were Committed
 **CRITICAL: If Step 1 showed backend/ files, verify they're in the commit:**
@@ -130,7 +133,29 @@ git diff --name-only HEAD~1 HEAD | grep backend/
 ```
 **If backend files were in `git status` but NOT in the commit diff, STOP and investigate!**
 
-### Step 7 - Deploy Backend to Staging (ONLY if backend changed)
+### Step 7 - Merge Frontend Branch (Staging → Beta)
+
+**This triggers Vercel auto-deploy for Beta frontend.**
+
+```bash
+echo "🔀 Merging frontend branch Staging → Beta..."
+
+# Save current branch
+CURRENT_BRANCH=$(git branch --show-current)
+
+# Merge Staging → Beta
+git checkout Beta
+git pull origin Beta
+git merge Staging -m "Merge Staging into Beta for deployment"
+git push origin Beta
+echo "✅ Beta frontend updated"
+
+# Return to original branch
+git checkout "$CURRENT_BRANCH"
+echo "✅ Frontend branch merged"
+```
+
+### Step 8 - Deploy Backend to Staging (ONLY if backend changed)
 
 **Check if backend files were in the commit:**
 ```bash
@@ -139,7 +164,7 @@ git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && echo "BACKEND: Deploy 
 
 **If backend changed**, deploy to Staging:
 ```bash
-echo "📦 Deploying → Staging..."
+echo "📦 Deploying backend → Staging..."
 
 cd /Users/robertharder/GitHub/teeem
 
@@ -158,14 +183,14 @@ git push heroku HEAD:main --force
 cd /Users/robertharder/GitHub/teeem
 rm -rf "$DEPLOY_DIR"
 
-echo "✅ Staging deployed"
+echo "✅ Staging backend deployed"
 ```
 
-### Step 8 - Deploy Backend to Beta
+### Step 9 - Deploy Backend to Beta
 
 **If backend changed**, deploy to Beta:
 ```bash
-echo "📦 Deploying → Beta..."
+echo "📦 Deploying backend → Beta..."
 
 cd /Users/robertharder/GitHub/teeem
 
@@ -184,12 +209,12 @@ git push heroku HEAD:main --force
 cd /Users/robertharder/GitHub/teeem
 rm -rf "$DEPLOY_DIR"
 
-echo "✅ Beta deployed"
+echo "✅ Beta backend deployed"
 ```
 
-**If no backend changes, skip Steps 7 and 8 entirely.**
+**If no backend changes, skip Steps 8 and 9 entirely.**
 
-### Step 9 - Report Status
+### Step 10 - Report Status
 
 **Get version and show deploy status:**
 
@@ -206,8 +231,13 @@ BACKEND_DEPLOYED=$(git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && ech
 BETA DEPLOYED: HH:MM DD/MM (Brisbane)
 Commit: [hash] - [message]
 ----------------------------------------
-✅ Staging: [deployed/skipped]
-✅ Beta: [deployed/skipped]
+Frontend (Vercel - auto-deploy on branch merge):
+  ✅ Staging: Staging branch pushed
+  ✅ Beta: Staging → Beta merged
+
+Backend (Heroku - direct deploy):
+  ✅ Staging: [deployed/skipped]
+  ✅ Beta: [deployed/skipped]
 ========================================
 ```
 
@@ -221,8 +251,9 @@ If any step fails:
 ## Notes
 
 - Commits ALL changes from ALL chat sessions
-- Deploys to Staging AND Beta
-- Frontend auto-deploys via Vercel on GitHub push
+- Deploys BOTH frontend AND backend to Staging AND Beta
+- Frontend: Vercel auto-deploys when Staging → Beta is merged
+- Backend: Direct Heroku deploy via orphan push method
 - Use `/b` if you only want to commit THIS chat's changes
 - Use `/sa` if you only want to deploy to Staging
 - Use `/pa` to go all the way to Production
