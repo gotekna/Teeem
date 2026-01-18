@@ -78,10 +78,15 @@ class DatabaseBackupJob < ApplicationJob
     require "net/http"
     require "uri"
 
-    # Step 1: List backups to get the latest one
-    list_uri = URI.parse("https://api.heroku.com/apps/#{HEROKU_APP}/transfers")
+    # Heroku pg-backups uses a separate API (pg-api.heroku.com)
+    # First get the database attachment name from the app
+    attachment_name = fetch_database_attachment
+    return nil unless attachment_name
+
+    # Step 1: List backups using the pg-api
+    list_uri = URI.parse("https://pg-api.heroku.com/client/v11/databases/#{attachment_name}/transfers")
     list_request = Net::HTTP::Get.new(list_uri)
-    list_request["Accept"] = "application/vnd.heroku+json; version=3"
+    list_request["Accept"] = "application/json"
     list_request["Authorization"] = "Bearer #{heroku_api_key}"
 
     list_response = Net::HTTP.start(list_uri.hostname, list_uri.port, use_ssl: true) do |http|
@@ -94,7 +99,7 @@ class DatabaseBackupJob < ApplicationJob
     end
 
     transfers = JSON.parse(list_response.body)
-    # Find the latest completed backup (not a restore)
+    # Find the latest completed backup (succeeded=true, to_type=gof3r means backup)
     latest_backup = transfers
       .select { |t| t["succeeded"] && t["to_type"] == "gof3r" }
       .max_by { |t| Time.parse(t["finished_at"]) rescue Time.at(0) }
@@ -108,9 +113,9 @@ class DatabaseBackupJob < ApplicationJob
     Rails.logger.info "[DatabaseBackup] Found backup ##{backup_num} from #{latest_backup['finished_at']}"
 
     # Step 2: Get the public URL for this backup
-    url_uri = URI.parse("https://api.heroku.com/apps/#{HEROKU_APP}/transfers/#{latest_backup['id']}/actions/public-url")
+    url_uri = URI.parse("https://pg-api.heroku.com/client/v11/databases/#{attachment_name}/transfers/#{backup_num}/actions/public-url")
     url_request = Net::HTTP::Post.new(url_uri)
-    url_request["Accept"] = "application/vnd.heroku+json; version=3"
+    url_request["Accept"] = "application/json"
     url_request["Authorization"] = "Bearer #{heroku_api_key}"
 
     url_response = Net::HTTP.start(url_uri.hostname, url_uri.port, use_ssl: true) do |http|
@@ -125,6 +130,40 @@ class DatabaseBackupJob < ApplicationJob
     end
   rescue => e
     Rails.logger.error "[DatabaseBackup] Failed to fetch backup URL: #{e.message}"
+    nil
+  end
+
+  def fetch_database_attachment
+    require "net/http"
+    require "uri"
+
+    # Get database add-on attachments for the app
+    uri = URI.parse("https://api.heroku.com/apps/#{HEROKU_APP}/addon-attachments")
+    request = Net::HTTP::Get.new(uri)
+    request["Accept"] = "application/vnd.heroku+json; version=3"
+    request["Authorization"] = "Bearer #{heroku_api_key}"
+
+    response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) do |http|
+      http.request(request)
+    end
+
+    unless response.code == "200"
+      Rails.logger.error "[DatabaseBackup] Failed to get add-ons: #{response.code} - #{response.body}"
+      return nil
+    end
+
+    attachments = JSON.parse(response.body)
+    # Find the Postgres attachment (typically named DATABASE or HEROKU_POSTGRESQL_*)
+    pg_attachment = attachments.find { |a| a["addon"]["name"]&.include?("postgresql") }
+
+    unless pg_attachment
+      Rails.logger.error "[DatabaseBackup] No Postgres add-on found"
+      return nil
+    end
+
+    pg_attachment["name"]
+  rescue => e
+    Rails.logger.error "[DatabaseBackup] Failed to fetch database attachment: #{e.message}"
     nil
   end
 end
