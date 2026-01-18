@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/contexts/AuthContext";
 import { Spinner } from "@/components/ui/spinner";
-import { getApiBaseUrl, setApiUrl, setEnvironment } from "@/lib/api";
+import { getApiBaseUrl } from "@/lib/api";
 import Link from "next/link";
 
 function LoginForm() {
@@ -18,7 +18,7 @@ function LoginForm() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [sessionExpiredMessage, setSessionExpiredMessage] = useState("");
-  const { login, isAuthenticated, loading } = useAuth();
+  const { login, isAuthenticated, loading, handleTokenFromRedirect } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -28,25 +28,20 @@ function LoginForm() {
   useEffect(() => {
     const tokenParam = searchParams.get('token');
     if (tokenParam) {
-      // Store the token in localStorage and cookie
-      localStorage.setItem('token', tokenParam);
-      document.cookie = `auth_token=${tokenParam}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
-
-      // Store api_url and environment if provided
-      const apiUrlParam = searchParams.get('api_url');
-      const envParam = searchParams.get('environment');
-      if (apiUrlParam) {
-        setApiUrl(apiUrlParam);
-      }
-      if (envParam) {
-        setEnvironment(envParam);
-      }
-
-      // Redirect to the specified path or dashboard
+      const apiUrlParam = searchParams.get('api_url') || undefined;
+      const envParam = searchParams.get('environment') || undefined;
       const redirectPath = searchParams.get('redirect') || '/dashboard';
-      router.push(redirectPath);
+
+      // Use AuthContext to handle the token - this stores it, sets up API URL,
+      // and verifies with the backend before redirecting
+      handleTokenFromRedirect(tokenParam, apiUrlParam, envParam).then((success) => {
+        if (success) {
+          router.push(redirectPath);
+        }
+        // If failed, user stays on login page (logout was called by handleTokenFromRedirect)
+      });
     }
-  }, [searchParams, router]);
+  }, [searchParams, router, handleTokenFromRedirect]);
 
   // Check for session expired redirect
   useEffect(() => {

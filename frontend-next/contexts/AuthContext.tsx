@@ -19,6 +19,8 @@ interface AuthContextType {
   signup: (name: string, email: string, password: string, passwordConfirmation: string) => Promise<{ success: boolean; errors?: string[] }>;
   logout: () => void;
   refreshUser: () => Promise<void>;
+  /** Handle token received from cross-domain redirect (stores token and verifies with API) */
+  handleTokenFromRedirect: (token: string, apiUrl?: string, environment?: string) => Promise<boolean>;
   loading: boolean;
   isAuthenticated: boolean;
   /** Get current API environment ('production', 'beta', 'staging') */
@@ -291,12 +293,53 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     await checkAuth();
   };
 
+  // Handle token received from cross-domain redirect
+  // This is called by the login page when it receives a token via URL params
+  const handleTokenFromRedirect = async (
+    tokenFromUrl: string,
+    apiUrl?: string,
+    environment?: string
+  ): Promise<boolean> => {
+    // Store the token
+    setAuthToken(tokenFromUrl);
+    setToken(tokenFromUrl);
+
+    // Store api_url and environment if provided
+    if (apiUrl) {
+      setApiUrl(apiUrl);
+    }
+    if (environment) {
+      setEnvironment(environment);
+    }
+
+    // Verify the token with the backend
+    try {
+      const response = await api.get<AuthResponse>('/api/v1/auth/me');
+      if (response.success && response.user) {
+        setUser(response.user);
+        applyUserTheme(response.user);
+        loadTypeDefinitions();
+        setLoading(false);
+        return true;
+      } else {
+        // Token invalid - clear everything
+        logout();
+        return false;
+      }
+    } catch (error) {
+      console.error('Token verification failed:', error);
+      logout();
+      return false;
+    }
+  };
+
   const value: AuthContextType = {
     user,
     login,
     signup,
     logout,
     refreshUser,
+    handleTokenFromRedirect,
     loading,
     isAuthenticated: !!user,
     getEnvironment
