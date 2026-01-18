@@ -14,7 +14,23 @@ module Api
       def update
         settings = current_tenant_settings
 
-        if settings.update(company_settings_params)
+        # Extract api_environment - this goes to CorporateCompanySetting, not TenantSetting
+        # api_environment is an org-wide setting that determines which backend env the company uses
+        update_params = company_settings_params.to_h
+        api_environment = update_params.delete("api_environment")
+
+        # Update api_environment on CorporateCompanySetting (the org-wide singleton)
+        if api_environment.present?
+          corporate_settings = CorporateCompanySetting.instance
+          unless corporate_settings.update(api_environment: api_environment)
+            return render json: {
+              success: false,
+              error: "Failed to update environment: #{corporate_settings.errors.full_messages.join(', ')}"
+            }, status: :unprocessable_entity
+          end
+        end
+
+        if settings.update(update_params)
           render json: {
             success: true,
             message: "Settings updated successfully",
@@ -121,10 +137,9 @@ module Api
           bank_account_name: settings.bank_account_name
         }
 
-        # Add api_environment for CorporateCompanySetting (production backend is the "router")
-        if settings.respond_to?(:api_environment)
-          base[:api_environment] = settings.api_environment || "production"
-        end
+        # Always get api_environment from CorporateCompanySetting (org-wide singleton)
+        # This determines which backend environment the company uses (production/beta/staging)
+        base[:api_environment] = CorporateCompanySetting.api_environment
 
         base
       end
