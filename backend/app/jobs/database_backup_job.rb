@@ -83,25 +83,14 @@ class DatabaseBackupJob < ApplicationJob
     attachment_name = fetch_database_attachment
     return nil unless attachment_name
 
-    # Step 1: List backups using Heroku Data API
-    list_uri = URI.parse("https://api.data.heroku.com/client/v11/databases/#{attachment_name}/transfers")
-    list_request = Net::HTTP::Get.new(list_uri)
-    list_request["Accept"] = "application/json"
-    list_request["Accept-Encoding"] = "identity"
-    list_request["Authorization"] = "Bearer #{heroku_api_key}"
+    # Step 1: List backups using Heroku Data API (with redirect following)
+    list_body = fetch_with_redirects(
+      "https://api.data.heroku.com/client/v11/databases/#{attachment_name}/transfers",
+      :get
+    )
+    return nil unless list_body
 
-    list_response = Net::HTTP.start(list_uri.hostname, list_uri.port, use_ssl: true) do |http|
-      http.request(list_request)
-    end
-
-    body = decompress_response(list_response)
-
-    unless list_response.code == "200"
-      Rails.logger.error "[DatabaseBackup] Failed to list backups: #{list_response.code} - #{body}"
-      return nil
-    end
-
-    transfers = JSON.parse(body)
+    transfers = JSON.parse(list_body)
     # Find the latest completed backup (succeeded=true, to_type=gof3r means backup)
     latest_backup = transfers
       .select { |t| t["succeeded"] && t["to_type"] == "gof3r" }
@@ -116,24 +105,13 @@ class DatabaseBackupJob < ApplicationJob
     Rails.logger.info "[DatabaseBackup] Found backup ##{backup_num} from #{latest_backup['finished_at']}"
 
     # Step 2: Get the public URL for this backup
-    url_uri = URI.parse("https://api.data.heroku.com/client/v11/databases/#{attachment_name}/transfers/#{backup_num}/actions/public-url")
-    url_request = Net::HTTP::Post.new(url_uri)
-    url_request["Accept"] = "application/json"
-    url_request["Accept-Encoding"] = "identity"
-    url_request["Authorization"] = "Bearer #{heroku_api_key}"
+    url_body = fetch_with_redirects(
+      "https://api.data.heroku.com/client/v11/databases/#{attachment_name}/transfers/#{backup_num}/actions/public-url",
+      :post
+    )
+    return nil unless url_body
 
-    url_response = Net::HTTP.start(url_uri.hostname, url_uri.port, use_ssl: true) do |http|
-      http.request(url_request)
-    end
-
-    url_body = decompress_response(url_response)
-
-    if url_response.code == "200" || url_response.code == "201"
-      JSON.parse(url_body)["url"]
-    else
-      Rails.logger.error "[DatabaseBackup] Failed to get backup URL: #{url_response.code} - #{url_body}"
-      nil
-    end
+    JSON.parse(url_body)["url"]
   rescue => e
     Rails.logger.error "[DatabaseBackup] Failed to fetch backup URL: #{e.message}"
     nil
@@ -177,6 +155,42 @@ class DatabaseBackupJob < ApplicationJob
   rescue => e
     Rails.logger.error "[DatabaseBackup] Failed to fetch database attachment: #{e.class} - #{e.message}"
     nil
+  end
+
+  def fetch_with_redirects(url, method = :get, max_redirects = 5)
+    require "net/http"
+    require "uri"
+
+    uri = URI.parse(url)
+    redirects = 0
+
+    loop do
+      request = method == :post ? Net::HTTP::Post.new(uri) : Net::HTTP::Get.new(uri)
+      request["Accept"] = "application/json"
+      request["Accept-Encoding"] = "identity"
+      request["Authorization"] = "Bearer #{heroku_api_key}"
+
+      response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) do |http|
+        http.request(request)
+      end
+
+      case response.code
+      when "200", "201"
+        return decompress_response(response)
+      when "301", "302", "303", "307", "308"
+        redirects += 1
+        if redirects > max_redirects
+          Rails.logger.error "[DatabaseBackup] Too many redirects"
+          return nil
+        end
+        location = response["location"]
+        Rails.logger.info "[DatabaseBackup] Following redirect to: #{location}"
+        uri = URI.parse(location)
+      else
+        Rails.logger.error "[DatabaseBackup] HTTP error: #{response.code} - #{decompress_response(response)}"
+        return nil
+      end
+    end
   end
 
   def decompress_response(response)
