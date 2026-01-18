@@ -409,11 +409,48 @@ export const DOCUMENT_PLACEHOLDERS: PlaceholderToken[] = [
 // =============================================================================
 
 export const STORAGE_PLACEHOLDERS: PlaceholderToken[] = [
+  // Job-related tokens
   {
     code: "{{JobCode}}",
     example: "J069",
     color: "orange",
     description: "Job code for storage paths",
+  },
+  {
+    code: "{{JobName}}",
+    example: "05 Wategors",
+    color: "orange",
+    description: "Job name/title (short)",
+  },
+  {
+    code: "{{JobTitle}}",
+    example: "83 West Ridge",
+    color: "orange",
+    description: "Job title (full)",
+  },
+  {
+    code: "{{JobAddress}}",
+    example: "Lot 5 Wategois Street",
+    color: "orange",
+    description: "Full job address",
+  },
+  {
+    code: "{{LotNumber}}",
+    example: "5",
+    color: "orange",
+    description: "Lot number",
+  },
+  {
+    code: "{{StreetName}}",
+    example: "Wategois Street",
+    color: "orange",
+    description: "Street name",
+  },
+  {
+    code: "{{Suburb}}",
+    example: "Claamvale",
+    color: "orange",
+    description: "Suburb",
   },
   {
     code: "{{TaskId}}",
