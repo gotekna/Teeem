@@ -34,7 +34,7 @@ import {
   PopoverTrigger,
 } from "./popover";
 import { Badge } from "./badge";
-import { api } from "@/lib/api";
+import { api, getCurrentEnvironment } from "@/lib/api";
 import { COMPANY_TIMEZONE } from "@/lib/timezone-utils";
 import { useTenantOptional } from "@/contexts/TenantContext";
 import { Building2 } from "lucide-react";
@@ -71,6 +71,7 @@ interface SidebarContentProps {
   backendVersion: string | null;
   herokuRelease: string | null;
   deployedAt: string | null;
+  apiEnvironment: string | null;
   user: { name?: string; email?: string } | null;
   mounted: boolean;
   resolvedTheme: string | undefined;
@@ -92,6 +93,7 @@ function SidebarContent({
   backendVersion,
   herokuRelease,
   deployedAt,
+  apiEnvironment,
   user,
   mounted,
   resolvedTheme,
@@ -157,11 +159,13 @@ function SidebarContent({
               <span>{backendVersion}</span>
               {herokuRelease && <span>Heroku: {herokuRelease}</span>}
               {deployedAt && <span>D: {deployedAt}</span>}
+              {apiEnvironment && <span className="text-amber-500 font-medium">{apiEnvironment}</span>}
             </div>
           ) : (
             <div className="flex flex-col gap-0.5">
               <span>{backendVersion}</span>
               {herokuRelease && <span>{herokuRelease}</span>}
+              {apiEnvironment && <span className="text-amber-500">{apiEnvironment.charAt(0)}</span>}
             </div>
           )}
         </div>
@@ -265,6 +269,7 @@ export function Sidebar() {
   const [emailAccountBadges, setEmailAccountBadges] = useState<Record<string, number>>({});
   const [backendVersion, setBackendVersion] = useState<string | null>(null);
   const [herokuRelease, setHerokuRelease] = useState<string | null>(null);
+  const [apiEnvironment, setApiEnvironment] = useState<string | null>(null);
 
   // Fetch navigation from API (SSoT - order from NavigationItem, collapse from user prefs)
   const { data: apiNavigation, isLoading: navLoading, isError: navError } = useNavigation();
@@ -284,6 +289,23 @@ export function Sidebar() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Load API environment - prefer TenantContext (for tenant switching), fallback to localStorage
+  useEffect(() => {
+    // First check TenantContext (for TEEEM staff switching tenants)
+    const tenantEnv = tenantContext?.currentTenant?.environment;
+    if (tenantEnv && tenantEnv !== 'production') {
+      setApiEnvironment(tenantEnv.charAt(0).toUpperCase() + tenantEnv.slice(1));
+      return;
+    }
+    // Fallback to localStorage (set during login)
+    const env = getCurrentEnvironment();
+    if (env && env !== 'production') {
+      setApiEnvironment(env.charAt(0).toUpperCase() + env.slice(1));
+    } else {
+      setApiEnvironment(null);
+    }
+  }, [tenantContext?.currentTenant?.environment]);
 
   // DEBUG: Global click listener to see if ANY clicks are registered
   useEffect(() => {
@@ -813,6 +835,7 @@ export function Sidebar() {
     backendVersion,
     herokuRelease,
     deployedAt,
+    apiEnvironment,
     user,
     mounted,
     resolvedTheme,
