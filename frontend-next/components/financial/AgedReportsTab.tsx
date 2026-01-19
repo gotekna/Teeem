@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { safePercent } from "@/lib/utils";
+import { formatCurrency } from "@/utils/formatters";
 
 interface AgingBucket {
   label: string;
@@ -70,14 +71,6 @@ interface AgedReport {
   summary: AgingSummary;
   by_customer: CustomerAging[];
   generated_at: string;
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-  }).format(amount);
 }
 
 function formatDate(dateString: string | null): string {

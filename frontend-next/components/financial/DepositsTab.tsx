@@ -33,6 +33,7 @@ import {
   Briefcase,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency } from "@/utils/formatters";
 
 interface Deposit {
   id: number;
@@ -61,14 +62,6 @@ interface DepositSummary {
   unapplied_amount: number;
   refunded_amount: number;
   by_type: Array<{ type: string; count: number; amount: number }>;
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-  }).format(amount);
 }
 
 function formatDate(dateString: string): string {

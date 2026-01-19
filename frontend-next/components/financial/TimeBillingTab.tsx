@@ -36,6 +36,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency } from "@/utils/formatters";
 
 interface BillableRate {
   id: number;
@@ -101,14 +102,6 @@ interface UnbilledData {
     total_amount: number;
     entry_count: number;
   };
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-  }).format(amount);
 }
 
 function formatDate(dateString: string): string {

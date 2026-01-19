@@ -46,6 +46,7 @@ import {
   Eye,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency } from "@/utils/formatters";
 
 interface PaymentBatchItem {
   id: number;
@@ -80,14 +81,6 @@ interface BatchSummary {
   pending_amount: number;
   approved_amount: number;
   this_month: number;
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-  }).format(amount);
 }
 
 function formatDate(dateString: string): string {

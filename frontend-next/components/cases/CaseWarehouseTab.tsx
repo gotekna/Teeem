@@ -28,6 +28,7 @@ import {
 import { api } from "@/lib/api";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/utils/formatters";
 
 interface WarehouseSummary {
   case_number: string;
@@ -60,15 +61,6 @@ interface WarehouseSummary {
 
 interface CaseWarehouseTabProps {
   caseId: string;
-}
-
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
 }
 
 export function CaseWarehouseTab({ caseId }: CaseWarehouseTabProps) {

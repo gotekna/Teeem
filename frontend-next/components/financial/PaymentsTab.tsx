@@ -35,6 +35,7 @@ import {
   Link2,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency } from "@/utils/formatters";
 
 interface Payment {
   id: number;
@@ -65,14 +66,6 @@ interface PaymentSummary {
   supplier_payments: { count: number; total: number };
   refunds: { count: number; total: number };
   by_status: Record<string, number>;
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-  }).format(amount);
 }
 
 function formatDate(dateString: string): string {

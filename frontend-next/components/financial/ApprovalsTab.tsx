@@ -50,6 +50,7 @@ import {
   Edit,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency } from "@/utils/formatters";
 
 interface ApprovalStep {
   id: number;
@@ -98,14 +99,6 @@ interface ApprovalHistory {
   approved_by: string;
   approved_at: string;
   notes: string | null;
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-  }).format(amount);
 }
 
 function formatDate(dateString: string): string {

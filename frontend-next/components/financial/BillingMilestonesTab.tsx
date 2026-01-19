@@ -35,6 +35,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency } from "@/utils/formatters";
 
 interface BillingMilestone {
   id: number;
@@ -59,14 +60,6 @@ interface BillingMilestone {
   completion_notes: string | null;
   sort_order: number;
   created_at: string;
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-  }).format(amount);
 }
 
 function formatDate(dateString: string): string {

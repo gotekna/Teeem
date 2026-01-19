@@ -31,6 +31,7 @@ import {
   Clock,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency } from "@/utils/formatters";
 
 interface Department {
   id: number;
@@ -81,15 +82,6 @@ interface DocumentRequest {
   documents_count: number;
   completed_count: number;
   created_at: string;
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
 }
 
 function formatDate(dateString: string): string {

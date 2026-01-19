@@ -31,6 +31,7 @@ import {
   Edit,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency } from "@/utils/formatters";
 
 interface AIDashboard {
   categorization: {
@@ -80,14 +81,6 @@ interface DuplicateGroup {
   member_count: number;
   similarity_score: number;
   status: string;
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-  }).format(amount);
 }
 
 export default function AITab() {

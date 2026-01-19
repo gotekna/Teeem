@@ -20,6 +20,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency } from "@/utils/formatters";
 
 interface BudgetItem {
   id: number;
@@ -46,15 +47,6 @@ interface BudgetData {
 
 interface JobBudgetTabProps {
   jobId: string | number;
-}
-
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
 }
 
 const STATUS_VARIANTS: Record<string, { variant: string; label: string }> = {

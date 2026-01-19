@@ -18,15 +18,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
+import { formatCurrency } from "@/utils/formatters";
 
 function XeroDuplicateGroupCard({ group }: { group: XeroDuplicateGroup }) {
   const [expanded, setExpanded] = useState(true);

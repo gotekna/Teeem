@@ -48,6 +48,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency } from "@/utils/formatters";
 
 interface ScheduledInvoice {
   id: number;
@@ -71,14 +72,6 @@ interface ScheduleStats {
   sent_today: number;
   failed: number;
   scheduled_this_week: number;
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-  }).format(amount);
 }
 
 function formatDate(dateString: string): string {

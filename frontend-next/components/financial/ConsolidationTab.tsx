@@ -33,6 +33,7 @@ import {
   PieChart,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency } from "@/utils/formatters";
 
 interface Entity {
   id: number;
@@ -92,15 +93,6 @@ interface ConsolidationData {
     }>;
     total_intercompany: number;
   };
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
 }
 
 export default function ConsolidationTab() {

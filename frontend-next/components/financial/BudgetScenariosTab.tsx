@@ -32,6 +32,7 @@ import {
   Plus,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency } from "@/utils/formatters";
 
 interface BudgetScenario {
   id: number;
@@ -51,15 +52,6 @@ interface BudgetScenario {
     total_expenses: number;
     net_income: number;
   };
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
 }
 
 function formatPercent(pct: number): string {

@@ -25,6 +25,7 @@ import {
   Download,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency } from "@/utils/formatters";
 
 interface ReportLine {
   account_code: string;
@@ -77,14 +78,6 @@ interface TrialBalanceReport {
   }>;
   total_debits: number;
   total_credits: number;
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-  }).format(amount);
 }
 
 export default function ReportsTab() {

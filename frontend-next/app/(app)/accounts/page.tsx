@@ -15,6 +15,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
+import { formatCurrency } from "@/utils/formatters";
 
 // Types
 interface Stats {
@@ -35,13 +36,6 @@ interface PurchaseOrder {
   total: string;
   status: string;
   required_date?: string;
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-  }).format(amount);
 }
 
 function formatDate(dateString: string | undefined): string {

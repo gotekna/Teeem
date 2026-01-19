@@ -65,6 +65,7 @@ import {
 } from "@/components/ui/dialog";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/utils/formatters";
 
 interface Supplier {
   id: number;
@@ -269,16 +270,6 @@ const STATUS_BADGE_VARIANTS: Record<string, string> = {
   paid: "bg-emerald-100 text-emerald-800 border-emerald-300",
   cancelled: "bg-red-100 text-red-800 border-red-300",
 };
-
-function formatCurrency(value: number | undefined | null): string {
-  if (value === undefined || value === null) return "$0.00";
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-}
 
 /**
  * Calculate payment due date based on supplier's payment terms

@@ -7,6 +7,11 @@
  * SSoT: This file is THE ONE place for expense tree data processing.
  */
 
+import { formatCurrency } from "@/utils/formatters";
+
+// Re-export formatCurrency for convenience (SSoT: @/utils/formatters)
+export { formatCurrency };
+
 // =============================================================================
 // TYPES
 // =============================================================================
@@ -118,18 +123,7 @@ export function getPercentage(spent: number, budget: number, cap = false): numbe
   return cap ? Math.min(percent, 100) : percent;
 }
 
-/**
- * Format currency with Australian locale
- */
-export function formatCurrency(amount: number | null | undefined): string {
-  if (amount === null || amount === undefined) return '$0';
-  return new Intl.NumberFormat('en-AU', {
-    style: 'currency',
-    currency: 'AUD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
+// formatCurrency imported from @/utils/formatters (SSoT)
 
 /**
  * Format percentage with sign

@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { slugifyJobTitle } from "@/lib/url-utils";
+import { formatCurrency } from "@/utils/formatters";
 import { JobActivityTab } from "@/components/jobs/JobActivityTab";
 import { JobPeopleTab } from "@/components/jobs/JobPeopleTab";
 import { RainLogTab } from "@/components/jobs/RainLogTab";
@@ -96,15 +97,6 @@ const tabs = [
   { name: "Docs", slug: "documents", icon: FileText },
   { name: "Coms", slug: "coms", icon: MessageSquare },
 ];
-
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
-}
 
 function getInitials(name: string | undefined | null): string {
   if (!name) return "?";

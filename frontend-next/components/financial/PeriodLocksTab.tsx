@@ -30,6 +30,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency } from "@/utils/formatters";
 
 interface PeriodLock {
   id: number;
@@ -59,14 +60,6 @@ interface LockStatus {
   locked_until: string | null;
   recent_locks: PeriodLock[];
   periods_available_to_lock: AvailablePeriod[];
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-  }).format(amount);
 }
 
 function formatDate(dateString: string | null): string {
