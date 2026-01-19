@@ -235,41 +235,20 @@ function SidebarContent({
             >
               <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
               {(isExpanded || mobile) ? (
-                <div className="flex flex-col gap-1 flex-1 min-w-0">
-                  <div className="flex gap-2">
-                  <select
-                    value={tenantInfo.currentTenant.id.toString()}
-                    onChange={(e) => {
-                      console.log('[Sidebar] Native select changed to:', e.target.value);
-                      tenantInfo.switchTenant(parseInt(e.target.value, 10));
-                    }}
-                    onClick={() => console.log('[Sidebar] Select clicked')}
-                    disabled={tenantInfo.isLoading}
-                    className="h-7 text-xs flex-1 border border-border bg-background px-2 py-1 rounded"
-                  >
-                    {tenantInfo.tenants.map((t) => (
-                      <option key={t.id} value={t.id.toString()}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={() => {
-                      console.log('[Sidebar] TEST BUTTON - switching to Pilgrim (77)');
-                      tenantInfo.switchTenant(77);
-                    }}
-                    className="h-7 px-2 text-xs bg-blue-500 text-white rounded"
-                  >
-                    Test
-                  </button>
-                </div>
-                  <Badge
-                    variant={getEnvironmentBadgeVariant(tenantInfo.currentTenant.environment)}
-                    className="text-[10px] w-fit"
-                  >
-                    {tenantInfo.currentTenant.environment}
-                  </Badge>
-                </div>
+                <select
+                  value={tenantInfo.currentTenant.id.toString()}
+                  onChange={(e) => {
+                    tenantInfo.switchTenant(parseInt(e.target.value, 10));
+                  }}
+                  disabled={tenantInfo.isLoading}
+                  className="h-7 text-xs flex-1 border border-border bg-background px-2 py-1 rounded min-w-0"
+                >
+                  {tenantInfo.tenants.map((t) => (
+                    <option key={t.id} value={t.id.toString()}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
               ) : (
                 // Collapsed: just show tooltip on hover
                 <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 border shadow-sm whitespace-nowrap">
@@ -278,7 +257,7 @@ function SidebarContent({
               )}
             </div>
           ) : (
-            // Regular users: just display company name + environment
+            // Regular users: just display company name
             <div
               className={cn(
                 "flex items-center gap-2 p-2 group relative",
@@ -287,17 +266,9 @@ function SidebarContent({
             >
               <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
               {(isExpanded || mobile) ? (
-                <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-                  <span className="text-sm font-medium truncate">
-                    {tenantInfo.currentTenant.name}
-                  </span>
-                  <Badge
-                    variant={getEnvironmentBadgeVariant(tenantInfo.currentTenant.environment)}
-                    className="text-[10px] w-fit"
-                  >
-                    {tenantInfo.currentTenant.environment}
-                  </Badge>
-                </div>
+                <span className="text-sm font-medium truncate flex-1 min-w-0">
+                  {tenantInfo.currentTenant.name}
+                </span>
               ) : (
                 // Collapsed: show tooltip on hover
                 <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 border shadow-sm whitespace-nowrap">
