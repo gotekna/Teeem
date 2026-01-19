@@ -37,11 +37,11 @@ class SyncSubscription < ApplicationRecord
       config&.job_path(job.job_code) || "/Jobs/#{job.job_code}"
     when "CorporateCompany"
       company = syncable
-      base = config&.path_for(:corporate) || "Corporate"
+      base = config.path_for(:corporate)
       "/#{base}/#{company.name}".gsub(/[<>:"\/\\|?*]/, "_")
     when "Contact"
       contact = syncable
-      base = config&.path_for(:contact) || "Contacts"
+      base = config.path_for(:contact)
       "/#{base}/#{contact.full_name}".gsub(/[<>:"\/\\|?*]/, "_")
     end
   end

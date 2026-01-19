@@ -229,7 +229,7 @@ class EmailStorageUploadService
     # Build storage path
     year = email.received_at&.year || email.created_at.year
     month = (email.received_at || email.created_at).strftime("%m")
-    base_path = @storage_config.path_for(:email) || "Emails/eml"
+    base_path = @storage_config.path_for(:email)
     folder_path = "#{base_path}/#{year}/#{month}"
     filename = "#{email.id}.eml"
 

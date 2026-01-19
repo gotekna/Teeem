@@ -1751,7 +1751,7 @@ module Api
             if storage_config&.sharepoint?
               credential = MicrosoftCredential.sharepoint_credential
               if credential&.metadata&.dig("site_web_url")
-                contacts_folder = storage_config.path_for(:contacts) || "Contacts"
+                contacts_folder = storage_config.path_for(:contacts)
                 # SSoT: root_path comes from StorageConfiguration (e.g., "Shared Documents" for SharePoint)
                 root_path = storage_config.root_path&.sub(%r{^/}, "")
                 encoded_folder = ERB::Util.url_encode(contacts_folder)

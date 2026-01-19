@@ -41,46 +41,6 @@ class StorageConfiguration < ApplicationRecord
   # Connection statuses
   STATUSES = %w[disconnected connected error].freeze
 
-  # SSoT: Base folder names for each scope
-  # These match the Entity Config UI at /admin/system/entity-config/sharepoint_config
-  # Only include scopes that are actually shown in Entity Config
-  SCOPE_FOLDERS = {
-    # Primary document scopes
-    "job" => "Jobs",
-    "corporate" => "Corporate",
-    "people" => "Corporate/People",
-    "contact" => "Contacts",
-    # User scopes
-    "users" => "Users",
-    "user_photos" => "Users/Photos",
-    "user_contracts" => "Users/Contracts",
-    "my_docs" => "Users/MyDocs",
-    # Email scopes (base folder only - template adds mailbox/year/month)
-    "email" => "Emails",
-    "email_attachments" => "Emails",
-    # Warehouse scopes
-    "warehouse" => "Warehousing",
-    "task" => "Tasks",
-    "task_attachments" => "Tasks",
-    "task_responses" => "Tasks",
-    "bill_inbox" => "Warehousing/BillInbox",
-    "pricebook_photos" => "Warehousing/Pricebook Photos",
-    "chat" => "Warehousing/Chat",
-    "notes" => "Warehousing/Notes",
-    "excel_documents" => "Warehousing/Excel",
-    "word_documents" => "Warehousing/Word",
-    "powerpoint_documents" => "Warehousing/PowerPoint",
-    "pdf_documents" => "Warehousing/PDF",
-    # Template scopes
-    "templates" => "Warehousing/Templates",
-    "bank_statements" => "Warehousing/Templates/Bank Statements",
-    "contracts" => "Warehousing/Templates/Contracts",
-    # Custom storage
-    "custom" => "Documents",
-    # System storage
-    "active_storage" => "ActiveStorage"
-  }.freeze
-
   # Validations
   # Note: provider_type is now DERIVED from active credentials (SSoT)
   # The stored column is just a fallback default, so we validate it exists but don't require it to be "correct"
@@ -147,8 +107,8 @@ class StorageConfiguration < ApplicationRecord
   # ========================================
 
   # Get base folder name for a scope
-  # SSoT: Reads from database column `scope_folders`, falls back to SCOPE_FOLDERS constant
-  # Used by EntityTab.storage_base_path to build: root_path + scope_folder
+  # SSoT: Database column `scope_folders` is THE ONE source of truth
+  # Populated by migration 20260112120004, configurable via admin UI
   #
   # @param scope [String, Symbol] The scope name (job, corporate, contact, etc.)
   # @return [String] The folder name for that scope
@@ -159,58 +119,22 @@ class StorageConfiguration < ApplicationRecord
   #   path_for(:contact)    # => "Contacts"
   #
   def path_for(scope)
-    # SSoT: Database column first, then hardcoded fallback
-    scope_folders&.dig(scope.to_s) || SCOPE_FOLDERS[scope.to_s] || scope.to_s.titleize
+    scope_folders&.dig(scope.to_s) || scope.to_s.titleize
   end
 
   # Get all scope folders (for UI editing)
   def effective_scope_folders
-    SCOPE_FOLDERS.merge(scope_folders || {})
+    scope_folders || {}
   end
 
-  # Default templates for path generation
-  # SSoT: These are fallback defaults. Database `templates` column overrides these.
-  SCOPE_TEMPLATES = {
-    "job" => "{{JobCode}}/{{TabName}}",
-    "jobs" => "{{JobCode}}/{{TabName}}",
-    "task" => "{{TaskId}}",
-    "tasks" => "{{TaskId}}",
-    "task_attachments" => "{{TaskId}}/Attachments",
-    "task_responses" => "{{TaskId}}/Responses",
-    "corporate" => "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
-    "corporate_entity" => "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
-    "company" => "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
-    "people" => "{{ContactId}} - {{ContactName}}/{{TabName}}",
-    "contact" => "{{ContactId}} - {{ContactName}}",
-    "contacts" => "{{ContactId}} - {{ContactName}}/{{TabName}}",
-    "account" => "{{Source}}/{{ContactName}}/{{Category}}",
-    "accounts" => "{{Source}}/{{ContactName}}/{{Category}}",
-    "email" => "{{Mailbox}}/Email Body/{{Year}}/{{Month}}",
-    "emails" => "{{Mailbox}}/Email Body/{{Year}}/{{Month}}",
-    "email_attachments" => "{{Mailbox}}/Attachments/{{Year}}/{{Month}}",
-    # Warehouse document scopes
-    "notes" => "{{UserName}}/{{Year}}",
-    "excel_documents" => "{{UserName}}/{{Year}}",
-    "word_documents" => "{{UserName}}/{{Year}}",
-    "powerpoint_documents" => "{{UserName}}/{{Year}}",
-    "pdf_documents" => "{{UserName}}/{{Year}}"
-  }.freeze
-
   # Get template for a scope
-  # SSoT: Database `templates` column is authoritative when key exists
+  # SSoT: Database `templates` column is THE ONE source of truth
+  # Populated by migration, configurable via admin UI
+  #
   # @param scope [String, Symbol] The scope name
   # @return [String] The template string for path generation (empty string = no template)
   def template_for(scope)
-    scope_key = scope.to_s
-
-    # SSoT: If key exists in templates (even if empty), use that value
-    # Empty string means "no template wanted" - don't fall back to defaults
-    if templates&.key?(scope_key)
-      return templates[scope_key] || ""
-    end
-
-    # Key not in database - use hardcoded fallbacks
-    SCOPE_TEMPLATES[scope_key] || "{{Name}}/{{Category}}"
+    templates&.dig(scope.to_s) || ""
   end
 
   # ========================================
@@ -644,26 +568,13 @@ class StorageConfiguration < ApplicationRecord
     virtual_scopes || {}
   end
 
-  # Default templates for virtual folder paths
-  # SSoT: These are fallback defaults. Database `templates` column overrides these.
-  VIRTUAL_SCOPE_TEMPLATES = {
-    "email" => "{{Mailbox}}/Email Body/{{Year}}/{{Month}}",
-    "email_attachments" => "{{Mailbox}}/Attachments/{{Year}}/{{Month}}"
-  }.freeze
-
   # Get template for a virtual scope folder path
+  # SSoT: Database `templates` column is THE ONE source of truth
+  #
   # @param scope [String, Symbol] The scope name
   # @return [String] The template string for virtual folder generation
   def virtual_template_for(scope)
-    scope_key = scope.to_s
-
-    # SSoT: If key exists in templates (even if empty), use that value
-    if templates&.key?(scope_key)
-      return templates[scope_key] || ""
-    end
-
-    # Key not in database - use virtual scope defaults
-    VIRTUAL_SCOPE_TEMPLATES[scope_key] || SCOPE_TEMPLATES[scope_key] || ""
+    templates&.dig(scope.to_s) || ""
   end
 
   # ========================================

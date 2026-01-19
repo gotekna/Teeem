@@ -117,7 +117,7 @@ class DocumentRelocateService
     return nil unless company
 
     storage_config = StorageConfiguration.instance
-    base_path = storage_config&.path_for(:corporate) || "Corporate"
+    base_path = storage_config.path_for(:corporate)
     company_folder = company.document_folder_name || company.name
 
     if folder.present?

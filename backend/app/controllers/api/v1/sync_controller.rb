@@ -559,7 +559,7 @@ module Api
         config = StorageConfiguration.instance
         case type
         when "Job"
-          base = config&.path_for(:job) || "Jobs"
+          base = config.path_for(:job)
           {
             id: "job:#{entity.id}",
             type: "Job",
@@ -570,7 +570,7 @@ module Api
             has_sharepoint_folder: entity.sharepoint_folder_id.present?
           }
         when "CorporateCompany"
-          base = config&.path_for(:corporate) || "Corporate"
+          base = config.path_for(:corporate)
           {
             id: "company:#{entity.id}",
             type: "CorporateCompany",
@@ -581,7 +581,7 @@ module Api
             has_sharepoint_folder: entity.respond_to?(:sharepoint_folder_id) && entity.sharepoint_folder_id.present?
           }
         when "Contact"
-          base = config&.path_for(:contact) || "Contacts"
+          base = config.path_for(:contact)
           {
             id: "contact:#{entity.id}",
             type: "Contact",

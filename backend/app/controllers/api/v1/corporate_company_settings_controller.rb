@@ -48,9 +48,9 @@ module Api
           success: true,
           data: {
             # SSoT: Use sharepoint_* columns, return with legacy key names for backward compatibility
-            company_documents_base_path: settings.sharepoint_company_path.presence || "Corporate",
-            people_documents_base_path: settings.sharepoint_people_path.presence || "Corporate/People",
-            job_documents_base_path: settings.sharepoint_jobs_path.presence || "Jobs"
+            company_documents_base_path: settings.sharepoint_company_path.presence || StorageConfiguration.instance.path_for(:corporate),
+            people_documents_base_path: settings.sharepoint_people_path.presence || StorageConfiguration.instance.path_for(:people),
+            job_documents_base_path: settings.sharepoint_jobs_path.presence || StorageConfiguration.instance.path_for(:job)
           }
         }
       end
@@ -71,9 +71,9 @@ module Api
           render json: {
             success: true,
             data: {
-              company_documents_base_path: settings.sharepoint_company_path.presence || "Corporate",
-              people_documents_base_path: settings.sharepoint_people_path.presence || "Corporate/People",
-              job_documents_base_path: settings.sharepoint_jobs_path.presence || "Jobs"
+              company_documents_base_path: settings.sharepoint_company_path.presence || StorageConfiguration.instance.path_for(:corporate),
+              people_documents_base_path: settings.sharepoint_people_path.presence || StorageConfiguration.instance.path_for(:people),
+              job_documents_base_path: settings.sharepoint_jobs_path.presence || StorageConfiguration.instance.path_for(:job)
             }
           }
         else
@@ -460,8 +460,8 @@ module Api
           :s3_region,
           # Root path
           :sharepoint_root_path,
-          # SSoT: Scope folders from StorageConfiguration.SCOPE_FOLDERS
-          scope_folders: StorageConfiguration::SCOPE_FOLDERS.keys.map(&:to_sym),
+          # SSoT: Scope folders from StorageConfiguration.effective_scope_folders
+          scope_folders: StorageConfiguration.instance.effective_scope_folders.keys.map(&:to_sym),
           # SSoT: Folder path templates (auto-saved from Entity Config)
           scope_templates: {},
           # SSoT: File name templates (auto-saved from Entity Config)

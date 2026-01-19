@@ -21,7 +21,7 @@ class PricebookImageFetcherService
 
   # SSoT: Get test folder from StorageConfiguration (falls back to pricebook path)
   def self.storage_test_folder
-    StorageConfiguration.instance&.path_for(:pricebook) || "Warehousing/Pricebook Photos"
+    StorageConfiguration.instance.path_for(:pricebook_photos)
   end
 
   # Maximum file size for compressed images

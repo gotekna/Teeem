@@ -157,7 +157,7 @@ module Api
           :endpoint, :bucket, :region, :access_key_id, :secret_access_key,  # S3/Wasabi
           :base_path,  # Local
           :root_path,
-          scope_folders: StorageConfiguration::SCOPE_FOLDERS.keys.map(&:to_sym),
+          scope_folders: StorageConfiguration.instance.effective_scope_folders.keys.map(&:to_sym),
           scope_templates: {},
           file_name_templates: {},
           config_links: {},

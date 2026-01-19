@@ -33,9 +33,7 @@ class CorporateSharePointScannerService
     ]
   end
 
-  # DEPRECATED: Use self.company_folder_path instead (SSoT: CorporateCompanySetting)
-  # Kept for backwards compatibility only - do not use in new code
-  DEFAULT_FOLDER_PATH = "Corporate"
+  # SSoT: Use StorageConfiguration.instance.path_for(:corporate) for folder paths
 
   # Known group folders that contain company subfolders
   # These match the groups defined in the Company model

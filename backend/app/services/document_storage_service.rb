@@ -170,7 +170,7 @@ class DocumentStorageService
       provider: @storage_config.provider_type,
       connected: @storage_config.connected?,
       root_path: @storage_config.root_path,
-      available_scopes: StorageConfiguration::SCOPE_FOLDERS.keys
+      available_scopes: @storage_config.effective_scope_folders.keys
     }
   end
 

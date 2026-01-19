@@ -154,10 +154,11 @@ namespace :storage do
     puts "=" * 70
     puts ""
 
-    # Check SCOPE_FOLDERS
-    puts "SCOPE_FOLDERS (expected paths):"
+    # Check scope_folders from database
+    puts "scope_folders (expected paths):"
+    config = StorageConfiguration.instance
     %w[job corporate people task].each do |scope|
-      puts "  #{scope}: #{StorageConfiguration::SCOPE_FOLDERS[scope]}"
+      puts "  #{scope}: #{config.path_for(scope)}"
     end
     puts ""
 

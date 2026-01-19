@@ -311,7 +311,7 @@ class XeroAttachmentSyncService
   # e.g., "Contacts/123 - ABC Supplies/BILLS/BILL-001234.pdf"
   def expected_document_path(filename)
     storage_config = StorageConfiguration.instance
-    base_path = storage_config&.path_for(:contacts) || "Contacts"
+    base_path = storage_config.path_for(:contacts)
     contact_folder = contact_folder_name
     type_folder = folder_for_invoice_type
 
@@ -403,7 +403,7 @@ class XeroAttachmentSyncService
 
       # SSoT: Get contacts folder path from StorageConfiguration
       storage_config = StorageConfiguration.instance
-      base_folder_name = storage_config&.path_for(:contacts) || "Contacts"
+      base_folder_name = storage_config.path_for(:contacts)
 
       # Get contact folder name
       contact_name = contact_folder_name()

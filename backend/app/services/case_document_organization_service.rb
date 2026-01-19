@@ -287,7 +287,7 @@ class CaseDocumentOrganizationService
       return nil unless company
 
       # Build corporate folder path
-      base_path = storage_config&.path_for(:corporate) || "Corporate"
+      base_path = storage_config.path_for(:corporate)
       company_folder = company.document_folder_name || company.name
       "/#{base_path}/#{company_folder}"
     when :register
@@ -295,7 +295,7 @@ class CaseDocumentOrganizationService
       return nil unless company
 
       # Build register folder path
-      base_path = storage_config&.path_for(:corporate) || "Corporate"
+      base_path = storage_config.path_for(:corporate)
       company_folder = company.document_folder_name || company.name
       "/#{base_path}/#{company_folder}/Register"
     when :case_folder
@@ -307,7 +307,7 @@ class CaseDocumentOrganizationService
   # Get or create a folder for a company (provider-agnostic)
   def get_or_create_company_folder_path(company, folder_type)
     storage_config = StorageConfiguration.instance
-    base_path = storage_config&.path_for(:corporate) || "Corporate"
+    base_path = storage_config.path_for(:corporate)
     company_folder = company.document_folder_name || company.name
     full_path = "/#{base_path}/#{company_folder}/#{folder_type}"
 

@@ -498,10 +498,10 @@ module Api
             }
           end
 
-          # SSoT: Filter root folders using StorageConfiguration.SCOPE_FOLDERS
+          # SSoT: Filter root folders using StorageConfiguration.effective_scope_folders
           # Only show valid user-facing folders (hides internal folders like Blobs, Attachments)
           if path.blank?
-            valid_roots = StorageConfiguration::SCOPE_FOLDERS.values
+            valid_roots = StorageConfiguration.instance.effective_scope_folders.values
               .map { |v| v.split("/").first }
               .uniq
 

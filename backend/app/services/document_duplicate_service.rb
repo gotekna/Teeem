@@ -488,7 +488,7 @@ class DocumentDuplicateService
         File.dirname(keep_doc.storage_path)
       elsif keep_doc.respond_to?(:folder) && keep_doc.folder.present?
         storage_config = StorageConfiguration.instance
-        base_path = storage_config&.path_for(:corporate) || "Corporate"
+        base_path = storage_config.path_for(:corporate)
         company = keep_doc.corporate_company
         company_folder = company&.document_folder_name || company&.name
         "/#{base_path}/#{company_folder}/#{keep_doc.folder}"

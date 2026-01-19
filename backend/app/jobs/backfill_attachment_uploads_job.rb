@@ -177,7 +177,7 @@ class BackfillAttachmentUploadsJob < ApplicationJob
     month = email_date.strftime("%m")
     # SSoT: Use StorageConfiguration for base path
     storage_config = StorageConfiguration.instance
-    base_path = storage_config&.path_for(:emails) || "Emails/Attachments"
+    base_path = storage_config.path_for(:emails)
     "#{base_path}/#{year}/#{month}"
   end
 end

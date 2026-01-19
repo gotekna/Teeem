@@ -281,7 +281,7 @@ class BulkEmailSyncJob < ApplicationJob
     # SSoT: Use centralized SharePoint path sanitization
     org_name = SharePoint::FilenameSanitizer.sanitize_path_segment(@credential.name)
     # SSoT: Get base path from StorageConfiguration
-    base_path = StorageConfiguration.instance&.path_for(:email_attachments) || "Emails/attachments"
+    base_path = StorageConfiguration.instance.path_for(:email_attachments)
     folder_path = "#{base_path}/#{org_name}/#{year}/#{month}"
 
     hash_prefix = content_hash[0..7]
@@ -457,7 +457,7 @@ class BulkEmailSyncJob < ApplicationJob
         .gsub("{{UserName}}", SharePoint::FilenameSanitizer.sanitize_path_segment(user_name))
     else
       # Fallback if EntityTab doesn't exist - use StorageConfiguration SSoT
-      base_path = StorageConfiguration.instance&.path_for(:email) || "Emails/eml"
+      base_path = StorageConfiguration.instance.path_for(:email)
       "#{base_path}/#{org_name}/#{year}/#{month}"
     end
   end
