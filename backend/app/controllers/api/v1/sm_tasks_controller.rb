@@ -25,8 +25,10 @@ module Api
         @tasks = SmTask.ordered.includes(
           :job, :hold_reason, :purchase_order, :assigned_user, :supplier,
           :action_items, :start_workflow, :complete_workflow, :completion_document_type,
+          :created_by, :task_followers, :source_action_item, :parent_task,
           sm_task_attachments: :attachable
         )
+        # Note: :last_assigner is a method (queries activity_logs), not an association - cannot be eager loaded
 
         # Privacy filter - only show tasks visible to current user
         @tasks = @tasks.visible_to(current_user)

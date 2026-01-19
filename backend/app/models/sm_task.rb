@@ -222,7 +222,9 @@ class SmTask < ApplicationRecord
   end
 
   def followed_by?(user)
-    task_followers.exists?(user: user)
+    # Use .any? with block to leverage preloaded task_followers (avoids N+1)
+    # When task_followers is eager-loaded via includes, this uses cached data
+    task_followers.any? { |tf| tf.user_id == user.id }
   end
 
   # Task Contact helper methods
