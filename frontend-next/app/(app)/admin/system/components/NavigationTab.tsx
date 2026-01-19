@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAssignableRoles } from "@/hooks/useAssignableRoles";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 
 interface NavigationItem {
   id: number;
@@ -54,6 +55,7 @@ interface NavigationItem {
 export function NavigationTab() {
   // SSoT: Fetch roles from database via Role.for_select
   const { roles: userRoles } = useAssignableRoles();
+  const { confirm } = useConfirm();
 
   const [items, setItems] = React.useState<NavigationItem[]>([]);
   const [emailAccounts, setEmailAccounts] = React.useState<{ id: number | string; type: string; name: string; nav_position: number; org_name?: string }[]>([]);
@@ -279,7 +281,7 @@ export function NavigationTab() {
       ? `Delete "${item.name}"? Its ${getChildren(item.id).length} child items will become top-level.`
       : `Delete navigation item "${item.name}"?`;
 
-    if (!confirm(message)) return;
+    if (!(await confirm(message))) return;
     try {
       await api.delete(`/api/v1/navigation_items/${item.id}`);
       loadNavigation();

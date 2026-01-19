@@ -25,6 +25,8 @@ import {
   CheckSquare,
 } from "lucide-react";
 import debounce from "lodash/debounce";
+import { useToast } from "@/components/ui/use-toast";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import {
   DndContext,
   DragOverlay,
@@ -86,6 +88,8 @@ export const NotebooksSidebar = forwardRef<NotebooksSidebarRef, NotebooksSidebar
   onCreateNotebook,
   className,
 }: NotebooksSidebarProps, ref) {
+  const { toast } = useToast();
+  const { confirm } = useConfirm();
   const queryClient = useQueryClient();
   const { notebooks, isLoading, error, mutate: mutateNotebooks } = useNotebooks({ global: true });
   const { notebook: selectedNotebook } = useNotebook(selectedNotebookId);
@@ -197,12 +201,12 @@ export const NotebooksSidebar = forwardRef<NotebooksSidebarRef, NotebooksSidebar
       onSelectPage(page.id, notebookId);
     } catch (err) {
       console.error("✗ Failed to create page:", err);
-      alert(`Failed to create page: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      toast({ title: "Error", description: `Failed to create page: ${err instanceof Error ? err.message : 'Unknown error'}`, variant: "destructive" });
     }
   };
 
   const handleDeletePage = async (pageId: number) => {
-    if (!confirm("Are you sure you want to delete this page?")) return;
+    if (!(await confirm("Are you sure you want to delete this page?"))) return;
     try {
       await pageActions.delete(pageId);
       await queryClient.invalidateQueries({ queryKey: ["notebook", selectedNotebookId] });

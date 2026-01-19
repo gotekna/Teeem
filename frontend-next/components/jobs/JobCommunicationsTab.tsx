@@ -23,6 +23,7 @@ import { api } from "@/lib/api";
 import { EntityChat } from "@/components/chat/EntityChat";
 import { Spinner } from "@/components/ui/spinner";
 import TeeemTableView from "@/components/table/TeeemTableView";
+import { useToast } from "@/components/ui/use-toast";
 
 interface Message {
   id: number;
@@ -105,6 +106,7 @@ function getInitials(name: string | undefined): string {
 
 // Internal Messages Component
 function InternalMessagesSection({ jobId }: { jobId: string | number }) {
+  const { toast } = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -159,7 +161,7 @@ function InternalMessagesSection({ jobId }: { jobId: string | number }) {
       await loadMessages();
     } catch (error) {
       console.error("Failed to send message:", error);
-      alert("Failed to send message. Please try again.");
+      toast({ title: "Error", description: "Failed to send message. Please try again.", variant: "destructive" });
     } finally {
       setSending(false);
     }
@@ -256,6 +258,7 @@ function InternalMessagesSection({ jobId }: { jobId: string | number }) {
 
 // Email Section Component with email warehouse integration - SSoT TeeemTableView pattern
 function EmailsSection({ jobId }: { jobId: string | number }) {
+  const { toast } = useToast();
   const [emails, setEmails] = useState<Email[]>([]);
   const [suggestedEmails, setSuggestedEmails] = useState<SuggestedEmail[]>([]);
   const [loading, setLoading] = useState(true);
@@ -300,7 +303,7 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
       await loadEmails();
     } catch (error) {
       console.error("Failed to assign email:", error);
-      alert("Failed to assign email to job");
+      toast({ title: "Error", description: "Failed to assign email to job", variant: "destructive" });
     }
   };
 

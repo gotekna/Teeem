@@ -14,6 +14,7 @@ import {
 } from "@heroicons/react/24/outline";
 import RequestPaymentModal from "@/components/portal/RequestPaymentModal";
 import PayNowRequestDetailModal from "@/components/portal/PayNowRequestDetailModal";
+import { useToast } from "@/components/ui/use-toast";
 
 interface PayNowRequest {
   id: number;
@@ -68,6 +69,7 @@ interface Tab {
 }
 
 export default function PortalPayNow() {
+  const { toast } = useToast();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -152,12 +154,12 @@ export default function PortalPayNow() {
       );
 
       if (response?.data.success) {
-        alert("Payment request cancelled successfully");
+        toast({ title: "Success", description: "Payment request cancelled successfully" });
         loadRequests();
       }
     } catch (error) {
       console.error("Failed to cancel request:", error);
-      alert("Failed to cancel request. Please try again.");
+      toast({ title: "Error", description: "Failed to cancel request. Please try again.", variant: "destructive" });
     }
   };
 

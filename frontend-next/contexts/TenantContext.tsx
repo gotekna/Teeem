@@ -136,17 +136,49 @@ export const TenantProvider = ({ children }: TenantProviderProps) => {
 
       const response = await api.post<SwitchResponse>(`/api/v1/admin/tenants/${tenantId}/switch`);
       console.log('[TenantSwitch] API response:', response);
-      console.log('[TenantSwitch] Document cookies:', document.cookie);
 
       if (response?.success && response?.tenant) {
-        console.log('[TenantSwitch] Success! Check cookies in DevTools > Application > Cookies');
-        console.log('[TenantSwitch] Will reload in 3 seconds...');
+        const targetEnv = response.tenant.environment;
+        const currentHost = window.location.hostname;
+
+        // ════════════════════════════════════════════════════════════════════
+        // CROSS-ENVIRONMENT REDIRECT
+        // When switching to a tenant in a different environment, redirect to
+        // that environment's frontend URL instead of just reloading.
+        // ════════════════════════════════════════════════════════════════════
+
+        // Determine current environment from hostname
+        const isOnStaging = currentHost.includes('staging') || currentHost.includes('localhost');
+        const isOnBeta = currentHost.includes('beta');
+        const isOnProduction = currentHost === 'teeem.vercel.app' ||
+                              (currentHost.includes('teeem') && !isOnStaging && !isOnBeta);
+
+        // Environment frontend URLs (SSoT: CorporateCompanySetting::FRONTEND_ENVIRONMENT_URLS)
+        const FRONTEND_URLS: Record<string, string> = {
+          staging: 'https://teeem-staging.vercel.app',
+          beta: 'https://teeem-beta.vercel.app',
+          production: 'https://teeem.vercel.app',
+        };
+
+        // Check if we need to redirect to a different environment
+        const needsRedirect = (
+          (targetEnv === 'staging' && !isOnStaging) ||
+          (targetEnv === 'beta' && !isOnBeta) ||
+          (targetEnv === 'production' && !isOnProduction)
+        );
+
+        if (needsRedirect) {
+          const targetUrl = FRONTEND_URLS[targetEnv] || FRONTEND_URLS.production;
+          console.log(`[TenantSwitch] Environment change: ${targetEnv} - redirecting to ${targetUrl}`);
+          // Redirect to the correct environment's frontend
+          window.location.href = targetUrl;
+          return true;
+        }
+
+        // Same environment - just reload
+        console.log('[TenantSwitch] Same environment - reloading page');
         setCurrentTenant(response.tenant);
-        // DEBUG: Delay reload so we can see the logs and check cookies
-        setTimeout(() => {
-          console.log('[TenantSwitch] Reloading now...');
-          window.location.reload();
-        }, 3000);
+        window.location.reload();
         return true;
       } else {
         console.error('[TenantSwitch] Failed:', response?.error);

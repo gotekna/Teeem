@@ -11,6 +11,8 @@ import {
   XCircleIcon,
   ArrowPathIcon,
 } from "@heroicons/react/24/outline";
+import { useToast } from "@/components/ui/use-toast";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 
 interface PortalUser {
   contact_name?: string;
@@ -30,6 +32,8 @@ interface AccountingIntegration {
 }
 
 export default function PortalSettings() {
+  const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [loading, setLoading] = useState(true);
   const [activeSection, setActiveSection] = useState("profile");
   const [accountingIntegrations, setAccountingIntegrations] = useState<
@@ -82,16 +86,17 @@ export default function PortalSettings() {
       }
     } catch (error: any) {
       console.error("Failed to get OAuth URL:", error);
-      alert(
-        "Failed to connect: " +
-          (error.response?.data?.error || error.message)
-      );
+      toast({
+        title: "Error",
+        description: "Failed to connect: " + (error.response?.data?.error || error.message),
+        variant: "destructive",
+      });
     }
   };
 
   const handleDisconnect = async (integrationId: number) => {
     if (
-      !confirm("Are you sure you want to disconnect this accounting integration?")
+      !(await confirm("Are you sure you want to disconnect this accounting integration?"))
     ) {
       return;
     }
@@ -109,10 +114,11 @@ export default function PortalSettings() {
       }
     } catch (error: any) {
       console.error("Failed to disconnect:", error);
-      alert(
-        "Failed to disconnect: " +
-          (error.response?.data?.error || error.message)
-      );
+      toast({
+        title: "Error",
+        description: "Failed to disconnect: " + (error.response?.data?.error || error.message),
+        variant: "destructive",
+      });
     }
   };
 

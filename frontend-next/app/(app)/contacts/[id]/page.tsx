@@ -776,7 +776,7 @@ export default function ContactDetailPage() {
 
       // Check if contact was archived instead of deleted
       if (response?.archived) {
-        alert(`✓ ${response.message}\n\nThe contact was archived (not permanently deleted) to preserve important records.`);
+        toast({ title: "Contact Archived", description: "The contact was archived (not permanently deleted) to preserve important records." });
       }
 
       router.push('/contacts');
@@ -784,7 +784,7 @@ export default function ContactDetailPage() {
       console.error("Failed to delete contact:", error);
       // Show specific error message from backend if available
       const errorMessage = error?.message || error?.error || "Failed to delete contact. Please try again.";
-      alert(errorMessage);
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
     }
   };
 
@@ -835,15 +835,15 @@ export default function ContactDetailPage() {
           if (website_details.address) message += `\n• Address: ${website_details.address}`;
         }
 
-        alert(message);
+        toast({ title: "Contact Enriched", description: message });
         await loadContact(); // Reload contact to show updated details
       } else {
-        alert(`Failed: ${response?.error || 'Unknown error'}`);
+        toast({ title: "Error", description: `Failed: ${response?.error || 'Unknown error'}`, variant: "destructive" });
       }
     } catch (error: unknown) {
       console.error("Error enriching contact:", error);
       const err = error as { response?: { data?: { error?: string } } };
-      alert(err.response?.data?.error || "Failed to enrich contact from web");
+      toast({ title: "Error", description: err.response?.data?.error || "Failed to enrich contact from web", variant: "destructive" });
     } finally {
       setEnrichingFromWeb(false);
     }
@@ -1241,7 +1241,7 @@ export default function ContactDetailPage() {
       await loadContact();
     } catch (err) {
       console.error("Failed to reorder companies:", err);
-      alert("Failed to save company order");
+      toast({ title: "Error", description: "Failed to save company order", variant: "destructive" });
       loadContact(); // Reload on error
     }
   };
@@ -1338,7 +1338,7 @@ export default function ContactDetailPage() {
       }
     } catch (err) {
       console.error("[Remove Employee] Failed to remove employee:", employeeId, "Error:", err);
-      alert("Failed to remove employee");
+      toast({ title: "Error", description: "Failed to remove employee", variant: "destructive" });
     }
   };
 
@@ -1391,7 +1391,7 @@ export default function ContactDetailPage() {
       setEmployeeRoles(newEmployeeRoles);
     } catch (err) {
       console.error("[Employee Roles] Failed to update roles for employee:", employeeId, "Error:", err);
-      alert("Failed to update employee roles");
+      toast({ title: "Error", description: "Failed to update employee roles", variant: "destructive" });
     }
   };
 
@@ -1455,7 +1455,7 @@ export default function ContactDetailPage() {
       setShowAddRelatedEntity(false);
     } catch (err) {
       console.error("Failed to add related entity:", err);
-      alert("Failed to add relationship");
+      toast({ title: "Error", description: "Failed to add relationship", variant: "destructive" });
     } finally {
       setAddingRelatedEntity(false);
     }
@@ -1472,7 +1472,7 @@ export default function ContactDetailPage() {
       setRelatedEntities(prev => prev.filter(r => r.id !== relationshipId));
     } catch (err) {
       console.error("Failed to remove related entity:", err);
-      alert("Failed to remove relationship");
+      toast({ title: "Error", description: "Failed to remove relationship", variant: "destructive" });
     }
   };
 
@@ -1491,7 +1491,7 @@ export default function ContactDetailPage() {
       });
     } catch (err) {
       console.error("Failed to reorder employees:", err);
-      alert("Failed to save employee order");
+      toast({ title: "Error", description: "Failed to save employee order", variant: "destructive" });
       // Reload to get correct order from server
       loadContact();
     }

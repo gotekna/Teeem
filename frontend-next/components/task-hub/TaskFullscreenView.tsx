@@ -42,6 +42,7 @@ import { AttachmentPicker, PendingAttachment } from './AttachmentPicker';
 import TeeemTableView from '@/components/table/TeeemTableView';
 import { EmailDetailDialog } from '@/components/emails/EmailDetailDialog';
 import { api, getApiBaseUrl } from '@/lib/api';
+import { useToast } from '@/components/ui/use-toast';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   DndContext,
@@ -717,6 +718,7 @@ function UngroupDropZone({
 }
 
 export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
+  const { toast } = useToast();
   const { user: currentUser } = useAuth();
   const { calculateEndDate, calculateDuration } = useWorkingDays();
   const {

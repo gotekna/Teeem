@@ -20,6 +20,7 @@ import {
   XCircleIcon,
   ArrowPathIcon,
 } from "@heroicons/react/24/outline";
+import { useToast } from "@/components/ui/use-toast";
 
 interface Invoice {
   id: number;
@@ -53,6 +54,7 @@ interface InvoicesData {
 type TabKey = "all" | "pending" | "synced" | "paid" | "failed";
 
 export default function PortalInvoices() {
+  const { toast } = useToast();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -119,10 +121,11 @@ export default function PortalInvoices() {
       }
     } catch (error: any) {
       console.error("Failed to retry sync:", error);
-      alert(
-        "Failed to retry sync: " +
-          (error.response?.data?.error || error.message)
-      );
+      toast({
+        title: "Error",
+        description: "Failed to retry sync: " + (error.response?.data?.error || error.message),
+        variant: "destructive",
+      });
     }
   };
 
@@ -203,7 +206,7 @@ export default function PortalInvoices() {
           </p>
         </div>
         <button
-          onClick={() => alert("Create invoice functionality coming soon")}
+          onClick={() => toast({ title: "Coming Soon", description: "Create invoice functionality coming soon" })}
           className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
         >
           <PlusIcon className="h-5 w-5 mr-2" />

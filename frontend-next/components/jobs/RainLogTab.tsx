@@ -29,6 +29,7 @@ import {
   MapPin,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
 
 interface RainLog {
   id: number;
@@ -69,6 +70,7 @@ function getTodayAsString(): string {
 }
 
 export function RainLogTab({ jobId }: RainLogTabProps) {
+  const { toast } = useToast();
   const [rainLogs, setRainLogs] = useState<RainLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -156,7 +158,7 @@ export function RainLogTab({ jobId }: RainLogTabProps) {
       await loadRainLogs();
     } catch (err) {
       console.error("Failed to save rain log:", err);
-      alert("Failed to save rain log");
+      toast({ title: "Error", description: "Failed to save rain log", variant: "destructive" });
     }
   };
 
@@ -168,7 +170,7 @@ export function RainLogTab({ jobId }: RainLogTabProps) {
       await loadRainLogs();
     } catch (err) {
       console.error("Failed to delete rain log:", err);
-      alert("Failed to delete rain log");
+      toast({ title: "Error", description: "Failed to delete rain log", variant: "destructive" });
     }
   };
 

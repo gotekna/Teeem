@@ -38,6 +38,7 @@ import { ExcelViewer, ExcelViewerLoading, ExcelViewerError, type ExcelData } fro
 import { WordViewer, WordViewerLoading, WordViewerError, type WordData } from "@/components/ui/word-viewer";
 import { Spinner } from "@/components/ui/spinner";
 import { DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
+import { useToast } from "@/components/ui/use-toast";
 
 // SSoT: DOCUMENT_FOLDER_OPTIONS imported from @/lib/constants/document-types
 
@@ -266,6 +267,7 @@ export default function DocumentPreviewModal({
   onDocumentUpdate,
   companies = [],
 }: DocumentPreviewModalProps) {
+  const { toast } = useToast();
   const [document, setDocument] = React.useState<CompanyDocument>(initialDocument);
   const [validating, setValidating] = React.useState(false);
   const [validated, setValidated] = React.useState(initialDocument?.user_validated_at != null);
@@ -1068,7 +1070,7 @@ export default function DocumentPreviewModal({
       }
     } catch (error) {
       console.error("Failed to validate document:", error);
-      alert("Failed to validate document");
+      toast({ title: "Error", description: "Failed to validate document", variant: "destructive" });
     } finally {
       setValidating(false);
     }
@@ -1088,7 +1090,7 @@ export default function DocumentPreviewModal({
     } catch (error: unknown) {
       console.error("Failed to start AI verification:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to start AI verification";
-      alert(errorMessage);
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
       setAiVerifying(false);
     }
   };
@@ -1162,7 +1164,7 @@ export default function DocumentPreviewModal({
     } catch (error: unknown) {
       console.error("Failed to save document:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to save document";
-      alert(errorMessage);
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -1199,7 +1201,7 @@ export default function DocumentPreviewModal({
     } catch (error: unknown) {
       console.error("Failed to apply suggestion:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to apply suggestion";
-      alert(errorMessage);
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
     } finally {
       setApplyingSuggestion(false);
     }
@@ -2135,11 +2137,11 @@ export default function DocumentPreviewModal({
                         setIsEditingPdf(false);
                       } else {
                         console.error("Failed to save PDF:", response?.error);
-                        alert(`Failed to save: ${response?.error || 'Unknown error'}`);
+                        toast({ title: "Error", description: `Failed to save: ${response?.error || 'Unknown error'}`, variant: "destructive" });
                       }
                     } catch (error) {
                       console.error("Error saving PDF:", error);
-                      alert("Failed to save PDF. Please try again.");
+                      toast({ title: "Error", description: "Failed to save PDF. Please try again.", variant: "destructive" });
                     }
                   }}
                   onClose={() => setIsEditingPdf(false)}

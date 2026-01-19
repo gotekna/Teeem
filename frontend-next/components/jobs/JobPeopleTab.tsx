@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { PAGE_SIZE_AUTOCOMPLETE } from "@/lib/constants/pagination-constants";
+import { useToast } from "@/components/ui/use-toast";
 
 interface Contact {
   id: number;
@@ -151,6 +152,7 @@ const getRoleBadgeClasses = (color: string) => {
 };
 
 export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
+  const { toast } = useToast();
   const router = useRouter();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [contacts, setContacts] = useState<JobContact[]>([]);
@@ -305,7 +307,7 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
     const clientContacts = contacts.filter((c) => c.role === "client");
 
     if (contact?.role === "client" && clientContacts.length === 1) {
-      alert("Cannot remove the last client. At least one client is required.");
+      toast({ title: "Cannot Remove", description: "Cannot remove the last client. At least one client is required.", variant: "destructive" });
       return;
     }
 
