@@ -109,13 +109,35 @@ git commit -m "[auto-generated message]
 Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
 
-### Step 4 - Push to GitHub
+### Step 4 - Push to GitHub Staging
 ```bash
 git push origin Staging
 ```
-*Frontend auto-deploys from this push*
+*Staging frontend auto-deploys from this push*
 
-### Step 4.5 - Verify Backend Changes Were Committed
+### Step 4.5 - Merge Frontend Branch (Staging → Beta)
+
+**This triggers Vercel auto-deploy for Beta frontend.**
+
+```bash
+echo "🔀 Merging frontend branch Staging → Beta..."
+
+# Save current branch
+CURRENT_BRANCH=$(git branch --show-current)
+
+# Merge Staging → Beta
+git checkout Beta
+git pull origin Beta
+git merge Staging -m "Merge Staging into Beta for deployment"
+git push origin Beta
+echo "✅ Beta frontend updated"
+
+# Return to original branch
+git checkout "$CURRENT_BRANCH"
+echo "✅ Frontend branch merged"
+```
+
+### Step 4.6 - Verify Backend Changes Were Committed
 **CRITICAL: If Step 1 showed backend/ files, verify they're in the commit:**
 ```bash
 git diff --name-only HEAD~1 HEAD | grep backend/
@@ -153,6 +175,15 @@ rm -rf "$DEPLOY_DIR"
 echo "✅ Staging deployed"
 ```
 
+**Verify migrations ran (CRITICAL for schema changes):**
+```bash
+# Check if release phase ran migrations, if not run manually
+heroku run "rails db:migrate:status | tail -10" --app teeem-staging
+
+# If any migrations show "down", run them:
+# heroku run "rails db:migrate" --app teeem-staging
+```
+
 ### Step 6 - Deploy Backend to Beta
 
 **If backend changed**, deploy to Beta:
@@ -179,6 +210,15 @@ rm -rf "$DEPLOY_DIR"
 echo "✅ Beta deployed"
 ```
 
+**Verify migrations ran (CRITICAL for schema changes):**
+```bash
+# Check if release phase ran migrations, if not run manually
+heroku run "rails db:migrate:status | tail -10" --app teeem-beta
+
+# If any migrations show "down", run them:
+# heroku run "rails db:migrate" --app teeem-beta
+```
+
 **If no backend changes, skip Steps 5 and 6 entirely.**
 
 ### Step 7 - Report Status
@@ -198,8 +238,13 @@ BACKEND_DEPLOYED=$(git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && ech
 BETA DEPLOYED: HH:MM DD/MM (Brisbane)
 Commit: [hash] - [message]
 ----------------------------------------
-✅ Staging: [deployed/skipped]
-✅ Beta: [deployed/skipped]
+Frontend (Vercel - auto-deploy on branch merge):
+  ✅ Staging: Staging branch pushed
+  ✅ Beta: Staging → Beta merged
+
+Backend (Heroku - direct deploy):
+  ✅ Staging: [deployed/skipped]
+  ✅ Beta: [deployed/skipped]
 ========================================
 ```
 

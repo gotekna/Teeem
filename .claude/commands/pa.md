@@ -140,11 +140,11 @@ sync
 sleep 1
 
 DEPLOY_DIR=$(mktemp -d)
-cp -r backend/* "$DEPLOY_DIR/"
+cp -R backend/* "$DEPLOY_DIR/"
 
 cd "$DEPLOY_DIR"
 git init
-git add .
+git add -A
 git commit -m "Deploy to Staging $(date +%Y%m%d-%H%M%S)"
 git remote add heroku https://git.heroku.com/teeem-staging.git
 git push heroku HEAD:main --force
@@ -152,6 +152,15 @@ cd /Users/robertharder/GitHub/teeem
 rm -rf "$DEPLOY_DIR"
 
 echo "✅ Staging backend deployed"
+```
+
+**Verify migrations ran (CRITICAL for schema changes):**
+```bash
+# Check if release phase ran migrations, if not run manually
+heroku run "rails db:migrate:status | tail -10" --app teeem-staging
+
+# If any migrations show "down", run them:
+# heroku run "rails db:migrate" --app teeem-staging
 ```
 
 ### Step 8 - Deploy Backend to Beta
@@ -179,6 +188,15 @@ rm -rf "$DEPLOY_DIR"
 echo "✅ Beta backend deployed"
 ```
 
+**Verify migrations ran (CRITICAL for schema changes):**
+```bash
+# Check if release phase ran migrations, if not run manually
+heroku run "rails db:migrate:status | tail -10" --app teeem-beta
+
+# If any migrations show "down", run them:
+# heroku run "rails db:migrate" --app teeem-beta
+```
+
 ### Step 9 - Deploy Backend to Production
 
 ```bash
@@ -202,6 +220,15 @@ cd /Users/robertharder/GitHub/teeem
 rm -rf "$DEPLOY_DIR"
 
 echo "✅ Production backend deployed"
+```
+
+**Verify migrations ran (CRITICAL for schema changes):**
+```bash
+# Check if release phase ran migrations, if not run manually
+heroku run "rails db:migrate:status | tail -10" --app teeem-production
+
+# If any migrations show "down", run them:
+# heroku run "rails db:migrate" --app teeem-production
 ```
 
 ### Step 10 - Post-Deploy Verification

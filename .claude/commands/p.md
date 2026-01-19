@@ -111,13 +111,42 @@ git commit -m "[auto-generated message]
 Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
 
-### Step 4 - Push to GitHub
+### Step 4 - Push to GitHub Staging
 ```bash
 git push origin Staging
 ```
-*Frontend auto-deploys from this push*
+*Staging frontend auto-deploys from this push*
 
-### Step 4.5 - Verify Backend Changes Were Committed
+### Step 4.5 - Merge Frontend Branches (Staging → Beta → Live)
+
+**This triggers Vercel auto-deploy for Beta and Production frontends.**
+
+```bash
+echo "🔀 Merging frontend branches..."
+
+# Save current branch
+CURRENT_BRANCH=$(git branch --show-current)
+
+# Merge Staging → Beta
+git checkout Beta
+git pull origin Beta
+git merge Staging -m "Merge Staging into Beta for deployment"
+git push origin Beta
+echo "✅ Beta frontend updated"
+
+# Merge Beta → Live (Production)
+git checkout Live
+git pull origin Live
+git merge Beta -m "Merge Beta into Live for deployment"
+git push origin Live
+echo "✅ Production frontend updated"
+
+# Return to original branch
+git checkout "$CURRENT_BRANCH"
+echo "✅ Frontend branches merged"
+```
+
+### Step 4.6 - Verify Backend Changes Were Committed
 **CRITICAL: If Step 1 showed backend/ files, verify they're in the commit:**
 ```bash
 git diff --name-only HEAD~1 HEAD | grep backend/
@@ -155,6 +184,15 @@ rm -rf "$DEPLOY_DIR"
 echo "✅ Staging deployed"
 ```
 
+**Verify migrations ran (CRITICAL for schema changes):**
+```bash
+# Check if release phase ran migrations, if not run manually
+heroku run "rails db:migrate:status | tail -10" --app teeem-staging
+
+# If any migrations show "down", run them:
+# heroku run "rails db:migrate" --app teeem-staging
+```
+
 ### Step 6 - Deploy Backend to Beta
 
 **If backend changed**, deploy to Beta:
@@ -181,6 +219,15 @@ rm -rf "$DEPLOY_DIR"
 echo "✅ Beta deployed"
 ```
 
+**Verify migrations ran (CRITICAL for schema changes):**
+```bash
+# Check if release phase ran migrations, if not run manually
+heroku run "rails db:migrate:status | tail -10" --app teeem-beta
+
+# If any migrations show "down", run them:
+# heroku run "rails db:migrate" --app teeem-beta
+```
+
 ### Step 7 - Deploy Backend to Production
 
 **If backend changed**, deploy to Production:
@@ -205,6 +252,15 @@ cd /Users/robertharder/GitHub/teeem
 rm -rf "$DEPLOY_DIR"
 
 echo "✅ Production deployed"
+```
+
+**Verify migrations ran (CRITICAL for schema changes):**
+```bash
+# Check if release phase ran migrations, if not run manually
+heroku run "rails db:migrate:status | tail -10" --app teeem-production
+
+# If any migrations show "down", run them:
+# heroku run "rails db:migrate" --app teeem-production
 ```
 
 **If no backend changes, skip Steps 5, 6, and 7 entirely.**

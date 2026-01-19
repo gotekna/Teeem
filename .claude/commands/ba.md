@@ -186,6 +186,15 @@ rm -rf "$DEPLOY_DIR"
 echo "✅ Staging backend deployed"
 ```
 
+**Verify migrations ran (CRITICAL for schema changes):**
+```bash
+# Check if release phase ran migrations, if not run manually
+heroku run "rails db:migrate:status | tail -10" --app teeem-staging
+
+# If any migrations show "down", run them:
+# heroku run "rails db:migrate" --app teeem-staging
+```
+
 ### Step 9 - Deploy Backend to Beta
 
 **If backend changed**, deploy to Beta:
@@ -210,6 +219,15 @@ cd /Users/robertharder/GitHub/teeem
 rm -rf "$DEPLOY_DIR"
 
 echo "✅ Beta backend deployed"
+```
+
+**Verify migrations ran (CRITICAL for schema changes):**
+```bash
+# Check if release phase ran migrations, if not run manually
+heroku run "rails db:migrate:status | tail -10" --app teeem-beta
+
+# If any migrations show "down", run them:
+# heroku run "rails db:migrate" --app teeem-beta
 ```
 
 **If no backend changes, skip Steps 8 and 9 entirely.**
