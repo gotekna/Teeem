@@ -459,6 +459,21 @@ class EntityTab < ApplicationRecord
       end
     end
 
+    # Legacy alias mappings (backward compatibility)
+    # These map old scope_folders keys to their actual paths
+    # SSoT: The aliases exist only for backward compatibility with existing code
+    legacy_aliases = {
+      'corporate' => 'corporate_entity',       # corporate was the old key, corporate_entity is the scope
+      'emails' => 'email',                     # emails (plural) was the old key, email is the scope
+      'custom' => 'custom_documents',          # custom was the old key, custom_documents is the tab_key
+      'my_docs' => 'my_documents'              # my_docs was the old key, my_documents is the tab_key (underscore form)
+    }
+
+    legacy_aliases.each do |old_key, new_key|
+      # Only add alias if the new key exists and old key doesn't
+      result[old_key] = result[new_key] if result[new_key] && !result[old_key]
+    end
+
     result
   end
 
