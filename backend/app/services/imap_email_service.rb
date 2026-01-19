@@ -612,7 +612,10 @@ class ImapEmailService
       folder_name: "Sent Items",  # SSoT: Use standard name, in_folder scope handles variations
       first_synced_at: Time.current,
       last_synced_at: Time.current,
-      synced_by_user: credential.user
+      synced_by_user: credential.user,
+      # SSoT: Multi-tenancy - set from user's corporate_group
+      # acts_as_tenant requires this for emails to be visible in tenant context
+      company_group_id: credential.user&.corporate_group_id
     )
   rescue => e
     Rails.logger.warn "[ImapEmailService] Could not save sent email to warehouse: #{e.message}"

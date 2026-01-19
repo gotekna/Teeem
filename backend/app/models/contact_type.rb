@@ -1,8 +1,9 @@
 # frozen_string_literal: true
 
 class ContactType < ApplicationRecord
-  # Multi-tenancy: Scope all queries to current tenant
-  acts_as_tenant :corporate_group, foreign_key: :company_group_id
+  # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
+  acts_as_tenant :tenant
+  belongs_to :corporate_group, foreign_key: :company_group_id, optional: true  # Business grouping (not multi-tenancy)
 
   # Validations
   validates :name, presence: true, uniqueness: { scope: :company_group_id }

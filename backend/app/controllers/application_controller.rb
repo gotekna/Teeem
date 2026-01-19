@@ -33,20 +33,19 @@ class ApplicationController < ActionController::API
     # Priority 1: Admin override (for TEEEM staff switching tenants)
     # Using signed cookies since ActionController::API doesn't have sessions
     if current_user&.teeem_staff? && cookies.signed[:admin_tenant_id]
-      tenant = CorporateGroup.find_by(id: cookies.signed[:admin_tenant_id])
+      tenant = Tenant.find_by(id: cookies.signed[:admin_tenant_id])
       return tenant if tenant
     end
 
     # Priority 2: Subdomain
     subdomain = request.subdomain
     if subdomain.present? && !%w[www api staging beta].include?(subdomain)
-      tenant = CorporateGroup.find_by(slug: subdomain)
+      tenant = Tenant.find_by(slug: subdomain)
       return tenant if tenant
     end
 
-    # Priority 3: User's assigned tenant
-    # Note: This will be nil if user has no corporate_group
-    current_user&.corporate_group
+    # Priority 3: User's assigned tenant (SSoT)
+    current_user&.tenant
   end
 
   def current_tenant

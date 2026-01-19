@@ -205,7 +205,10 @@ class EmailSendingService
       folder_name: "Sent Items",  # SSoT: Match Outlook folder name for consistency
       first_synced_at: Time.current,
       last_synced_at: Time.current,
-      synced_by_user: @params.user
+      synced_by_user: @params.user,
+      # SSoT: Multi-tenancy - set from user's corporate_group
+      # acts_as_tenant requires this for emails to be visible in tenant context
+      company_group_id: @params.user&.corporate_group_id
     )
   rescue StandardError => e
     Rails.logger.warn("[EmailSendingService] Failed to log to warehouse: #{e.message}")

@@ -1,6 +1,7 @@
 class PurchaseOrder < ApplicationRecord
-  # Multi-tenancy: Scope all queries to current tenant
-  acts_as_tenant :corporate_group, foreign_key: :company_group_id
+  # Multi-tenancy: DISABLED until tenant_id column added via migration
+  acts_as_tenant :tenant
+  belongs_to :corporate_group, foreign_key: :company_group_id, optional: true  # Business grouping (not multi-tenancy)
 
   include Searchable
 

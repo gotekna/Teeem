@@ -1,15 +1,18 @@
 class CorporateGroup < ApplicationRecord
   # =============================================================================
-  # Multi-Tenancy Configuration
+  # Business Grouping Model
   # =============================================================================
-  # CorporateGroup serves as the Tenant model for multi-tenant SaaS.
-  # Each tenant has isolated data via acts_as_tenant scoping.
+  # CorporateGroup is for business grouping (companies, directors, shareholders).
+  # Multi-tenancy is handled by the Tenant model (SSoT).
   #
-  # Tier: shared (default) = shared infrastructure, dedicated = isolated resources
-  # Environment: staging (dev/testing), beta (UAT), production (live customers)
+  # The tier and environment enums are DEPRECATED and will be removed.
+  # Use Tenant.tier and Tenant.environment instead.
   # =============================================================================
 
-  # Enums for multi-tenancy
+  # Belongs to Tenant (multi-tenancy SSoT)
+  belongs_to :tenant, optional: true
+
+  # DEPRECATED: Enums for multi-tenancy (moved to Tenant model)
   enum :tier, { shared: 0, dedicated: 1 }, prefix: true
   enum :environment, { staging: 0, beta: 1, production: 2 }, prefix: true
 

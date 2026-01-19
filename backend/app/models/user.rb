@@ -3,7 +3,8 @@ class User < ApplicationRecord
 
   belongs_to :user_group, optional: true
   belongs_to :contact, optional: true  # Link user to their contact record for data sync
-  belongs_to :corporate_group, optional: true  # Multi-tenancy: User's assigned tenant
+  belongs_to :tenant, optional: true  # Multi-tenancy: User's assigned tenant (SSoT)
+  belongs_to :corporate_group, optional: true  # DEPRECATED: Use tenant instead for multi-tenancy
   has_many :grok_plans, dependent: :destroy
   has_many :chat_messages, dependent: :destroy
   has_many :foundation_views, dependent: :destroy
