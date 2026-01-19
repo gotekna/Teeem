@@ -177,7 +177,7 @@ module ActiveStorage
 
       # Get folder path from StorageConfiguration (SSoT)
       def folder
-        @folder ||= StorageConfiguration.instance&.path_for(:attachments) || "Warehousing/Chat"
+        @folder ||= StorageConfiguration.instance.path_for(:attachments)
       end
 
       # Stream file content in chunks
