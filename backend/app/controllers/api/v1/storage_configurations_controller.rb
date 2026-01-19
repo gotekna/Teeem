@@ -24,6 +24,13 @@ module Api
       def update
         storage_config = StorageConfiguration.instance
 
+        unless storage_config
+          return render json: {
+            success: false,
+            error: "Storage configuration not found. Please ensure your organization has a document provider configured."
+          }, status: :unprocessable_entity
+        end
+
         sp = storage_params
 
         # Get provider type and normalize legacy values (s3/wasabi → s3_compatible)
@@ -150,6 +157,9 @@ module Api
       private
 
       def storage_params
+        # Get permitted scope folder keys - safely handle nil instance
+        scope_folder_keys = StorageConfiguration.instance&.effective_scope_folders&.keys&.map(&:to_sym) || []
+
         params.require(:storage).permit(
           :provider_type,
           # Provider-agnostic connection params
@@ -157,7 +167,7 @@ module Api
           :endpoint, :bucket, :region, :access_key_id, :secret_access_key,  # S3/Wasabi
           :base_path,  # Local
           :root_path,
-          scope_folders: StorageConfiguration.instance.effective_scope_folders.keys.map(&:to_sym),
+          scope_folders: scope_folder_keys,
           scope_templates: {},
           file_name_templates: {},
           config_links: {},
