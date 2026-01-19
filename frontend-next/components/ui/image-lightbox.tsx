@@ -42,6 +42,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
+import { formatDateTime } from "@/utils/formatters";
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 import type { PhotoItem } from "@/components/ui/photo-gallery";
@@ -66,19 +67,6 @@ export interface ImageLightboxProps {
   resolveFullUrl?: (photoId: string) => Promise<string | null>;
   /** Optional callback when photo is deleted */
   onDelete?: (photoId: string) => Promise<void>;
-}
-
-// Format date for display
-function formatDate(dateStr?: string): string {
-  if (!dateStr) return "";
-  const date = new Date(dateStr);
-  return date.toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 // Check if URL needs authenticated fetch (backend proxy URLs)
@@ -405,7 +393,7 @@ export function ImageLightbox({
             {currentIndex + 1} of {photos.length}
             {currentPhoto.createdAt && (
               <span className="ml-2">
-                {formatDate(currentPhoto.createdAt)}
+                {formatDateTime(currentPhoto.createdAt)}
               </span>
             )}
           </p>

@@ -29,6 +29,15 @@ export function formatPercentage(value: number | string | null | undefined): str
   return `${numValue.toFixed(1)}%`;
 }
 
+export function formatPercentChange(value: number | string | null | undefined): string {
+  if (value === null || value === undefined || value === '') return '';
+  const numValue = typeof value === 'string' ? parseFloat(value) : value;
+  if (isNaN(numValue)) return '';
+
+  const sign = numValue >= 0 ? '+' : '';
+  return `${sign}${numValue.toFixed(1)}%`;
+}
+
 export function formatDate(dateString: string | null | undefined): string {
   if (!dateString) return '-';
   const date = new Date(dateString);

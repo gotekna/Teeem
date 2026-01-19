@@ -22,18 +22,8 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { formatCurrency } from "@/utils/formatters";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 import { useToast } from "@/components/ui/use-toast";
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "-";
-  const date = new Date(dateStr);
-  return date.toLocaleDateString("en-AU", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
 
 function StaleXeroLinkCard({ link }: { link: StaleXeroLink }) {
   const [expanded, setExpanded] = useState(true);

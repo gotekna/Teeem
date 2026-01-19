@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { formatDate } from "@/utils/formatters";
 
 interface SharePointItem {
   id: string;
@@ -89,20 +90,6 @@ function formatFileSize(bytes?: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
-
-// Format date
-function formatDate(dateString?: string): string {
-  if (!dateString) return "-";
-  try {
-    return new Date(dateString).toLocaleDateString("en-AU", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  } catch {
-    return "-";
-  }
 }
 
 export function RevitTab({ jobId, jobTitle }: RevitTabProps) {

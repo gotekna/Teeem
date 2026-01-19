@@ -32,7 +32,7 @@ import {
   Plus,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatCurrency } from "@/utils/formatters";
+import { formatCurrency, formatPercentChange } from "@/utils/formatters";
 
 interface BudgetScenario {
   id: number;
@@ -52,11 +52,6 @@ interface BudgetScenario {
     total_expenses: number;
     net_income: number;
   };
-}
-
-function formatPercent(pct: number): string {
-  const sign = pct >= 0 ? "+" : "";
-  return `${sign}${pct.toFixed(1)}%`;
 }
 
 export default function BudgetScenariosTab() {
@@ -246,7 +241,7 @@ export default function BudgetScenariosTab() {
                   {formatCurrency(defaultScenario.summary.total_revenue)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {formatPercent(defaultScenario.revenue_adjustment_pct)} adjustment
+                  {formatPercentChange(defaultScenario.revenue_adjustment_pct)} adjustment
                 </p>
               </CardContent>
             </Card>
@@ -346,12 +341,12 @@ export default function BudgetScenariosTab() {
                     <TableCell>{scenario.fiscal_year}</TableCell>
                     <TableCell className="text-center">
                       <span className={scenario.revenue_adjustment_pct >= 0 ? "text-green-600" : "text-red-600"}>
-                        {formatPercent(scenario.revenue_adjustment_pct)}
+                        {formatPercentChange(scenario.revenue_adjustment_pct)}
                       </span>
                     </TableCell>
                     <TableCell className="text-center">
                       <span className={scenario.expense_adjustment_pct <= 0 ? "text-green-600" : "text-red-600"}>
-                        {formatPercent(scenario.expense_adjustment_pct)}
+                        {formatPercentChange(scenario.expense_adjustment_pct)}
                       </span>
                     </TableCell>
                     <TableCell className="text-center">{getStatusBadge(scenario)}</TableCell>

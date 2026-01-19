@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { formatCurrency } from "@/utils/formatters";
+import { formatCurrency, formatNumber } from "@/utils/formatters";
 import { JobQuantityVariablesForm } from "./JobQuantityVariablesForm";
 import { JobRecipesPanel } from "./JobRecipesPanel";
 
@@ -83,13 +83,6 @@ interface BOQData {
 
 interface JobBOQTabProps {
   jobId: string | number;
-}
-
-function formatNumber(value: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }).format(value);
 }
 
 export function JobBOQTab({ jobId }: JobBOQTabProps) {

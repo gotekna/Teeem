@@ -13,6 +13,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useMediaQuery, BREAKPOINT_QUERIES } from "./use-media-query";
+import { debounce } from "@/utils/debounce";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
@@ -51,18 +52,6 @@ const DEFAULT_CONTEXT: DeviceContext = {
   viewportHeight: 768,
   prefersReducedMotion: false,
 };
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Debounce utility
-// ═══════════════════════════════════════════════════════════════════════════
-
-function debounce<T extends (...args: unknown[]) => void>(fn: T, ms: number): T {
-  let timeoutId: ReturnType<typeof setTimeout>;
-  return ((...args: unknown[]) => {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => fn(...args), ms);
-  }) as T;
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Hook

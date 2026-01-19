@@ -29,7 +29,7 @@ import {
   ArrowDownRight,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatCurrency } from "@/utils/formatters";
+import { formatCurrency, formatPercentage } from "@/utils/formatters";
 
 interface JobCosting {
   job_id: number;
@@ -94,10 +94,6 @@ interface BudgetVariance {
     variance_percent: number;
     status: "under" | "on_track" | "over";
   }>;
-}
-
-function formatPercent(value: number): string {
-  return `${value.toFixed(1)}%`;
 }
 
 export default function JobCostingTab() {
@@ -233,7 +229,7 @@ export default function JobCostingTab() {
                 {formatCurrency(summary.totals.total_profit)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {formatPercent(summary.totals.average_margin)} margin
+                {formatPercentage(summary.totals.average_margin)} margin
               </p>
             </CardContent>
           </Card>
@@ -278,7 +274,7 @@ export default function JobCostingTab() {
                         <span className="font-medium">{job.job_name}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-green-600">{formatPercent(job.gross_margin)}</span>
+                        <span className="text-green-600">{formatPercentage(job.gross_margin)}</span>
                         <ArrowUpRight className="h-3 w-3 text-green-600" />
                       </div>
                     </li>
@@ -306,7 +302,7 @@ export default function JobCostingTab() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className={job.gross_margin < 0 ? "text-red-600" : "text-orange-600"}>
-                          {formatPercent(job.gross_margin)}
+                          {formatPercentage(job.gross_margin)}
                         </span>
                         <ArrowDownRight className="h-3 w-3 text-red-600" />
                       </div>
@@ -383,12 +379,12 @@ export default function JobCostingTab() {
                         </TableCell>
                         <TableCell className="text-center">
                           {getMarginBadge(job.gross_margin)}
-                          <div className="text-xs text-muted-foreground mt-1">{formatPercent(job.gross_margin)}</div>
+                          <div className="text-xs text-muted-foreground mt-1">{formatPercentage(job.gross_margin)}</div>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Progress value={job.percent_complete} className="w-16 h-2" />
-                            <span className="text-xs">{formatPercent(job.percent_complete)}</span>
+                            <span className="text-xs">{formatPercentage(job.percent_complete)}</span>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -450,7 +446,7 @@ export default function JobCostingTab() {
                           <TableCell>
                             <div className="flex items-center justify-center gap-2">
                               <Progress value={job.percent_complete} className="w-16 h-2" />
-                              <span className="text-xs">{formatPercent(job.percent_complete)}</span>
+                              <span className="text-xs">{formatPercentage(job.percent_complete)}</span>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -493,7 +489,7 @@ export default function JobCostingTab() {
                           {job.variance >= 0 ? "+" : ""}{formatCurrency(job.variance)}
                         </TableCell>
                         <TableCell className={`text-center ${job.variance_percent >= 0 ? "text-green-600" : "text-red-600"}`}>
-                          {job.variance_percent >= 0 ? "+" : ""}{formatPercent(job.variance_percent)}
+                          {job.variance_percent >= 0 ? "+" : ""}{formatPercentage(job.variance_percent)}
                         </TableCell>
                         <TableCell className="text-center">
                           {getVarianceStatus(job.status)}

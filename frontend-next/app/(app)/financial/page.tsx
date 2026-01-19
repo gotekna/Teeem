@@ -68,6 +68,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { cn, safePercent } from "@/lib/utils";
+import { formatDate, formatPercentChange } from "@/utils/formatters";
 
 // ============================================================================
 // Types
@@ -338,18 +339,6 @@ function formatCurrency(amount: number, compact = false): string {
   }).format(amount);
 }
 
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-function formatPercent(value: number): string {
-  return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
-}
-
 // ============================================================================
 // Sub-Components
 // ============================================================================
@@ -393,7 +382,7 @@ function StatCard({
               )}>
                 {trend === "up" ? <ArrowUpRight className="h-4 w-4" /> :
                  trend === "down" ? <ArrowDownRight className="h-4 w-4" /> : null}
-                {formatPercent(change)} {changeLabel}
+                {formatPercentChange(change)} {changeLabel}
               </div>
             )}
             {subValue && (
