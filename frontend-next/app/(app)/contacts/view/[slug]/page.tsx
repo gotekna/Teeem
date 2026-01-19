@@ -1,41 +1,4 @@
-import { redirect } from "next/navigation";
-import { fetchFoundationForSSR } from "@/lib/server/foundation-api";
+import { createFoundationViewPage } from "@/lib/create-foundation-view-page";
 import ContactsPageClient from "../../contacts-page-client";
 
-interface ContactsViewPageProps {
-  params: Promise<{ slug: string }>;
-}
-
-/**
- * Contacts View Page - Path-Based View URL
- *
- * SSoT URL Pattern: /contacts/view/company_role (path-based, human-readable)
- *
- * This is the preferred URL format per component-registry.ts URL PATTERNS standard.
- * Legacy ?view=slug URLs are redirected here by the parent page.
- *
- * @example /contacts/view/company_role → View grouped by company role
- * @example /contacts/view/all → Default flat view
- */
-export default async function ContactsViewPage({ params }: ContactsViewPageProps) {
-  const { slug } = await params;
-
-  // Fetch with view applied on server for fast LCP + no CLS
-  const { columns, records, hasMore, totalCount, view, views, groupCounts } = await fetchFoundationForSSR("contacts", {
-    limit: 20,
-    viewSlug: slug,
-  });
-
-  return (
-    <ContactsPageClient
-      initialColumns={columns}
-      initialRecords={records}
-      initialHasMore={hasMore}
-      initialTotalCount={totalCount}
-      initialView={view}
-      initialViews={views}
-      initialGroupCounts={groupCounts}
-      viewSlug={slug}
-    />
-  );
-}
+export default createFoundationViewPage("contacts", ContactsPageClient, { includeGroupCounts: true });
