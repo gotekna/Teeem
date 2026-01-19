@@ -17,6 +17,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { getApiBaseUrl } from "@/lib/api";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 interface BankStatementComparisonModalProps {
   open: boolean;
@@ -65,7 +66,7 @@ export function BankStatementComparisonModal({
     setReferenceUrl(null);
 
     try {
-      const token = localStorage.getItem("token");
+      const token = getStorageItem<string>(STORAGE_KEYS.TOKEN, '', false);
       const headers = { Authorization: `Bearer ${token}` };
 
       // Load generated PDF

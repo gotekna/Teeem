@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 // Types
 interface Agent {
@@ -111,10 +112,10 @@ export default function AgentTasksPage() {
         setAgents(agentsData);
 
         // Check localStorage first for saved tasks
-        const savedTasks = localStorage.getItem("agentTasks");
+        const savedTasks = getStorageItem<AgentTasks | null>(STORAGE_KEYS.AGENT_TASKS, null);
 
         if (savedTasks) {
-          setAgentTasks(JSON.parse(savedTasks));
+          setAgentTasks(savedTasks);
         } else {
           // Initialize with default instructions
           const initialTasks: AgentTasks = {};
@@ -127,7 +128,7 @@ export default function AgentTasksPage() {
             }));
           });
           setAgentTasks(initialTasks);
-          localStorage.setItem("agentTasks", JSON.stringify(initialTasks));
+          setStorageItem(STORAGE_KEYS.AGENT_TASKS, initialTasks);
         }
       }
     } catch (error) {
@@ -150,7 +151,7 @@ export default function AgentTasksPage() {
       ],
     };
     setAgentTasks(newTasks);
-    localStorage.setItem("agentTasks", JSON.stringify(newTasks));
+    setStorageItem(STORAGE_KEYS.AGENT_TASKS, newTasks);
   };
 
   const updateTask = (agentId: string, taskId: number, description: string) => {
@@ -161,7 +162,7 @@ export default function AgentTasksPage() {
       ),
     };
     setAgentTasks(newTasks);
-    localStorage.setItem("agentTasks", JSON.stringify(newTasks));
+    setStorageItem(STORAGE_KEYS.AGENT_TASKS, newTasks);
   };
 
   const toggleTask = (agentId: string, taskId: number) => {
@@ -172,7 +173,7 @@ export default function AgentTasksPage() {
       ),
     };
     setAgentTasks(newTasks);
-    localStorage.setItem("agentTasks", JSON.stringify(newTasks));
+    setStorageItem(STORAGE_KEYS.AGENT_TASKS, newTasks);
   };
 
   const deleteTask = (agentId: string, taskId: number) => {
@@ -181,7 +182,7 @@ export default function AgentTasksPage() {
       [agentId]: agentTasks[agentId].filter((task) => task.id !== taskId),
     };
     setAgentTasks(newTasks);
-    localStorage.setItem("agentTasks", JSON.stringify(newTasks));
+    setStorageItem(STORAGE_KEYS.AGENT_TASKS, newTasks);
   };
 
   const resetToDefaults = async () => {
@@ -199,7 +200,7 @@ export default function AgentTasksPage() {
       }));
     });
     setAgentTasks(initialTasks);
-    localStorage.setItem("agentTasks", JSON.stringify(initialTasks));
+    setStorageItem(STORAGE_KEYS.AGENT_TASKS, initialTasks);
   };
 
   const runAgent = async (agentId: string) => {

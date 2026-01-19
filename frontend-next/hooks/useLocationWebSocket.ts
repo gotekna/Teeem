@@ -3,6 +3,7 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from "react";
 import { createConsumer, Subscription } from "@rails/actioncable";
 import { getApiBaseUrl } from "@/lib/api";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 // Singleton ActionCable consumer to prevent multiple connections
 let globalConsumer: ReturnType<typeof createConsumer> | null = null;
@@ -393,7 +394,7 @@ function getWebSocketUrl(): string {
   url.pathname = "/cable";
 
   if (typeof window !== "undefined") {
-    const token = localStorage.getItem("token");
+    const token = getStorageItem(STORAGE_KEYS.TOKEN, null);
     if (token) {
       url.searchParams.set("token", token);
     }

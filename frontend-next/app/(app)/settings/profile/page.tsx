@@ -42,6 +42,7 @@ import {
   getStoredPersona,
   setStoredPersona,
 } from "@/lib/personas";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 // QBCC Licence Classes relevant for Form 43 certificates
 const QBCC_LICENCE_CLASSES = [
@@ -222,7 +223,7 @@ export default function ProfileSettingsPage() {
         }
 
         // Use Next.js proxy route for FormData uploads (handles CORS)
-        const token = localStorage.getItem("token");
+        const token = getStorageItem(STORAGE_KEYS.TOKEN, '', false);
         const response = await fetch(`/api/v1/users/${user.id}`, {
           method: "PATCH",
           headers: {

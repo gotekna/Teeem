@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useAuth } from './AuthContext';
 import { TASK_STATUS, type CoreTaskStatus } from '@/lib/constants/task-status';
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
 
 // Types
 // Task attachment types
@@ -670,32 +671,21 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
   const [tasks, setTasks] = useState<SmTask[]>([]);
   const [activeView, setActiveViewState] = useState<ViewType>(() => {
     // Load saved view from localStorage
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('taskHub_activeView') as ViewType;
-      if (saved && ['board', 'list', 'gantt'].includes(saved)) {
-        return saved;
-      }
+    const saved = getStorageItem<ViewType>(STORAGE_KEYS.TASK_HUB_VIEW, 'list');
+    if (saved && ['board', 'list', 'gantt'].includes(saved)) {
+      return saved;
     }
     return 'list';
   });
 
   const [filters, setFiltersState] = useState<TaskFilters>(() => {
     // Load saved filters from localStorage
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('taskHub_filters');
-      if (saved) {
-        try {
-          const parsedFilters = { ...defaultFilters, ...JSON.parse(saved) };
-          return parsedFilters;
-        } catch {
-          // Ignore invalid JSON
-        }
-      }
-    }
+    const saved = getStorageItem<Partial<TaskFilters>>(STORAGE_KEYS.TASK_HUB_FILTERS, {});
+    const parsedFilters = { ...defaultFilters, ...saved };
     return {
-      ...defaultFilters,
-      showMyTasksOnly: true, // Default to "Mine"
-      jobIds: initialJobId ? [initialJobId] : [],
+      ...parsedFilters,
+      showMyTasksOnly: parsedFilters.showMyTasksOnly ?? true, // Default to "Mine"
+      jobIds: initialJobId ? [initialJobId] : parsedFilters.jobIds || [],
     };
   });
 
@@ -809,15 +799,11 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
 
   // Save preferences to localStorage
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('taskHub_activeView', activeView);
-    }
+    setStorageItem(STORAGE_KEYS.TASK_HUB_VIEW, activeView);
   }, [activeView]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('taskHub_filters', JSON.stringify(filters));
-    }
+    setStorageItem(STORAGE_KEYS.TASK_HUB_FILTERS, filters);
   }, [filters]);
 
   // Computed: filtered tasks

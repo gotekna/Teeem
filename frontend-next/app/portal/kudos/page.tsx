@@ -19,6 +19,7 @@ import {
   StarIcon,
 } from "@heroicons/react/24/outline";
 import { Spinner } from "@/components/ui/spinner";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 interface KudosStatistics {
   total_jobs_completed: number;
@@ -112,7 +113,7 @@ export default function PortalKudos() {
 
   const loadKudosData = async () => {
     try {
-      const token = localStorage.getItem("portal_token");
+      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
       if (!token) {
         window.location.href = "/portal/login";
         return;

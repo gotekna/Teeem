@@ -4,6 +4,7 @@ import * as React from "react";
 import { useState, useEffect, useCallback, useTransition, useMemo, memo, useRef } from "react";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useSearchParams, useRouter, useParams } from "next/navigation";
+import { setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import {
   // Folder state
   selectedFolderAtom,
@@ -1298,14 +1299,13 @@ export default function EmailPage() {
   // Cache email state for instant loading on next visit
   useEffect(() => {
     if (selectedAccount && selectedFolderId) {
-      try {
-        localStorage.setItem('teeem_email_state', JSON.stringify({
-          accountId: selectedAccount,
-          folderName: selectedFolder,
-          folderId: selectedFolderId,
-          viewMode,
-        }));
-      } catch { /* ignore storage errors */ }
+      // SSoT: Using storage-utils for localStorage operations
+      setStorageItem(STORAGE_KEYS.EMAIL_STATE, {
+        accountId: selectedAccount,
+        folderName: selectedFolder,
+        folderId: selectedFolderId,
+        viewMode,
+      });
     }
   }, [selectedAccount, selectedFolder, selectedFolderId, viewMode]);
 

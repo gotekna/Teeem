@@ -18,7 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 
-import { api, getApiBaseUrl } from "@/lib/api";
+import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 
 // ============================================
@@ -723,22 +723,11 @@ export function ImportExportPanel({ constructionId, constructionName }: ImportEx
   const handleExport = async () => {
     setExporting(true);
     try {
-      // For blob response, we need to use fetch directly
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-
-      const response = await fetch(
-        `${getApiBaseUrl()}/api/v1/sm_integrations/export_ms_project?construction_id=${constructionId}`,
-        {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-          credentials: "include",
-        }
+      const blob = await api.getBlob(
+        `/api/v1/sm_integrations/export_ms_project`,
+        { params: { construction_id: String(constructionId) } }
       );
 
-      if (!response.ok) {
-        throw new Error("Export failed");
-      }
-
-      const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;

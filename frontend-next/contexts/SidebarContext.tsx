@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 interface SidebarContextType {
   isExpanded: boolean;
@@ -13,7 +14,6 @@ const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
 
 const COLLAPSED_WIDTH = 70;
 const EXPANDED_WIDTH = 240;
-const STORAGE_KEY = "teeem-sidebar-state";
 
 // Get the base route (e.g., "/jobs/123" -> "jobs", "/contacts" -> "contacts")
 function getBaseRoute(pathname: string): string {
@@ -23,29 +23,15 @@ function getBaseRoute(pathname: string): string {
 
 // Get state from localStorage synchronously
 function getStoredState(baseRoute: string): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      const states: Record<string, boolean> = JSON.parse(saved);
-      return states[baseRoute] ?? false;
-    }
-  } catch {
-    // Ignore localStorage errors
-  }
-  return false;
+  const saved = getStorageItem<Record<string, boolean>>(STORAGE_KEYS.SIDEBAR_STATE, {});
+  return saved[baseRoute] ?? false;
 }
 
 // Save state to localStorage
 function saveState(baseRoute: string, expanded: boolean): void {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    const states: Record<string, boolean> = saved ? JSON.parse(saved) : {};
-    states[baseRoute] = expanded;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(states));
-  } catch {
-    // Ignore localStorage errors
-  }
+  const saved = getStorageItem<Record<string, boolean>>(STORAGE_KEYS.SIDEBAR_STATE, {});
+  const states = { ...saved, [baseRoute]: expanded };
+  setStorageItem(STORAGE_KEYS.SIDEBAR_STATE, states);
 }
 
 export function SidebarProvider({ children }: { children: ReactNode }) {

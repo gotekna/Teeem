@@ -19,6 +19,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { formatDate } from '@/utils/formatters';
 
 export interface ColumnDefinition {
   column_name: string;
@@ -375,7 +376,8 @@ export function formatFieldValue(column: ColumnDefinition, value: unknown): stri
     case 'date':
       if (!value) return '—';
       try {
-        return new Date(String(value)).toLocaleDateString('en-AU');
+        const formatted = formatDate(String(value));
+        return formatted === '-' ? String(value) : formatted;
       } catch {
         return String(value);
       }

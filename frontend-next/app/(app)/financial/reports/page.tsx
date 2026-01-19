@@ -20,6 +20,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { api, getApiBaseUrl } from "@/lib/api";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 // Types
 interface BalanceSheet {
@@ -184,7 +185,7 @@ export default function FinancialReportsPage() {
         `${getApiBaseUrl()}${url}?${new URLSearchParams(params)}`,
         {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
+            Authorization: `Bearer ${getStorageItem<string>(STORAGE_KEYS.TOKEN, '', false)}`,
           },
         }
       );

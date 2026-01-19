@@ -30,6 +30,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/contexts/ConfirmationContext";
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 interface GanttConfig {
   defaultView: "day" | "week" | "month";
@@ -96,9 +97,9 @@ export function SMGanttTab() {
   const loadConfig = async () => {
     try {
       // Try localStorage first as primary storage (API endpoint may not exist yet)
-      const saved = localStorage.getItem("ganttConfig");
+      const saved = getStorageItem<GanttConfig | null>(STORAGE_KEYS.GANTT_CONFIG, null);
       if (saved) {
-        setConfig(JSON.parse(saved));
+        setConfig(saved);
       }
       // Optionally try API if it exists in the future
       // const data = await api.get<GanttConfig>("/api/v1/gantt_config");
@@ -127,13 +128,13 @@ export function SMGanttTab() {
     setSaving(true);
     try {
       await api.put("/api/v1/gantt_config", { gantt_config: config });
-      localStorage.setItem("ganttConfig", JSON.stringify(config));
+      setStorageItem(STORAGE_KEYS.GANTT_CONFIG, config);
       toast({ title: "Success", description: "Gantt configuration saved successfully" });
       setHasChanges(false);
     } catch (error) {
       console.error("Failed to save config:", error);
       // Save to localStorage as fallback
-      localStorage.setItem("ganttConfig", JSON.stringify(config));
+      setStorageItem(STORAGE_KEYS.GANTT_CONFIG, config);
       toast({ title: "Success", description: "Configuration saved locally" });
       setHasChanges(false);
     } finally {

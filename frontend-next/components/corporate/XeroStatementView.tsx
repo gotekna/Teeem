@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { api, getApiBaseUrl } from "@/lib/api";
+import { api } from "@/lib/api";
 import { formatCurrency } from "@/utils/formatters";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
@@ -365,51 +365,28 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
       setDownloading(true);
 
       // Build query params for the report
-      const params = new URLSearchParams();
+      const queryParams: Record<string, string> = {};
       if (selectedAccount !== "all") {
-        params.set("bank_account_id", selectedAccount);
+        queryParams.bank_account_id = selectedAccount;
       }
       if (selectedFY !== "all") {
-        params.set("financial_year", selectedFY);
+        queryParams.financial_year = selectedFY;
       }
       if (selectedMonth !== "all") {
-        params.set("month", selectedMonth);
+        queryParams.month = selectedMonth;
       }
 
-      // Create a link to download the PDF
-      const baseUrl = getApiBaseUrl();
-      const url = `${baseUrl}/api/v1/warehouse_bank_transactions/download_report?${params.toString()}`;
+      // Get the blob using api.getBlob (SSoT for authenticated requests)
+      const blob = await api.getBlob(
+        "/api/v1/warehouse_bank_transactions/download_report",
+        { params: queryParams }
+      );
 
-      // Fetch with auth token
-      const token = localStorage.getItem("token");
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to download report");
-      }
-
-      // Get the blob and trigger download
-      const blob = await response.blob();
+      // Trigger download
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = downloadUrl;
-
-      // Get filename from Content-Disposition header or generate one
-      const contentDisposition = response.headers.get("Content-Disposition");
-      let filename = "Xero_Transaction_Report.pdf";
-      if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename="?([^";\n]+)"?/);
-        if (filenameMatch) {
-          filename = filenameMatch[1];
-        }
-      }
-
-      link.download = filename;
+      link.download = "Xero_Transaction_Report.pdf";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

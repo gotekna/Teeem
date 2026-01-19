@@ -5,6 +5,8 @@
  * Used by FolderTree component for email folder display.
  */
 
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from './storage-utils';
+
 export type FolderType =
   | "inbox"
   | "sent"
@@ -239,7 +241,7 @@ export function buildFolderTree(
  * Get localStorage key for folder expanded state
  */
 export function getFolderExpandedKey(accountId: string): string {
-  return `teeem_email_folders_expanded_${accountId}`;
+  return `${STORAGE_KEYS.EMAIL_FOLDERS_EXPANDED_PREFIX}${accountId}`;
 }
 
 /**
@@ -248,9 +250,10 @@ export function getFolderExpandedKey(accountId: string): string {
 export function loadExpandedFolders(accountId: string): Set<string> {
   if (typeof window === "undefined") return new Set();
   try {
-    const stored = localStorage.getItem(getFolderExpandedKey(accountId));
-    if (stored) {
-      return new Set(JSON.parse(stored));
+    const key = getFolderExpandedKey(accountId);
+    const stored = getStorageItem<string[]>(key, [], false);
+    if (stored && Array.isArray(stored)) {
+      return new Set(stored);
     }
   } catch {
     // Ignore parse errors
@@ -267,10 +270,8 @@ export function saveExpandedFolders(
 ): void {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(
-      getFolderExpandedKey(accountId),
-      JSON.stringify([...expandedIds])
-    );
+    const key = getFolderExpandedKey(accountId);
+    setStorageItem(key, [...expandedIds], false);
   } catch {
     // Ignore storage errors
   }

@@ -24,7 +24,7 @@ import {
   Wallet,
   RefreshCw,
 } from "lucide-react";
-import { api, getApiBaseUrl } from "@/lib/api";
+import { api } from "@/lib/api";
 import { PDFViewer, FieldHighlight } from "@/components/ui/pdf-viewer";
 import { CheckCircle2, XCircle as XCircle2, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -296,15 +296,9 @@ export function BillsInvoiceViewer({
   const loadPdf = async (billId: number) => {
     setPdfLoading(true);
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`${getApiBaseUrl()}/api/v1/bill_inbox/${billId}/download`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        setPdfBlobUrl(url);
-      }
+      const blob = await api.getBlob(`/api/v1/bill_inbox/${billId}/download`);
+      const url = URL.createObjectURL(blob);
+      setPdfBlobUrl(url);
     } catch (error) {
       console.error("Failed to load PDF:", error);
     } finally {

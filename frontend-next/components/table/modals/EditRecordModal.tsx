@@ -48,6 +48,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { RecordFormField, type ColumnDefinition } from './RecordFormRenderer';
 import type { TableColumn, TableRow } from '../types';
 import { isSystemGeneratedType, SYSTEM_VISIBLE_COLUMNS } from "@/lib/constants/system-columns";
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 // Alias for consistency
 type TableRowType = TableRow;
@@ -178,7 +179,7 @@ export function EditRecordModal({
   const [fieldOrder, setFieldOrder] = useState<Record<string, number>>({});
 
   // SSoT: localStorage key for persisting field preferences per foundation
-  const storageKey = `teeem-modal-fields-${foundationId}`;
+  const storageKey = `${STORAGE_KEYS.MODAL_FIELDS_PREFIX}${foundationId}`;
 
   // Filter columns to show in form
   const editableColumns = useMemo(() => {
@@ -201,31 +202,27 @@ export function EditRecordModal({
       });
       setFormData(initialData);
 
-      // Try to load saved field preferences from localStorage
-      try {
-        const saved = localStorage.getItem(storageKey);
-        if (saved) {
-          const { visible, order } = JSON.parse(saved);
-          // Validate that saved fields still exist in current columns
-          const validVisible = new Set<string>();
-          const columnKeys = new Set(editableColumns.map(c => c.key));
-          (visible || []).forEach((key: string) => {
-            if (columnKeys.has(key)) validVisible.add(key);
+      // Try to load saved field preferences from localStorage (SSoT: storage-utils)
+      const saved = getStorageItem<{ visible?: string[]; order?: Record<string, number> } | null>(storageKey, null);
+      if (saved) {
+        const { visible, order } = saved;
+        // Validate that saved fields still exist in current columns
+        const validVisible = new Set<string>();
+        const columnKeys = new Set(editableColumns.map(c => c.key));
+        (visible || []).forEach((key: string) => {
+          if (columnKeys.has(key)) validVisible.add(key);
+        });
+        // Only use saved if we have valid visible fields
+        if (validVisible.size > 0) {
+          setVisibleFields(validVisible);
+          // Merge saved order with current columns (new columns get high order)
+          const mergedOrder: Record<string, number> = {};
+          editableColumns.forEach((col, idx) => {
+            mergedOrder[col.key] = order?.[col.key] ?? (idx + 100);
           });
-          // Only use saved if we have valid visible fields
-          if (validVisible.size > 0) {
-            setVisibleFields(validVisible);
-            // Merge saved order with current columns (new columns get high order)
-            const mergedOrder: Record<string, number> = {};
-            editableColumns.forEach((col, idx) => {
-              mergedOrder[col.key] = order?.[col.key] ?? (idx + 100);
-            });
-            setFieldOrder(mergedOrder);
-            return; // Skip default initialization
-          }
+          setFieldOrder(mergedOrder);
+          return; // Skip default initialization
         }
-      } catch (e) {
-        // Ignore localStorage errors
       }
 
       // Default: show first 8 non-system columns
@@ -248,18 +245,14 @@ export function EditRecordModal({
     }
   }, [record, open, editableColumns, storageKey]);
 
-  // Save field preferences to localStorage when they change
+  // Save field preferences to localStorage when they change (SSoT: storage-utils)
   useEffect(() => {
     if (open && visibleFields.size > 0) {
-      try {
-        const data = {
-          visible: Array.from(visibleFields),
-          order: fieldOrder,
-        };
-        localStorage.setItem(storageKey, JSON.stringify(data));
-      } catch (e) {
-        // Ignore localStorage errors
-      }
+      const data = {
+        visible: Array.from(visibleFields),
+        order: fieldOrder,
+      };
+      setStorageItem(storageKey, data);
     }
   }, [visibleFields, fieldOrder, storageKey, open]);
 

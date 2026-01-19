@@ -53,6 +53,7 @@ import {
 import type { TableColumn } from "./types";
 import { isSystemGeneratedType, SYSTEM_VISIBLE_COLUMNS } from "@/lib/constants/system-columns";
 import { isLookupColumn } from "@/lib/constants/column-types";
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import type { LookupOption } from "./utils/lookup-cache";
 import { DocumentTypeLinker, type LinkedDocumentType, type DocumentType } from "@/components/schedule-master/DocumentTypeLinker";
 
@@ -197,7 +198,7 @@ export function CreateRecordDialog({
   const [availableDocumentTypes, setAvailableDocumentTypes] = useState<DocumentType[]>([]);
 
   // SSoT: localStorage key for persisting field preferences per foundation
-  const storageKey = `teeem-modal-fields-${foundationId}`;
+  const storageKey = `${STORAGE_KEYS.MODAL_FIELDS_PREFIX}${foundationId}`;
 
   // Detect if this is a Schedule Master foundation (supports document type linking)
   const isScheduleMaster = useMemo(() => {
@@ -260,34 +261,30 @@ export function CreateRecordDialog({
   // Initialize visible fields and order on first render or when columns change
   React.useEffect(() => {
     if (filteredColumns.length > 0 && visibleFields.size === 0) {
-      // Try to load saved field preferences from localStorage
-      try {
-        const saved = localStorage.getItem(storageKey);
-        if (saved) {
-          const { visible, order } = JSON.parse(saved);
-          // Validate that saved fields still exist in current columns
-          const validVisible = new Set<string>();
-          const columnKeys = new Set(filteredColumns.map(c => c.key));
-          (visible || []).forEach((key: string) => {
-            if (columnKeys.has(key)) validVisible.add(key);
+      // Try to load saved field preferences from localStorage (SSoT: storage-utils)
+      const saved = getStorageItem<{ visible?: string[]; order?: Record<string, number> } | null>(storageKey, null);
+      if (saved) {
+        const { visible, order } = saved;
+        // Validate that saved fields still exist in current columns
+        const validVisible = new Set<string>();
+        const columnKeys = new Set(filteredColumns.map(c => c.key));
+        (visible || []).forEach((key: string) => {
+          if (columnKeys.has(key)) validVisible.add(key);
+        });
+        // Also add any required fields that might be missing from saved preferences
+        const requiredFields = filteredColumns.filter((col) => col.required);
+        requiredFields.forEach((col) => validVisible.add(col.key));
+        // Only use saved if we have valid visible fields
+        if (validVisible.size > 0) {
+          setVisibleFields(validVisible);
+          // Merge saved order with current columns (new columns get high order)
+          const mergedOrder: Record<string, number> = {};
+          filteredColumns.forEach((col, idx) => {
+            mergedOrder[col.key] = order?.[col.key] ?? (idx + 100);
           });
-          // Also add any required fields that might be missing from saved preferences
-          const requiredFields = filteredColumns.filter((col) => col.required);
-          requiredFields.forEach((col) => validVisible.add(col.key));
-          // Only use saved if we have valid visible fields
-          if (validVisible.size > 0) {
-            setVisibleFields(validVisible);
-            // Merge saved order with current columns (new columns get high order)
-            const mergedOrder: Record<string, number> = {};
-            filteredColumns.forEach((col, idx) => {
-              mergedOrder[col.key] = order?.[col.key] ?? (idx + 100);
-            });
-            setFieldOrder(mergedOrder);
-            return; // Skip default initialization
-          }
+          setFieldOrder(mergedOrder);
+          return; // Skip default initialization
         }
-      } catch (e) {
-        // Ignore localStorage errors
       }
 
       // Default: Find required fields - they MUST be visible
@@ -317,18 +314,14 @@ export function CreateRecordDialog({
     }
   }, [filteredColumns, visibleFields.size, storageKey]);
 
-  // Save field preferences to localStorage when they change
+  // Save field preferences to localStorage when they change (SSoT: storage-utils)
   useEffect(() => {
     if (visibleFields.size > 0) {
-      try {
-        const data = {
-          visible: Array.from(visibleFields),
-          order: fieldOrder,
-        };
-        localStorage.setItem(storageKey, JSON.stringify(data));
-      } catch (e) {
-        // Ignore localStorage errors
-      }
+      const data = {
+        visible: Array.from(visibleFields),
+        order: fieldOrder,
+      };
+      setStorageItem(storageKey, data);
     }
   }, [visibleFields, fieldOrder, storageKey]);
 

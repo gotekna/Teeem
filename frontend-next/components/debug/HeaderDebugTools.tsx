@@ -172,6 +172,9 @@ export function HeaderDebugTools() {
       console.log("[ClearCache] Records cache cleared (L1 + L2)");
 
       // 3. Clear app-specific localStorage items (but not auth)
+      // NOTE: Intentionally uses raw localStorage iteration, not storage-utils.ts,
+      // because we need to clear ALL keys (including unknown third-party keys),
+      // not just known STORAGE_KEYS constants.
       const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
@@ -183,6 +186,7 @@ export function HeaderDebugTools() {
       console.log(`[ClearCache] Cleared ${keysToRemove.length} localStorage items`);
 
       // 4. Clear sessionStorage (except auth)
+      // NOTE: Same rationale as localStorage above - need to clear ALL keys.
       const sessionKeysToRemove: string[] = [];
       for (let i = 0; i < sessionStorage.length; i++) {
         const key = sessionStorage.key(i);

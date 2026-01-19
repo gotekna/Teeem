@@ -16,6 +16,7 @@ import {
   fetchColumnsForFoundation,
 } from '../utils/columns-cache';
 import type { TableColumn } from '../types';
+import { getStorageItem, setStorageItem, removeStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
 
 export interface FoundationInfo {
   id: number;
@@ -121,14 +122,10 @@ export function useFoundationColumns(
 
           // Clean up localStorage views cache
           try {
-            const viewsCacheKey = 'teeem_views_cache';
-            const viewsCache = localStorage.getItem(viewsCacheKey);
-            if (viewsCache) {
-              const parsed = JSON.parse(viewsCache);
-              if (parsed[foundationId]) {
-                delete parsed[foundationId];
-                localStorage.setItem(viewsCacheKey, JSON.stringify(parsed));
-              }
+            const viewsCache = getStorageItem<Record<string, any>>(STORAGE_KEYS.VIEWS_CACHE, {});
+            if (viewsCache[foundationId]) {
+              delete viewsCache[foundationId];
+              setStorageItem(STORAGE_KEYS.VIEWS_CACHE, viewsCache);
             }
           } catch {
             // Ignore cache cleanup errors

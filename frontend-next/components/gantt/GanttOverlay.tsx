@@ -68,6 +68,8 @@ interface CheckboxConfig {
     checked: string;
     unchecked: string;
   };
+  hexColor?: string; // Fallback hex color for inline styles if needed
+  hexBorder?: string; // Fallback hex border for inline styles if needed
 }
 
 const CHECKBOX_CONFIGS: Record<string, CheckboxConfig> = {
@@ -75,41 +77,51 @@ const CHECKBOX_CONFIGS: Record<string, CheckboxConfig> = {
     field: 'started',
     label: 'Started',
     color: {
-      checked: 'bg-emerald-500 border-emerald-500',
+      checked: 'bg-emerald-500 dark:bg-emerald-400 border-emerald-500 dark:border-emerald-400',
       unchecked: 'border-border',
     },
+    hexColor: '#10b981',
+    hexBorder: '#10b981',
   },
   hold: {
     field: 'hold',
     label: 'Hold',
     color: {
-      checked: 'bg-amber-500 border-amber-500',
+      checked: 'bg-amber-500 dark:bg-amber-400 border-amber-500 dark:border-amber-400',
       unchecked: 'border-border',
     },
+    hexColor: '#f59e0b',
+    hexBorder: '#f59e0b',
   },
   confirm: {
     field: 'confirm',
     label: 'Confirm',
     color: {
-      checked: 'bg-orange-500 border-orange-500',
+      checked: 'bg-orange-500 dark:bg-orange-400 border-orange-500 dark:border-orange-400',
       unchecked: 'border-border',
     },
+    hexColor: '#f97316',
+    hexBorder: '#f97316',
   },
   supplier_confirm: {
     field: 'supplier_confirm',
     label: 'Supplier Confirm',
     color: {
-      checked: 'bg-purple-500 border-purple-500',
+      checked: 'bg-purple-500 dark:bg-purple-400 border-purple-500 dark:border-purple-400',
       unchecked: 'border-border',
     },
+    hexColor: '#a855f7',
+    hexBorder: '#a855f7',
   },
   is_completed: {
     field: 'is_completed',
     label: 'Complete',
     color: {
-      checked: 'bg-muted-foreground border-border',
+      checked: 'bg-gray-700 dark:bg-gray-600 border-gray-700 dark:border-gray-600',
       unchecked: 'border-border',
     },
+    hexColor: '#374151',
+    hexBorder: '#374151',
   },
 };
 
@@ -232,17 +244,9 @@ function CheckboxOverlay({
           checked && config?.color.checked,
           !checked && 'border-border bg-transparent'
         )}
-        style={checked ? {
-          backgroundColor: config?.color.checked.includes('emerald') ? '#10b981' :
-                          config?.color.checked.includes('amber') ? '#f59e0b' :
-                          config?.color.checked.includes('orange') ? '#f97316' :
-                          config?.color.checked.includes('purple') ? '#a855f7' :
-                          config?.color.checked.includes('gray') ? '#374151' : '#3b82f6',
-          borderColor: config?.color.checked.includes('emerald') ? '#10b981' :
-                       config?.color.checked.includes('amber') ? '#f59e0b' :
-                       config?.color.checked.includes('orange') ? '#f97316' :
-                       config?.color.checked.includes('purple') ? '#a855f7' :
-                       config?.color.checked.includes('gray') ? '#374151' : '#3b82f6',
+        style={checked && config?.hexColor ? {
+          backgroundColor: config.hexColor,
+          borderColor: config.hexBorder || config.hexColor,
         } : undefined}
         title={config?.label}
       />

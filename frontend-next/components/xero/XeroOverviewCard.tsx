@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { formatDate } from "@/utils/formatters";
 import type { XeroConnectionStatus, TenantStats } from "./types";
 
 interface XeroHealthData {
@@ -132,14 +133,8 @@ export function XeroOverviewCard({ companyId }: XeroOverviewCardProps) {
   const formatLockedDate = (dateStr: string | null | undefined): string | null => {
     if (!dateStr) return null;
     try {
-      const date = new Date(dateStr);
-      if (isNaN(date.getTime())) return null;
-      // Format as "15 January 2025"
-      return date.toLocaleDateString('en-AU', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric'
-      });
+      const formatted = formatDate(dateStr);
+      return formatted === '-' ? null : formatted;
     } catch {
       return null;
     }

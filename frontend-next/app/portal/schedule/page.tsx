@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 interface Construction {
   id: number;
@@ -191,7 +192,7 @@ const TaskDetailModal = ({
   useEffect(() => {
     const fetchDetail = async () => {
       try {
-        const token = localStorage.getItem("portal_token");
+        const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
         axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
         const res = await axios.get(`/api/v1/portal/sm_tasks/${task.id}`);
@@ -207,7 +208,7 @@ const TaskDetailModal = ({
 
   const handleConfirm = async () => {
     try {
-      const token = localStorage.getItem("portal_token");
+      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       await axios.patch(`/api/v1/portal/sm_tasks/${task.id}`, {
@@ -226,7 +227,7 @@ const TaskDetailModal = ({
     if (!newComment.trim()) return;
     setSubmitting(true);
     try {
-      const token = localStorage.getItem("portal_token");
+      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       await axios.post(`/api/v1/portal/sm_tasks/${task.id}/add_comment`, {
@@ -463,7 +464,7 @@ export default function PortalSchedule() {
 
   const fetchTasks = useCallback(async () => {
     try {
-      const token = localStorage.getItem("portal_token");
+      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       const params: any = {};

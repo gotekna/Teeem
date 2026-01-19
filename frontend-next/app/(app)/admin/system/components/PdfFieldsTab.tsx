@@ -43,6 +43,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { Spinner } from "@/components/ui/spinner";
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 // Initialize pdf.js worker
 if (typeof window !== "undefined") {
@@ -113,63 +114,37 @@ export function PdfFieldsTab() {
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
 
-  // Persist selections in localStorage
-  const [selectedTemplate, setSelectedTemplate] = React.useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('pdfFieldsTab_template') || "qbcc_contract";
-    }
-    return "qbcc_contract";
-  });
-  const [selectedJobId, setSelectedJobId] = React.useState<number | null>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('pdfFieldsTab_jobId');
-      return saved ? parseInt(saved) : null;
-    }
-    return null;
-  });
+  // Persist selections in localStorage (using SSoT storage-utils)
+  const [selectedTemplate, setSelectedTemplate] = React.useState(() =>
+    getStorageItem(STORAGE_KEYS.PDF_FIELDS_TEMPLATE, "qbcc_contract")
+  );
+  const [selectedJobId, setSelectedJobId] = React.useState<number | null>(() =>
+    getStorageItem<number | null>(STORAGE_KEYS.PDF_FIELDS_JOB_ID, null)
+  );
   const [selectedJob, setSelectedJob] = React.useState<Job | null>(null);
   const [jobs, setJobs] = React.useState<Job[]>([]);
-  const [currentPage, setCurrentPage] = React.useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('pdfFieldsTab_page');
-      return saved ? parseInt(saved) : 2;
-    }
-    return 2;
-  });
+  const [currentPage, setCurrentPage] = React.useState(() =>
+    getStorageItem(STORAGE_KEYS.PDF_FIELDS_PAGE, 2)
+  );
   const [pdfUrl, setPdfUrl] = React.useState<string | null>(null);
   const [loadingPdf, setLoadingPdf] = React.useState(false);
-  const [zoom, setZoom] = React.useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('pdfFieldsTab_zoom');
-      return saved ? parseInt(saved) : 100;
-    }
-    return 100;
-  });
+  const [zoom, setZoom] = React.useState(() =>
+    getStorageItem(STORAGE_KEYS.PDF_FIELDS_ZOOM, 100)
+  );
   const [debugLogs, setDebugLogs] = React.useState<string[]>([]);
   const [pdfError, setPdfError] = React.useState<string | null>(null);
   const [draggingFieldId, setDraggingFieldId] = React.useState<number | null>(null);
   const [dropPreview, setDropPreview] = React.useState<{ x: number; y: number } | null>(null);
   const [previewWidth, setPreviewWidth] = React.useState<number>(0); // 0 = auto
   const [previewHeight, setPreviewHeight] = React.useState<number>(0); // 0 = auto
-  const [fieldSizes, setFieldSizes] = React.useState<Record<number, { w: number; h: number }>>(() => {
-    // Load from localStorage on init
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('pdfFieldSizes');
-      if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch {
-          return {};
-        }
-      }
-    }
-    return {};
-  });
+  const [fieldSizes, setFieldSizes] = React.useState<Record<number, { w: number; h: number }>>(() =>
+    getStorageItem<Record<number, { w: number; h: number }>>(STORAGE_KEYS.PDF_FIELD_SIZES, {})
+  );
 
   // Save to localStorage when fieldSizes changes
   React.useEffect(() => {
     if (Object.keys(fieldSizes).length > 0) {
-      localStorage.setItem('pdfFieldSizes', JSON.stringify(fieldSizes));
+      setStorageItem(STORAGE_KEYS.PDF_FIELD_SIZES, fieldSizes);
     }
   }, [fieldSizes]);
   const [isMouseDragging, setIsMouseDragging] = React.useState(false);
@@ -236,13 +211,9 @@ export function PdfFieldsTab() {
   }, [clickedDetectedField, positions]);
 
   // Show blank template (no job data filled in)
-  const [showBlankTemplate, setShowBlankTemplate] = React.useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('pdfFieldsTab_blankTemplate');
-      return saved !== 'false'; // Default to true
-    }
-    return true;
-  });
+  const [showBlankTemplate, setShowBlankTemplate] = React.useState(() =>
+    getStorageItem(STORAGE_KEYS.PDF_FIELDS_BLANK, true)
+  );
 
   // react-pdf dimensions for precise overlay alignment
   const [pdfDimensions, setPdfDimensions] = React.useState<{ width: number; height: number } | null>(null);
@@ -256,27 +227,27 @@ export function PdfFieldsTab() {
     setDebugLogs((prev) => [...prev.slice(-19), logEntry]);
   }, []);
 
-  // Persist selections to localStorage
+  // Persist selections to localStorage (using SSoT storage-utils)
   React.useEffect(() => {
-    localStorage.setItem('pdfFieldsTab_template', selectedTemplate);
+    setStorageItem(STORAGE_KEYS.PDF_FIELDS_TEMPLATE, selectedTemplate);
   }, [selectedTemplate]);
 
   React.useEffect(() => {
-    localStorage.setItem('pdfFieldsTab_page', String(currentPage));
+    setStorageItem(STORAGE_KEYS.PDF_FIELDS_PAGE, currentPage);
   }, [currentPage]);
 
   React.useEffect(() => {
     if (selectedJob) {
-      localStorage.setItem('pdfFieldsTab_jobId', String(selectedJob.id));
+      setStorageItem(STORAGE_KEYS.PDF_FIELDS_JOB_ID, selectedJob.id);
     }
   }, [selectedJob]);
 
   React.useEffect(() => {
-    localStorage.setItem('pdfFieldsTab_zoom', String(zoom));
+    setStorageItem(STORAGE_KEYS.PDF_FIELDS_ZOOM, zoom);
   }, [zoom]);
 
   React.useEffect(() => {
-    localStorage.setItem('pdfFieldsTab_blankTemplate', String(showBlankTemplate));
+    setStorageItem(STORAGE_KEYS.PDF_FIELDS_BLANK, showBlankTemplate);
   }, [showBlankTemplate]);
 
   // Load positions

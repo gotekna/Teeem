@@ -25,6 +25,8 @@
  * ```
  */
 
+import { getStorageItem, setStorageItem, removeStorageItem } from '@/lib/storage-utils';
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -305,7 +307,7 @@ export class StateManager {
     if (!this.persistence.enabled) return false;
 
     try {
-      const saved = localStorage.getItem(this.persistence.key);
+      const saved = getStorageItem<string>(this.persistence.key, '', false);
       if (!saved) return false;
 
       const parsed = JSON.parse(saved);
@@ -322,7 +324,7 @@ export class StateManager {
    */
   clearPersistedState(): void {
     try {
-      localStorage.removeItem(this.persistence.key);
+      removeStorageItem(this.persistence.key, false);
     } catch (e) {
       console.warn('[StateManager] Failed to clear persisted state:', e);
     }
@@ -480,7 +482,7 @@ export class StateManager {
         lastSelectedTaskId: this.state.lastSelectedTaskId,
       };
 
-      localStorage.setItem(this.persistence.key, JSON.stringify(stateToSave));
+      setStorageItem(this.persistence.key, stateToSave, false);
     } catch (e) {
       console.warn('[StateManager] Failed to persist state:', e);
     }

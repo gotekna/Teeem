@@ -28,6 +28,7 @@ import { GanttToolbar } from './GanttToolbar';
 import { GanttContextMenu, ContextMenuState } from './GanttContextMenu';
 import { Spinner } from '@/components/ui/spinner';
 import api from '@/lib/api';
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
 
 // =============================================================================
 // Types
@@ -276,24 +277,18 @@ export function GanttUnified({
           // Update local state
           setColumns([...newColumns]);
           // Save to localStorage for persistence (use jobId or templateId)
-          const storageKey = jobId ? `gantt-columns-${jobId}` : templateId ? `gantt-columns-template-${templateId}` : null;
-          if (storageKey) {
-            try {
-              localStorage.setItem(storageKey, JSON.stringify(newColumns));
-            } catch {
-              // Ignore localStorage errors
-            }
+          // SSoT: storage-utils.ts for localStorage access
+          const storageKeySuffix = jobId ? `${jobId}` : templateId ? `template-${templateId}` : null;
+          if (storageKeySuffix) {
+            setStorageItem(`${STORAGE_KEYS.GANTT_COLUMNS_PREFIX}${storageKeySuffix}`, newColumns, false);
           }
         },
         onCollapsedChange: (collapsedIds) => {
           // Save to localStorage for persistence (use jobId or templateId)
-          const storageKey = jobId ? `gantt-collapsed-${jobId}` : templateId ? `gantt-collapsed-template-${templateId}` : null;
-          if (storageKey) {
-            try {
-              localStorage.setItem(storageKey, JSON.stringify(Array.from(collapsedIds)));
-            } catch {
-              // Ignore localStorage errors
-            }
+          // SSoT: storage-utils.ts for localStorage access
+          const storageKeySuffix = jobId ? `${jobId}` : templateId ? `template-${templateId}` : null;
+          if (storageKeySuffix) {
+            setStorageItem(`${STORAGE_KEYS.GANTT_COLLAPSED_PREFIX}${storageKeySuffix}`, Array.from(collapsedIds), false);
           }
         },
         onDependencyClick: (task) => {
@@ -359,15 +354,12 @@ export function GanttUnified({
       ganttEngineRef.current = engine;
 
       // Restore saved column config (use jobId or templateId)
-      const storageKey = jobId ? `gantt-columns-${jobId}` : templateId ? `gantt-columns-template-${templateId}` : null;
-      if (storageKey) {
-        try {
-          const savedColumns = localStorage.getItem(storageKey);
-          if (savedColumns) {
-            engine.setColumns(JSON.parse(savedColumns));
-          }
-        } catch {
-          // Ignore localStorage errors
+      // SSoT: storage-utils.ts for localStorage access
+      const storageKeySuffix = jobId ? `${jobId}` : templateId ? `template-${templateId}` : null;
+      if (storageKeySuffix) {
+        const savedColumns = getStorageItem<TableColumn[] | null>(`${STORAGE_KEYS.GANTT_COLUMNS_PREFIX}${storageKeySuffix}`, null, false);
+        if (savedColumns) {
+          engine.setColumns(savedColumns);
         }
       }
 
@@ -437,21 +429,15 @@ export function GanttUnified({
           ganttEngineRef.current.collapseAll();
         } else {
           // Try to restore from localStorage for jobs
-          const storageKey = jobId ? `gantt-collapsed-${jobId}` : null;
+          // SSoT: storage-utils.ts for localStorage access
+          const storageKeySuffix = jobId ? `${jobId}` : null;
           let restored = false;
 
-          if (storageKey) {
-            try {
-              const saved = localStorage.getItem(storageKey);
-              if (saved) {
-                const collapsedIds = JSON.parse(saved) as string[];
-                if (Array.isArray(collapsedIds) && collapsedIds.length > 0) {
-                  ganttEngineRef.current.setCollapsedIds(collapsedIds);
-                  restored = true;
-                }
-              }
-            } catch {
-              // Ignore localStorage errors
+          if (storageKeySuffix) {
+            const collapsedIds = getStorageItem<string[] | null>(`${STORAGE_KEYS.GANTT_COLLAPSED_PREFIX}${storageKeySuffix}`, null, false);
+            if (Array.isArray(collapsedIds) && collapsedIds.length > 0) {
+              ganttEngineRef.current.setCollapsedIds(collapsedIds);
+              restored = true;
             }
           }
 

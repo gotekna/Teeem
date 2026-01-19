@@ -14,6 +14,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Spinner } from "@/components/ui/spinner";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 interface PortalUser {
   contact_name?: string;
@@ -48,12 +49,11 @@ export default function PortalSettings() {
 
   const loadSettings = async () => {
     try {
-      const token = localStorage.getItem("portal_token");
+      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       // Load user from localStorage
-      const userStr = localStorage.getItem("portal_user");
-      const user = userStr ? JSON.parse(userStr) : null;
+      const user = getStorageItem<PortalUser | null>(STORAGE_KEYS.PORTAL_USER, null);
       setPortalUser(user);
 
       // Load accounting integrations
@@ -71,7 +71,7 @@ export default function PortalSettings() {
 
   const handleConnectAccounting = async (systemType: string) => {
     try {
-      const token = localStorage.getItem("portal_token");
+      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       const response = await axios.get(
@@ -103,7 +103,7 @@ export default function PortalSettings() {
     }
 
     try {
-      const token = localStorage.getItem("portal_token");
+      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       const response = await axios.delete(

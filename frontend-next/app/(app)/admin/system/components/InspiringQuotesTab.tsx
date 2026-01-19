@@ -37,6 +37,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 interface InspiringQuote {
   id: number;
@@ -102,8 +103,8 @@ export function InspiringQuotesTab() {
     } catch (error) {
       console.error("Failed to load quotes:", error);
       // Use localStorage or defaults
-      const saved = localStorage.getItem("inspiringQuotes");
-      setQuotes(saved ? JSON.parse(saved) : DEFAULT_QUOTES);
+      const saved = getStorageItem<InspiringQuote[] | null>(STORAGE_KEYS.INSPIRING_QUOTES, null);
+      setQuotes(saved || DEFAULT_QUOTES);
     } finally {
       setLoading(false);
     }
@@ -173,7 +174,7 @@ export function InspiringQuotesTab() {
       }
 
       setQuotes(updatedQuotes);
-      localStorage.setItem("inspiringQuotes", JSON.stringify(updatedQuotes));
+      setStorageItem(STORAGE_KEYS.INSPIRING_QUOTES, updatedQuotes);
 
       // Try to save to API
       try {
@@ -197,7 +198,7 @@ export function InspiringQuotesTab() {
 
     const updatedQuotes = quotes.filter((q) => q.id !== id);
     setQuotes(updatedQuotes);
-    localStorage.setItem("inspiringQuotes", JSON.stringify(updatedQuotes));
+    setStorageItem(STORAGE_KEYS.INSPIRING_QUOTES, updatedQuotes);
 
     try {
       await api.delete(`/api/v1/inspiring_quotes/${id}`);
@@ -213,7 +214,7 @@ export function InspiringQuotesTab() {
       q.id === id ? { ...q, is_active: !q.is_active } : q
     );
     setQuotes(updatedQuotes);
-    localStorage.setItem("inspiringQuotes", JSON.stringify(updatedQuotes));
+    setStorageItem(STORAGE_KEYS.INSPIRING_QUOTES, updatedQuotes);
 
     try {
       const quote = quotes.find((q) => q.id === id);
@@ -230,7 +231,7 @@ export function InspiringQuotesTab() {
   const handleResetToDefaults = async () => {
     if (!(await confirm("Reset all quotes to default values? This will remove any custom quotes."))) return;
     setQuotes(DEFAULT_QUOTES);
-    localStorage.setItem("inspiringQuotes", JSON.stringify(DEFAULT_QUOTES));
+    setStorageItem(STORAGE_KEYS.INSPIRING_QUOTES, DEFAULT_QUOTES);
     toast({ title: "Success", description: "Quotes reset to defaults" });
   };
 

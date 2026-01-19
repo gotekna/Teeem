@@ -68,6 +68,7 @@ import {
 import { api } from "@/lib/api";
 import { format } from "date-fns";
 import { formatCurrency, formatDate } from "@/utils/formatters";
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 // Tab definitions - base tabs always shown
 const BASE_TABS = [
@@ -288,16 +289,9 @@ export default function AssetDetailPage() {
 
   // Load custom asset types from localStorage on mount
   React.useEffect(() => {
-    const stored = localStorage.getItem("asset_types");
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setAssetTypes(parsed);
-        }
-      } catch {
-        // Ignore parse errors
-      }
+    const stored = getStorageItem<string[]>(STORAGE_KEYS.ASSET_TYPES, []);
+    if (Array.isArray(stored) && stored.length > 0) {
+      setAssetTypes(stored);
     }
   }, []);
 
@@ -308,7 +302,7 @@ export default function AssetDetailPage() {
 
     const updated = [...assetTypes, normalized];
     setAssetTypes(updated);
-    localStorage.setItem("asset_types", JSON.stringify(updated));
+    setStorageItem(STORAGE_KEYS.ASSET_TYPES, updated);
     setNewTypeName("");
   };
 
@@ -318,7 +312,7 @@ export default function AssetDetailPage() {
 
     const updated = assetTypes.filter(t => t !== typeToRemove);
     setAssetTypes(updated);
-    localStorage.setItem("asset_types", JSON.stringify(updated));
+    setStorageItem(STORAGE_KEYS.ASSET_TYPES, updated);
   };
 
   // Compute tabs based on asset type

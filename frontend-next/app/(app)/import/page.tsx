@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { useUrlState } from "@/hooks/useUrlState";
 import {
   CloudArrowUpIcon,
@@ -125,12 +126,14 @@ export default function ImportPage() {
       const formData = new FormData();
       formData.append("file", file);
 
+      // SSoT: Using storage-utils for localStorage operations
+      const token = getStorageItem<string>(STORAGE_KEYS.TOKEN, "");
       const response = await fetch(
         `${getApiBaseUrl()}/api/v1/imports/preview`,
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
+            Authorization: `Bearer ${token}`,
           },
           body: formData,
         }

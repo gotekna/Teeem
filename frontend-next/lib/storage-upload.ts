@@ -12,6 +12,7 @@
  */
 
 import { api, getApiBaseUrl } from "./api";
+import { getStorageItem, STORAGE_KEYS } from './storage-utils';
 
 interface UploadSessionResponse {
   success: boolean;
@@ -474,8 +475,7 @@ export async function uploadPhoto(
       };
 
       // Get auth token and build full URL (needed for Vercel → Heroku)
-      // SSoT: Token key is 'token' (see api.ts getAuthHeaders)
-      const token = localStorage.getItem("token");
+      const token = getStorageItem(STORAGE_KEYS.TOKEN, null, false);
       const baseUrl = getApiBaseUrl();
       xhr.open("POST", `${baseUrl}/api/v1/jobs/${jobId}/photos/upload`);
       if (token) {

@@ -34,6 +34,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api, getApiBaseUrl } from "@/lib/api";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { formatDate, formatCurrency } from "@/utils/formatters";
@@ -189,7 +190,7 @@ export default function InvoiceDetailPage() {
     setPdfError(null);
 
     try {
-      const token = localStorage.getItem("token");
+      const token = getStorageItem<string>(STORAGE_KEYS.TOKEN, '', false);
       const response = await fetch(
         `${getApiBaseUrl()}/api/v1/external_invoices/${invoice.id}/pdf`,
         {

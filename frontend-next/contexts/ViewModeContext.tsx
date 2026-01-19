@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 type ViewMode = "table" | "relational";
 
@@ -19,7 +20,7 @@ export function ViewModeProvider({ children }: { children: ReactNode }) {
   // Load from localStorage on mount
   useEffect(() => {
     setIsClient(true);
-    const stored = localStorage.getItem("teeem_view_mode");
+    const stored = getStorageItem<ViewMode>(STORAGE_KEYS.VIEW_MODE, "table");
     if (stored === "table" || stored === "relational") {
       setViewModeState(stored);
     }
@@ -29,7 +30,7 @@ export function ViewModeProvider({ children }: { children: ReactNode }) {
   const setViewMode = (mode: ViewMode) => {
     setViewModeState(mode);
     if (isClient) {
-      localStorage.setItem("teeem_view_mode", mode);
+      setStorageItem(STORAGE_KEYS.VIEW_MODE, mode);
     }
   };
 

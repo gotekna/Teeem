@@ -16,6 +16,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "./button";
 import { getCachedPdf, cachePdf } from "@/lib/pdf-cache";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 /**
  * PDF Viewer Implementation - Fast Cached iframe Version
@@ -124,10 +125,8 @@ export function PDFViewerImpl({
 
         // Only add auth for our backend URLs, not for presigned S3 URLs
         if (!isPresignedS3) {
-          const token =
-            typeof window !== "undefined"
-              ? localStorage.getItem("token")
-              : null;
+          // SSoT: Use storage-utils for token retrieval (no prefix, token stored without teeem_ prefix)
+          const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null, false);
           if (token) {
             headers["Authorization"] = `Bearer ${token}`;
           }

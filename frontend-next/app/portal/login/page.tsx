@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import axios from "axios";
+import { setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 export default function PortalLogin() {
   const router = useRouter();
@@ -29,8 +30,8 @@ export default function PortalLogin() {
 
       if (response?.data.success) {
         // Store token and user data
-        localStorage.setItem("portal_token", response.data.token);
-        localStorage.setItem("portal_user", JSON.stringify(response.data.user));
+        setStorageItem(STORAGE_KEYS.PORTAL_TOKEN, response.data.token);
+        setStorageItem(STORAGE_KEYS.PORTAL_USER, response.data.user);
 
         // Set axios default header
         axios.defaults.headers.common[

@@ -12,6 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { hasStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 interface Notification {
   id: number;
@@ -35,7 +36,8 @@ export function NotificationBell() {
   const fetchNotifications = useCallback(async () => {
     try {
       // Skip if not authenticated (api client handles token automatically)
-      if (typeof window !== "undefined" && !localStorage.getItem("token")) return;
+      // SSoT: storage-utils.ts for localStorage access
+      if (!hasStorageItem(STORAGE_KEYS.TOKEN)) return;
 
       const data = await api.get<{ notifications: Notification[]; unread_count: number }>(
         "/api/v1/notifications"
@@ -49,7 +51,8 @@ export function NotificationBell() {
 
   const fetchUnreadCount = useCallback(async () => {
     try {
-      if (typeof window !== "undefined" && !localStorage.getItem("token")) return;
+      // SSoT: storage-utils.ts for localStorage access
+      if (!hasStorageItem(STORAGE_KEYS.TOKEN)) return;
 
       const data = await api.get<{ unread_count: number }>(
         "/api/v1/notifications/unread_count"

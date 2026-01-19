@@ -10,6 +10,7 @@
  */
 
 import { API_TIMEOUT_DEFAULT, API_RETRY_DELAY_BASE } from './constants/timeout-constants';
+import { getStorageItem, setStorageItem, removeStorageItem, STORAGE_KEYS } from './storage-utils';
 
 // Production backend is always the "router" for login (except in dev mode)
 const PRODUCTION_API_URL = 'https://teeem-production-121159e1ff9d.herokuapp.com';
@@ -28,7 +29,7 @@ const IS_DEV_MODE = DEFAULT_API_URL.includes('-dev') || DEFAULT_API_URL.includes
  */
 export const getApiBaseUrl = () => {
   if (typeof window !== 'undefined') {
-    const storedUrl = localStorage.getItem('api_url');
+    const storedUrl = getStorageItem(STORAGE_KEYS.API_URL, null, false);
     if (storedUrl) {
       return storedUrl;
     }
@@ -54,7 +55,7 @@ export const getProductionApiUrl = () => PRODUCTION_API_URL;
  */
 export const setApiUrl = (url: string) => {
   if (typeof window !== 'undefined') {
-    localStorage.setItem('api_url', url);
+    setStorageItem(STORAGE_KEYS.API_URL, url, false);
   }
 };
 
@@ -63,7 +64,7 @@ export const setApiUrl = (url: string) => {
  */
 export const clearApiUrl = () => {
   if (typeof window !== 'undefined') {
-    localStorage.removeItem('api_url');
+    removeStorageItem(STORAGE_KEYS.API_URL, false);
   }
 };
 
@@ -72,7 +73,7 @@ export const clearApiUrl = () => {
  */
 export const getCurrentEnvironment = (): string => {
   if (typeof window !== 'undefined') {
-    return localStorage.getItem('api_environment') || 'production';
+    return getStorageItem(STORAGE_KEYS.API_ENVIRONMENT, 'production', false);
   }
   return 'production';
 };
@@ -82,7 +83,7 @@ export const getCurrentEnvironment = (): string => {
  */
 export const setEnvironment = (env: string) => {
   if (typeof window !== 'undefined') {
-    localStorage.setItem('api_environment', env);
+    setStorageItem(STORAGE_KEYS.API_ENVIRONMENT, env, false);
   }
 };
 
@@ -91,7 +92,7 @@ export const setEnvironment = (env: string) => {
  */
 export const clearEnvironment = () => {
   if (typeof window !== 'undefined') {
-    localStorage.removeItem('api_environment');
+    removeStorageItem(STORAGE_KEYS.API_ENVIRONMENT, false);
   }
 };
 
@@ -147,7 +148,7 @@ const getAuthHeaders = (includeContentType = true): HeadersInit => {
 
   // Add JWT token if available (client-side only)
   if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('token');
+    const token = getStorageItem(STORAGE_KEYS.TOKEN, null, false);
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
@@ -159,7 +160,7 @@ const getAuthHeaders = (includeContentType = true): HeadersInit => {
 // Helper to clear auth token (mirrors AuthContext's clearAuthToken)
 const clearAuthToken = () => {
   if (typeof window !== 'undefined') {
-    localStorage.removeItem('token');
+    removeStorageItem(STORAGE_KEYS.TOKEN, false);
     document.cookie = 'auth_token=; path=/; max-age=0';
   }
 };
@@ -438,7 +439,7 @@ export const api = {
     const headers: Record<string, string> = {};
 
     if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('token');
+      const token = getStorageItem(STORAGE_KEYS.TOKEN, null, false);
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
@@ -486,7 +487,7 @@ export const api = {
 
     const headers: Record<string, string> = {};
     if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('token');
+      const token = getStorageItem(STORAGE_KEYS.TOKEN, null, false);
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }

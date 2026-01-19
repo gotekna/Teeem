@@ -16,6 +16,7 @@ import RequestPaymentModal from "@/components/portal/RequestPaymentModal";
 import PayNowRequestDetailModal from "@/components/portal/PayNowRequestDetailModal";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 interface PayNowRequest {
   id: number;
@@ -114,7 +115,7 @@ export default function PortalPayNow() {
 
   const loadRequests = async () => {
     try {
-      const token = localStorage.getItem("portal_token");
+      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       const response = await axios.get("/api/v1/portal/pay_now_requests");
@@ -147,7 +148,7 @@ export default function PortalPayNow() {
     }
 
     try {
-      const token = localStorage.getItem("portal_token");
+      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       const response = await axios.delete(

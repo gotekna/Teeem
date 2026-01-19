@@ -12,6 +12,7 @@ import axios from "axios";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/utils/formatters";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 interface PurchaseOrder {
   id: number;
@@ -71,7 +72,8 @@ export default function RequestPaymentModal({
 
   const loadEligiblePOs = async () => {
     try {
-      const token = localStorage.getItem("portal_token");
+      // SSoT: storage-utils.ts for localStorage access
+      const token = getStorageItem<string>(STORAGE_KEYS.PORTAL_TOKEN, '');
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       const response = await axios.get(
@@ -165,7 +167,8 @@ export default function RequestPaymentModal({
     setErrors({});
 
     try {
-      const token = localStorage.getItem("portal_token");
+      // SSoT: storage-utils.ts for localStorage access
+      const token = getStorageItem<string>(STORAGE_KEYS.PORTAL_TOKEN, '');
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       // Create FormData for file upload

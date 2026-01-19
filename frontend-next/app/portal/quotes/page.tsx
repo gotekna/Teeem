@@ -11,6 +11,7 @@ import {
   DocumentTextIcon,
 } from "@heroicons/react/24/outline";
 import { Spinner } from "@/components/ui/spinner";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 interface Construction {
   id: number;
@@ -83,7 +84,7 @@ export default function PortalQuotes() {
 
   const loadQuotes = async () => {
     try {
-      const token = localStorage.getItem("portal_token");
+      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       const response = await axios.get("/api/v1/portal/quote_requests");

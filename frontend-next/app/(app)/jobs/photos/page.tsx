@@ -13,10 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Camera, RefreshCw, User, ChevronDown, ChevronRight } from "lucide-react";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
-
-const STORAGE_KEY_TYPES = "job-photos-selected-job-types";
-const STORAGE_KEY_STATUSES = "job-photos-selected-statuses";
-const STORAGE_KEY_SUPERVISORS = "job-photos-selected-supervisors";
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 // PhotoThumbnail with fallback - tries thumbnail_url first, falls back to proxy_url
 // SSoT: Same pattern as PhotoGallery component
@@ -173,26 +170,6 @@ export default function JobPhotosPage() {
   // Calculate photos per job - more jobs = fewer photos per job
   const photosPerJob = totalJobs <= 3 ? 10 : totalJobs <= 6 ? 7 : totalJobs <= 10 ? 5 : 3;
 
-  // Load/save from localStorage
-  const loadSaved = <T,>(key: string): T | null => {
-    if (typeof window === "undefined") return null;
-    try {
-      const saved = localStorage.getItem(key);
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  };
-
-  const saveSelection = (key: string, value: unknown) => {
-    if (typeof window === "undefined") return;
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch {
-      // Ignore
-    }
-  };
-
   // Load all filters
   useEffect(() => {
     const loadFilters = async () => {
@@ -206,7 +183,7 @@ export default function JobPhotosPage() {
         // Job Types
         if (typesRes?.success) {
           setAllJobTypes(typesRes.data);
-          const saved = loadSaved<number[]>(STORAGE_KEY_TYPES);
+          const saved = getStorageItem<number[] | null>(STORAGE_KEYS.JOB_PHOTOS_TYPES, null);
           const validIds = typesRes.data.map(t => t.id);
           if (saved?.length) {
             setSelectedJobTypeIds(saved.filter(id => validIds.includes(id)));
@@ -218,7 +195,7 @@ export default function JobPhotosPage() {
         // Statuses
         if (statusesRes?.success) {
           setAllStatuses(statusesRes.data);
-          const saved = loadSaved<number[]>(STORAGE_KEY_STATUSES);
+          const saved = getStorageItem<number[] | null>(STORAGE_KEYS.JOB_PHOTOS_STATUSES, null);
           const validIds = statusesRes.data.map(s => s.id);
           if (saved?.length) {
             setSelectedStatusIds(saved.filter(id => validIds.includes(id)));
@@ -230,7 +207,7 @@ export default function JobPhotosPage() {
         // Supervisors
         if (supervisorsRes?.success) {
           setAllSupervisors(supervisorsRes.data);
-          const saved = loadSaved<string[]>(STORAGE_KEY_SUPERVISORS);
+          const saved = getStorageItem<string[] | null>(STORAGE_KEYS.JOB_PHOTOS_SUPERVISORS, null);
           if (saved?.length) {
             setSelectedSupervisors(saved.filter(s => supervisorsRes.data.includes(s)));
           } else {
@@ -251,7 +228,7 @@ export default function JobPhotosPage() {
   const toggleJobType = (id: number) => {
     setSelectedJobTypeIds(prev => {
       const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
-      saveSelection(STORAGE_KEY_TYPES, next);
+      setStorageItem(STORAGE_KEYS.JOB_PHOTOS_TYPES, next);
       return next;
     });
   };
@@ -259,7 +236,7 @@ export default function JobPhotosPage() {
   const toggleStatus = (id: number) => {
     setSelectedStatusIds(prev => {
       const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
-      saveSelection(STORAGE_KEY_STATUSES, next);
+      setStorageItem(STORAGE_KEYS.JOB_PHOTOS_STATUSES, next);
       return next;
     });
   };
@@ -267,7 +244,7 @@ export default function JobPhotosPage() {
   const toggleSupervisor = (name: string) => {
     setSelectedSupervisors(prev => {
       const next = prev.includes(name) ? prev.filter(x => x !== name) : [...prev, name];
-      saveSelection(STORAGE_KEY_SUPERVISORS, next);
+      setStorageItem(STORAGE_KEYS.JOB_PHOTOS_SUPERVISORS, next);
       return next;
     });
   };

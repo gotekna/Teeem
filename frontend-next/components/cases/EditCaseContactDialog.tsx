@@ -24,6 +24,7 @@ import { api } from "@/lib/api";
 import { User, ExternalLink } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
+import { formatDateTime } from "@/utils/formatters";
 import Link from "next/link";
 
 interface CaseContactData {
@@ -361,13 +362,7 @@ export function EditCaseContactDialog({
               {contactData.added_by_name && contactData.added_at && (
                 <div className="p-3 bg-muted rounded-lg text-sm">
                   <p className="text-muted-foreground">
-                    Added {new Date(contactData.added_at).toLocaleDateString('en-AU', {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })} by {contactData.added_by_name}
+                    Added {formatDateTime(contactData.added_at)} by {contactData.added_by_name}
                   </p>
                 </div>
               )}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -190,9 +191,11 @@ export default function PaymentBatchesPage() {
 
   const handleDownloadAba = async (batchId: number) => {
     try {
+      // SSoT: Using storage-utils for localStorage operations
+      const token = getStorageItem<string>(STORAGE_KEYS.TOKEN, "");
       const response = await fetch(`/api/v1/bill_payment_batches/${batchId}/download_aba`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          Authorization: `Bearer ${token}`,
         },
       });
       if (!response.ok) throw new Error("Download failed");

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 import { useLayoutMode } from "@/contexts/LayoutModeContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -326,7 +327,7 @@ type ColumnStatus = {
   complete: Record<string, boolean>;
 };
 
-const COLUMN_STATUS_KEY = "sm_column_status";
+// SSoT: Using storage-utils STORAGE_KEYS.SM_COLUMN_STATUS for localStorage key
 
 interface ScheduleMasterTabProps {
   /** Base path for navigation (e.g., "/settings/operations/schedule-master" or "/admin/system/schedule-master") */
@@ -607,18 +608,14 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   const [availableTaskGroups, setAvailableTaskGroups] = React.useState<{ id: number; name: string }[]>([]);
 
   // Load column status from localStorage on mount
+  // SSoT: Using storage-utils for localStorage operations
   React.useEffect(() => {
-    const saved = localStorage.getItem(COLUMN_STATUS_KEY);
-    if (saved) {
-      try {
-        setColumnStatus(JSON.parse(saved));
-      } catch {
-        // Ignore parse errors
-      }
-    }
+    const saved = getStorageItem<ColumnStatus>(STORAGE_KEYS.SM_COLUMN_STATUS, { complete: {} });
+    setColumnStatus(saved);
   }, []);
 
   // Save column status to localStorage when it changes
+  // SSoT: Using storage-utils for localStorage operations
   const updateColumnStatus = (column: string, value: boolean) => {
     setColumnStatus((prev) => {
       const newStatus = {
@@ -628,7 +625,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
           [column]: value,
         },
       };
-      localStorage.setItem(COLUMN_STATUS_KEY, JSON.stringify(newStatus));
+      setStorageItem(STORAGE_KEYS.SM_COLUMN_STATUS, newStatus);
       return newStatus;
     });
   };

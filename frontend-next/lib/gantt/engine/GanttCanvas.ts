@@ -15,6 +15,7 @@ import { calculateCriticalPath, CriticalPathResult, TaskSchedule } from './Criti
 import { getTodayInCompanyTimezone } from '@/lib/stores/company-settings-store';
 import { CHART_COLORS, GANTT_COLORS, TAILWIND_COLORS, CATEGORY_COLORS } from '@/lib/constants/color-constants';
 import { TASK_STATUS, TaskStatus, TASK_STATUS_LABELS } from '@/lib/constants/task-status';
+import { getStorageItem, setStorageItem, removeStorageItem } from '@/lib/storage-utils';
 
 // Extracted Managers (Day 2-7 Refactor)
 import { SelectionManager, SelectionChangeEvent } from './managers/SelectionManager';
@@ -2678,7 +2679,7 @@ export class GanttCanvas {
         criticalPathEnabled: this.criticalPathEnabled,
         baselineEnabled: this.baselineEnabled,
       };
-      localStorage.setItem(this.statePersistenceKey, JSON.stringify(stateToSave));
+      setStorageItem(this.statePersistenceKey, stateToSave, false);
     } catch (e) {
       console.warn('GanttCanvas: Failed to persist state', e);
     }
@@ -2691,7 +2692,7 @@ export class GanttCanvas {
     if (!this.statePersistenceEnabled) return false;
 
     try {
-      const saved = localStorage.getItem(this.statePersistenceKey);
+      const saved = getStorageItem<string>(this.statePersistenceKey, '', false);
       if (!saved) return false;
 
       const parsed = JSON.parse(saved);
@@ -2735,7 +2736,7 @@ export class GanttCanvas {
    */
   clearPersistedState(): void {
     try {
-      localStorage.removeItem(this.statePersistenceKey);
+      removeStorageItem(this.statePersistenceKey, false);
     } catch (e) {
       console.warn('GanttCanvas: Failed to clear persisted state', e);
     }
@@ -13061,7 +13062,7 @@ export class GanttCanvas {
         viewport: this.viewport.getState(),
         timestamp: Date.now()
       };
-      localStorage.setItem(key, JSON.stringify(state));
+      setStorageItem(key, state, false);
     } catch {
       console.warn('Failed to save state to localStorage');
     }
@@ -13069,7 +13070,7 @@ export class GanttCanvas {
 
   loadStateFromLocalStorage(key: string): boolean {
     try {
-      const saved = localStorage.getItem(key);
+      const saved = getStorageItem<string>(key, '', false);
       if (!saved) return false;
       const state = JSON.parse(saved);
       if (state.tasks) {

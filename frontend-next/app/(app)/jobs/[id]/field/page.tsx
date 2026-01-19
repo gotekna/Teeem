@@ -20,6 +20,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { TASK_STATUS } from "@/lib/constants/task-status";
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { PhotoCapture } from "@/components/offline";
 
 // ============================================
@@ -83,23 +84,23 @@ interface OfflineData {
 }
 
 // ============================================
-// Offline storage helper
+// Offline storage helper (uses SSoT storage-utils)
 // ============================================
 
 const offlineStorage = {
   save: (key: keyof OfflineData, data: unknown) => {
     try {
-      const existing = JSON.parse(localStorage.getItem("sm_offline_data") || "{}") as OfflineData;
+      const existing = getStorageItem<OfflineData>(STORAGE_KEYS.OFFLINE_DATA, { photos: [], checkins: [], voice_notes: [] });
       if (!existing[key]) existing[key] = [];
       existing[key].push(data);
-      localStorage.setItem("sm_offline_data", JSON.stringify(existing));
+      setStorageItem(STORAGE_KEYS.OFFLINE_DATA, existing);
     } catch (e) {
       console.error("Failed to save offline data:", e);
     }
   },
   get: (key: keyof OfflineData): unknown[] => {
     try {
-      const data = JSON.parse(localStorage.getItem("sm_offline_data") || "{}") as OfflineData;
+      const data = getStorageItem<OfflineData>(STORAGE_KEYS.OFFLINE_DATA, { photos: [], checkins: [], voice_notes: [] });
       return data[key] || [];
     } catch {
       return [];
@@ -107,16 +108,16 @@ const offlineStorage = {
   },
   clear: (key: keyof OfflineData) => {
     try {
-      const existing = JSON.parse(localStorage.getItem("sm_offline_data") || "{}") as OfflineData;
+      const existing = getStorageItem<OfflineData>(STORAGE_KEYS.OFFLINE_DATA, { photos: [], checkins: [], voice_notes: [] });
       delete existing[key];
-      localStorage.setItem("sm_offline_data", JSON.stringify(existing));
+      setStorageItem(STORAGE_KEYS.OFFLINE_DATA, existing);
     } catch (e) {
       console.error("Failed to clear offline data:", e);
     }
   },
   getPendingCount: (): number => {
     try {
-      const data = JSON.parse(localStorage.getItem("sm_offline_data") || "{}") as OfflineData;
+      const data = getStorageItem<OfflineData>(STORAGE_KEYS.OFFLINE_DATA, { photos: [], checkins: [], voice_notes: [] });
       return Object.values(data).reduce((sum, arr) => sum + (arr?.length || 0), 0);
     } catch {
       return 0;

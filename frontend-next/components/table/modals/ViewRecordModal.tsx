@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Eye, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatDate } from '@/utils/formatters';
 import type { TableColumn, TableRow } from '../types';
 
 // Alias for consistency
@@ -68,7 +69,8 @@ function formatDisplayValue(column: TableColumn, value: unknown): React.ReactNod
 
     case 'date':
       try {
-        return new Date(String(value)).toLocaleDateString('en-AU');
+        const formatted = formatDate(String(value));
+        return formatted === '-' ? String(value) : formatted;
       } catch {
         return String(value);
       }

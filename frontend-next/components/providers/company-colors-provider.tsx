@@ -12,6 +12,7 @@
 
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { hasStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
 
 interface BrandColors {
   primary: string;
@@ -51,9 +52,8 @@ export function CompanyColorsProvider({ children }: { children: React.ReactNode 
     async function loadBrandColors() {
       // Check for auth token before making request
       // This prevents 401 errors on login page
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-
-      if (!token) {
+      // SSoT: storage-utils.ts for localStorage access
+      if (!hasStorageItem(STORAGE_KEYS.TOKEN)) {
         // Not authenticated - use default colors, don't hit API
         applyColors(DEFAULT_COLORS);
         setIsLoaded(true);

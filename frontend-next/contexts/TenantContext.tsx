@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { api } from '@/lib/api';
 import { useAuth } from './AuthContext';
+import { getStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
 
 // Tenant types
 export interface Tenant {
@@ -170,7 +171,7 @@ export const TenantProvider = ({ children }: TenantProviderProps) => {
 
           // Get the current token from localStorage to pass to the new frontend
           // (localStorage is per-domain, so we need to pass the token in the URL)
-          const currentToken = localStorage.getItem('token');
+          const currentToken = getStorageItem<string>(STORAGE_KEYS.TOKEN, '');
 
           // Build redirect URL with token for cross-domain authentication
           // URLs are DYNAMIC from backend SSoT - no hardcoded values

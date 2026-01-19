@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, useRef, ReactNode } fro
 import { useTheme } from 'next-themes';
 import { api, setApiUrl, clearApiUrl, setEnvironment, clearEnvironment, getCurrentEnvironment } from '@/lib/api';
 import { loadTypeDefinitions } from '@/lib/column-type-registry';
+import { getStorageItem, setStorageItem, removeStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
 
 interface User {
   id: number;
@@ -45,14 +46,14 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 // Helper to set auth token in both localStorage and cookie (for SSR)
 const setAuthToken = (token: string) => {
-  localStorage.setItem('token', token);
+  setStorageItem(STORAGE_KEYS.TOKEN, token);
   // Set cookie for server-side access (expires in 7 days)
   document.cookie = `auth_token=${token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
 };
 
 // Helper to clear auth token from both localStorage and cookie
 const clearAuthToken = () => {
-  localStorage.removeItem('token');
+  removeStorageItem(STORAGE_KEYS.TOKEN);
   document.cookie = 'auth_token=; path=/; max-age=0';
 };
 
@@ -92,12 +93,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   // Also sync to cookie for server-side rendering access
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const storedToken = localStorage.getItem('token');
+      const storedToken = getStorageItem<string>(STORAGE_KEYS.TOKEN, '');
       if (storedToken) {
         // Ensure cookie is in sync with localStorage for SSR
         document.cookie = `auth_token=${storedToken}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
       }
-      setToken(storedToken);
+      setToken(storedToken || null);
       setTokenChecked(true);
     }
   }, []);
@@ -142,7 +143,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           response.frontend_url !== window.location.origin
         ) {
           // Get existing token from localStorage
-          const existingToken = localStorage.getItem('token');
+          const existingToken = getStorageItem<string>(STORAGE_KEYS.TOKEN, '');
           if (existingToken) {
             // Redirect to the correct frontend with token for cross-domain login
             const redirectUrl = new URL('/login', response.frontend_url);

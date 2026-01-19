@@ -36,6 +36,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { api, getApiBaseUrl } from "@/lib/api";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { useToast } from "@/components/ui/use-toast";
 import {
   StatCard,
@@ -347,7 +348,7 @@ export default function SmDashboardPage() {
   // Export handler
   const handleExport = async (type: string) => {
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null, false);
 
       const params = new URLSearchParams({
         construction_id: constructionId,

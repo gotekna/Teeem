@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
+import { cn } from '@/lib/utils';
 import {
   ZoomIn,
   ZoomOut,
@@ -316,7 +317,7 @@ export function GanttToolbar({
             title={showCriticalPath ? 'Hide Critical Path (C)' : 'Show Critical Path (C)'}
             className="h-8 w-8"
           >
-            <Activity className="h-4 w-4" style={{ color: showCriticalPath ? '#ef4444' : undefined }} />
+            <Activity className={cn('h-4 w-4', showCriticalPath && 'text-red-500')} />
           </Button>
         )}
 
@@ -329,7 +330,7 @@ export function GanttToolbar({
             title={showBaseline ? 'Hide Baseline (B)' : 'Show Baseline (B)'}
             className="h-8 w-8"
           >
-            <Layers className="h-4 w-4" style={{ color: showBaseline ? '#3b82f6' : undefined }} />
+            <Layers className={cn('h-4 w-4', showBaseline && 'text-blue-500')} />
           </Button>
         )}
 
@@ -364,42 +365,42 @@ export function GanttToolbar({
               <p className="text-xs text-muted-foreground">Based on checkbox status (priority order)</p>
               <div className="grid gap-1.5 text-xs">
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-2.5 rounded" style={{ backgroundColor: 'rgba(31, 41, 55, 0.4)' }} />
+                  <div className="w-4 h-2.5 rounded bg-gray-800/40 dark:bg-gray-600/40" />
                   <div className="flex items-center gap-1">
                     <Check className="h-3 w-3 text-muted-foreground" />
                     <span className="text-muted-foreground">Done</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-2.5 rounded" style={{ backgroundColor: 'rgba(168, 85, 247, 0.3)' }} />
+                  <div className="w-4 h-2.5 rounded bg-purple-500/30 dark:bg-purple-400/30" />
                   <div className="flex items-center gap-1">
                     <Check className="h-3 w-3 text-muted-foreground" />
                     <span className="text-muted-foreground">Supplier Confirmed</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-2.5 rounded" style={{ backgroundColor: 'rgba(249, 115, 22, 0.35)' }} />
+                  <div className="w-4 h-2.5 rounded bg-orange-500/35 dark:bg-orange-400/35" />
                   <div className="flex items-center gap-1">
                     <Check className="h-3 w-3 text-muted-foreground" />
                     <span className="text-muted-foreground">Confirmed</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-2.5 rounded" style={{ backgroundColor: 'rgba(212, 165, 116, 0.4)' }} />
+                  <div className="w-4 h-2.5 rounded bg-amber-500/40 dark:bg-amber-400/40" />
                   <div className="flex items-center gap-1">
                     <Check className="h-3 w-3 text-muted-foreground" />
                     <span className="text-muted-foreground">On Hold</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-2.5 rounded" style={{ backgroundColor: 'rgba(16, 185, 129, 0.35)' }} />
+                  <div className="w-4 h-2.5 rounded bg-emerald-500/35 dark:bg-emerald-400/35" />
                   <div className="flex items-center gap-1">
                     <Check className="h-3 w-3 text-muted-foreground" />
                     <span className="text-muted-foreground">Started</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-2.5 rounded" style={{ backgroundColor: '#9ca3af' }} />
+                  <div className="w-4 h-2.5 rounded bg-gray-400 dark:bg-gray-500" />
                   <span className="text-muted-foreground">Not Started (default)</span>
                 </div>
               </div>
@@ -408,31 +409,31 @@ export function GanttToolbar({
                 <h4 className="font-medium text-sm mb-1.5">Background Shading</h4>
                 <div className="grid gap-1.5 text-xs">
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-2.5 rounded" style={{ backgroundColor: '#ef4444' }} />
+                    <div className="w-4 h-2.5 rounded bg-red-500 dark:bg-red-400" />
                     <span className="text-muted-foreground">Today marker</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-2.5 rounded" style={{ backgroundColor: '#f9fafb', border: '1px solid #e5e7eb' }} />
+                    <div className="w-4 h-2.5 rounded bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700" />
                     <span className="text-muted-foreground">Weekend</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-2.5 rounded" style={{ backgroundColor: 'rgba(254, 226, 226, 0.8)', border: '1px solid rgba(239, 68, 68, 0.2)' }} />
+                    <div className="w-4 h-2.5 rounded bg-red-100/80 dark:bg-red-900/30 border border-red-200/20 dark:border-red-800/20" />
                     <span className="text-muted-foreground">Holiday</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-2.5 rounded" style={{ backgroundColor: 'rgba(251, 191, 36, 0.15)', border: '1px solid rgba(251, 191, 36, 0.3)' }} />
+                    <div className="w-4 h-2.5 rounded bg-amber-400/15 dark:bg-amber-500/20 border border-amber-400/30 dark:border-amber-500/40" />
                     <span className="text-muted-foreground">Group row</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-2.5 rounded" style={{ backgroundColor: 'rgba(251, 191, 36, 0.3)', border: '1px solid rgba(251, 191, 36, 0.4)' }} />
+                    <div className="w-4 h-2.5 rounded bg-amber-400/30 dark:bg-amber-500/40 border border-amber-400/40 dark:border-amber-500/50" />
                     <span className="text-muted-foreground">Weekend on group</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-2.5 rounded" style={{ backgroundColor: 'rgba(251, 146, 60, 0.4)', border: '1px solid rgba(217, 119, 6, 0.4)' }} />
+                    <div className="w-4 h-2.5 rounded bg-orange-400/40 dark:bg-orange-500/50 border border-amber-600/40 dark:border-amber-600/50" />
                     <span className="text-muted-foreground">Holiday on group</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-2.5 rounded border border-red-400" style={{ boxShadow: '0 0 4px rgba(239, 68, 68, 0.5)' }} />
+                    <div className="w-4 h-2.5 rounded border border-red-400 dark:border-red-500 shadow-[0_0_4px_rgba(239,68,68,0.5)] dark:shadow-[0_0_4px_rgba(248,113,113,0.5)]" />
                     <span className="text-muted-foreground">Critical path (press C)</span>
                   </div>
                 </div>
@@ -463,7 +464,7 @@ export function GanttToolbar({
                 <h4 className="font-medium text-sm mb-1.5">Task Shapes</h4>
                 <div className="grid gap-1.5 text-xs">
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-2.5 rounded" style={{ backgroundColor: '#9ca3af' }} />
+                    <div className="w-4 h-2.5 rounded bg-gray-400 dark:bg-gray-500" />
                     <span className="text-muted-foreground">Regular task (bar)</span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -495,8 +496,7 @@ export function GanttToolbar({
                   </div>
                   <div className="flex items-center gap-2">
                     <div
-                      className="w-5 h-3 rounded overflow-hidden relative"
-                      style={{ backgroundColor: '#9ca3af' }}
+                      className="w-5 h-3 rounded overflow-hidden relative bg-gray-400 dark:bg-gray-500"
                     >
                       {/* Checkered pattern matching Renderer.ts - 3px squares, alternating */}
                       <div

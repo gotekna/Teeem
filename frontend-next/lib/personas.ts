@@ -1,3 +1,5 @@
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from './storage-utils';
+
 export type Persona = 'site' | 'office' | 'manager';
 
 export interface PersonaConfig {
@@ -28,7 +30,7 @@ export const PERSONA_ORDER: Persona[] = ['site', 'office', 'manager'];
 
 export function getStoredPersona(): Persona {
   if (typeof window === 'undefined') return 'manager';
-  const stored = localStorage.getItem('teeem-persona');
+  const stored = getStorageItem<string>(STORAGE_KEYS.PERSONA, 'manager', false);
   if (stored && (stored === 'site' || stored === 'office' || stored === 'manager')) {
     return stored;
   }
@@ -37,6 +39,6 @@ export function getStoredPersona(): Persona {
 
 export function setStoredPersona(persona: Persona): void {
   if (typeof window !== 'undefined') {
-    localStorage.setItem('teeem-persona', persona);
+    setStorageItem(STORAGE_KEYS.PERSONA, persona, false);
   }
 }
