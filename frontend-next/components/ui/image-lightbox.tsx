@@ -43,6 +43,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import type { PhotoItem } from "@/components/ui/photo-gallery";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -109,6 +110,7 @@ export function ImageLightbox({
   onDelete,
 }: ImageLightboxProps) {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [currentIndex, setCurrentIndex] = React.useState(initialIndex);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(false);
@@ -352,9 +354,13 @@ export function ImageLightbox({
   const handleDelete = async () => {
     if (!currentPhoto || !onDelete) return;
 
-    const confirmDelete = window.confirm(
-      `Are you sure you want to delete "${currentPhoto.name}"?\n\nThis will permanently delete the file from SharePoint.`
-    );
+    const confirmDelete = await confirm({
+      title: "Delete Image",
+      description: `Are you sure you want to delete "${currentPhoto.name}"? This will permanently delete the file from SharePoint.`,
+      confirmLabel: "Delete",
+      cancelLabel: "Cancel",
+      variant: "destructive",
+    });
 
     if (!confirmDelete) return;
 

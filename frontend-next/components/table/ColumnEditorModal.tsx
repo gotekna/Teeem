@@ -43,6 +43,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { getColumnTypeEmoji, getColumnTypes, getTypeDefinition } from "@/lib/column-type-registry";
@@ -107,6 +108,7 @@ export function ColumnEditorModal({
   onUpdate,
 }: ColumnEditorModalProps) {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
 
   // Get cache invalidation function
   const invalidateColumnsCache = useSetAtom(invalidateColumnsCacheAtom);
@@ -303,11 +305,13 @@ export function ColumnEditorModal({
       return;
     }
 
-    const confirmed = window.confirm(
-      `Warning: You are changing the type from "${editedColumn.data_type}" to "${newColumnType}".\n\n` +
-        "This will rebuild the database table and may result in data loss if the types are incompatible.\n\n" +
-        "Are you sure you want to continue?"
-    );
+    const confirmed = await confirm({
+      title: "Change Column Type",
+      description: `Warning: You are changing the type from "${editedColumn.data_type}" to "${newColumnType}". This will rebuild the database table and may result in data loss if the types are incompatible.`,
+      confirmLabel: "Change Type",
+      cancelLabel: "Cancel",
+      variant: "destructive",
+    });
 
     if (!confirmed) return;
 

@@ -187,6 +187,7 @@ import {
 } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/components/ui/use-toast";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -594,6 +595,7 @@ export default function TeeemTableView({
   // Debug mode - add ?debug=grid to URL to show layout visualization
   const debugGrid = searchParams.get("debug") === "grid";
   const { toast } = useToast();
+  const { confirm } = useConfirm();
 
   // Mobile/tablet card view detection
   const { isMobile, isTablet } = useDeviceContext();
@@ -718,7 +720,13 @@ export default function TeeemTableView({
     if (!effectiveFoundationId || ids.length === 0) return;
 
     // Confirmation dialog
-    const confirmed = window.confirm(`Delete ${ids.length} record${ids.length === 1 ? '' : 's'}? This action cannot be undone.`);
+    const confirmed = await confirm({
+      title: "Delete Records",
+      description: `Delete ${ids.length} record${ids.length === 1 ? '' : 's'}? This action cannot be undone.`,
+      confirmLabel: "Delete",
+      cancelLabel: "Cancel",
+      variant: "destructive",
+    });
     if (!confirmed) return;
 
     // Optimistic UI: Immediately hide the rows and clear selection
@@ -765,7 +773,7 @@ export default function TeeemTableView({
         variant: "destructive",
       });
     }
-  }, [effectiveFoundationId, onRefresh, toast, autoFetchRecords]);
+  }, [effectiveFoundationId, onRefresh, toast, autoFetchRecords, confirm]);
 
   const effectiveBulkDelete = onBulkDelete || (shouldAutoEnable ? defaultBulkDelete : undefined);
 
