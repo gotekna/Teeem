@@ -65,25 +65,6 @@ interface ReportHistory {
   send_count: number;
 }
 
-function formatDate(dateString: string | null): string {
-  if (!dateString) return "-";
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-function formatDateTime(dateString: string | null): string {
-  if (!dateString) return "-";
-  return new Date(dateString).toLocaleString("en-AU", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 export default function ScheduledReportsTab() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

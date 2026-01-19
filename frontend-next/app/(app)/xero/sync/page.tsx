@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
+import { formatDate, formatDateTime } from "@/utils/formatters";
 
 // Types
 interface ConnectionStatus {
@@ -40,18 +41,6 @@ interface SyncHistoryEntry {
   status: string;
   message?: string;
   timestamp: string;
-}
-
-function formatDate(dateString: string | undefined) {
-  if (!dateString) return "-";
-  const date = new Date(dateString);
-  return date.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 export default function XeroSyncPage() {
