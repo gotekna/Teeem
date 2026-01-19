@@ -46,7 +46,7 @@ import {
   Eye,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatCurrency } from "@/utils/formatters";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface PaymentBatchItem {
   id: number;
@@ -81,14 +81,6 @@ interface BatchSummary {
   pending_amount: number;
   approved_amount: number;
   this_month: number;
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 export default function PaymentBatchesTab() {

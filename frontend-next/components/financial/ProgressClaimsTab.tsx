@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { safePercent } from "@/lib/utils";
-import { formatCurrency } from "@/utils/formatters";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface ProgressClaim {
   id: number;

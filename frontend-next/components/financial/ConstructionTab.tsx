@@ -36,7 +36,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatCurrency } from "@/utils/formatters";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface LienWaiver {
   id: number;
@@ -84,14 +84,6 @@ interface Equipment {
   daily_rate: number;
   current_value: number;
   created_at: string;
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 export default function ConstructionTab() {

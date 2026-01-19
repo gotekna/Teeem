@@ -37,6 +37,7 @@ import {
   Grid3X3,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatDate, formatDateTime } from "@/utils/formatters";
 
 interface CustomReport {
   id: number;
@@ -71,25 +72,6 @@ interface Dashboard {
   widget_count: number;
   created_by: { id: number; name: string } | null;
   created_at: string;
-}
-
-function formatDate(dateString: string | null): string {
-  if (!dateString) return "-";
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-function formatDateTime(dateString: string | null): string {
-  if (!dateString) return "Never";
-  return new Date(dateString).toLocaleString("en-AU", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 export default function ReportsBuilderTab() {

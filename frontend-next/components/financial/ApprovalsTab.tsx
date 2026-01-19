@@ -50,7 +50,7 @@ import {
   Edit,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatCurrency } from "@/utils/formatters";
+import { formatCurrency, formatDateTime } from "@/utils/formatters";
 
 interface ApprovalStep {
   id: number;
@@ -99,16 +99,6 @@ interface ApprovalHistory {
   approved_by: string;
   approved_at: string;
   notes: string | null;
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 export default function ApprovalsTab() {
@@ -304,7 +294,7 @@ export default function ApprovalsTab() {
                         <TableCell>
                           <div>{approval.requested_by}</div>
                           <div className="text-xs text-muted-foreground">
-                            {formatDate(approval.requested_at)}
+                            {formatDateTime(approval.requested_at)}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -395,7 +385,7 @@ export default function ApprovalsTab() {
                           )}
                         </TableCell>
                         <TableCell>{item.approved_by}</TableCell>
-                        <TableCell>{formatDate(item.approved_at)}</TableCell>
+                        <TableCell>{formatDateTime(item.approved_at)}</TableCell>
                         <TableCell className="text-muted-foreground max-w-xs truncate">
                           {item.notes || "-"}
                         </TableCell>

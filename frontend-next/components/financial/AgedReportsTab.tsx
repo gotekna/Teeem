@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { safePercent } from "@/lib/utils";
-import { formatCurrency } from "@/utils/formatters";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface AgingBucket {
   label: string;
@@ -71,15 +71,6 @@ interface AgedReport {
   summary: AgingSummary;
   by_customer: CustomerAging[];
   generated_at: string;
-}
-
-function formatDate(dateString: string | null): string {
-  if (!dateString) return "-";
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 export default function AgedReportsTab() {

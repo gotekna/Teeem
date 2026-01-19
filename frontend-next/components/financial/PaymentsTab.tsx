@@ -35,7 +35,7 @@ import {
   Link2,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatCurrency } from "@/utils/formatters";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface Payment {
   id: number;
@@ -66,14 +66,6 @@ interface PaymentSummary {
   supplier_payments: { count: number; total: number };
   refunds: { count: number; total: number };
   by_status: Record<string, number>;
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 export default function PaymentsTab() {

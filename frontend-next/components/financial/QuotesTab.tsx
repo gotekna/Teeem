@@ -36,7 +36,7 @@ import {
   Percent,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatCurrency } from "@/utils/formatters";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface Quote {
   id: number;
@@ -68,14 +68,6 @@ interface QuoteSummary {
     win_rate: number;
   };
   recent: Quote[];
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 export default function QuotesTab() {

@@ -36,7 +36,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatCurrency } from "@/utils/formatters";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface BillableRate {
   id: number;
@@ -102,14 +102,6 @@ interface UnbilledData {
     total_amount: number;
     entry_count: number;
   };
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 function formatHours(hours: number): string {

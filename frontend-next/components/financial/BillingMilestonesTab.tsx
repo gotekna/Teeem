@@ -35,7 +35,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatCurrency } from "@/utils/formatters";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface BillingMilestone {
   id: number;
@@ -60,14 +60,6 @@ interface BillingMilestone {
   completion_notes: string | null;
   sort_order: number;
   created_at: string;
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 export default function BillingMilestonesTab() {

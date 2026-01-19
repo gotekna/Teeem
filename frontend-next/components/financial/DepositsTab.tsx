@@ -33,7 +33,7 @@ import {
   Briefcase,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatCurrency } from "@/utils/formatters";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface Deposit {
   id: number;
@@ -62,14 +62,6 @@ interface DepositSummary {
   unapplied_amount: number;
   refunded_amount: number;
   by_type: Array<{ type: string; count: number; amount: number }>;
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 export default function DepositsTab() {

@@ -36,6 +36,7 @@ import {
   Clock,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatDate, formatDateTime } from "@/utils/formatters";
 
 interface AuditLog {
   id: number;
@@ -75,25 +76,6 @@ interface AuditSummary {
     eofy: number;
     last_snapshot: string | null;
   };
-}
-
-function formatDateTime(dateString: string): string {
-  return new Date(dateString).toLocaleString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function formatDate(dateString: string | null): string {
-  if (!dateString) return "-";
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 export default function AuditTab() {

@@ -34,7 +34,7 @@ import {
   Ban,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatCurrency } from "@/utils/formatters";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface Invoice {
   id: number;
@@ -80,14 +80,6 @@ interface InvoiceSummary {
       overdue: number;
     };
   };
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 export default function InvoicesTab() {

@@ -31,7 +31,7 @@ import {
   Clock,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatCurrency } from "@/utils/formatters";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface Department {
   id: number;
@@ -82,14 +82,6 @@ interface DocumentRequest {
   documents_count: number;
   completed_count: number;
   created_at: string;
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 export default function AdvancedReportingTab() {

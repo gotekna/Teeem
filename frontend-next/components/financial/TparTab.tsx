@@ -33,7 +33,7 @@ import {
   DollarSign,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatCurrency } from "@/utils/formatters";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface TparReport {
   id: number;
@@ -74,15 +74,6 @@ interface Contractor {
   abn: string;
   tpar_required: boolean;
   tpar_industry_code: string | null;
-}
-
-function formatDate(dateString: string | null): string {
-  if (!dateString) return "-";
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 export default function TparTab() {

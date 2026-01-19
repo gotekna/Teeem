@@ -30,7 +30,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatCurrency } from "@/utils/formatters";
+import { formatCurrency, formatDate, formatDateTime } from "@/utils/formatters";
 
 interface PeriodLock {
   id: number;
@@ -60,26 +60,6 @@ interface LockStatus {
   locked_until: string | null;
   recent_locks: PeriodLock[];
   periods_available_to_lock: AvailablePeriod[];
-}
-
-function formatDate(dateString: string | null): string {
-  if (!dateString) return "-";
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-function formatDateTime(dateString: string | null): string {
-  if (!dateString) return "-";
-  return new Date(dateString).toLocaleString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 export default function PeriodLocksTab() {

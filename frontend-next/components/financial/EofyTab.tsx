@@ -40,7 +40,7 @@ import {
   Download,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatCurrency } from "@/utils/formatters";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface ChecklistItem {
   key: string;
@@ -99,14 +99,6 @@ interface DashboardData {
     critical_remaining: number;
   };
   due_dates: Array<{ label: string; date: string; is_past: boolean }>;
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 export default function EofyTab() {

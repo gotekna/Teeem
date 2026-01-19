@@ -38,7 +38,7 @@ import {
   Building2,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatCurrency } from "@/utils/formatters";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface TaxSummary {
   financial_year: string;
@@ -78,14 +78,6 @@ interface TaxData {
   income_items: Record<string, { label: string; amount: number; transactions?: number }>;
   deduction_items: Record<string, { label: string; amount: number; category: string }>;
   due_dates: DueDate[];
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 export default function PersonalTaxTab() {

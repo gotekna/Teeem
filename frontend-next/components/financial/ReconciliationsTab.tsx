@@ -35,7 +35,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatCurrency } from "@/utils/formatters";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface Reconciliation {
   id: number;
@@ -76,14 +76,6 @@ interface ReconciliationRule {
   times_used: number;
   last_used_at: string | null;
   active: boolean;
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 export default function ReconciliationsTab() {

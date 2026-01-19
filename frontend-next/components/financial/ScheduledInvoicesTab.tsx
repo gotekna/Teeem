@@ -48,7 +48,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatCurrency } from "@/utils/formatters";
+import { formatCurrency, formatDate, formatDateTime } from "@/utils/formatters";
 
 interface ScheduledInvoice {
   id: number;
@@ -72,24 +72,6 @@ interface ScheduleStats {
   sent_today: number;
   failed: number;
   scheduled_this_week: number;
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-function formatDateTime(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 export default function ScheduledInvoicesTab() {
