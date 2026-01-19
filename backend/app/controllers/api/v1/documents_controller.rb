@@ -502,7 +502,10 @@ module Api
           # Only show valid user-facing folders (hides internal folders like Blobs, Attachments)
           if path.blank?
             valid_roots = StorageConfiguration.instance.effective_scope_folders.values
+              .compact  # Remove nil values
+              .reject(&:blank?)  # Remove empty strings
               .map { |v| v.split("/").first }
+              .compact  # Remove nil from split results
               .uniq
 
             folders = folders.select do |f|

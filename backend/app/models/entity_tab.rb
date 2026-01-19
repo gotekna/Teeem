@@ -438,9 +438,9 @@ class EntityTab < ApplicationRecord
   def self.scope_base_folders
     result = {}
 
-    # Get all tabs with storage_folder_path set
+    # Get all tabs with storage_folder_path set (exclude nil AND empty strings)
     storage_tabs = where(has_storage_folder: true)
-                     .where.not(storage_folder_path: nil)
+                     .where.not(storage_folder_path: [nil, ''])
 
     storage_tabs.each do |tab|
       # Add tab_key => path for all storage tabs
