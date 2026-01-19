@@ -86,6 +86,20 @@ class SwapCorporateGroupAndOrganizationIds < ActiveRecord::Migration[8.0]
   ].freeze
 
   def up
+    # Check if swap is already done (TEEEM at ID 1)
+    teeem_at_1 = execute("SELECT id, name FROM corporate_groups WHERE id = 1").first
+    if teeem_at_1 && teeem_at_1['name'].to_s.downcase.include?('teeem')
+      say "Swap already completed - TEEEM is already at ID 1. Skipping migration."
+      return
+    end
+
+    # Check if Tekna is at ID 2 (swap done)
+    tekna_at_2 = execute("SELECT id, name FROM corporate_groups WHERE id = 2").first
+    if tekna_at_2 && tekna_at_2['name'].to_s.downcase.include?('tekna')
+      say "Swap already completed - Tekna is already at ID 2. Skipping migration."
+      return
+    end
+
     # Verify current state before proceeding
     verify_current_state!
 
@@ -93,8 +107,17 @@ class SwapCorporateGroupAndOrganizationIds < ActiveRecord::Migration[8.0]
     say "Tekna (#{TEKNA_OLD_ID}) -> #{TEKNA_NEW_ID}"
     say "TEEEM (#{TEEEM_OLD_ID}) -> #{TEEEM_NEW_ID}"
 
-    # Disable FK constraint checking
-    execute "SET session_replication_role = 'replica';"
+    # Disable FK constraint checking (Heroku doesn't allow session_replication_role)
+    # Instead, we'll drop and recreate constraints, or use DEFERRABLE
+    begin
+      execute "SET session_replication_role = 'replica';"
+      @use_session_role = true
+    rescue ActiveRecord::StatementInvalid => e
+      say "session_replication_role not available (Heroku), using deferred constraints"
+      @use_session_role = false
+      # Set constraints to deferred mode for this transaction
+      execute "SET CONSTRAINTS ALL DEFERRED;"
+    end
 
     begin
       # ═══════════════════════════════════════════════════════════════
@@ -189,7 +212,11 @@ class SwapCorporateGroupAndOrganizationIds < ActiveRecord::Migration[8.0]
 
     ensure
       # Re-enable FK constraint checking
-      execute "SET session_replication_role = 'origin';"
+      if @use_session_role
+        execute "SET session_replication_role = 'origin';"
+      else
+        execute "SET CONSTRAINTS ALL IMMEDIATE;"
+      end
     end
 
     # Verify final state
