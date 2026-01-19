@@ -69,10 +69,9 @@ bin/rails tenant:assign_null_to_tekna
 # Step 7: Clear encrypted credentials (can't decrypt with local keys)
 bin/rails runner "
 deleted_ms = MicrosoftCredential.delete_all
-deleted_sp = OrganizationSharePointCredential.delete_all
-deleted_app = OrganizationMicrosoftAppCredential.delete_all
+deleted_app = OrganizationMicrosoftAppCredential.delete_all rescue 0
 deleted_s3 = S3Credential.delete_all rescue 0
-puts '🔑 Cleared ' + (deleted_ms + deleted_sp + deleted_app + deleted_s3).to_s + ' credentials (encrypted with prod keys)'
+puts '🔑 Cleared ' + (deleted_ms + deleted_app + deleted_s3).to_s + ' credentials (encrypted with prod keys)'
 "
 
 # Step 8: Verify data pulled correctly

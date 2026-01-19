@@ -17,9 +17,9 @@ const PRODUCTION_API_URL = 'https://teeem-production-121159e1ff9d.herokuapp.com'
 // Default API URL (production) - used if no stored api_url
 const DEFAULT_API_URL = (process.env.NEXT_PUBLIC_API_URL || PRODUCTION_API_URL).trim();
 
-// Check if running in dev mode (dev backends contain "-dev" in URL)
+// Check if running in dev mode (localhost or dev backends with "-dev" in URL)
 // Dev frontends skip the production router and login directly to their own backend
-const IS_DEV_MODE = DEFAULT_API_URL.includes('-dev');
+const IS_DEV_MODE = DEFAULT_API_URL.includes('-dev') || DEFAULT_API_URL.includes('localhost');
 
 /**
  * Get the current API base URL
