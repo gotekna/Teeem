@@ -7,8 +7,11 @@ import {
   AlertTriangle,
   RefreshCw,
   Camera,
+  Trash2,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import consoleCapture, { type LogEntry } from "@/utils/consoleCapture";
+import { clearAllCachedRecords } from "@/lib/records-cache";
 import html2canvas from "html2canvas";
 
 export function HeaderDebugTools() {
@@ -16,7 +19,9 @@ export function HeaderDebugTools() {
   const [errorCount, setErrorCount] = useState(0);
   const [copiedButton, setCopiedButton] = useState<string | null>(null);
   const [shouldRender, setShouldRender] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const isMountedRef = useRef(true);
+  const queryClient = useQueryClient();
 
   const isDev = process.env.NODE_ENV === "development";
 
@@ -154,6 +159,54 @@ export function HeaderDebugTools() {
     window.location.reload();
   };
 
+  // Clear ALL app caches - use this after hotfixes
+  const handleClearAllCache = async () => {
+    setClearing(true);
+    try {
+      // 1. Clear React Query cache (API responses)
+      queryClient.clear();
+      console.log("[ClearCache] React Query cache cleared");
+
+      // 2. Clear records cache (L1 memory + L2 IndexedDB)
+      clearAllCachedRecords();
+      console.log("[ClearCache] Records cache cleared (L1 + L2)");
+
+      // 3. Clear app-specific localStorage items (but not auth)
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && !key.includes("token") && !key.includes("auth") && !key.includes("session")) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((key) => localStorage.removeItem(key));
+      console.log(`[ClearCache] Cleared ${keysToRemove.length} localStorage items`);
+
+      // 4. Clear sessionStorage (except auth)
+      const sessionKeysToRemove: string[] = [];
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key && !key.includes("token") && !key.includes("auth") && !key.includes("session")) {
+          sessionKeysToRemove.push(key);
+        }
+      }
+      sessionKeysToRemove.forEach((key) => sessionStorage.removeItem(key));
+      console.log(`[ClearCache] Cleared ${sessionKeysToRemove.length} sessionStorage items`);
+
+      // 5. Clear console capture logs
+      consoleCapture.clear();
+
+      // Brief visual feedback then reload
+      setCopiedButton("clear");
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+    } catch (err) {
+      console.error("[ClearCache] Error:", err);
+      setClearing(false);
+    }
+  };
+
   const handleValidate = async () => {
     try {
       const logs = consoleCapture.getLogs();
@@ -264,9 +317,30 @@ ${formattedLogs || "(No logs)"}
       <button
         onClick={handleRefresh}
         className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-500 text-white hover:bg-green-600 transition-all"
-        title="Clear & refresh"
+        title="Refresh page"
       >
         <RefreshCw className="h-2.5 w-2.5" />
+      </button>
+
+      {/* Clear All Cache - use after hotfixes */}
+      <button
+        onClick={handleClearAllCache}
+        disabled={clearing}
+        className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium transition-all ${
+          copiedButton === "clear"
+            ? "bg-green-600 text-white"
+            : clearing
+              ? "bg-red-300 text-white cursor-wait"
+              : "bg-red-500 text-white hover:bg-red-600"
+        }`}
+        title="Clear all cache & refresh (use after updates)"
+      >
+        {copiedButton === "clear" ? (
+          <Check className="h-2.5 w-2.5" />
+        ) : (
+          <Trash2 className="h-2.5 w-2.5" />
+        )}
+        <span className="hidden sm:inline">Clear</span>
       </button>
 
       {/* Validate */}

@@ -14,13 +14,14 @@ module Api
       before_action :require_admin!
 
       # GET /api/v1/config_sync/tables
-      # List available configuration tables for sync
+      # List available configuration tables for sync (with counts)
       def tables
         service = TenantConfigSyncService.new(current_tenant)
 
         render json: {
           success: true,
           tables: service.available_tables,
+          counts: service.table_counts,
           tenant: current_tenant ? tenant_info(current_tenant) : nil,
           master_tenant: master_tenant ? tenant_info(master_tenant) : nil,
           is_master_tenant: current_tenant&.is_master_tenant? || false

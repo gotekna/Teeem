@@ -16,7 +16,10 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
+  Trash2,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { clearAllCachedRecords } from "@/lib/records-cache";
 import {
   Persona,
   getStoredPersona,
@@ -101,6 +104,53 @@ function SidebarContent({
   handleLogout,
   tenantInfo,
 }: SidebarContentProps) {
+  const queryClient = useQueryClient();
+  const [clearing, setClearing] = useState(false);
+
+  // Clear ALL app caches - use this after hotfixes
+  const handleClearCache = async () => {
+    setClearing(true);
+    try {
+      // 1. Clear React Query cache
+      queryClient.clear();
+      console.log("[ClearCache] React Query cache cleared");
+
+      // 2. Clear records cache (L1 + L2)
+      clearAllCachedRecords();
+      console.log("[ClearCache] Records cache cleared");
+
+      // 3. Clear app localStorage (but not auth)
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && !key.includes("token") && !key.includes("auth") && !key.includes("session")) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((key) => localStorage.removeItem(key));
+
+      // 4. Clear sessionStorage (but not auth)
+      const sessionKeysToRemove: string[] = [];
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key && !key.includes("token") && !key.includes("auth") && !key.includes("session")) {
+          sessionKeysToRemove.push(key);
+        }
+      }
+      sessionKeysToRemove.forEach((key) => sessionStorage.removeItem(key));
+
+      console.log("[ClearCache] All caches cleared, reloading...");
+
+      // Brief feedback then reload
+      setTimeout(() => {
+        window.location.reload();
+      }, 300);
+    } catch (err) {
+      console.error("[ClearCache] Error:", err);
+      setClearing(false);
+    }
+  };
+
   // Environment badge variant
   const getEnvironmentBadgeVariant = (env: string) => {
     switch (env) {
@@ -258,6 +308,26 @@ function SidebarContent({
           )
         ) : null}
       </div>
+
+      {/* Clear Cache Button - visible when sidebar expanded or mobile */}
+      {(isExpanded || mobile) && (
+        <div className="px-2 pb-2">
+          <button
+            onClick={handleClearCache}
+            disabled={clearing}
+            className={cn(
+              "w-full flex items-center justify-center gap-2 px-3 py-1.5 rounded text-xs font-medium transition-all",
+              clearing
+                ? "bg-red-300 text-white cursor-wait"
+                : "bg-red-500/10 text-red-600 hover:bg-red-500/20 dark:bg-red-500/20 dark:text-red-400 dark:hover:bg-red-500/30"
+            )}
+            title="Clear all cached data and refresh"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            {clearing ? "Clearing..." : "Clear Cache"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -52,6 +52,13 @@ interface TenantInfo {
   is_master_tenant: boolean;
 }
 
+interface TableCounts {
+  [key: string]: {
+    master: number;
+    tenant: number;
+  };
+}
+
 interface ConfigRecord {
   id: number;
   name: string;
@@ -72,6 +79,7 @@ type SyncMode = "add_new" | "replace_existing" | "skip_existing";
 
 export function ConfigSyncTab() {
   const [tables, setTables] = useState<ConfigTable[]>([]);
+  const [tableCounts, setTableCounts] = useState<TableCounts>({});
   const [masterTenant, setMasterTenant] = useState<TenantInfo | null>(null);
   const [currentTenant, setCurrentTenant] = useState<TenantInfo | null>(null);
   const [isMasterTenant, setIsMasterTenant] = useState(false);
@@ -86,33 +94,36 @@ export function ConfigSyncTab() {
   const [error, setError] = useState<string | null>(null);
 
   // Fetch available tables on mount
-  useEffect(() => {
-    const fetchTables = async () => {
-      try {
-        setLoading(true);
-        const response = await api.get<{
-          success: boolean;
-          tables: ConfigTable[];
-          master_tenant: TenantInfo | null;
-          tenant: TenantInfo | null;
-          is_master_tenant: boolean;
-        }>("/api/v1/config_sync/tables");
+  const fetchTables = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await api.get<{
+        success: boolean;
+        tables: ConfigTable[];
+        counts: TableCounts;
+        master_tenant: TenantInfo | null;
+        tenant: TenantInfo | null;
+        is_master_tenant: boolean;
+      }>("/api/v1/config_sync/tables");
 
-        if (response?.success) {
-          setTables(response.tables);
-          setMasterTenant(response.master_tenant);
-          setCurrentTenant(response.tenant);
-          setIsMasterTenant(response.is_master_tenant);
-        }
-      } catch (err) {
-        console.error("Failed to fetch config tables:", err);
-        setError("Failed to load configuration tables");
-      } finally {
-        setLoading(false);
+      if (response?.success) {
+        setTables(response.tables);
+        setTableCounts(response.counts || {});
+        setMasterTenant(response.master_tenant);
+        setCurrentTenant(response.tenant);
+        setIsMasterTenant(response.is_master_tenant);
       }
-    };
-    fetchTables();
+    } catch (err) {
+      console.error("Failed to fetch config tables:", err);
+      setError("Failed to load configuration tables");
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchTables();
+  }, [fetchTables]);
 
   // Fetch comparison when table changes
   const fetchComparison = useCallback(async () => {
@@ -351,6 +362,20 @@ export function ConfigSyncTab() {
       {/* Header with tenant info */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
+          {selectedTable && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSelectedTable("");
+                setComparison([]);
+                fetchTables(); // Refresh counts
+              }}
+            >
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Back
+            </Button>
+          )}
           <Badge variant="default" className="text-sm px-3 py-1">
             {masterTenant.name}
           </Badge>
@@ -358,21 +383,28 @@ export function ConfigSyncTab() {
           <Badge variant="secondary" className="text-sm px-3 py-1">
             {currentTenant?.name || "Current Tenant"}
           </Badge>
+          {selectedTable && (
+            <span className="text-sm font-medium">
+              → {tables.find(t => t.key === selectedTable)?.model.replace(/([A-Z])/g, " $1").trim()}
+            </span>
+          )}
         </div>
 
-        {/* Table selector */}
-        <Select value={selectedTable} onValueChange={setSelectedTable}>
-          <SelectTrigger className="w-64">
-            <SelectValue placeholder="Select config table..." />
-          </SelectTrigger>
-          <SelectContent>
-            {tables.map((table) => (
-              <SelectItem key={table.key} value={table.key}>
-                {table.model.replace(/([A-Z])/g, " $1").trim()}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* Table selector (hidden when table selected) */}
+        {!selectedTable && (
+          <Select value={selectedTable} onValueChange={setSelectedTable}>
+            <SelectTrigger className="w-64">
+              <SelectValue placeholder="Select config table..." />
+            </SelectTrigger>
+            <SelectContent>
+              {tables.map((table) => (
+                <SelectItem key={table.key} value={table.key}>
+                  {table.model.replace(/([A-Z])/g, " $1").trim()}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {/* Error/Success messages */}
@@ -594,10 +626,73 @@ export function ConfigSyncTab() {
         </div>
       )}
 
-      {/* No table selected */}
+      {/* Overview table with counts (shown when no table selected) */}
       {!selectedTable && (
-        <div className="text-center p-8 text-muted-foreground">
-          Select a configuration table to compare
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="p-3 text-left font-medium">Configuration Table</th>
+                <th className="p-3 text-center font-medium w-32">
+                  <Badge variant="default" className="text-xs">{masterTenant?.name || "TEEEM"}</Badge>
+                </th>
+                <th className="p-3 text-center font-medium w-32">
+                  <Badge variant="secondary" className="text-xs">{currentTenant?.name || "Tenant"}</Badge>
+                </th>
+                <th className="p-3 text-center font-medium w-24">Diff</th>
+                <th className="p-3 text-right font-medium w-32">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tables.map((table) => {
+                const counts = tableCounts[table.key] || { master: 0, tenant: 0 };
+                const diff = counts.tenant - counts.master;
+                return (
+                  <tr key={table.key} className="border-t hover:bg-muted/30">
+                    <td className="p-3">
+                      <div className="font-medium">{table.model.replace(/([A-Z])/g, " $1").trim()}</div>
+                      <div className="text-xs text-muted-foreground">{table.description}</div>
+                    </td>
+                    <td className="p-3 text-center">
+                      <span className={cn(
+                        "font-mono font-medium",
+                        counts.master === 0 && "text-red-500"
+                      )}>
+                        {counts.master}
+                      </span>
+                    </td>
+                    <td className="p-3 text-center">
+                      <span className="font-mono font-medium">{counts.tenant}</span>
+                    </td>
+                    <td className="p-3 text-center">
+                      {diff !== 0 && (
+                        <span className={cn(
+                          "font-mono text-xs px-2 py-1 rounded",
+                          diff > 0 ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-400" :
+                          "bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400"
+                        )}>
+                          {diff > 0 ? `+${diff}` : diff}
+                        </span>
+                      )}
+                      {diff === 0 && counts.master > 0 && (
+                        <Check className="h-4 w-4 mx-auto text-green-600" />
+                      )}
+                    </td>
+                    <td className="p-3 text-right">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setSelectedTable(table.key)}
+                      >
+                        <RefreshCw className="h-3 w-3 mr-1" />
+                        Compare
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

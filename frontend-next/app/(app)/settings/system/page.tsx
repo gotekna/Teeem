@@ -15,7 +15,7 @@ import { EmailAccountsTab } from "@/app/(app)/admin/system/components/EmailAccou
 import { UserManualTab } from "@/app/(app)/admin/system/components/UserManualTab";
 import { InspiringQuotesTab } from "@/app/(app)/admin/system/components/InspiringQuotesTab";
 import { BackupSettingsTab } from "@/app/(app)/admin/system/components/BackupSettingsTab";
-import { AdminConfigSyncTab } from "@/app/(app)/admin/system/components/AdminConfigSyncTab";
+import { ConfigSyncTab } from "@/app/(app)/admin/system/components/ConfigSyncTab";
 
 /**
  * System Settings Page - Organization Settings
@@ -100,7 +100,7 @@ export default function SystemSettingsPage() {
             <BackupSettingsTab />
           </TabsContent>
           <TabsContent value="config-sync">
-            <AdminConfigSyncTab />
+            <ConfigSyncTab />
           </TabsContent>
           <TabsContent value="health">
             <XeroHealthTab />

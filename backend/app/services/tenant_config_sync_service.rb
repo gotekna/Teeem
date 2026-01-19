@@ -98,7 +98,7 @@ class TenantConfigSyncService
   # Browse & Compare Operations
   # ============================================================================
 
-  # List all available config tables
+  # List all available config tables with counts
   def available_tables
     CONFIG_TABLES.map do |key, config|
       {
@@ -108,6 +108,55 @@ class TenantConfigSyncService
         name_field: config[:name_field].to_s
       }
     end
+  end
+
+  # Get record counts per table for both master and tenant
+  def table_counts
+    master = master_tenant
+    counts = {}
+
+    CONFIG_TABLES.each do |key, config|
+      model = config[:model].constantize
+
+      master_count = if master
+        ActsAsTenant.with_tenant(master) { model.count }
+      else
+        0
+      end
+
+      tenant_count = ActsAsTenant.with_tenant(tenant) { model.count }
+
+      counts[key.to_s] = {
+        master: master_count,
+        tenant: tenant_count
+      }
+    end
+
+    counts
+  end
+
+  # Get record counts per table for ALL tenants (for admin overview)
+  def all_tenant_counts
+    tenants = CorporateGroup.order(:name)
+    counts = {}
+
+    CONFIG_TABLES.each do |key, config|
+      model = config[:model].constantize
+      counts[key.to_s] = {}
+
+      tenants.each do |t|
+        count = ActsAsTenant.with_tenant(t) { model.count }
+        counts[key.to_s][t.slug] = count
+      end
+
+      # Also count NULL tenant records
+      counts[key.to_s]["null"] = model.where(company_group_id: nil).count
+    end
+
+    {
+      tenants: tenants.map { |t| { id: t.id, name: t.name, slug: t.slug, is_master: t.is_master_tenant? } },
+      counts: counts
+    }
   end
 
   # Browse config records from a source tenant (for TEEEM admin)
