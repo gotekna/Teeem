@@ -18,7 +18,17 @@ Commits ALL pending changes and deploys through the entire pipeline: staging →
                 │          │          │
            Backend    Backend    Backend
            (Heroku)   (Heroku)   (Heroku)
+                         └────┬────┘
+                         PARALLEL!
 ```
+
+## Optimizations (Jan 2026)
+
+| Optimization | Savings |
+|--------------|---------|
+| Single temp directory (reused for all 3 deploys) | ~2s |
+| Parallel beta+production deploys | ~60-90s |
+| Smart migration check (only if db/migrate changed) | ~10-30s |
 
 ## ⚠️ PRODUCTION DEPLOY - USE CAUTION
 
@@ -126,112 +136,109 @@ git checkout "$CURRENT_BRANCH"
 echo "✅ Frontend branches merged"
 ```
 
-### Step 7 - Deploy Backend to Staging (if backend changed)
+### Step 7 - Deploy Backend (OPTIMIZED - Single Directory, Parallel Deploys)
 
+**Check if backend files were in the commit:**
 ```bash
 git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && echo "BACKEND: Deploy needed" || echo "BACKEND: No changes, skip"
 ```
 
-**If backend changed:**
+**If backend changed, use optimized deploy:**
+
 ```bash
+echo "📦 Starting optimized backend deploy..."
+
 cd /Users/robertharder/GitHub/teeem
 
+# Ensure files are flushed to disk
 sync
 sleep 1
 
+# Create SINGLE temp directory (reused for all 3 environments)
 DEPLOY_DIR=$(mktemp -d)
 cp -R backend/* "$DEPLOY_DIR/"
 
 cd "$DEPLOY_DIR"
 git init
 git add -A
-git commit -m "Deploy to Staging $(date +%Y%m%d-%H%M%S)"
-git remote add heroku https://git.heroku.com/teeem-staging.git
-git push heroku HEAD:main --force
-cd /Users/robertharder/GitHub/teeem
-rm -rf "$DEPLOY_DIR"
+git commit -m "Deploy $(date +%Y%m%d-%H%M%S)"
 
+# Add all remotes upfront
+git remote add staging https://git.heroku.com/teeem-staging.git
+git remote add beta https://git.heroku.com/teeem-beta.git
+git remote add production https://git.heroku.com/teeem-production.git
+
+# STEP 1: Deploy to Staging first (safety check)
+echo "📦 Deploying → Staging..."
+git push staging HEAD:main --force
+STAGING_EXIT=$?
+
+if [ $STAGING_EXIT -ne 0 ]; then
+  echo "❌ Staging deploy failed - aborting pipeline"
+  cd /Users/robertharder/GitHub/teeem
+  rm -rf "$DEPLOY_DIR"
+  exit 1
+fi
 echo "✅ Staging backend deployed"
-```
 
-**Verify migrations ran (CRITICAL for schema changes):**
-```bash
-# Check if release phase ran migrations, if not run manually
-heroku run "rails db:migrate:status | tail -10" --app teeem-staging
+# STEP 2: Deploy to Beta AND Production in PARALLEL
+echo "📦 Deploying → Beta + Production (parallel)..."
+git push beta HEAD:main --force &
+BETA_PID=$!
+git push production HEAD:main --force &
+PROD_PID=$!
 
-# If any migrations show "down", run them:
-# heroku run "rails db:migrate" --app teeem-staging
-```
+# Wait for both to complete
+wait $BETA_PID
+BETA_EXIT=$?
+wait $PROD_PID
+PROD_EXIT=$?
 
-### Step 8 - Deploy Backend to Beta
-
-```bash
-echo "📦 Deploying backend → beta..."
-
-cd /Users/robertharder/GitHub/teeem
-
-sync
-sleep 1
-
-DEPLOY_DIR=$(mktemp -d)
-cp -r backend/* "$DEPLOY_DIR/"
-
-cd "$DEPLOY_DIR"
-git init
-git add .
-git commit -m "Deploy to Beta $(date +%Y%m%d-%H%M%S)"
-git remote add heroku https://git.heroku.com/teeem-beta.git
-git push heroku HEAD:main --force
+# Cleanup
 cd /Users/robertharder/GitHub/teeem
 rm -rf "$DEPLOY_DIR"
 
-echo "✅ Beta backend deployed"
+# Report results
+if [ $BETA_EXIT -eq 0 ]; then
+  echo "✅ Beta backend deployed"
+else
+  echo "❌ Beta deploy failed (exit: $BETA_EXIT)"
+fi
+
+if [ $PROD_EXIT -eq 0 ]; then
+  echo "✅ Production backend deployed"
+else
+  echo "❌ Production deploy failed (exit: $PROD_EXIT)"
+fi
+
+echo "✅ All backend deploys complete"
 ```
 
-**Verify migrations ran (CRITICAL for schema changes):**
+### Step 8 - Smart Migration Verification (Only if migrations changed)
+
+**Only run migration check if commit includes db/migrate files:**
+
 ```bash
-# Check if release phase ran migrations, if not run manually
-heroku run "rails db:migrate:status | tail -10" --app teeem-beta
+if git diff --name-only HEAD~1 HEAD | grep -q "^backend/db/migrate/"; then
+  echo "🔄 Migrations detected - verifying..."
 
-# If any migrations show "down", run them:
-# heroku run "rails db:migrate" --app teeem-beta
+  # Check all 3 environments
+  echo "Checking Staging migrations..."
+  heroku run "rails db:migrate:status | tail -5" --app teeem-staging
+
+  echo "Checking Beta migrations..."
+  heroku run "rails db:migrate:status | tail -5" --app teeem-beta
+
+  echo "Checking Production migrations..."
+  heroku run "rails db:migrate:status | tail -5" --app teeem-production
+
+  echo "✅ Migration verification complete"
+else
+  echo "⏭️  No migrations in commit - skipping verification"
+fi
 ```
 
-### Step 9 - Deploy Backend to Production
-
-```bash
-echo "📦 Deploying backend → production..."
-
-cd /Users/robertharder/GitHub/teeem
-
-sync
-sleep 1
-
-DEPLOY_DIR=$(mktemp -d)
-cp -r backend/* "$DEPLOY_DIR/"
-
-cd "$DEPLOY_DIR"
-git init
-git add .
-git commit -m "Deploy to Production $(date +%Y%m%d-%H%M%S)"
-git remote add heroku https://git.heroku.com/teeem-production.git
-git push heroku HEAD:main --force
-cd /Users/robertharder/GitHub/teeem
-rm -rf "$DEPLOY_DIR"
-
-echo "✅ Production backend deployed"
-```
-
-**Verify migrations ran (CRITICAL for schema changes):**
-```bash
-# Check if release phase ran migrations, if not run manually
-heroku run "rails db:migrate:status | tail -10" --app teeem-production
-
-# If any migrations show "down", run them:
-# heroku run "rails db:migrate" --app teeem-production
-```
-
-### Step 10 - Post-Deploy Verification
+### Step 9 - Post-Deploy Verification (Production Only)
 
 ```bash
 sleep 10
@@ -273,7 +280,7 @@ heroku run rails runner "
 " --app teeem-production
 ```
 
-### Step 11 - Report Status
+### Step 10 - Report Status
 
 ```bash
 BACKEND_VERSION=$(curl -s https://teeemlive-ce8e2660a615.herokuapp.com/version | jq -r '.version' 2>/dev/null || echo "unknown")
@@ -293,10 +300,10 @@ Frontend (Vercel - auto-deploy on branch merge):
   ✅ Beta: Staging → Beta merged
   ✅ Production: Beta → Live merged
 
-Backend (Heroku - direct deploy):
-  ✅ Staging: v[XXX] deployed to teeem-staging
-  ✅ Beta: v[XXX] deployed to teeem-beta
-  ✅ Production: v[XXX] deployed to teeem-production
+Backend (Heroku - optimized parallel deploy):
+  ✅ Staging: deployed (safety check first)
+  ✅ Beta: deployed (parallel)
+  ✅ Production: v[XXX] deployed (parallel)
 ----------------------------------------
 Post-Deploy Verification:
   [verification results]
@@ -307,15 +314,18 @@ Post-Deploy Verification:
 
 If any step fails:
 1. Report which step failed
-2. Do NOT proceed to next environment
+2. Do NOT proceed to next environment (staging failure stops everything)
 3. Provide recovery instructions
+
+**Staging acts as gate:** If staging deploy fails, beta and production are NOT attempted.
 
 ## Notes
 
 - Commits ALL changes from ALL chat sessions
 - Deploys BOTH frontend AND backend to ALL THREE environments
 - Frontend: Vercel auto-deploys when branches are merged (Staging → Beta → Live)
-- Backend: Direct Heroku deploy via orphan push method
+- Backend: Single temp directory, staging first, then beta+production in parallel
+- Migration verification only runs if db/migrate files changed
 - Post-deploy verification runs for Production only
 - Use `/p` if you only want to commit THIS chat's changes
 - Use `/ba` if you only want to deploy up to Beta

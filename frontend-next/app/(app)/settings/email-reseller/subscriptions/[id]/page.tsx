@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -85,6 +86,7 @@ interface SubscriptionDetail extends EmailSubscription {
 export default function SubscriptionDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { confirm } = useConfirm();
   const subscriptionId = Number(params.id);
 
   const { getSubscription, sendInvite, cancelSubscription } = useEmailSubscriptions();
@@ -119,7 +121,7 @@ export default function SubscriptionDetailPage() {
   };
 
   const handleRemoveMailbox = async (mailboxId: number) => {
-    if (confirm("Are you sure you want to remove this mailbox?")) {
+    if (await confirm("Are you sure you want to remove this mailbox?")) {
       await removeMailbox(mailboxId);
       await fetchData();
     }

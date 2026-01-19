@@ -2,6 +2,7 @@
 
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useEffect, Suspense, useCallback, useMemo } from "react";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { TeeemTableView, SchemaTab, ConnectionsTab } from "@/components/table";
 import { TablePage } from "@/components/ui/page-wrappers";
 import { api } from "@/lib/api";
@@ -61,6 +62,7 @@ function TablePageContent() {
   const params = useParams();
   const pathname = usePathname();
   const router = useRouter();
+  const { confirm } = useConfirm();
 
   const rawSlug = params.slug as string;
 
@@ -177,7 +179,7 @@ function TablePageContent() {
 
   // Handle bulk delete
   const handleBulkDelete = async (ids: (number | string)[]) => {
-    if (!confirm(`Are you sure you want to delete ${ids.length} record(s)?`)) return;
+    if (!(await confirm(`Are you sure you want to delete ${ids.length} record(s)?`))) return;
 
     try {
       await Promise.all(ids.map((id) =>

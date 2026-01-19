@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { BackButton } from "@/components/ui/back-button";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableRow } from "@/components/table/types";
@@ -18,18 +19,19 @@ import { TablePage } from "@/components/ui/page-wrappers";
  */
 export default function AssetsPage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
   const [refreshKey, setRefreshKey] = React.useState(0);
 
   // Delete confirmation wrapper
   const handleDeleteWithConfirm = async (entry: TableRow) => {
-    if (!confirm(`Delete asset "${entry.name}"? This cannot be undone.`)) {
+    if (!(await confirm(`Delete asset "${entry.name}"? This cannot be undone.`))) {
       throw new Error("Cancelled"); // Prevents TeeemTableView from proceeding
     }
     // TeeemTableView handles the actual delete via Foundation API
   };
 
   const handleBulkDeleteWithConfirm = async (ids: (string | number)[]) => {
-    if (!confirm(`Delete ${ids.length} assets? This cannot be undone.`)) {
+    if (!(await confirm(`Delete ${ids.length} assets? This cannot be undone.`))) {
       throw new Error("Cancelled");
     }
     // TeeemTableView handles the actual delete via Foundation API

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +56,7 @@ interface DocumentType extends TableRow {
 
 export default function DocumentTypesPage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
   const [refreshKey, setRefreshKey] = React.useState(0);
   const [showAddForm, setShowAddForm] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
@@ -78,14 +80,14 @@ export default function DocumentTypesPage() {
   }, [router]);
 
   const handleDelete = async (entry: DocumentType) => {
-    if (!confirm(`Delete document type "${entry.name}"? This cannot be undone.`)) {
+    if (!(await confirm(`Delete document type "${entry.name}"? This cannot be undone.`))) {
       throw new Error("Cancelled");
     }
     // TeeemTableView handles the actual delete via Foundation API
   };
 
   const handleBulkDelete = async (ids: (number | string)[]) => {
-    if (!confirm(`Delete ${ids.length} document types? This cannot be undone.`)) {
+    if (!(await confirm(`Delete ${ids.length} document types? This cannot be undone.`))) {
       throw new Error("Cancelled");
     }
     // TeeemTableView handles the actual delete via Foundation API

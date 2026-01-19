@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,6 +33,7 @@ import type {
 } from '@/lib/email-reseller-types';
 
 export default function CloudflareSettingsPage() {
+  const { confirm } = useConfirm();
   const [credential, setCredential] = React.useState<CloudflareCredential | null>(null);
   const [zones, setZones] = React.useState<CloudflareZone[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -170,7 +172,7 @@ export default function CloudflareSettingsPage() {
   const handleDisconnect = async () => {
     if (!credential?.id) return;
 
-    if (!confirm('Are you sure you want to disconnect Cloudflare?')) return;
+    if (!(await confirm('Are you sure you want to disconnect Cloudflare?'))) return;
 
     try {
       await api.delete(`/api/v1/cloudflare_credentials/${credential.id}`);

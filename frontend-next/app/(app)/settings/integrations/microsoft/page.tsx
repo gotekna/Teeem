@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -128,6 +129,7 @@ const AVAILABLE_ORGANIZATIONS = [
 // which bypasses Azure AD Conditional Access issues
 // ============================================
 function SharePointDelegatedConnection() {
+  const { confirm } = useConfirm();
   const [status, setStatus] = React.useState<{
     connected: boolean;
     source?: string;
@@ -168,7 +170,7 @@ function SharePointDelegatedConnection() {
   };
 
   const handleDisconnect = async () => {
-    if (!confirm("Disconnect SharePoint delegated access?")) return;
+    if (!(await confirm("Disconnect SharePoint delegated access?"))) return;
     setDisconnecting(true);
     try {
       await api.delete("/api/v1/documents/disconnect");
@@ -659,6 +661,7 @@ function OrganizationCard({
   onRefresh: () => void;
   healthInfo?: OrgHealthInfo;
 }) {
+  const { confirm } = useConfirm();
   const [open, setOpen] = React.useState(org.status === "connected" || org.status === "pending");
   const [testing, setTesting] = React.useState(false);
   const [testingSharePoint, setTestingSharePoint] = React.useState(false);
@@ -765,7 +768,7 @@ function OrganizationCard({
   };
 
   const handleDisconnect = async () => {
-    if (!confirm(`Are you sure you want to disconnect ${org.name}?`)) return;
+    if (!(await confirm(`Are you sure you want to disconnect ${org.name}?`))) return;
 
     setDisconnecting(true);
     try {

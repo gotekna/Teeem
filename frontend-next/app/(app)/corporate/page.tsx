@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -484,6 +485,7 @@ export default function CorporateDashboardPage() {
   useSetLayoutMode("full-height");
   const router = useRouter();
   const pathname = usePathname();
+  const { confirm } = useConfirm();
 
   // Parse tab from path: /corporate/structure → "structure", /corporate → "groups"
   const activeTab = React.useMemo(() => {
@@ -890,7 +892,7 @@ export default function CorporateDashboardPage() {
   };
 
   const handleDelete = async (entry: TeeemTableRow) => {
-    if (!confirm(`Delete company "${entry.name}"? This cannot be undone.`)) return;
+    if (!(await confirm(`Delete company "${entry.name}"? This cannot be undone.`))) return;
 
     try {
       await api.delete(`/api/v1/companies/${entry.id}`);
@@ -1012,7 +1014,7 @@ export default function CorporateDashboardPage() {
       return;
     }
 
-    if (!confirm(`Delete group "${group.name}"? This cannot be undone.`)) return;
+    if (!(await confirm(`Delete group "${group.name}"? This cannot be undone.`))) return;
 
     try {
       await api.delete(`/api/v1/company_groups/${group.id}`);

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -44,6 +45,7 @@ const STATUS_COLORS: Record<SubscriptionStatus, string> = {
 
 export default function SubscriptionsPage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
   const {
     subscriptions,
     loading,
@@ -78,7 +80,7 @@ export default function SubscriptionsPage() {
   };
 
   const handleCancel = async (id: number) => {
-    if (confirm("Are you sure you want to cancel this subscription?")) {
+    if (await confirm("Are you sure you want to cancel this subscription?")) {
       await cancelSubscription(id);
       await fetchSubscriptions();
     }
