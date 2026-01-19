@@ -4,6 +4,7 @@ import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSettingsAccess } from "@/lib/hooks/useSettingsAccess";
+import { useLayoutMode } from "@/contexts/LayoutModeContext";
 import {
   User,
   Bell,
@@ -49,6 +50,7 @@ export default function SettingsLayout({
   const pathname = usePathname();
   const router = useRouter();
   const { isAdmin } = useSettingsAccess();
+  const { mode } = useLayoutMode();
 
   // Extract current tab from path
   // /settings/profile → "profile"
@@ -68,10 +70,14 @@ export default function SettingsLayout({
   // All tabs for value matching
   const allTabs = [...PERSONAL_TABS, ...(isAdmin ? ORGANIZATION_TABS : [])];
 
+  // SSoT: Respect layout mode from child pages (e.g., TablePage, ScheduleMasterTab)
+  // When mode is "full-height" or "fullscreen", use flex layout with proper heights
+  const isFullHeight = mode === "full-height" || mode === "fullscreen" || mode === "edge-to-edge";
+
   return (
-    <div className="space-y-6">
+    <div className={isFullHeight ? "flex flex-col h-full" : "space-y-6"}>
       {/* Header */}
-      <div>
+      <div className={isFullHeight ? "shrink-0" : ""}>
         <h1 className="text-2xl font-bold tracking-tight font-serif">Settings</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Manage your account and organization settings
@@ -79,7 +85,7 @@ export default function SettingsLayout({
       </div>
 
       {/* Tab Navigation with Sections */}
-      <Tabs value={currentTab} onValueChange={handleTabChange}>
+      <Tabs value={currentTab} onValueChange={handleTabChange} className={isFullHeight ? "shrink-0" : ""}>
         <div className="space-y-4">
           {/* Personal Section */}
           <div>
@@ -121,8 +127,8 @@ export default function SettingsLayout({
         </div>
       </Tabs>
 
-      {/* Content */}
-      <div>{children}</div>
+      {/* Content - flex-1 when full-height to fill remaining space */}
+      <div className={isFullHeight ? "flex-1 min-h-0" : ""}>{children}</div>
     </div>
   );
 }

@@ -23,19 +23,19 @@ class TenantBackupDispatcherJob < ApplicationJob
 
     # Check all enabled backup configurations
     BackupConfiguration.where(enabled: true).find_each do |config|
-      ActsAsTenant.with_tenant(config.organization) do
+      ActsAsTenant.with_tenant(config.tenant) do
         # Check database backup
         if config.backup_due?(:database)
-          TenantDatabaseBackupJob.perform_later(config.organization_id)
+          TenantDatabaseBackupJob.perform_later(config.tenant_id)
           database_queued += 1
-          Rails.logger.info "[BackupDispatcher] Queued database backup for org #{config.organization_id}"
+          Rails.logger.info "[BackupDispatcher] Queued database backup for tenant #{config.tenant_id}"
         end
 
         # Check document backup
         if config.backup_due?(:documents)
-          TenantDocumentBackupJob.perform_later(config.organization_id)
+          TenantDocumentBackupJob.perform_later(config.tenant_id)
           document_queued += 1
-          Rails.logger.info "[BackupDispatcher] Queued document backup for org #{config.organization_id}"
+          Rails.logger.info "[BackupDispatcher] Queued document backup for tenant #{config.tenant_id}"
         end
       end
     end

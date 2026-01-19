@@ -2,7 +2,7 @@
 
 # BackupConfiguration - Per-tenant backup settings
 #
-# Each organization can configure their own backup schedule, storage providers,
+# Each tenant can configure their own backup schedule, storage providers,
 # and retention policies. This is the SSoT for all backup configuration.
 #
 # Schedule Presets:
@@ -20,9 +20,9 @@
 #   mirror_enabled       - If true, backups are copied to secondary after primary
 #
 class BackupConfiguration < ApplicationRecord
-  acts_as_tenant :organization
+  acts_as_tenant :tenant
 
-  belongs_to :organization
+  belongs_to :tenant
   belongs_to :primary_credential, class_name: "S3CompatibleCredential", optional: true
   belongs_to :secondary_credential, class_name: "S3CompatibleCredential", optional: true
 
@@ -43,7 +43,7 @@ class BackupConfiguration < ApplicationRecord
   validates :database_schedule, inclusion: { in: SCHEDULE_PRESETS.keys }
   validates :document_schedule, inclusion: { in: SCHEDULE_PRESETS.keys }
   validates :retention_days, numericality: { greater_than: 0, less_than_or_equal_to: 365 }
-  validates :organization_id, uniqueness: true
+  validates :tenant_id, uniqueness: true
 
   # Validate that mirror requires both credentials
   validate :mirror_requires_secondary_credential
@@ -51,7 +51,7 @@ class BackupConfiguration < ApplicationRecord
   # Get or create configuration for current tenant
   # @return [BackupConfiguration]
   def self.for_tenant
-    find_or_create_by!(organization: ActsAsTenant.current_tenant)
+    find_or_create_by!(tenant: ActsAsTenant.current_tenant)
   end
 
   # Check if database backups are enabled

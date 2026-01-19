@@ -4,8 +4,7 @@
  * Gantt Chart Utilities
  *
  * This module exports chart and analytics components used by the dashboard and analytics pages.
- * The actual Gantt chart visualization is now handled by the Canvas-based GanttCanvasView
- * component in @/components/gantt-canvas.
+ * The actual Gantt chart visualization is handled by GanttUnified in @/components/gantt.
  */
 
 // Dashboard chart components

@@ -39,8 +39,7 @@ import { EditRowDialog, type EditRowData, type EditRowFormData } from "@/compone
 import { useLayoutMode } from "@/contexts/LayoutModeContext";
 import { useToast } from "@/components/ui/use-toast";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import { GanttCanvasView } from "@/components/gantt-canvas/GanttCanvasView";
-import { GanttUnified } from "@/components/gantt-v2";
+import { GanttUnified } from "@/components/gantt";
 import type { GanttTask, GanttDependency } from "@/lib/gantt/types";
 import { api } from "@/lib/api";
 import { Spinner } from "@/components/ui/spinner";
@@ -330,9 +329,6 @@ export default function SchedulePage() {
 
   // Check if Gantt should auto-open from URL param
   const shouldOpenGantt = searchParams.get('gantt') === 'true';
-
-  // Feature flag: Use Gantt V2 (new unified canvas) when ?v2=true
-  const useGanttV2 = searchParams.get('v2') === 'true';
 
   // SSoT: Path-based view URLs for embedded tables
   // Handles: /jobs/123/schedule/po-tasks-only → viewSlug = "po-tasks-only"
@@ -1375,42 +1371,19 @@ export default function SchedulePage() {
               </div>
             </>
           ) : (
-            <>
-              {console.log('[SchedulePage] 🎨 Rendering Gantt', {
-                useGanttV2,
-                tasksCount: ganttTasksFormatted.length,
-                depsCount: ganttDependencies.length
-              })}
-              {useGanttV2 ? (
-                <GanttUnified
-                  tasks={ganttTasksFormatted}
-                  dependencies={ganttDependencies}
-                  showToolbar={true}
-                  onTaskDrag={handleTaskDrag}
-                  onTaskClick={(task) => {
-                    console.log('Gantt V2 task clicked:', task.id, task.name);
-                    setSelectedGanttTask(task);
-                  }}
-                  className="h-full"
-                  jobId={Number(jobId)}
-                  onDataChange={refetchGanttData}
-                />
-              ) : (
-                <GanttCanvasView
-                  staticTasks={ganttTasksFormatted}
-                  staticDependencies={ganttDependencies}
-                  showToolbar={true}
-                  onTaskDrag={handleTaskDrag}
-                  onTaskClick={(task) => {
-                    console.log('Gantt task clicked:', task.id, task.name, 'PO:', task.purchaseOrderId, task.purchaseOrderNumber);
-                    setSelectedGanttTask(task);
-                  }}
-                  className="h-full"
-                  jobId={Number(jobId)}
-                  onDataChange={refetchGanttData}
-                />
-              )}
-            </>
+            <GanttUnified
+              tasks={ganttTasksFormatted}
+              dependencies={ganttDependencies}
+              showToolbar={true}
+              onTaskDrag={handleTaskDrag}
+              onTaskClick={(task) => {
+                console.log('Gantt task clicked:', task.id, task.name);
+                setSelectedGanttTask(task);
+              }}
+              className="h-full"
+              jobId={Number(jobId)}
+              onDataChange={refetchGanttData}
+            />
           )}
         </div>
       </div>
@@ -1509,35 +1482,19 @@ export default function SchedulePage() {
                 <Spinner size={32} className="text-muted-foreground" />
               </div>
             ) : ganttTasks.length > 0 ? (
-              useGanttV2 ? (
-                <GanttUnified
-                  tasks={ganttTasksFormatted}
-                  dependencies={ganttDependencies}
-                  showToolbar={true}
-                  onTaskDrag={handleTaskDrag}
-                  onTaskClick={(task) => {
-                    console.log('Gantt V2 sheet task clicked:', task.id, task.name);
-                    setSelectedGanttTask(task);
-                  }}
-                  className="h-full"
-                  jobId={Number(jobId)}
-                  onDataChange={refetchGanttData}
-                />
-              ) : (
-                <GanttCanvasView
-                  staticTasks={ganttTasksFormatted}
-                  staticDependencies={ganttDependencies}
-                  showToolbar={true}
-                  onTaskDrag={handleTaskDrag}
-                  onTaskClick={(task) => {
-                    console.log('Gantt task clicked:', task.id, task.name, 'PO:', task.purchaseOrderId, task.purchaseOrderNumber);
-                    setSelectedGanttTask(task);
-                  }}
-                  className="h-full"
-                  jobId={Number(jobId)}
-                  onDataChange={refetchGanttData}
-                />
-              )
+              <GanttUnified
+                tasks={ganttTasksFormatted}
+                dependencies={ganttDependencies}
+                showToolbar={true}
+                onTaskDrag={handleTaskDrag}
+                onTaskClick={(task) => {
+                  console.log('Gantt task clicked:', task.id, task.name);
+                  setSelectedGanttTask(task);
+                }}
+                className="h-full"
+                jobId={Number(jobId)}
+                onDataChange={refetchGanttData}
+              />
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
                 <p>No tasks to display</p>

@@ -76,8 +76,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
-import { GanttCanvasView } from "@/components/gantt-canvas";
-import { GanttUnified, GanttDependencyEditor } from "@/components/gantt-v2";
+import { GanttUnified, GanttDependencyEditor } from "@/components/gantt";
 import { useGanttDataManager } from "@/lib/gantt/hooks";
 import { SMGanttTab } from "./SMGanttTab";
 import { RecurringTasksSection } from "./RecurringTasksSection";
@@ -266,8 +265,7 @@ interface SmScheduleMasterTemplate {
 const VALID_SUBTABS = [
   "schedule-templates",
   "display-settings",
-  "gantt-preview",
-  "gantt-v2",
+  "gantt",
   "data-view",
   "column-reference",
   "tables",
@@ -364,7 +362,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   // SSoT: Set fullscreen layout mode for gantt tabs (hides sidebar & breadcrumbs)
   const { setMode } = useLayoutMode();
   React.useEffect(() => {
-    const isGanttTab = activeTab === "gantt-preview" || activeTab === "gantt-v2";
+    const isGanttTab = activeTab === "gantt";
     setMode(isGanttTab ? "fullscreen" : "full-height");
     return () => setMode("padded"); // Reset on unmount
   }, [activeTab, setMode]);
@@ -2453,13 +2451,9 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
             <Settings className="h-4 w-4 mr-2" />
             Display Settings
           </TabsTrigger>
-          <TabsTrigger value="gantt-preview">
+          <TabsTrigger value="gantt">
             <BarChart3 className="h-4 w-4 mr-2" />
-            Gantt Preview
-          </TabsTrigger>
-          <TabsTrigger value="gantt-v2">
-            <BarChart3 className="h-4 w-4 mr-2" />
-            Gantt V2
+            Gantt
           </TabsTrigger>
           <TabsTrigger value="data-view">
             <TableIcon className="h-4 w-4 mr-2" />
@@ -2662,29 +2656,8 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
           <SMGanttTab />
         </TabsContent>
 
-          <TabsContent value="gantt-preview" className="absolute inset-0 overflow-hidden data-[state=inactive]:hidden">
-          {loadingRows === ganttTemplateId && (
-            <div className="flex items-center justify-center h-full">
-              <Spinner size={32} className="text-muted-foreground" />
-            </div>
-          )}
-
-          {loadingRows !== ganttTemplateId && (
-            <GanttCanvasView
-              templateId={ganttTemplateId ?? undefined}
-              templates={templates}
-              onTemplateChange={loadGanttRows}
-              className="h-full"
-              isFullscreen={ganttFullscreen}
-              onFullscreenChange={setGanttFullscreen}
-              viewSlug={viewSlug}
-              onViewClear={handleViewClear}
-            />
-          )}
-        </TabsContent>
-
-          {/* Gantt V2 Tab - For debugging the new Gantt implementation */}
-          <TabsContent value="gantt-v2" className="absolute top-0 right-0 bottom-0 left-4 overflow-hidden data-[state=inactive]:hidden">
+          {/* Gantt Tab */}
+          <TabsContent value="gantt" className="absolute top-0 right-0 bottom-0 left-4 overflow-hidden data-[state=inactive]:hidden">
           <div className="flex flex-col h-full">
             {/* Template selector header */}
             <div className="flex items-center gap-4 px-4 py-2 border-b bg-background">

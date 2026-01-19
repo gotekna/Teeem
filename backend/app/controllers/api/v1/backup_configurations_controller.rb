@@ -74,7 +74,7 @@ module Api
               error: "Primary storage credential not configured."
             }, status: :unprocessable_entity
           end
-          TenantDatabaseBackupJob.perform_later(config.organization_id)
+          TenantDatabaseBackupJob.perform_later(config.tenant_id)
         when "documents"
           unless config.primary_credential
             return render json: {
@@ -82,7 +82,7 @@ module Api
               error: "Primary storage credential not configured."
             }, status: :unprocessable_entity
           end
-          TenantDocumentBackupJob.perform_later(config.organization_id)
+          TenantDocumentBackupJob.perform_later(config.tenant_id)
         when "mirror"
           unless config.mirror_enabled? && config.secondary_credential
             return render json: {
@@ -90,7 +90,7 @@ module Api
               error: "Mirror is not enabled or secondary credential not configured."
             }, status: :unprocessable_entity
           end
-          BackupMirrorJob.perform_later(config.organization_id)
+          BackupMirrorJob.perform_later(config.tenant_id)
         end
 
         render json: {

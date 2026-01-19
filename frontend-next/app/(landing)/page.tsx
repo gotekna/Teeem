@@ -8,8 +8,8 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
-import { GanttCanvasView } from "@/components/gantt-canvas";
-import type { GanttTask } from "@/lib/gantt/types";
+import { GanttUnified } from "@/components/gantt";
+import type { GanttTask, GanttDependency } from "@/lib/gantt/types";
 import { addDays, startOfWeek } from "date-fns";
 import {
   Calendar,
@@ -252,12 +252,12 @@ export default function LandingPage() {
     },
   ]);
 
-  const demoDependencies = [
-    { fromId: "site-setup", toId: "excavation" },
-    { fromId: "excavation", toId: "pour-slab" },
-    { fromId: "pour-slab", toId: "frame-external" },
-    { fromId: "frame-external", toId: "frame-internal" },
-    { fromId: "frame-internal", toId: "roof-trusses" },
+  const demoDependencies: GanttDependency[] = [
+    { id: "dep-1", fromId: "site-setup", toId: "excavation", type: "FS" },
+    { id: "dep-2", fromId: "excavation", toId: "pour-slab", type: "FS" },
+    { id: "dep-3", fromId: "pour-slab", toId: "frame-external", type: "FS" },
+    { id: "dep-4", fromId: "frame-external", toId: "frame-internal", type: "FS" },
+    { id: "dep-5", fromId: "frame-internal", toId: "roof-trusses", type: "FS" },
   ];
 
   const features = [
@@ -677,9 +677,9 @@ export default function LandingPage() {
                 </div>
               </div>
               <div className="h-[400px]">
-                <GanttCanvasView
-                  staticTasks={demoTasks}
-                  staticDependencies={demoDependencies}
+                <GanttUnified
+                  tasks={demoTasks}
+                  dependencies={demoDependencies}
                   showToolbar={false}
                   className="h-full"
                 />

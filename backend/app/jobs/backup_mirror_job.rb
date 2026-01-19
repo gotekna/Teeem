@@ -16,22 +16,22 @@
 class BackupMirrorJob < ApplicationJob
   queue_as :low
 
-  # @param organization_id [Integer] Organization ID
+  # @param tenant_id [Integer] Tenant ID
   # @param backup_type [String] "database" or "documents"
   # @param key_or_prefix [String] Specific key or directory prefix to copy
-  def perform(organization_id, backup_type = nil, key_or_prefix = nil)
-    @organization = Organization.find(organization_id)
+  def perform(tenant_id, backup_type = nil, key_or_prefix = nil)
+    @tenant = Tenant.find(tenant_id)
 
-    ActsAsTenant.with_tenant(@organization) do
+    ActsAsTenant.with_tenant(@tenant) do
       @config = BackupConfiguration.for_tenant
 
       unless @config.mirror_enabled?
-        Rails.logger.info "[BackupMirror] Skipped - mirror not enabled for org #{@organization.id}"
+        Rails.logger.info "[BackupMirror] Skipped - mirror not enabled for tenant #{@tenant.id}"
         return
       end
 
       unless @config.primary_credential && @config.secondary_credential
-        Rails.logger.warn "[BackupMirror] Skipped - missing credentials for org #{@organization.id}"
+        Rails.logger.warn "[BackupMirror] Skipped - missing credentials for tenant #{@tenant.id}"
         return
       end
 
@@ -61,8 +61,8 @@ class BackupMirrorJob < ApplicationJob
           files = [{ key: key_or_prefix }]
         end
       else
-        # Full mirror - copy all files for this org
-        prefix = "#{backup_type}/#{@organization.id}/" if backup_type
+        # Full mirror - copy all files for this tenant
+        prefix = "#{backup_type}/#{@tenant.id}/" if backup_type
         prefix ||= ""
         files = primary_service.list(prefix)
       end
@@ -108,10 +108,10 @@ class BackupMirrorJob < ApplicationJob
 
       @config.record_backup_completed!(:mirror)
 
-      Rails.logger.info "[BackupMirror] Complete for org #{@organization.id}: #{files_count} files, #{total_size} bytes"
+      Rails.logger.info "[BackupMirror] Complete for tenant #{@tenant.id}: #{files_count} files, #{total_size} bytes"
     rescue => e
       log.fail!(error_message: e.message, duration_seconds: elapsed(start_time))
-      Rails.logger.error "[BackupMirror] Failed for org #{@organization.id}: #{e.message}"
+      Rails.logger.error "[BackupMirror] Failed for tenant #{@tenant.id}: #{e.message}"
       raise e
     end
   end

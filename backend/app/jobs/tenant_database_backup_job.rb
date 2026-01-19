@@ -15,19 +15,19 @@ class TenantDatabaseBackupJob < ApplicationJob
   # Heroku app name for production database
   HEROKU_APP = "teeem-production"
 
-  def perform(organization_id)
-    @organization = Organization.find(organization_id)
+  def perform(tenant_id)
+    @tenant = Tenant.find(tenant_id)
 
-    ActsAsTenant.with_tenant(@organization) do
+    ActsAsTenant.with_tenant(@tenant) do
       @config = BackupConfiguration.for_tenant
 
       unless @config.enabled?
-        Rails.logger.info "[TenantDatabaseBackup] Skipped - backups disabled for org #{@organization.id}"
+        Rails.logger.info "[TenantDatabaseBackup] Skipped - backups disabled for tenant #{@tenant.id}"
         return
       end
 
       unless @config.primary_credential
-        Rails.logger.warn "[TenantDatabaseBackup] Skipped - no primary credential for org #{@organization.id}"
+        Rails.logger.warn "[TenantDatabaseBackup] Skipped - no primary credential for tenant #{@tenant.id}"
         return
       end
 
@@ -54,7 +54,7 @@ class TenantDatabaseBackupJob < ApplicationJob
 
       # Upload to tenant's storage
       filename = "db-backup-#{Date.current.strftime('%Y%m%d')}.dump"
-      key = "database/#{@organization.id}/#{filename}"
+      key = "database/#{@tenant.id}/#{filename}"
 
       result = service.upload_from_url(
         key: key,
@@ -62,7 +62,7 @@ class TenantDatabaseBackupJob < ApplicationJob
         metadata: {
           source: "heroku",
           app: HEROKU_APP,
-          organization_id: @organization.id.to_s,
+          tenant_id: @tenant.id.to_s,
           backup_date: Date.current.iso8601,
           backed_up_at: Time.current.iso8601
         }
@@ -80,18 +80,18 @@ class TenantDatabaseBackupJob < ApplicationJob
 
       # Cleanup old backups
       retention = (@config.retention_days / 7.0).ceil  # Convert days to weekly backups
-      deleted = service.cleanup_old_backups("database/#{@organization.id}/", keep: retention)
+      deleted = service.cleanup_old_backups("database/#{@tenant.id}/", keep: retention)
       Rails.logger.info "[TenantDatabaseBackup] Cleanup: deleted #{deleted} old backups" if deleted > 0
 
       # Queue mirror job if enabled
       if @config.mirror_enabled? && @config.secondary_credential
-        BackupMirrorJob.perform_later(@organization.id, "database", key)
+        BackupMirrorJob.perform_later(@tenant.id, "database", key)
       end
 
-      Rails.logger.info "[TenantDatabaseBackup] Complete for org #{@organization.id}: #{key}"
+      Rails.logger.info "[TenantDatabaseBackup] Complete for tenant #{@tenant.id}: #{key}"
     rescue => e
       log.fail!(error_message: e.message, duration_seconds: elapsed(start_time))
-      Rails.logger.error "[TenantDatabaseBackup] Failed for org #{@organization.id}: #{e.message}"
+      Rails.logger.error "[TenantDatabaseBackup] Failed for tenant #{@tenant.id}: #{e.message}"
       raise e
     end
   end

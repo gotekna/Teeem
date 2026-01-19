@@ -16,21 +16,21 @@ class TenantDocumentBackupJob < ApplicationJob
   # Maximum files per batch to avoid timeout
   BATCH_SIZE = 100
 
-  def perform(organization_id, options = {})
-    @organization = Organization.find(organization_id)
+  def perform(tenant_id, options = {})
+    @tenant = Tenant.find(tenant_id)
     @incremental = options.fetch(:incremental, true)
     @since = options[:since]
 
-    ActsAsTenant.with_tenant(@organization) do
+    ActsAsTenant.with_tenant(@tenant) do
       @config = BackupConfiguration.for_tenant
 
       unless @config.enabled?
-        Rails.logger.info "[TenantDocumentBackup] Skipped - backups disabled for org #{@organization.id}"
+        Rails.logger.info "[TenantDocumentBackup] Skipped - backups disabled for tenant #{@tenant.id}"
         return
       end
 
       unless @config.primary_credential
-        Rails.logger.warn "[TenantDocumentBackup] Skipped - no primary credential for org #{@organization.id}"
+        Rails.logger.warn "[TenantDocumentBackup] Skipped - no primary credential for tenant #{@tenant.id}"
         return
       end
 
@@ -70,7 +70,7 @@ class TenantDocumentBackupJob < ApplicationJob
           content = download_document(doc)
           next unless content
 
-          key = "documents/#{@organization.id}/#{doc.storage_path}"
+          key = "documents/#{@tenant.id}/#{doc.storage_path}"
 
           service.upload(
             key: key,
@@ -100,16 +100,16 @@ class TenantDocumentBackupJob < ApplicationJob
       # Queue mirror job if enabled
       if @config.mirror_enabled? && @config.secondary_credential
         BackupMirrorJob.perform_later(
-          @organization.id,
+          @tenant.id,
           "documents",
-          "documents/#{@organization.id}/"
+          "documents/#{@tenant.id}/"
         )
       end
 
-      Rails.logger.info "[TenantDocumentBackup] Complete for org #{@organization.id}: #{files_count} files, #{total_size} bytes"
+      Rails.logger.info "[TenantDocumentBackup] Complete for tenant #{@tenant.id}: #{files_count} files, #{total_size} bytes"
     rescue => e
       log.fail!(error_message: e.message, duration_seconds: elapsed(start_time))
-      Rails.logger.error "[TenantDocumentBackup] Failed for org #{@organization.id}: #{e.message}"
+      Rails.logger.error "[TenantDocumentBackup] Failed for tenant #{@tenant.id}: #{e.message}"
       raise e
     end
   end

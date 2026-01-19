@@ -3,7 +3,7 @@
 import { useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTaskHub, SmTask } from '@/contexts/TaskHubContext';
-import { GanttUnified } from '@/components/gantt-v2/GanttUnified';
+import { GanttUnified } from '@/components/gantt/GanttUnified';
 import { GanttTask, GanttDependency } from '@/lib/gantt/types';
 import { TASK_STATUS, type TaskStatus } from '@/lib/constants/task-status';
 

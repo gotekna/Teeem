@@ -1370,7 +1370,7 @@ export default function JobDetailPage() {
                 <span className="font-semibold">{formatCurrency(job.live_profit || 0)}</span>
                 <span className="text-muted-foreground text-xs">({safePercent(job.profit_percentage)})</span>
               </div>
-              <Button size="sm" className="h-auto py-0.5 px-2 text-sm" onClick={() => router.push(`/jobs/${jobId}/schedule/gantt-v2`)}>
+              <Button size="sm" className="h-auto py-0.5 px-2 text-sm" onClick={() => router.push(`/jobs/${jobId}/schedule/gantt`)}>
                 Open Schedule
               </Button>
               {/* Tab Preferences Menu */}

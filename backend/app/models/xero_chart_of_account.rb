@@ -1,16 +1,15 @@
 class XeroChartOfAccount < ApplicationRecord
-  # Associations
-  belongs_to :corporate_group, optional: true  # nil = global/default COA
+  acts_as_tenant :tenant
 
   # Validations
   validates :account_code, presence: true
   validates :account_name, presence: true
-  validates :account_code, uniqueness: { scope: :tenant_id, message: "already exists for this group" }
+  validates :account_code, uniqueness: { scope: :tenant_id, message: "already exists for this tenant" }
 
   # Scopes
   scope :active, -> { where(active: true) }
   scope :global, -> { where(tenant_id: nil) }
-  scope :for_group, ->(group_id) { where(tenant_id: group_id) }
+  scope :for_tenant, ->(tenant_id) { where(tenant_id: tenant_id) }
   scope :by_code, -> { order(:account_code) }
   scope :banks, -> { where(account_type: "Bank") }
   scope :assets, -> { where("account_type LIKE '%Asset%'") }
@@ -22,12 +21,11 @@ class XeroChartOfAccount < ApplicationRecord
     "#{account_code} - #{account_name}"
   end
 
-  # Get the effective COA for a company (group-specific or global)
+  # Get the effective COA for a company (tenant-specific or global)
+  # With acts_as_tenant, this returns tenant-scoped accounts automatically
   def self.for_company(company)
-    if company.company_group_id.present?
-      group_accounts = for_group(company.company_group_id).active
-      return group_accounts if group_accounts.any?
-    end
+    tenant_accounts = active
+    return tenant_accounts if tenant_accounts.any?
     global.active
   end
 end

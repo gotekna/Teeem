@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Gantt V2 Page - Job Schedule
+ * Gantt Page - Job Schedule
  *
  * SSoT: Uses useGanttDataManager hook for all Gantt behavior.
  * Same handlers as Schedule Master (templates) - fix once, works everywhere.
@@ -28,7 +28,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { GanttUnified, GanttDependencyEditor } from '@/components/gantt-v2';
+import { GanttUnified, GanttDependencyEditor } from '@/components/gantt';
 import { api } from '@/lib/api';
 import {
   ExternalLink,
@@ -64,7 +64,7 @@ interface Job {
 // Page Component
 // =============================================================================
 
-export default function GanttV2Page() {
+export default function GanttPage() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
@@ -129,7 +129,7 @@ export default function GanttV2Page() {
           setJob(jobResponse);
         }
       } catch (err) {
-        console.error('[GanttV2] Failed to load job:', err);
+        console.error('[Gantt] Failed to load job:', err);
       }
     }
 
@@ -406,7 +406,7 @@ export default function GanttV2Page() {
         setJobPhotos(photos);
       }
     } catch (err) {
-      console.error('[GanttV2] Failed to load photos:', err);
+      console.error('[Gantt] Failed to load photos:', err);
       toast({
         title: 'Error',
         description: 'Failed to load job photos',
@@ -447,7 +447,7 @@ export default function GanttV2Page() {
         <div className="flex-1 flex items-center justify-center">
           <div className="flex flex-col items-center gap-4">
             <Spinner />
-            <p className="text-sm text-muted-foreground">Loading Gantt V2...</p>
+            <p className="text-sm text-muted-foreground">Loading Gantt...</p>
           </div>
         </div>
       </div>
@@ -935,7 +935,7 @@ export default function GanttV2Page() {
 
       {/* Debug Info */}
       <div className="px-4 py-2 border-t bg-muted/30 text-xs text-muted-foreground">
-        <span className="font-medium">Gantt V2 (SSoT Hook)</span>
+        <span className="font-medium">Gantt (SSoT Hook)</span>
         {' | '}
         {gantt.tasks.length} tasks, {gantt.dependencies.length} dependencies
         {' | '}
@@ -984,7 +984,7 @@ function Header({
         <BackButton />
         <div>
           <h1 className="text-lg font-semibold">
-            Gantt V2 {job ? `- ${job.name || job.title}` : ''}
+            Gantt {job ? `- ${job.name || job.title}` : ''}
           </h1>
           <div className="flex items-center gap-2">
             <p className="text-xs text-muted-foreground">SSoT Hook Architecture</p>

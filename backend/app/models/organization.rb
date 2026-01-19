@@ -1,13 +1,19 @@
 # frozen_string_literal: true
 
-# Organization model - SSoT for multi-org isolation
-# Created as part of Microsoft credential org isolation fix
+# Organization model - Sub-tenant within a Tenant
 #
-# Each organization has its own Microsoft credentials and other resources.
-# This model is THE source of truth for organization identity.
+# Organizations are sub-divisions within a Tenant for credential isolation:
+#   Tenant (Tekna) → Organizations (Tekna, 100xBestLife, Homes of Hope, Love Your World)
+#
+# Each organization has its own Microsoft credentials and storage config.
+# Multi-tenancy isolation uses Tenant; Organization is for credential scoping.
+#
 class Organization < ApplicationRecord
   # Document provider options
   DOCUMENT_PROVIDERS = %w[sharepoint s3_compatible].freeze
+
+  # Parent tenant (SSoT for multi-tenancy)
+  belongs_to :tenant
 
   # Associations - credentials belong to organizations
   has_many :microsoft_credentials, dependent: :destroy

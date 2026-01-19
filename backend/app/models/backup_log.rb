@@ -10,7 +10,7 @@
 #   - Error messages for failures
 #
 class BackupLog < ApplicationRecord
-  acts_as_tenant :organization, through: :backup_configuration
+  acts_as_tenant :tenant, through: :backup_configuration
 
   belongs_to :backup_configuration
 
