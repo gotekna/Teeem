@@ -280,6 +280,29 @@ class CorporateCompanyDocument < ApplicationRecord
     end
   end
 
+  # Phase 4: Virtual folder path for File Warehouse (PUBLIC - used by FolderTemplateReorganizationService)
+  # SSoT: Reads template from StorageConfiguration.virtual_template_for(:corporate)
+  # Default template: "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}"
+  def virtual_folder_path
+    config = StorageConfiguration.instance
+    template = config&.virtual_template_for(:corporate) || "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}"
+
+    tokens = storage_tokens_for_virtual_path
+    result = template.dup
+    result.gsub!("{{CompanyGroup}}", tokens[:CompanyGroup].to_s)
+    result.gsub!("{{GroupName}}", tokens[:GroupName].to_s)
+    result.gsub!("{{CompanyCode}}", tokens[:CompanyCode].to_s)
+    result.gsub!("{{CompanyName}}", tokens[:CompanyName].to_s)
+    result.gsub!("{{TabName}}", tokens[:TabName].to_s)
+    result.gsub!("{{Category}}", folder.to_s)
+
+    # Clean up empty tokens
+    result.gsub!(/\{\{[^}]+\}\}/, "")
+    result.gsub!(%r{//+}, "/")
+    result.gsub!(%r{^/|/$}, "")
+    result
+  end
+
   private
 
   # SSoT: Default tokens for storage path template
@@ -296,6 +319,9 @@ class CorporateCompanyDocument < ApplicationRecord
       TabName: entity_tab&.display_name || folder || document_type&.titleize || "Documents"
     }
   end
+
+  # Tokens for virtual_folder_path (uses same logic as default_storage_tokens)
+  alias_method :storage_tokens_for_virtual_path, :default_storage_tokens
 
   # Automatically set focus based on associations
   # Priority: people > job > company

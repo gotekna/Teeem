@@ -311,6 +311,32 @@ class JobDocument < ApplicationRecord
     signed_version
   end
 
+  # Phase 4: Virtual folder path for File Warehouse (PUBLIC - used by FolderTemplateReorganizationService)
+  # SSoT: Reads template from StorageConfiguration.virtual_template_for(:job)
+  # Default template: "{{JobCode}}/{{TabName}}"
+  def virtual_folder_path
+    config = StorageConfiguration.instance
+    template = config&.virtual_template_for(:job) || "{{JobCode}}/{{TabName}}"
+
+    tokens = storage_tokens_for_virtual_path
+    result = template.dup
+    result.gsub!("{{JobCode}}", tokens[:JobCode].to_s)
+    result.gsub!("{{JobName}}", job&.title.to_s)
+    result.gsub!("{{JobTitle}}", job&.title.to_s)
+    result.gsub!("{{JobAddress}}", job&.address.to_s)
+    result.gsub!("{{LotNumber}}", job&.lot_number.to_s)
+    result.gsub!("{{StreetName}}", job&.street_name.to_s)
+    result.gsub!("{{Suburb}}", job&.suburb.to_s)
+    result.gsub!("{{TabName}}", tokens[:TabName].to_s)
+    result.gsub!("{{Category}}", folder_path&.split("/")&.last.to_s)
+
+    # Clean up empty tokens
+    result.gsub!(/\{\{[^}]+\}\}/, "")
+    result.gsub!(%r{//+}, "/")
+    result.gsub!(%r{^/|/$}, "")
+    result
+  end
+
   private
 
   # SSoT: Default tokens for storage path template
@@ -320,6 +346,11 @@ class JobDocument < ApplicationRecord
       JobCode: job&.job_code || "UNKNOWN",
       TabName: folder_path&.split("/")&.first || document_type&.name || "Documents"
     }
+  end
+
+  # Tokens for virtual_folder_path (uses same logic as default_storage_tokens)
+  def storage_tokens_for_virtual_path
+    default_storage_tokens
   end
 
   def set_file_extension

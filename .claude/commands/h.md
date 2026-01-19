@@ -6,22 +6,23 @@ Pull the production database (teeem-production) to local environment.
 
 ```
 ┌─────────────────────┐
-│  teeem-production (PROD)   │
+│  teeem-production   │  All tenants: Tekna, Pilgrim, TEEEM
 │  Heroku PostgreSQL  │
 └──────────┬──────────┘
            │
-           │ Step 1: Capture fresh backup
+           │ Step 2: Capture fresh backup (all tenants)
            ▼
 ┌─────────────────────┐
 │   Heroku S3 Backup  │
 │   (~145MB)          │
 └──────────┬──────────┘
            │
-           │ Step 2: aria2c parallel download
+           │ Step 3: aria2c parallel download
            ▼
 ┌─────────────────────┐
 │       LOCAL         │
-│  teeem_development  │
+│  teeem_development  │  Step 6: Assign NULL data to Tekna
+│                     │  (multi-tenancy works like prod)
 └─────────────────────┘
 ```
 
@@ -61,7 +62,11 @@ rm -f latest.dump
 bin/rails db:migrate
 bin/rails teeem:create_system_foundations 2>&1 | tail -5
 
-# Step 6: Clear encrypted credentials (can't decrypt with local keys)
+# Step 6: Assign NULL tenant data to Tekna (pre-multi-tenancy data fix)
+# This ensures local dev works like production with proper tenant isolation
+bin/rails tenant:assign_null_to_tekna
+
+# Step 7: Clear encrypted credentials (can't decrypt with local keys)
 bin/rails runner "
 deleted_ms = MicrosoftCredential.delete_all
 deleted_sp = OrganizationSharePointCredential.delete_all
@@ -70,10 +75,10 @@ deleted_s3 = S3Credential.delete_all rescue 0
 puts '🔑 Cleared ' + (deleted_ms + deleted_sp + deleted_app + deleted_s3).to_s + ' credentials (encrypted with prod keys)'
 "
 
-# Step 7: Verify data pulled correctly
+# Step 8: Verify data pulled correctly
 bin/rails runner "puts '✅ Data verification:'; puts \"   Users: #{User.count}\"; puts \"   Foundations: #{Foundation.count}\"; puts \"   Jobs: #{Job.count}\"; puts \"   Contacts: #{Contact.count}\""
 
-# Step 8: Restart local servers using screen (persistent)
+# Step 9: Restart local servers using screen (persistent)
 lsof -ti:3000 | xargs kill -9 2>/dev/null || true
 lsof -ti:3001 | xargs kill -9 2>/dev/null || true
 screen -X -S backend quit 2>/dev/null || true
@@ -98,9 +103,10 @@ echo "🎉 Done! Local environment ready at http://localhost:3000"
 | 3 | S3 | local file | `aria2c -x 16` (parallel, ~30s) |
 | 4 | local file | teeem_development | `pg_restore` |
 | 5 | - | - | `db:migrate` + `create_system_foundations` |
-| 6 | - | - | Clear encrypted credentials (prod keys don't work locally) |
-| 7 | - | - | Verify data counts |
-| 8 | - | localhost:3000 + 3001 | Restart servers (screen) |
+| 6 | - | - | Assign NULL tenant data to Tekna (multi-tenancy fix) |
+| 7 | - | - | Clear encrypted credentials (prod keys don't work locally) |
+| 8 | - | - | Verify data counts |
+| 9 | - | localhost:3000 + 3001 | Restart servers (screen) |
 
 ## Notes
 

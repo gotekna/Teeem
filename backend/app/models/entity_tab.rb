@@ -11,8 +11,11 @@
 #           XeroFeatureTab, UserJobTabConfig
 #
 class EntityTab < ApplicationRecord
-  # Multi-tenancy: Scope all queries to current tenant
-  acts_as_tenant :corporate_group, foreign_key: :company_group_id
+  # NOTE: Multi-tenancy REMOVED (Jan 2026)
+  # EntityTabs are GLOBAL configuration shared across all tenants.
+  # All EntityTabs have company_group_id=NULL by design.
+  # The uniqueness validation still includes company_group_id for future per-tenant customization.
+  #
   # Valid scopes (xero tabs are children of corporate_entity/xero tab)
   # System scopes (email, warehouse, task, task_attachments, task_responses) are read-only in UI - is_system_tab: true
   SCOPES = %w[corporate_entity people job document contact email warehouse task task_attachments task_responses xero].freeze

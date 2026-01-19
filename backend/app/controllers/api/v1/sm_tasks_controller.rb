@@ -1172,8 +1172,8 @@ module Api
         end
 
         # If task has a job, get job contacts with their email counts
-        if @task.job_id.present?
-          job = @task.job
+        # Note: Check job.present? not job_id.present? - job may have been deleted (orphaned FK)
+        if (job = @task.job).present?
           job.job_contacts.includes(contact: :contact_emails, user: []).each do |jc|
             # Skip if already added as supplier
             next if jc.contact_id.present? && jc.contact_id == @task.supplier_id
@@ -1210,7 +1210,7 @@ module Api
 
         render json: {
           success: true,
-          has_job: @task.job_id.present?,
+          has_job: @task.job.present?,  # Check actual job, not just job_id (job may be deleted)
           job_code: @task.job&.job_code,
           options: options.sort_by { |o| -o[:email_count] }  # Most emails first
         }

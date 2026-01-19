@@ -486,6 +486,16 @@ class FolderTemplateReorganizationService
   end
 
   def update_document_path(doc, new_path)
+    # SSoT: Update WarehouseDocument.folder if document has one
+    # Use virtual_folder_path (reads from StorageConfiguration) if available
+    if doc.respond_to?(:warehouse_document) && doc.warehouse_document.present?
+      folder = doc.respond_to?(:virtual_folder_path) ? doc.virtual_folder_path : new_path
+      if doc.warehouse_document.folder != folder
+        doc.warehouse_document.update_column(:folder, folder)
+      end
+    end
+
+    # Also update legacy storage fields for backwards compatibility
     case @scope
     when "job", "jobs"
       doc.update_columns(folder_path: new_path, storage_path: new_path)
@@ -494,7 +504,8 @@ class FolderTemplateReorganizationService
     when "people", "contact", "contacts"
       doc.update_columns(folder_path: new_path) if doc.respond_to?(:folder_path)
     when "email", "emails"
-      # Email paths are calculated, not stored directly
+      # Emails use virtual_folder_path only (no legacy field needed)
+      # WarehouseDocument.folder already updated above
       nil
     end
   end
