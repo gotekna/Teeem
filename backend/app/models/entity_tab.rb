@@ -421,6 +421,47 @@ class EntityTab < ApplicationRecord
     tabs.map(&:as_nested_json)
   end
 
+  # SSoT: Get storage folder paths from EntityTab
+  # Replaces scope_folders in StorageConfiguration
+  #
+  # Returns a hash that supports two lookup patterns:
+  # 1. By scope: { "email" => "Emails", "job" => "Jobs", ... } (from overview/root tabs)
+  # 2. By tab_key: { "users" => "Users", "user_photos" => "Users/Photos", ... } (from all storage tabs)
+  #
+  # This allows StorageConfiguration.path_for to work with both:
+  # - path_for("email") => "Emails" (scope lookup)
+  # - path_for("users") => "Users" (tab_key lookup for legacy storage keys)
+  #
+  # Note: Legacy scope_folders used underscores (user_photos), but EntityTab tab_key uses hyphens (user-photos).
+  # This method adds both underscore and hyphen versions for backward compatibility.
+  #
+  def self.scope_base_folders
+    result = {}
+
+    # Get all tabs with storage_folder_path set
+    storage_tabs = where(has_storage_folder: true)
+                     .where.not(storage_folder_path: nil)
+
+    storage_tabs.each do |tab|
+      # Add tab_key => path for all storage tabs
+      # This enables lookup by storage key (e.g., "user-photos")
+      result[tab.tab_key] = tab.storage_folder_path
+
+      # Also add underscore version for backward compatibility with legacy scope_folders
+      # Legacy used user_photos, EntityTab uses user-photos
+      underscore_key = tab.tab_key.gsub('-', '_')
+      result[underscore_key] = tab.storage_folder_path if underscore_key != tab.tab_key
+
+      # For overview/root tabs, also add scope => path
+      # This enables lookup by scope (e.g., "email", "warehouse")
+      if tab.tab_key.in?(%w[overview root])
+        result[tab.scope] = tab.storage_folder_path
+      end
+    end
+
+    result
+  end
+
   # Seed task tabs only (callable individually)
   def self.seed_task_tabs_only!
     send(:seed_task_tabs!)
@@ -449,10 +490,30 @@ class EntityTab < ApplicationRecord
     # Task Response tabs (Tasks/Responses folder)
     seed_task_responses_tabs!
 
+    # Email tabs (Emails folder)
+    seed_email_tabs!
+
+    # Legacy storage tabs (migrated from scope_folders)
+    seed_legacy_storage_tabs!
+
     Rails.logger.info "[EntityTab] Seeded #{count} total tabs"
   end
 
+  # Corporate entity tabs
+  # SSoT: Defines the folder structure for corporate entity documents
+  # Base folder: "Corporate" (stored on root tab)
   private_class_method def self.seed_corporate_entity_tabs!
+    # Root tab - defines the base folder for this scope
+    find_or_create_by!(scope: 'corporate_entity', tab_key: 'root') do |tab|
+      tab.display_name = 'Root'
+      tab.tab_group = 'system'
+      tab.order_position = -1
+      tab.enabled = true
+      tab.is_system_tab = true
+      tab.has_storage_folder = true
+      tab.storage_folder_path = 'Corporate'  # SSoT: Base folder for corporate_entity scope
+    end
+
     # Overview sub-tabs
     overview_tabs = [
       { tab_key: 'info', display_name: 'Information', entity_filters: %w[Company Trust Superfund Charity] },
@@ -514,45 +575,73 @@ class EntityTab < ApplicationRecord
     end
   end
 
+  # People tabs (contacts/persons)
+  # SSoT: Defines the folder structure for people documents
+  # Base folder: "Corporate/People" (stored on overview tab)
   private_class_method def self.seed_people_tabs!
+    # Overview/root tab - defines the base folder for this scope
+    find_or_create_by!(scope: 'people', tab_key: 'overview') do |tab|
+      tab.display_name = 'Overview'
+      tab.tab_group = 'overview'
+      tab.order_position = 0
+      tab.enabled = true
+      tab.is_system_tab = true
+      tab.has_storage_folder = true
+      tab.storage_folder_path = 'Corporate/People'  # SSoT: Base folder for people scope
+    end
+
+    # Other people tabs (non-storage)
     people_tabs = [
-      { tab_key: 'overview', display_name: 'Overview', tab_group: 'overview' },
-      { tab_key: 'documents', display_name: 'Documents', tab_group: 'documents' },
-      { tab_key: 'financial', display_name: 'Financial', tab_group: 'overview' },
-      { tab_key: 'communications', display_name: 'Communications', tab_group: 'overview' },
-      { tab_key: 'cases', display_name: 'Cases', tab_group: 'overview' },
-      { tab_key: 'emails', display_name: 'Emails', tab_group: 'overview' },
-      { tab_key: 'portal-access', display_name: 'Portal Access', tab_group: 'overview' },
-      { tab_key: 'directorships', display_name: 'Directorships', tab_group: 'overview' }
+      { tab_key: 'documents', display_name: 'Documents', tab_group: 'documents', order: 1 },
+      { tab_key: 'financial', display_name: 'Financial', tab_group: 'overview', order: 2 },
+      { tab_key: 'communications', display_name: 'Communications', tab_group: 'overview', order: 3 },
+      { tab_key: 'cases', display_name: 'Cases', tab_group: 'overview', order: 4 },
+      { tab_key: 'emails', display_name: 'Emails', tab_group: 'overview', order: 5 },
+      { tab_key: 'portal-access', display_name: 'Portal Access', tab_group: 'overview', order: 6 },
+      { tab_key: 'directorships', display_name: 'Directorships', tab_group: 'overview', order: 7 }
     ]
 
-    people_tabs.each_with_index do |attrs, idx|
+    people_tabs.each do |attrs|
       find_or_create_by!(scope: 'people', tab_key: attrs[:tab_key]) do |tab|
         tab.display_name = attrs[:display_name]
         tab.tab_group = attrs[:tab_group]
-        tab.order_position = idx
+        tab.order_position = attrs[:order]
         tab.enabled = true
         tab.is_system_tab = true
       end
     end
   end
 
+  # Job tabs
+  # SSoT: Defines the folder structure for job documents
+  # Base folder: "Jobs" (stored on overview tab)
   private_class_method def self.seed_job_tabs!
+    # Overview/root tab - defines the base folder for this scope
+    find_or_create_by!(scope: 'job', tab_key: 'overview') do |tab|
+      tab.display_name = 'Overview'
+      tab.tab_group = 'overview'
+      tab.order_position = 0
+      tab.enabled = true
+      tab.is_system_tab = true
+      tab.has_storage_folder = true
+      tab.storage_folder_path = 'Jobs'  # SSoT: Base folder for job scope
+    end
+
+    # Other job tabs (non-storage)
     job_tabs = [
-      { tab_key: 'overview', display_name: 'Overview', tab_group: 'overview' },
-      { tab_key: 'schedule', display_name: 'Schedule', tab_group: 'overview' },
-      { tab_key: 'tasks', display_name: 'Tasks', tab_group: 'overview' },
-      { tab_key: 'documents', display_name: 'Documents', tab_group: 'documents' },
-      { tab_key: 'photos', display_name: 'Photos', tab_group: 'documents' },
-      { tab_key: 'financials', display_name: 'Financials', tab_group: 'overview' },
-      { tab_key: 'activity', display_name: 'Activity', tab_group: 'overview' }
+      { tab_key: 'schedule', display_name: 'Schedule', tab_group: 'overview', order: 1 },
+      { tab_key: 'tasks', display_name: 'Tasks', tab_group: 'overview', order: 2 },
+      { tab_key: 'documents', display_name: 'Documents', tab_group: 'documents', order: 3 },
+      { tab_key: 'photos', display_name: 'Photos', tab_group: 'documents', order: 4 },
+      { tab_key: 'financials', display_name: 'Financials', tab_group: 'overview', order: 5 },
+      { tab_key: 'activity', display_name: 'Activity', tab_group: 'overview', order: 6 }
     ]
 
-    job_tabs.each_with_index do |attrs, idx|
+    job_tabs.each do |attrs|
       find_or_create_by!(scope: 'job', tab_key: attrs[:tab_key]) do |tab|
         tab.display_name = attrs[:display_name]
         tab.tab_group = attrs[:tab_group]
-        tab.order_position = idx
+        tab.order_position = attrs[:order]
         tab.enabled = true
         tab.is_system_tab = true
       end
@@ -580,10 +669,11 @@ class EntityTab < ApplicationRecord
 
   # Task document folder tabs
   # SSoT: Defines the folder structure for task-related documents
-  # Base path from StorageConfiguration: "Tasks"
+  # Base folder: "Tasks" (stored on overview tab)
   # Template: "Tasks/Task-{{TaskId}}/{{Category}}"
   private_class_method def self.seed_task_tabs!
-    # Overview tab - task info display
+    # Overview/root tab - defines the base folder for this scope
+    # SSoT: storage_folder_path on overview tab = scope base folder
     find_or_create_by!(scope: 'task', tab_key: 'overview') do |tab|
       tab.display_name = 'Overview'
       tab.tab_group = 'overview'
@@ -591,6 +681,8 @@ class EntityTab < ApplicationRecord
       tab.enabled = true
       tab.is_system_tab = true
       tab.icon_name = 'ClipboardList'
+      tab.has_storage_folder = true
+      tab.storage_folder_path = 'Tasks'  # SSoT: Base folder for task scope
     end
 
     # Document folder tabs for task attachments
@@ -623,12 +715,13 @@ class EntityTab < ApplicationRecord
     Rails.logger.info "[EntityTab] Seeded #{where(scope: 'task').count} task tabs"
   end
 
-  # Task Attachments tabs (for task attachments - under Tasks/Attachments)
+  # Task Attachments tabs (for task attachments - under Tasks)
   # SSoT: Defines the folder structure for task attachment documents
-  # Base path from StorageConfiguration: "Tasks/Attachments"
-  # Template: "Tasks/Attachments/{{TaskId}}"
+  # Base folder: "Tasks" (stored on overview tab)
+  # Template: "Tasks/{{TaskId}}/Attachments"
   private_class_method def self.seed_task_attachments_tabs!
-    # Overview tab - task attachments info display
+    # Overview/root tab - defines the base folder for this scope
+    # SSoT: storage_folder_path on overview tab = scope base folder
     find_or_create_by!(scope: 'task_attachments', tab_key: 'overview') do |tab|
       tab.display_name = 'Overview'
       tab.tab_group = 'overview'
@@ -636,6 +729,8 @@ class EntityTab < ApplicationRecord
       tab.enabled = true
       tab.is_system_tab = true
       tab.icon_name = 'FolderOpen'  # Using FolderOpen for Overview (Paperclip reserved for Attachments)
+      tab.has_storage_folder = true
+      tab.storage_folder_path = 'Tasks'  # SSoT: Base folder for task_attachments scope
     end
 
     # Document folder tabs for task attachments
@@ -669,10 +764,11 @@ class EntityTab < ApplicationRecord
 
   # Task Response tabs (for task responses - separate from attachments)
   # SSoT: Defines the folder structure for task response documents
-  # Base path from StorageConfiguration: "Tasks/Responses"
-  # Template: "Tasks/Responses/{{TaskId}}"
+  # Base folder: "Tasks" (stored on overview tab)
+  # Template: "Tasks/{{TaskId}}/Responses"
   private_class_method def self.seed_task_responses_tabs!
-    # Overview tab - task response info display
+    # Overview/root tab - defines the base folder for this scope
+    # SSoT: storage_folder_path on overview tab = scope base folder
     find_or_create_by!(scope: 'task_responses', tab_key: 'overview') do |tab|
       tab.display_name = 'Overview'
       tab.tab_group = 'overview'
@@ -680,6 +776,8 @@ class EntityTab < ApplicationRecord
       tab.enabled = true
       tab.is_system_tab = true
       tab.icon_name = 'FolderOpen'  # Using FolderOpen for Overview (FileOutput reserved for Responses)
+      tab.has_storage_folder = true
+      tab.storage_folder_path = 'Tasks'  # SSoT: Base folder for task_responses scope
     end
 
     # Document folder tabs for task responses
@@ -707,6 +805,175 @@ class EntityTab < ApplicationRecord
   # Callable individually for task responses seeding
   def self.seed_task_responses_tabs_only!
     send(:seed_task_responses_tabs!)
+  end
+
+  # Email document folder tabs
+  # SSoT: Defines the folder structure for email storage
+  # Base folder: "Emails" (stored on overview tab)
+  # Template: "Emails/{{Mailbox}}/{{Year}}/{{Month}}"
+  private_class_method def self.seed_email_tabs!
+    # Overview/root tab - defines the base folder for this scope
+    # SSoT: storage_folder_path on overview tab = scope base folder
+    find_or_create_by!(scope: 'email', tab_key: 'overview') do |tab|
+      tab.display_name = 'Overview'
+      tab.tab_group = 'overview'
+      tab.order_position = 0
+      tab.enabled = true
+      tab.is_system_tab = true
+      tab.icon_name = 'Mail'
+      tab.has_storage_folder = true
+      tab.storage_folder_path = 'Emails'  # SSoT: Base folder for email scope
+    end
+
+    # Document folder tabs for email storage
+    # These represent the subfolders within the email base folder
+    email_document_tabs = [
+      { tab_key: 'email-body', display_name: 'Email Body', icon: 'FileText', folder: 'Email Body' },
+      { tab_key: 'attachments', display_name: 'Attachments', icon: 'Paperclip', folder: 'Attachments' }
+    ]
+
+    email_document_tabs.each_with_index do |attrs, idx|
+      find_or_create_by!(scope: 'email', tab_key: attrs[:tab_key]) do |tab|
+        tab.display_name = attrs[:display_name]
+        tab.tab_group = 'documents'
+        tab.order_position = idx + 10
+        tab.enabled = true
+        tab.is_system_tab = true
+        tab.icon_name = attrs[:icon]
+        tab.has_storage_folder = true
+        tab.storage_folder_path = attrs[:folder]
+      end
+    end
+
+    Rails.logger.info "[EntityTab] Seeded #{where(scope: 'email').count} email tabs"
+  end
+
+  # Callable individually for email tabs seeding
+  def self.seed_email_tabs_only!
+    send(:seed_email_tabs!)
+  end
+
+  # Legacy storage paths migration
+  # SSoT: Migrates all legacy scope_folders to EntityTab entries
+  # These tabs use tab_key as the storage lookup key (not scope)
+  #
+  # Legacy scope_folders keys mapped to EntityTab:
+  # - Users group: users, user_photos, user_contracts, my_docs
+  # - Warehousing group: bill_inbox, chat, notes, templates, bank_statements, contracts, pricebook_photos
+  # - Document types: excel_documents, word_documents, powerpoint_documents, pdf_documents
+  # - Other: active_storage, custom, email_attachments
+  #
+  private_class_method def self.seed_legacy_storage_tabs!
+    # Warehouse root tab - defines the base folder for warehouse scope
+    # Note: Using 'Root' as display_name to avoid tab_key sync changing 'root' to 'warehouse'
+    find_or_create_by!(scope: 'warehouse', tab_key: 'root') do |tab|
+      tab.display_name = 'Root'
+      tab.tab_group = 'system'
+      tab.order_position = -1
+      tab.enabled = true
+      tab.is_system_tab = true
+      tab.icon_name = nil  # No icon to avoid conflicts
+      tab.has_storage_folder = true
+      tab.storage_folder_path = 'Warehousing'  # SSoT: Base folder for warehouse scope
+    end
+
+    # Users storage paths (separate root folder "Users")
+    # Note: These are under warehouse scope but with their own base folder
+    # Using unique icons to avoid icon_uniqueness_for_root_tabs validation conflict
+    users_storage_tabs = [
+      { tab_key: 'users', folder: 'Users', display_name: 'Users', icon: 'UserCircle' },
+      { tab_key: 'user_photos', folder: 'Users/Photos', display_name: 'User Photos', icon: 'Camera' },
+      { tab_key: 'user_contracts', folder: 'Users/Contracts', display_name: 'User Contracts', icon: 'ScrollText' },
+      { tab_key: 'my_docs', folder: 'Users/MyDocs', display_name: 'My Documents', icon: 'FolderHeart' }
+    ]
+
+    users_storage_tabs.each_with_index do |attrs, idx|
+      find_or_create_by!(scope: 'warehouse', tab_key: attrs[:tab_key]) do |tab|
+        tab.display_name = attrs[:display_name]
+        tab.tab_group = 'system'
+        tab.order_position = idx + 100
+        tab.enabled = true
+        tab.is_system_tab = true
+        tab.icon_name = attrs[:icon]
+        tab.has_storage_folder = true
+        tab.storage_folder_path = attrs[:folder]
+      end
+    end
+
+    # Warehousing sub-folders
+    # Using unique icons to avoid icon_uniqueness_for_root_tabs validation conflict
+    warehousing_storage_tabs = [
+      { tab_key: 'bill_inbox', folder: 'Warehousing/BillInbox', display_name: 'Bill Inbox', icon: 'ReceiptText' },
+      { tab_key: 'chat', folder: 'Warehousing/Chat', display_name: 'Chat', icon: 'MessagesSquare' },
+      { tab_key: 'notes', folder: 'Warehousing/Notes', display_name: 'Notes', icon: 'NotebookText' },
+      { tab_key: 'templates', folder: 'Warehousing/Templates', display_name: 'Templates', icon: 'LayoutTemplate' },
+      { tab_key: 'bank_statements', folder: 'Warehousing/Templates/Bank Statements', display_name: 'Bank Statements', icon: 'Building2' },
+      { tab_key: 'contracts', folder: 'Warehousing/Templates/Contracts', display_name: 'Contracts', icon: 'FilePen' },
+      { tab_key: 'pricebook_photos', folder: 'Warehousing/Pricebook Photos', display_name: 'Pricebook Photos', icon: 'Images' }
+    ]
+
+    warehousing_storage_tabs.each_with_index do |attrs, idx|
+      find_or_create_by!(scope: 'warehouse', tab_key: attrs[:tab_key]) do |tab|
+        tab.display_name = attrs[:display_name]
+        tab.tab_group = 'system'
+        tab.order_position = idx + 200
+        tab.enabled = true
+        tab.is_system_tab = true
+        tab.icon_name = attrs[:icon]
+        tab.has_storage_folder = true
+        tab.storage_folder_path = attrs[:folder]
+      end
+    end
+
+    # Document type storage paths (file type specific folders)
+    # Using unique icons to avoid icon_uniqueness_for_root_tabs validation conflict
+    document_type_tabs = [
+      { tab_key: 'excel_documents', folder: 'Warehousing/Excel', display_name: 'Excel Documents', icon: 'Table2' },
+      { tab_key: 'word_documents', folder: 'Warehousing/Word', display_name: 'Word Documents', icon: 'FileEdit' },
+      { tab_key: 'powerpoint_documents', folder: 'Warehousing/PowerPoint', display_name: 'PowerPoint Documents', icon: 'ScreenShare' },
+      { tab_key: 'pdf_documents', folder: 'Warehousing/PDF', display_name: 'PDF Documents', icon: 'FileCheck' }
+    ]
+
+    document_type_tabs.each_with_index do |attrs, idx|
+      find_or_create_by!(scope: 'warehouse', tab_key: attrs[:tab_key]) do |tab|
+        tab.display_name = attrs[:display_name]
+        tab.tab_group = 'system'
+        tab.order_position = idx + 300
+        tab.enabled = true
+        tab.is_system_tab = true
+        tab.icon_name = attrs[:icon]
+        tab.has_storage_folder = true
+        tab.storage_folder_path = attrs[:folder]
+      end
+    end
+
+    # Other storage paths
+    # Using unique icons to avoid conflicts
+    other_storage_tabs = [
+      { tab_key: 'active_storage', folder: 'ActiveStorage', display_name: 'Active Storage', icon: 'Database' },
+      { tab_key: 'custom', folder: 'Documents', display_name: 'Custom Documents', icon: 'FolderArchive' },
+      { tab_key: 'email_attachments', folder: 'Emails', display_name: 'Email Attachments', icon: 'FileArchive' }
+    ]
+
+    other_storage_tabs.each_with_index do |attrs, idx|
+      find_or_create_by!(scope: 'warehouse', tab_key: attrs[:tab_key]) do |tab|
+        tab.display_name = attrs[:display_name]
+        tab.tab_group = 'system'
+        tab.order_position = idx + 400
+        tab.enabled = true
+        tab.is_system_tab = true
+        tab.icon_name = attrs[:icon]
+        tab.has_storage_folder = true
+        tab.storage_folder_path = attrs[:folder]
+      end
+    end
+
+    Rails.logger.info "[EntityTab] Seeded #{where(scope: 'warehouse', tab_group: 'system').count} legacy storage tabs"
+  end
+
+  # Callable individually for legacy storage tabs seeding
+  def self.seed_legacy_storage_tabs_only!
+    send(:seed_legacy_storage_tabs!)
   end
 
   # SSoT: Get effective icon name (child tabs inherit from parent)

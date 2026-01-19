@@ -5,7 +5,8 @@ class JobTypeStatus < ApplicationRecord
   belongs_to :job_type
   belongs_to :job_status
 
-  validates :job_type_id, uniqueness: { scope: [:job_status_id, :company_group_id] }
+  # Uniqueness scoped by tenant_id (acts_as_tenant handles the scoping automatically)
+  validates :job_type_id, uniqueness: { scope: [:job_status_id, :tenant_id] }
 
   default_scope { order(:position) }
 end

@@ -103,12 +103,12 @@ class StorageConfiguration < ApplicationRecord
   end
 
   # ========================================
-  # Scope Folder Lookup (for EntityTab)
+  # Scope Folder Lookup (SSoT: EntityTab)
   # ========================================
 
   # Get base folder name for a scope
-  # SSoT: Database column `scope_folders` is THE ONE source of truth
-  # Populated by migration 20260112120004, configurable via admin UI
+  # SSoT: EntityTab.scope_base_folders is THE ONE source of truth
+  # Base folders are stored on overview/root tabs for each scope
   #
   # @param scope [String, Symbol] The scope name (job, corporate, contact, etc.)
   # @return [String] The folder name for that scope
@@ -119,12 +119,20 @@ class StorageConfiguration < ApplicationRecord
   #   path_for(:contact)    # => "Contacts"
   #
   def path_for(scope)
-    scope_folders&.dig(scope.to_s) || scope.to_s.titleize
+    # SSoT: EntityTab.scope_base_folders is the primary source
+    EntityTab.scope_base_folders[scope.to_s] || scope.to_s.titleize
   end
 
-  # Get all scope folders (for UI editing)
+  # Get all scope folders (for UI - SSoT: EntityTab)
+  # Returns merged data: EntityTab base folders + scope_folders for any scopes not in EntityTab
   def effective_scope_folders
-    scope_folders || {}
+    # SSoT: EntityTab.scope_base_folders is the primary source
+    # Merge with scope_folders for backward compatibility (scopes not yet migrated to EntityTab)
+    entity_tab_folders = EntityTab.scope_base_folders
+    legacy_folders = scope_folders || {}
+
+    # EntityTab takes precedence, but include legacy scopes not in EntityTab
+    legacy_folders.merge(entity_tab_folders)
   end
 
   # Get template for a scope

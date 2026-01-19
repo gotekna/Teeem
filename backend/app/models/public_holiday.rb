@@ -3,7 +3,7 @@ class PublicHoliday < ApplicationRecord
   acts_as_tenant :tenant
 
   validates :name, presence: true
-  validates :date, presence: true, uniqueness: { scope: [:company_group_id, :region] }
+  validates :date, presence: true, uniqueness: { scope: [:tenant_id, :region] }
   validates :region, presence: true
 
   scope :for_region, ->(region) { where(region: region) }

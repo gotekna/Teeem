@@ -932,6 +932,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [documentsCollapsed, setDocumentsCollapsed] = useState(false);
   const [collapsedHeaders, setCollapsedHeaders] = useState<Set<number>>(new Set());
   const [collapsedEmailMonths, setCollapsedEmailMonths] = useState<Set<string>>(new Set());
+  const [moreSendersOpen, setMoreSendersOpen] = useState(false);
 
   // Email tree view expansion state (by source category)
   const [emailTreeExpanded, setEmailTreeExpanded] = useState<Record<string, boolean>>({
@@ -1108,6 +1109,42 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     matched: groupEmailsByMonth(filteredCategories.matched),
     linked: groupEmailsByMonth(filteredCategories.linked),
   }), [filteredCategories, groupEmailsByMonth]);
+
+  // Collapse all email months by default when data loads
+  const [emailMonthsInitialized, setEmailMonthsInitialized] = useState(false);
+  useEffect(() => {
+    if (emailMonthsInitialized) return;
+    const allMonthKeys = new Set<string>();
+    emailsByMonthPerCategory.thread.sortedMonths.forEach(m => allMonthKeys.add(`thread-${m}`));
+    emailsByMonthPerCategory.matched.sortedMonths.forEach(m => allMonthKeys.add(`matched-${m}`));
+    emailsByMonthPerCategory.linked.sortedMonths.forEach(m => allMonthKeys.add(`linked-${m}`));
+    if (allMonthKeys.size > 0) {
+      setCollapsedEmailMonths(allMonthKeys);
+      setEmailMonthsInitialized(true);
+    }
+  }, [emailsByMonthPerCategory, emailMonthsInitialized]);
+
+  // Helper to expand/collapse all email months
+  const toggleAllEmailMonths = useCallback((collapse: boolean) => {
+    if (collapse) {
+      const allMonthKeys = new Set<string>();
+      emailsByMonthPerCategory.thread.sortedMonths.forEach(m => allMonthKeys.add(`thread-${m}`));
+      emailsByMonthPerCategory.matched.sortedMonths.forEach(m => allMonthKeys.add(`matched-${m}`));
+      emailsByMonthPerCategory.linked.sortedMonths.forEach(m => allMonthKeys.add(`linked-${m}`));
+      setCollapsedEmailMonths(allMonthKeys);
+    } else {
+      setCollapsedEmailMonths(new Set());
+    }
+  }, [emailsByMonthPerCategory]);
+
+  // Check if all months are collapsed
+  const allMonthsCollapsed = useMemo(() => {
+    const totalMonths =
+      emailsByMonthPerCategory.thread.sortedMonths.length +
+      emailsByMonthPerCategory.matched.sortedMonths.length +
+      emailsByMonthPerCategory.linked.sortedMonths.length;
+    return totalMonths > 0 && collapsedEmailMonths.size >= totalMonths;
+  }, [emailsByMonthPerCategory, collapsedEmailMonths]);
 
   const documentAttachments = localAttachments.filter(a => a.document && !a.email);
 
@@ -3826,9 +3863,53 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                         );
                       })}
                       {uniqueEmailSenders.length > 5 && (
-                        <span className="text-[10px] text-muted-foreground self-center">
-                          +{uniqueEmailSenders.length - 5} more
-                        </span>
+                        <Popover open={moreSendersOpen} onOpenChange={setMoreSendersOpen}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-5 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              +{uniqueEmailSenders.length - 5} more
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-56 p-2" align="start" onClick={(e) => e.stopPropagation()}>
+                            <div className="text-xs font-medium mb-2">All senders</div>
+                            <div className="flex flex-wrap gap-1 max-h-48 overflow-y-auto">
+                              {uniqueEmailSenders.map((sender) => {
+                                const isActive = emailSourceFilter.type === 'contact' &&
+                                  emailSourceFilter.emails?.some(e => e.toLowerCase() === sender.email);
+                                return (
+                                  <Button
+                                    key={sender.email}
+                                    variant={isActive ? 'default' : 'outline'}
+                                    size="sm"
+                                    className="h-6 px-2 text-[10px]"
+                                    onClick={() => {
+                                      if (isActive) {
+                                        setEmailSourceFilter({ type: 'all' });
+                                      } else {
+                                        setEmailSourceFilter({
+                                          type: 'contact',
+                                          emails: [sender.email],
+                                          label: sender.name
+                                        });
+                                      }
+                                      setMoreSendersOpen(false);
+                                    }}
+                                    title={sender.email}
+                                  >
+                                    <span className="truncate max-w-[100px]">{sender.name.split(' ')[0]}</span>
+                                    <Badge variant="secondary" className="ml-1 h-3 px-1 text-[9px]">
+                                      {sender.count}
+                                    </Badge>
+                                  </Button>
+                                );
+                              })}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
                       )}
                     </div>
                   )}
@@ -4200,6 +4281,27 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   <div className="border rounded-md">
                     {allEmailAttachments.length > 0 ? (
                       <div className="divide-y">
+                        {/* Collapse/Expand all months button */}
+                        <div className="flex items-center justify-end px-2 py-1 bg-muted/20 border-b">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-5 px-2 text-[10px] text-muted-foreground hover:text-foreground"
+                            onClick={() => toggleAllEmailMonths(!allMonthsCollapsed)}
+                          >
+                            {allMonthsCollapsed ? (
+                              <>
+                                <ChevronDown className="h-3 w-3 mr-1" />
+                                Expand all months
+                              </>
+                            ) : (
+                              <>
+                                <ChevronRight className="h-3 w-3 mr-1" />
+                                Collapse all months
+                              </>
+                            )}
+                          </Button>
+                        </div>
                         {/* Thread Emails Branch */}
                         {categorizedEmails.thread.length > 0 && (
                           <Collapsible
