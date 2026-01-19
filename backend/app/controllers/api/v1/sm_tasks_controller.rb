@@ -24,11 +24,15 @@ module Api
       def index
         @tasks = SmTask.ordered.includes(
           :job, :hold_reason, :purchase_order, :assigned_user, :supplier,
-          :action_items, :start_workflow, :complete_workflow, :completion_document_type,
+          :start_workflow, :complete_workflow, :completion_document_type,
           :created_by, :task_followers, :source_action_item, :parent_task,
-          sm_task_attachments: :attachable
+          # N+1 fix: action_items needs checked_by and responded_by for action_item_to_json
+          action_items: [:checked_by, :responded_by],
+          # N+1 fix: sm_task_attachments needs added_by for attachment_to_json
+          sm_task_attachments: [:added_by, :attachable]
         )
         # Note: :last_assigner is a method (queries activity_logs), not an association - cannot be eager loaded
+        # Note: For EmailWarehouse attachables, email_attachments + storage_blob are loaded separately below
 
         # Privacy filter - only show tasks visible to current user
         @tasks = @tasks.visible_to(current_user)
@@ -60,9 +64,34 @@ module Api
           @tasks = @tasks.for_user_roles(user) if user
         end
 
+        # Apply limit before preloading nested email_attachments
+        tasks_to_render = @tasks.limit(500).to_a
+
+        # N+1 fix: Preload email_attachments + storage_blob for EmailWarehouse attachables
+        # This is a separate preload because polymorphic associations don't support nested includes
+        email_warehouse_ids = tasks_to_render.flat_map do |task|
+          task.sm_task_attachments
+              .select { |a| a.attachable_type == "EmailWarehouse" }
+              .map(&:attachable_id)
+        end.uniq
+        if email_warehouse_ids.any?
+          # Preload in batch, then the attachment_to_json will use cached data
+          preloaded_emails = EmailWarehouse.where(id: email_warehouse_ids)
+                                           .includes(email_attachments: :storage_blob)
+                                           .index_by(&:id)
+          # Inject preloaded emails into attachables to avoid re-query
+          tasks_to_render.each do |task|
+            task.sm_task_attachments.each do |att|
+              if att.attachable_type == "EmailWarehouse" && preloaded_emails[att.attachable_id]
+                att.attachable = preloaded_emails[att.attachable_id]
+              end
+            end
+          end
+        end
+
         render json: {
           success: true,
-          tasks: @tasks.limit(500).map { |task| task_to_json_with_job(task) },
+          tasks: tasks_to_render.map { |task| task_to_json_with_job(task) },
           meta: {
             total_count: @tasks.count,
             active_count: SmTask.active.count,
