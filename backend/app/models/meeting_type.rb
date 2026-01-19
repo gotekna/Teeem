@@ -1,6 +1,9 @@
 class MeetingType < ApplicationRecord
+  include ActsAsTenant::ModelExtensions
+  acts_as_tenant :company_group, class_name: "CorporateGroup"
+
   # Validations
-  validates :name, presence: true, uniqueness: true
+  validates :name, presence: true, uniqueness: { scope: :company_group_id }
   validates :default_duration_minutes, numericality: { greater_than: 0, allow_nil: true }
   validates :minimum_participants, numericality: { greater_than: 0, allow_nil: true }
   validates :maximum_participants, numericality: { greater_than: 0, allow_nil: true }

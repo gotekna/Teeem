@@ -1,4 +1,7 @@
 class Contact < ApplicationRecord
+  include ActsAsTenant::ModelExtensions
+  acts_as_tenant :company_group, class_name: "CorporateGroup"
+
   include SelfHealing  # Auto-fix formatting issues and earn System kudos
   include Searchable
 
@@ -15,9 +18,6 @@ class Contact < ApplicationRecord
   has_one :user, dependent: :nullify  # Linked user for data sync
   has_many :contact_activities, dependent: :destroy
   has_many :sms_messages, dependent: :destroy
-
-  # Company group for document filing (family members)
-  belongs_to :corporate_group, optional: true, foreign_key: "company_group_id"
 
   # Multiple emails and phones
   has_many :contact_emails, -> { order(:position) }, dependent: :destroy

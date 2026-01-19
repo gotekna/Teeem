@@ -1,9 +1,12 @@
 class JobStatusStage < ApplicationRecord
+  include ActsAsTenant::ModelExtensions
+  acts_as_tenant :company_group, class_name: "CorporateGroup"
+
   belongs_to :job_type
   belongs_to :job_status
   belongs_to :job_stage
 
-  validates :job_stage_id, uniqueness: { scope: [ :job_type_id, :job_status_id ] }
+  validates :job_stage_id, uniqueness: { scope: [:job_type_id, :job_status_id, :company_group_id] }
 
   default_scope { order(:position) }
 

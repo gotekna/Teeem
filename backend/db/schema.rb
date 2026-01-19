@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_19_054838) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_19_060420) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1690,8 +1690,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_19_054838) do
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["acn"], name: "index_contacts_on_acn"
     t.index ["acn_valid"], name: "index_contacts_on_acn_valid"
+    t.index ["company_group_id", "contact_code"], name: "index_contacts_on_tenant_and_contact_code", unique: true, where: "(contact_code IS NOT NULL)"
     t.index ["company_group_id"], name: "index_contacts_on_company_group_id"
-    t.index ["contact_code"], name: "index_contacts_on_contact_code", unique: true
     t.index ["display_name"], name: "idx_contacts_display_name_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["entity_type", "display_name"], name: "idx_contacts_entity_type_display_name"
     t.index ["entity_type", "is_active"], name: "idx_contacts_entity_type_active"

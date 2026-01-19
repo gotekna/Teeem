@@ -77,13 +77,19 @@ class TenantConfigSyncService
       sync_fields: [:name, :date, :region, :description, :recurring],
       description: "Regional public holidays"
     },
-    entity_tabs: {
-      model: "EntityTab",
-      name_field: :display_name,
-      match_fields: [:display_name, :entity_type],
-      sync_fields: [:display_name, :entity_type, :icon, :position, :description,
-                    :is_default, :is_system],
-      description: "Entity folder/tab organization"
+    job_type_statuses: {
+      model: "JobTypeStatus",
+      name_field: :id,
+      match_fields: [:job_type_id, :job_status_id],
+      sync_fields: [:job_type_id, :job_status_id, :position],
+      description: "Job type to status mappings"
+    },
+    job_status_stages: {
+      model: "JobStatusStage",
+      name_field: :id,
+      match_fields: [:job_type_id, :job_status_id, :job_stage_id],
+      sync_fields: [:job_type_id, :job_status_id, :job_stage_id, :position, :is_required],
+      description: "Job status to stage mappings"
     },
     sm_schedule_master_templates: {
       model: "SmScheduleMasterTemplate",
@@ -140,6 +146,17 @@ class TenantConfigSyncService
                     :supplier_confirm, :header_gantt, :hold, :assigned_role, :is_claim_task,
                     :claim_percentage, :is_variation],
       description: "Schedule Master task templates"
+    },
+    contacts: {
+      model: "Contact",
+      name_field: :display_name,
+      match_fields: [:display_name],
+      sync_fields: [:display_name, :company_name_or_trust, :first_name, :last_name,
+                    :abn, :acn, :website, :email_domains, :address, :city, :state, :postcode,
+                    :bank_bsb, :bank_account_number, :bank_account_name,
+                    :default_purchase_account, :default_sales_account, :payment_terms,
+                    :is_active, :entity_type, :notes, :contact_code],
+      description: "Contacts (suppliers, customers)"
     }
   }.freeze
 
