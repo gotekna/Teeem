@@ -148,7 +148,7 @@ const getAuthHeaders = (includeContentType = true): HeadersInit => {
 
   // Add JWT token if available (client-side only)
   if (typeof window !== 'undefined') {
-    const token = getStorageItem(STORAGE_KEYS.TOKEN, null, false);
+    const token = getStorageItem(STORAGE_KEYS.TOKEN, null);
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
@@ -160,7 +160,7 @@ const getAuthHeaders = (includeContentType = true): HeadersInit => {
 // Helper to clear auth token (mirrors AuthContext's clearAuthToken)
 const clearAuthToken = () => {
   if (typeof window !== 'undefined') {
-    removeStorageItem(STORAGE_KEYS.TOKEN, false);
+    removeStorageItem(STORAGE_KEYS.TOKEN);
     document.cookie = 'auth_token=; path=/; max-age=0';
   }
 };
@@ -439,7 +439,7 @@ export const api = {
     const headers: Record<string, string> = {};
 
     if (typeof window !== 'undefined') {
-      const token = getStorageItem(STORAGE_KEYS.TOKEN, null, false);
+      const token = getStorageItem(STORAGE_KEYS.TOKEN, null);
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
@@ -487,7 +487,7 @@ export const api = {
 
     const headers: Record<string, string> = {};
     if (typeof window !== 'undefined') {
-      const token = getStorageItem(STORAGE_KEYS.TOKEN, null, false);
+      const token = getStorageItem(STORAGE_KEYS.TOKEN, null);
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }

@@ -247,8 +247,8 @@ export default function FinancialTransactionsPage() {
 
   const handleExport = async () => {
     try {
-      const response = await fetch("/financial_exports/transactions");
-      const blob = await response.blob();
+      // SSoT: Use api.getBlob() for authenticated blob downloads
+      const blob = await api.getBlob("/financial_exports/transactions");
 
       // Create download link
       const url = window.URL.createObjectURL(blob);

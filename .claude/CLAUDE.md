@@ -215,8 +215,30 @@ grep -n "COLUMN_NAME\|similar_name" backend/db/schema.rb
 | Column types | `lib/constants/column-types.ts` (frontend helpers: `isLookupColumn()`, `isChoiceColumn()`) |
 | UI components | `lib/component-registry.ts` |
 | Storage paths | `StorageConfiguration` model (paths, templates, provider config) |
+| Foundation slugs | `lib/constants/foundation-slugs.ts` |
 
 **Rule:** Search `lib/constants/` before creating ANY constant.
+
+### Foundation Slugs (⚠️ HYPHEN VS UNDERSCORE)
+
+**Foundation slugs use MIXED conventions. NEVER guess - use the constant.**
+
+```typescript
+// ✅ CORRECT - Use the SSoT constant
+import { FOUNDATION_SLUGS } from '@/lib/constants/foundation-slugs';
+<TeeemTableView foundationId={FOUNDATION_SLUGS.PURCHASE_ORDERS} />
+
+// ❌ WRONG - Guessing the slug format
+<TeeemTableView foundationId="purchase_orders" />  // Should be "purchase-orders"
+<TeeemTableView foundationId="sm_tasks" />         // Should be "sm-tasks"
+```
+
+**Hyphenated slugs (memorize these or use constants):**
+- `purchase-orders` (NOT `purchase_orders`)
+- `sm-tasks`, `sm-resources`, `sm-schedule-master`
+- `pricebook-items`, `price-histories`
+- `bill-inbox`, `user-management`, `xero-sync-contacts`
+- `email-proposals`, `inspiring-quotes`
 
 ### Column Type Checks
 

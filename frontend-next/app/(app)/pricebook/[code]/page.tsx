@@ -1155,17 +1155,16 @@ export default function PriceBookItemDetailPage() {
                     })}
 
                     {/* Blank row for adding new price */}
-                    <TableRow style={{ backgroundColor: '#f1f5f9' }}>
-                      <TableCell className="py-1 border-b" style={{ backgroundColor: '#f1f5f9' }}>
+                    <TableRow className="bg-slate-100 dark:bg-slate-800">
+                      <TableCell className="py-1 border-b bg-slate-100 dark:bg-slate-800">
                         <Input
                           type="date"
                           value={newPriceEntry.date_effective}
                           onChange={(e) => updateNewPriceEntry('date_effective', e.target.value)}
-                          className="border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 h-9 text-sm text-muted-foreground"
-                          style={{ backgroundColor: '#f1f5f9' }}
+                          className="border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 h-9 text-sm text-muted-foreground bg-slate-100 dark:bg-slate-800"
                         />
                       </TableCell>
-                      <TableCell className="py-1 border-b" style={{ backgroundColor: '#f1f5f9' }}>
+                      <TableCell className="py-1 border-b bg-slate-100 dark:bg-slate-800">
                         <Input
                           type="number"
                           step="0.01"
@@ -1173,11 +1172,10 @@ export default function PriceBookItemDetailPage() {
                           value={newPriceEntry.price}
                           onChange={(e) => updateNewPriceEntry('price', e.target.value)}
                           onBlur={handleAddNewPrice}
-                          className="border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 h-9 text-sm text-muted-foreground"
-                          style={{ backgroundColor: '#f1f5f9' }}
+                          className="border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 h-9 text-sm text-muted-foreground bg-slate-100 dark:bg-slate-800"
                         />
                       </TableCell>
-                      <TableCell className="py-1 border-b" style={{ backgroundColor: '#f1f5f9' }}>
+                      <TableCell className="py-1 border-b bg-slate-100 dark:bg-slate-800">
                         <Select
                           value={newPriceEntry.lga || "__none__"}
                           onValueChange={(v) => updateNewPriceEntry('lga', v === "__none__" ? "" : v)}
@@ -1193,7 +1191,7 @@ export default function PriceBookItemDetailPage() {
                           </SelectContent>
                         </Select>
                       </TableCell>
-                      <TableCell className="py-1 border-b" style={{ backgroundColor: '#f1f5f9' }}>
+                      <TableCell className="py-1 border-b bg-slate-100 dark:bg-slate-800">
                         <Popover
                           open={newPriceSupplierPopoverOpen}
                           onOpenChange={setNewPriceSupplierPopoverOpen}
@@ -1202,8 +1200,7 @@ export default function PriceBookItemDetailPage() {
                             <Button
                               variant="outline"
                               role="combobox"
-                              className="w-full justify-between h-9 text-sm font-normal border-0 rounded-none"
-                              style={{ backgroundColor: '#f1f5f9' }}
+                              className="w-full justify-between h-9 text-sm font-normal border-0 rounded-none bg-slate-100 dark:bg-slate-800"
                             >
                               {(() => {
                                 if (!newPriceEntry.supplier_id) {
@@ -1255,7 +1252,7 @@ export default function PriceBookItemDetailPage() {
                           </PopoverContent>
                         </Popover>
                       </TableCell>
-                      <TableCell className="py-1 border-b text-center" style={{ backgroundColor: '#f1f5f9' }}>
+                      <TableCell className="py-1 border-b text-center bg-slate-100 dark:bg-slate-800">
                         {newPriceEntry.supplier_id && (
                           <Checkbox
                             checked={newPriceEntry.supplier_id === item.default_supplier_id}
@@ -1267,7 +1264,7 @@ export default function PriceBookItemDetailPage() {
                           />
                         )}
                       </TableCell>
-                      <TableCell className="py-1 border-b" style={{ backgroundColor: '#f1f5f9' }}>
+                      <TableCell className="py-1 border-b bg-slate-100 dark:bg-slate-800">
                         {!isBlankNewPrice() && (
                           <Button
                             variant="ghost"
