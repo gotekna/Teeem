@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import TeeemTableView from "@/components/table/TeeemTableView";
+import { TablePage } from "@/components/ui/page-wrappers";
 import { AddUserModal } from "@/components/admin/AddUserModal";
 import { UserDetailSheet } from "@/components/admin/UserDetailSheet";
 import { api } from "@/lib/api";
@@ -108,11 +109,11 @@ export default function UsersSettingsPage() {
   };
 
   return (
-    <div className="flex flex-col h-full -mx-4">
+    <TablePage>
       <TeeemTableView
         key={refreshKey}
         foundationId="user-management"
-        autoFetchRecords={true}
+        autoFetchRecords
         onDelete={handleDelete}
         onBulkDelete={handleBulkDelete}
         onRowDoubleClick={handleRowDoubleClick}
@@ -142,6 +143,6 @@ export default function UsersSettingsPage() {
         }}
         onSave={triggerRefresh}
       />
-    </div>
+    </TablePage>
   );
 }

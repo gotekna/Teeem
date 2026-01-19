@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import TeeemTableView from "@/components/table/TeeemTableView";
+import { TablePage } from "@/components/ui/page-wrappers";
 import { Plus } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
 import type { TableRow } from "@/components/table/types";
@@ -28,16 +29,16 @@ export default function QuoteRequestsPage() {
   );
 
   return (
-    <div className="flex flex-col h-full -mx-4">
+    <TablePage>
       <TeeemTableView
         foundationId="quote_requests"
-        autoFetchRecords={true}
+        autoFetchRecords
         tableName="Quote Requests"
-        enableExport={true}
+        enableExport
         onRowClick={handleRowClick}
         leftActions={leftActions}
-        hideFooter={true}
+        hideFooter
       />
-    </div>
+    </TablePage>
   );
 }

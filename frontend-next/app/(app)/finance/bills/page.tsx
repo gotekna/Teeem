@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { RefreshCw, ArrowLeft } from "lucide-react";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
+import { TablePage } from "@/components/ui/page-wrappers";
 import type { TableRow } from "@/components/table/types";
 
 export default function BillInboxPage() {
@@ -31,12 +32,12 @@ export default function BillInboxPage() {
   }, [router]);
 
   return (
-    <div className="flex flex-col h-full -mx-4">
+    <TablePage>
       <TeeemTableView
         foundationId="bill-inbox"
-        autoFetchRecords={true}
+        autoFetchRecords
         tableName="Bill Inbox"
-        enableExport={true}
+        enableExport
         onRowClick={handleRowClick}
         refreshTrigger={refreshTrigger}
         leftActions={
@@ -54,6 +55,6 @@ export default function BillInboxPage() {
           </>
         }
       />
-    </div>
+    </TablePage>
   );
 }

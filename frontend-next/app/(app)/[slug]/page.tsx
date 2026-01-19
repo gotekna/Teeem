@@ -3,6 +3,7 @@
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useEffect, Suspense, useCallback, useMemo } from "react";
 import { TeeemTableView, SchemaTab, ConnectionsTab } from "@/components/table";
+import { TablePage } from "@/components/ui/page-wrappers";
 import { api } from "@/lib/api";
 import type { TableRow } from "@/components/table/types";
 import { TABLE_IDS, stripUrlSuffix, slugifyPricebookCode } from "@/lib/url-utils";
@@ -219,7 +220,7 @@ function TablePageContent() {
   };
 
   return (
-    <div className="flex flex-col h-full -mx-4">
+    <TablePage>
       {/* Tabs (if configured) */}
       {uiConfig.tabs && uiConfig.tabs.length > 0 ? (
         <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col px-4">
@@ -265,11 +266,11 @@ function TablePageContent() {
 
       {/* Note: CreateRecordDialog removed - handled internally by TeeemTableView (SSoT) */}
       {/* Note: GlobalViewsManager is now handled by TeeemTableView internally when foundationIdNumeric is set */}
-    </div>
+    </TablePage>
   );
 }
 
-export default function TablePage() {
+export default function DynamicFoundationPage() {
   return (
     <Suspense fallback={<PageSkeleton />}>
       <TablePageContent />

@@ -24,6 +24,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
+import { TablePage } from "@/components/ui/page-wrappers";
 import type { TableRow } from "@/components/table/types";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -198,14 +199,14 @@ export default function PublicHolidaysPage() {
   );
 
   return (
-    <div className="flex flex-col h-full -mx-4">
+    <TablePage>
       <TeeemTableView
         entries={holidays}
         foundationId="public_holidays"
         tableName="Public Holidays"
         onRefresh={loadHolidays}
         leftActions={filterControls}
-        enableExport={true}
+        enableExport
         onDelete={(row) => handleDelete(row as PublicHoliday)}
       />
 
@@ -284,6 +285,6 @@ export default function PublicHolidaysPage() {
           </form>
         </DialogContent>
       </Dialog>
-    </div>
+    </TablePage>
   );
 }

@@ -2,11 +2,11 @@
 
 import { Button } from "@/components/ui/button";
 import TeeemTableView from "@/components/table/TeeemTableView";
+import { TablePage } from "@/components/ui/page-wrappers";
 import { Plus, Mail } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
 
 export default function WHSInductionsPage() {
-  // Left actions - Back button + action buttons
   const leftActions = (
     <div className="flex items-center gap-2">
       <BackButton fallbackHref="/whs" />
@@ -22,15 +22,15 @@ export default function WHSInductionsPage() {
   );
 
   return (
-    <div className="flex flex-col h-full -mx-4">
+    <TablePage>
       <TeeemTableView
         foundationId="whs_inductions"
-        autoFetchRecords={true}
+        autoFetchRecords
         tableName="Site Inductions"
-        enableExport={true}
+        enableExport
         leftActions={leftActions}
-        hideFooter={true}
+        hideFooter
       />
-    </div>
+    </TablePage>
   );
 }

@@ -22,20 +22,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { BackButton } from "@/components/ui/back-button";
+import { TablePage } from "@/components/ui/page-wrappers";
 
 export default function WHSIncidentsPage() {
   const [newIncidentOpen, setNewIncidentOpen] = useState(false);
 
   return (
-    <div className="flex flex-col h-full -mx-4">
+    <TablePage>
       <TeeemTableView
         foundationId="whs_incidents"
-        autoFetchRecords={true}
+        autoFetchRecords
         tableName="Incident Reports"
-        enableExport={true}
-        onAddRow={() => setNewIncidentOpen(true)}  // SSoT: Override built-in Add to use custom dialog
+        enableExport
+        onAddRow={() => setNewIncidentOpen(true)}
         leftActions={<BackButton fallbackHref="/whs" />}
-        hideFooter={true}
+        hideFooter
       />
 
       {/* Report Incident Dialog */}
@@ -104,6 +105,6 @@ export default function WHSIncidentsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </TablePage>
   );
 }
