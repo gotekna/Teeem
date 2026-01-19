@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
 import { useSetAtom } from "jotai";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import Link from "next/link";
 import { resetAllFiltersAtom, foundationViewsAtom, activeViewIdAtom } from "@/lib/view-state-atoms";
 import { Button } from "@/components/ui/button";
@@ -209,6 +210,7 @@ export default function ContactDetailPage() {
   const router = useRouter();
   const pathname = usePathname();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const id = params.id as string;
   // Note: returnTo is now handled internally by BackButton component
 
@@ -760,7 +762,7 @@ export default function ContactDetailPage() {
   const handleDelete = async () => {
     if (!contact) return;
 
-    if (!confirm(`Delete contact "${contact.display_name}"?`)) {
+    if (!(await confirm(`Delete contact "${contact.display_name}"?`))) {
       return;
     }
 
@@ -1316,7 +1318,7 @@ export default function ContactDetailPage() {
   const handleRemoveEmployee = async (employeeId: number) => {
     if (!contact) return;
 
-    if (!confirm("Remove this person from the company?")) return;
+    if (!(await confirm("Remove this person from the company?"))) return;
 
     try {
       console.log('[Remove Employee] Fetching relationships for employee:', employeeId);
@@ -1462,7 +1464,7 @@ export default function ContactDetailPage() {
   // Handle removing a related entity
   const handleRemoveRelatedEntity = async (relationshipId: number, sourceContactId: number) => {
     if (!contact) return;
-    if (!confirm("Remove this relationship?")) return;
+    if (!(await confirm("Remove this relationship?"))) return;
 
     try {
       await api.delete(`/api/v1/contacts/${sourceContactId}/relationships/${relationshipId}`);

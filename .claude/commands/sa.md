@@ -25,7 +25,7 @@ git status --short
 ### Step 2 - ALWAYS Pull and Check for Stashes
 **CRITICAL: Always run these - don't skip!**
 ```bash
-git pull origin staging
+git pull origin Staging
 git stash list
 ```
 *If stashes exist, pop them: `git stash pop`*
@@ -111,7 +111,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 ### Step 6 - Push to GitHub
 ```bash
-git push origin staging
+git push origin Staging
 ```
 *Frontend auto-deploys from this push*
 

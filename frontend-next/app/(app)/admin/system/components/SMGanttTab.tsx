@@ -29,6 +29,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 
 interface GanttConfig {
   defaultView: "day" | "week" | "month";
@@ -82,6 +83,7 @@ const COLOR_PRESETS = [
 export function SMGanttTab() {
   const [activeTab, setActiveTab] = useUrlTabs("display", "gantt-tab");
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [config, setConfig] = React.useState<GanttConfig>(DEFAULT_CONFIG);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
@@ -139,8 +141,8 @@ export function SMGanttTab() {
     }
   };
 
-  const handleReset = () => {
-    if (!confirm("Reset all settings to default values?")) return;
+  const handleReset = async () => {
+    if (!(await confirm("Reset all settings to default values?"))) return;
     setConfig(DEFAULT_CONFIG);
     setHasChanges(true);
     toast({ title: "Reset", description: "Settings reset to defaults. Click Save to apply." });

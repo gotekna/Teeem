@@ -39,6 +39,7 @@ import { TokenBuilder } from "@/components/ui/tokens/TokenBuilder";
 import type { PlaceholderToken } from "@/lib/placeholders";
 import { SortableList, SortableItem, ItemBadge } from "@/components/ui/dnd";
 import { Spinner } from "@/components/ui/spinner";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 
 // Custom placeholders for Plan Types
 const PLAN_TYPE_PLACEHOLDERS: PlaceholderToken[] = [
@@ -225,6 +226,7 @@ export function PlansTab() {
 
 export function CategoriesSection() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [categories, setCategories] = React.useState<PlanCategory[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [showDialog, setShowDialog] = React.useState(false);
@@ -299,7 +301,7 @@ export function CategoriesSection() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this category?")) return;
+    if (!(await confirm("Are you sure you want to delete this category?"))) return;
 
     setDeleting(id);
     try {
@@ -457,6 +459,7 @@ interface GlobalDefaults {
 
 export function TypesSection() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [types, setTypes] = React.useState<PlanType[]>([]);
   const [categories, setCategories] = React.useState<PlanCategory[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -590,7 +593,7 @@ export function TypesSection() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this plan type?")) return;
+    if (!(await confirm("Are you sure you want to delete this plan type?"))) return;
 
     setDeleting(id);
     try {
@@ -1054,6 +1057,7 @@ export function TypesSection() {
 
 export function RevisionFormatsSection() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [formats, setFormats] = React.useState<RevisionFormat[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [showDialog, setShowDialog] = React.useState(false);
@@ -1135,7 +1139,7 @@ export function RevisionFormatsSection() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this format?")) return;
+    if (!(await confirm("Are you sure you want to delete this format?"))) return;
 
     setDeleting(id);
     try {

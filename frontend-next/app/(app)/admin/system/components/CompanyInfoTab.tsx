@@ -17,6 +17,7 @@ import { api } from "@/lib/api";
 import { COMPANY_TIMEZONE } from "@/lib/timezone-utils";
 import { cn } from "@/lib/utils";
 import { Plus, Pencil, Trash2, Star, X, Check } from "lucide-react";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 
 const TIMEZONES = [
   { value: "Australia/Brisbane", label: "Brisbane (AEST/AEDT)" },
@@ -100,6 +101,7 @@ interface XeroTenant {
 }
 
 export default function CompanyInfoTab() {
+  const { confirm } = useConfirm();
   const [settings, setSettings] = React.useState<CompanySettings>({
     company_name: "",
     abn: "",
@@ -239,7 +241,7 @@ export default function CompanyInfoTab() {
   };
 
   const deleteTradingName = async (id: number) => {
-    if (!confirm("Delete this trading name?")) return;
+    if (!(await confirm("Delete this trading name?"))) return;
     try {
       await api.delete(`/api/v1/foundations/trading_names/records/${id}`);
       await loadTradingNames();

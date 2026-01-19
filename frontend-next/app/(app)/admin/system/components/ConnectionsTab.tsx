@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,6 +65,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 // SharePoint Connection Component
 function SharePointConnection() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [status, setStatus] = React.useState<{
     connected: boolean;
     driveName?: string;
@@ -104,7 +106,7 @@ function SharePointConnection() {
   };
 
   const handleDisconnect = async () => {
-    if (!confirm("Are you sure you want to disconnect cloud storage?")) return;
+    if (!(await confirm("Are you sure you want to disconnect cloud storage?"))) return;
     setDisconnecting(true);
     try {
       await api.delete("/api/v1/documents/disconnect");
@@ -644,6 +646,7 @@ const PROVIDER_PRESETS: Record<string, { name: string; description: string; endp
 // S3 Storage Connection Component - Simplified
 function S3StorageConnection() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [credentials, setCredentials] = React.useState<S3Credential[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
@@ -738,7 +741,7 @@ function S3StorageConnection() {
   };
 
   const handleDelete = async (cred: S3Credential) => {
-    if (!confirm(`Delete "${cred.name}"?`)) return;
+    if (!(await confirm(`Delete "${cred.name}"?`))) return;
     try {
       await api.delete(`/api/v1/s3_credentials/${cred.id}`);
       toast({ title: "Deleted", description: "Storage removed" });
@@ -953,6 +956,7 @@ interface OrgDocumentProvider {
 // Document Storage Provider Selection (SSoT)
 function DocumentStorageProvider() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [selectedProvider, setSelectedProvider] = React.useState<string>("sharepoint");
   const [selectedCredentialId, setSelectedCredentialId] = React.useState<number | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -1092,7 +1096,7 @@ function DocumentStorageProvider() {
   };
 
   const handleDelete = async (cred: S3Credential) => {
-    if (!confirm(`Delete "${cred.name}"?`)) return;
+    if (!(await confirm(`Delete "${cred.name}"?`))) return;
     try {
       await api.delete(`/api/v1/s3_credentials/${cred.id}`);
       toast({ title: "Deleted", description: "Storage removed" });
@@ -1407,6 +1411,7 @@ interface MigrationEstimate {
 // ============================================
 function EmailMigrationCard() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [storageUpload, setStorageUpload] = React.useState<StorageUploadProgress | null>(null);
   const [activeEmailJob, setActiveEmailJob] = React.useState<{ status: string; processed: number; total: number } | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -1489,7 +1494,7 @@ function EmailMigrationCard() {
   };
 
   const handleStop = async () => {
-    if (!confirm("Stop email migration? The current batch will complete but no new batches will start.")) return;
+    if (!(await confirm("Stop email migration? The current batch will complete but no new batches will start."))) return;
     setStopping(true);
     try {
       // Find and cancel the active job
@@ -1775,6 +1780,7 @@ function AttachmentDeduplicationCard() {
 // ============================================
 function DocumentMigrationCard() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [status, setStatus] = React.useState<MigrationStatus | null>(null);
   const [estimate, setEstimate] = React.useState<MigrationEstimate | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -1836,7 +1842,7 @@ function DocumentMigrationCard() {
   };
 
   const handleStartMigration = async () => {
-    if (!confirm("This will migrate all SharePoint documents to S3. Are you sure?")) return;
+    if (!(await confirm("This will migrate all SharePoint documents to S3. Are you sure?"))) return;
 
     setStarting(true);
     try {
@@ -1858,7 +1864,7 @@ function DocumentMigrationCard() {
   };
 
   const handleCancelMigration = async () => {
-    if (!confirm("Cancel pending migrations?")) return;
+    if (!(await confirm("Cancel pending migrations?"))) return;
 
     setCancelling(true);
     try {

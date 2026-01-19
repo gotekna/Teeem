@@ -52,6 +52,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { XeroTabsKanban } from "./XeroTabsKanban";
 
 // =============================================================================
@@ -117,6 +118,7 @@ const GROUP_CONFIG = {
 
 export function EntityTabsTable() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
 
   // State
   const [tabs, setTabs] = React.useState<EntityTab[]>([]);
@@ -294,7 +296,7 @@ export function EntityTabsTable() {
   // Delete sub-tab
   const handleDeleteSubTab = async (tab: EntityTab, subTabKey: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm(`Delete sub-folder "${subTabKey}"?`)) return;
+    if (!(await confirm(`Delete sub-folder "${subTabKey}"?`))) return;
     setSaving(true);
     try {
       const newSubTabs = (tab.sub_tabs || []).filter((st) => st.key !== subTabKey);

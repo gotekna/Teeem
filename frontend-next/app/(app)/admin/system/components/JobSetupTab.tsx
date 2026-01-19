@@ -60,6 +60,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import {
   Table,
   TableBody,
@@ -152,6 +153,7 @@ interface JobSetupTabProps {
 export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: JobSetupTabProps) {
   const router = useRouter();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
 
   // Default to "lists" sub-tab
   const activeSubTab = JOB_SETUP_SUB_TABS.some((t) => t.id === subTab) ? subTab : "lists";
@@ -422,7 +424,7 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
   };
 
   const handleDelete = async (id: number, type: "type" | "status" | "stage") => {
-    if (!confirm("Are you sure you want to delete this item?")) return;
+    if (!(await confirm("Are you sure you want to delete this item?"))) return;
 
     const endpoints = {
       type: "/api/v1/job_types",

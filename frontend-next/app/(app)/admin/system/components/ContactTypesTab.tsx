@@ -56,6 +56,7 @@ import { Badge } from "@/components/ui/badge";
 import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
 import { Spinner } from "@/components/ui/spinner";
 import { fetchEntityTypes, EntityTypeMetadata } from "@/lib/entity-types";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 
 // Entity type field configuration - defines which fields are used/required for each type
 const ENTITY_TYPE_FIELDS = [
@@ -329,6 +330,7 @@ interface ContactType {
 export function ContactTypesTab() {
   const router = useRouter();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
 
   const [contactTypes, setContactTypes] = React.useState<ContactType[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -536,7 +538,7 @@ export function ContactTypesTab() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this contact type?")) return;
+    if (!(await confirm("Are you sure you want to delete this contact type?"))) return;
 
     setDeleting(id);
     try {

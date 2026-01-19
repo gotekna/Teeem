@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useState, useEffect, useCallback } from "react";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -498,6 +499,7 @@ function TeamEmailDomainsConfig() {
 
 export function EmailAccountsTab() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [credentials, setCredentials] = useState<ImapCredential[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
@@ -607,7 +609,7 @@ export function EmailAccountsTab() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to remove this email account?")) return;
+    if (!(await confirm("Are you sure you want to remove this email account?"))) return;
 
     try {
       await api.delete(`/api/v1/imap_credentials/${id}`);

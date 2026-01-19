@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,6 +64,7 @@ const DEFAULT_QUOTES: InspiringQuote[] = [
 
 export function InspiringQuotesTab() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [quotes, setQuotes] = React.useState<InspiringQuote[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [showDialog, setShowDialog] = React.useState(false);
@@ -191,7 +193,7 @@ export function InspiringQuotesTab() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this quote?")) return;
+    if (!(await confirm("Are you sure you want to delete this quote?"))) return;
 
     const updatedQuotes = quotes.filter((q) => q.id !== id);
     setQuotes(updatedQuotes);
@@ -225,8 +227,8 @@ export function InspiringQuotesTab() {
     }
   };
 
-  const handleResetToDefaults = () => {
-    if (!confirm("Reset all quotes to default values? This will remove any custom quotes.")) return;
+  const handleResetToDefaults = async () => {
+    if (!(await confirm("Reset all quotes to default values? This will remove any custom quotes."))) return;
     setQuotes(DEFAULT_QUOTES);
     localStorage.setItem("inspiringQuotes", JSON.stringify(DEFAULT_QUOTES));
     toast({ title: "Success", description: "Quotes reset to defaults" });

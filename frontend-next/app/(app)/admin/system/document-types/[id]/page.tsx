@@ -3,6 +3,7 @@
 
 import * as React from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -133,6 +134,7 @@ export default function DocumentTypeDetailPage() {
   const router = useRouter();
   const params = useParams();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const { user } = useAuth();
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
@@ -707,7 +709,7 @@ export default function DocumentTypeDetailPage() {
   const handleDelete = async () => {
     if (!documentType) return;
 
-    if (!confirm(`Delete document type "${documentType.name}"? This cannot be undone.`)) {
+    if (!(await confirm(`Delete document type "${documentType.name}"? This cannot be undone.`))) {
       return;
     }
 

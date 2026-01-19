@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { useLayoutMode } from "@/contexts/LayoutModeContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -339,6 +340,7 @@ const DEFAULT_SM_BASE_PATH = "/admin/system/schedule-master";
 export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleMasterTabProps) {
   console.log("[ScheduleMasterTab] Component mounted - v2 with document types");
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const router = useRouter();
   const pathname = usePathname();
   // v2711: Jotai store for reading CURRENT atom value inside async functions
@@ -1132,7 +1134,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this template? This cannot be undone.")) return;
+    if (!(await confirm("Are you sure you want to delete this template? This cannot be undone."))) return;
 
     setDeleting(id);
     try {

@@ -58,6 +58,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 
 interface CompanyGroup {
   id: number;
@@ -107,6 +108,7 @@ interface Company {
 // ===== GROUPS SUB-TAB =====
 function GroupsSubTab() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [groups, setGroups] = React.useState<CompanyGroup[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [showDialog, setShowDialog] = React.useState(false);
@@ -210,7 +212,7 @@ function GroupsSubTab() {
       return;
     }
 
-    if (!confirm(`Delete group "${group.name}"? This cannot be undone.`)) return;
+    if (!(await confirm(`Delete group "${group.name}"? This cannot be undone.`))) return;
 
     setDeleting(group.id);
     try {
@@ -452,6 +454,7 @@ function GroupsSubTab() {
 // ===== COMPANIES SUB-TAB =====
 function CompaniesSubTab() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [companies, setCompanies] = React.useState<Company[]>([]);
   const [groups, setGroups] = React.useState<CompanyGroup[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -669,7 +672,7 @@ function CompaniesSubTab() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this company?")) return;
+    if (!(await confirm("Are you sure you want to delete this company?"))) return;
 
     setDeleting(id);
     try {

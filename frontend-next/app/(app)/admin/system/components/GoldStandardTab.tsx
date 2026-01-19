@@ -87,6 +87,7 @@ import { UIComponentsPlaygroundTab } from "./UIComponentsPlaygroundTab";
 import { ColumnTypeDefinitionsTab } from "./ColumnTypeDefinitionsTab";
 import { SortableList, SortableItem, DragHandle, ItemBadge } from "@/components/ui/dnd";
 import { Spinner } from "@/components/ui/spinner";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 
 interface ColumnType {
   columnName: string;
@@ -201,6 +202,7 @@ function SortableFieldItem({
 // Gold Standard Data Tab - shows actual table records using TeeemTableView
 function GoldStandardDataTab() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [entries, setEntries] = React.useState<TableRowType[]>([]);
   const [columns, setColumns] = React.useState<TableColumn[]>([]);
   const [rawColumns, setRawColumns] = React.useState<Array<{
@@ -546,7 +548,7 @@ function GoldStandardDataTab() {
 
 
   const handleDelete = async (entry: TableRowType) => {
-    if (!confirm("Are you sure you want to delete this item?")) return;
+    if (!(await confirm("Are you sure you want to delete this item?"))) return;
 
     try {
       await api.delete(`/api/v1/gold_standard_table/${entry.id}`);
@@ -689,7 +691,7 @@ function GoldStandardDataTab() {
 
   const handleBulkDelete = async (ids: (number | string)[]) => {
     console.log("[GoldStandardTab] handleBulkDelete called with ids:", ids);
-    if (!confirm(`Are you sure you want to delete ${ids.length} item(s)?`)) {
+    if (!(await confirm(`Are you sure you want to delete ${ids.length} item(s)?`))) {
       console.log("[GoldStandardTab] Delete cancelled by user");
       return;
     }

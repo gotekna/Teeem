@@ -26,7 +26,7 @@ git status --short
 
 ### Step 1.5 - Pull Latest (if needed)
 ```bash
-git pull origin staging
+git pull origin Staging
 ```
 
 ### Step 2 - Pre-Commit Validation (BEFORE commit!)
@@ -103,7 +103,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 ### Step 4 - Push to GitHub
 ```bash
-git push origin staging
+git push origin Staging
 ```
 *Frontend auto-deploys from this push*
 

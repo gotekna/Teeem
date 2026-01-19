@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import {
   Cog6ToothIcon,
   PauseIcon,
@@ -91,6 +92,7 @@ interface TemplatesResponse {
 
 function HoldReasonsTab() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [holdReasons, setHoldReasons] = useState<HoldReason[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -151,7 +153,7 @@ function HoldReasonsTab() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Delete this hold reason?")) return;
+    if (!(await confirm("Delete this hold reason?"))) return;
     try {
       await api.delete(`/api/v1/sm_hold_reasons/${id}`);
       toast({ title: "Hold reason deleted" });
@@ -425,6 +427,7 @@ function RolloverSettingsTab() {
 
 function TemplatesTab() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [templates, setTemplates] = useState<SmScheduleMasterTemplate[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -469,7 +472,7 @@ function TemplatesTab() {
   };
 
   const handleDelete = async (templateId: number) => {
-    if (!confirm("Archive this template?")) return;
+    if (!(await confirm("Archive this template?"))) return;
 
     try {
       await api.delete(`/api/v1/sm_schedule_master_templates/${templateId}`);

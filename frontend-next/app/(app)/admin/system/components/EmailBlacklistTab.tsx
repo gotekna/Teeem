@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -80,6 +81,7 @@ const PATTERN_TYPE_DESCRIPTIONS = {
 
 export function EmailBlacklistTab() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [items, setItems] = React.useState<BlacklistItem[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [showAddDialog, setShowAddDialog] = React.useState(false);
@@ -203,7 +205,7 @@ export function EmailBlacklistTab() {
   };
 
   const handleDelete = async (item: BlacklistItem) => {
-    if (!confirm(`Are you sure you want to delete the pattern "${item.pattern}"?`)) {
+    if (!(await confirm(`Are you sure you want to delete the pattern "${item.pattern}"?`))) {
       return;
     }
 

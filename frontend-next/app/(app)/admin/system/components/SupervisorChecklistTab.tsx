@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,6 +53,7 @@ const RESPONSE_TYPES = [
 
 export function SupervisorChecklistTab() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [templates, setTemplates] = React.useState<ChecklistTemplate[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [showForm, setShowForm] = React.useState(false);
@@ -157,7 +159,7 @@ export function SupervisorChecklistTab() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this checklist item?")) return;
+    if (!(await confirm("Are you sure you want to delete this checklist item?"))) return;
 
     try {
       await api.delete(`/api/v1/supervisor_checklist_templates/${id}`);

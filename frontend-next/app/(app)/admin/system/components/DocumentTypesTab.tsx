@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -246,6 +247,7 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
   const scopeFilter = validScopes.includes(lastPart) ? lastPart as "company" | "job" | "contacts" : "all";
 
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [loading, setLoading] = React.useState(true);
   const [documentTypes, setDocumentTypes] = React.useState<DocumentType[]>([]);
   const [columns, setColumns] = React.useState<TableColumn[]>([]);
@@ -379,7 +381,7 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
   };
 
   const handleDelete = async (entry: DocumentType) => {
-    if (!confirm(`Delete document type "${entry.name}"? This cannot be undone.`)) {
+    if (!(await confirm(`Delete document type "${entry.name}"? This cannot be undone.`))) {
       return;
     }
     try {
@@ -391,7 +393,7 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
   };
 
   const handleBulkDelete = async (ids: (number | string)[]) => {
-    if (!confirm(`Delete ${ids.length} document types? This cannot be undone.`)) {
+    if (!(await confirm(`Delete ${ids.length} document types? This cannot be undone.`))) {
       return;
     }
     try {
