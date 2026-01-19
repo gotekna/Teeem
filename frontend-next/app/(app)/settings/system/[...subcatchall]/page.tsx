@@ -18,6 +18,8 @@ const VALID_TABS = [
   "scheduled-jobs",
   "email-accounts",
   "ai-processing",
+  "backups",
+  "config-sync",
   "health",
   "user-manual",
   "inspiring-quotes",

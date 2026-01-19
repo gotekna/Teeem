@@ -293,6 +293,14 @@ module Api
             query = query.where(is_active: [true, nil])
           end
 
+          # User model doesn't use acts_as_tenant, so we manually filter by tenant
+          # TEEEM staff (teeem.com.au) can see all users, others only see their tenant
+          if model.table_name == "users" && current_user.present?
+            unless current_user.teeem_staff?
+              query = query.where(corporate_group_id: current_user.corporate_group_id)
+            end
+          end
+
           # Apply cascade filters if provided
           if params[:filters].present?
             begin
