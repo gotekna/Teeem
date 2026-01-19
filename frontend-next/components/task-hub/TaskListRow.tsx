@@ -28,6 +28,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { getTaskRowColorClass, getTaskColorClasses } from './TaskColorSettings';
+import { formatDateShort } from '@/utils/formatters';
 
 export interface TaskListRowProps {
   task: SmTask;
@@ -74,10 +75,6 @@ export function TaskListRow({
 
   const handleStatusChange = async (newStatus: SmTask['status']) => {
     await updateTask(task.id, { status: newStatus });
-  };
-
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
   };
 
   return (
@@ -259,8 +256,8 @@ export function TaskListRow({
           </TooltipProvider>
         </div>
 
-        <div className="text-xs text-muted-foreground">{formatDate(task.start_date)}</div>
-        <div className="text-xs text-muted-foreground">{formatDate(task.end_date)}</div>
+        <div className="text-xs text-muted-foreground">{formatDateShort(task.start_date)}</div>
+        <div className="text-xs text-muted-foreground">{formatDateShort(task.end_date)}</div>
 
         <div className="text-xs text-muted-foreground truncate">
           {task.job_name && task.job_name !== 'Personal Task' ? task.job_name : '-'}

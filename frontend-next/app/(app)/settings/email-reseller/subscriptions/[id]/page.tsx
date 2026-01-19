@@ -46,6 +46,7 @@ import { useEmailSubscriptions, useEmailMailboxes, useEmailMigrations } from "@/
 import { AddMailboxDialog } from "@/components/email-reseller/AddMailboxDialog";
 import { DnsStatusTab } from "@/components/email-reseller/DnsStatusTab";
 import { cn } from "@/lib/utils";
+import { formatCurrencyWhole } from "@/utils/formatters";
 import type {
   EmailSubscription,
   EmailMailbox,
@@ -130,14 +131,6 @@ export default function SubscriptionDetailPage() {
   const handleStartMigration = async (mailboxId: number) => {
     await startMigration(subscriptionId, mailboxId);
     await fetchData();
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 0,
-    }).format(amount);
   };
 
   const formatDate = (dateStr: string) => {
@@ -240,7 +233,7 @@ export default function SubscriptionDetailPage() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(monthlyRetail)}</div>
+            <div className="text-2xl font-bold">{formatCurrencyWhole(monthlyRetail)}</div>
           </CardContent>
         </Card>
 
@@ -250,7 +243,7 @@ export default function SubscriptionDetailPage() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{formatCurrency(margin)}</div>
+            <div className="text-2xl font-bold text-green-600">{formatCurrencyWhole(margin)}</div>
             <p className="text-xs text-muted-foreground">{marginPercent}% margin</p>
           </CardContent>
         </Card>
@@ -471,15 +464,15 @@ export default function SubscriptionDetailPage() {
               <CardContent className="space-y-2">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Monthly Retail</span>
-                  <span>{formatCurrency(monthlyRetail)}</span>
+                  <span>{formatCurrencyWhole(monthlyRetail)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Wholesale Cost</span>
-                  <span>{formatCurrency(monthlyWholesale)}</span>
+                  <span>{formatCurrencyWhole(monthlyWholesale)}</span>
                 </div>
                 <div className="flex justify-between font-medium text-green-600">
                   <span>Your Margin</span>
-                  <span>{formatCurrency(margin)}/mo</span>
+                  <span>{formatCurrencyWhole(margin)}/mo</span>
                 </div>
               </CardContent>
             </Card>
@@ -513,7 +506,7 @@ export default function SubscriptionDetailPage() {
                           {formatDate(invoice.billing_period_start)} -{" "}
                           {formatDate(invoice.billing_period_end)}
                         </TableCell>
-                        <TableCell>{formatCurrency(invoice.retail_amount)}</TableCell>
+                        <TableCell>{formatCurrencyWhole(invoice.retail_amount)}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className="capitalize">
                             {invoice.status}

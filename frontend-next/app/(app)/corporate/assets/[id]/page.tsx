@@ -67,6 +67,7 @@ import {
 } from "@/components/ui/dialog";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 // Tab definitions - base tabs always shown
 const BASE_TABS = [
@@ -468,15 +469,9 @@ export default function AssetDetailPage() {
     setIsEditing(false);
   };
 
-  const formatCurrency = (value?: number) => {
-    if (value === undefined || value === null) return "-";
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-    }).format(value);
-  };
-
-  const formatDate = (dateString?: string) => {
+  // Using SSoT formatters from @/utils/formatters
+  // formatDate wrapper kept for error handling with format preference
+  const formatDateLocal = (dateString?: string) => {
     if (!dateString) return "-";
     try {
       return format(new Date(dateString), "dd MMM yyyy");
@@ -765,7 +760,7 @@ export default function AssetDetailPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Purchase Date</Label>
-                  <p className="text-sm">{formatDate(asset.purchase_date)}</p>
+                  <p className="text-sm">{formatDateLocal(asset.purchase_date)}</p>
                 </div>
                 <div className="space-y-2">
                   <Label>Age</Label>
@@ -793,7 +788,7 @@ export default function AssetDetailPage() {
               {asset.sale_date && (
                 <div className="space-y-2">
                   <Label>Sale Date</Label>
-                  <p className="text-sm">{formatDate(asset.sale_date)}</p>
+                  <p className="text-sm">{formatDateLocal(asset.sale_date)}</p>
                 </div>
               )}
             </CardContent>
@@ -833,7 +828,7 @@ export default function AssetDetailPage() {
                   <div className="space-y-2">
                     <Label>Renewal Date</Label>
                     <p className="text-sm">
-                      {formatDate(asset.asset_insurance.renewal_date)}
+                      {formatDateLocal(asset.asset_insurance.renewal_date)}
                     </p>
                   </div>
                   <div className="space-y-2">
@@ -874,7 +869,7 @@ export default function AssetDetailPage() {
                     <div>
                       <p className="font-medium">{service.service_type}</p>
                       <p className="text-sm text-muted-foreground">
-                        {formatDate(service.service_date)}
+                        {formatDateLocal(service.service_date)}
                         {service.provider && ` • ${service.provider}`}
                       </p>
                       {service.notes && (
@@ -885,7 +880,7 @@ export default function AssetDetailPage() {
                       <p className="font-medium">{formatCurrency(service.cost)}</p>
                       {service.next_service_date && (
                         <p className="text-sm text-muted-foreground">
-                          Next: {formatDate(service.next_service_date)}
+                          Next: {formatDateLocal(service.next_service_date)}
                         </p>
                       )}
                     </div>
@@ -1119,7 +1114,7 @@ export default function AssetDetailPage() {
                   <div className="space-y-2">
                     <Label>Depreciation Start</Label>
                     <p className="text-sm font-medium">
-                      {formatDate(depreciationProfile.depreciation_start_date)}
+                      {formatDateLocal(depreciationProfile.depreciation_start_date)}
                     </p>
                   </div>
                   {depreciationProfile.is_division_43 && (
@@ -1331,7 +1326,7 @@ export default function AssetDetailPage() {
                             {reading.display_value || `${reading.odometer_km?.toLocaleString()} km`}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            {formatDate(reading.reading_date)}
+                            {formatDateLocal(reading.reading_date)}
                             {reading.user && ` • ${reading.user.full_name}`}
                           </p>
                         </div>
@@ -1412,7 +1407,7 @@ export default function AssetDetailPage() {
                     <TableBody>
                       {expenses.map((expense) => (
                         <TableRow key={expense.id}>
-                          <TableCell>{formatDate(expense.expense_date)}</TableCell>
+                          <TableCell>{formatDateLocal(expense.expense_date)}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className="capitalize">
                               {expense.expense_type}

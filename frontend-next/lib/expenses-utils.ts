@@ -7,10 +7,10 @@
  * SSoT: This file is THE ONE place for expense tree data processing.
  */
 
-import { formatCurrency } from "@/utils/formatters";
+import { formatCurrency, formatPercentageRounded } from "@/utils/formatters";
 
-// Re-export formatCurrency for convenience (SSoT: @/utils/formatters)
-export { formatCurrency };
+// Re-export formatters for convenience (SSoT: @/utils/formatters)
+export { formatCurrency, formatPercentageRounded, formatPercentageRounded as formatPercent };
 
 // =============================================================================
 // TYPES
@@ -124,13 +124,8 @@ export function getPercentage(spent: number, budget: number, cap = false): numbe
 }
 
 // formatCurrency imported from @/utils/formatters (SSoT)
-
-/**
- * Format percentage with sign
- */
-export function formatPercent(value: number): string {
-  return `${Math.round(value)}%`;
-}
+// formatPercentageRounded imported from @/utils/formatters (SSoT)
+// Note: formatPercent() is DEPRECATED. Use formatPercentageRounded() instead.
 
 /**
  * Get display value from a field that might be a lookup object

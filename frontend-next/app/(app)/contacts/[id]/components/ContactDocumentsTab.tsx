@@ -25,7 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api } from "@/lib/api";
-import { formatDate } from "@/utils/formatters";
+import { formatDate, formatFileSize } from "@/utils/formatters";
 import type { Contact } from "../types";
 
 // =============================================================================
@@ -102,14 +102,6 @@ export function ContactDocumentsTab({ contact }: ContactDocumentsTabProps) {
       setLoading(false);
     }
   };
-
-  const formatFileSize = (bytes?: number) => {
-    if (!bytes) return "-";
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
 
   const getFileIcon = (mimeType?: string) => {
     if (!mimeType) return <FileText className="h-4 w-4" />;

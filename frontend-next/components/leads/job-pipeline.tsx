@@ -11,6 +11,7 @@ import { useState, useMemo } from "react";
 import { PipelineJob, PipelineStage, PIPELINE_STAGE_CONFIG } from "@/types/leads";
 import { JobPipelineCard } from "./job-pipeline-card";
 import { cn } from "@/lib/utils";
+import { formatCurrencyCompact } from "@/utils/formatters";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -129,16 +130,6 @@ export function JobPipeline({
     return jobs.reduce((sum, job) => sum + (Number(job.contract_value) || 0), 0);
   };
 
-  const formatCurrency = (value: number) => {
-    if (value >= 1000000) {
-      return `$${(value / 1000000).toFixed(1)}M`;
-    }
-    if (value >= 1000) {
-      return `$${(value / 1000).toFixed(0)}K`;
-    }
-    return `$${value}`;
-  };
-
   // Handle card move between columns
   const handleCardMove = (event: CardMoveEvent<PipelineJobItem>) => {
     const newStage = event.toColumnId as PipelineStage;
@@ -188,7 +179,7 @@ export function JobPipeline({
             </span>
           </div>
           <span className="text-xs font-medium text-muted-foreground">
-            {formatCurrency(totalValue)}
+            {formatCurrencyCompact(totalValue)}
           </span>
         </div>
       </div>

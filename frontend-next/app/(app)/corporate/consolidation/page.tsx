@@ -33,6 +33,7 @@ import {
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { formatCurrency } from "@/utils/formatters";
 
 interface CompanyGroup {
   id: number;
@@ -171,9 +172,10 @@ export default function ConsolidationPage() {
     }
   };
 
-  const formatCurrency = (amount: number) => {
+  // Use SSoT formatCurrency with Math.abs wrapper for absolute values
+  const formatCurrencyAbs = (amount: number) => {
     const absAmount = Math.abs(amount);
-    return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(absAmount);
+    return formatCurrencyAbs(absAmount);
   };
 
   const getHealthColor = (score: number) => {
@@ -378,7 +380,7 @@ export default function ConsolidationPage() {
                         ) : (
                           <TrendingDown className="inline h-3 w-3 mr-1" />
                         )}
-                        {formatCurrency(rel.company_a.amount)}
+                        {formatCurrencyAbs(rel.company_a.amount)}
                       </span>
                     </TableCell>
                     <TableCell className="font-medium">{rel.company_b.name}</TableCell>
@@ -389,7 +391,7 @@ export default function ConsolidationPage() {
                         ) : (
                           <TrendingDown className="inline h-3 w-3 mr-1" />
                         )}
-                        {formatCurrency(rel.company_b.amount)}
+                        {formatCurrencyAbs(rel.company_b.amount)}
                       </span>
                     </TableCell>
                     <TableCell>
@@ -400,7 +402,7 @@ export default function ConsolidationPage() {
                     <TableCell className="text-right font-mono">
                       {rel.discrepancy !== 0 && (
                         <span className="text-red-600 font-semibold">
-                          {formatCurrency(rel.discrepancy)}
+                          {formatCurrencyAbs(rel.discrepancy)}
                         </span>
                       )}
                     </TableCell>

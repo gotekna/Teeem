@@ -57,6 +57,7 @@ import {
   FileText,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatPercentChangeWithFallback } from "@/utils/formatters";
 
 interface BudgetScenario {
   id: number;
@@ -395,12 +396,6 @@ export default function BudgetingTab() {
     return new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(value);
   };
 
-  const formatPercent = (value: number | null | undefined) => {
-    if (value === null || value === undefined) return "-";
-    const sign = value >= 0 ? "+" : "";
-    return `${sign}${value.toFixed(1)}%`;
-  };
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -524,7 +519,7 @@ export default function BudgetingTab() {
                                 : "text-red-600"
                             }
                           >
-                            {formatPercent(scenario.revenue_adjustment_pct)}
+                            {formatPercentChangeWithFallback(scenario.revenue_adjustment_pct, "-")}
                           </span>
                         </div>
                       )}
@@ -538,7 +533,7 @@ export default function BudgetingTab() {
                                 : "text-red-600"
                             }
                           >
-                            {formatPercent(scenario.expense_adjustment_pct)}
+                            {formatPercentChangeWithFallback(scenario.expense_adjustment_pct, "-")}
                           </span>
                         </div>
                       )}
@@ -738,7 +733,7 @@ export default function BudgetingTab() {
                                   item.variance_pct >= 0 ? "text-green-600" : "text-red-600"
                                 }
                               >
-                                {formatPercent(item.variance_pct)}
+                                {formatPercentChangeWithFallback(item.variance_pct, "-")}
                               </span>
                             </TableCell>
                             <TableCell>{getVarianceStatusBadge(item.status)}</TableCell>
@@ -901,7 +896,7 @@ export default function BudgetingTab() {
                                 data.difference_pct >= 0 ? "text-green-600" : "text-red-600"
                               }
                             >
-                              {formatPercent(data.difference_pct)}
+                              {formatPercentChangeWithFallback(data.difference_pct, "-")}
                             </span>
                           </TableCell>
                         </TableRow>

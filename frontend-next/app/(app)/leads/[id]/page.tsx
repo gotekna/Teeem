@@ -21,6 +21,7 @@ import {
 import { api } from "@/lib/api";
 import { BackButton } from "@/components/ui/back-button";
 import { useToast } from "@/components/ui/use-toast";
+import { formatCurrencyWhole } from "@/utils/formatters";
 import {
   Edit,
   FileText,
@@ -120,15 +121,6 @@ export default function LeadDetailPage() {
   const handleContractGenerated = () => {
     // Reload lead to get updated status/contract info
     loadLead();
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
   };
 
   const formatDate = (dateString?: string) => {
@@ -251,7 +243,7 @@ export default function LeadDetailPage() {
               <span className="text-xs">Estimated Value</span>
             </div>
             <div className="text-2xl font-bold font-mono mt-1">
-              {formatCurrency(lead.estimated_value)}
+              {formatCurrencyWhole(lead.estimated_value)}
             </div>
           </CardContent>
         </Card>

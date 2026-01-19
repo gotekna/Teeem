@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { formatCurrencyWhole } from "@/utils/formatters";
 import type {
   EmailResellerDashboardStats,
   EmailMigration,
@@ -104,15 +105,6 @@ export default function EmailResellerDashboard() {
   React.useEffect(() => {
     fetchDashboard();
   }, [fetchDashboard]);
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
 
   const formatTimeAgo = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -204,7 +196,7 @@ export default function EmailResellerDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatCurrency(stats?.monthly_revenue || 0)}
+              {formatCurrencyWhole(stats?.monthly_revenue || 0)}
             </div>
             <p className="text-xs text-muted-foreground">/month</p>
           </CardContent>
@@ -220,7 +212,7 @@ export default function EmailResellerDashboard() {
               {stats?.margin_percentage || 0}%
             </div>
             <p className="text-xs text-muted-foreground">
-              {formatCurrency((stats?.monthly_revenue || 0) * (stats?.margin_percentage || 0) / 100)} profit
+              {formatCurrencyWhole((stats?.monthly_revenue || 0) * (stats?.margin_percentage || 0) / 100)} profit
             </p>
           </CardContent>
         </Card>

@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { formatCurrencyWhole, formatPercentageWithFallback } from "@/utils/formatters";
 
 // Types for Claims API response
 interface ClaimsSummary {
@@ -78,22 +79,6 @@ interface ExpensesTotals {
 interface JobProfitTabProps {
   jobId: number;
 }
-
-const formatCurrency = (value: number | null | undefined): string => {
-  if (value === null || value === undefined) return "$0";
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
-};
-
-const formatPercentage = (value: number | string | null | undefined): string => {
-  if (value === null || value === undefined) return "0%";
-  const num = Number(value);
-  return isNaN(num) ? "0%" : `${num.toFixed(1)}%`;
-};
 
 function toNumber(value: unknown): number {
   if (value === null || value === undefined) return 0;
@@ -275,19 +260,19 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
             <span className="text-white/80 font-medium text-lg">Gross Profit</span>
           </div>
           <div className="text-4xl font-bold text-white mb-2">
-            {formatCurrency(grossProfit)}
+            {formatCurrencyWhole(grossProfit)}
           </div>
           <div className="flex items-center gap-4 text-white/80">
             <span className="flex items-center gap-1">
               <Percent className="h-4 w-4" />
-              {formatPercentage(profitMargin)} margin
+              {formatPercentageWithFallback(profitMargin, "0%")} margin
             </span>
             {profitVariance !== 0 && (
               <span className={cn(
                 "flex items-center gap-1 text-sm",
                 profitVariance > 0 ? "text-green-200" : "text-red-200"
               )}>
-                {profitVariance > 0 ? "+" : ""}{formatCurrency(profitVariance)} vs budget
+                {profitVariance > 0 ? "+" : ""}{formatCurrencyWhole(profitVariance)} vs budget
               </span>
             )}
           </div>
@@ -308,18 +293,18 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Invoiced</span>
               <span className="text-xl font-bold text-blue-600 dark:text-blue-400">
-                {formatCurrency(revenue)}
+                {formatCurrencyWhole(revenue)}
               </span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Contract Value</span>
-              <span className="font-medium">{formatCurrency(contractValue)}</span>
+              <span className="font-medium">{formatCurrencyWhole(contractValue)}</span>
             </div>
             {(claimsSummary?.approved_variations || 0) > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">+ Approved Variations</span>
                 <span className="font-medium text-green-600 dark:text-green-400">
-                  {formatCurrency(claimsSummary?.approved_variations)}
+                  {formatCurrencyWhole(claimsSummary?.approved_variations)}
                 </span>
               </div>
             )}
@@ -327,20 +312,20 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Pending Variations</span>
                 <span className="font-medium text-amber-600 dark:text-amber-400">
-                  {formatCurrency(claimsSummary?.unapproved_variations)}
+                  {formatCurrencyWhole(claimsSummary?.unapproved_variations)}
                 </span>
               </div>
             )}
             {(claimsSummary?.approved_variations || 0) > 0 && (
               <div className="flex justify-between text-sm border-t pt-2">
                 <span className="text-muted-foreground font-medium">Revised Contract</span>
-                <span className="font-bold">{formatCurrency(claimsSummary?.revised_contract_value || contractValue)}</span>
+                <span className="font-bold">{formatCurrencyWhole(claimsSummary?.revised_contract_value || contractValue)}</span>
               </div>
             )}
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Remaining to Invoice</span>
               <span className="font-medium text-amber-600 dark:text-amber-400">
-                {formatCurrency(claimsSummary?.remaining || 0)}
+                {formatCurrencyWhole(claimsSummary?.remaining || 0)}
               </span>
             </div>
             <div className="pt-2 border-t">
@@ -382,12 +367,12 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Committed</span>
               <span className="text-xl font-bold text-orange-600 dark:text-orange-400">
-                {formatCurrency(costs)}
+                {formatCurrencyWhole(costs)}
               </span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Budget</span>
-              <span className="font-medium">{formatCurrency(budgetedCosts)}</span>
+              <span className="font-medium">{formatCurrencyWhole(budgetedCosts)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Variance</span>
@@ -398,7 +383,7 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
                   : "text-red-600 dark:text-red-400"
               )}>
                 {(expensesTotals?.totalVariance || 0) > 0 ? "+" : ""}
-                {formatCurrency(expensesTotals?.totalVariance || 0)}
+                {formatCurrencyWhole(expensesTotals?.totalVariance || 0)}
               </span>
             </div>
             <div className="pt-2 border-t">
@@ -436,7 +421,7 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
             <div className="text-center">
               <div className="text-sm text-muted-foreground mb-1">Cash In</div>
               <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                {formatCurrency(cashIn)}
+                {formatCurrencyWhole(cashIn)}
               </div>
               <div className="text-xs text-muted-foreground mt-1">
                 {(Number(claimsSummary?.paid_percentage) || 0).toFixed(0)}% collected
@@ -446,7 +431,7 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
             <div className="text-center">
               <div className="text-sm text-muted-foreground mb-1">Cash Out</div>
               <div className="text-2xl font-bold text-red-600 dark:text-red-400">
-                {formatCurrency(cashOut)}
+                {formatCurrencyWhole(cashOut)}
               </div>
               <div className="text-xs text-muted-foreground mt-1">
                 {costs > 0 ? Math.round((cashOut / costs) * 100) : 0}% paid
@@ -461,7 +446,7 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
                   ? "text-emerald-600 dark:text-emerald-400"
                   : "text-red-600 dark:text-red-400"
               )}>
-                {formatCurrency(netCashFlow)}
+                {formatCurrencyWhole(netCashFlow)}
               </div>
               <div className="text-xs text-muted-foreground mt-1">
                 {netCashFlow >= 0 ? "Cash positive" : "Cash negative"}
@@ -502,7 +487,7 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
               <CircleDollarSign className="h-4 w-4 text-muted-foreground" />
               <span className="text-xs text-muted-foreground">Contract Value</span>
             </div>
-            <div className="text-xl font-bold">{formatCurrency(contractValue)}</div>
+            <div className="text-xl font-bold">{formatCurrencyWhole(contractValue)}</div>
           </CardContent>
         </Card>
         <Card>
@@ -515,7 +500,7 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
               "text-xl font-bold",
               expectedProfit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
             )}>
-              {formatCurrency(expectedProfit)}
+              {formatCurrencyWhole(expectedProfit)}
             </div>
           </CardContent>
         </Card>
@@ -538,7 +523,7 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
               "text-xl font-bold",
               profitMargin >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
             )}>
-              {formatPercentage(profitMargin)}
+              {formatPercentageWithFallback(profitMargin, "0%")}
             </div>
           </CardContent>
         </Card>
@@ -558,13 +543,13 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
               <div>
                 <div className="text-xs text-muted-foreground">To Invoice (Claims)</div>
                 <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
-                  {formatCurrency(claimsSummary?.remaining || 0)}
+                  {formatCurrencyWhole(claimsSummary?.remaining || 0)}
                 </div>
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">To Pay (Suppliers)</div>
                 <div className="text-lg font-bold text-orange-600 dark:text-orange-400">
-                  {formatCurrency(expensesTotals?.totalRemaining || 0)}
+                  {formatCurrencyWhole(expensesTotals?.totalRemaining || 0)}
                 </div>
               </div>
             </div>

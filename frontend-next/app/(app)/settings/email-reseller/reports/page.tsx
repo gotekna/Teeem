@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { useProfitReport } from "@/hooks/useEmailSubscriptions";
 import { cn } from "@/lib/utils";
+import { formatCurrencyWhole } from "@/utils/formatters";
 import type { ProfitReport } from "@/lib/email-reseller-types";
 
 // Get available months for selection
@@ -120,15 +121,6 @@ export default function ReportsPage() {
     URL.revokeObjectURL(url);
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
   if (loading && !report) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -180,7 +172,7 @@ export default function ReportsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatCurrency(report?.summary.total_retail || 0)}
+              {formatCurrencyWhole(report?.summary.total_retail || 0)}
             </div>
             <p className="text-xs text-muted-foreground">
               From {report?.summary.subscription_count || 0} subscriptions
@@ -195,7 +187,7 @@ export default function ReportsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatCurrency(report?.summary.total_wholesale || 0)}
+              {formatCurrencyWhole(report?.summary.total_wholesale || 0)}
             </div>
             <p className="text-xs text-muted-foreground">
               {report?.summary.mailbox_count || 0} mailboxes
@@ -210,7 +202,7 @@ export default function ReportsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              {formatCurrency(report?.summary.total_margin || 0)}
+              {formatCurrencyWhole(report?.summary.total_margin || 0)}
             </div>
             <p className="text-xs text-muted-foreground">Your profit this period</p>
           </CardContent>
@@ -261,12 +253,12 @@ export default function ReportsPage() {
                     <TableCell className="font-medium">{sub.contact_name || "Unknown"}</TableCell>
                     <TableCell>{sub.domain || "-"}</TableCell>
                     <TableCell className="text-right">{sub.mailbox_count ?? 0}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(sub.retail ?? 0)}</TableCell>
+                    <TableCell className="text-right">{formatCurrencyWhole(sub.retail ?? 0)}</TableCell>
                     <TableCell className="text-right text-muted-foreground">
-                      {formatCurrency(sub.wholesale ?? 0)}
+                      {formatCurrencyWhole(sub.wholesale ?? 0)}
                     </TableCell>
                     <TableCell className="text-right text-green-600">
-                      {formatCurrency(sub.margin ?? 0)}
+                      {formatCurrencyWhole(sub.margin ?? 0)}
                     </TableCell>
                     <TableCell className="text-right">{(sub.margin_percentage ?? 0).toFixed(1)}%</TableCell>
                   </TableRow>
@@ -282,13 +274,13 @@ export default function ReportsPage() {
                     {report.summary.mailbox_count}
                   </TableCell>
                   <TableCell className="text-right font-bold">
-                    {formatCurrency(report.summary.total_retail)}
+                    {formatCurrencyWhole(report.summary.total_retail)}
                   </TableCell>
                   <TableCell className="text-right font-bold text-muted-foreground">
-                    {formatCurrency(report.summary.total_wholesale)}
+                    {formatCurrencyWhole(report.summary.total_wholesale)}
                   </TableCell>
                   <TableCell className="text-right font-bold text-green-600">
-                    {formatCurrency(report.summary.total_margin)}
+                    {formatCurrencyWhole(report.summary.total_margin)}
                   </TableCell>
                   <TableCell className="text-right font-bold">
                     {report.summary.margin_percentage.toFixed(1)}%
@@ -311,19 +303,19 @@ export default function ReportsPage() {
               <div>
                 <p className="text-sm text-muted-foreground">Projected Annual Revenue</p>
                 <p className="text-2xl font-bold">
-                  {formatCurrency(report.summary.total_retail * 12)}
+                  {formatCurrencyWhole(report.summary.total_retail * 12)}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Projected Annual Cost</p>
                 <p className="text-2xl font-bold">
-                  {formatCurrency(report.summary.total_wholesale * 12)}
+                  {formatCurrencyWhole(report.summary.total_wholesale * 12)}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Projected Annual Profit</p>
                 <p className="text-2xl font-bold text-green-600">
-                  {formatCurrency(report.summary.total_margin * 12)}
+                  {formatCurrencyWhole(report.summary.total_margin * 12)}
                 </p>
               </div>
             </div>

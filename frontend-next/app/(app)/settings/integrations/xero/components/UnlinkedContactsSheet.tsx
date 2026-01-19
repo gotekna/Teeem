@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { formatCurrencyWhole } from "@/utils/formatters";
 
 interface PotentialMatch {
   id: number;
@@ -222,12 +223,7 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
+    return formatCurrencyWhole(amount);
   };
 
   return (

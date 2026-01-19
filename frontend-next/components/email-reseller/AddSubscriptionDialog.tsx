@@ -30,6 +30,7 @@ import {
 import { api } from "@/lib/api";
 import { useEmailSubscriptions, useEmailPricing } from "@/hooks/useEmailSubscriptions";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/utils/formatters";
 import type {
   CreateSubscriptionData,
   MailboxType,
@@ -296,14 +297,6 @@ export function AddSubscriptionDialog({
   };
 
   const totals = calculateTotal();
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 2,
-    }).format(amount);
-  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

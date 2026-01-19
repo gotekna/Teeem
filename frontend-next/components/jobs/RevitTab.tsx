@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { formatDate } from "@/utils/formatters";
+import { formatDate, formatFileSize } from "@/utils/formatters";
 
 interface SharePointItem {
   id: string;
@@ -81,15 +81,6 @@ function getFileIcon(fileName: string) {
     default:
       return <File className="h-5 w-5 text-muted-foreground" />;
   }
-}
-
-// Format file size
-function formatFileSize(bytes?: number): string {
-  if (!bytes) return "-";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
 export function RevitTab({ jobId, jobTitle }: RevitTabProps) {

@@ -48,7 +48,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatCurrency, formatDate } from "@/utils/formatters";
+import { formatCurrency, formatDate, formatPercentageWithFallback } from "@/utils/formatters";
 
 interface WIPSummary {
   report_date: string;
@@ -304,11 +304,6 @@ export default function WIPReportsTab() {
     }
   };
 
-  const formatPercent = (value: number | null | undefined) => {
-    if (value === null || value === undefined) return "-";
-    return `${value.toFixed(1)}%`;
-  };
-
   // Show report details view
   if (selectedReport) {
     const netWIPPosition =
@@ -398,7 +393,7 @@ export default function WIPReportsTab() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Completion</p>
-                  <p className="text-2xl font-bold">{formatPercent(overallCompletion)}</p>
+                  <p className="text-2xl font-bold">{formatPercentageWithFallback(overallCompletion, "-")}</p>
                 </div>
                 <Percent className="h-8 w-8 text-muted-foreground" />
               </div>
@@ -513,7 +508,7 @@ export default function WIPReportsTab() {
                           <div className="flex items-center justify-end gap-2">
                             <Progress value={job.completion_percentage} className="w-16 h-2" />
                             <span className="w-12 text-right">
-                              {formatPercent(job.completion_percentage)}
+                              {formatPercentageWithFallback(job.completion_percentage, "-")}
                             </span>
                           </div>
                         </TableCell>
@@ -552,7 +547,7 @@ export default function WIPReportsTab() {
                               job.gross_profit_pct >= 0 ? "text-green-600" : "text-red-600"
                             }
                           >
-                            {formatPercent(job.gross_profit_pct)}
+                            {formatPercentageWithFallback(job.gross_profit_pct, "-")}
                           </span>
                         </TableCell>
                       </TableRow>
@@ -663,7 +658,7 @@ export default function WIPReportsTab() {
                 <div>
                   <p className="text-sm text-muted-foreground">Overall Completion</p>
                   <p className="text-2xl font-bold">
-                    {formatPercent(summary.overall_completion_pct)}
+                    {formatPercentageWithFallback(summary.overall_completion_pct, "-")}
                   </p>
                 </div>
                 <Percent className="h-8 w-8 text-muted-foreground" />

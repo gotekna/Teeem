@@ -16,6 +16,7 @@ import {
 import { RefreshCw, Scale } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { formatCurrencyWhole } from "@/utils/formatters";
 
 interface MergedRow {
   row_type: "Header" | "Section" | "Row" | "SummaryRow";
@@ -73,17 +74,12 @@ export function XeroGroupBalanceSheetCard({ companyId }: XeroGroupBalanceSheetCa
     }
   };
 
-  // Format currency value
+  // Format currency value (0 decimals, "-" for null)
   const formatCurrency = (value: string | number | undefined) => {
     if (value === undefined || value === null || value === "") return "-";
     const num = typeof value === "number" ? value : parseFloat(String(value).replace(/[^\d.-]/g, ""));
     if (isNaN(num)) return String(value);
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(num);
+    return formatCurrencyWhole(num);
   };
 
   return (

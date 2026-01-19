@@ -11,6 +11,7 @@ import {
 import axios from "axios";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
+import { formatCurrency } from "@/utils/formatters";
 
 interface PurchaseOrder {
   id: number;
@@ -216,13 +217,6 @@ export default function RequestPaymentModal({
     } finally {
       setLoading(false);
     }
-  };
-
-  const formatCurrency = (amount: number): string => {
-    return `$${Number(amount).toLocaleString("en-AU", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
   };
 
   return (

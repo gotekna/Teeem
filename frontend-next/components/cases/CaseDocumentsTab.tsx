@@ -34,6 +34,7 @@ import { api } from "@/lib/api";
 import { format } from "date-fns";
 import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
 import { Spinner } from "@/components/ui/spinner";
+import { formatFileSize } from "@/utils/formatters";
 
 interface CaseDocument {
   id: number;
@@ -71,13 +72,6 @@ function getRelevanceColor(relevance: string) {
     default:
       return "bg-muted text-foreground";
   }
-}
-
-function formatFileSize(bytes: number | null) {
-  if (bytes === null) return "—";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export function CaseDocumentsTab({ caseId, caseNumber }: CaseDocumentsTabProps) {

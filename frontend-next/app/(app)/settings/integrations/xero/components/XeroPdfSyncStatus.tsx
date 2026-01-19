@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { COMPANY_TIMEZONE } from "@/lib/timezone-utils";
+import { formatDateTimeWithFallback } from "@/utils/formatters";
 import { UnlinkedContactsSheet } from "./UnlinkedContactsSheet";
 
 // Rate limit types
@@ -306,16 +307,6 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
     return `~${hours}h ${mins}m`;
   };
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return "Never";
-    return new Date(dateString).toLocaleString("en-AU", {
-      day: "numeric",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
   // Format time for next sync display (Brisbane time)
   // If next_sync_at is in the past, we need to calculate when the NEXT scheduled run should be
   const formatNextSync = (dateString: string | null, schedule?: string) => {
@@ -395,7 +386,7 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
       </div>
       <Progress value={percentage} className="h-1.5" />
       <div className="flex justify-between text-xs text-muted-foreground">
-        <span>Last: {formatDate(lastSync)}</span>
+        <span>Last: {formatDateTimeWithFallback(lastSync, "Never")}</span>
         {nextSync && (
           <span className={`font-medium ${
             formatNextSync(nextSync)?.startsWith("overdue")
@@ -892,7 +883,7 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
           </div>
           {(data.last_synced_at || data.last_sync_at) && (
             <span className="text-muted-foreground">
-              Last: {formatDate(data.last_synced_at || data.last_sync_at || null)}
+              Last: {formatDateTimeWithFallback(data.last_synced_at || data.last_sync_at, "Never")}
             </span>
           )}
         </div>

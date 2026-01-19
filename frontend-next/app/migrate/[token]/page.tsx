@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { Progress } from "@/components/ui/progress";
 import { getApiBaseUrl } from "@/lib/api";
+import { formatCurrency } from "@/utils/formatters";
 import {
   EnvelopeIcon,
   CheckCircleIcon,
@@ -243,13 +244,6 @@ export default function MigratePortalPage({ params }: { params: Promise<{ token:
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-    }).format(amount);
   };
 
   // Loading state

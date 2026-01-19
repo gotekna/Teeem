@@ -44,6 +44,7 @@ import {
 import { api } from "@/lib/api";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { formatFileSize } from "@/utils/formatters";
 
 interface QAPair {
   id: number;
@@ -108,13 +109,6 @@ interface CaseQATabProps {
     filing_folder_paths: string[];
     file_action: string;
   }) => void;
-}
-
-function formatFileSize(bytes: number | null): string {
-  if (!bytes) return "-";
-  const sizes = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`;
 }
 
 export function CaseQATab({

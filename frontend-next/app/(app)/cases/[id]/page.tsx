@@ -60,6 +60,7 @@ import { api } from "@/lib/api";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import dynamic from "next/dynamic";
+import { formatCurrencyWhole } from "@/utils/formatters";
 
 // Lazy load the EntityChat component
 const EntityChat = dynamic(
@@ -605,15 +606,6 @@ export default function CaseDetailPage() {
       default:
         return "bg-blue-100 text-blue-700";
     }
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
   };
 
   if (loading) {

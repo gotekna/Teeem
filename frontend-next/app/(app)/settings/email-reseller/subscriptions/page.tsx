@@ -34,6 +34,7 @@ import {
 import { useEmailSubscriptions } from "@/hooks/useEmailSubscriptions";
 import { AddSubscriptionDialog } from "@/components/email-reseller/AddSubscriptionDialog";
 import { cn } from "@/lib/utils";
+import { formatCurrencyWhole } from "@/utils/formatters";
 import type { EmailSubscription, SubscriptionStatus } from "@/lib/email-reseller-types";
 
 const STATUS_COLORS: Record<SubscriptionStatus, string> = {
@@ -84,15 +85,6 @@ export default function SubscriptionsPage() {
       await cancelSubscription(id);
       await fetchSubscriptions();
     }
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
   };
 
   // Filter subscriptions by search
@@ -157,7 +149,7 @@ export default function SubscriptionsPage() {
 
       {/* Summary */}
       <div className="text-sm text-muted-foreground">
-        {totals.count} subscriptions • {totals.activeCount} active • {totals.totalMailboxes} mailboxes • {formatCurrency(totals.totalRevenue)}/mo revenue
+        {totals.count} subscriptions • {totals.activeCount} active • {totals.totalMailboxes} mailboxes • {formatCurrencyWhole(totals.totalRevenue)}/mo revenue
       </div>
 
       {/* Table */}
@@ -220,7 +212,7 @@ export default function SubscriptionsPage() {
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
-                    {formatCurrency(subscription.monthly_retail || subscription.retail_price || 0)}
+                    {formatCurrencyWhole(subscription.monthly_retail || subscription.retail_price || 0)}
                     <span className="text-muted-foreground">/mo</span>
                   </TableCell>
                   <TableCell className="text-right">

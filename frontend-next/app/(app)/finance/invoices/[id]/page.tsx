@@ -36,6 +36,7 @@ import { Label } from "@/components/ui/label";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
+import { formatDate, formatCurrency } from "@/utils/formatters";
 
 // Types for external invoice data (from Xero)
 interface LineItem {
@@ -209,22 +210,6 @@ export default function InvoiceDetailPage() {
     } finally {
       setPdfLoading(false);
     }
-  };
-
-  const formatCurrency = (amount: number, currency: string = "AUD") => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: currency,
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("en-AU", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
   };
 
   if (loading) {

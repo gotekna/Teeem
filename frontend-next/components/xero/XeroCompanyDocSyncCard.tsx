@@ -19,6 +19,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatDateTimeWithFallback } from "@/utils/formatters";
 
 /**
  * XeroCompanyDocSyncCard - Shows Xero document sync status for a specific company
@@ -194,16 +195,6 @@ export function XeroCompanyDocSyncCard({ companyId }: XeroCompanyDocSyncCardProp
     }
   };
 
-  const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return "Never";
-    return new Date(dateString).toLocaleString("en-AU", {
-      day: "numeric",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
   // Stage progress component
   const StageProgress = ({
     stage,
@@ -246,7 +237,7 @@ export function XeroCompanyDocSyncCard({ companyId }: XeroCompanyDocSyncCardProp
       </div>
       <Progress value={percentage} className="h-1.5" />
       <div className="flex justify-between text-xs text-muted-foreground">
-        <span>Last: {formatDate(lastSync)}</span>
+        <span>Last: {formatDateTimeWithFallback(lastSync, "Never")}</span>
       </div>
       {schedule && (
         <div className="text-xs text-muted-foreground/70 italic">

@@ -68,6 +68,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { DocumentActions } from "@/components/documents/DocumentActions";
+import { formatFileSize } from "@/utils/formatters";
 
 // Types for API response
 interface DocumentItem {
@@ -1135,13 +1136,6 @@ export default function AllDocumentsPage() {
       clickTimerRef.current = null;
     }, 200); // 200ms delay to detect double-click
   }, []);
-
-  // Format file size
-  const formatFileSize = (bytes: number): string => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-  };
 
   // Start rename mode
   const handleStartRename = useCallback(() => {

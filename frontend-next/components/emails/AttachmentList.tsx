@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { formatFileSize } from "@/utils/formatters";
 
 export interface Attachment {
   id?: number | null;
@@ -26,13 +27,6 @@ interface AttachmentListProps {
   attachments: Attachment[];
   emailId?: number;
   className?: string;
-}
-
-function formatFileSize(bytes?: number): string {
-  if (!bytes) return "";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function getFileIcon(contentType?: string, name?: string) {

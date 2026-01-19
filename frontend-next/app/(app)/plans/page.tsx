@@ -26,6 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatFileSize } from "@/utils/formatters";
 
 interface PlanFolderScan {
   id: number;
@@ -150,12 +151,6 @@ export default function PlansPage() {
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (!bytes) return "-";
-    const mb = bytes / (1024 * 1024);
-    return mb >= 1 ? `${mb.toFixed(1)} MB` : `${(bytes / 1024).toFixed(0)} KB`;
   };
 
   const formatDate = (dateStr: string) => {

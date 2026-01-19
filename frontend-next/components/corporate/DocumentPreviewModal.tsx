@@ -39,6 +39,7 @@ import { WordViewer, WordViewerLoading, WordViewerError, type WordData } from "@
 import { Spinner } from "@/components/ui/spinner";
 import { DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
 import { useToast } from "@/components/ui/use-toast";
+import { formatFileSize } from "@/utils/formatters";
 
 // SSoT: DOCUMENT_FOLDER_OPTIONS imported from @/lib/constants/document-types
 
@@ -1218,14 +1219,6 @@ export default function DocumentPreviewModal({
         return [year];
       }
     });
-  };
-
-  // Format file size
-  const formatFileSize = (bytes?: number) => {
-    if (!bytes) return "-";
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(1024));
-    return `${Math.round((bytes / Math.pow(1024, i)) * 100) / 100} ${sizes[i]}`;
   };
 
   // Check if document has cloud storage file for AI verification

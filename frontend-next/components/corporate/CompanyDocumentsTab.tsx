@@ -28,6 +28,7 @@ import {
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { formatFileSize } from "@/utils/formatters";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableRow } from "@/components/table/types";
 import DocumentPreviewModal from "@/components/corporate/DocumentPreviewModal";
@@ -81,14 +82,6 @@ const DOCUMENT_TYPE_OPTIONS = [
   { value: "asic", label: "ASIC Document" },
   { value: "other", label: "Other" },
 ];
-
-// Format file size helper
-function formatFileSize(bytes?: number): string {
-  if (!bytes) return "-";
-  const sizes = ["Bytes", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${Math.round((bytes / Math.pow(1024, i)) * 100) / 100} ${sizes[i]}`;
-}
 
 interface CompanyDocumentsTabProps {
   companyId: string;

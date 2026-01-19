@@ -10,6 +10,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { ProposalApprovalDialog } from "./proposal-approval-dialog";
 import { EmailProposal } from "@/app/(app)/leads/page";
+import { formatCurrencyWhole } from "@/utils/formatters";
 
 interface EmailProposalCardProps {
   proposal: EmailProposal;
@@ -27,15 +28,6 @@ export function EmailProposalCard({ proposal, onApproved, onRejected, onPricedUp
   const email = proposal.email || { from_email: "", subject: "", has_attachments: false };
   const data = proposal.extracted_data || {};
   const customer = data.customer || {};
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
 
   const handleApprove = () => {
     setShowApprovalDialog(true);
@@ -130,7 +122,7 @@ export function EmailProposalCard({ proposal, onApproved, onRejected, onPricedUp
           {data.contract_value && (
             <div className="flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400">
               <DollarSign className="h-3 w-3" />
-              {formatCurrency(data.contract_value)}
+              {formatCurrencyWhole(data.contract_value)}
             </div>
           )}
 

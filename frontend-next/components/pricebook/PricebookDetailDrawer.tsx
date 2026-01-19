@@ -24,6 +24,7 @@ import {
 import { api } from "@/lib/api";
 import { slugifyPricebookCode } from "@/lib/url-utils";
 import { cn } from "@/lib/utils";
+import { formatCurrency, formatDateWithFallback } from "@/utils/formatters";
 
 interface Supplier {
   id: number;
@@ -70,24 +71,6 @@ interface PricebookDetailDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
-
-const formatCurrency = (value: number | null | undefined) => {
-  if (value === null || value === undefined) return "-";
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-  }).format(value);
-};
-
-const formatDate = (dateString: string | null) => {
-  if (!dateString) return "Never";
-  const date = new Date(dateString);
-  return date.toLocaleDateString("en-AU", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-};
 
 const getStatusBadgeClass = (color: string) => {
   const colorClasses: Record<string, string> = {
@@ -215,7 +198,7 @@ export function PricebookDetailDrawer({ itemId, open, onOpenChange }: PricebookD
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Last Updated</p>
-                        <p>{formatDate(item.price_last_updated_at)}</p>
+                        <p>{formatDateWithFallback(item.price_last_updated_at, "Never")}</p>
                       </div>
                     </div>
                     {item.notes && (
@@ -328,7 +311,7 @@ export function PricebookDetailDrawer({ itemId, open, onOpenChange }: PricebookD
                               <div>
                                 <p className="font-medium">{formatCurrency(history.new_price)}</p>
                                 <p className="text-xs text-muted-foreground">
-                                  {formatDate(history.date_effective || history.created_at)}
+                                  {formatDateWithFallback(history.date_effective || history.created_at, "Never")}
                                 </p>
                               </div>
                               <div className="text-right">

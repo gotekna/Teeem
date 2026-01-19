@@ -27,6 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatCurrency, formatPercentageWithFallback } from "@/utils/formatters";
 
 interface SaasCustomer {
   id: number;
@@ -136,21 +137,6 @@ export default function SaasCustomerDetailPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
-
-  const formatCurrency = (value: number | null | undefined) => {
-    if (value === null || value === undefined) return "$0";
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
-
-  const formatPercent = (value: number | null | undefined) => {
-    if (value === null || value === undefined) return "0%";
-    return `${value.toFixed(2)}%`;
-  };
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -286,7 +272,7 @@ export default function SaasCustomerDetailPage() {
                 ? "text-green-600 dark:text-green-400"
                 : "text-red-600 dark:text-red-400"
             }`}>
-              {profitability ? formatPercent(profitability.margin) : "N/A"}
+              {profitability ? formatPercentageWithFallback(profitability.margin, "N/A", 2) : "N/A"}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Profit: {profitability ? formatCurrency(profitability.profit) : "N/A"}
@@ -406,7 +392,7 @@ export default function SaasCustomerDetailPage() {
                           {formatCurrency(record.fee_calculated)}
                         </TableCell>
                         <TableCell className="text-right">
-                          {formatPercent(record.effective_rate)}
+                          {formatPercentageWithFallback(record.effective_rate, "0%", 2)}
                         </TableCell>
                         <TableCell>
                           <Badge variant={record.status === "paid" ? "default" : "secondary"}>
@@ -507,7 +493,7 @@ export default function SaasCustomerDetailPage() {
                           {formatCurrency(tier.turnover)}
                         </TableCell>
                         <TableCell className="text-right">
-                          {formatPercent(tier.rate)}
+                          {formatPercentageWithFallback(tier.rate, "0%", 2)}
                         </TableCell>
                         <TableCell className="text-right font-medium">
                           {formatCurrency(tier.cost)}

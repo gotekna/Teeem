@@ -58,6 +58,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { uploadPhoto, type UploadProgress } from "@/lib/storage-upload";
+import { formatFileSize } from "@/utils/formatters";
 
 interface OrgStatus {
   loading: boolean;
@@ -1101,13 +1102,6 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       setFolderPath(newPath);
       loadFolderContents(parentFolder.id, parentFolder.name, parentFolder.webUrl);
     }
-  };
-
-  const formatFileSize = (bytes?: number) => {
-    if (!bytes) return "";
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   // Provider-agnostic file upload (folder browser)

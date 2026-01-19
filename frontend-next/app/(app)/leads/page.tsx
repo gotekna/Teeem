@@ -174,15 +174,6 @@ export default function LeadsPage() {
     router.push("/jobs/new/status/enquiry");
   };
 
-  const formatCurrency = (value: number | string) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(Number(value) || 0);
-  };
-
   // Calculate active count (all jobs in pipeline except won/lost)
   const activeCount = Object.entries(jobsByStage)
     .filter(([stage]) => !["won", "lost"].includes(stage))

@@ -27,6 +27,7 @@ import {
 import { useEmailMigrations } from "@/hooks/useEmailSubscriptions";
 import { cn } from "@/lib/utils";
 import type { EmailMigration, MigrationStatus } from "@/lib/email-reseller-types";
+import { formatFileSize } from "@/utils/formatters";
 
 const STATUS_COLORS: Record<MigrationStatus, string> = {
   pending: "bg-gray-500/10 text-gray-600",
@@ -80,14 +81,6 @@ export default function MigrationsPage() {
     setRefreshing(true);
     await fetchActiveMigrations();
     setRefreshing(false);
-  };
-
-  const formatBytes = (bytes: number) => {
-    if (bytes === 0) return "0 B";
-    const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
   };
 
   const formatDuration = (startedAt: string | null) => {
@@ -250,8 +243,8 @@ export default function MigrationsPage() {
                       <div>
                         <p className="text-muted-foreground">Data</p>
                         <p className="font-medium">
-                          {formatBytes(migration.processed_bytes)} /{" "}
-                          {formatBytes(migration.total_bytes)}
+                          {formatFileSize(migration.processed_bytes)} /{" "}
+                          {formatFileSize(migration.total_bytes)}
                         </p>
                       </div>
                       <div>

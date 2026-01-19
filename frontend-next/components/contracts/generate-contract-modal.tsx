@@ -29,6 +29,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { formatCurrencyWhole } from "@/utils/formatters";
 
 interface GenerateContractModalProps {
   open: boolean;
@@ -173,15 +174,6 @@ export function GenerateContractModal({
     } finally {
       setLoading(false);
     }
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
   };
 
   return (
@@ -556,13 +548,13 @@ export function GenerateContractModal({
                           Contract Price:
                         </span>{" "}
                         <span className="font-medium font-mono">
-                          {formatCurrency(contractData.contract_price)}
+                          {formatCurrencyWhole(contractData.contract_price)}
                         </span>
                       </p>
                       <p>
                         <span className="text-muted-foreground">Deposit:</span>{" "}
                         <span className="font-medium font-mono">
-                          {formatCurrency(contractData.deposit_amount)}
+                          {formatCurrencyWhole(contractData.deposit_amount)}
                         </span>
                       </p>
                       <p className="text-muted-foreground">
