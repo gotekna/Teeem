@@ -278,7 +278,8 @@ class TenantConfigSyncService
   # Get record counts per table for ALL tenants (for admin overview)
   def all_tenant_counts
     # Use Tenant model (new multi-tenancy) instead of CorporateGroup
-    tenants = Tenant.order(:name)
+    # Order: master tenant first (TEEEM), then others alphabetically
+    tenants = Tenant.order(Arel.sql("is_master_tenant DESC, name ASC"))
     counts = {}
 
     CONFIG_TABLES.each do |key, config|

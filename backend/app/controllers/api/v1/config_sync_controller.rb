@@ -18,20 +18,25 @@ module Api
       def tables
         service = TenantConfigSyncService.new(current_tenant)
 
-        # Get all tenant counts for admin overview
-        all_counts = service.all_tenant_counts
-
-        render json: {
+        response = {
           success: true,
           tables: service.available_tables,
           counts: service.table_counts,
-          all_tenant_counts: all_counts[:counts],
-          all_tenants: all_counts[:tenants],
           groups: TenantConfigSyncService.groups,
           tenant: current_tenant ? tenant_info(current_tenant) : nil,
           master_tenant: master_tenant ? tenant_info(master_tenant) : nil,
           is_master_tenant: current_tenant&.is_master_tenant? || false
         }
+
+        # Only TEEEM (master tenant) can see all tenant data
+        # Other tenants only see their own + master for comparison
+        if current_tenant&.is_master_tenant?
+          all_counts = service.all_tenant_counts
+          response[:all_tenant_counts] = all_counts[:counts]
+          response[:all_tenants] = all_counts[:tenants]
+        end
+
+        render json: response
       end
 
       # GET /api/v1/config_sync/diff/:table

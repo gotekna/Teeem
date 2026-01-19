@@ -671,15 +671,27 @@ export function ConfigSyncTab() {
             const groupTables = tables.filter((t) => t.group === group.key);
             if (groupTables.length === 0) return null;
 
-            // Calculate group totals per tenant using allTenantCounts
+            // Calculate group totals
+            // Use allTenants if available (master tenant view), otherwise use master vs current
+            const showAllTenants = allTenants.length > 0;
+            const groupMasterTotal = groupTables.reduce(
+              (sum, t) => sum + (tableCounts[t.key]?.master || 0),
+              0
+            );
+            const groupTenantTotal = groupTables.reduce(
+              (sum, t) => sum + (tableCounts[t.key]?.tenant || 0),
+              0
+            );
             const groupTotals: Record<string, number> = {};
-            allTenants.forEach((tenant) => {
-              const slug = tenant.slug || tenant.id.toString();
-              groupTotals[slug] = groupTables.reduce(
-                (sum, t) => sum + (allTenantCounts[t.key]?.[slug] || 0),
-                0
-              );
-            });
+            if (showAllTenants) {
+              allTenants.forEach((tenant) => {
+                const slug = tenant.slug || tenant.id.toString();
+                groupTotals[slug] = groupTables.reduce(
+                  (sum, t) => sum + (allTenantCounts[t.key]?.[slug] || 0),
+                  0
+                );
+              });
+            }
             const isCollapsed = collapsedGroups.has(group.key);
 
             return (
@@ -706,20 +718,35 @@ export function ConfigSyncTab() {
                         </span>
                       </div>
                       <div className="flex items-center gap-2 text-sm">
-                        {allTenants.map((tenant) => {
-                          const slug = tenant.slug || tenant.id.toString();
-                          return (
-                            <div key={tenant.id} className="flex items-center gap-1">
-                              <Badge
-                                variant={tenant.is_master ? "default" : "secondary"}
-                                className="text-xs"
-                              >
-                                {tenant.name}
-                              </Badge>
-                              <span className="font-mono w-8 text-right">{groupTotals[slug] || 0}</span>
+                        {showAllTenants ? (
+                          // Master tenant: show all tenants
+                          allTenants.map((tenant) => {
+                            const slug = tenant.slug || tenant.id.toString();
+                            return (
+                              <div key={tenant.id} className="flex items-center gap-1">
+                                <Badge
+                                  variant={tenant.is_master ? "default" : "secondary"}
+                                  className="text-xs"
+                                >
+                                  {tenant.name}
+                                </Badge>
+                                <span className="font-mono w-8 text-right">{groupTotals[slug] || 0}</span>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          // Other tenants: show master vs current only
+                          <>
+                            <div className="flex items-center gap-1">
+                              <Badge variant="default" className="text-xs">{masterTenant?.name || "TEEEM"}</Badge>
+                              <span className="font-mono w-8 text-right">{groupMasterTotal}</span>
                             </div>
-                          );
-                        })}
+                            <div className="flex items-center gap-1">
+                              <Badge variant="secondary" className="text-xs">{currentTenant?.name || "Tenant"}</Badge>
+                              <span className="font-mono w-8 text-right">{groupTenantTotal}</span>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </button>
                   </CollapsibleTrigger>
@@ -730,19 +757,35 @@ export function ConfigSyncTab() {
                       <thead className="bg-muted/30">
                         <tr>
                           <th className="p-2 pl-10 text-left font-medium text-xs text-muted-foreground">Table</th>
-                          {allTenants.map((tenant) => (
-                            <th
-                              key={tenant.id}
-                              className="p-2 text-center font-medium text-xs text-muted-foreground w-20"
-                            >
-                              {tenant.name}
-                            </th>
-                          ))}
+                          {showAllTenants ? (
+                            // Master tenant: show all tenant columns
+                            allTenants.map((tenant) => (
+                              <th
+                                key={tenant.id}
+                                className="p-2 text-center font-medium text-xs text-muted-foreground w-20"
+                              >
+                                {tenant.name}
+                              </th>
+                            ))
+                          ) : (
+                            // Other tenants: show master vs current + diff
+                            <>
+                              <th className="p-2 text-center font-medium text-xs text-muted-foreground w-24">
+                                {masterTenant?.name || "TEEEM"}
+                              </th>
+                              <th className="p-2 text-center font-medium text-xs text-muted-foreground w-24">
+                                {currentTenant?.name || "Tenant"}
+                              </th>
+                              <th className="p-2 text-center font-medium text-xs text-muted-foreground w-20">Diff</th>
+                            </>
+                          )}
                           <th className="p-2 text-right font-medium text-xs text-muted-foreground w-28">Action</th>
                         </tr>
                       </thead>
                       <tbody>
                         {groupTables.map((table) => {
+                          const counts = tableCounts[table.key] || { master: 0, tenant: 0 };
+                          const diff = counts.tenant - counts.master;
                           const tableTenantCounts = allTenantCounts[table.key] || {};
                           return (
                             <tr key={table.key} className="border-t hover:bg-muted/30">
@@ -750,20 +793,52 @@ export function ConfigSyncTab() {
                                 <div className="font-medium">{table.model.replace(/([A-Z])/g, " $1").trim()}</div>
                                 <div className="text-xs text-muted-foreground">{table.description}</div>
                               </td>
-                              {allTenants.map((tenant) => {
-                                const slug = tenant.slug || tenant.id.toString();
-                                const count = tableTenantCounts[slug] || 0;
-                                return (
-                                  <td key={tenant.id} className="p-2 text-center">
+                              {showAllTenants ? (
+                                // Master tenant: show all tenant counts
+                                allTenants.map((tenant) => {
+                                  const slug = tenant.slug || tenant.id.toString();
+                                  const count = tableTenantCounts[slug] || 0;
+                                  return (
+                                    <td key={tenant.id} className="p-2 text-center">
+                                      <span className={cn(
+                                        "font-mono font-medium",
+                                        count === 0 && "text-red-500"
+                                      )}>
+                                        {count}
+                                      </span>
+                                    </td>
+                                  );
+                                })
+                              ) : (
+                                // Other tenants: show master vs current + diff
+                                <>
+                                  <td className="p-2 text-center">
                                     <span className={cn(
                                       "font-mono font-medium",
-                                      count === 0 && "text-red-500"
+                                      counts.master === 0 && "text-red-500"
                                     )}>
-                                      {count}
+                                      {counts.master}
                                     </span>
                                   </td>
-                                );
-                              })}
+                                  <td className="p-2 text-center">
+                                    <span className="font-mono font-medium">{counts.tenant}</span>
+                                  </td>
+                                  <td className="p-2 text-center">
+                                    {diff !== 0 && (
+                                      <span className={cn(
+                                        "font-mono text-xs px-2 py-1 rounded",
+                                        diff > 0 ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-400" :
+                                        "bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400"
+                                      )}>
+                                        {diff > 0 ? `+${diff}` : diff}
+                                      </span>
+                                    )}
+                                    {diff === 0 && counts.master > 0 && (
+                                      <Check className="h-4 w-4 mx-auto text-green-600" />
+                                    )}
+                                  </td>
+                                </>
+                              )}
                               <td className="p-2 text-right">
                                 <Button
                                   size="sm"
