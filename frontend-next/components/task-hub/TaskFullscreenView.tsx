@@ -883,6 +883,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [attachmentEmailOptions, setAttachmentEmailOptions] = useState<Record<number, 'attach' | 'link' | 'none'>>({});
   // Store SharePoint share links created for 'link' option
   const [shareLinksMap, setShareLinksMap] = useState<Record<number, string>>({});
+  // Include original email in response chain (quoted reply)
+  const [includeOriginalEmail, setIncludeOriginalEmail] = useState(true);
 
   // Multi-select documents
   const [selectedDocIds, setSelectedDocIds] = useState<Set<number>>(new Set());
@@ -1075,6 +1077,30 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
     // Finally try linked emails
     return findOldestEmailSender(categorizedEmails.linked);
+  }, [categorizedEmails]);
+
+  // Find the original email data for quoted reply
+  const originalEmailData = useMemo(() => {
+    const findOldestEmail = (emails: typeof allEmailAttachments) => {
+      if (emails.length === 0) return null;
+      const sorted = [...emails].sort((a, b) => {
+        const dateA = a.email?.received_at ? new Date(a.email.received_at).getTime() : 0;
+        const dateB = b.email?.received_at ? new Date(b.email.received_at).getTime() : 0;
+        return dateA - dateB;
+      });
+      return sorted[0]?.email || null;
+    };
+
+    // Try thread emails first
+    const threadEmail = findOldestEmail(categorizedEmails.thread);
+    if (threadEmail) return threadEmail;
+
+    // Then matched
+    const matchedEmail = findOldestEmail(categorizedEmails.matched);
+    if (matchedEmail) return matchedEmail;
+
+    // Finally linked
+    return findOldestEmail(categorizedEmails.linked);
   }, [categorizedEmails]);
 
   // Apply person filter to each category (for tree view)
@@ -2535,6 +2561,25 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         body += `<li>📧 ${formatFileLink(subject, url)}</li>\n`;
       });
       body += '</ul>\n';
+    }
+
+    // Include original email as quoted reply if enabled
+    if (includeOriginalEmail && originalEmailData) {
+      const fromName = originalEmailData.from_name || originalEmailData.from_email || 'Unknown';
+      const fromEmail = originalEmailData.from_email || '';
+      const sentDate = originalEmailData.received_at
+        ? format(new Date(originalEmailData.received_at), 'EEE, MMM d, yyyy \'at\' h:mm a')
+        : '';
+      const subject = originalEmailData.subject || '(No subject)';
+      // Use body_preview since full body isn't loaded in task attachments
+      const originalBody = originalEmailData.body_preview || '';
+
+      body += '\n<br><hr>\n';
+      body += `<p style="color: #666; font-size: 12px;">On ${sentDate}, ${fromName} &lt;${fromEmail}&gt; wrote:</p>\n`;
+      body += `<blockquote style="margin: 10px 0; padding: 10px 15px; border-left: 3px solid #ccc; color: #555;">\n`;
+      body += `<p><strong>Subject:</strong> ${subject}</p>\n`;
+      body += `<p>${originalBody}</p>\n`;
+      body += '</blockquote>\n';
     }
 
     return body.trim();
@@ -5040,6 +5085,18 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 <p className="text-xs text-muted-foreground text-center py-3 mb-2 border border-dashed rounded-md">
                   Drag files here to add response attachments
                 </p>
+              )}
+              {/* Include original email option */}
+              {originalEmailData && (
+                <label className="flex items-center gap-2 text-xs text-muted-foreground mb-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeOriginalEmail}
+                    onChange={(e) => setIncludeOriginalEmail(e.target.checked)}
+                    className="h-3 w-3"
+                  />
+                  <span>Include original email in reply</span>
+                </label>
               )}
               <Button
                 variant="default"

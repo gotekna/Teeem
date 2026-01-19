@@ -1254,7 +1254,8 @@ module Api
         return render json: { success: true, contacts: [] } if query.length < 2
 
         # Search contacts by name (case-insensitive)
-        contacts = Contact.where("name ILIKE ?", "%#{query}%")
+        # SSoT: Column is 'display_name', not 'name' (alias only works in Ruby, not SQL)
+        contacts = Contact.where("display_name ILIKE ?", "%#{query}%")
                          .includes(:contact_emails)
                          .limit(10)
 
