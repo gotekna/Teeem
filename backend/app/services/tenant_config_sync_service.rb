@@ -21,7 +21,58 @@
 #
 class TenantConfigSyncService
   # SSoT: Configuration tables available for sync
+  # Groups for UI organization: jobs, documents, contacts, schedule, operations
   CONFIG_TABLES = {
+    # ============================================================================
+    # Jobs Group
+    # ============================================================================
+    job_types: {
+      model: "JobType",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :color, :icon, :description, :is_active, :position,
+                    :sm_schedule_master_template_id],
+      description: "Job type classifications",
+      group: "jobs"
+    },
+    job_statuses: {
+      model: "JobStatus",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :color, :icon, :description, :is_active, :position,
+                    :is_complete, :is_default, :order_index, :status_category],
+      description: "Job status workflow states",
+      group: "jobs"
+    },
+    job_stages: {
+      model: "JobStage",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :color, :icon, :description, :is_active, :position,
+                    :stage_order, :is_milestone],
+      description: "Job stage progression",
+      group: "jobs"
+    },
+    job_type_statuses: {
+      model: "JobTypeStatus",
+      name_field: :id,
+      match_fields: [:job_type_id, :job_status_id],
+      sync_fields: [:job_type_id, :job_status_id, :position],
+      description: "Job type to status mappings",
+      group: "jobs"
+    },
+    job_status_stages: {
+      model: "JobStatusStage",
+      name_field: :id,
+      match_fields: [:job_type_id, :job_status_id, :job_stage_id],
+      sync_fields: [:job_type_id, :job_status_id, :job_stage_id, :position, :is_required],
+      description: "Job status to stage mappings",
+      group: "jobs"
+    },
+
+    # ============================================================================
+    # Documents Group
+    # ============================================================================
     document_types: {
       model: "DocumentType",
       name_field: :name,
@@ -30,80 +81,8 @@ class TenantConfigSyncService
                     :folder, :primary_tab, :aliases, :requires_filing, :supports_versioning,
                     :generates_certificate, :certificate_template, :form_number_mapping,
                     :description, :active],
-      description: "Document type definitions and naming templates"
-    },
-    job_types: {
-      model: "JobType",
-      name_field: :name,
-      match_fields: [:name],
-      sync_fields: [:name, :color, :icon, :description, :is_active, :position,
-                    :sm_schedule_master_template_id],
-      description: "Job type classifications"
-    },
-    job_statuses: {
-      model: "JobStatus",
-      name_field: :name,
-      match_fields: [:name],
-      sync_fields: [:name, :color, :icon, :description, :is_active, :position,
-                    :is_complete, :is_default, :order_index, :status_category],
-      description: "Job status workflow states"
-    },
-    job_stages: {
-      model: "JobStage",
-      name_field: :name,
-      match_fields: [:name],
-      sync_fields: [:name, :color, :icon, :description, :is_active, :position,
-                    :stage_order, :is_milestone],
-      description: "Job stage progression"
-    },
-    contact_types: {
-      model: "ContactType",
-      name_field: :name,
-      match_fields: [:name],
-      sync_fields: [:name, :display_name, :tab_label, :description, :active, :position],
-      description: "Contact type classifications"
-    },
-    pricebook_categories: {
-      model: "PricebookCategory",
-      name_field: :name,
-      match_fields: [:name],
-      sync_fields: [:name, :description, :parent_id, :position, :icon, :color],
-      description: "Pricebook organization categories"
-    },
-    public_holidays: {
-      model: "PublicHoliday",
-      name_field: :name,
-      match_fields: [:name, :date],
-      sync_fields: [:name, :date, :region, :description, :recurring],
-      description: "Regional public holidays"
-    },
-    job_type_statuses: {
-      model: "JobTypeStatus",
-      name_field: :id,
-      match_fields: [:job_type_id, :job_status_id],
-      sync_fields: [:job_type_id, :job_status_id, :position],
-      description: "Job type to status mappings"
-    },
-    job_status_stages: {
-      model: "JobStatusStage",
-      name_field: :id,
-      match_fields: [:job_type_id, :job_status_id, :job_stage_id],
-      sync_fields: [:job_type_id, :job_status_id, :job_stage_id, :position, :is_required],
-      description: "Job status to stage mappings"
-    },
-    sm_schedule_master_templates: {
-      model: "SmScheduleMasterTemplate",
-      name_field: :name,
-      match_fields: [:name],
-      sync_fields: [:name, :description, :is_default, :is_active],
-      description: "Schedule Master templates"
-    },
-    sm_trades: {
-      model: "SmTrade",
-      name_field: :name,
-      match_fields: [:name],
-      sync_fields: [:name],
-      description: "Schedule Master trades"
+      description: "Document type definitions and naming templates",
+      group: "documents"
     },
     document_templates: {
       model: "DocumentTemplate",
@@ -112,28 +91,60 @@ class TenantConfigSyncService
       sync_fields: [:name, :description, :category, :output_format, :output_naming_pattern,
                     :data_schema, :is_active, :sort_order, :template_type, :layout,
                     :is_legal_format, :legal_source, :local_template_path],
-      description: "Document generation templates"
+      description: "Document generation templates",
+      group: "documents"
     },
-    meeting_types: {
-      model: "MeetingType",
+
+    # ============================================================================
+    # Contacts Group
+    # ============================================================================
+    contact_types: {
+      model: "ContactType",
       name_field: :name,
       match_fields: [:name],
-      sync_fields: [:name, :description, :category, :icon, :color, :default_duration_minutes,
-                    :required_participant_types, :optional_participant_types,
-                    :minimum_participants, :maximum_participants, :default_agenda_items,
-                    :required_fields, :optional_fields, :custom_fields, :required_documents,
-                    :notification_settings, :is_active, :is_system_default],
-      description: "Meeting type definitions"
+      sync_fields: [:name, :display_name, :tab_label, :description, :active, :position],
+      description: "Contact type classifications",
+      group: "contacts"
     },
-    pricebook_items: {
-      model: "PricebookItem",
-      name_field: :item_name,
-      match_fields: [:item_code],
-      sync_fields: [:item_code, :item_name, :category, :unit_of_measure, :current_price,
-                    :brand, :notes, :is_active, :supplier_price, :colour, :colour_code,
-                    :colour_brand, :lead_time_days, :call_time_days, :gst_code,
-                    :requires_photo, :requires_spec],
-      description: "Pricebook products and pricing"
+    contacts: {
+      model: "Contact",
+      name_field: :display_name,
+      match_fields: [:display_name],
+      sync_fields: [:display_name, :company_name_or_trust, :first_name, :last_name,
+                    :abn, :acn, :website, :email_domains, :address, :city, :state, :postcode,
+                    :bank_bsb, :bank_account_number, :bank_account_name,
+                    :default_purchase_account, :default_sales_account, :payment_terms,
+                    :is_active, :entity_type, :notes, :contact_code],
+      description: "Contacts (suppliers, customers)",
+      group: "contacts",
+      # Auto-include related price_histories when syncing price_only contacts
+      auto_include_related: :price_histories
+    },
+    price_histories: {
+      model: "PriceHistory",
+      name_field: :id,
+      match_fields: [:pricebook_item_id, :supplier_id, :new_price],
+      sync_fields: [:pricebook_item_id, :supplier_id, :old_price, :new_price, :change_reason,
+                    :quote_reference, :lga, :date_effective, :user_name],
+      description: "Supplier price history records",
+      group: "contacts",
+      # FK remapping needed during sync
+      remap_fks: {
+        supplier_id: { model: "Contact", match_field: :display_name },
+        pricebook_item_id: { model: "PricebookItem", match_field: :item_code }
+      }
+    },
+
+    # ============================================================================
+    # Schedule Master Group
+    # ============================================================================
+    sm_schedule_master_templates: {
+      model: "SmScheduleMasterTemplate",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :description, :is_default, :is_active],
+      description: "Schedule Master templates",
+      group: "schedule"
     },
     sm_schedule_masters: {
       model: "SmScheduleMaster",
@@ -145,18 +156,59 @@ class TenantConfigSyncService
                     :subtask_count, :subtask_names, :tags, :color, :is_active, :cost_centre,
                     :supplier_confirm, :header_gantt, :hold, :assigned_role, :is_claim_task,
                     :claim_percentage, :is_variation],
-      description: "Schedule Master task templates"
+      description: "Schedule Master task templates",
+      group: "schedule"
     },
-    contacts: {
-      model: "Contact",
-      name_field: :display_name,
-      match_fields: [:display_name],
-      sync_fields: [:display_name, :company_name_or_trust, :first_name, :last_name,
-                    :abn, :acn, :website, :email_domains, :address, :city, :state, :postcode,
-                    :bank_bsb, :bank_account_number, :bank_account_name,
-                    :default_purchase_account, :default_sales_account, :payment_terms,
-                    :is_active, :entity_type, :notes, :contact_code],
-      description: "Contacts (suppliers, customers)"
+    sm_trades: {
+      model: "SmTrade",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name],
+      description: "Schedule Master trades",
+      group: "schedule"
+    },
+
+    # ============================================================================
+    # Operations Group
+    # ============================================================================
+    meeting_types: {
+      model: "MeetingType",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :description, :category, :icon, :color, :default_duration_minutes,
+                    :required_participant_types, :optional_participant_types,
+                    :minimum_participants, :maximum_participants, :default_agenda_items,
+                    :required_fields, :optional_fields, :custom_fields, :required_documents,
+                    :notification_settings, :is_active, :is_system_default],
+      description: "Meeting type definitions",
+      group: "operations"
+    },
+    pricebook_categories: {
+      model: "PricebookCategory",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :description, :parent_id, :position, :icon, :color],
+      description: "Pricebook organization categories",
+      group: "operations"
+    },
+    pricebook_items: {
+      model: "PricebookItem",
+      name_field: :item_name,
+      match_fields: [:item_code],
+      sync_fields: [:item_code, :item_name, :category, :unit_of_measure, :current_price,
+                    :brand, :notes, :is_active, :supplier_price, :colour, :colour_code,
+                    :colour_brand, :lead_time_days, :call_time_days, :gst_code,
+                    :requires_photo, :requires_spec],
+      description: "Pricebook products and pricing",
+      group: "operations"
+    },
+    public_holidays: {
+      model: "PublicHoliday",
+      name_field: :name,
+      match_fields: [:name, :date],
+      sync_fields: [:name, :date, :region, :description, :recurring],
+      description: "Regional public holidays",
+      group: "operations"
     }
   }.freeze
 
@@ -171,6 +223,15 @@ class TenantConfigSyncService
   # Browse & Compare Operations
   # ============================================================================
 
+  # Group display names for UI
+  GROUP_LABELS = {
+    "jobs" => "Jobs",
+    "documents" => "Documents",
+    "contacts" => "Contacts",
+    "schedule" => "Schedule Master",
+    "operations" => "Operations"
+  }.freeze
+
   # List all available config tables with counts
   def available_tables
     CONFIG_TABLES.map do |key, config|
@@ -178,9 +239,15 @@ class TenantConfigSyncService
         key: key.to_s,
         model: config[:model],
         description: config[:description],
-        name_field: config[:name_field].to_s
+        name_field: config[:name_field].to_s,
+        group: config[:group]
       }
     end
+  end
+
+  # Get group definitions for UI
+  def self.groups
+    GROUP_LABELS.map { |key, label| { key: key, label: label } }
   end
 
   # Get record counts per table for both master and tenant
@@ -350,12 +417,32 @@ class TenantConfigSyncService
       end
     end
 
-    {
+    # Auto-sync related price histories for contacts
+    price_history_result = nil
+    if table.to_sym == :contacts && config[:auto_include_related] == :price_histories
+      imported_contact_ids = imported.map(&:id)
+      # Get the source contact IDs that were just imported
+      source_contact_ids = source_records.select { |r| imported.any? { |i| i.display_name == r.display_name } }.map(&:id)
+      price_history_result = sync_related_price_histories(source_tenant, source_contact_ids)
+      @errors.concat(price_history_result[:errors]) if price_history_result[:errors].any?
+    end
+
+    result = {
       success: @errors.empty?,
       imported: imported.map { |r| record_to_json(r, config) },
       skipped: skipped,
       errors: @errors
     }
+
+    # Include price history sync results if applicable
+    if price_history_result
+      result[:price_histories] = {
+        imported: price_history_result[:imported].length,
+        skipped: price_history_result[:skipped].length
+      }
+    end
+
+    result
   end
 
   # ============================================================================
@@ -423,13 +510,33 @@ class TenantConfigSyncService
       end
     end
 
-    {
+    # Auto-sync related price histories for contacts pulled from TEEEM
+    price_history_result = nil
+    if table.to_sym == :contacts && config[:auto_include_related] == :price_histories
+      # Get the master contact IDs that were just imported/updated
+      synced_records = imported + updated
+      master_contact_ids = master_records.select { |r| synced_records.any? { |s| s.display_name == r.display_name } }.map(&:id)
+      price_history_result = sync_related_price_histories(master, master_contact_ids)
+      @errors.concat(price_history_result[:errors]) if price_history_result[:errors].any?
+    end
+
+    result = {
       success: @errors.empty?,
       imported: imported.map { |r| record_to_json(r, config) },
       updated: updated.map { |r| record_to_json(r, config) },
       skipped: skipped,
       errors: @errors
     }
+
+    # Include price history sync results if applicable
+    if price_history_result
+      result[:price_histories] = {
+        imported: price_history_result[:imported].length,
+        skipped: price_history_result[:skipped].length
+      }
+    end
+
+    result
   end
 
   private
@@ -546,13 +653,114 @@ class TenantConfigSyncService
 
   def update_existing_record(existing, source_record, config)
     ActsAsTenant.with_tenant(tenant) do
-      attrs = config[:sync_fields].each_with_object({}) do |field, hash|
-        hash[field] = source_record.send(field) if source_record.respond_to?(field)
-      end
+      attrs = build_sync_attrs(source_record, config)
       existing.update!(attrs)
       { updated: true, record: existing }
     end
   rescue => e
     { updated: false, reason: e.message }
+  end
+
+  # Build attributes for sync, including FK remapping if needed
+  def build_sync_attrs(source_record, config)
+    attrs = {}
+
+    config[:sync_fields].each do |field|
+      next unless source_record.respond_to?(field)
+      value = source_record.send(field)
+
+      # Check if this field needs FK remapping
+      if config[:remap_fks]&.key?(field) && value.present?
+        value = remap_foreign_key(field, value, config[:remap_fks][field])
+      end
+
+      attrs[field] = value
+    end
+
+    attrs
+  end
+
+  # Remap a foreign key from source tenant to target tenant
+  def remap_foreign_key(field, source_id, remap_config)
+    source_model = remap_config[:model].constantize
+    match_field = remap_config[:match_field]
+
+    # Find the source record to get the match value
+    source_record = source_model.unscoped.find_by(id: source_id)
+    return nil unless source_record
+
+    match_value = source_record.send(match_field)
+
+    # Find the target record in the current tenant
+    target_record = ActsAsTenant.with_tenant(tenant) do
+      source_model.find_by(match_field => match_value)
+    end
+
+    if target_record
+      target_record.id
+    else
+      Rails.logger.warn "[ConfigSync] Could not remap #{field}=#{source_id}: no matching #{source_model} found with #{match_field}=#{match_value}"
+      nil
+    end
+  end
+
+  # Get related price histories for contacts being synced
+  # Returns hash: { contact_id => [price_history_ids] }
+  def get_related_price_histories(source_tenant, contact_ids)
+    return {} if contact_ids.empty?
+
+    ActsAsTenant.with_tenant(source_tenant) do
+      PriceHistory
+        .where(supplier_id: contact_ids)
+        .group_by(&:supplier_id)
+        .transform_values { |records| records.map(&:id) }
+    end
+  end
+
+  # Sync price histories for a list of contacts
+  # Called automatically when syncing price_only contacts
+  def sync_related_price_histories(source_tenant, contact_ids)
+    return { imported: [], skipped: [], errors: [] } if contact_ids.empty?
+
+    config = CONFIG_TABLES[:price_histories]
+    model = config[:model].constantize
+    imported = []
+    skipped = []
+    errors = []
+
+    # Get all price histories for these contacts from source tenant
+    source_records = ActsAsTenant.with_tenant(source_tenant) do
+      PriceHistory.where(supplier_id: contact_ids)
+    end
+
+    source_records.each do |source_record|
+      begin
+        result = create_new_record_with_remap(source_record, config, model)
+        if result[:created]
+          imported << result[:record]
+        else
+          skipped << { id: source_record.id, reason: result[:reason] }
+        end
+      rescue => e
+        errors << "Failed to sync price history #{source_record.id}: #{e.message}"
+      end
+    end
+
+    { imported: imported, skipped: skipped, errors: errors }
+  end
+
+  # Create new record with FK remapping
+  def create_new_record_with_remap(source_record, config, model)
+    ActsAsTenant.with_tenant(tenant) do
+      new_record = model.new
+      attrs = build_sync_attrs(source_record, config)
+      attrs.each do |field, value|
+        new_record.send("#{field}=", value) if new_record.respond_to?("#{field}=")
+      end
+      new_record.save!
+      { created: true, record: new_record }
+    end
+  rescue => e
+    { created: false, reason: e.message }
   end
 end

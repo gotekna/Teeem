@@ -1,4 +1,7 @@
 class PriceHistory < ApplicationRecord
+  include ActsAsTenant::ModelExtensions
+  acts_as_tenant :company_group, class_name: "CorporateGroup"
+
   # Associations
   # Note: PricebookItem uses table_name = 'pricebook', not 'pricebook_items'
   belongs_to :pricebook_item, class_name: "PricebookItem"

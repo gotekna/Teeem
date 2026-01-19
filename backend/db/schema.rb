@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_19_060420) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_19_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7681,7 +7681,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_19_060420) do
     t.string "lga"
     t.date "date_effective"
     t.string "user_name"
+    t.bigint "company_group_id"
     t.index ["changed_by_user_id"], name: "index_price_histories_on_changed_by_user_id"
+    t.index ["company_group_id"], name: "index_price_histories_on_company_group_id"
     t.index ["created_at"], name: "index_price_histories_on_created_at"
     t.index ["pricebook_item_id", "supplier_id", "new_price", "created_at"], name: "index_price_histories_on_unique_combination", unique: true
     t.index ["pricebook_item_id"], name: "index_price_histories_on_pricebook_item_id"
@@ -11324,6 +11326,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_19_060420) do
   add_foreign_key "portal_access_logs", "portal_users"
   add_foreign_key "portal_users", "contacts"
   add_foreign_key "price_histories", "contacts", column: "supplier_id", name: "fk_rails_price_histories_contact"
+  add_foreign_key "price_histories", "corporate_groups", column: "company_group_id"
   add_foreign_key "price_histories", "pricebooks", column: "pricebook_item_id"
   add_foreign_key "pricebook_categories", "corporate_groups", column: "company_group_id"
   add_foreign_key "pricebooks", "contacts", column: "default_supplier_id", name: "fk_rails_pricebook_items_default_supplier"

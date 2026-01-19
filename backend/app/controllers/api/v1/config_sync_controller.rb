@@ -22,6 +22,7 @@ module Api
           success: true,
           tables: service.available_tables,
           counts: service.table_counts,
+          groups: TenantConfigSyncService.groups,
           tenant: current_tenant ? tenant_info(current_tenant) : nil,
           master_tenant: master_tenant ? tenant_info(master_tenant) : nil,
           is_master_tenant: current_tenant&.is_master_tenant? || false

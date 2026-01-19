@@ -5,15 +5,13 @@ import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   RefreshCw,
   ArrowRight,
@@ -23,7 +21,13 @@ import {
   X,
   Plus,
   Minus,
-  Equal
+  Equal,
+  ChevronRight,
+  Briefcase,
+  FileText,
+  Users,
+  Calendar,
+  Settings
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -43,7 +47,22 @@ interface ConfigTable {
   model: string;
   description: string;
   name_field: string;
+  group: string;
 }
+
+interface ConfigGroup {
+  key: string;
+  label: string;
+}
+
+// Icons for each group
+const GROUP_ICONS: Record<string, React.ReactNode> = {
+  jobs: <Briefcase className="h-4 w-4" />,
+  documents: <FileText className="h-4 w-4" />,
+  contacts: <Users className="h-4 w-4" />,
+  schedule: <Calendar className="h-4 w-4" />,
+  operations: <Settings className="h-4 w-4" />,
+};
 
 interface TenantInfo {
   id: number;
@@ -80,6 +99,11 @@ type SyncMode = "add_new" | "replace_existing" | "skip_existing";
 export function ConfigSyncTab() {
   const [tables, setTables] = useState<ConfigTable[]>([]);
   const [tableCounts, setTableCounts] = useState<TableCounts>({});
+  const [groups, setGroups] = useState<ConfigGroup[]>([]);
+  // Start with all groups collapsed
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
+    new Set(["jobs", "documents", "contacts", "schedule", "operations"])
+  );
   const [masterTenant, setMasterTenant] = useState<TenantInfo | null>(null);
   const [currentTenant, setCurrentTenant] = useState<TenantInfo | null>(null);
   const [isMasterTenant, setIsMasterTenant] = useState(false);
@@ -93,6 +117,19 @@ export function ConfigSyncTab() {
   const [syncResult, setSyncResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Toggle group collapsed state
+  const toggleGroup = (groupKey: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupKey)) {
+        next.delete(groupKey);
+      } else {
+        next.add(groupKey);
+      }
+      return next;
+    });
+  };
+
   // Fetch available tables on mount
   const fetchTables = useCallback(async () => {
     try {
@@ -101,6 +138,7 @@ export function ConfigSyncTab() {
         success: boolean;
         tables: ConfigTable[];
         counts: TableCounts;
+        groups: ConfigGroup[];
         master_tenant: TenantInfo | null;
         tenant: TenantInfo | null;
         is_master_tenant: boolean;
@@ -109,6 +147,7 @@ export function ConfigSyncTab() {
       if (response?.success) {
         setTables(response.tables);
         setTableCounts(response.counts || {});
+        setGroups(response.groups || []);
         setMasterTenant(response.master_tenant);
         setCurrentTenant(response.tenant);
         setIsMasterTenant(response.is_master_tenant);
@@ -359,53 +398,31 @@ export function ConfigSyncTab() {
 
   return (
     <div className="space-y-4">
-      {/* Header with tenant info */}
-      <div className="flex items-center justify-between">
+      {/* Header - only shown when comparing a specific table */}
+      {selectedTable && (
         <div className="flex items-center gap-4">
-          {selectedTable && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setSelectedTable("");
-                setComparison([]);
-                fetchTables(); // Refresh counts
-              }}
-            >
-              <ArrowLeft className="h-4 w-4 mr-1" />
-              Back
-            </Button>
-          )}
-          <Badge variant="default" className="text-sm px-3 py-1">
-            {masterTenant.name}
-          </Badge>
-          <RefreshCw className="h-4 w-4 text-muted-foreground" />
-          <Badge variant="secondary" className="text-sm px-3 py-1">
-            {currentTenant?.name || "Current Tenant"}
-          </Badge>
-          {selectedTable && (
-            <span className="text-sm font-medium">
-              → {tables.find(t => t.key === selectedTable)?.model.replace(/([A-Z])/g, " $1").trim()}
-            </span>
-          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setSelectedTable("");
+              setComparison([]);
+              fetchTables(); // Refresh counts
+            }}
+          >
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
+          <span className="text-sm font-medium">
+            {tables.find(t => t.key === selectedTable)?.model.replace(/([A-Z])/g, " $1").trim()}
+          </span>
+          <div className="flex items-center gap-2 ml-auto">
+            <Badge variant="default" className="text-xs">{masterTenant.name}</Badge>
+            <RefreshCw className="h-3 w-3 text-muted-foreground" />
+            <Badge variant="secondary" className="text-xs">{currentTenant?.name}</Badge>
+          </div>
         </div>
-
-        {/* Table selector (hidden when table selected) */}
-        {!selectedTable && (
-          <Select value={selectedTable} onValueChange={setSelectedTable}>
-            <SelectTrigger className="w-64">
-              <SelectValue placeholder="Select config table..." />
-            </SelectTrigger>
-            <SelectContent>
-              {tables.map((table) => (
-                <SelectItem key={table.key} value={table.key}>
-                  {table.model.replace(/([A-Z])/g, " $1").trim()}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
+      )}
 
       {/* Error/Success messages */}
       {error && (
@@ -626,73 +643,131 @@ export function ConfigSyncTab() {
         </div>
       )}
 
-      {/* Overview table with counts (shown when no table selected) */}
+      {/* Overview with collapsible groups (shown when no table selected) */}
       {!selectedTable && (
-        <div className="border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="p-3 text-left font-medium">Configuration Table</th>
-                <th className="p-3 text-center font-medium w-32">
-                  <Badge variant="default" className="text-xs">{masterTenant?.name || "TEEEM"}</Badge>
-                </th>
-                <th className="p-3 text-center font-medium w-32">
-                  <Badge variant="secondary" className="text-xs">{currentTenant?.name || "Tenant"}</Badge>
-                </th>
-                <th className="p-3 text-center font-medium w-24">Diff</th>
-                <th className="p-3 text-right font-medium w-32">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tables.map((table) => {
-                const counts = tableCounts[table.key] || { master: 0, tenant: 0 };
-                const diff = counts.tenant - counts.master;
-                return (
-                  <tr key={table.key} className="border-t hover:bg-muted/30">
-                    <td className="p-3">
-                      <div className="font-medium">{table.model.replace(/([A-Z])/g, " $1").trim()}</div>
-                      <div className="text-xs text-muted-foreground">{table.description}</div>
-                    </td>
-                    <td className="p-3 text-center">
-                      <span className={cn(
-                        "font-mono font-medium",
-                        counts.master === 0 && "text-red-500"
-                      )}>
-                        {counts.master}
-                      </span>
-                    </td>
-                    <td className="p-3 text-center">
-                      <span className="font-mono font-medium">{counts.tenant}</span>
-                    </td>
-                    <td className="p-3 text-center">
-                      {diff !== 0 && (
-                        <span className={cn(
-                          "font-mono text-xs px-2 py-1 rounded",
-                          diff > 0 ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-400" :
-                          "bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400"
-                        )}>
-                          {diff > 0 ? `+${diff}` : diff}
+        <div className="space-y-2">
+          {groups.map((group) => {
+            const groupTables = tables.filter((t) => t.group === group.key);
+            if (groupTables.length === 0) return null;
+
+            // Calculate group totals
+            const groupMasterTotal = groupTables.reduce(
+              (sum, t) => sum + (tableCounts[t.key]?.master || 0),
+              0
+            );
+            const groupTenantTotal = groupTables.reduce(
+              (sum, t) => sum + (tableCounts[t.key]?.tenant || 0),
+              0
+            );
+            const isCollapsed = collapsedGroups.has(group.key);
+
+            return (
+              <Collapsible
+                key={group.key}
+                open={!isCollapsed}
+                onOpenChange={() => toggleGroup(group.key)}
+              >
+                <div className="border rounded-lg overflow-hidden">
+                  {/* Group Header */}
+                  <CollapsibleTrigger asChild>
+                    <button className="w-full flex items-center justify-between p-3 bg-muted/50 hover:bg-muted/70 transition-colors">
+                      <div className="flex items-center gap-2">
+                        <ChevronRight
+                          className={cn(
+                            "h-4 w-4 transition-transform",
+                            !isCollapsed && "rotate-90"
+                          )}
+                        />
+                        {GROUP_ICONS[group.key]}
+                        <span className="font-medium">{group.label}</span>
+                        <span className="text-xs text-muted-foreground">
+                          ({groupTables.length} {groupTables.length === 1 ? "table" : "tables"})
                         </span>
-                      )}
-                      {diff === 0 && counts.master > 0 && (
-                        <Check className="h-4 w-4 mx-auto text-green-600" />
-                      )}
-                    </td>
-                    <td className="p-3 text-right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setSelectedTable(table.key)}
-                      >
-                        <RefreshCw className="h-3 w-3 mr-1" />
-                        Compare
-                      </Button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      </div>
+                      <div className="flex items-center gap-4 text-sm">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="default" className="text-xs">{masterTenant?.name || "TEEEM"}</Badge>
+                          <span className="font-mono">{groupMasterTotal}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className="text-xs">{currentTenant?.name || "Tenant"}</Badge>
+                          <span className="font-mono">{groupTenantTotal}</span>
+                        </div>
+                      </div>
+                    </button>
+                  </CollapsibleTrigger>
+
+                  {/* Group Content */}
+                  <CollapsibleContent>
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/30">
+                        <tr>
+                          <th className="p-2 pl-10 text-left font-medium text-xs text-muted-foreground">Table</th>
+                          <th className="p-2 text-center font-medium text-xs text-muted-foreground w-24">
+                            {masterTenant?.name || "TEEEM"}
+                          </th>
+                          <th className="p-2 text-center font-medium text-xs text-muted-foreground w-24">
+                            {currentTenant?.name || "Tenant"}
+                          </th>
+                          <th className="p-2 text-center font-medium text-xs text-muted-foreground w-20">Diff</th>
+                          <th className="p-2 text-right font-medium text-xs text-muted-foreground w-28">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {groupTables.map((table) => {
+                          const counts = tableCounts[table.key] || { master: 0, tenant: 0 };
+                          const diff = counts.tenant - counts.master;
+                          return (
+                            <tr key={table.key} className="border-t hover:bg-muted/30">
+                              <td className="p-2 pl-10">
+                                <div className="font-medium">{table.model.replace(/([A-Z])/g, " $1").trim()}</div>
+                                <div className="text-xs text-muted-foreground">{table.description}</div>
+                              </td>
+                              <td className="p-2 text-center">
+                                <span className={cn(
+                                  "font-mono font-medium",
+                                  counts.master === 0 && "text-red-500"
+                                )}>
+                                  {counts.master}
+                                </span>
+                              </td>
+                              <td className="p-2 text-center">
+                                <span className="font-mono font-medium">{counts.tenant}</span>
+                              </td>
+                              <td className="p-2 text-center">
+                                {diff !== 0 && (
+                                  <span className={cn(
+                                    "font-mono text-xs px-2 py-1 rounded",
+                                    diff > 0 ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-400" :
+                                    "bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400"
+                                  )}>
+                                    {diff > 0 ? `+${diff}` : diff}
+                                  </span>
+                                )}
+                                {diff === 0 && counts.master > 0 && (
+                                  <Check className="h-4 w-4 mx-auto text-green-600" />
+                                )}
+                              </td>
+                              <td className="p-2 text-right">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setSelectedTable(table.key)}
+                                >
+                                  <RefreshCw className="h-3 w-3 mr-1" />
+                                  Compare
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </CollapsibleContent>
+                </div>
+              </Collapsible>
+            );
+          })}
         </div>
       )}
     </div>
