@@ -253,7 +253,7 @@ interface TreeNodeProps {
   scopeTemplates: Record<string, string>;
   fileNameTemplates: Record<string, string>;
   configLinks: Record<string, string>;
-  onSaveTemplates: (scopeKey: string, folderTemplate: string, filenameTemplate: string, configLink: string | null) => Promise<void>;
+  onSaveTemplates: (scopeKey: string, baseFolder: string, folderTemplate: string, filenameTemplate: string, configLink: string | null) => Promise<void>;
   // Phase 4: Virtual scopes
   virtualScopes: Record<string, boolean>;
   onToggleVirtual: (scopeKey: string, isVirtual: boolean) => Promise<void>;
@@ -322,6 +322,7 @@ function TreeNode({
   // Track previous scope to save when switching
   const prevScopeRef = React.useRef<{
     scopeKey: string;
+    baseFolder: string;
     folder: string;
     filename: string;
     configLink: string | null;
@@ -330,21 +331,21 @@ function TreeNode({
   const initializedScopeRef = React.useRef<string | null>(null);
 
   // Immediate save function (no debounce) - for switching scopes
-  const saveImmediate = React.useCallback(async (scopeKey: string, folder: string, filename: string, configLink: string | null) => {
+  const saveImmediate = React.useCallback(async (scopeKey: string, baseFolder: string, folder: string, filename: string, configLink: string | null) => {
     if (!scopeKey) return;
     try {
-      await onSaveTemplates(scopeKey, folder, filename, configLink);
+      await onSaveTemplates(scopeKey, baseFolder, folder, filename, configLink);
     } catch (error) {
       console.error('Failed to save templates:', error);
     }
   }, [onSaveTemplates]);
 
   // Auto-save function with debounce - calls actual API
-  const autoSave = React.useCallback(async (scopeKey: string, folder: string, filename: string, configLink: string | null) => {
+  const autoSave = React.useCallback(async (scopeKey: string, baseFolder: string, folder: string, filename: string, configLink: string | null) => {
     if (!scopeKey || !hasModified.current) return;
 
     // Update the ref so we can save when switching
-    prevScopeRef.current = { scopeKey, folder, filename, configLink };
+    prevScopeRef.current = { scopeKey, baseFolder, folder, filename, configLink };
 
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -352,7 +353,7 @@ function TreeNode({
     saveTimeoutRef.current = setTimeout(async () => {
       setIsSaving(true);
       try {
-        await onSaveTemplates(scopeKey, folder, filename, configLink);
+        await onSaveTemplates(scopeKey, baseFolder, folder, filename, configLink);
         setLastSaved(new Date());
         hasModified.current = false;
         prevScopeRef.current = null; // Clear after successful save
@@ -371,21 +372,21 @@ function TreeNode({
     if (currentEditingScopeKey && hasModified.current && initializedScopeRef.current === currentEditingScopeKey) {
       // Pass null for configLink if checkbox is unchecked (to remove it)
       const linkToSave = hasConfigLink ? configLinkUrl : null;
-      autoSave(currentEditingScopeKey, folderTemplate, filenameTemplate, linkToSave);
+      autoSave(currentEditingScopeKey, editValue, folderTemplate, filenameTemplate, linkToSave);
     }
     return () => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [folderTemplate, filenameTemplate, hasConfigLink, configLinkUrl, currentEditingScopeKey, autoSave]);
+  }, [editValue, folderTemplate, filenameTemplate, hasConfigLink, configLinkUrl, currentEditingScopeKey, autoSave]);
 
   // Save previous scope immediately when switching to a different scope
   React.useEffect(() => {
     // If we have pending changes from a previous scope, save them immediately
     if (prevScopeRef.current && prevScopeRef.current.scopeKey !== currentEditingScopeKey) {
       const prev = prevScopeRef.current;
-      saveImmediate(prev.scopeKey, prev.folder, prev.filename, prev.configLink);
+      saveImmediate(prev.scopeKey, prev.baseFolder, prev.folder, prev.filename, prev.configLink);
       prevScopeRef.current = null;
       // Clear any pending debounced save
       if (saveTimeoutRef.current) {
@@ -547,15 +548,25 @@ function TreeNode({
           style={{ marginLeft: `${level * 16 + 28}px` }}
         >
           <div className="space-y-4">
-            {/* Base Path (read-only) */}
+            {/* Base Folder (editable) */}
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Base Path</label>
+              <label className="text-xs font-medium text-muted-foreground">Base Folder</label>
               <div className="flex items-center gap-2">
-                <span className="font-mono text-sm bg-muted px-2 py-1 rounded">
-                  {[rootPath, node.path].filter(Boolean).join('/').replace(/\/+/g, '/')}
-                </span>
+                <span className="font-mono text-sm text-muted-foreground">{rootPath}/</span>
+                <Input
+                  value={editValue}
+                  onChange={(e) => {
+                    setEditValue(e.target.value);
+                    hasModified.current = true;
+                  }}
+                  className="h-8 text-sm font-mono flex-1"
+                  placeholder="Emails"
+                />
                 <span className="text-muted-foreground">/</span>
               </div>
+              <p className="text-[10px] text-muted-foreground">
+                Storage folder path. Use same path for related scopes to group them on one row.
+              </p>
             </div>
 
             {/* Folder Template */}
@@ -607,11 +618,56 @@ function TreeNode({
               </div>
             )}
 
+            {/* Folder suffix buttons for email scopes - SSoT: prevents typos */}
+            {(currentEditingScopeKey === 'email' || currentEditingScopeKey === 'email_attachments') && (
+              <div className="flex items-center gap-2 -mt-2">
+                <span className="text-xs text-muted-foreground">Add folder suffix:</span>
+                {currentEditingScopeKey === 'email' && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-6 text-xs px-2"
+                    disabled={folderTemplate.includes('/Email Body')}
+                    onClick={() => {
+                      // Insert /Email Body after {{Mailbox}} if present, otherwise at start
+                      if (folderTemplate.includes('{{Mailbox}}')) {
+                        handleFolderTemplateChange(folderTemplate.replace('{{Mailbox}}', '{{Mailbox}}/Email Body'));
+                      } else {
+                        handleFolderTemplateChange('/Email Body' + (folderTemplate ? '/' + folderTemplate : ''));
+                      }
+                    }}
+                  >
+                    /Email Body
+                  </Button>
+                )}
+                {currentEditingScopeKey === 'email_attachments' && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-6 text-xs px-2"
+                    disabled={folderTemplate.includes('/Attachments')}
+                    onClick={() => {
+                      // Insert /Attachments after {{Mailbox}} if present, otherwise at start
+                      if (folderTemplate.includes('{{Mailbox}}')) {
+                        handleFolderTemplateChange(folderTemplate.replace('{{Mailbox}}', '{{Mailbox}}/Attachments'));
+                      } else {
+                        handleFolderTemplateChange('/Attachments' + (folderTemplate ? '/' + folderTemplate : ''));
+                      }
+                    }}
+                  >
+                    /Attachments
+                  </Button>
+                )}
+              </div>
+            )}
+
             {/* Full Path Preview */}
             <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded px-3 py-2">
               <span className="text-xs text-muted-foreground">Full Path: </span>
               <span className="font-mono text-sm text-green-700 dark:text-green-400">
-                {[rootPath, node.path, folderTemplate].filter(Boolean).join('/').replace(/\/+/g, '/')}
+                {[rootPath, editValue, folderTemplate].filter(Boolean).join('/').replace(/\/+/g, '/')}
               </span>
             </div>
 
@@ -1207,6 +1263,7 @@ export function StorageConfigTab() {
   // SSoT: Save scope templates via API (called by auto-save in TreeNode)
   const saveScopeTemplates = React.useCallback(async (
     scopeKey: string,
+    baseFolder: string,
     folderTemplate: string,
     filenameTemplate: string,
     configLink: string | null
@@ -1216,6 +1273,7 @@ export function StorageConfigTab() {
         "/api/v1/storage_configuration",
         {
           storage: {
+            scope_folders: { [scopeKey]: baseFolder },
             scope_templates: { [scopeKey]: folderTemplate },
             file_name_templates: { [scopeKey]: filenameTemplate },
             config_links: { [scopeKey]: configLink }, // null removes the link
@@ -1233,6 +1291,7 @@ export function StorageConfigTab() {
           }
           return {
             ...prev,
+            scope_folders: { ...prev.scope_folders, [scopeKey]: baseFolder },
             scope_templates: { ...prev.scope_templates, [scopeKey]: folderTemplate },
             file_name_templates: { ...prev.file_name_templates, [scopeKey]: filenameTemplate },
             config_links: newConfigLinks,
