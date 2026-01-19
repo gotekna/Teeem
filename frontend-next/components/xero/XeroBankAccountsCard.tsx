@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/utils/formatters";
 import { format, isValid } from "date-fns";
 import type { XeroBankAccount, XeroBankTransaction } from "./types";
 
@@ -340,13 +341,6 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
     } finally {
       setTransactionsLoading(false);
     }
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-    }).format(amount);
   };
 
   if (loading) {

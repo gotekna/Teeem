@@ -23,6 +23,7 @@ import {
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { api, getApiBaseUrl } from "@/lib/api";
+import { formatCurrency } from "@/utils/formatters";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
@@ -419,13 +420,6 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
     } finally {
       setDownloading(false);
     }
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-    }).format(amount);
   };
 
   const formatDate = (dateStr: string) => {

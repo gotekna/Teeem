@@ -26,6 +26,17 @@ Commits ALL pending changes from ALL chat sessions and deploys to Staging AND Be
 |--------------|---------|
 | Single temp directory (reused for both deploys) | ~1s |
 | Smart migration check (only if db/migrate changed) | ~10-20s |
+| Vercel branch filtering (each project builds only its branch) | ~6 duplicate builds eliminated |
+
+## Vercel Branch Filtering
+
+Each Vercel project only builds its designated branch via `DEPLOY_BRANCH` env var:
+- `teeem-staging` → only builds `Staging` branch
+- `teeem-beta` → only builds `Beta` branch
+- `teeem-production` → only builds `Live` branch
+- Dev environments (jake/sam/rob) → only build their personal branches
+
+**Result:** `/ba` triggers exactly 2 Vercel builds (Staging + Beta), not 6+.
 
 ## Instructions
 

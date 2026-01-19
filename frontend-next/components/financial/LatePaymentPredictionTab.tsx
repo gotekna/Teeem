@@ -52,6 +52,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 import Link from "next/link";
 
 interface Invoice {
@@ -208,22 +209,6 @@ export default function LatePaymentPredictionTab() {
   const openDetailDialog = (invoice: AtRiskInvoice) => {
     setSelectedInvoice(invoice);
     setDetailDialogOpen(true);
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("en-AU", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
   };
 
   const getRiskBadge = (level: string, score?: number) => {

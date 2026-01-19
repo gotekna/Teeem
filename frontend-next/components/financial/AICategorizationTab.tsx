@@ -55,6 +55,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface BankTransaction {
   id: number;
@@ -326,22 +327,6 @@ export default function AICategorizationTab() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create rule");
     }
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-    }).format(Math.abs(amount));
-  };
-
-  const formatDate = (dateString: string) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("en-AU", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
   };
 
   const getConfidenceBadge = (confidence: number) => {

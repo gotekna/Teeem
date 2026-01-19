@@ -24,7 +24,7 @@ import { ResizableColumnHeader } from '../../components/ResizableColumnHeader';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from '@/lib/utils';
-import { isLookupColumn } from '@/lib/constants/column-types';
+import { isLookupColumn, isChoiceColumn } from '@/lib/constants/column-types';
 import type { TableColumn, CascadeFilter } from '../../types';
 
 /**
@@ -358,7 +358,7 @@ export function TableHeaderSection({
             const colType = colMeta.column_type || '';
             const isBoolean = colType === 'boolean';
             const isLookup = isLookupColumn(colType);
-            const isChoice = colType === 'choice';
+            const isChoice = isChoiceColumn(colType);
             const hasChoices = colMeta.choices && colMeta.choices.length > 0;
             const options = lookupOptions[column.key] || [];
             const isLoading = lookupLoading[column.key] || false;

@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import axios from "axios";
+import { formatDate } from "@/utils/formatters";
 import {
   Table,
   TableBody,
@@ -174,15 +175,6 @@ export default function PortalInvoices() {
         {badge.label}
       </span>
     );
-  };
-
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleDateString("en-AU", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
   };
 
   if (loading) {

@@ -25,6 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api } from "@/lib/api";
+import { formatDate } from "@/utils/formatters";
 import type { Contact } from "../types";
 
 // =============================================================================
@@ -109,14 +110,6 @@ export function ContactDocumentsTab({ contact }: ContactDocumentsTabProps) {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("en-AU", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  };
 
   const getFileIcon = (mimeType?: string) => {
     if (!mimeType) return <FileText className="h-4 w-4" />;

@@ -14,6 +14,16 @@ Commits only THIS chat session's changes and deploys to staging environment.
 - Backend: Heroku (`teeem-staging`) - manual deploy via FAST orphan method
 - Frontend: Auto-deploys from GitHub push (no version tracking)
 
+## Vercel Branch Filtering (Jan 2026)
+
+Each Vercel project only builds its designated branch via `DEPLOY_BRANCH` env var:
+- `teeem-staging` → only builds `Staging` branch
+- `teeem-beta` → only builds `Beta` branch
+- `teeem-production` → only builds `Live` branch
+- Dev environments (jake/sam/rob) → only build their personal branches
+
+**Result:** No duplicate builds. Push to Staging only triggers `teeem-staging`.
+
 ## Instructions
 
 ### Step 1 - Pre-Flight Checks

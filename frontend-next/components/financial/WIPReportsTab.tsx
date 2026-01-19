@@ -48,6 +48,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface WIPSummary {
   report_date: string;
@@ -303,23 +304,9 @@ export default function WIPReportsTab() {
     }
   };
 
-  const formatCurrency = (value: number | null | undefined) => {
-    if (value === null || value === undefined) return "-";
-    return new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(value);
-  };
-
   const formatPercent = (value: number | null | undefined) => {
     if (value === null || value === undefined) return "-";
     return `${value.toFixed(1)}%`;
-  };
-
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("en-AU", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
   };
 
   // Show report details view

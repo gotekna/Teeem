@@ -54,6 +54,7 @@ import {
   Activity,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency, formatDate, formatDateTime } from "@/utils/formatters";
 
 interface Transaction {
   id: number;
@@ -242,31 +243,6 @@ export default function AnomalyDetectionTab() {
     } finally {
       setSubmittingReview(false);
     }
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-    }).format(Math.abs(amount));
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-AU", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
-
-  const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString("en-AU", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
   };
 
   const getSeverityBadge = (level: string) => {

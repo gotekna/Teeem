@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDistanceToNow, format } from "date-fns";
+import { formatCurrency } from "@/utils/formatters";
 
 interface WorkerProfile {
   id: number;
@@ -129,13 +130,6 @@ export function JobSitePresenceTab({ jobId, onUpdate }: JobSitePresenceTabProps)
   useEffect(() => {
     fetchData();
   }, [fetchData]);
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-    }).format(value);
-  };
 
   const formatHours = (hours: number) => {
     const h = Math.floor(hours);

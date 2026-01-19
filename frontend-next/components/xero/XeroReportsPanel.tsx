@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/utils/formatters";
 import { format, isValid } from "date-fns";
 
 // Safe date formatter
@@ -135,15 +136,6 @@ function XeroPdfReportsCard({
 
   // Financial years list
   const financialYears = ["FY2025", "FY2024", "FY2023", "FY2022"];
-
-  // Format currency for display
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 2,
-    }).format(amount);
-  };
 
   React.useEffect(() => {
     loadReports();

@@ -58,6 +58,7 @@ import {
   Building,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency, formatDate, formatDateTime } from "@/utils/formatters";
 
 interface Contact {
   id: number;
@@ -319,33 +320,6 @@ export default function CustomerPortalTab() {
       await handleCancelDirectDebit(confirmAction.id);
     }
     setConfirmDialogOpen(false);
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("en-AU", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
-
-  const formatDateTime = (dateString: string) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleString("en-AU", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
   };
 
   const getTokenTypeBadge = (type: string) => {

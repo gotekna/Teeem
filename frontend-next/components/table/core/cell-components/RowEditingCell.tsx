@@ -23,7 +23,7 @@ import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
 import type { TableColumn } from '../../types';
-import { isLookupColumn } from '@/lib/constants/column-types';
+import { isLookupColumn, isChoiceColumn } from '@/lib/constants/column-types';
 
 export interface RowEditingCellProps {
   /** Row entry data */
@@ -98,7 +98,7 @@ export function RowEditingCell({
   }
 
   // Choice - Searchable dropdown with predefined options
-  if (columnType === 'choice') {
+  if (isChoiceColumn(columnType)) {
     const choices = column.choices || [];
     const choiceItems: ComboboxItem[] = choices.map((choice) => ({
       id: choice,

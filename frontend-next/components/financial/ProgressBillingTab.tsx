@@ -51,6 +51,7 @@ import {
   Play,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 import { safePercent } from "@/lib/utils";
 
 // Types
@@ -345,24 +346,6 @@ export default function ProgressBillingTab() {
       return () => clearTimeout(timer);
     }
   }, [successMessage]);
-
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-    }).format(amount);
-  };
-
-  // Format date
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("en-AU", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  };
 
   // Get status badge
   const getStatusBadge = (status: string) => {

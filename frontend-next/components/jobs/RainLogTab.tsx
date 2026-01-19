@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { formatDate } from "@/utils/formatters";
 
 interface RainLog {
   id: number;
@@ -211,14 +212,6 @@ export function RainLogTab({ jobId }: RainLogTabProps) {
     return <Badge variant="secondary">Manual</Badge>;
   };
 
-  const formatDate = (dateString: string) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("en-AU", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
 
   if (loading) {
     return (
