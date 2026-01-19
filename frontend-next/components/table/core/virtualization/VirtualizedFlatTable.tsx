@@ -185,7 +185,7 @@ export const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
               >
-                <Table style={{ tableLayout: "fixed", width: "100%", minWidth: totalWidth }}>
+                <Table style={{ tableLayout: "fixed", width: totalWidth, minWidth: totalWidth }}>
                   <colgroup>
                     {visibleColumnsInOrder.map((column) => (
                       <col
