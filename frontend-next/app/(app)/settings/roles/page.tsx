@@ -114,6 +114,7 @@ interface Group {
 // ============================================
 
 function PermissionsSubTab() {
+  const { toast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
   const [permissions, setPermissions] = useState<PermissionsMap>({});
   const [categories, setCategories] = useState<CategoriesMap>({});
@@ -210,7 +211,7 @@ function PermissionsSubTab() {
       }
     } catch (err) {
       console.error("Failed to update permission:", err);
-      alert("Failed to update permission");
+      toast({ title: "Error", description: "Failed to update permission", variant: "destructive" });
     } finally {
       setUpdatingPermission(null);
     }

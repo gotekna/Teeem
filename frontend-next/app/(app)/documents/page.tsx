@@ -65,6 +65,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { DocumentActions } from "@/components/documents/DocumentActions";
 
@@ -331,6 +332,7 @@ const buildScopeTree = (
 };
 
 export default function AllDocumentsPage() {
+  const { toast } = useToast();
   const [viewMode, setViewMode] = useState<ViewMode>("tree");
   const [treeDisplayMode, setTreeDisplayMode] = useState<TreeDisplayMode>("list");
   const [searchQuery, setSearchQuery] = useState("");
@@ -1215,11 +1217,11 @@ export default function AllDocumentsPage() {
         setFolderFiles({});
         setIsRenaming(false);
       } else {
-        alert(response?.error || "Failed to rename file");
+        toast({ title: "Error", description: response?.error || "Failed to rename file", variant: "destructive" });
       }
     } catch (err) {
       console.error("Rename failed:", err);
-      alert("Failed to rename file");
+      toast({ title: "Error", description: "Failed to rename file", variant: "destructive" });
     } finally {
       setIsRenameSaving(false);
     }

@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { X, CheckCircle, XCircle, RefreshCw, Building2, Calendar, ArrowRight, AlertTriangle } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
 
 interface CompanyLink {
   id: number;
@@ -50,6 +51,7 @@ interface XeroConnectionsPopupProps {
 }
 
 export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupProps) {
+  const { toast } = useToast();
   const [organizations, setOrganizations] = useState<XeroOrganization[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
@@ -114,7 +116,7 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
       }
     } catch (error) {
       console.error("Failed to get Xero auth URL:", error);
-      alert("Failed to connect to Xero. Please try again.");
+      toast({ title: "Error", description: "Failed to connect to Xero. Please try again.", variant: "destructive" });
     }
   };
 
@@ -129,11 +131,11 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
       if (response && response.success) {
         // Reload connections to show the new link
         await loadConnections();
-        alert("Successfully linked company to Xero organization!");
+        toast({ title: "Success", description: "Successfully linked company to Xero organization" });
       }
     } catch (error) {
       console.error("Failed to link company:", error);
-      alert("Failed to link company. Please try again.");
+      toast({ title: "Error", description: "Failed to link company. Please try again.", variant: "destructive" });
     } finally {
       setLinkingTenantId(null);
     }

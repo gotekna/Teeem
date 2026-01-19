@@ -81,6 +81,8 @@ export interface UseBulkOperationsProps {
   columns: TableColumn[];
   /** Callback when update succeeds */
   onSuccess?: () => void;
+  /** Callback when error occurs */
+  onError?: (message: string) => void;
   /** Callback when merge completes */
   onMergeComplete?: (deletedIds: (number | string)[]) => void;
   /** Fallback row update handler (when no foundationId) */
@@ -152,6 +154,7 @@ export function useBulkOperations(props: UseBulkOperationsProps): UseBulkOperati
     visibleEntriesRef,
     columns,
     onSuccess,
+    onError,
     onMergeComplete,
     onRowUpdate,
     onOptimisticUpdate,
@@ -283,7 +286,7 @@ export function useBulkOperations(props: UseBulkOperationsProps): UseBulkOperati
             errorMessage += '\n\n⚠️ Some records have data quality issues that must be fixed first.';
             errorMessage += '\n\nOpening Health Report to show which records need fixing...';
 
-            alert(errorMessage);
+            onError?.(errorMessage);
 
             // Open health report in new tab
             const healthUrl = `/system-health?foundation=${foundationId}`;
@@ -291,7 +294,7 @@ export function useBulkOperations(props: UseBulkOperationsProps): UseBulkOperati
             return false;
           }
 
-          alert(errorMessage);
+          onError?.(errorMessage);
           return false;
         }
 
@@ -330,7 +333,7 @@ export function useBulkOperations(props: UseBulkOperationsProps): UseBulkOperati
 
     } catch (error) {
       console.error('[useBulkOperations] ERROR:', error);
-      alert(`Bulk update failed: ${error instanceof Error ? error.message : String(error)}`);
+      onError?.(`Bulk update failed: ${error instanceof Error ? error.message : String(error)}`);
       return false;
     } finally {
       setIsSaving(false);
@@ -345,6 +348,7 @@ export function useBulkOperations(props: UseBulkOperationsProps): UseBulkOperati
     onRowUpdate,
     onOptimisticUpdate,
     onSuccess,
+    onError,
     onRefresh,
     closeUpdateModal,
   ]);

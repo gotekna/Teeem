@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableRow } from "@/components/table/types";
 import DocumentPreviewModal from "@/components/corporate/DocumentPreviewModal";
@@ -34,6 +35,7 @@ import DocumentSidePanel from "@/components/corporate/DocumentSidePanel";
 import { Spinner } from "@/components/ui/spinner";
 import type { CorporateCompany } from "@/lib/types/corporate";
 import { DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 
 // Document interface for table
 interface CompanyDocument extends TableRow {
@@ -95,6 +97,8 @@ interface CompanyDocumentsTabProps {
 }
 
 export function CompanyDocumentsTab({ companyId, company, category }: CompanyDocumentsTabProps) {
+  const { toast } = useToast();
+  const confirm = useConfirm();
   const [documents, setDocuments] = React.useState<CompanyDocument[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [companies, setCompanies] = React.useState<CorporateCompany[]>([]);
@@ -187,7 +191,13 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
   };
 
   const handleDelete = async (doc: CompanyDocument) => {
-    if (!confirm("Are you sure you want to delete this document?")) return;
+    const confirmed = await confirm({
+      title: "Delete Document",
+      description: "Are you sure you want to delete this document?",
+      confirmText: "Delete",
+      variant: "destructive",
+    });
+    if (!confirmed) return;
     try {
       await api.delete(`/api/v1/company_documents/${doc.id}`);
       await loadDocuments();

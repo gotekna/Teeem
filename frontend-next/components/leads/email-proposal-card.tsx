@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Mail, MapPin, DollarSign, CheckCircle, XCircle, Sparkles } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
 import { ProposalApprovalDialog } from "./proposal-approval-dialog";
 import { EmailProposal } from "@/app/(app)/leads/page";
 
@@ -18,6 +19,7 @@ interface EmailProposalCardProps {
 }
 
 export function EmailProposalCard({ proposal, onApproved, onRejected, onPricedUp }: EmailProposalCardProps) {
+  const { toast } = useToast();
   const [processing, setProcessing] = useState(false);
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [priceInput, setPriceInput] = useState<string>("");
@@ -56,7 +58,7 @@ export function EmailProposalCard({ proposal, onApproved, onRejected, onPricedUp
       }
     } catch (error) {
       console.error("Failed to approve proposal:", error);
-      alert("Failed to approve proposal");
+      toast({ title: "Error", description: "Failed to approve proposal", variant: "destructive" });
     } finally {
       setProcessing(false);
     }
@@ -74,7 +76,7 @@ export function EmailProposalCard({ proposal, onApproved, onRejected, onPricedUp
       onRejected?.();
     } catch (error) {
       console.error("Failed to reject proposal:", error);
-      alert("Failed to reject proposal");
+      toast({ title: "Error", description: "Failed to reject proposal", variant: "destructive" });
     } finally {
       setProcessing(false);
     }

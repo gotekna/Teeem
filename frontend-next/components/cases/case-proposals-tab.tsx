@@ -25,6 +25,8 @@ import {
   FileText,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { CaseProposalApprovalDialog } from "./case-proposal-approval-dialog";
 
 interface InvolvedParty {
@@ -126,6 +128,8 @@ const RELATIONSHIP_ICONS: Record<string, typeof User> = {
 
 export function CaseProposalsTab({ onPendingCountChange }: CaseProposalsTabProps) {
   const router = useRouter();
+  const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [proposals, setProposals] = useState<CaseProposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedProposal, setSelectedProposal] = useState<CaseProposal | null>(null);
@@ -185,7 +189,7 @@ export function CaseProposalsTab({ onPendingCountChange }: CaseProposalsTabProps
       }
     } catch (error) {
       console.error("Failed to approve proposal:", error);
-      alert("Failed to approve proposal");
+      toast({ title: "Error", description: "Failed to approve proposal", variant: "destructive" });
     } finally {
       setProcessing(null);
     }
@@ -201,26 +205,32 @@ export function CaseProposalsTab({ onPendingCountChange }: CaseProposalsTabProps
         reason: reason,
       });
       loadProposals();
+      toast({ title: "Success", description: "Proposal rejected" });
     } catch (error) {
       console.error("Failed to reject proposal:", error);
-      alert("Failed to reject proposal");
+      toast({ title: "Error", description: "Failed to reject proposal", variant: "destructive" });
     } finally {
       setProcessing(null);
     }
   };
 
   const handleReExtract = async (proposalId: number) => {
-    if (!confirm("Re-extract data from email thread with latest extraction logic?")) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: "Re-extract Data",
+      description: "Re-extract data from email thread with latest extraction logic?",
+      confirmText: "Re-extract",
+      cancelText: "Cancel",
+    });
+    if (!confirmed) return;
 
     try {
       setProcessing(proposalId);
       await api.post(`/api/v1/email_case_proposals/${proposalId}/re_extract`);
       loadProposals();
+      toast({ title: "Success", description: "Data re-extracted successfully" });
     } catch (error) {
       console.error("Failed to re-extract proposal:", error);
-      alert("Failed to re-extract proposal");
+      toast({ title: "Error", description: "Failed to re-extract proposal", variant: "destructive" });
     } finally {
       setProcessing(null);
     }

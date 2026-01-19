@@ -2115,6 +2115,7 @@ export default function TeeemTableView({
     visibleEntriesRef: filteredAndSortedEntriesRef,
     columns: COLUMNS,
     onSuccess: () => selection.actions.clear(),
+    onError: (message) => toast({ title: "Bulk Update Error", description: message, variant: "destructive" }),
     onRowUpdate: onRowUpdate ? async (id, field, value) => {
       await onRowUpdate(id, field, value);
     } : undefined,

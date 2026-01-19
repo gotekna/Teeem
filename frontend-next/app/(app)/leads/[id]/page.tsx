@@ -20,6 +20,7 @@ import {
 } from "@/types/leads";
 import { api } from "@/lib/api";
 import { BackButton } from "@/components/ui/back-button";
+import { useToast } from "@/components/ui/use-toast";
 import {
   Edit,
   FileText,
@@ -38,6 +39,7 @@ import {
 export default function LeadDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { toast } = useToast();
   const pathname = usePathname();
   const leadId = params.id as string;
 
@@ -107,7 +109,7 @@ export default function LeadDetailPage() {
       }
     } catch (error) {
       console.error("Failed to convert lead:", error);
-      alert("Failed to convert lead to job. Please try again.");
+      toast({ title: "Error", description: "Failed to convert lead to job. Please try again.", variant: "destructive" });
     }
   };
 

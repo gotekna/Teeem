@@ -3,6 +3,7 @@
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useEffect, Suspense, useCallback, useMemo } from "react";
 import { useConfirm } from "@/contexts/ConfirmationContext";
+import { useToast } from "@/components/ui/use-toast";
 import { TeeemTableView, SchemaTab, ConnectionsTab } from "@/components/table";
 import { TablePage } from "@/components/ui/page-wrappers";
 import { api } from "@/lib/api";
@@ -63,6 +64,7 @@ function TablePageContent() {
   const pathname = usePathname();
   const router = useRouter();
   const { confirm } = useConfirm();
+  const { toast } = useToast();
 
   const rawSlug = params.slug as string;
 
@@ -188,7 +190,7 @@ function TablePageContent() {
       refresh();
     } catch (error) {
       console.error("[TablePage] Failed to delete records:", error);
-      alert("Failed to delete some records");
+      toast({ title: "Error", description: "Failed to delete some records", variant: "destructive" });
     }
   };
 

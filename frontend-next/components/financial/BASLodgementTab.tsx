@@ -60,6 +60,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
 
 interface Period {
   quarter: string;
@@ -159,6 +160,8 @@ interface ChartDataPoint {
 }
 
 export default function BASLodgementTab() {
+  const { toast } = useToast();
+
   // SSoT: URL state for period selection and view (enables shareable URLs)
   const [urlState, setUrlState] = useUrlState({
     period: null as string | null,  // Format: "Q1-FY2024"
@@ -349,11 +352,13 @@ export default function BASLodgementTab() {
         setShowLodgeDialog(false);
         fetchLodgements();
         fetchBASData();
+        toast({ title: "Success", description: "BAS lodged successfully" });
       } else {
-        alert(response?.error || "Lodgement failed");
+        toast({ title: "Error", description: response?.error || "Lodgement failed", variant: "destructive" });
       }
     } catch (error) {
       console.error("Failed to lodge to ATO:", error);
+      toast({ title: "Error", description: "Failed to lodge to ATO", variant: "destructive" });
     } finally {
       setLodging(false);
     }

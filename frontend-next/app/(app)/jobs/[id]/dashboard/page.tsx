@@ -36,6 +36,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { api, getApiBaseUrl } from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
 import {
   StatCard,
   ProgressRing,
@@ -217,6 +218,7 @@ export default function SmDashboardPage() {
   const params = useParams();
   const router = useRouter();
   const pathname = usePathname();
+  const { toast } = useToast();
   const constructionId = params.id as string;
 
   // URL is SSoT for tab state (path-based navigation)
@@ -371,7 +373,7 @@ export default function SmDashboardPage() {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Export error:", err);
-      alert("Failed to export report");
+      toast({ title: "Error", description: "Failed to export report", variant: "destructive" });
     }
   };
 

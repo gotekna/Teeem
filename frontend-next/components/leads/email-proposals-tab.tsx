@@ -22,6 +22,8 @@ import {
   DollarSign,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 
 interface EmailProposal {
   id: number;
@@ -92,6 +94,8 @@ interface EmailProposalsTabProps {
 
 export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabProps) {
   const router = useRouter();
+  const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [proposals, setProposals] = useState<EmailProposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState<number | null>(null);
@@ -136,26 +140,32 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
         rejection_reason: reason,
       });
       loadProposals();
+      toast({ title: "Success", description: "Proposal rejected" });
     } catch (error) {
       console.error("Failed to reject proposal:", error);
-      alert("Failed to reject proposal");
+      toast({ title: "Error", description: "Failed to reject proposal", variant: "destructive" });
     } finally {
       setProcessing(null);
     }
   };
 
   const handleReExtract = async (proposalId: number) => {
-    if (!confirm("Re-extract data from email and PDFs with latest extraction logic?")) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: "Re-extract Data",
+      description: "Re-extract data from email and PDFs with latest extraction logic?",
+      confirmText: "Re-extract",
+      cancelText: "Cancel",
+    });
+    if (!confirmed) return;
 
     try {
       setProcessing(proposalId);
       await api.post(`/api/v1/email_job_proposals/${proposalId}/re_extract`);
       loadProposals();
+      toast({ title: "Success", description: "Data re-extracted successfully" });
     } catch (error) {
       console.error("Failed to re-extract proposal:", error);
-      alert("Failed to re-extract proposal");
+      toast({ title: "Error", description: "Failed to re-extract proposal", variant: "destructive" });
     } finally {
       setProcessing(null);
     }

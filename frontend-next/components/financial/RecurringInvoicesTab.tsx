@@ -53,6 +53,8 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 
 interface RecurringInvoice {
   id: number;
@@ -140,6 +142,8 @@ const DAYS_OF_WEEK = [
 ];
 
 export default function RecurringInvoicesTab() {
+  const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [invoices, setInvoices] = useState<RecurringInvoice[]>([]);
@@ -271,12 +275,13 @@ export default function RecurringInvoicesTab() {
         setShowCreateDialog(false);
         resetForm();
         await fetchData();
+        toast({ title: "Success", description: "Recurring invoice created successfully" });
       } else {
-        alert(res?.error || "Failed to create recurring invoice");
+        toast({ title: "Error", description: res?.error || "Failed to create recurring invoice", variant: "destructive" });
       }
     } catch (err) {
       console.error("Failed to create recurring invoice:", err);
-      alert("Failed to create recurring invoice");
+      toast({ title: "Error", description: "Failed to create recurring invoice", variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -290,18 +295,25 @@ export default function RecurringInvoicesTab() {
 
       if (res?.success) {
         await fetchData();
+        toast({ title: "Success", description: `Recurring invoice ${action === "generate_now" ? "generated" : action + "d"} successfully` });
       } else {
-        alert(res?.error || `Failed to ${action} recurring invoice`);
+        toast({ title: "Error", description: res?.error || `Failed to ${action} recurring invoice`, variant: "destructive" });
       }
     } catch (err) {
       console.error(`Failed to ${action} recurring invoice:`, err);
+      toast({ title: "Error", description: `Failed to ${action} recurring invoice`, variant: "destructive" });
     }
   };
 
   const handleDelete = async (invoice: RecurringInvoice) => {
-    if (!confirm(`Are you sure you want to delete "${invoice.name}"?`)) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: "Delete Recurring Invoice",
+      description: `Are you sure you want to delete "${invoice.name}"?`,
+      confirmText: "Delete",
+      cancelText: "Cancel",
+      variant: "destructive",
+    });
+    if (!confirmed) return;
 
     try {
       const res = await api.delete<{ success: boolean; error?: string }>(
@@ -310,11 +322,13 @@ export default function RecurringInvoicesTab() {
 
       if (res?.success) {
         await fetchData();
+        toast({ title: "Success", description: "Recurring invoice deleted successfully" });
       } else {
-        alert(res?.error || "Failed to delete recurring invoice");
+        toast({ title: "Error", description: res?.error || "Failed to delete recurring invoice", variant: "destructive" });
       }
     } catch (err) {
       console.error("Failed to delete recurring invoice:", err);
+      toast({ title: "Error", description: "Failed to delete recurring invoice", variant: "destructive" });
     }
   };
 

@@ -42,6 +42,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
 import type { PhotoItem } from "@/components/ui/photo-gallery";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -107,6 +108,7 @@ export function ImageLightbox({
   resolveFullUrl,
   onDelete,
 }: ImageLightboxProps) {
+  const { toast } = useToast();
   const [currentIndex, setCurrentIndex] = React.useState(initialIndex);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(false);
@@ -371,7 +373,7 @@ export function ImageLightbox({
       }
     } catch (err) {
       console.error("Failed to delete image:", err);
-      alert("Failed to delete the image. Please try again.");
+      toast({ title: "Error", description: "Failed to delete the image. Please try again.", variant: "destructive" });
     } finally {
       setDeleting(false);
     }

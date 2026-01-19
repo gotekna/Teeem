@@ -8,12 +8,12 @@ module Api
 
         # GET /api/v1/admin/tenants
         # Returns all tenants (for TEEEM staff) or just user's tenant
+        # SSoT: Uses Tenant model (not CorporateGroup) for multi-tenancy
         def index
           tenants = if current_user.teeem_staff?
-                      CorporateGroup.where.not(slug: [nil, ""])
-                                    .order(:name)
+                      Tenant.active.order(:name)
                     else
-                      current_user.available_tenants
+                      [current_user.tenant].compact
                     end
 
           render json: {
@@ -46,10 +46,11 @@ module Api
 
         # GET /api/v1/admin/tenants/:id
         # Returns single tenant details
+        # SSoT: Uses Tenant model (not CorporateGroup)
         def show
-          tenant = CorporateGroup.find(params[:id])
+          tenant = Tenant.find(params[:id])
 
-          unless current_user.can_access_tenant?(tenant)
+          unless current_user.teeem_staff? || current_user.tenant_id == tenant.id
             return render json: { success: false, error: "Access denied" }, status: :forbidden
           end
 
@@ -61,12 +62,12 @@ module Api
 
         # POST /api/v1/admin/tenants/:id/switch
         # Switch to a different tenant (TEEEM staff only)
+        # SSoT: Uses Tenant model (not CorporateGroup)
         def switch
-          puts "[DEBUG] TenantSwitch#switch called with id=#{params[:id]}"
-          Rails.logger.info "[DEBUG] TenantSwitch#switch called with id=#{params[:id]}"
-          tenant = CorporateGroup.find(params[:id])
+          Rails.logger.info "[TenantSwitch] Switch called with id=#{params[:id]}"
+          tenant = Tenant.find(params[:id])
 
-          unless current_user.can_access_tenant?(tenant)
+          unless current_user.teeem_staff?
             return render json: { success: false, error: "Access denied to this tenant" }, status: :forbidden
           end
 
@@ -94,6 +95,7 @@ module Api
 
         # DELETE /api/v1/admin/tenants/switch
         # Clear tenant override (return to user's default tenant)
+        # SSoT: Uses Tenant model (not CorporateGroup)
         def clear_switch
           previous_tenant_id = cookies.signed[:admin_tenant_id]
           cookies.delete(:admin_tenant_id)
@@ -103,12 +105,13 @@ module Api
           render json: {
             success: true,
             message: "Returned to default tenant",
-            tenant: current_user.corporate_group ? tenant_json(current_user.corporate_group) : nil
+            tenant: current_user.tenant ? tenant_json(current_user.tenant) : nil
           }
         end
 
         # PATCH /api/v1/admin/tenants/environment
         # Update current tenant's environment (staging/beta/production)
+        # SSoT: Uses Tenant model (not CorporateGroup)
         def update_environment
           tenant = ActsAsTenant.current_tenant
 
@@ -117,7 +120,7 @@ module Api
           end
 
           # Validate environment value
-          valid_environments = CorporateGroup.environments.keys
+          valid_environments = Tenant.environments.keys
           unless valid_environments.include?(params[:environment])
             return render json: {
               success: false,
@@ -176,10 +179,11 @@ module Api
           }
 
           if include_stats
+            # SSoT: Use tenant_id for stats (not corporate_group_id/company_group_id)
             json[:stats] = {
-              usersCount: User.where(corporate_group_id: tenant.id).count,
-              jobsCount: Job.where(company_group_id: tenant.id).count,
-              contactsCount: Contact.where(company_group_id: tenant.id).count
+              usersCount: User.where(tenant_id: tenant.id).count,
+              jobsCount: Job.where(tenant_id: tenant.id).count,
+              contactsCount: Contact.where(tenant_id: tenant.id).count
             }
           end
 
