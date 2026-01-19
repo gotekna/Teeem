@@ -10,6 +10,7 @@ import {
 } from "@heroicons/react/24/outline";
 import axios from "axios";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 
 interface PurchaseOrder {
   id: number;
@@ -279,7 +280,7 @@ export default function RequestPaymentModal({
 
                 {loadingPOs ? (
                   <div className="flex items-center justify-center py-12">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                    <Spinner className="h-8 w-8" />
                   </div>
                 ) : eligiblePOs.length === 0 ? (
                   <div className="mt-6 text-center py-12">

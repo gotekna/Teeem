@@ -31,6 +31,7 @@ import {
 import { api } from "@/lib/api";
 import { PAGE_SIZE_AUTOCOMPLETE } from "@/lib/constants/pagination-constants";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 
 interface Contact {
   id: number;
@@ -374,7 +375,7 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <Spinner className="h-8 w-8" />
       </div>
     );
   }

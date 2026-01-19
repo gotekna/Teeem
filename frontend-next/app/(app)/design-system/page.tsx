@@ -661,19 +661,27 @@ export default function DesignSystemPage() {
             </CardHeader>
             <CardContent className="flex items-center gap-8">
               <div className="flex flex-col items-center gap-2">
-                <Spinner />
-                <span className="text-xs text-muted-foreground">Default</span>
+                <Spinner className="h-4 w-4" />
+                <span className="text-xs text-muted-foreground">Small (h-4)</span>
               </div>
               <div className="flex flex-col items-center gap-2">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-                <span className="text-xs text-muted-foreground">Spinner</span>
+                <Spinner />
+                <span className="text-xs text-muted-foreground">Default (h-6)</span>
+              </div>
+              <div className="flex flex-col items-center gap-2">
+                <Spinner className="h-8 w-8" />
+                <span className="text-xs text-muted-foreground">Large (h-8)</span>
+              </div>
+              <div className="flex flex-col items-center gap-2">
+                <Spinner className="h-12 w-12" />
+                <span className="text-xs text-muted-foreground">XL (h-12)</span>
               </div>
               <div className="flex flex-col items-center gap-2">
                 <Button disabled>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                  <Spinner className="h-4 w-4 mr-2" />
                   Loading...
                 </Button>
-                <span className="text-xs text-muted-foreground">Button Loading</span>
+                <span className="text-xs text-muted-foreground">In Button</span>
               </div>
             </CardContent>
           </Card>
