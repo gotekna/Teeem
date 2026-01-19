@@ -483,28 +483,31 @@ export function XeroHealthTab() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {dashboard?.credentials.map((cred) => (
-              <div
-                key={cred.id}
-                className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-              >
-                <div className="flex items-center gap-4">
-                  {getStatusIcon(cred.health.display_status)}
-                  <div>
-                    <p className="font-medium">{cred.health.xero_tenant_name || `Credential ${cred.id}`}</p>
-                    <p className="text-sm text-muted-foreground">{cred.health.message}</p>
+            {dashboard?.credentials.map((cred) => {
+              const health = cred.health || { display_status: 'unknown', message: 'Health data unavailable' };
+              return (
+                <div
+                  key={cred.id}
+                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center gap-4">
+                    {getStatusIcon(health.display_status)}
+                    <div>
+                      <p className="font-medium">{health.xero_tenant_name || `Credential ${cred.id}`}</p>
+                      <p className="text-sm text-muted-foreground">{health.message}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {getStatusBadge(health.display_status)}
+                    {health.expires_at && (
+                      <span className="text-sm text-muted-foreground">
+                        Expires: {new Date(health.expires_at).toLocaleString()}
+                      </span>
+                    )}
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  {getStatusBadge(cred.health.display_status)}
-                  {cred.health.expires_at && (
-                    <span className="text-sm text-muted-foreground">
-                      Expires: {new Date(cred.health.expires_at).toLocaleString()}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
             {(!dashboard?.credentials || dashboard.credentials.length === 0) && (
               <p className="text-muted-foreground text-center py-8">No Xero credentials configured</p>
             )}

@@ -7,7 +7,8 @@ import { EntityTabsConfig } from "@/components/admin/EntityTabsConfig";
 import { DocumentTypesTab } from "./DocumentTypesTab";
 import { StorageConfigTab } from "./StorageConfigTab";
 import { EmailConfigTab } from "./EmailConfigTab";
-import { Building2, Briefcase, X, FileText, Settings, Contact2, Mail, ChevronRight, Home } from "lucide-react";
+import { ConfigSyncTab } from "./ConfigSyncTab";
+import { Building2, Briefcase, X, FileText, Settings, Contact2, Mail, ChevronRight, Home, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
@@ -93,6 +94,16 @@ const scopes = [
     isEntityTab: false,
     isEmailConfig: true,
   },
+  {
+    id: "config_sync",
+    label: "Sync",
+    icon: RefreshCw,
+    showEntityFilters: false,
+    showSharePointPaths: false,
+    showDocumentTypes: false,
+    isEntityTab: false,
+    isConfigSync: true,
+  },
 ] as const;
 
 // Scope label mapping
@@ -103,6 +114,7 @@ const SCOPE_LABELS: Record<string, string> = {
   document_types: "Document Types",
   storage_config: "Storage Config",
   email_config: "Email Config",
+  config_sync: "Sync from TEEEM",
 };
 
 // Build breadcrumb items from path and active scope
@@ -274,6 +286,8 @@ export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFA
                 <StorageConfigTab />
               ) : "isEmailConfig" in scope && scope.isEmailConfig ? (
                 <EmailConfigTab />
+              ) : "isConfigSync" in scope && scope.isConfigSync ? (
+                <ConfigSyncTab />
               ) : (
                 <DocumentTypesTab />
               )}

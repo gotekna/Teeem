@@ -15,6 +15,7 @@ import { EmailAccountsTab } from "@/app/(app)/admin/system/components/EmailAccou
 import { UserManualTab } from "@/app/(app)/admin/system/components/UserManualTab";
 import { InspiringQuotesTab } from "@/app/(app)/admin/system/components/InspiringQuotesTab";
 import { BackupSettingsTab } from "@/app/(app)/admin/system/components/BackupSettingsTab";
+import { AdminConfigSyncTab } from "@/app/(app)/admin/system/components/AdminConfigSyncTab";
 
 /**
  * System Settings Page - Organization Settings
@@ -33,6 +34,7 @@ const SYSTEM_TABS = [
   { id: "email-accounts", label: "Email Accounts" },
   { id: "ai-processing", label: "AI Processing" },
   { id: "backups", label: "Backups" },
+  { id: "config-sync", label: "Config Sync" },
   { id: "health", label: "System Health" },
   { id: "user-manual", label: "User Manual" },
   { id: "inspiring-quotes", label: "Inspiring Quotes" },
@@ -96,6 +98,9 @@ export default function SystemSettingsPage() {
           </TabsContent>
           <TabsContent value="backups">
             <BackupSettingsTab />
+          </TabsContent>
+          <TabsContent value="config-sync">
+            <AdminConfigSyncTab />
           </TabsContent>
           <TabsContent value="health">
             <XeroHealthTab />

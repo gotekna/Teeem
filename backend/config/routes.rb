@@ -392,6 +392,23 @@ Rails.application.routes.draw do
         to: "job_status_stages#create"
       post "job_types/:job_type_id/statuses/:job_status_id/stages/reorder",
         to: "job_status_stages#reorder"
+
+      # =============================================================
+      # Config Sync (Tenant pulls from TEEEM master)
+      # =============================================================
+      # GET    /api/v1/config_sync/tables            -> List available config tables
+      # GET    /api/v1/config_sync/diff/:table       -> Compare tenant to TEEEM master
+      # POST   /api/v1/config_sync/pull              -> Pull selected records from master
+      # GET    /api/v1/config_sync/master_records/:table -> View master tenant's records
+      resource :config_sync, only: [], controller: "config_sync" do
+        collection do
+          get :tables
+          get "diff/:table", action: :diff
+          get "master_records/:table", action: :master_records
+          post :pull
+          post :push  # TEEEM staff only - push records to master
+        end
+      end
       delete "job_status_stages/:id", to: "job_status_stages#destroy"
 
       # User files from S3 (must be before resources :documents to avoid :id match)
@@ -4151,6 +4168,20 @@ Rails.application.routes.draw do
           member do
             post :import
             post :validate
+          end
+        end
+
+        # Config Sync (TEEEM staff - import from any tenant)
+        # GET    /api/v1/admin/config_sync/tables                        -> List available tables
+        # GET    /api/v1/admin/config_sync/tenants/:tenant_id/config/:table -> Browse tenant's config
+        # POST   /api/v1/admin/config_sync/import                        -> Import records into master
+        # GET    /api/v1/admin/config_sync/compare                       -> Compare across tenants
+        resource :config_sync, only: [], controller: "config_sync" do
+          collection do
+            get :tables
+            get "tenants/:tenant_id/config/:table", action: :browse
+            post :import
+            get :compare
           end
         end
       end
