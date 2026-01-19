@@ -30,7 +30,7 @@ module Api
         # GET /api/v1/admin/config_sync/tenants/:tenant_id/config/:table
         # Browse a tenant's configuration records
         def browse
-          source_tenant = CorporateGroup.find(params[:tenant_id])
+          source_tenant = Tenant.find(params[:tenant_id])
           service = TenantConfigSyncService.new(master_tenant)
           records = service.browse_tenant_config(source_tenant, params[:table])
 
@@ -54,7 +54,7 @@ module Api
         #   table: string - config table name
         #   record_ids: array - IDs of records to import
         def import
-          source_tenant = CorporateGroup.find(import_params[:source_tenant_id])
+          source_tenant = Tenant.find(import_params[:source_tenant_id])
           service = TenantConfigSyncService.new(master_tenant)
 
           result = service.import_from_tenant(
@@ -95,9 +95,9 @@ module Api
         #   tenant_ids: array - optional list of tenant IDs (defaults to all)
         def compare
           tenants = if params[:tenant_ids].present?
-                      CorporateGroup.where(id: params[:tenant_ids])
+                      Tenant.where(id: params[:tenant_ids])
                     else
-                      CorporateGroup.where.not(slug: [nil, ""])
+                      Tenant.where.not(slug: [nil, ""])
                     end
 
           service = TenantConfigSyncService.new(master_tenant)
@@ -153,14 +153,16 @@ module Api
         end
 
         def master_tenant
-          @master_tenant ||= CorporateGroup.find_by(is_master_tenant: true) ||
-                             CorporateGroup.find_by(slug: "teeem")
+          # Use Tenant model (new multi-tenancy) instead of CorporateGroup
+          @master_tenant ||= Tenant.find_by(is_master_tenant: true) ||
+                             Tenant.find_by(slug: "teeem")
         end
 
         def available_tenants_list
-          CorporateGroup.where.not(slug: [nil, ""])
-                        .order(:name)
-                        .map { |t| tenant_info(t) }
+          # Use Tenant model (new multi-tenancy) instead of CorporateGroup
+          Tenant.where.not(slug: [nil, ""])
+                .order(:name)
+                .map { |t| tenant_info(t) }
         end
 
         def tenant_info(tenant)

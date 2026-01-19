@@ -277,7 +277,8 @@ class TenantConfigSyncService
 
   # Get record counts per table for ALL tenants (for admin overview)
   def all_tenant_counts
-    tenants = CorporateGroup.order(:name)
+    # Use Tenant model (new multi-tenancy) instead of CorporateGroup
+    tenants = Tenant.order(:name)
     counts = {}
 
     CONFIG_TABLES.each do |key, config|
@@ -286,11 +287,11 @@ class TenantConfigSyncService
 
       tenants.each do |t|
         count = ActsAsTenant.with_tenant(t) { model.count }
-        counts[key.to_s][t.slug] = count
+        counts[key.to_s][t.slug || t.id.to_s] = count
       end
 
-      # Also count NULL tenant records
-      counts[key.to_s]["null"] = model.where(company_group_id: nil).count
+      # Also count NULL tenant records (unscoped)
+      counts[key.to_s]["null"] = model.unscoped.where(tenant_id: nil).count
     end
 
     {
@@ -546,7 +547,8 @@ class TenantConfigSyncService
   # ============================================================================
 
   def master_tenant
-    CorporateGroup.find_by(is_master_tenant: true) || CorporateGroup.find_by(slug: "teeem")
+    # Use Tenant model (new multi-tenancy) instead of CorporateGroup
+    Tenant.find_by(is_master_tenant: true) || Tenant.find_by(slug: "teeem")
   end
 
   def validate_table!(table)

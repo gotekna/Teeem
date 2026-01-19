@@ -18,10 +18,15 @@ module Api
       def tables
         service = TenantConfigSyncService.new(current_tenant)
 
+        # Get all tenant counts for admin overview
+        all_counts = service.all_tenant_counts
+
         render json: {
           success: true,
           tables: service.available_tables,
           counts: service.table_counts,
+          all_tenant_counts: all_counts[:counts],
+          all_tenants: all_counts[:tenants],
           groups: TenantConfigSyncService.groups,
           tenant: current_tenant ? tenant_info(current_tenant) : nil,
           master_tenant: master_tenant ? tenant_info(master_tenant) : nil,
@@ -164,8 +169,9 @@ module Api
       end
 
       def master_tenant
-        @master_tenant ||= CorporateGroup.find_by(is_master_tenant: true) ||
-                           CorporateGroup.find_by(slug: "teeem")
+        # Use Tenant model (new multi-tenancy) instead of CorporateGroup
+        @master_tenant ||= Tenant.find_by(is_master_tenant: true) ||
+                           Tenant.find_by(slug: "teeem")
       end
 
       def tenant_info(tenant)
