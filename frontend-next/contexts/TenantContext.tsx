@@ -168,10 +168,34 @@ export const TenantProvider = ({ children }: TenantProviderProps) => {
         );
 
         if (needsRedirect) {
-          const targetUrl = FRONTEND_URLS[targetEnv] || FRONTEND_URLS.production;
-          console.log(`[TenantSwitch] Environment change: ${targetEnv} - redirecting to ${targetUrl}`);
-          // Redirect to the correct environment's frontend
-          window.location.href = targetUrl;
+          const targetBaseUrl = FRONTEND_URLS[targetEnv] || FRONTEND_URLS.production;
+          console.log(`[TenantSwitch] Environment change: ${targetEnv} - redirecting to ${targetBaseUrl}`);
+
+          // Get the current token from localStorage to pass to the new frontend
+          // (localStorage is per-domain, so we need to pass the token in the URL)
+          const currentToken = localStorage.getItem('token');
+
+          // Build redirect URL with token for cross-domain authentication
+          const redirectUrl = new URL('/login', targetBaseUrl);
+          if (currentToken) {
+            redirectUrl.searchParams.set('token', currentToken);
+          }
+          redirectUrl.searchParams.set('redirect', window.location.pathname);
+
+          // Also pass the target API URL for the new environment
+          const API_URLS: Record<string, string> = {
+            staging: 'https://teeem-staging-d60a657ed68a.herokuapp.com',
+            beta: 'https://teeem-beta-6e3e9cb59225.herokuapp.com',
+            production: 'https://teeem-production-121159e1ff9d.herokuapp.com',
+          };
+          const targetApiUrl = API_URLS[targetEnv];
+          if (targetApiUrl) {
+            redirectUrl.searchParams.set('api_url', targetApiUrl);
+          }
+          redirectUrl.searchParams.set('environment', targetEnv);
+
+          console.log(`[TenantSwitch] Redirecting to: ${redirectUrl.toString()}`);
+          window.location.href = redirectUrl.toString();
           return true;
         }
 

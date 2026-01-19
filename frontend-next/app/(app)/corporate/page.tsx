@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useConfirm } from "@/contexts/ConfirmationContext";
+import { useToast } from "@/components/ui/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -483,6 +484,7 @@ function BeneficiariesTable() {
 
 export default function CorporateDashboardPage() {
   useSetLayoutMode("full-height");
+  const { toast } = useToast();
   const router = useRouter();
   const pathname = usePathname();
   const { confirm } = useConfirm();

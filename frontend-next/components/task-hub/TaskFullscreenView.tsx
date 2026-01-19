@@ -1843,14 +1843,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         setBulkLinkOpen(false);
         // Show success message (using existing toast or alert system)
         if (response.linked_count > 0) {
-          alert(`Linked ${response.linked_count} emails to this task`);
+          toast({ title: 'Success', description: `Linked ${response.linked_count} emails to this task` });
         } else {
-          alert('No new emails to link (all already attached)');
+          toast({ title: 'Info', description: 'No new emails to link (all already attached)' });
         }
       }
     } catch (err) {
       console.error('Failed to bulk link emails:', err);
-      alert('Failed to link emails');
+      toast({ title: 'Error', description: 'Failed to link emails', variant: 'destructive' });
     }
     setBulkLinkLoading(false);
   };
@@ -1874,14 +1874,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         setLocalAttachments(prev => [...prev, ...response.attachments]);
         setBulkLinkOpen(false);
         if (response.linked_count > 0) {
-          alert(`Linked ${response.linked_count} emails from all clients to this task`);
+          toast({ title: 'Success', description: `Linked ${response.linked_count} emails from all clients to this task` });
         } else {
-          alert('No new emails to link (all already attached)');
+          toast({ title: 'Info', description: 'No new emails to link (all already attached)' });
         }
       }
     } catch (err) {
       console.error('Failed to bulk link all client emails:', err);
-      alert('Failed to link client emails');
+      toast({ title: 'Error', description: 'Failed to link client emails', variant: 'destructive' });
     }
     setBulkLinkLoading(false);
   };
@@ -1906,16 +1906,16 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         setLocalAttachments(prev => [...prev, ...response.attachments]);
         setBulkLinkOpen(false);
         if (response.linked_count > 0) {
-          alert(`Linked ${response.linked_count} emails to this task`);
+          toast({ title: 'Success', description: `Linked ${response.linked_count} emails to this task` });
         } else if (response.total_found === 0) {
-          alert('No emails found for this address');
+          toast({ title: 'Info', description: 'No emails found for this address' });
         } else {
-          alert('No new emails to link (all already attached)');
+          toast({ title: 'Info', description: 'No new emails to link (all already attached)' });
         }
       }
     } catch (err) {
       console.error('Failed to bulk link emails:', err);
-      alert('Failed to link emails');
+      toast({ title: 'Error', description: 'Failed to link emails', variant: 'destructive' });
     }
     setBulkLinkLoading(false);
   };
@@ -1941,16 +1941,16 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         setBulkLinkOpen(false);
         setBulkLinkEmail('');
         if (response.linked_count > 0) {
-          alert(`Linked ${response.linked_count} emails to this task`);
+          toast({ title: 'Success', description: `Linked ${response.linked_count} emails to this task` });
         } else if (response.total_found === 0) {
-          alert('No emails found for this address');
+          toast({ title: 'Info', description: 'No emails found for this address' });
         } else {
-          alert('No new emails to link (all already attached)');
+          toast({ title: 'Info', description: 'No new emails to link (all already attached)' });
         }
       }
     } catch (err) {
       console.error('Failed to bulk link emails:', err);
-      alert('Failed to link emails');
+      toast({ title: 'Error', description: 'Failed to link emails', variant: 'destructive' });
     }
     setBulkLinkLoading(false);
   };
@@ -2038,16 +2038,16 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         setContactSearchQuery('');
         setContactSearchResults([]);
         if (response.linked_count > 0) {
-          alert(`Linked ${response.linked_count} emails to this task`);
+          toast({ title: 'Success', description: `Linked ${response.linked_count} emails to this task` });
         } else if (response.total_found === 0) {
-          alert('No emails found for this contact');
+          toast({ title: 'Info', description: 'No emails found for this contact' });
         } else {
-          alert('No new emails to link (all already attached)');
+          toast({ title: 'Info', description: 'No new emails to link (all already attached)' });
         }
       }
     } catch (err) {
       console.error('Failed to bulk link emails:', err);
-      alert('Failed to link emails');
+      toast({ title: 'Error', description: 'Failed to link emails', variant: 'destructive' });
     }
     setBulkLinkLoading(false);
   };
