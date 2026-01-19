@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_18_084110) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_19_054838) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2437,7 +2437,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_18_084110) do
     t.string "layout"
     t.boolean "is_legal_format", default: false, null: false
     t.string "legal_source"
+    t.bigint "company_group_id"
     t.index ["category", "sort_order"], name: "index_document_templates_on_category_and_sort_order"
+    t.index ["company_group_id"], name: "index_document_templates_on_company_group_id"
     t.index ["is_legal_format"], name: "index_document_templates_on_is_legal_format"
     t.index ["template_type"], name: "index_document_templates_on_template_type"
   end
@@ -7696,9 +7698,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_18_084110) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "company_group_id"
+    t.index ["company_group_id", "name"], name: "index_pricebook_categories_on_tenant_and_name", unique: true
     t.index ["company_group_id"], name: "index_pricebook_categories_on_company_group_id"
     t.index ["is_active"], name: "index_pricebook_categories_on_is_active"
-    t.index ["name"], name: "index_pricebook_categories_on_name", unique: true
     t.index ["position"], name: "index_pricebook_categories_on_position"
   end
 
@@ -7744,12 +7746,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_18_084110) do
     t.index ["category"], name: "index_pricebooks_on_category"
     t.index ["category_id"], name: "index_pricebooks_on_category_id"
     t.index ["colour"], name: "index_pricebooks_on_colour"
+    t.index ["company_group_id", "item_code"], name: "index_pricebooks_on_tenant_and_item_code", unique: true
     t.index ["company_group_id"], name: "index_pricebooks_on_company_group_id"
     t.index ["default_supplier_id"], name: "index_pricebooks_on_default_supplier_id"
     t.index ["image_fetch_status"], name: "index_pricebooks_on_image_fetch_status"
     t.index ["image_file_id"], name: "index_pricebooks_on_image_file_id"
     t.index ["is_active"], name: "index_pricebooks_on_is_active"
-    t.index ["item_code"], name: "index_pricebooks_on_item_code", unique: true
     t.index ["needs_pricing_review"], name: "index_pricebooks_on_needs_pricing_review"
     t.index ["price_last_updated_at"], name: "index_pricebooks_on_price_last_updated_at"
     t.index ["qr_code_file_id"], name: "index_pricebooks_on_qr_code_file_id"
@@ -10820,6 +10822,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_18_084110) do
   add_foreign_key "document_duplicate_reviews", "users", column: "resolved_by_id"
   add_foreign_key "document_folders", "document_folders", column: "parent_id"
   add_foreign_key "document_tasks", "jobs"
+  add_foreign_key "document_templates", "corporate_groups", column: "company_group_id"
   add_foreign_key "document_type_folders", "document_folders"
   add_foreign_key "document_type_folders", "document_types"
   add_foreign_key "document_types", "corporate_groups", column: "company_group_id"

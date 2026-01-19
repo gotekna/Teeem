@@ -84,6 +84,62 @@ class TenantConfigSyncService
       sync_fields: [:display_name, :entity_type, :icon, :position, :description,
                     :is_default, :is_system],
       description: "Entity folder/tab organization"
+    },
+    sm_schedule_master_templates: {
+      model: "SmScheduleMasterTemplate",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :description, :is_default, :is_active],
+      description: "Schedule Master templates"
+    },
+    sm_trades: {
+      model: "SmTrade",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name],
+      description: "Schedule Master trades"
+    },
+    document_templates: {
+      model: "DocumentTemplate",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :description, :category, :output_format, :output_naming_pattern,
+                    :data_schema, :is_active, :sort_order, :template_type, :layout,
+                    :is_legal_format, :legal_source, :local_template_path],
+      description: "Document generation templates"
+    },
+    meeting_types: {
+      model: "MeetingType",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :description, :category, :icon, :color, :default_duration_minutes,
+                    :required_participant_types, :optional_participant_types,
+                    :minimum_participants, :maximum_participants, :default_agenda_items,
+                    :required_fields, :optional_fields, :custom_fields, :required_documents,
+                    :notification_settings, :is_active, :is_system_default],
+      description: "Meeting type definitions"
+    },
+    pricebook_items: {
+      model: "PricebookItem",
+      name_field: :item_name,
+      match_fields: [:item_code],
+      sync_fields: [:item_code, :item_name, :category, :unit_of_measure, :current_price,
+                    :brand, :notes, :is_active, :supplier_price, :colour, :colour_code,
+                    :colour_brand, :lead_time_days, :call_time_days, :gst_code,
+                    :requires_photo, :requires_spec],
+      description: "Pricebook products and pricing"
+    },
+    sm_schedule_masters: {
+      model: "SmScheduleMaster",
+      name_field: :name,
+      match_fields: [:task_number],
+      sync_fields: [:task_number, :name, :description, :sequence_order, :duration_days,
+                    :trade, :stage, :pass_fail_enabled, :order_time_days, :call_time_days,
+                    :require_photo, :confirm, :po_required, :critical_po, :has_subtasks,
+                    :subtask_count, :subtask_names, :tags, :color, :is_active, :cost_centre,
+                    :supplier_confirm, :header_gantt, :hold, :assigned_role, :is_claim_task,
+                    :claim_percentage, :is_variation],
+      description: "Schedule Master task templates"
     }
   }.freeze
 

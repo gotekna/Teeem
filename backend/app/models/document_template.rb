@@ -40,6 +40,9 @@
 #   <% if @job.has_warranty? %>      - Conditionals
 #
 class DocumentTemplate < ApplicationRecord
+  include ActsAsTenant::ModelExtensions
+  acts_as_tenant :company_group, class_name: "CorporateGroup"
+
   # Constants
   CATEGORIES = %w[job contact quote invoice contract letter report certificate].freeze
   OUTPUT_FORMATS = %w[docx pdf both].freeze
