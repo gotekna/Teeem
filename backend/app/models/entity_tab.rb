@@ -96,7 +96,7 @@ class EntityTab < ApplicationRecord
 
   # Uniqueness within scope + job + parent + tenant (allows same tab_key under different parents)
   # SSoT: Child tabs under different parents can have the same display_name (e.g., "Site" under Documents vs "Site" under Photos)
-  validates :tab_key, uniqueness: { scope: [:company_group_id, :scope, :job_id, :parent_id] }
+  validates :tab_key, uniqueness: { scope: [:tenant_id, :scope, :job_id, :parent_id] }
 
   # SSoT: Icon uniqueness - root tabs must have unique icons within scope
   validate :icon_uniqueness_for_root_tabs

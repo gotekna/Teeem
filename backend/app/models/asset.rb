@@ -1,7 +1,6 @@
 class Asset < ApplicationRecord
   # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
   acts_as_tenant :tenant
-  belongs_to :corporate_group, foreign_key: :company_group_id, optional: true  # Business grouping (not multi-tenancy)
 
   # Associations
   belongs_to :corporate_company, foreign_key: "company_id"
@@ -41,7 +40,7 @@ class Asset < ApplicationRecord
   validates :purchase_price, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :current_book_value, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :abbreviation, format: { with: /\A[A-Z0-9\-]+\z/, message: "must be uppercase letters, numbers, or hyphens", allow_blank: true }
-  validates :asset_number, uniqueness: { scope: :company_group_id }, allow_nil: true
+  validates :asset_number, uniqueness: { scope: :tenant_id }, allow_nil: true
 
   # Scopes
   scope :active, -> { where(status: "active") }

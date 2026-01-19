@@ -1,7 +1,6 @@
 class PricebookItem < ApplicationRecord
   # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
   acts_as_tenant :tenant
-  belongs_to :corporate_group, foreign_key: :company_group_id, optional: true  # Business grouping (not multi-tenancy)
 
   self.table_name = "pricebooks"  # Table renamed from pricebook (Rails convention)
 
@@ -15,7 +14,7 @@ class PricebookItem < ApplicationRecord
   attr_accessor :skip_price_history_callback
 
   # Validations
-  validates :item_code, presence: true, uniqueness: { scope: :company_group_id }
+  validates :item_code, presence: true, uniqueness: { scope: :tenant_id }
   validates :item_name, presence: true
   validates :current_price, numericality: { allow_nil: true }  # Allow negative prices for rebates/credits
   validates :unit_of_measure, presence: true

@@ -5,12 +5,12 @@ class XeroChartOfAccount < ApplicationRecord
   # Validations
   validates :account_code, presence: true
   validates :account_name, presence: true
-  validates :account_code, uniqueness: { scope: :company_group_id, message: "already exists for this group" }
+  validates :account_code, uniqueness: { scope: :tenant_id, message: "already exists for this group" }
 
   # Scopes
   scope :active, -> { where(active: true) }
-  scope :global, -> { where(company_group_id: nil) }
-  scope :for_group, ->(group_id) { where(company_group_id: group_id) }
+  scope :global, -> { where(tenant_id: nil) }
+  scope :for_group, ->(group_id) { where(tenant_id: group_id) }
   scope :by_code, -> { order(:account_code) }
   scope :banks, -> { where(account_type: "Bank") }
   scope :assets, -> { where("account_type LIKE '%Asset%'") }

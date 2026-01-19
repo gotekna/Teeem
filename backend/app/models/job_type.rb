@@ -1,7 +1,6 @@
 class JobType < ApplicationRecord
   # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
   acts_as_tenant :tenant
-  belongs_to :corporate_group, foreign_key: :company_group_id, optional: true  # Business grouping (not multi-tenancy)
 
   # Prevent deletion if jobs exist of this type (data integrity)
   has_many :jobs, dependent: :restrict_with_error
@@ -14,7 +13,7 @@ class JobType < ApplicationRecord
   # Default schedule template for jobs of this type
   belongs_to :sm_schedule_master_template, optional: true
 
-  validates :name, presence: true, uniqueness: { scope: :company_group_id }
+  validates :name, presence: true, uniqueness: { scope: :tenant_id }
 
   default_scope { order(:position) }
   scope :active, -> { where(is_active: true) }

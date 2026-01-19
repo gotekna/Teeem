@@ -1,7 +1,6 @@
 class PurchaseOrder < ApplicationRecord
   # Multi-tenancy: DISABLED until tenant_id column added via migration
   acts_as_tenant :tenant
-  belongs_to :corporate_group, foreign_key: :company_group_id, optional: true  # Business grouping (not multi-tenancy)
 
   include Searchable
 
@@ -101,7 +100,7 @@ class PurchaseOrder < ApplicationRecord
 
   # Validations
   # purchase_order_number is generated from ID after create, so only validate on update
-  validates :purchase_order_number, presence: true, uniqueness: { scope: :company_group_id }, on: :update
+  validates :purchase_order_number, presence: true, uniqueness: { scope: :tenant_id }, on: :update
   validates :job_id, presence: true
   validates :status, presence: true, inclusion: {
     in: %w[draft pending approved sent received invoiced paid cancelled]

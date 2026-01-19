@@ -11,7 +11,6 @@ class CaseRecord < ApplicationRecord
   # Primary entity being investigated (optional)
   belongs_to :contact, optional: true
   belongs_to :corporate_company, foreign_key: "company_id", optional: true
-  belongs_to :corporate_group, optional: true, foreign_key: "company_group_id"
 
   # Case management
   belongs_to :assigned_to, class_name: "User", optional: true

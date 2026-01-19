@@ -1,7 +1,6 @@
 class Contact < ApplicationRecord
   # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
   acts_as_tenant :tenant
-  belongs_to :corporate_group, foreign_key: :company_group_id, optional: true  # Business grouping (not multi-tenancy)
 
   include SelfHealing  # Auto-fix formatting issues and earn System kudos
   include Searchable

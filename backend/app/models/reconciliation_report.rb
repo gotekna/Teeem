@@ -1,6 +1,5 @@
 class ReconciliationReport < ApplicationRecord
   # Associations
-  belongs_to :corporate_group, optional: true, foreign_key: "company_group_id"
 
   # Constants
   STATUSES = %w[pending running completed failed].freeze
@@ -12,7 +11,7 @@ class ReconciliationReport < ApplicationRecord
   # Scopes
   scope :recent, -> { order(created_at: :desc) }
   scope :completed, -> { where(status: "completed") }
-  scope :for_group, ->(group_id) { where(company_group_id: group_id) }
+  scope :for_group, ->(group_id) { where(tenant_id: group_id) }
 
   # Instance methods
   def mark_running!
