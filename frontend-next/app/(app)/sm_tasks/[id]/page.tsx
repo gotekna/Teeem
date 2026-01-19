@@ -1,17 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { TaskHubProvider, useTaskHub, SmTask } from '@/contexts/TaskHubContext';
 import { TaskFullscreenView } from '@/components/task-hub/TaskFullscreenView';
 import { Spinner } from '@/components/ui/spinner';
-import { BackButton } from '@/components/ui/back-button';
+import { BackButton, getParentRoute } from '@/components/ui/back-button';
 import { api } from '@/lib/api';
 import { useSetLayoutMode } from '@/contexts/LayoutModeContext';
 
 function TaskDetailContent() {
   const params = useParams();
-  const router = useRouter();
   const taskId = Number(params.id);
 
   // Fullscreen mode - hides sidebar and breadcrumbs
@@ -94,11 +93,12 @@ function TaskDetailContent() {
     <TaskFullscreenView
       task={task}
       onClose={() => {
-        // SSoT: Use fallback navigation - router.back() fails when user arrives from external link
-        if (window.history.length > 1) {
-          router.back();
+        // SSoT: Use BackButton's getParentRoute helper for consistent navigation
+        const hasHistory = typeof window !== "undefined" && window.history.length > 2;
+        if (hasHistory) {
+          window.history.back();
         } else {
-          router.push('/tasks');
+          window.location.href = getParentRoute(window.location.pathname);
         }
       }}
     />

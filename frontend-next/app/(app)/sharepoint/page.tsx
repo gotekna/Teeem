@@ -5,6 +5,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { getParentRoute } from "@/components/ui/back-button";
 
 import { Spinner } from "@/components/ui/spinner";
 
@@ -50,11 +51,12 @@ export default function SharePointPage() {
       sharePointWindow.focus();
     }
 
-    // SSoT: Use fallback navigation - router.back() fails when user arrives from external link
-    if (window.history.length > 1) {
+    // SSoT: Use BackButton's getParentRoute helper for consistent navigation
+    const hasHistory = window.history.length > 2;
+    if (hasHistory) {
       router.back();
     } else {
-      router.push('/');
+      router.push(getParentRoute(window.location.pathname));
     }
   }, [router]);
 

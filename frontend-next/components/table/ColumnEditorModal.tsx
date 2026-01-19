@@ -50,7 +50,7 @@ import { getColumnTypeEmoji, getColumnTypes, getTypeDefinition } from "@/lib/col
 import type { TableColumn } from "./types";
 import { useSetAtom } from "jotai";
 import { invalidateColumnsCacheAtom } from "@/lib/column-state-atoms";
-import { isLookupColumn } from "@/lib/constants/column-types";
+import { isLookupColumn, isChoiceColumn } from "@/lib/constants/column-types";
 
 interface ColumnEditorModalProps {
   isOpen: boolean;
@@ -392,14 +392,14 @@ export function ColumnEditorModal({
                 </TabsTrigger>
               )}
               {/* Show Choices tab for choice columns */}
-              {editedColumn.data_type === "choice" && (
+              {isChoiceColumn(editedColumn.data_type) && (
                 <TabsTrigger value="choices" className="gap-2">
                   <List className="h-4 w-4" />
                   Choices
                 </TabsTrigger>
               )}
               {/* Show Lookup tab for lookup/relationship columns */}
-              {(editedColumn.data_type === "lookup" || editedColumn.data_type === "multiple_lookups") && (
+              {isLookupColumn(editedColumn.data_type) && (
                 <TabsTrigger value="lookup" className="gap-2">
                   <Link2 className="h-4 w-4" />
                   Lookup

@@ -131,7 +131,7 @@ export function BulkUpdateModal({
                 const selectedCol = COLUMNS.find(c => c.key === bulkUpdateColumn);
                 const hasChoices = selectedCol?.choices && selectedCol.choices.length > 0;
                 const colType = selectedCol?.column_type;
-                const isLookup = colType === 'lookup' || !!selectedCol?.lookup_foundation_id;
+                const isLookup = (isLookupColumn(colType) && colType !== 'multiple_lookups') || !!selectedCol?.lookup_foundation_id;
                 const isMultipleLookups = colType === 'multiple_lookups';
                 const isChoice = isChoiceColumn(colType);
 

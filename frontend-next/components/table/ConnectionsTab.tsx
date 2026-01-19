@@ -130,7 +130,7 @@ export function ConnectionsTab({ foundationId, columns, tableName }: Connections
 
       if (lookupFoundationId) {
         const targetFoundation = foundations.find((f) => f.id === lookupFoundationId);
-        const isMultiple = details?.is_multiple || column.column_type === 'multiple_lookups';
+        const isMultiple = details?.is_multiple || column.column_type === 'multiple_lookups'; // Note: This is an explicit check for the specific type, not a general lookup check
 
         result.push({
           type: "outgoing",

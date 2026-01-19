@@ -120,8 +120,8 @@ function convertValueForColumn(
     return value.split(',').filter(Boolean).map(id => parseInt(id, 10));
   }
 
-  // Single lookup: convert to integer
-  if (colType === 'lookup' || column.lookup_foundation_id) {
+  // Single lookup: convert to integer (use helper for the general check, but exclude multiple_lookups)
+  if ((isLookupColumn(colType) && colType !== 'multiple_lookups') || column.lookup_foundation_id) {
     return parseInt(value, 10);
   }
 

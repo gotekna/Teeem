@@ -530,7 +530,7 @@ export function CreateRecordDialog({
 
     // Check if column is a lookup type
     const colType = col.column_type;
-    const isLookup = colType === "lookup" || !!col.lookup_foundation_id;
+    const isLookup = (isLookupColumn(colType) && colType !== "multiple_lookups") || !!col.lookup_foundation_id;
     const isMultipleLookup = colType === "multiple_lookups";
 
     // Handle multiple lookups (checkboxes for multi-select)

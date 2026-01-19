@@ -9,6 +9,7 @@ import { StorageConfigTab } from "./StorageConfigTab";
 import { EmailConfigTab } from "./EmailConfigTab";
 import { ConfigSyncTab } from "./ConfigSyncTab";
 import { Building2, Briefcase, X, FileText, Settings, Contact2, Mail, ChevronRight, Home, RefreshCw } from "lucide-react";
+import { getParentRoute } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
@@ -190,14 +191,17 @@ export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFA
   }, []);
 
   // Handle close - navigate back to previous page
-  // SSoT: Use fallback navigation - router.back() fails when user arrives from external link
+  // SSoT: Use BackButton's getParentRoute helper for consistent navigation
   const handleClose = React.useCallback(() => {
     if (onClose) {
       onClose();
-    } else if (window.history.length > 1) {
-      router.back();
     } else {
-      router.push('/settings');
+      const hasHistory = typeof window !== "undefined" && window.history.length > 2;
+      if (hasHistory) {
+        router.back();
+      } else {
+        router.push(getParentRoute(window.location.pathname));
+      }
     }
   }, [onClose, router]);
 
