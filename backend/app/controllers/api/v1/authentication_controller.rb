@@ -197,6 +197,20 @@ module Api
 
       # GET /api/v1/auth/me
       def me
+        # Get environment config for auto-login redirect check
+        # (Same logic as login - needed so session restore can redirect to correct frontend)
+        env_config = CorporateCompanySetting.api_environment_config
+
+        # TEEEM staff stay on production frontend (use TenantSwitcher instead)
+        is_teeem_staff = @current_user.email.to_s.end_with?('@teeem.com.au')
+
+        # Check if request is from localhost (don't redirect local dev)
+        request_origin = request.headers['Origin'] || request.headers['Referer'] || ''
+        is_localhost = request_origin.include?('localhost') || request_origin.include?('127.0.0.1')
+
+        # Only return frontend_url if redirect is needed
+        frontend_url = (is_teeem_staff || is_localhost) ? nil : env_config[:frontend_url]
+
         render json: {
           success: true,
           user: {
@@ -209,7 +223,11 @@ module Api
             preferred_theme: @current_user.preferred_theme,
             photo_url: @current_user.photo.attached? ? url_for(@current_user.photo) : nil,
             signature_url: @current_user.signature.attached? ? url_for(@current_user.signature) : nil
-          }
+          },
+          # Environment info for auto-login redirect check
+          api_url: env_config[:api_url],
+          frontend_url: frontend_url,
+          environment: env_config[:environment]
         }
       end
 

@@ -134,6 +134,32 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     try {
       const response = await api.get<AuthResponse>('/api/v1/auth/me');
       if (response.success && response.user) {
+        // Check if we need to redirect to a different frontend (auto-login environment check)
+        // Same logic as login - if frontend_url differs from current origin, redirect
+        if (
+          response.frontend_url &&
+          typeof window !== 'undefined' &&
+          response.frontend_url !== window.location.origin
+        ) {
+          // Get existing token from localStorage
+          const existingToken = localStorage.getItem('token');
+          if (existingToken) {
+            // Redirect to the correct frontend with token for cross-domain login
+            const redirectUrl = new URL('/login', response.frontend_url);
+            redirectUrl.searchParams.set('token', existingToken);
+            redirectUrl.searchParams.set('redirect', window.location.pathname);
+            if (response.api_url) {
+              redirectUrl.searchParams.set('api_url', response.api_url);
+            }
+            if (response.environment) {
+              redirectUrl.searchParams.set('environment', response.environment);
+            }
+            console.log('Auto-login redirect: wrong frontend, redirecting to', response.frontend_url);
+            window.location.href = redirectUrl.toString();
+            return; // Don't setLoading(false) - page is redirecting
+          }
+        }
+
         setUser(response.user);
         applyUserTheme(response.user);
         // Load column type definitions from SSoT (fires in background)
