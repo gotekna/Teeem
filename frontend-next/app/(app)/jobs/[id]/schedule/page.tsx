@@ -1455,10 +1455,10 @@ export default function SchedulePage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => router.push(`/jobs/${jobId}/schedule/gantt-v2`)}
+                onClick={() => router.push(`/jobs/${jobId}/schedule/gantt`)}
               >
                 <BarChart3 className="h-4 w-4 mr-2" />
-                Open Gantt v2
+                Open Gantt
               </Button>
             </div>
           }

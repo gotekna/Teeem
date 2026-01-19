@@ -36,11 +36,18 @@ class Tenant < ApplicationRecord
   # Associations
   # =============================================================================
 
+  # Billing - the CorporateCompany we invoice for software usage
+  belongs_to :billing_company, class_name: 'CorporateCompany', optional: true
+
   # Settings
   has_one :tenant_setting, dependent: :destroy
 
   # Business groupings (CorporateGroup now belongs_to Tenant)
   has_many :corporate_groups, dependent: :destroy
+  has_many :corporate_companies, through: :corporate_groups
+
+  # Organizations (credential isolation within tenant)
+  has_many :organizations, dependent: :destroy
 
   # Users
   has_many :users, dependent: :nullify

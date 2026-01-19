@@ -10,7 +10,7 @@ import { TASK_STATUS, type TaskStatus } from '@/lib/constants/task-status';
 /**
  * GanttView for Task Hub
  *
- * Uses GanttUnified (v2) component for the task timeline view.
+ * Uses GanttUnified component for the task timeline view.
  * Converts SmTask to GanttTask format and supports dependencies.
  */
 export function GanttView() {

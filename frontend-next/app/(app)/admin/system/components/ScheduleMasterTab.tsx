@@ -441,23 +441,6 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     description: "",
   });
 
-  // Gantt Preview state
-  const [ganttTemplateId, setGanttTemplateIdState] = React.useState<number | null>(null);
-  // ⚠️ Ref to track CURRENT value for async closure safety (v2711)
-  const ganttTemplateIdRef = React.useRef<number | null>(null);
-  // ⚠️ DO NOT SIMPLIFY - Sync wrapper updates ref BEFORE state (v2711 fix)
-  // ════════════════════════════════════════════════════════════════════
-  // Why: React effects run AFTER commit phase. If loadTemplates() API returns
-  //      before commit completes, the ref (set via effect) would still be stale.
-  // Fix: Update ref synchronously, then state. Ref is always current.
-  // ════════════════════════════════════════════════════════════════════
-  const setGanttTemplateId = React.useCallback((id: number | null) => {
-    ganttTemplateIdRef.current = id;
-    setGanttTemplateIdState(id);
-  }, []);
-  const [ganttRows, setGanttRows] = React.useState<SmScheduleMaster[]>([]);
-  const [ganttFullscreen, setGanttFullscreen] = React.useState(true); // Default to fullscreen
-
   // Data View state
   // ⚠️ DO NOT SIMPLIFY - Jotai atom survives component remounts (v2711 ultra fix)
   // ════════════════════════════════════════════════════════════════════
@@ -472,33 +455,33 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   const [noTemplateCount, setNoTemplateCount] = React.useState<number>(0);
   // SSoT: dataViewFullscreen removed - now handled by TeeemTableView via enableFullscreen prop
 
-  // Gantt V2 state - template ID for selection
-  const [ganttV2TemplateId, setGanttV2TemplateIdState] = React.useState<number | null>(null);
+  // Gantt state - template ID for selection
+  const [ganttTemplateId, setGanttTemplateIdState] = React.useState<number | null>(null);
   // ⚠️ Ref to track CURRENT value for async closure safety (v2711)
-  const ganttV2TemplateIdRef = React.useRef<number | null>(null);
+  const ganttTemplateIdRef = React.useRef<number | null>(null);
   // ⚠️ DO NOT SIMPLIFY - Sync wrapper updates ref BEFORE state (v2711 fix)
-  const setGanttV2TemplateId = React.useCallback((id: number | null) => {
-    ganttV2TemplateIdRef.current = id;
-    setGanttV2TemplateIdState(id);
+  const setGanttTemplateId = React.useCallback((id: number | null) => {
+    ganttTemplateIdRef.current = id;
+    setGanttTemplateIdState(id);
   }, []);
   // Show PO required tasks without suppliers (useful for template editing)
   const [showAllPOTasks, setShowAllPOTasks] = React.useState(false);
   const [showClaims, setShowClaims] = React.useState(false);
 
-  // SSoT: Use shared hook for all Gantt V2 behavior
+  // SSoT: Use shared hook for all Gantt behavior
   // Gantt always loads its own data (same as Job Gantt) - no external data mode
   const gantt = useGanttDataManager({
     mode: 'template',
-    templateId: ganttV2TemplateId ?? undefined,
+    templateId: ganttTemplateId ?? undefined,
     showAllPOTasks,
     showClaims,
   });
 
   // Aliases for backward compatibility during transition
-  const ganttV2Tasks = gantt.tasks;
-  const ganttV2Dependencies = gantt.dependencies;
-  const ganttV2Loading = gantt.loading;
-  const ganttV2UndoHistory = gantt.undoHistory;
+  const ganttTasks = gantt.tasks;
+  const ganttDependencies = gantt.dependencies;
+  const ganttLoading = gantt.loading;
+  const ganttUndoHistory = gantt.undoHistory;
   const cascadeDialog = gantt.cascadeDialog;
   const setCascadeDialog = gantt.setCascadeDialog;
   const lockedTaskDecisions = gantt.lockedTaskDecisions;
@@ -514,12 +497,12 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   const executeEmailSupplier = gantt.executeEmailSupplier;
   const dependencyEditorState = gantt.dependencyEditorState;
   const setDependencyEditorState = gantt.setDependencyEditorState;
-  const executeGanttV2CheckboxToggle = gantt.executeCheckboxToggle;
-  const executeGanttV2DragMove = gantt.executeDragMove;
+  const executeGanttCheckboxToggle = gantt.executeCheckboxToggle;
+  const executeGanttDragMove = gantt.executeDragMove;
   const executeStartTask = gantt.executeStartTask;
-  const loadGanttV2Data = gantt.loadData;
-  const storeGanttV2UndoState = gantt.storeUndoState;
-  const handleGanttV2Undo = gantt.handleUndo;
+  const loadGanttData = gantt.loadData;
+  const storeGanttUndoState = gantt.storeUndoState;
+  const handleGanttUndo = gantt.handleUndo;
 
   // Row Edit Sheet state
   const [showEditSheet, setShowEditSheet] = React.useState(false);
@@ -670,7 +653,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   };
 
   // v2711 note: Ref sync moved to wrapper setters (setGanttTemplateId, setDataViewTemplateId,
-  // setGanttV2TemplateId) which update refs synchronously BEFORE state. This prevents race
+  // setGanttTemplateId) which update refs synchronously BEFORE state. This prevents race
   // conditions where effects run after async API completes but before commit phase.
 
   React.useEffect(() => {
@@ -1025,7 +1008,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         ) || loadedTemplates[0];
 
         if (autoSelectTemplate) {
-          loadGanttRows(autoSelectTemplate.id);
+          setGanttTemplateId(autoSelectTemplate.id);
         }
       }
 
@@ -1052,9 +1035,9 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         }
       }
 
-      // Auto-select template for Gantt V2 (same priority as others)
+      // Auto-select template for Gantt (same priority as others)
       // v2711: Use ref (not closure) to check CURRENT value after async await
-      if (!ganttV2TemplateIdRef.current && loadedTemplates.length > 0) {
+      if (!ganttTemplateIdRef.current && loadedTemplates.length > 0) {
         const autoSelectTemplate = loadedTemplates.find(t =>
           t.name.toLowerCase() === 'po schedule master'
         ) || loadedTemplates.find(t =>
@@ -1062,7 +1045,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         ) || loadedTemplates[0];
 
         if (autoSelectTemplate) {
-          setGanttV2TemplateId(autoSelectTemplate.id);
+          setGanttTemplateId(autoSelectTemplate.id);
         }
       }
     } catch (error) {
@@ -1389,19 +1372,19 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     // Refresh data
     setDataViewRefreshKey(prev => prev + 1);
     loadDataViewRows(dataViewTemplateId);
-    if (activeEditTemplateId === ganttV2TemplateId && ganttV2TemplateId) {
-      loadGanttV2Data();
+    if (activeEditTemplateId === ganttTemplateId && ganttTemplateId) {
+      loadGanttData();
     }
-  }, [activeEditTemplateId, dataViewTemplateId, ganttV2TemplateId, loadDataViewRows, loadGanttV2Data]);
+  }, [activeEditTemplateId, dataViewTemplateId, ganttTemplateId, loadDataViewRows, loadGanttData]);
 
   // SSoT: Refresh handler for EditRowDialog
   const handleEditRowRefresh = React.useCallback(() => {
     setDataViewRefreshKey(prev => prev + 1);
     loadDataViewRows(dataViewTemplateId);
-    if (ganttV2TemplateId) {
-      loadGanttV2Data();
+    if (ganttTemplateId) {
+      loadGanttData();
     }
-  }, [dataViewTemplateId, ganttV2TemplateId, loadDataViewRows, loadGanttV2Data]);
+  }, [dataViewTemplateId, ganttTemplateId, loadDataViewRows, loadGanttData]);
 
   // SSoT: Copy to template handler for EditRowDialog
   const handleCopyToTemplate = React.useCallback(async (templateId: number, rowId: number) => {
@@ -1443,15 +1426,15 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     setShowEditSheet(true);
   };
 
-  // Handle Gantt V2 task double-click - open edit sheet
-  const handleGanttV2TaskDoubleClick = (task: GanttTask) => {
-    console.log('[ScheduleMasterTab] handleGanttV2TaskDoubleClick called with task:', task.id, task.name);
-    setActiveEditTemplateId(ganttV2TemplateId); // Track which template to save to
+  // Handle Gantt task double-click - open edit sheet
+  const handleGanttTaskDoubleClick = (task: GanttTask) => {
+    console.log('[ScheduleMasterTab] handleGanttTaskDoubleClick called with task:', task.id, task.name);
+    setActiveEditTemplateId(ganttTemplateId); // Track which template to save to
 
     // Extract row data from task.rowData (set by convertRowsToTasks)
     const rowData = task.rowData as GanttSmScheduleMaster | undefined;
     if (!rowData) {
-      console.error('[Gantt V2] No rowData found on task:', task);
+      console.error('[Gantt] No rowData found on task:', task);
       return;
     }
 
@@ -1503,20 +1486,20 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     setShowEditSheet(true);
   };
 
-  // Gantt V2: Handle checkbox toggle (Started, Hold, Confirm, Supplier Confirm, Complete)
-  const handleGanttV2CheckboxToggle = async (taskId: string, field: string, checked: boolean) => {
-    if (!ganttV2TemplateId) return;
+  // Gantt: Handle checkbox toggle (Started, Hold, Confirm, Supplier Confirm, Complete)
+  const handleGanttCheckboxToggle = async (taskId: string, field: string, checked: boolean) => {
+    if (!ganttTemplateId) return;
 
-    console.log('[Gantt V2] Checkbox toggle:', taskId, field, checked);
+    console.log('[Gantt] Checkbox toggle:', taskId, field, checked);
 
     // For "started" field, check if task is under a header or has predecessors
     if (field === 'started' && checked) {
-      const task = ganttV2Tasks.find(t => t.id === taskId);
+      const task = ganttTasks.find(t => t.id === taskId);
       if (!task) return;
 
       const row = task.rowData as GanttSmScheduleMaster | undefined;
       if (!row) {
-        await executeGanttV2CheckboxToggle(taskId, field, checked);
+        await executeGanttCheckboxToggle(taskId, field, checked);
         return;
       }
 
@@ -1535,8 +1518,9 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         if (isUnderHeader) {
           const headerTaskNumber = extractLookupId(headerGanttValue);
           if (headerTaskNumber) {
-            // Find header row by task_number
-            const headerRow = ganttRows.find((r: SmScheduleMaster) => String(r.task_number) === headerTaskNumber);
+            // Find header row by task_number (ganttTasks has GanttTask with rowData)
+            const headerTask = ganttTasks.find(t => String((t.rowData as SmScheduleMaster | undefined)?.task_number) === headerTaskNumber);
+            const headerRow = headerTask?.rowData as SmScheduleMaster | undefined;
             headerName = headerRow?.name || extractLookupDisplay(headerGanttValue) || `Task #${headerTaskNumber}`;
           }
         }
@@ -1555,7 +1539,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
             console.log('[Start Task] Fetched holidays from API:', holidayResponse.dates.filter(d => d.startsWith('2026-01')));
           }
         } catch (err) {
-          console.warn('[Gantt V2] Failed to fetch holidays from API:', err);
+          console.warn('[Gantt] Failed to fetch holidays from API:', err);
           // SSoT: No fallback - working day calculations proceed without holidays
         }
 
@@ -1582,18 +1566,18 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
 
     // For supplier_confirm and confirm fields, show confirmation dialog first
     if (field === 'supplier_confirm' || field === 'confirm') {
-      const task = ganttV2Tasks.find(t => t.id === taskId);
+      const task = ganttTasks.find(t => t.id === taskId);
       if (!task) return;
 
       const row = task.rowData as GanttSmScheduleMaster | undefined;
       if (!row) {
         // No row data, just save directly
-        await executeGanttV2CheckboxToggle(taskId, field, checked);
+        await executeGanttCheckboxToggle(taskId, field, checked);
         return;
       }
 
       // Find successors that depend on this task
-      const successors = ganttV2Tasks
+      const successors = ganttTasks
         .filter(t => {
           const r = t.rowData as GanttSmScheduleMaster | undefined;
           return r?.predecessor_ids?.some((p: { id: number }) => p.id === row.task_number);
@@ -1612,33 +1596,33 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     }
 
     // For other fields, save directly
-    await executeGanttV2CheckboxToggle(taskId, field, checked);
+    await executeGanttCheckboxToggle(taskId, field, checked);
   };
 
-  // SSoT: executeGanttV2CheckboxToggle now provided by useGanttDataManager hook (see aliases above)
+  // SSoT: executeGanttCheckboxToggle now provided by useGanttDataManager hook (see aliases above)
 
   // SSoT: executeStartTask now provided by useGanttDataManager hook (see aliases above)
 
-  // Gantt V2: Handle task drag (reschedule) - shows cascade dialog if successors exist
-  const handleGanttV2TaskDrag = async (task: GanttTask, newStartDate: Date) => {
-    if (!ganttV2TemplateId) return;
+  // Gantt: Handle task drag (reschedule) - shows cascade dialog if successors exist
+  const handleGanttTaskDrag = async (task: GanttTask, newStartDate: Date) => {
+    if (!ganttTemplateId) return;
 
     // Store undo state before making changes
-    storeGanttV2UndoState(task);
+    storeGanttUndoState(task);
 
-    console.log('[Gantt V2] Task dragged:', task.id, 'to', newStartDate);
+    console.log('[Gantt] Task dragged:', task.id, 'to', newStartDate);
 
     // Find the row for this task
     const row = task.rowData as GanttSmScheduleMaster | undefined;
     if (!row) {
       // No row data, just save directly
-      await executeGanttV2DragMove(task, newStartDate);
+      await executeGanttDragMove(task, newStartDate);
       return;
     }
 
     // Recursive function to find all successors down the tree
     const findAllSuccessorsRecursive = (taskNumber: number, visited: Set<number> = new Set()): GanttSmScheduleMaster[] => {
-      const directSuccessors = ganttV2Tasks
+      const directSuccessors = ganttTasks
         .filter(t => {
           const r = t.rowData as GanttSmScheduleMaster | undefined;
           return r?.predecessor_ids?.some((p: { id: number }) => p.id === taskNumber) && !visited.has(r.id);
@@ -1659,7 +1643,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
 
     // Find direct successors
     const taskTaskNumber = row.task_number;
-    const directSuccessors = ganttV2Tasks
+    const directSuccessors = ganttTasks
       .filter(t => {
         const r = t.rowData as GanttSmScheduleMaster | undefined;
         return r?.predecessor_ids?.some((p: { id: number }) => p.id === taskTaskNumber);
@@ -1668,7 +1652,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
 
     if (directSuccessors.length === 0) {
       // No successors, save directly
-      await executeGanttV2DragMove(task, newStartDate);
+      await executeGanttDragMove(task, newStartDate);
       return;
     }
 
@@ -1700,7 +1684,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
 
     // If no locked successors, just execute move directly - unlocked tasks cascade automatically via SSoT
     if (lockedSuccessors.length === 0) {
-      await executeGanttV2DragMove(task, newStartDate);
+      await executeGanttDragMove(task, newStartDate);
       return;
     }
 
@@ -1725,64 +1709,64 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     });
   };
 
-  // SSoT: executeGanttV2DragMove now provided by useGanttDataManager hook (see aliases above)
+  // SSoT: executeGanttDragMove now provided by useGanttDataManager hook (see aliases above)
 
-  // Gantt V2: Handle task resize (change duration)
-  const handleGanttV2TaskResize = async (task: GanttTask, _newStartDate: Date, newEndDate: Date) => {
-    if (!ganttV2TemplateId) return;
+  // Gantt: Handle task resize (change duration)
+  const handleGanttTaskResize = async (task: GanttTask, _newStartDate: Date, newEndDate: Date) => {
+    if (!ganttTemplateId) return;
 
     // Store undo state before making changes
-    storeGanttV2UndoState(task);
+    storeGanttUndoState(task);
 
     // Calculate new duration in days
     const startDate = task.startDate;
     const diffTime = newEndDate.getTime() - startDate.getTime();
     const newDuration = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
 
-    console.log('[Gantt V2] Task resized:', task.id, 'new duration:', newDuration);
+    console.log('[Gantt] Task resized:', task.id, 'new duration:', newDuration);
 
     try {
-      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${task.id}`, {
+      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttTemplateId}/rows/${task.id}`, {
         row: { duration_days: newDuration },
       });
 
       toast({ title: "Duration updated", description: `${newDuration} days` });
 
       // Refresh data
-      loadGanttV2Data();
+      loadGanttData();
     } catch (error) {
-      console.error('[Gantt V2] Failed to save duration:', error);
+      console.error('[Gantt] Failed to save duration:', error);
       toast({ title: "Error", description: "Failed to update duration", variant: "destructive" });
     }
   };
 
-  // Gantt V2: Handle inline duration change (from Days column double-click edit)
-  const handleGanttV2DurationChange = async (taskId: string, newDuration: number) => {
-    if (!ganttV2TemplateId) return;
+  // Gantt: Handle inline duration change (from Days column double-click edit)
+  const handleGanttDurationChange = async (taskId: string, newDuration: number) => {
+    if (!ganttTemplateId) return;
 
-    console.log('[Gantt V2] Duration changed via inline edit:', taskId, 'new duration:', newDuration);
+    console.log('[Gantt] Duration changed via inline edit:', taskId, 'new duration:', newDuration);
 
     try {
-      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${taskId}`, {
+      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttTemplateId}/rows/${taskId}`, {
         row: { duration_days: newDuration },
       });
 
       toast({ title: "Duration updated", description: `${newDuration} days` });
 
       // Refresh data
-      loadGanttV2Data();
+      loadGanttData();
     } catch (error) {
-      console.error('[Gantt V2] Failed to save duration:', error);
+      console.error('[Gantt] Failed to save duration:', error);
       toast({ title: "Error", description: "Failed to update duration", variant: "destructive" });
     }
   };
 
-  // Gantt V2: Handle rollover (move tasks off weekends/holidays AND cascade based on dependencies)
+  // Gantt: Handle rollover (move tasks off weekends/holidays AND cascade based on dependencies)
   // SSoT: POST /api/v1/sm_schedule_master_templates/:id/validate_dates
-  const handleGanttV2Rollover = async () => {
-    if (!ganttV2TemplateId) return null;
+  const handleGanttRollover = async () => {
+    if (!ganttTemplateId) return null;
 
-    console.log('[Gantt V2] 🔄 Rollover starting for template:', ganttV2TemplateId);
+    console.log('[Gantt] 🔄 Rollover starting for template:', ganttTemplateId);
 
     try {
       const result = await api.post<{
@@ -1794,19 +1778,19 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
           tasks_with_predecessors: number;
           cascade_updates: Array<{ task_number: number; name: string; old_start: string; new_start: string; reason: string }>;
         };
-      }>(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/validate_dates`);
+      }>(`/api/v1/sm_schedule_master_templates/${ganttTemplateId}/validate_dates`);
 
-      console.log('[Gantt V2] 📦 Rollover result:', JSON.stringify(result, null, 2));
+      console.log('[Gantt] 📦 Rollover result:', JSON.stringify(result, null, 2));
 
       if (result?.date_map) {
-        console.log('[Gantt V2] 📅 Date map (tasks that changed):');
+        console.log('[Gantt] 📅 Date map (tasks that changed):');
         Object.entries(result.date_map).forEach(([taskNum, dates]) => {
           console.log(`  Task ${taskNum}: ${dates.start_date} → ${dates.end_date}`);
         });
       }
 
       if (result?.debug) {
-        console.log('[Gantt V2] 🐛 Debug info:');
+        console.log('[Gantt] 🐛 Debug info:');
         console.log(`  Tasks processed: ${result.debug.tasks_processed}`);
         console.log(`  Tasks with predecessors: ${result.debug.tasks_with_predecessors}`);
         if (result.debug.cascade_updates?.length > 0) {
@@ -1824,47 +1808,47 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         });
 
         // Refresh data to show new dates
-        loadGanttV2Data();
+        loadGanttData();
 
         return { rolled_over: result.updated, extended: 0, cascaded: 0 };
       }
       return null;
     } catch (error) {
-      console.error('[Gantt V2] ❌ Rollover failed:', error);
+      console.error('[Gantt] ❌ Rollover failed:', error);
       toast({ title: "Error", description: "Failed to validate dates", variant: "destructive" });
       return null;
     }
   };
 
-  // Gantt V2: Update a single task (used for unlocking tasks in dependency editor)
-  const handleGanttV2UpdateTask = async (taskId: string, updates: Record<string, unknown>) => {
-    if (!ganttV2TemplateId) return;
+  // Gantt: Update a single task (used for unlocking tasks in dependency editor)
+  const handleGanttUpdateTask = async (taskId: string, updates: Record<string, unknown>) => {
+    if (!ganttTemplateId) return;
 
-    console.log('[Gantt V2] Updating task:', taskId, 'updates:', updates);
+    console.log('[Gantt] Updating task:', taskId, 'updates:', updates);
 
     try {
-      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${taskId}`, {
+      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttTemplateId}/rows/${taskId}`, {
         row: updates,
       });
 
       // Refresh data
-      loadGanttV2Data();
+      loadGanttData();
     } catch (error) {
-      console.error('[Gantt V2] Failed to update task:', error);
+      console.error('[Gantt] Failed to update task:', error);
       toast({ title: "Error", description: "Failed to update task", variant: "destructive" });
     }
   };
 
-  // Gantt V2: Handle dependency create
-  const handleGanttV2DependencyCreate = async (fromId: string, toId: string, type: string) => {
-    if (!ganttV2TemplateId) return;
+  // Gantt: Handle dependency create
+  const handleGanttDependencyCreate = async (fromId: string, toId: string, type: string) => {
+    if (!ganttTemplateId) return;
 
-    console.log('[Gantt V2] Dependency create:', fromId, '->', toId, 'type:', type);
+    console.log('[Gantt] Dependency create:', fromId, '->', toId, 'type:', type);
 
     // Find the target task by task_number (toId is task_number from canvas)
-    const targetTask = ganttV2Tasks.find(t => t.rowData?.task_number === parseInt(toId, 10));
+    const targetTask = ganttTasks.find(t => t.rowData?.task_number === parseInt(toId, 10));
     if (!targetTask || !targetTask.rowData) {
-      console.error('[Gantt V2] Target task not found:', toId);
+      console.error('[Gantt] Target task not found:', toId);
       toast({ title: "Error", description: "Target task not found", variant: "destructive" });
       return;
     }
@@ -1884,33 +1868,33 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     }
 
     try {
-      // Save to API (cast to GanttSmScheduleMaster since we're in Gantt V2 context)
+      // Save to API (cast to GanttSmScheduleMaster since we're in Gantt context)
       const rowData = targetTask.rowData as GanttSmScheduleMaster;
-      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${rowData.id}`, {
+      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttTemplateId}/rows/${rowData.id}`, {
         row: {
           predecessor_ids: [...currentPreds, newPred]
         }
       });
 
       // Refresh data
-      loadGanttV2Data();
+      loadGanttData();
       toast({ title: "Success", description: "Dependency created" });
     } catch (error) {
-      console.error('[Gantt V2] Failed to create dependency:', error);
+      console.error('[Gantt] Failed to create dependency:', error);
       toast({ title: "Error", description: "Failed to create dependency", variant: "destructive" });
     }
   };
 
-  // Gantt V2: Handle dependency delete
-  const handleGanttV2DependencyDelete = async (dependencyId: string) => {
-    if (!ganttV2TemplateId) return;
+  // Gantt: Handle dependency delete
+  const handleGanttDependencyDelete = async (dependencyId: string) => {
+    if (!ganttTemplateId) return;
 
-    console.log('[Gantt V2] Dependency delete:', dependencyId);
+    console.log('[Gantt] Dependency delete:', dependencyId);
 
     // Parse dependency ID: format is "dep-{predecessor_task_number}-{row_id}"
     const match = dependencyId.match(/^dep-(\d+)-(\d+)$/);
     if (!match) {
-      console.error('[Gantt V2] Invalid dependency ID format:', dependencyId);
+      console.error('[Gantt] Invalid dependency ID format:', dependencyId);
       toast({ title: "Error", description: "Invalid dependency ID", variant: "destructive" });
       return;
     }
@@ -1918,10 +1902,10 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     const predecessorTaskNumber = parseInt(match[1], 10);
     const rowId = parseInt(match[2], 10);
 
-    // Find the target task by row id (cast to GanttSmScheduleMaster since we're in Gantt V2 context)
-    const targetTask = ganttV2Tasks.find(t => (t.rowData as GanttSmScheduleMaster | undefined)?.id === rowId);
+    // Find the target task by row id (cast to GanttSmScheduleMaster since we're in Gantt context)
+    const targetTask = ganttTasks.find(t => (t.rowData as GanttSmScheduleMaster | undefined)?.id === rowId);
     if (!targetTask || !targetTask.rowData) {
-      console.error('[Gantt V2] Target task not found for row:', rowId);
+      console.error('[Gantt] Target task not found for row:', rowId);
       toast({ title: "Error", description: "Target task not found", variant: "destructive" });
       return;
     }
@@ -1937,36 +1921,36 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
 
     try {
       // Save to API
-      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${rowId}`, {
+      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttTemplateId}/rows/${rowId}`, {
         row: {
           predecessor_ids: updatedPreds
         }
       });
 
       // Refresh data
-      loadGanttV2Data();
+      loadGanttData();
       toast({ title: "Success", description: "Dependency deleted" });
     } catch (error) {
-      console.error('[Gantt V2] Failed to delete dependency:', error);
+      console.error('[Gantt] Failed to delete dependency:', error);
       toast({ title: "Error", description: "Failed to delete dependency", variant: "destructive" });
     }
   };
 
-  // Gantt V2: Handle reset manual position (clear hold and hold_date)
-  const handleGanttV2ResetManualPosition = async (task: GanttTask) => {
-    if (!ganttV2TemplateId) return;
+  // Gantt: Handle reset manual position (clear hold and hold_date)
+  const handleGanttResetManualPosition = async (task: GanttTask) => {
+    if (!ganttTemplateId) return;
 
-    console.log('[Gantt V2] Reset manual position:', task.id);
+    console.log('[Gantt] Reset manual position:', task.id);
 
     const row = task.rowData as GanttSmScheduleMaster | undefined;
     if (!row) {
-      console.error('[Gantt V2] No row data for task:', task.id);
+      console.error('[Gantt] No row data for task:', task.id);
       return;
     }
 
     try {
       // Clear hold and hold_date
-      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${row.id}`, {
+      await api.patch(`/api/v1/sm_schedule_master_templates/${ganttTemplateId}/rows/${row.id}`, {
         row: {
           hold: false,
           hold_date: null
@@ -1974,34 +1958,34 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       });
 
       // Refresh data
-      loadGanttV2Data();
+      loadGanttData();
       toast({ title: "Success", description: "Manual position reset" });
     } catch (error) {
-      console.error('[Gantt V2] Failed to reset manual position:', error);
+      console.error('[Gantt] Failed to reset manual position:', error);
       toast({ title: "Error", description: "Failed to reset manual position", variant: "destructive" });
     }
   };
 
-  // SSoT: storeGanttV2UndoState and handleGanttV2Undo are aliases to gantt.storeUndoState and gantt.handleUndo (see above)
+  // SSoT: storeGanttUndoState and handleGanttUndo are aliases to gantt.storeUndoState and gantt.handleUndo (see above)
 
-  // Gantt V2: Open dependency editor
-  const handleGanttV2EditDependencies = (task: GanttTask, visibleTasks: GanttTask[]) => {
+  // Gantt: Open dependency editor
+  const handleGanttEditDependencies = (task: GanttTask, visibleTasks: GanttTask[]) => {
     setDependencyEditorState({ isOpen: true, task, visibleTasks });
   };
 
-  // Gantt V2: Save dependencies from full dependency editor (predecessors + successors)
+  // Gantt: Save dependencies from full dependency editor (predecessors + successors)
   const handleDependencyEditorSave = async (
     taskId: string,
     predecessors: Array<{ taskNumber: number; type: string; lag: number }>,
     successors: Array<{ taskNumber: number; type: string; lag: number }>
   ) => {
     console.log('[handleDependencyEditorSave] Called with taskId:', taskId, 'predecessors:', predecessors);
-    if (!ganttV2TemplateId) {
+    if (!ganttTemplateId) {
       console.log('[handleDependencyEditorSave] No templateId, returning early');
       return;
     }
 
-    const task = ganttV2Tasks.find(t => t.id === taskId);
+    const task = ganttTasks.find(t => t.id === taskId);
     const taskRow = task?.rowData as GanttSmScheduleMaster | undefined;
     if (!taskRow) {
       console.log('[handleDependencyEditorSave] Task not found:', taskId);
@@ -2023,7 +2007,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       // When saving predecessors, also clear the broken dependency state
       // This handles restoring previously broken dependencies
       console.log('[handleDependencyEditorSave] Patching row', taskRow.id, 'with predecessor_ids:', newPredecessorIds);
-      const result = await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${taskRow.id}`, {
+      const result = await api.patch(`/api/v1/sm_schedule_master_templates/${ganttTemplateId}/rows/${taskRow.id}`, {
         row: {
           predecessor_ids: newPredecessorIds,
           dependency_broken: false,
@@ -2034,7 +2018,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
 
       // 2. Update successors - each successor needs this task as a predecessor
       // Get current successors (tasks that have this task in their predecessor_ids)
-      const currentSuccessors = ganttV2Tasks.filter(t => {
+      const currentSuccessors = ganttTasks.filter(t => {
         const r = t.rowData as GanttSmScheduleMaster | undefined;
         return r?.predecessor_ids?.some((p: { id: number }) => p.id === currentTaskNumber);
       });
@@ -2044,7 +2028,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
 
       // For each new successor that isn't already a successor, add this task as predecessor
       for (const succ of successors) {
-        const succTask = ganttV2Tasks.find(t => {
+        const succTask = ganttTasks.find(t => {
           const r = t.rowData as GanttSmScheduleMaster | undefined;
           return r?.task_number === succ.taskNumber;
         });
@@ -2060,7 +2044,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
             type: succ.type,
             lag: succ.lag
           }];
-          await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${succRow.id}`, {
+          await api.patch(`/api/v1/sm_schedule_master_templates/${ganttTemplateId}/rows/${succRow.id}`, {
             row: { predecessor_ids: updatedPreds }
           });
         } else {
@@ -2068,7 +2052,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
           const updatedPreds = (succRow.predecessor_ids || []).map((p: { id: number; type?: string; lag?: number }) =>
             p.id === currentTaskNumber ? { id: currentTaskNumber, type: succ.type, lag: succ.lag } : p
           );
-          await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${succRow.id}`, {
+          await api.patch(`/api/v1/sm_schedule_master_templates/${ganttTemplateId}/rows/${succRow.id}`, {
             row: { predecessor_ids: updatedPreds }
           });
         }
@@ -2081,7 +2065,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         if (!newSuccessorTaskNumbers.has(r.task_number)) {
           // Remove this task from successor's predecessors
           const updatedPreds = (r.predecessor_ids || []).filter((p: { id: number }) => p.id !== currentTaskNumber);
-          await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${r.id}`, {
+          await api.patch(`/api/v1/sm_schedule_master_templates/${ganttTemplateId}/rows/${r.id}`, {
             row: { predecessor_ids: updatedPreds }
           });
         }
@@ -2089,10 +2073,10 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
 
       // Refresh data
       console.log('[handleDependencyEditorSave] ✅ Save complete for task', taskId, 'predecessor_ids:', newPredecessorIds);
-      await loadGanttV2Data();
+      await loadGanttData();
       toast({ title: "Success", description: "Dependencies updated" });
     } catch (error) {
-      console.error('[Gantt V2] Failed to save dependencies:', error);
+      console.error('[Gantt] Failed to save dependencies:', error);
       toast({ title: "Error", description: "Failed to save dependencies", variant: "destructive" });
       throw error; // Re-throw so the editor knows it failed
     }
@@ -2167,9 +2151,9 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         setDataViewRefreshKey(prev => prev + 1);
         // Also refresh predecessor selector list (secondary use - still uses custom endpoint)
         loadDataViewRows(dataViewTemplateId);
-        // Refresh Gantt V2 if edit was from there
-        if (activeEditTemplateId === ganttV2TemplateId && ganttV2TemplateId) {
-          loadGanttV2Data();
+        // Refresh Gantt if edit was from there
+        if (activeEditTemplateId === ganttTemplateId && ganttTemplateId) {
+          loadGanttData();
         }
       } else {
         toast({ title: "Success", description: "Row updated" });
@@ -2178,9 +2162,9 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         setDataViewRefreshKey(prev => prev + 1);
         // Also refresh predecessor selector list (secondary use)
         loadDataViewRows(dataViewTemplateId);
-        // Refresh Gantt V2 if edit was from there
-        if (activeEditTemplateId === ganttV2TemplateId && ganttV2TemplateId) {
-          loadGanttV2Data();
+        // Refresh Gantt if edit was from there
+        if (activeEditTemplateId === ganttTemplateId && ganttTemplateId) {
+          loadGanttData();
         }
       }
     } catch (error) {
@@ -2385,34 +2369,16 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
 
   // SSoT: Data View fullscreen escape handler removed - now handled by TeeemTableView
 
-  // Gantt Preview functions
-  const loadGanttRows = async (templateId: number) => {
-    setGanttTemplateId(templateId);
-    setLoadingRows(templateId);
-    try {
-      // SSoT: Use ?for=gantt to filter invisible tasks (po_required without supplier)
-      const data = await api.get<{ success: boolean; rows: SmScheduleMaster[] }>(
-        `/api/v1/sm_schedule_master_templates/${templateId}/rows?for=gantt`
-      );
-      setGanttRows(data.rows || []);
-    } catch (error) {
-      console.error("Failed to load gantt rows:", error);
-      setGanttRows([]);
-    } finally {
-      setLoadingRows(null);
-    }
-  };
+  // SSoT: loadGanttData now provided by useGanttDataManager hook (see aliases above)
+  // The hook's loadData is automatically triggered when ganttTemplateId changes
 
-  // SSoT: loadGanttV2Data now provided by useGanttDataManager hook (see aliases above)
-  // The hook's loadData is automatically triggered when ganttV2TemplateId changes
-
-  // Load Gantt V2 data when template is selected
+  // Load Gantt data when template is selected
   React.useEffect(() => {
-    if (ganttV2TemplateId) {
-      console.log('[ScheduleMasterTab] Loading Gantt V2 data for template:', ganttV2TemplateId);
+    if (ganttTemplateId) {
+      console.log('[ScheduleMasterTab] Loading Gantt data for template:', ganttTemplateId);
       gantt.loadData();
     }
-  }, [ganttV2TemplateId, gantt.loadData]);
+  }, [ganttTemplateId, gantt.loadData]);
 
   // Reload when showAllPOTasks changes (separate effect for clarity)
   // Use ref pattern to avoid stale closure - loadData references apiConfig which includes showAllPOTasks/showClaims
@@ -2425,11 +2391,11 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       isFirstRenderForToggles.current = false;
       return;
     }
-    if (ganttV2TemplateId) {
+    if (ganttTemplateId) {
       console.log('[ScheduleMasterTab] Toggle changed - showAllPOTasks:', showAllPOTasks, 'showClaims:', showClaims, '- reloading data');
       loadDataRef.current(); // Always calls latest version with correct apiConfig
     }
-  }, [showAllPOTasks, showClaims, ganttV2TemplateId]);
+  }, [showAllPOTasks, showClaims, ganttTemplateId]);
 
   if (loading) {
     return (
@@ -2662,10 +2628,10 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
             {/* Template selector header */}
             <div className="flex items-center gap-4 px-4 py-2 border-b bg-background">
               <Select
-                value={ganttV2TemplateId ? String(ganttV2TemplateId) : ""}
+                value={ganttTemplateId ? String(ganttTemplateId) : ""}
                 onValueChange={(value) => {
                   if (value) {
-                    setGanttV2TemplateId(parseInt(value));
+                    setGanttTemplateId(parseInt(value));
                   }
                 }}
               >
@@ -2680,9 +2646,9 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
                   ))}
                 </SelectContent>
               </Select>
-              {ganttV2Tasks.length > 0 && (
+              {ganttTasks.length > 0 && (
                 <Badge variant="secondary">
-                  {ganttV2Tasks.length} tasks
+                  {ganttTasks.length} tasks
                 </Badge>
               )}
               {/* Toggle switches for visibility filters */}
@@ -2710,34 +2676,34 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
               </div>
             </div>
 
-            {/* Gantt V2 content */}
+            {/* Gantt content */}
             <div className="flex-1 min-h-0">
-              {ganttV2Loading && (
+              {ganttLoading && (
                 <div className="flex items-center justify-center h-full">
                   <Spinner size={32} className="text-muted-foreground" />
                 </div>
               )}
 
-              {!ganttV2Loading && !ganttV2TemplateId && (
+              {!ganttLoading && !ganttTemplateId && (
                 <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
                   <BarChart3 className="h-12 w-12 mb-4 opacity-50" />
                   <h3 className="text-lg font-medium mb-2">Select a template</h3>
                   <p className="text-center max-w-md">
-                    Choose a schedule template from the dropdown above to preview in Gantt V2.
+                    Choose a schedule template from the dropdown above to preview in Gantt.
                   </p>
                 </div>
               )}
 
-              {!ganttV2Loading && ganttV2TemplateId && ganttV2Tasks.length > 0 && (
+              {!ganttLoading && ganttTemplateId && ganttTasks.length > 0 && (
                 <GanttUnified
-                  tasks={ganttV2Tasks}
-                  dependencies={ganttV2Dependencies}
-                  templateId={ganttV2TemplateId}
+                  tasks={ganttTasks}
+                  dependencies={ganttDependencies}
+                  templateId={ganttTemplateId}
                   showToolbar={true}
                   showBaselineControls={false}
                   className="h-full"
                   onTaskClick={gantt.handleTaskClick}
-                  onTaskDoubleClick={handleGanttV2TaskDoubleClick}
+                  onTaskDoubleClick={handleGanttTaskDoubleClick}
                   onTaskDrag={gantt.handleTaskDrag}
                   onTaskResize={gantt.handleTaskResize}
                   onCheckboxToggle={gantt.handleCheckboxToggle}
@@ -2747,7 +2713,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
                   onUndo={gantt.handleUndo}
                   onEditDependencies={gantt.openDependencyEditor}
                   onDurationChange={gantt.handleDurationChange}
-                  onRollover={handleGanttV2Rollover}
+                  onRollover={handleGanttRollover}
                   onDataChange={gantt.loadData}
                 />
               )}
@@ -4274,7 +4240,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         </DialogContent>
       </Dialog>
 
-      {/* Cascade Dependencies Dialog - shown when moving a task with successors (Gantt V2) */}
+      {/* Cascade Dependencies Dialog - shown when moving a task with successors (Gantt) */}
       <Dialog open={cascadeDialog.isOpen} onOpenChange={(open) => setCascadeDialog(prev => ({ ...prev, isOpen: open }))}>
         <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
           <DialogHeader className="pb-2">
@@ -4458,7 +4424,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
             <Button variant="outline" size="sm" onClick={() => {
               setCascadeDialog(prev => ({ ...prev, isOpen: false }));
               // Restore original task positions by reloading data
-              loadGanttV2Data({ silent: true });
+              loadGanttData({ silent: true });
             }}>
               Cancel
             </Button>
@@ -4479,26 +4445,26 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
                         const updatedPreds = currentPreds.filter((p: { id: number }) => p.id !== movedTaskNumber);
 
                         try {
-                          await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${lockedTask.id}`, {
+                          await api.patch(`/api/v1/sm_schedule_master_templates/${ganttTemplateId}/rows/${lockedTask.id}`, {
                             row: {
                               predecessor_ids: updatedPreds,
                               dependency_broken: true  // Mark task as having broken dependencies
                             }
                           });
-                          console.log('[Gantt V2] Broke dependency for task:', lockedTask.id, lockedTask.name);
+                          console.log('[Gantt] Broke dependency for task:', lockedTask.id, lockedTask.name);
                         } catch (err) {
-                          console.error('[Gantt V2] Failed to break dependency for task', lockedTask.id, err);
+                          console.error('[Gantt] Failed to break dependency for task', lockedTask.id, err);
                         }
                       } else {
                         // Cascade: unlock the task so it can move
                         // Clear hold as well so SSoT can recalculate its position
                         try {
-                          await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${lockedTask.id}`, {
+                          await api.patch(`/api/v1/sm_schedule_master_templates/${ganttTemplateId}/rows/${lockedTask.id}`, {
                             row: { confirm: false, supplier_confirm: false, hold: false }
                           });
-                          console.log('[Gantt V2] Unlocked task for cascade:', lockedTask.id, lockedTask.name);
+                          console.log('[Gantt] Unlocked task for cascade:', lockedTask.id, lockedTask.name);
                         } catch (err) {
-                          console.error('[Gantt V2] Failed to unlock task for cascade', lockedTask.id, err);
+                          console.error('[Gantt] Failed to unlock task for cascade', lockedTask.id, err);
                         }
                       }
                     }
@@ -4509,18 +4475,18 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
                   for (const unlockedTask of cascadeDialog.unlockedSuccessors) {
                     if (unlockedTask.hold) {
                       try {
-                        await api.patch(`/api/v1/sm_schedule_master_templates/${ganttV2TemplateId}/rows/${unlockedTask.id}`, {
+                        await api.patch(`/api/v1/sm_schedule_master_templates/${ganttTemplateId}/rows/${unlockedTask.id}`, {
                           row: { hold: false }
                         });
-                        console.log('[Gantt V2] Cleared hold on unlocked successor for cascade:', unlockedTask.id, unlockedTask.name);
+                        console.log('[Gantt] Cleared hold on unlocked successor for cascade:', unlockedTask.id, unlockedTask.name);
                       } catch (err) {
-                        console.error('[Gantt V2] Failed to clear hold on unlocked successor', unlockedTask.id, err);
+                        console.error('[Gantt] Failed to clear hold on unlocked successor', unlockedTask.id, err);
                       }
                     }
                   }
 
                   // Execute the actual move
-                  await executeGanttV2DragMove(cascadeDialog.task, cascadeDialog.newStartDate);
+                  await executeGanttDragMove(cascadeDialog.task, cascadeDialog.newStartDate);
                   setCascadeDialog(prev => ({ ...prev, isOpen: false }));
                 }
               }}
@@ -4531,7 +4497,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         </DialogContent>
       </Dialog>
 
-      {/* Confirm Dialog - shown when toggling supplier_confirm or confirm in Gantt V2 */}
+      {/* Confirm Dialog - shown when toggling supplier_confirm or confirm in Gantt */}
       <Dialog open={confirmDialog.isOpen} onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, isOpen: open }))}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -4595,7 +4561,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
               onClick={async () => {
                 if (confirmDialog.task) {
                   const field = confirmDialog.type === 'supplierConfirm' ? 'supplier_confirm' : 'confirm';
-                  await executeGanttV2CheckboxToggle(confirmDialog.task.id, field, confirmDialog.isChecking);
+                  await executeGanttCheckboxToggle(confirmDialog.task.id, field, confirmDialog.isChecking);
                   setConfirmDialog(prev => ({ ...prev, isOpen: false }));
                 }
               }}
@@ -5017,16 +4983,16 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         </DialogContent>
       </Dialog>
 
-      {/* Dependency Editor - shown when editing dependencies in Gantt V2 */}
-      {/* SSoT: Always pass ALL tasks (ganttV2Tasks), not just visible tasks
+      {/* Dependency Editor - shown when editing dependencies in Gantt */}
+      {/* SSoT: Always pass ALL tasks (ganttTasks), not just visible tasks
           The editor needs to look up inherited predecessors which might be in collapsed headers */}
       <GanttDependencyEditor
         isOpen={dependencyEditorState.isOpen}
         onClose={() => setDependencyEditorState({ isOpen: false, task: null, visibleTasks: [] })}
         task={dependencyEditorState.task}
-        tasks={ganttV2Tasks}
+        tasks={ganttTasks}
         onSave={handleDependencyEditorSave}
-        onUpdateTask={handleGanttV2UpdateTask}
+        onUpdateTask={handleGanttUpdateTask}
         pendingPredecessor={dependencyEditorState.pendingPredecessor}
         pendingSuccessor={dependencyEditorState.pendingSuccessor}
       />

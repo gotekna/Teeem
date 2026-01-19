@@ -194,7 +194,7 @@ export function OfflineTab() {
             <ol className="space-y-2 text-sm ml-4">
               <li className="flex gap-2">
                 <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
-                <span>Go to any Job → Schedule → Gantt V2</span>
+                <span>Go to any Job → Schedule → Gantt</span>
               </li>
               <li className="flex gap-2">
                 <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />

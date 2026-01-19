@@ -5,6 +5,9 @@ class CorporateCompany < ApplicationRecord
   belongs_to :corporate_group, optional: true, foreign_key: "company_group_id"
   belongs_to :contact, optional: true  # SSoT - links Company to Contact identity store
 
+  # Organization - for credential isolation (optional link to Organization)
+  has_one :organization, dependent: :nullify
+
   # Hierarchy - parent/subsidiary relationships
   belongs_to :parent_company, class_name: "CorporateCompany", optional: true
   has_many :subsidiaries, class_name: "CorporateCompany", foreign_key: "parent_company_id", dependent: :nullify
@@ -180,8 +183,35 @@ class CorporateCompany < ApplicationRecord
   after_commit :sync_abn_to_contact, if: :should_sync_abn_to_contact?
 
   # Instance methods
+
+  # Primary trading name (first in array, if any)
+  def trading_name
+    trading_names&.first
+  end
+
+  # Display name: prefer trading name, fall back to legal name
   def display_name
+    trading_name.presence || name
+  end
+
+  # Legal name is always the actual company name
+  def legal_name
     name
+  end
+
+  # Get Microsoft credentials via linked organization
+  def microsoft_credentials
+    organization&.microsoft_credentials || MicrosoftCredential.none
+  end
+
+  # Get S3 credentials via linked organization
+  def s3_compatible_credentials
+    organization&.s3_compatible_credentials || S3CompatibleCredential.none
+  end
+
+  # Check if company has credential isolation (linked organization)
+  def has_credential_isolation?
+    organization.present?
   end
 
   def formatted_acn

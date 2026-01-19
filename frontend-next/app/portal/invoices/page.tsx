@@ -21,6 +21,7 @@ import {
   ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 
 interface Invoice {
   id: number;
@@ -187,7 +188,7 @@ export default function PortalInvoices() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+        <Spinner className="h-12 w-12" />
       </div>
     );
   }

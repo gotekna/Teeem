@@ -160,7 +160,7 @@ export function SMGanttTab() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Schedule Master Gantt v2 Configuration</h2>
+          <h2 className="text-lg font-semibold">Schedule Master Gantt Configuration</h2>
           <p className="text-sm text-muted-foreground">
             Configure the appearance and behavior of the Gantt chart.
           </p>

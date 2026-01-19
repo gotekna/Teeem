@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_19_161500) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_19_170002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1774,6 +1774,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_19_161500) do
     t.boolean "active", default: true
     t.string "business_names"
     t.bigint "tenant_id"
+    t.string "trading_names", default: [], array: true
     t.index ["abn"], name: "index_corporate_companies_on_abn", unique: true, where: "(abn IS NOT NULL)"
     t.index ["acn"], name: "index_corporate_companies_on_acn", unique: true, where: "(acn IS NOT NULL)"
     t.index ["code"], name: "index_corporate_companies_on_code", unique: true
@@ -1789,6 +1790,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_19_161500) do
     t.index ["status"], name: "index_corporate_companies_on_status"
     t.index ["storage_folder_id"], name: "index_corporate_companies_on_storage_folder_id"
     t.index ["tenant_id"], name: "index_corporate_companies_on_tenant_id"
+    t.index ["trading_names"], name: "index_corporate_companies_on_trading_names", using: :gin
   end
 
   create_table "corporate_company_activities", force: :cascade do |t|
@@ -7149,6 +7151,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_19_161500) do
     t.string "document_provider", default: "sharepoint", null: false
     t.bigint "document_provider_credential_id"
     t.bigint "tenant_id"
+    t.bigint "corporate_company_id"
+    t.index ["corporate_company_id"], name: "index_organizations_on_corporate_company_id"
     t.index ["document_provider"], name: "index_organizations_on_document_provider"
     t.index ["document_provider_credential_id"], name: "index_organizations_on_document_provider_credential_id"
     t.index ["name"], name: "index_organizations_on_name", unique: true
@@ -9762,7 +9766,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_19_161500) do
     t.bigint "document_provider_credential_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "billing_company_id"
     t.index ["active"], name: "index_tenants_on_active"
+    t.index ["billing_company_id"], name: "index_tenants_on_billing_company_id"
     t.index ["environment"], name: "index_tenants_on_environment"
     t.index ["is_master_tenant"], name: "index_tenants_on_is_master_tenant"
     t.index ["name"], name: "index_tenants_on_name", unique: true
@@ -11317,6 +11323,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_19_161500) do
   add_foreign_key "notebook_shares", "users", column: "granted_by_id"
   add_foreign_key "notebooks", "users", column: "owner_id"
   add_foreign_key "notifications", "users"
+  add_foreign_key "organizations", "corporate_companies"
   add_foreign_key "organizations", "tenants"
   add_foreign_key "pay_now_requests", "contacts"
   add_foreign_key "pay_now_requests", "pay_now_weekly_limits"
@@ -11563,6 +11570,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_19_161500) do
   add_foreign_key "tenant_settings", "contacts", column: "saas_customer_contact_id"
   add_foreign_key "tenant_settings", "corporate_groups"
   add_foreign_key "tenant_settings", "tenants"
+  add_foreign_key "tenants", "corporate_companies", column: "billing_company_id"
   add_foreign_key "unreal_measurements", "job_colour_selections"
   add_foreign_key "unreal_measurements", "job_plans"
   add_foreign_key "unreal_measurements", "jobs"

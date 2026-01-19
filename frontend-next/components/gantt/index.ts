@@ -1,10 +1,10 @@
 /**
- * Gantt V2 - Unified Canvas Architecture
+ * Gantt - Unified Canvas Architecture
  *
  * A clean rewrite of the Gantt chart using the "DOM Overlay on Canvas" pattern.
  * Single canvas draws everything, React overlays for interactive elements only.
  *
- * This is the public API for the gantt-v2 component.
+ * This is the public API for the gantt component.
  */
 
 // Main component

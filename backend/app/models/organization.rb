@@ -15,6 +15,9 @@ class Organization < ApplicationRecord
   # Parent tenant (SSoT for multi-tenancy)
   belongs_to :tenant
 
+  # Optional link to CorporateCompany (for credential isolation per company)
+  belongs_to :corporate_company, optional: true
+
   # Associations - credentials belong to organizations
   has_many :microsoft_credentials, dependent: :destroy
   has_many :organization_microsoft_app_credentials, dependent: :destroy
