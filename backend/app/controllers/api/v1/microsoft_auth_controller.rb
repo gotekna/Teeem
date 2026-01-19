@@ -671,8 +671,9 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     # SSoT: Get SharePoint config from StorageConfiguration
     storage_config = StorageConfiguration.instance
     site_url = storage_config&.site_url.presence
-    drive_name = storage_config&.drive_name.presence || "Shared Documents"
-    documents_url = site_url ? "#{site_url}/#{drive_name.gsub(' ', '%20')}" : nil
+    # SSoT: drive_name comes from StorageConfiguration - no hardcoded fallback
+    drive_name = storage_config&.drive_name.presence
+    documents_url = (site_url && drive_name) ? "#{site_url}/#{drive_name.gsub(' ', '%20')}" : nil
 
     {
       connected: true,

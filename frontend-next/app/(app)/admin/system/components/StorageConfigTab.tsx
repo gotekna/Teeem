@@ -1736,7 +1736,7 @@ export function StorageConfigTab() {
               className="font-mono"
             />
             <p className="text-xs text-muted-foreground">
-              Leave empty for drive root. For SharePoint, typically &quot;/Shared Documents&quot;.
+              Base path for all storage. S3/Wasabi: use &quot;/&quot; (bucket root). SharePoint: use &quot;/Shared Documents&quot;.
             </p>
           </div>
         </CardContent>

@@ -668,7 +668,7 @@ export function CaseProposalApprovalDialog({
                           <Input
                             value={newSourceFolder}
                             onChange={(e) => setNewSourceFolder(e.target.value)}
-                            placeholder="e.g. /Shared Documents/Clients/Smith"
+                            placeholder="e.g. /Clients/Smith"
                             className="flex-1"
                             onKeyDown={(e) => {
                               if (e.key === "Enter" && newSourceFolder.trim()) {
@@ -824,7 +824,7 @@ export function CaseProposalApprovalDialog({
                           <Input
                             value={newFilingFolder}
                             onChange={(e) => setNewFilingFolder(e.target.value)}
-                            placeholder="e.g. /Shared Documents/Cases/Smith ATO Audit 2025"
+                            placeholder="e.g. /Cases/Smith ATO Audit 2025"
                             className="flex-1"
                             onKeyDown={(e) => {
                               if (e.key === "Enter" && newFilingFolder.trim()) {

@@ -258,11 +258,14 @@ MicrosoftCredential.active.first                  # ❌ DANGEROUS - no org conte
 - **SSoT:** Webhooks at `/api/v1/xero/webhooks`
 - **NEVER** add scheduled Xero sync jobs (webhooks handle it)
 
-### SharePoint
+### Document Storage (StorageConfiguration SSoT)
 ```ruby
-CorporateCompanySetting.sharepoint_full_path(:jobs)  # ✅ SSoT
-"/Shared Documents/TEEEM Jobs"                        # ❌ Hardcoded
+StorageConfiguration.instance.resolve_path(:job, JobCode: "J-001")  # ✅ SSoT
+"/Shared Documents/Jobs/J-001"  # ❌ Hardcoded (path differs by provider)
+"/"  # S3: root_path = "/"
+"/Shared Documents"  # SharePoint: root_path = "/Shared Documents"
 ```
+**CRITICAL:** Frontend NEVER handles paths - uses scopes, backend resolves.
 
 ---
 

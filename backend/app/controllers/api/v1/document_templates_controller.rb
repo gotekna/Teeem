@@ -514,8 +514,13 @@ class Api::V1::DocumentTemplatesController < ApplicationController
 
       # Get the document drive - SSoT: Use configured drive name from StorageConfiguration
       drives = client.get_site_drives(teeem_site[:id])
-      configured_drive_name = StorageConfiguration.instance&.drive_name || "Shared Documents"
-      documents_drive = drives.find { |d| d[:name] == configured_drive_name || d[:name] == "Documents" }
+      # SSoT: drive_name comes from StorageConfiguration - try configured name first, then common defaults
+      configured_drive_name = StorageConfiguration.instance&.drive_name
+      documents_drive = drives.find do |d|
+        (configured_drive_name.present? && d[:name] == configured_drive_name) ||
+        d[:name] == "Documents" ||
+        d[:name] == "Shared Documents"
+      end
 
       unless documents_drive
         render json: {

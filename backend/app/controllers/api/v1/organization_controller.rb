@@ -820,7 +820,8 @@ module Api
             site_url: ms_credential.site_url || "https://#{ms_credential.tenant_id}.sharepoint.com",
             site_id: storage_config&.site_id,
             drive_id: storage_config&.drive_id,
-            drive_name: storage_config&.drive_name || "Shared Documents"
+            # SSoT: drive_name comes from StorageConfiguration - no hardcoded fallback
+            drive_name: storage_config&.drive_name
           }
         when "local"
           { path: storage_config&.root_path }

@@ -232,11 +232,12 @@ const SCOPE_ICONS: Record<string, React.ReactNode> = {
 // SSoT: Build hierarchical tree from StorageConfiguration.scope_folders
 // This matches the tree structure shown in SharePointTab (Storage Configurator)
 // Both components use the same backend data source for consistency
+// Note: rootPath is provider-agnostic - "/" for S3/Wasabi, "/Shared Documents" for SharePoint
 const buildScopeTree = (
   scopes: Record<string, string>,
   counts: Record<string, number>,
   templates: Record<string, string> = {},
-  rootPath: string = "/Shared Documents"
+  rootPath: string = ""
 ): TreeNode[] => {
   const tree: TreeNode[] = [];
 
@@ -367,7 +368,9 @@ export default function AllDocumentsPage() {
   const [scopeTemplates, setScopeTemplates] = useState<Record<string, string>>({});
 
   // SSoT: Root path from StorageConfiguration
-  const [rootPath, setRootPath] = useState<string>("/Shared Documents");
+  // Default to empty string - will be populated from API
+  // For S3: "/" (bucket root), for SharePoint: "/Shared Documents"
+  const [rootPath, setRootPath] = useState<string>("");
   // Phase 4: Virtual scopes (render from DB instead of S3)
   const [virtualScopes, setVirtualScopes] = useState<Record<string, boolean>>({});
 
@@ -1320,15 +1323,27 @@ export default function AllDocumentsPage() {
         return scopePath || node.name;
       }
 
+      // Helper to strip root path prefix from a path
+      // SSoT: rootPath comes from StorageConfiguration (e.g., "/" for S3, "/Shared Documents" for SharePoint)
+      const stripRootPath = (path: string): string => {
+        if (!path) return path;
+        const normalizedPath = path.replace(/^\/+/, '');  // Remove leading slashes
+        const normalizedRoot = rootPath.replace(/^\/+/, '').replace(/\/+$/, '');  // Normalize root
+
+        if (normalizedRoot && normalizedPath.startsWith(normalizedRoot + '/')) {
+          return normalizedPath.slice(normalizedRoot.length + 1);
+        }
+        if (normalizedRoot && normalizedPath.startsWith(normalizedRoot)) {
+          return normalizedPath.slice(normalizedRoot.length).replace(/^\/+/, '');
+        }
+        return normalizedPath;
+      };
+
       // For S3 subfolder nodes (created from fetchS3Folders results)
       if (node.id.startsWith("s3-folder-")) {
         if (node.fullPath) {
-          const parts = node.fullPath.split('/').filter(Boolean);
-          const idx = parts.findIndex(p => p === 'Shared Documents');
-          if (idx >= 0) {
-            return parts.slice(idx + 1).join('/');
-          }
-          return node.fullPath;
+          // Strip root path prefix (provider-agnostic)
+          return stripRootPath(node.fullPath);
         }
       }
 
@@ -1337,13 +1352,8 @@ export default function AllDocumentsPage() {
         if (node.fullPath.includes('{{')) {
           return node.name;
         }
-        const parts = node.fullPath.split('/').filter(Boolean);
-        // Remove "Shared Documents" prefix if present
-        const idx = parts.findIndex(p => p === 'Shared Documents');
-        if (idx >= 0) {
-          return parts.slice(idx + 1).join('/');
-        }
-        return parts.join('/');
+        // Strip root path prefix (provider-agnostic)
+        return stripRootPath(node.fullPath);
       }
       // Fallback: use scopeFolders mapping
       return scopeFolders[node.id] || undefined;

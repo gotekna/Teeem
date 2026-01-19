@@ -333,7 +333,8 @@ class StorageConfiguration < ApplicationRecord
           "site_id" => credential.sharepoint_site_id,
           "drive_id" => credential.sharepoint_drive_id,
           "site_url" => credential.respond_to?(:site_url) ? credential.site_url : nil,
-          "drive_name" => credential.respond_to?(:drive_name) ? credential.drive_name : "Shared Documents"
+          # SSoT: drive_name comes from credential - no hardcoded fallback
+          "drive_name" => credential.respond_to?(:drive_name) ? credential.drive_name : nil
         ).compact,
         status: credential.connected? ? "connected" : "disconnected"
       )
@@ -364,7 +365,8 @@ class StorageConfiguration < ApplicationRecord
         "site_id" => credential.sharepoint_site_id,
         "drive_id" => credential.sharepoint_drive_id,
         "site_url" => credential.respond_to?(:site_url) ? credential.site_url : nil,
-        "drive_name" => credential.respond_to?(:drive_name) ? credential.drive_name : "Shared Documents"
+        # SSoT: drive_name comes from credential - no hardcoded fallback
+        "drive_name" => credential.respond_to?(:drive_name) ? credential.drive_name : nil
       }.compact
     when S3CompatibleCredential
       {

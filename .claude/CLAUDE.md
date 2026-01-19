@@ -580,7 +580,8 @@ StorageConfiguration.instance.path_for(:jobs)      # → "Jobs"
 StorageConfiguration.instance.path_for(:contacts)  # → "Contacts"
 StorageConfiguration.instance.path_for(:people)    # → "People"
 StorageConfiguration.instance.resolve_path(:job, JobCode: "J-001", Category: "Plans")
-# → "/Shared Documents/Jobs/J-001/Plans"
+# → SharePoint: "/Shared Documents/Jobs/J-001/Plans"
+# → S3/Wasabi:  "/Jobs/J-001/Plans" (root_path = "/" for S3)
 ```
 
 ### Architecture (Provider-Agnostic)
@@ -590,18 +591,24 @@ StorageConfiguration.instance.resolve_path(:job, JobCode: "J-001", Category: "Pl
 │                    StorageConfiguration                      │
 │                      (THE ONE SSoT)                          │
 ├─────────────────────────────────────────────────────────────┤
-│  provider_type:    sharepoint | s3 | wasabi | local         │
+│  provider_type:    sharepoint | s3_compatible | local       │
 │  status:           connected | disconnected | error          │
 │  connection_config: { site_id, drive_id } (JSONB)           │
-│  root_path:        "/Shared Documents"                       │
+│  root_path:        "/" (S3) or "/Shared Documents" (SP)     │
 │  paths:            { jobs: "Jobs", contacts: "Contacts" }   │
 │  templates:        { job: "{{JobCode}}/{{Category}}" }      │
 └─────────────────────────────────────────────────────────────┘
-         ↓ provides auth
+         ↓ provides auth (depends on provider)
 ┌─────────────────────────────────────────────────────────────┐
-│  MicrosoftCredential (auth ONLY - tokens, refresh, scopes)  │
+│  MicrosoftCredential (SharePoint auth)                       │
+│  S3CompatibleCredential (S3/Wasabi auth)                     │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+**CRITICAL (Jan 2026):** Frontend NEVER knows about paths.
+- Frontend sends: `{ scope: "emails", tokens: { mailbox: "inbox@tekna.com.au" } }`
+- Backend resolves paths internally using StorageConfiguration
+- Frontend receives: files, folders, breadcrumbs (abstract, not paths)
 
 ### SSoT Lookups
 
@@ -611,8 +618,9 @@ StorageConfiguration.instance.resolve_path(:job, JobCode: "J-001", Category: "Pl
 | Full resolved path | `StorageConfiguration.instance.resolve_path(:job, ...)` | Manual string building |
 | Site ID | `StorageConfiguration.instance.site_id` | `credential.sharepoint_site_id` |
 | Drive ID | `StorageConfiguration.instance.drive_id` | `credential.sharepoint_drive_id` |
-| Root path | `StorageConfiguration.instance.root_path` | `"/Shared Documents"` hardcoded |
+| Root path | `StorageConfiguration.instance.root_path` | `"/"` or `"/Shared Documents"` hardcoded |
 | Provider type | `StorageConfiguration.instance.provider_type` | Checking multiple sources |
+| Frontend path handling | Backend resolves, frontend uses scopes | Hardcoding paths in frontend |
 
 ### Available Scopes
 
