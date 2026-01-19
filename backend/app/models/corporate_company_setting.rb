@@ -317,14 +317,15 @@ class CorporateCompanySetting < ApplicationRecord
   end
 
   # Get full API environment config for login response
-  # In development mode, don't return a remote api_url - let frontend use local backend
+  # In development mode, don't return redirect URLs but still return the company's environment
   def self.api_environment_config
     env = api_environment
 
-    # Don't redirect to remote URL in development - keep using local backend
+    # In development: return the company's api_environment setting but skip redirect URLs
+    # This way the badge shows the correct environment, but we stay on localhost
     if Rails.env.development?
       {
-        environment: "development",
+        environment: env,
         api_url: nil,
         frontend_url: nil
       }
