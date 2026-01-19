@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/tooltip";
 import { getColumnTypeEmoji, getColumnTypeLabel } from "@/lib/column-type-registry";
 import { isChoiceColumn } from "@/lib/constants/column-types";
+import { copyToClipboard } from "@/utils/formatters";
 import { Key, Link, Calculator, Copy, Check } from "lucide-react";
 import { TableColumn } from "./types";
 
@@ -121,8 +122,8 @@ export function SchemaTab({ foundationId, columns, tableName, onRefresh }: Schem
     fetchFoundationNames();
   }, [columns]);
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
+  const handleCopy = async (text: string) => {
+    await copyToClipboard(text);
     setCopiedKey(text);
     setTimeout(() => setCopiedKey(null), 2000);
   };
@@ -315,7 +316,7 @@ export function SchemaTab({ foundationId, columns, tableName, onRefresh }: Schem
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7"
-                            onClick={() => copyToClipboard(column.key)}
+                            onClick={() => handleCopy(column.key)}
                           >
                             {copiedKey === column.key ? (
                               <Check className="h-3 w-3 text-green-500" />

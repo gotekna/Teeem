@@ -22,6 +22,7 @@ import { BackButton } from "@/components/ui/back-button";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { format, isToday, isTomorrow } from "date-fns";
+import { getInitials } from "@/utils/formatters";
 
 interface Meeting {
   id: number;
@@ -35,15 +36,6 @@ interface Meeting {
   job_title?: string;
   job_id?: number;
   attendees: { id: number; name: string; email: string }[];
-}
-
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
 }
 
 function formatMeetingTime(start: string, end: string): string {
@@ -202,7 +194,7 @@ export default function MeetingsPage() {
                                         className="h-6 w-6 border-2 border-background"
                                       >
                                         <AvatarFallback className="text-xs">
-                                          {getInitials(attendee.name)}
+                                          {getInitials(attendee.name) || "?"}
                                         </AvatarFallback>
                                       </Avatar>
                                     ))}

@@ -24,6 +24,7 @@ import { EntityChat } from "@/components/chat/EntityChat";
 import { Spinner } from "@/components/ui/spinner";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { useToast } from "@/components/ui/use-toast";
+import { getInitials } from "@/utils/formatters";
 
 interface Message {
   id: number;
@@ -92,16 +93,6 @@ function formatRelativeTime(dateString: string): string {
       year: "numeric",
     });
   }
-}
-
-function getInitials(name: string | undefined): string {
-  if (!name) return "U";
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
 }
 
 // Internal Messages Component
@@ -212,7 +203,7 @@ function InternalMessagesSection({ jobId }: { jobId: string | number }) {
               <div key={message.id} className="flex items-start gap-3">
                 <Avatar className="h-10 w-10">
                   <AvatarFallback className="bg-primary/10 text-primary">
-                    {getInitials(message.user_name)}
+                    {getInitials(message.user_name) || "U"}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">

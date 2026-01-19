@@ -62,7 +62,7 @@ import {
 import { SortableList, SortableItem, DragHandle, reorderByPosition } from "@/components/ui/dnd";
 import { useUserTabPreferences } from "@/lib/hooks/useUserTabPreferences";
 import { api } from "@/lib/api";
-import { formatCurrency } from "@/utils/formatters";
+import { formatCurrency, getInitials } from "@/utils/formatters";
 import { DEBOUNCE_SEARCH_MS } from "@/lib/constants/timeout-constants";
 import { safePercent } from "@/lib/utils";
 import dynamic from "next/dynamic";
@@ -323,16 +323,6 @@ interface JobStage {
 }
 
 // Static tabs removed - now using dynamic tabs from useJobTabs hook
-
-function getInitials(name: string | undefined | null): string {
-  if (!name) return "?";
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
 
 function getStageBadgeVariant(stage: string): "default" | "secondary" | "outline" {
   switch (stage?.toLowerCase()) {

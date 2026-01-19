@@ -64,6 +64,7 @@ import {
   PLACEHOLDER_COLOR_CLASSES,
 } from "@/lib/placeholders";
 import { DOCUMENT_TYPE_SCOPES, DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
+import { getInitials as getInitialsSSoT } from "@/utils/formatters";
 
 // Re-export for local use (SSoT: @/lib/constants/document-types.ts)
 const FOLDER_OPTIONS = DOCUMENT_FOLDER_OPTIONS;
@@ -487,14 +488,9 @@ export default function DocumentTypeDetailPage() {
     }
   };
 
-  // Helper to get initials from name
+  // Helper to get initials from name (uses SSoT formatter)
   const getInitials = (name: string): string => {
-    if (!name) return "";
-    return name
-      .split(/\s+/)
-      .map(word => word.charAt(0).toUpperCase())
-      .join("")
-      .slice(0, 2);
+    return getInitialsSSoT(name) || "";
   };
 
   // Initialize checkbox state based on whether display_name exists

@@ -56,6 +56,7 @@ import { api } from "@/lib/api";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { StorageConfigTab } from "./StorageConfigTab";
+import { formatFileSize } from "@/utils/formatters";
 
 interface WarehouseViewStatus {
   key: string;
@@ -569,13 +570,6 @@ export function DataWarehouseTab() {
   };
 
 
-  const formatBytes = (bytes: number) => {
-    if (!bytes) return "0 B";
-    const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB", "TB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
-  };
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return "Never";
@@ -1158,7 +1152,7 @@ export function DataWarehouseTab() {
                               <span className="text-green-600 font-medium">
                                 {org.stats.storage_location.attachments.dedup_savings_count.toLocaleString()} attachments
                               </span>
-                              {" "}deduplicated (saving {formatBytes(org.stats.storage_location.attachments.dedup_savings_bytes)})
+                              {" "}deduplicated (saving {formatFileSize(org.stats.storage_location.attachments.dedup_savings_bytes)})
                             </p>
                           )}
                         </div>
@@ -1282,12 +1276,12 @@ export function DataWarehouseTab() {
                         <div className="text-center p-3 bg-muted/50 rounded-lg">
                           <p className="text-xl font-bold text-purple-600">{org.stats.emails.toLocaleString()}</p>
                           <p className="text-xs text-muted-foreground">Total Emails</p>
-                          <p className="text-xs text-muted-foreground mt-1">{formatBytes(org.stats.email_storage_bytes)}</p>
+                          <p className="text-xs text-muted-foreground mt-1">{formatFileSize(org.stats.email_storage_bytes)}</p>
                         </div>
                         <div className="text-center p-3 bg-muted/50 rounded-lg">
                           <p className="text-xl font-bold text-green-600">{org.stats.linked_to_job.toLocaleString()}</p>
                           <p className="text-xs text-muted-foreground">Linked to Jobs</p>
-                          <p className="text-xs text-muted-foreground mt-1">{formatBytes(org.stats.size_by_job)}</p>
+                          <p className="text-xs text-muted-foreground mt-1">{formatFileSize(org.stats.size_by_job)}</p>
                         </div>
                         <div className="text-center p-3 bg-muted/50 rounded-lg">
                           <p className="text-xl font-bold text-red-600">{org.stats.junk_emails.toLocaleString()}</p>
@@ -1375,7 +1369,7 @@ export function DataWarehouseTab() {
                 <HardDrive className="h-5 w-5 text-orange-600 dark:text-orange-400" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{formatBytes(stats.documents.total_file_size + stats.job_documents.total_size)}</p>
+                <p className="text-2xl font-bold">{formatFileSize(stats.documents.total_file_size + stats.job_documents.total_size)}</p>
                 <p className="text-xs text-muted-foreground">Total Storage</p>
               </div>
             </div>
@@ -1785,7 +1779,7 @@ export function DataWarehouseTab() {
                       <p className="text-xs text-muted-foreground">Unique Files</p>
                     </div>
                     <div className="text-center p-2 bg-cyan-100 dark:bg-cyan-900/30 rounded-lg">
-                      <p className="text-lg font-bold text-cyan-600">{formatBytes(stats.emails.storage_upload.attachments.total_storage_bytes || 0)}</p>
+                      <p className="text-lg font-bold text-cyan-600">{formatFileSize(stats.emails.storage_upload.attachments.total_storage_bytes || 0)}</p>
                       <p className="text-xs text-muted-foreground">Storage Used</p>
                     </div>
                     <div className="text-center p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
@@ -1850,22 +1844,22 @@ export function DataWarehouseTab() {
             <div className="text-center p-3 bg-muted/50 rounded-lg">
               <p className="text-2xl font-bold text-purple-600">{stats.emails.total_emails.toLocaleString()}</p>
               <p className="text-xs text-muted-foreground">Total Emails</p>
-              <p className="text-xs text-muted-foreground mt-1">{formatBytes(stats.emails.total_size)}</p>
+              <p className="text-xs text-muted-foreground mt-1">{formatFileSize(stats.emails.total_size)}</p>
             </div>
             <div className="text-center p-3 bg-muted/50 rounded-lg">
               <p className="text-2xl font-bold text-blue-600">{stats.emails.linked_to_contact.toLocaleString()}</p>
               <p className="text-xs text-muted-foreground">Linked to Contact</p>
-              <p className="text-xs text-muted-foreground mt-1">{formatBytes(stats.emails.size_by_contact)}</p>
+              <p className="text-xs text-muted-foreground mt-1">{formatFileSize(stats.emails.size_by_contact)}</p>
             </div>
             <div className="text-center p-3 bg-muted/50 rounded-lg">
               <p className="text-2xl font-bold text-green-600">{stats.emails.linked_to_job.toLocaleString()}</p>
               <p className="text-xs text-muted-foreground">Linked to Job</p>
-              <p className="text-xs text-muted-foreground mt-1">{formatBytes(stats.emails.size_by_job)}</p>
+              <p className="text-xs text-muted-foreground mt-1">{formatFileSize(stats.emails.size_by_job)}</p>
             </div>
             <div className="text-center p-3 bg-muted/50 rounded-lg">
               <p className="text-2xl font-bold text-orange-600">{stats.emails.linked_to_company.toLocaleString()}</p>
               <p className="text-xs text-muted-foreground">Linked to Company</p>
-              <p className="text-xs text-muted-foreground mt-1">{formatBytes(stats.emails.size_by_company)}</p>
+              <p className="text-xs text-muted-foreground mt-1">{formatFileSize(stats.emails.size_by_company)}</p>
             </div>
             <div className="text-center p-3 bg-muted/50 rounded-lg">
               <p className="text-2xl font-bold text-cyan-600">{stats.emails.linked_to_company_group.toLocaleString()}</p>
@@ -1875,7 +1869,7 @@ export function DataWarehouseTab() {
             <div className="text-center p-3 bg-muted/50 rounded-lg">
               <p className="text-2xl font-bold text-red-600">{stats.emails.junk_emails.toLocaleString()}</p>
               <p className="text-xs text-muted-foreground">Spam Emails</p>
-              <p className="text-xs text-muted-foreground mt-1">{formatBytes(stats.emails.size_junk)}</p>
+              <p className="text-xs text-muted-foreground mt-1">{formatFileSize(stats.emails.size_junk)}</p>
             </div>
           </div>
           <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
@@ -2006,7 +2000,7 @@ export function DataWarehouseTab() {
               <p className="text-xs text-muted-foreground">Images</p>
             </div>
             <div className="text-center p-3 bg-muted/50 rounded-lg">
-              <p className="text-2xl font-bold">{formatBytes(stats.job_documents.total_size)}</p>
+              <p className="text-2xl font-bold">{formatFileSize(stats.job_documents.total_size)}</p>
               <p className="text-xs text-muted-foreground">Total Size</p>
             </div>
           </div>

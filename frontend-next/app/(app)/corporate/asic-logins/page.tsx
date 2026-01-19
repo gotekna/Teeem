@@ -14,6 +14,7 @@ import {
   Check,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { copyToClipboard } from "@/utils/formatters";
 import { BackButton } from "@/components/ui/back-button";
 import {
   Table,
@@ -97,15 +98,11 @@ export default function AsicLoginsPage() {
     setShowPasswords((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const copyToClipboard = async (text: string, companyId: number, field: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      const key = `${companyId}-${field}`;
-      setCopiedField(key);
-      setTimeout(() => setCopiedField(null), 2000);
-    } catch (error) {
-      console.error("Failed to copy:", error);
-    }
+  const handleCopy = async (text: string, companyId: number, field: string) => {
+    await copyToClipboard(text);
+    const key = `${companyId}-${field}`;
+    setCopiedField(key);
+    setTimeout(() => setCopiedField(null), 2000);
   };
 
   const handleGroupChange = (groupId: string) => {
@@ -191,7 +188,7 @@ export default function AsicLoginsPage() {
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-mono">{company.corporate_key}</span>
                         <button
-                          onClick={() => copyToClipboard(company.corporate_key!, company.id, "corporate_key")}
+                          onClick={() => handleCopy(company.corporate_key!, company.id, "corporate_key")}
                           className="text-muted-foreground hover:text-foreground"
                         >
                           {copiedField === `${company.id}-corporate_key` ? (
@@ -210,7 +207,7 @@ export default function AsicLoginsPage() {
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-mono">{company.asic_username}</span>
                         <button
-                          onClick={() => copyToClipboard(company.asic_username!, company.id, "username")}
+                          onClick={() => handleCopy(company.asic_username!, company.id, "username")}
                           className="text-muted-foreground hover:text-foreground"
                         >
                           {copiedField === `${company.id}-username` ? (
@@ -237,7 +234,7 @@ export default function AsicLoginsPage() {
                           {showPasswords[`${company.id}-password`] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                         <button
-                          onClick={() => copyToClipboard(company.asic_password!, company.id, "password")}
+                          onClick={() => handleCopy(company.asic_password!, company.id, "password")}
                           className="text-muted-foreground hover:text-foreground"
                         >
                           {copiedField === `${company.id}-password` ? (
@@ -267,7 +264,7 @@ export default function AsicLoginsPage() {
                               {showPasswords[`${company.id}-recovery`] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                             </button>
                             <button
-                              onClick={() => copyToClipboard(company.recovery_answer!, company.id, "recovery")}
+                              onClick={() => handleCopy(company.recovery_answer!, company.id, "recovery")}
                               className="text-muted-foreground hover:text-foreground"
                             >
                               {copiedField === `${company.id}-recovery` ? (

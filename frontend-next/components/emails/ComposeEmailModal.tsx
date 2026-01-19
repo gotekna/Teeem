@@ -38,8 +38,8 @@ import {
   CONTACT_SEARCH_MAX_RESULTS,
   MAX_ATTACHMENT_SIZE_BYTES,
   MAX_TOTAL_ATTACHMENTS_SIZE_BYTES,
-  formatFileSize,
 } from "@/lib/email-constants";
+import { formatFileSize } from "@/utils/formatters";
 import type { EmailDraft, EmailAccount, EmailContact } from "@/lib/email-types";
 import { LayoutTemplate } from "lucide-react";
 import { TemplatePicker, type EmailTemplate } from "./TemplateManager";

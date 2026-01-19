@@ -14,6 +14,7 @@
  */
 
 import { openDB, DBSchema, IDBPDatabase } from "idb";
+import { formatFileSize } from "@/utils/formatters";
 
 // =============================================================================
 // Configuration
@@ -248,7 +249,7 @@ export async function storePhoto(
   const db = await getDB();
   await db.put(PHOTOS_STORE, photo);
 
-  console.log(`[PhotoCache] Stored photo: ${photo.fileName} (${formatBytes(photo.fileSize)})`);
+  console.log(`[PhotoCache] Stored photo: ${photo.fileName} (${formatFileSize(photo.fileSize)})`);
   return photo;
 }
 
@@ -424,20 +425,13 @@ export async function getPhotoCacheStats(): Promise<PhotoCacheStats> {
     }
   }
 
-  stats.totalSizeDisplay = formatBytes(stats.totalSizeBytes);
+  stats.totalSizeDisplay = formatFileSize(stats.totalSizeBytes);
   return stats;
 }
 
 // =============================================================================
 // Utilities
 // =============================================================================
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 KB";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 /**
  * Create a blob URL for displaying a photo

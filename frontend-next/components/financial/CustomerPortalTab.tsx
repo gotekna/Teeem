@@ -58,7 +58,7 @@ import {
   Building,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatCurrency, formatDate, formatDateTime } from "@/utils/formatters";
+import { formatCurrency, formatDate, formatDateTime, copyToClipboard } from "@/utils/formatters";
 
 interface Contact {
   id: number;
@@ -189,14 +189,10 @@ export default function CustomerPortalTab() {
     setRefreshing(false);
   };
 
-  const copyToClipboard = async (url: string, tokenId: string) => {
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopiedToken(tokenId);
-      setTimeout(() => setCopiedToken(null), 2000);
-    } catch (err) {
-      console.error("Failed to copy:", err);
-    }
+  const handleCopy = async (url: string, tokenId: string) => {
+    await copyToClipboard(url);
+    setCopiedToken(tokenId);
+    setTimeout(() => setCopiedToken(null), 2000);
   };
 
   const handleGenerateToken = async () => {
@@ -583,7 +579,7 @@ export default function CustomerPortalTab() {
                                       variant="ghost"
                                       size="icon"
                                       className="h-8 w-8"
-                                      onClick={() => copyToClipboard(
+                                      onClick={() => handleCopy(
                                         `${window.location.origin}/portal/${token.token}`,
                                         token.token
                                       )}
@@ -890,7 +886,7 @@ export default function CustomerPortalTab() {
                   <Button
                     variant="outline"
                     size="icon"
-                    onClick={() => copyToClipboard(generatedUrl, "generated")}
+                    onClick={() => handleCopy(generatedUrl, "generated")}
                   >
                     {copiedToken === "generated" ? (
                       <Check className="h-4 w-4 text-green-600" />

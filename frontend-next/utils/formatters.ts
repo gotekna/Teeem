@@ -260,3 +260,23 @@ export function formatDateShort(dateString: string | null | undefined): string {
     month: 'short',
   });
 }
+
+/**
+ * Copy text to clipboard with fallback for older browsers.
+ * @returns Promise that resolves when copy is complete
+ */
+export async function copyToClipboard(text: string): Promise<void> {
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(text);
+  } else {
+    // Fallback for older browsers
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    document.body.appendChild(textArea);
+    textArea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textArea);
+  }
+}

@@ -35,7 +35,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { slugifyJobTitle } from "@/lib/url-utils";
-import { formatCurrency } from "@/utils/formatters";
+import { formatCurrency, getInitials } from "@/utils/formatters";
 import { JobActivityTab } from "@/components/jobs/JobActivityTab";
 import { JobPeopleTab } from "@/components/jobs/JobPeopleTab";
 import { RainLogTab } from "@/components/jobs/RainLogTab";
@@ -97,16 +97,6 @@ const tabs = [
   { name: "Docs", slug: "documents", icon: FileText },
   { name: "Coms", slug: "coms", icon: MessageSquare },
 ];
-
-function getInitials(name: string | undefined | null): string {
-  if (!name) return "?";
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
 
 export function JobDetailDrawer({ jobId, open, onOpenChange }: JobDetailDrawerProps) {
   const router = useRouter();
@@ -244,7 +234,7 @@ export function JobDetailDrawer({ jobId, open, onOpenChange }: JobDetailDrawerPr
                           <div className="flex items-start gap-3">
                             <Avatar className="h-8 w-8">
                               <AvatarFallback className="text-xs">
-                                {getInitials(job.site_supervisor_name)}
+                                {getInitials(job.site_supervisor_name) || "?"}
                               </AvatarFallback>
                             </Avatar>
                             <div className="text-sm">
@@ -278,7 +268,7 @@ export function JobDetailDrawer({ jobId, open, onOpenChange }: JobDetailDrawerPr
                                 <div key={contact.id} className="flex items-start gap-3">
                                   <Avatar className="h-8 w-8">
                                     <AvatarFallback className="text-xs">
-                                      {getInitials(contact.name)}
+                                      {getInitials(contact.name) || "?"}
                                     </AvatarFallback>
                                   </Avatar>
                                   <div className="text-sm">

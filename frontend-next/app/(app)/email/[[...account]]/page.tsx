@@ -142,6 +142,7 @@ import { cn } from "@/lib/utils";
 import { emailCache, isIndexedDBAvailable } from "@/lib/email-cache";
 import { useToast } from "@/components/ui/use-toast";
 import { api as apiClient } from "@/lib/api";
+import { getInitials as getInitialsSSoT } from "@/utils/formatters";
 
 // Helper to decode HTML entities and clean up email snippets
 function decodeHtmlEntities(text: string | null | undefined): string {
@@ -213,15 +214,18 @@ function sanitizeEmailHtml(html: string): string {
   return html.replace(/src\s*=\s*["']cid:[^"']*["']/gi, 'src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"');
 }
 
-// Helper to get initials from name or email
+// Helper to get initials from name or email (uses SSoT for name part)
 function getInitials(name: string | null | undefined, email: string | null | undefined): string {
-  if (name && name.trim()) {
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  // Try name first using SSoT formatter
+  const nameInitials = getInitialsSSoT(name);
+  if (nameInitials) {
+    // Handle single word case: take first 2 chars
+    if (nameInitials.length === 1 && name && name.trim().split(/\s+/).length === 1) {
+      return name.trim().substring(0, 2).toUpperCase();
     }
-    return name.trim().substring(0, 2).toUpperCase();
+    return nameInitials;
   }
+  // Fallback to email local part
   if (email) {
     const localPart = email.split("@")[0];
     return localPart.substring(0, 2).toUpperCase();

@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
+import { formatFileSize } from "@/utils/formatters";
 
 // Types
 interface Health {
@@ -103,9 +104,9 @@ export default function SystemPerformancePage() {
     );
   };
 
-  const formatBytes = (mb: number) => {
-    if (mb < 1024) return `${mb.toFixed(2)} MB`;
-    return `${(mb / 1024).toFixed(2)} GB`;
+  const formatMegabytes = (mb: number) => {
+    // Convert MB to bytes for the SSoT formatter
+    return formatFileSize(mb * 1024 * 1024);
   };
 
   if (loading) {
@@ -170,7 +171,7 @@ export default function SystemPerformancePage() {
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Memory Usage</p>
                 <p className="mt-1 text-sm font-semibold">
-                  {health?.memory?.used_mb ? formatBytes(health.memory.used_mb) : "N/A"}
+                  {health?.memory?.used_mb ? formatMegabytes(health.memory.used_mb) : "N/A"}
                 </p>
               </div>
             </CardContent>
@@ -255,13 +256,13 @@ export default function SystemPerformancePage() {
               <div className="flex justify-between">
                 <dt className="text-sm text-muted-foreground">Memory (RSS)</dt>
                 <dd className="text-sm font-medium">
-                  {performance?.memory?.rss_mb ? formatBytes(performance.memory.rss_mb) : "N/A"}
+                  {performance?.memory?.rss_mb ? formatMegabytes(performance.memory.rss_mb) : "N/A"}
                 </dd>
               </div>
               <div className="flex justify-between">
                 <dt className="text-sm text-muted-foreground">Log Size</dt>
                 <dd className="text-sm font-medium">
-                  {performance?.cache?.log_size_mb ? formatBytes(performance.cache.log_size_mb) : "N/A"}
+                  {performance?.cache?.log_size_mb ? formatMegabytes(performance.cache.log_size_mb) : "N/A"}
                 </dd>
               </div>
             </dl>

@@ -33,7 +33,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatCurrency, formatDate, formatDateTime } from "@/utils/formatters";
+import { formatCurrency, formatDate, formatDateTime, copyToClipboard } from "@/utils/formatters";
 import Link from "next/link";
 
 interface PaymentLink {
@@ -122,14 +122,10 @@ export default function PaymentLinksTab() {
     fetchData();
   }, [fetchData]);
 
-  const copyToClipboard = async (url: string, token: string) => {
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopiedToken(token);
-      setTimeout(() => setCopiedToken(null), 2000);
-    } catch (err) {
-      console.error("Failed to copy:", err);
-    }
+  const handleCopy = async (url: string, token: string) => {
+    await copyToClipboard(url);
+    setCopiedToken(token);
+    setTimeout(() => setCopiedToken(null), 2000);
   };
 
   const getStatusBadge = (status: string) => {
@@ -311,7 +307,7 @@ export default function PaymentLinksTab() {
                                   variant="ghost"
                                   size="icon"
                                   className="h-8 w-8"
-                                  onClick={() => copyToClipboard(link.payment_url, link.token)}
+                                  onClick={() => handleCopy(link.payment_url, link.token)}
                                   disabled={link.status !== "active"}
                                 >
                                   {copiedToken === link.token ? (

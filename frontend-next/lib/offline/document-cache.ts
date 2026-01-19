@@ -17,6 +17,7 @@
  */
 
 import { openDB, DBSchema, IDBPDatabase } from "idb";
+import { formatFileSize } from "@/utils/formatters";
 
 // =============================================================================
 // Configuration
@@ -196,7 +197,7 @@ export async function getDocumentFromCache(
       return null;
     }
 
-    console.log(`[DocumentCache] HIT: ${data.fileName} (${formatBytes(data.fileSize)})`);
+    console.log(`[DocumentCache] HIT: ${data.fileName} (${formatFileSize(data.fileSize)})`);
     return data;
   } catch (error) {
     console.warn("[DocumentCache] Failed to read:", error);
@@ -221,7 +222,7 @@ export async function setDocumentInCache(
 
   // Skip large files
   if (blob.size > MAX_DOCUMENT_SIZE_BYTES) {
-    console.log(`[DocumentCache] SKIP: ${fileName} too large (${formatBytes(blob.size)})`);
+    console.log(`[DocumentCache] SKIP: ${fileName} too large (${formatFileSize(blob.size)})`);
     return;
   }
 
@@ -246,7 +247,7 @@ export async function setDocumentInCache(
     };
 
     await db.put(DOCUMENTS_STORE, data);
-    console.log(`[DocumentCache] SET: ${fileName} (${formatBytes(blob.size)})`);
+    console.log(`[DocumentCache] SET: ${fileName} (${formatFileSize(blob.size)})`);
   } catch (error) {
     console.warn("[DocumentCache] Failed to write:", error);
   }
@@ -476,7 +477,7 @@ export async function getDocumentCacheStats(): Promise<{
       documentCount: allDocs.length,
       jobCount: allJobs.length,
       totalSizeBytes,
-      totalSizeDisplay: formatBytes(totalSizeBytes),
+      totalSizeDisplay: formatFileSize(totalSizeBytes),
       oldestAge: oldestTimestamp ? Date.now() - oldestTimestamp : null,
     };
   } catch (error) {
@@ -494,14 +495,6 @@ export async function getDocumentCacheStats(): Promise<{
 // =============================================================================
 // Utilities
 // =============================================================================
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
-}
 
 /**
  * Create a blob URL for a cached document (for viewing)

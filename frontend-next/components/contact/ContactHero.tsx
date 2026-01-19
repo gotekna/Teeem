@@ -4,6 +4,7 @@ import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Building2, User, Briefcase, DollarSign } from "lucide-react";
+import { getInitials as getInitialsSSoT } from "@/utils/formatters";
 
 export interface ContactHeroProps {
   /** Contact display name */
@@ -27,15 +28,16 @@ export interface ContactHeroProps {
 }
 
 /**
- * Get initials from a display name
+ * Get initials from a display name (wrapper for SSoT with local fallback behavior)
  */
 function getInitials(name: string): string {
-  if (!name) return "?";
-  const words = name.trim().split(/\s+/);
-  if (words.length === 1) {
-    return words[0].substring(0, 2).toUpperCase();
+  const initials = getInitialsSSoT(name);
+  if (!initials) return "?";
+  // Handle single word case: take first 2 chars
+  if (initials.length === 1 && name.trim().split(/\s+/).length === 1) {
+    return name.trim().substring(0, 2).toUpperCase();
   }
-  return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+  return initials;
 }
 
 /**
