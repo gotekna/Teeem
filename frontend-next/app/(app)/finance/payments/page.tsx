@@ -37,7 +37,6 @@ import {
   Download,
   CheckCircle,
   Clock,
-  ArrowLeft,
   CreditCard,
   Building2,
   DollarSign,
@@ -48,6 +47,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { BackButton } from "@/components/ui/back-button";
 
 interface BankAccount {
   id: number;
@@ -248,12 +248,7 @@ export default function PaymentBatchesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/finance">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Link>
-          </Button>
+<BackButton fallbackHref="/finance" />
           <div>
             <h1 className="text-2xl font-bold tracking-tight font-serif">Payment Batches</h1>
             <p className="text-sm text-muted-foreground mt-1">

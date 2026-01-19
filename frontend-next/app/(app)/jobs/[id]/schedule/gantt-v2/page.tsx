@@ -31,7 +31,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { GanttUnified, GanttDependencyEditor } from '@/components/gantt-v2';
 import { api } from '@/lib/api';
 import {
-  ArrowLeft,
   ExternalLink,
   Camera,
   X,

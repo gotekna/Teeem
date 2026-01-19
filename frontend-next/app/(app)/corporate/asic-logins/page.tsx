@@ -6,7 +6,6 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import {
-  ArrowLeft,
   Building2,
   Key,
   Eye,
@@ -15,6 +14,7 @@ import {
   Check,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { BackButton } from "@/components/ui/back-button";
 import {
   Table,
   TableBody,
@@ -132,9 +132,7 @@ export default function AsicLoginsPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.push("/corporate")}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
+          <BackButton fallbackHref="/corporate" />
           <div>
             <h1 className="text-2xl font-bold tracking-tight font-serif">ASIC Logins</h1>
             <p className="text-sm text-muted-foreground mt-1">View and manage ASIC portal credentials for all companies</p>

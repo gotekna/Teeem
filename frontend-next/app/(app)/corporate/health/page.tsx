@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import {
-  ArrowLeft,
   RefreshCw,
   Building2,
   Search,
@@ -18,6 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { BackButton } from "@/components/ui/back-button";
 
 const HEALTH_STATUS_COLORS: Record<string, { bg: string; text: string; border: string; dot: string }> = {
   excellent: { bg: "bg-green-100 dark:bg-green-900/30", text: "text-green-800 dark:text-green-300", border: "border-green-200 dark:border-green-800", dot: "bg-green-500" },
@@ -120,9 +120,7 @@ export default function HealthReportPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.push("/corporate")}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
+          <BackButton fallbackHref="/corporate" />
           <div>
             <h1 className="text-2xl font-bold tracking-tight font-serif">Corporate Health Dashboard</h1>
             <p className="text-sm text-muted-foreground mt-1">

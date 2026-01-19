@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -134,6 +135,7 @@ export default function BpmnProcessesPage() {
   const router = useRouter();
   const pathname = usePathname();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
 
   // URL is SSoT for tab state (path-based navigation)
   const activeTab = useMemo(() => {
@@ -222,7 +224,7 @@ export default function BpmnProcessesPage() {
   }, [activeTab, fetchInstances]);
 
   const handleCancelInstance = async (instanceId: number) => {
-    if (!confirm("Are you sure you want to cancel this workflow instance?")) return;
+    if (!(await confirm("Are you sure you want to cancel this workflow instance?"))) return;
     try {
       const response = await api.post<{ success: boolean }>(`/api/v1/bpmn_process_instances/${instanceId}/cancel`, {
         reason: "Cancelled by user",
@@ -359,7 +361,7 @@ export default function BpmnProcessesPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this workflow?")) return;
+    if (!(await confirm("Are you sure you want to delete this workflow?"))) return;
 
     try {
       const response = await api.delete<ApiResponse>(`/api/v1/bpmn_processes/${id}`);

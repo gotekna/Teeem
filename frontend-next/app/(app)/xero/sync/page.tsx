@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import Link from "next/link";
 import {
   ArrowPathIcon,
@@ -55,6 +56,7 @@ function formatDate(dateString: string | undefined) {
 
 export default function XeroSyncPage() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
     loading: true,
     connected: false,
@@ -115,7 +117,7 @@ export default function XeroSyncPage() {
   };
 
   const handleSyncContacts = async () => {
-    if (!confirm("This will sync all contacts from TEEEM to Xero. Continue?")) {
+    if (!(await confirm("This will sync all contacts from TEEEM to Xero. Continue?"))) {
       return;
     }
 

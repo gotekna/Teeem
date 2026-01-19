@@ -11,6 +11,7 @@ import { SidebarProvider, useSidebar } from "@/contexts/SidebarContext";
 import { ViewModeProvider } from "@/contexts/ViewModeContext";
 import { LayoutModeProvider, useLayoutMode } from "@/contexts/LayoutModeContext";
 import { BreadcrumbProvider } from "@/contexts/BreadcrumbContext";
+import { ConfirmationProvider } from "@/contexts/ConfirmationContext";
 import { BreadcrumbTrail, BREADCRUMB_BAR_HEIGHT } from "@/components/navigation/BreadcrumbTrail";
 import { Spinner } from "@/components/ui/spinner";
 import { initVitals } from "@/lib/performance/vitals";
@@ -122,11 +123,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <SidebarProvider>
       <ViewModeProvider>
         <LayoutModeProvider>
-          <Suspense fallback={null}>
-            <BreadcrumbProvider>
-              <AppLayoutContent>{children}</AppLayoutContent>
-            </BreadcrumbProvider>
-          </Suspense>
+          <ConfirmationProvider>
+            <Suspense fallback={null}>
+              <BreadcrumbProvider>
+                <AppLayoutContent>{children}</AppLayoutContent>
+              </BreadcrumbProvider>
+            </Suspense>
+          </ConfirmationProvider>
         </LayoutModeProvider>
       </ViewModeProvider>
     </SidebarProvider>

@@ -11,7 +11,7 @@ import {
 import { api } from '@/lib/api'
 import { getTodayAsString, getNowInCompanyTimezone } from '@/lib/utils'
 // import Toast from '@/components/ui/use-toast'
-import * as XLSX from 'xlsx'
+import TeeemXL, { getRows } from '@/lib/teeem-xl'
 import PredecessorEditor from './PredecessorEditor'
 import PriceBookItemsModal from './PriceBookItemsModal'
 import SupervisorChecklistModal from './SupervisorChecklistModal'
@@ -699,14 +699,11 @@ export default function ScheduleTemplateEditor() {
     }
   }
 
-  const handleExportToExcel = () => {
+  const handleExportToExcel = async () => {
     if (!selectedTemplate || rows.length === 0) {
       showToast('No data to export', 'error')
       return
     }
-
-    // Create workbook and worksheet
-    const wb = XLSX.utils.book_new()
 
     // Helper function to format predecessors with Excel row numbers (including header)
     const formatPredecessorsForExcel = (predecessorIds) => {
@@ -737,7 +734,7 @@ export default function ScheduleTemplateEditor() {
     ]
 
     // Prepare data rows
-    const data = rows.map(row => [
+    const dataRows = rows.map(row => [
       row.name || '',
       row.supplier_name || '',
       formatPredecessorsForExcel(row.predecessor_ids),
@@ -761,88 +758,73 @@ export default function ScheduleTemplateEditor() {
       row.plan_required ? 'Yes' : 'No'
     ])
 
-    // Create worksheet from headers and data
-    const ws = XLSX.utils.aoa_to_sheet([headerRow, ...data])
-
-    // Set column widths
-    const baseColumns = [
-      { wch: 30 }, // Task Name
-      { wch: 20 }, // Supplier
-      { wch: 15 }, // Predecessors
-      { wch: 10 }, // Duration
-      { wch: 12 }, // Start Date
-    ]
-
-    // Add column widths for each documentation category
-    const docCategoryColumns = documentationCategories.map(() => ({ wch: 12 }))
-
-    const remainingColumns = [
-      { wch: 12 }, // PO Required
-      { wch: 10 }, // Auto PO
-      { wch: 10 }, // Critical
-      { wch: 20 }, // Tags
-      { wch: 8 },  // Photo
-      { wch: 8 },  // Cert
-      { wch: 10 }, // Cert Lag
-      { wch: 10 }, // Manual
-      { wch: 8 },  // Multi
-      { wch: 12 }, // Order Time
-      { wch: 10 }, // Call Up
-      { wch: 8 }   // Plan
-    ]
-
-    ws['!cols'] = [...baseColumns, ...docCategoryColumns, ...remainingColumns]
-
-    XLSX.utils.book_append_sheet(wb, ws, 'Tasks')
-
     // Generate filename with template name and date
     const date = getTodayAsString()
     const filename = `${selectedTemplate.name.replace(/[^a-z0-9]/gi, '_')}_${date}.xlsx`
 
-    // Write file
-    XLSX.writeFile(wb, filename)
-    showToast('Template exported successfully', 'success')
+    // Write Excel file using TeeemXL
+    try {
+      const blob = await TeeemXL.write([headerRow, ...dataRows], { sheetName: 'Tasks' })
+      // Download the file
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      showToast('Template exported successfully', 'success')
+    } catch (err) {
+      console.error('Export failed:', err)
+      showToast('Failed to export template', 'error')
+    }
   }
 
-  const handleImportFromExcel = (event) => {
+  const handleImportFromExcel = async (event) => {
     const file = event.target.files[0]
     if (!file) return
 
-    const reader = new FileReader()
-    reader.onload = async (e) => {
-      try {
-        const data = new Uint8Array(e.target.result)
-        const workbook = XLSX.read(data, { type: 'array' })
-        const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
+    try {
+      // Read Excel file using TeeemXL
+      const workbook = await TeeemXL.read(file)
+      const firstSheet = workbook.sheets[0]
 
-        // Try to detect if file has headers or not
-        // Read as array of arrays first to check
-        const rawData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 })
+      // Get raw data as 2D array
+      const rawData = getRows(firstSheet)
 
-        if (rawData.length === 0) {
-          showToast('No data found in Excel file', 'error')
-          return
-        }
+      if (rawData.length === 0) {
+        showToast('No data found in Excel file', 'error')
+        return
+      }
 
-        // Check if first row looks like headers (contains "Task" or similar)
-        const firstRow = rawData[0]
-        const hasHeaders = firstRow && typeof firstRow[0] === 'string' &&
-          (firstRow[0].toLowerCase().includes('task') ||
-           firstRow[0].toLowerCase() === 'name' ||
-           firstRow[0].toLowerCase().includes('header'))
+      // Check if first row looks like headers (contains "Task" or similar)
+      const firstRow = rawData[0]
+      const hasHeaders = firstRow && typeof firstRow[0] === 'string' &&
+        (String(firstRow[0]).toLowerCase().includes('task') ||
+         String(firstRow[0]).toLowerCase() === 'name' ||
+         String(firstRow[0]).toLowerCase().includes('header'))
 
-        // Parse data based on whether we have headers
-        let jsonData
-        if (hasHeaders) {
-          jsonData = XLSX.utils.sheet_to_json(firstSheet)
-        } else {
-          // No headers - treat columns as: A=Task Name, B=Predecessors, C=Duration
-          jsonData = rawData.map(row => ({
-            'Task Name': row[0],
-            'Predecessors': row[1],
-            'Duration': row[2]
-          }))
-        }
+      // Parse data based on whether we have headers
+      let jsonData
+      if (hasHeaders) {
+        // Convert rows to objects using first row as headers
+        const headers = rawData[0].map(h => String(h ?? ''))
+        jsonData = rawData.slice(1).map(row => {
+          const obj = {}
+          headers.forEach((header, i) => {
+            obj[header] = row[i] ?? null
+          })
+          return obj
+        })
+      } else {
+        // No headers - treat columns as: A=Task Name, B=Predecessors, C=Duration
+        jsonData = rawData.map(row => ({
+          'Task Name': row[0],
+          'Predecessors': row[1],
+          'Duration': row[2]
+        }))
+      }
 
         // Helper function to parse predecessors
         // Supports both formats:
@@ -957,8 +939,6 @@ export default function ScheduleTemplateEditor() {
 
         showToast(`Failed to import: ${errorMessage}`, 'error')
       }
-    }
-    reader.readAsArrayBuffer(file)
 
     // Reset file input
     event.target.value = ''

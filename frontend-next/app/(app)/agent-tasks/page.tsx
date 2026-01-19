@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import {
   PlayIcon,
   CheckCircleIcon,
@@ -88,6 +89,7 @@ const defaultInstructions: Record<string, string[]> = {
 };
 
 export default function AgentTasksPage() {
+  const { confirm } = useConfirm();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [agentTasks, setAgentTasks] = useState<AgentTasks>({});
   const [loading, setLoading] = useState(true);
@@ -182,8 +184,8 @@ export default function AgentTasksPage() {
     localStorage.setItem("agentTasks", JSON.stringify(newTasks));
   };
 
-  const resetToDefaults = () => {
-    if (!confirm("Reset all shortcuts to default values? This will delete your custom shortcuts.")) {
+  const resetToDefaults = async () => {
+    if (!(await confirm("Reset all shortcuts to default values? This will delete your custom shortcuts."))) {
       return;
     }
 

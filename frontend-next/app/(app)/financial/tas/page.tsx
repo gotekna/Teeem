@@ -33,7 +33,6 @@ import {
   RefreshCw,
   BookOpen,
   TrendingUp,
-  ArrowLeft,
   CheckCircle,
   XCircle,
   Clock,
@@ -64,6 +63,7 @@ import {
   BarChart3,
   Send,
 } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import RecurringInvoicesTab from "@/components/financial/RecurringInvoicesTab";
 import PaymentLinksTab from "@/components/financial/PaymentLinksTab";
 import DuplicateBillsTab from "@/components/financial/DuplicateBillsTab";
@@ -110,7 +110,6 @@ import CurrenciesTab from "@/components/financial/CurrenciesTab";
 import BudgetScenariosTab from "@/components/financial/BudgetScenariosTab";
 import ReportsTab from "@/components/financial/ReportsTab";
 import AITab from "@/components/financial/AITab";
-import Link from "next/link";
 import { api } from "@/lib/api";
 
 interface Provider {
@@ -532,11 +531,7 @@ export default function GlPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/financial">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </Link>
+<BackButton fallbackHref="/financial" />
           {/* T.A.S. Logo Badge */}
           <div className="w-10 h-10 bg-foreground text-background flex items-center justify-center shrink-0">
             <span className="text-xl font-bold">$</span>

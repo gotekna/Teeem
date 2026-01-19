@@ -17,7 +17,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  ArrowLeft,
   Mail,
   Users,
   Building,
@@ -35,6 +34,7 @@ import {
   Settings,
   Globe,
 } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -182,13 +182,7 @@ export default function SubscriptionDetailPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => router.push("/settings/email-reseller/subscriptions")}
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+          <BackButton fallbackHref="/settings/email-reseller/subscriptions" />
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold">{subscription.contact_name}</h1>

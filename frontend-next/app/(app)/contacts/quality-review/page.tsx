@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { useRouter, usePathname } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertCircle,
-  ArrowLeft,
   Building2,
   Check,
   ChevronRight,
@@ -224,6 +224,7 @@ function ReviewCard({
 export default function ContactQualityReviewPage() {
   const router = useRouter();
   const pathname = usePathname();
+  const { confirm } = useConfirm();
 
   // Parse filter from path: /contacts/quality-review/abn_mismatch → "abn_mismatch"
   const activeTab = React.useMemo(() => {
@@ -348,7 +349,7 @@ export default function ContactQualityReviewPage() {
     const highConfidenceReviews = reviews.filter((r) => r.confidence_score >= 80);
     if (highConfidenceReviews.length === 0) return;
 
-    if (!confirm(`Approve ${highConfidenceReviews.length} high-confidence reviews?`)) {
+    if (!(await confirm(`Approve ${highConfidenceReviews.length} high-confidence reviews?`))) {
       return;
     }
 

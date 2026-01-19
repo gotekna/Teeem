@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import {
-  ArrowLeft,
   Calendar,
   AlertTriangle,
   CheckCircle,
@@ -20,6 +19,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { BackButton } from "@/components/ui/back-button";
 import {
   Table,
   TableBody,
@@ -187,9 +187,7 @@ export default function ComplianceCalendarPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.push("/corporate")}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
+          <BackButton fallbackHref="/corporate" />
           <div>
             <h1 className="text-2xl font-bold tracking-tight font-serif">Compliance Calendar</h1>
             <p className="text-sm text-muted-foreground mt-1">Track compliance deadlines across all companies</p>

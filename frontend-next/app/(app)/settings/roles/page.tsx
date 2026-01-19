@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { usePathname, useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -429,6 +430,7 @@ function PermissionsSubTab() {
 
 function UserRolesSubTab() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -540,7 +542,7 @@ function UserRolesSubTab() {
   };
 
   const handleDeleteRole = async (role: Role) => {
-    if (!confirm(`Are you sure you want to delete the role "${role.display_name || role.name}"?`)) {
+    if (!(await confirm(`Are you sure you want to delete the role "${role.display_name || role.name}"?`))) {
       return;
     }
     try {

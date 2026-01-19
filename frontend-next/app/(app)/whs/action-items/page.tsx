@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { PlusIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
 
 import { Button } from "@/components/ui/button";
@@ -60,6 +61,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function WhsActionItemsPage() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [data, setData] = useState<TransformedActionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -102,7 +104,7 @@ export default function WhsActionItemsPage() {
   };
 
   const handleDelete = async (item: TransformedActionItem) => {
-    if (!confirm(`Delete action item "${item.title}"?`)) return;
+    if (!(await confirm(`Delete action item "${item.title}"?`))) return;
 
     try {
       const response = await api.delete<{ data: { success: boolean; error?: string } }>(

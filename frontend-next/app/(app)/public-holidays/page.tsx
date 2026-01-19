@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { PlusIcon } from "@heroicons/react/24/outline";
 
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,7 @@ const REGIONS = ["ALL", "QLD", "NSW", "VIC", "SA", "WA", "TAS", "NT", "ACT"];
 
 export default function PublicHolidaysPage() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [holidays, setHolidays] = useState<PublicHoliday[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -133,7 +135,7 @@ export default function PublicHolidaysPage() {
   };
 
   const handleDelete = async (holiday: PublicHoliday) => {
-    if (!confirm(`Delete "${holiday.name}"?`)) return;
+    if (!(await confirm(`Delete "${holiday.name}"?`))) return;
 
     try {
       await api.delete(`/api/v1/public_holidays/${holiday.id}`);

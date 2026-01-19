@@ -25,7 +25,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  ArrowLeft,
   FileSpreadsheet,
   TrendingDown,
   Shield,
@@ -43,6 +42,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { BackButton } from "@/components/ui/back-button";
 import { format } from "date-fns";
 
 // Tab definitions
@@ -390,9 +390,7 @@ export default function AssetReportsPage() {
       {/* Header */}
       <div className="flex items-center justify-between border-b pb-4">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.push("/corporate/assets")}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
+          <BackButton fallbackHref="/corporate/assets" />
           <div>
             <h1 className="text-2xl font-bold tracking-tight font-serif">Asset Reports</h1>
             <p className="text-sm text-muted-foreground">

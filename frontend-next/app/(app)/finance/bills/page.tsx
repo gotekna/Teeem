@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, ArrowLeft } from "lucide-react";
+import { RefreshCw } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { TablePage } from "@/components/ui/page-wrappers";
@@ -42,12 +42,7 @@ export default function BillInboxPage() {
         refreshTrigger={refreshTrigger}
         leftActions={
           <>
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/finance">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back
-              </Link>
-            </Button>
+            <BackButton fallbackHref="/finance" />
             <Button variant="outline" size="sm" onClick={handleSync} disabled={syncing}>
               <RefreshCw className={`h-4 w-4 mr-2 ${syncing ? "animate-spin" : ""}`} />
               {syncing ? "Syncing..." : "Sync Emails"}

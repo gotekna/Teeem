@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import {
-  ArrowLeft,
   Users,
   Search,
   Building2,
@@ -19,6 +18,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { BackButton } from "@/components/ui/back-button";
 
 // Calculate director compliance score
 const calculateDirectorCompliance = (director: Director) => {
@@ -128,9 +128,7 @@ export default function DirectorsPage() {
     <div className="flex flex-col gap-6">
       {/* Header */}
       <div className="flex items-start gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.push("/corporate")}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
+        <BackButton fallbackHref="/corporate" />
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-serif">Directors Registry</h1>
           <p className="text-sm text-muted-foreground mt-1">

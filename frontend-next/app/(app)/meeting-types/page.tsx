@@ -30,6 +30,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 
 // Types
 interface NotificationSettings {
@@ -78,6 +79,7 @@ export default function MeetingTypesPage() {
   useSetLayoutMode("full-height");
 
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [meetingTypes, setMeetingTypes] = useState<MeetingType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -152,7 +154,7 @@ export default function MeetingTypesPage() {
       return;
     }
 
-    if (!confirm(`Are you sure you want to delete "${meetingType.name}"?`)) return;
+    if (!(await confirm(`Are you sure you want to delete "${meetingType.name}"?`))) return;
 
     try {
       const response = await api.delete<{ success: boolean; error?: string }>(

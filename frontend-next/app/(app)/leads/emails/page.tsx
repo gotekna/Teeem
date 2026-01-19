@@ -1,15 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
-import { Button } from "@/components/ui/button";
 import { EmailProposalsTab } from "@/components/leads/email-proposals-tab";
-import { ArrowLeft, Mail } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
+import { Mail } from "lucide-react";
 
 export default function EmailLeadsPage() {
   useSetLayoutMode("full-height");
-  const router = useRouter();
   const [pendingCount, setPendingCount] = useState(0);
 
   return (
@@ -17,13 +15,7 @@ export default function EmailLeadsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => router.push("/leads")}
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+<BackButton fallbackHref="/leads" />
           <div>
             <h1 className="text-2xl font-bold tracking-tight font-serif flex items-center gap-2">
               <Mail className="h-6 w-6" />
