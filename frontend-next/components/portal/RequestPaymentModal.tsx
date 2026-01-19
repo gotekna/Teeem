@@ -9,6 +9,7 @@ import {
   PhotoIcon,
 } from "@heroicons/react/24/outline";
 import axios from "axios";
+import { useToast } from "@/components/ui/use-toast";
 
 interface PurchaseOrder {
   id: number;
@@ -35,6 +36,7 @@ export default function RequestPaymentModal({
   onClose,
   onSuccess,
 }: RequestPaymentModalProps) {
+  const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [loadingPOs, setLoadingPOs] = useState(true);
   const [eligiblePOs, setEligiblePOs] = useState<PurchaseOrder[]>([]);
@@ -194,7 +196,7 @@ export default function RequestPaymentModal({
       );
 
       if (response?.data.success) {
-        alert(response.data.message || "Payment request submitted successfully");
+        toast({ title: "Success", description: response.data.message || "Payment request submitted successfully" });
         onSuccess();
       } else {
         setErrors({ general: response.data.error || "Failed to submit request" });

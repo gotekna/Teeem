@@ -29,6 +29,7 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
 import { FileText, ExternalLink } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
 // Types
 interface BankTransaction {
@@ -112,6 +113,7 @@ const MONTHS = [
 ];
 
 export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Props) {
+  const { toast } = useToast();
   // State
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
@@ -413,7 +415,7 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
       window.URL.revokeObjectURL(downloadUrl);
     } catch (error) {
       console.error("Failed to download report:", error);
-      alert(error instanceof Error ? error.message : "Failed to download report");
+      toast({ title: "Error", description: error instanceof Error ? error.message : "Failed to download report", variant: "destructive" });
     } finally {
       setDownloading(false);
     }

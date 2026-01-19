@@ -822,7 +822,7 @@ export function EntityTabsConfig({
       setDeleteConfirmTab(null);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : "Failed to delete tab";
-      alert(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setSaving(false);
     }

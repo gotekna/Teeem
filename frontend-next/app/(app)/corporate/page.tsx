@@ -1021,8 +1021,8 @@ export default function CorporateDashboardPage() {
     const confirmed = await confirm({
       title: "Delete Group",
       description: `Delete group "${group.name}"? This cannot be undone.`,
-      confirmText: "Delete",
-      cancelText: "Cancel",
+      confirmLabel: "Delete",
+      cancelLabel: "Cancel",
       variant: "destructive",
     });
     if (!confirmed) return;

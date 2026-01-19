@@ -10,7 +10,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { api } from '@/lib/api'
 import { getTodayAsString, getNowInCompanyTimezone } from '@/lib/utils'
-// import Toast from '@/components/ui/use-toast'
+// Note: This component uses a custom showToast function with local state (line ~1413), not useToast hook
 import TeeemXL, { getRows } from '@/lib/teeem-xl'
 import PredecessorEditor from './PredecessorEditor'
 import PriceBookItemsModal from './PriceBookItemsModal'
@@ -106,6 +106,7 @@ const defaultColumnConfig = {
 }
 
 export default function ScheduleTemplateEditor() {
+  // Note: Uses custom showToast function (line ~1413) with local state, not useToast hook
   const location = useLocation()
   const navigate = useNavigate()
   // SSoT: Fetch roles from backend
@@ -312,7 +313,7 @@ export default function ScheduleTemplateEditor() {
 
         if (!window.runGanttAutomatedTest) {
           console.error('❌ Gantt test function not available after 20 seconds')
-          alert('Test failed: Gantt did not load properly')
+          showToast({ title: "Test Failed", description: "Gantt did not load properly", variant: "destructive" })
           return
         }
 
@@ -410,7 +411,7 @@ export default function ScheduleTemplateEditor() {
           updateTestStatus(`❌ Test failed: ${error.message}`)
           setTimeout(() => {
             document.body.removeChild(testModal)
-            alert(`Test failed: ${error.message}`)
+            showToast({ title: "Test Failed", description: error.message, variant: "destructive" })
           }, 2000)
         }
       }
@@ -2765,7 +2766,7 @@ function ScheduleTemplateRow({
     } else if (field === 'create_po_on_job_start') {
       if (value && !row.supplier_id) {
         // If checking create_po_on_job_start but no supplier, show error and don't update
-        alert('Please select a supplier first before enabling Auto PO')
+        showToast({ title: "Validation Error", description: "Please select a supplier first before enabling Auto PO", variant: "destructive" })
         return
       } else {
         onUpdate({ [field]: value })

@@ -35,6 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useToast } from "@/components/ui/use-toast";
 
 interface ComplianceItem {
   id: number;
@@ -71,6 +72,7 @@ interface CompanyGroup {
 
 export default function ComplianceCalendarPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [loading, setLoading] = React.useState(true);
   const [calendarData, setCalendarData] = React.useState<CalendarData | null>(null);
   const [viewMode, setViewMode] = React.useState<"calendar" | "list" | "by_company">("calendar");
@@ -125,7 +127,7 @@ export default function ComplianceCalendarPage() {
     try {
       setGenerating(true);
       const response = await api.post<{ generated: number }>("/api/v1/compliance_calendar/generate");
-      alert(`Generated ${response?.generated || 0} compliance items`);
+      toast({ title: "Success", description: `Generated ${response?.generated || 0} compliance items` });
       loadCalendarData();
     } catch (error) {
       console.error("Failed to generate compliance items:", error);

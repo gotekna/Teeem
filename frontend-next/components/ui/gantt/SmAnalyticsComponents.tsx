@@ -19,6 +19,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 
 import { api, getApiBaseUrl } from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
 
 // ============================================
 // Types & Interfaces
@@ -690,6 +691,7 @@ export function BaselineComparisonComponent({ constructionId }: BaselineComparis
 // ============================================
 
 export function ImportExportPanel({ constructionId, constructionName }: ImportExportPanelProps) {
+  const { toast } = useToast();
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
 
@@ -707,12 +709,12 @@ export function ImportExportPanel({ constructionId, constructionName }: ImportEx
         "/api/v1/sm_integrations/import_ms_project",
         formData
       );
-      alert(`Imported ${res.tasks_imported} tasks successfully!`);
+      toast({ title: "Success", description: `Imported ${res.tasks_imported} tasks successfully!` });
       window.location.reload();
     } catch (err) {
       console.error("Import failed:", err);
       const error = err as { response?: { data?: { error?: string } }; message?: string };
-      alert("Import failed: " + (error.response?.data?.error || error.message));
+      toast({ title: "Import Failed", description: error.response?.data?.error || error.message || "Unknown error", variant: "destructive" });
     } finally {
       setImporting(false);
     }
@@ -745,7 +747,7 @@ export function ImportExportPanel({ constructionId, constructionName }: ImportEx
       window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Export failed:", err);
-      alert("Export failed");
+      toast({ title: "Error", description: "Export failed", variant: "destructive" });
     } finally {
       setExporting(false);
     }

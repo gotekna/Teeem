@@ -203,6 +203,7 @@ interface CustomTimePickerProps {
 }
 
 function CustomTimePicker({ onSelect, onCancel }: CustomTimePickerProps) {
+  const { toast } = useToast();
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(addDays(new Date(), 1));
   const [hour, setHour] = useState("9");
   const [minute, setMinute] = useState("00");

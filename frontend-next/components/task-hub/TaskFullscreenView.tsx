@@ -42,7 +42,7 @@ import { AttachmentPicker, PendingAttachment } from './AttachmentPicker';
 import TeeemTableView from '@/components/table/TeeemTableView';
 import { EmailDetailDialog } from '@/components/emails/EmailDetailDialog';
 import { api, getApiBaseUrl } from '@/lib/api';
-import { useToast } from '@/components/ui/use-toast';
+// Note: Uses sonner's toast (imported below) for toast.success/error/info API
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   DndContext,
@@ -718,7 +718,7 @@ function UngroupDropZone({
 }
 
 export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
-  const { toast } = useToast();
+  // Note: Uses sonner's toast (imported at top) for toast.success/error/info API
   const { user: currentUser } = useAuth();
   const { calculateEndDate, calculateDuration } = useWorkingDays();
   const {
@@ -1843,14 +1843,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         setBulkLinkOpen(false);
         // Show success message (using existing toast or alert system)
         if (response.linked_count > 0) {
-          toast({ title: 'Success', description: `Linked ${response.linked_count} emails to this task` });
+          toast.success(`Linked ${response.linked_count} emails to this task`);
         } else {
-          toast({ title: 'Info', description: 'No new emails to link (all already attached)' });
+          toast.info('No new emails to link (all already attached)');
         }
       }
     } catch (err) {
       console.error('Failed to bulk link emails:', err);
-      toast({ title: 'Error', description: 'Failed to link emails', variant: 'destructive' });
+      toast.error('Failed to link emails');
     }
     setBulkLinkLoading(false);
   };
@@ -1874,14 +1874,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         setLocalAttachments(prev => [...prev, ...response.attachments]);
         setBulkLinkOpen(false);
         if (response.linked_count > 0) {
-          toast({ title: 'Success', description: `Linked ${response.linked_count} emails from all clients to this task` });
+          toast.success(`Linked ${response.linked_count} emails from all clients to this task`);
         } else {
-          toast({ title: 'Info', description: 'No new emails to link (all already attached)' });
+          toast.info('No new emails to link (all already attached)');
         }
       }
     } catch (err) {
       console.error('Failed to bulk link all client emails:', err);
-      toast({ title: 'Error', description: 'Failed to link client emails', variant: 'destructive' });
+      toast.error('Failed to link client emails');
     }
     setBulkLinkLoading(false);
   };
@@ -1906,16 +1906,16 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         setLocalAttachments(prev => [...prev, ...response.attachments]);
         setBulkLinkOpen(false);
         if (response.linked_count > 0) {
-          toast({ title: 'Success', description: `Linked ${response.linked_count} emails to this task` });
+          toast.success(`Linked ${response.linked_count} emails to this task`);
         } else if (response.total_found === 0) {
-          toast({ title: 'Info', description: 'No emails found for this address' });
+          toast.info('No emails found for this address');
         } else {
-          toast({ title: 'Info', description: 'No new emails to link (all already attached)' });
+          toast.info('No new emails to link (all already attached)');
         }
       }
     } catch (err) {
       console.error('Failed to bulk link emails:', err);
-      toast({ title: 'Error', description: 'Failed to link emails', variant: 'destructive' });
+      toast.error('Failed to link emails');
     }
     setBulkLinkLoading(false);
   };
@@ -1941,16 +1941,16 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         setBulkLinkOpen(false);
         setBulkLinkEmail('');
         if (response.linked_count > 0) {
-          toast({ title: 'Success', description: `Linked ${response.linked_count} emails to this task` });
+          toast.success(`Linked ${response.linked_count} emails to this task`);
         } else if (response.total_found === 0) {
-          toast({ title: 'Info', description: 'No emails found for this address' });
+          toast.info('No emails found for this address');
         } else {
-          toast({ title: 'Info', description: 'No new emails to link (all already attached)' });
+          toast.info('No new emails to link (all already attached)');
         }
       }
     } catch (err) {
       console.error('Failed to bulk link emails:', err);
-      toast({ title: 'Error', description: 'Failed to link emails', variant: 'destructive' });
+      toast.error('Failed to link emails');
     }
     setBulkLinkLoading(false);
   };
@@ -2038,16 +2038,16 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         setContactSearchQuery('');
         setContactSearchResults([]);
         if (response.linked_count > 0) {
-          toast({ title: 'Success', description: `Linked ${response.linked_count} emails to this task` });
+          toast.success(`Linked ${response.linked_count} emails to this task`);
         } else if (response.total_found === 0) {
-          toast({ title: 'Info', description: 'No emails found for this contact' });
+          toast.info('No emails found for this contact');
         } else {
-          toast({ title: 'Info', description: 'No new emails to link (all already attached)' });
+          toast.info('No new emails to link (all already attached)');
         }
       }
     } catch (err) {
       console.error('Failed to bulk link emails:', err);
-      toast({ title: 'Error', description: 'Failed to link emails', variant: 'destructive' });
+      toast.error('Failed to link emails');
     }
     setBulkLinkLoading(false);
   };

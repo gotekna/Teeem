@@ -98,7 +98,7 @@ interface CompanyDocumentsTabProps {
 
 export function CompanyDocumentsTab({ companyId, company, category }: CompanyDocumentsTabProps) {
   const { toast } = useToast();
-  const confirm = useConfirm();
+  const { confirm } = useConfirm();
   const [documents, setDocuments] = React.useState<CompanyDocument[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [companies, setCompanies] = React.useState<CorporateCompany[]>([]);
@@ -194,7 +194,7 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
     const confirmed = await confirm({
       title: "Delete Document",
       description: "Are you sure you want to delete this document?",
-      confirmText: "Delete",
+      confirmLabel: "Delete",
       variant: "destructive",
     });
     if (!confirmed) return;
@@ -207,7 +207,13 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
   };
 
   const handleBulkDelete = async (ids: (number | string)[]) => {
-    if (!confirm(`Delete ${ids.length} documents? This cannot be undone.`)) return;
+    const confirmed = await confirm({
+      title: "Delete Documents",
+      description: `Delete ${ids.length} documents? This cannot be undone.`,
+      confirmLabel: "Delete All",
+      variant: "destructive",
+    });
+    if (!confirmed) return;
     try {
       await Promise.all(ids.map((id) => api.delete(`/api/v1/company_documents/${id}`)));
       await loadDocuments();
@@ -231,7 +237,7 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
       await loadDocuments();
     } catch (error) {
       console.error(`Failed to update document ${field}:`, error);
-      alert(`Failed to update ${field}`);
+      toast({ title: "Error", description: `Failed to update ${field}`, variant: "destructive" });
     }
   };
 

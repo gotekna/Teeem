@@ -32,6 +32,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
 
 // Types
 interface Column {
@@ -84,6 +85,7 @@ const CATEGORIES = ["Text", "Date/Time", "Selection", "Number", "Relationship", 
 
 export default function TableBuilder() {
   const router = useRouter();
+  const { toast } = useToast();
   const [tableName, setTableName] = useState("Untitled Table");
   const [isEditingName, setIsEditingName] = useState(false);
   const [columns, setColumns] = useState<Column[]>([
@@ -108,7 +110,7 @@ export default function TableBuilder() {
 
   const removeColumn = (id: number) => {
     if (columns.length === 1) {
-      alert("Tables must have at least one column");
+      toast({ title: "Validation Error", description: "Tables must have at least one column", variant: "destructive" });
       return;
     }
     setColumns(columns.filter((col) => col.id !== id));

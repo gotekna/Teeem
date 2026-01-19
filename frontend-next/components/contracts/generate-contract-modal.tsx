@@ -28,6 +28,7 @@ import {
   Send,
   CheckCircle,
 } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
 interface GenerateContractModalProps {
   open: boolean;
@@ -64,6 +65,7 @@ export function GenerateContractModal({
   lead,
   onContractGenerated,
 }: GenerateContractModalProps) {
+  const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState<Step>("builder");
   const [loading, setLoading] = useState(false);
   const [generatedPdfUrl, setGeneratedPdfUrl] = useState<string | null>(null);
@@ -165,7 +167,7 @@ export function GenerateContractModal({
     } catch (error) {
       console.error("Failed to send for signature:", error);
       // For demo: simulate success
-      alert("Contract sent for signature! (Demo mode)");
+      toast({ title: "Success", description: "Contract sent for signature! (Demo mode)" });
       onContractGenerated();
       onOpenChange(false);
     } finally {

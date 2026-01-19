@@ -1391,7 +1391,7 @@ export function GanttCanvasView({
 
     // Check for circular dependencies
     if (hasCircularDependency(depEditorTask.id, predecessorIds)) {
-      alert('Cannot save: Circular dependency detected. A task cannot depend on itself or create a dependency loop.');
+      toast({ title: "Cannot Save", description: "Circular dependency detected. A task cannot depend on itself or create a dependency loop.", variant: "destructive" });
       return;
     }
 
@@ -1399,7 +1399,7 @@ export function GanttCanvasView({
     const validSuccessorLinks = depEditorSuccessorLinks.filter(l => l.predecessorId);
     for (const succLink of validSuccessorLinks) {
       if (hasCircularDependency(succLink.predecessorId, [depEditorTask.id])) {
-        alert('Cannot save: Adding this successor would create a circular dependency.');
+        toast({ title: "Cannot Save", description: "Adding this successor would create a circular dependency.", variant: "destructive" });
         return;
       }
     }

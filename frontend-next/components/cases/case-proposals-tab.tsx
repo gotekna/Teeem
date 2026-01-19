@@ -218,8 +218,8 @@ export function CaseProposalsTab({ onPendingCountChange }: CaseProposalsTabProps
     const confirmed = await confirm({
       title: "Re-extract Data",
       description: "Re-extract data from email thread with latest extraction logic?",
-      confirmText: "Re-extract",
-      cancelText: "Cancel",
+      confirmLabel: "Re-extract",
+      cancelLabel: "Cancel",
     });
     if (!confirmed) return;
 

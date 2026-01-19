@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { XMarkIcon, PlusIcon, TrashIcon, CheckIcon } from '@heroicons/react/24/outline'
 import { api } from '@/lib/api'
+import { useToast } from '@/components/ui/use-toast'
 import { formatCurrency } from '../../utils/formatters'
 
 /**
@@ -18,6 +19,7 @@ import { formatCurrency } from '../../utils/formatters'
  */
 
 export default function PriceBookItemsModal({ isOpen, onClose, currentRow, onSave }) {
+  const { toast } = useToast()
   const [lineItems, setLineItems] = useState([])
   const [itemSearchResults, setItemSearchResults] = useState({})
   const [showSearchDropdown, setShowSearchDropdown] = useState({})
@@ -293,7 +295,7 @@ export default function PriceBookItemsModal({ isOpen, onClose, currentRow, onSav
     const validItems = lineItems.filter(item => item.description && item.pricebook_item_id)
 
     if (validItems.length === 0) {
-      alert('Please add at least one item')
+      toast({ title: "Validation Error", description: "Please add at least one item", variant: "destructive" })
       return
     }
 

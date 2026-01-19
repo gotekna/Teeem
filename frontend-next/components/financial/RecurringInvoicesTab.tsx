@@ -309,8 +309,8 @@ export default function RecurringInvoicesTab() {
     const confirmed = await confirm({
       title: "Delete Recurring Invoice",
       description: `Are you sure you want to delete "${invoice.name}"?`,
-      confirmText: "Delete",
-      cancelText: "Cancel",
+      confirmLabel: "Delete",
+      cancelLabel: "Cancel",
       variant: "destructive",
     });
     if (!confirmed) return;

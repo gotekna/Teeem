@@ -204,8 +204,8 @@ export default function FinancialTransactionsPage() {
     const confirmed = await confirm({
       title: "Delete Transaction",
       description: `Are you sure you want to delete this ${entry.transaction_type} transaction?`,
-      confirmText: "Delete",
-      cancelText: "Cancel",
+      confirmLabel: "Delete",
+      cancelLabel: "Cancel",
       variant: "destructive",
     });
     if (!confirmed) return;

@@ -911,7 +911,7 @@ function GoldStandardDataTab() {
             variant="outline"
             size="sm"
             onClick={() => {
-              alert(`customBulkActions prop - runs on ${selectedIds.length} selected rows`);
+              console.log(`customBulkActions prop - runs on ${selectedIds.length} selected rows`);
             }}
             title="customBulkActions prop - bulk operations for selected rows"
           >
