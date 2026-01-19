@@ -1051,6 +1051,32 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     return { thread, matched, linked };
   }, [allEmailAttachments]);
 
+  // Find the original email sender for pre-populating "To" field in responses
+  // Priority: oldest thread email, then oldest matched, then oldest linked
+  const originalEmailSender = useMemo(() => {
+    const findOldestEmailSender = (emails: typeof allEmailAttachments): string | null => {
+      if (emails.length === 0) return null;
+      // Sort by received_at ascending (oldest first)
+      const sorted = [...emails].sort((a, b) => {
+        const dateA = a.email?.received_at ? new Date(a.email.received_at).getTime() : 0;
+        const dateB = b.email?.received_at ? new Date(b.email.received_at).getTime() : 0;
+        return dateA - dateB;
+      });
+      return sorted[0]?.email?.from_email || null;
+    };
+
+    // Try thread emails first (most likely the original conversation)
+    const threadSender = findOldestEmailSender(categorizedEmails.thread);
+    if (threadSender) return threadSender;
+
+    // Then try matched emails
+    const matchedSender = findOldestEmailSender(categorizedEmails.matched);
+    if (matchedSender) return matchedSender;
+
+    // Finally try linked emails
+    return findOldestEmailSender(categorizedEmails.linked);
+  }, [categorizedEmails]);
+
   // Apply person filter to each category (for tree view)
   const filteredCategories = useMemo(() => {
     const filterEmails = (emails: typeof allEmailAttachments) => {
@@ -5272,6 +5298,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         <ComposeEmailModal
           open={showComposeEmail}
           onOpenChange={setShowComposeEmail}
+          defaultTo={originalEmailSender || ''}
           defaultSubject={`Re: Task #${task.task_number} - ${task.name}`}
           defaultBody={generateResponseBody()}
           initialAttachments={emailFileAttachments}
