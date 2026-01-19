@@ -635,7 +635,7 @@ class EntityTab < ApplicationRecord
       tab.order_position = 0
       tab.enabled = true
       tab.is_system_tab = true
-      tab.icon_name = 'Paperclip'
+      tab.icon_name = 'FolderOpen'  # Using FolderOpen for Overview (Paperclip reserved for Attachments)
     end
 
     # Document folder tabs for task attachments
@@ -679,7 +679,7 @@ class EntityTab < ApplicationRecord
       tab.order_position = 0
       tab.enabled = true
       tab.is_system_tab = true
-      tab.icon_name = 'FileOutput'
+      tab.icon_name = 'FolderOpen'  # Using FolderOpen for Overview (FileOutput reserved for Responses)
     end
 
     # Document folder tabs for task responses

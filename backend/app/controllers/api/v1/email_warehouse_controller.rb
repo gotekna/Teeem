@@ -1,5 +1,5 @@
 class Api::V1::EmailWarehouseController < ApplicationController
-  before_action :set_email, only: [ :show, :assign_to_job, :unassign, :mark_as_spam, :delete_from_outlook, :move_to_folder, :summarize, :link_contact, :unlink_contact, :quick_create_contact, :download_attachment ]
+  before_action :set_email, only: [ :show, :assign_to_job, :unassign, :mark_as_spam, :delete_from_outlook, :move_to_folder, :summarize, :link_contact, :unlink_contact, :quick_create_contact, :download_attachment, :download_eml ]
   before_action :require_admin, only: [ :bulk_delete_spam ]
 
   # GET /api/v1/email_warehouse
@@ -972,6 +972,132 @@ class Api::V1::EmailWarehouseController < ApplicationController
     Rails.logger.error "[EmailWarehouse] Attachment download failed: email_id=#{@email&.id}, attachment_id=#{params[:attachment_id]}, error=#{e.class}: #{e.message}"
     Rails.logger.error "[EmailWarehouse] Backtrace: #{e.backtrace.first(10).join("\n")}"
     render json: { error: "Download failed: #{e.class} - #{e.message.truncate(100)}" }, status: :internal_server_error
+  end
+
+  # GET /api/v1/email_warehouse/:id/download_eml
+  # Download the entire email as .eml file (RFC 822 MIME format)
+  # Used for attaching emails to response emails in Task Hub
+  # Supports both Outlook (Microsoft Graph) and IMAP sourced emails
+  def download_eml
+    mime_content = nil
+
+    # Route to appropriate source based on email type
+    if @email.source_type == "imap" && @email.imap_credential_id.present?
+      mime_content = fetch_imap_eml
+    elsif @email.outlook_id.present?
+      mime_content = fetch_outlook_eml
+    end
+
+    # Fallback: Reconstruct MIME from stored fields if server fetch fails
+    mime_content ||= reconstruct_eml_from_fields
+
+    if mime_content.present?
+      # Generate a safe filename from subject
+      subject = @email.subject.presence || "(No subject)"
+      safe_subject = subject.gsub(/[^\w\s\-]/, "").strip.truncate(50, omission: "")
+      filename = "#{safe_subject}.eml"
+
+      # Return as base64 encoded JSON (same format as attachment download for consistency)
+      render json: {
+        success: true,
+        filename: filename,
+        content: Base64.strict_encode64(mime_content),
+        content_type: "message/rfc822"
+      }
+    else
+      render json: { error: "Failed to download email content" }, status: :not_found
+    end
+  rescue StandardError => e
+    Rails.logger.error "[EmailWarehouse] EML download failed: email_id=#{@email&.id}, error=#{e.class}: #{e.message}"
+    Rails.logger.error "[EmailWarehouse] Backtrace: #{e.backtrace.first(10).join("\n")}"
+    render json: { error: "Download failed: #{e.message.truncate(100)}" }, status: :internal_server_error
+  end
+
+  private
+
+  # Fetch MIME content from Outlook via Microsoft Graph
+  def fetch_outlook_eml
+    credential = if @email.microsoft_credential_id.present?
+                   MicrosoftCredential.find_by(id: @email.microsoft_credential_id)
+                 else
+                   MicrosoftCredential.app_credentials.connected.first
+                 end
+
+    return nil unless credential&.valid_credential?
+
+    mailbox = @email.mailbox_owner_email
+    return nil unless mailbox.present? && @email.outlook_id.present?
+
+    Rails.logger.info "[EmailWarehouse] Fetching EML from Outlook: email_id=#{@email.id}, outlook_id=#{@email.outlook_id}"
+    client = MicrosoftAppGraphClient.new(credential)
+    client.get_email_mime_content(mailbox, @email.outlook_id)
+  rescue StandardError => e
+    Rails.logger.warn "[EmailWarehouse] Outlook EML fetch failed: #{e.message}"
+    nil
+  end
+
+  # Fetch MIME content from IMAP server
+  def fetch_imap_eml
+    credential = ImapCredential.find_by(id: @email.imap_credential_id)
+    return nil unless credential&.connected?
+    return nil unless @email.uid.present?
+
+    Rails.logger.info "[EmailWarehouse] Fetching EML from IMAP: email_id=#{@email.id}, uid=#{@email.uid}"
+
+    # Use the IMAP service to fetch raw email
+    service = ImapEmailService.new(credential)
+    folder = @email.folder_name.presence || "INBOX"
+
+    service.with_connection do |imap|
+      imap.examine(folder)
+      # Fetch raw MIME content using UID
+      fetch_data = imap.uid_fetch([@email.uid], ["BODY.PEEK[]"])
+      return nil if fetch_data.blank?
+
+      msg = fetch_data.first
+      msg&.attr&.dig("BODY[]")
+    end
+  rescue StandardError => e
+    Rails.logger.warn "[EmailWarehouse] IMAP EML fetch failed: #{e.message}"
+    nil
+  end
+
+  # Reconstruct .eml from stored fields (fallback when server unavailable)
+  def reconstruct_eml_from_fields
+    Rails.logger.info "[EmailWarehouse] Reconstructing EML from stored fields: email_id=#{@email.id}"
+
+    mail = Mail.new do |m|
+      m.message_id = @email.internet_message_id if @email.internet_message_id.present?
+      m.subject = @email.subject
+      m.from = @email.from_email
+      m.to = @email.to_emails if @email.to_emails.present?
+      m.cc = @email.cc_emails if @email.cc_emails.present?
+      m.date = @email.received_at || @email.sent_at || @email.created_at
+
+      # Set body - prefer HTML, fallback to text
+      if @email.body_html.present?
+        m.html_part = Mail::Part.new do
+          content_type "text/html; charset=UTF-8"
+          body @email.body_html
+        end
+      end
+
+      if @email.body_text.present?
+        m.text_part = Mail::Part.new do
+          content_type "text/plain; charset=UTF-8"
+          body @email.body_text
+        end
+      end
+
+      # Add a note that this is reconstructed
+      m["X-Reconstructed"] = "true"
+      m["X-Reconstructed-From"] = "TEEEM Email Warehouse"
+    end
+
+    mail.to_s
+  rescue StandardError => e
+    Rails.logger.error "[EmailWarehouse] EML reconstruction failed: #{e.message}"
+    nil
   end
 
   # GET /api/v1/email_warehouse/rules

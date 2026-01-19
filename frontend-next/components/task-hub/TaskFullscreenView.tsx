@@ -1072,6 +1072,43 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     };
   }, [categorizedEmails, emailSourceFilter]);
 
+  // Helper function to group emails by month
+  const groupEmailsByMonth = useCallback((emails: typeof allEmailAttachments) => {
+    const byMonth: Record<string, typeof allEmailAttachments> = {};
+
+    emails.forEach(att => {
+      let monthKey = 'unknown';
+      try {
+        const dateStr = att.email?.received_at;
+        if (dateStr) {
+          const date = new Date(dateStr);
+          if (!isNaN(date.getTime())) {
+            monthKey = format(date, 'yyyy-MM');
+          }
+        }
+      } catch {
+        // Keep as unknown
+      }
+
+      if (!byMonth[monthKey]) {
+        byMonth[monthKey] = [];
+      }
+      byMonth[monthKey].push(att);
+    });
+
+    // Sort months descending (newest first)
+    const sortedMonths = Object.keys(byMonth).sort((a, b) => b.localeCompare(a));
+
+    return { byMonth, sortedMonths };
+  }, []);
+
+  // Group each filtered category by month
+  const emailsByMonthPerCategory = useMemo(() => ({
+    thread: groupEmailsByMonth(filteredCategories.thread),
+    matched: groupEmailsByMonth(filteredCategories.matched),
+    linked: groupEmailsByMonth(filteredCategories.linked),
+  }), [filteredCategories, groupEmailsByMonth]);
+
   const documentAttachments = localAttachments.filter(a => a.document && !a.email);
 
   // Split document attachments by category
@@ -2380,18 +2417,32 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       return !linkedToQuestion;
     });
 
-    // Separate by option type
-    const attachedFiles = generalResponseAttachments.filter(att => attachmentEmailOptions[att.id] === 'attach');
-    const linkedFiles = generalResponseAttachments.filter(att => attachmentEmailOptions[att.id] === 'link');
+    // Separate by option type (documents and emails)
+    const attachedFiles = generalResponseAttachments.filter(att =>
+      attachmentEmailOptions[att.id] === 'attach' && att.document
+    );
+    const attachedEmails = generalResponseAttachments.filter(att =>
+      attachmentEmailOptions[att.id] === 'attach' && att.email
+    );
+    const linkedFiles = generalResponseAttachments.filter(att =>
+      attachmentEmailOptions[att.id] === 'link' && att.document
+    );
+    const linkedEmails = generalResponseAttachments.filter(att =>
+      attachmentEmailOptions[att.id] === 'link' && att.email
+    );
     // 'none' files are excluded
 
-    // Show files that are attached to the email (no hyperlink - they're attachments)
-    if (attachedFiles.length > 0) {
+    // Show files/emails that are attached to the email (no hyperlink - they're attachments)
+    if (attachedFiles.length > 0 || attachedEmails.length > 0) {
       body += '<p><strong>Files attached:</strong></p>\n';
       body += '<ul>\n';
       attachedFiles.forEach(att => {
         const fileName = att.document?.display_name || att.document?.file_name || 'Document';
         body += `<li>📎 ${fileName}</li>\n`;
+      });
+      attachedEmails.forEach(att => {
+        const subject = att.email?.subject || '(No subject)';
+        body += `<li>📧 ${subject}.eml</li>\n`;
       });
       body += '</ul>\n';
     }
@@ -2407,6 +2458,18 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         const fallbackUrl = att.document?.storage_url || att.document?.file_url;
         const url = shareUrl || fallbackUrl;
         body += `<li>${formatFileLink(fileName, url)}</li>\n`;
+      });
+      body += '</ul>\n';
+    }
+
+    // Show emails with app links
+    if (linkedEmails.length > 0) {
+      body += '<p><strong>Email links:</strong></p>\n';
+      body += '<ul>\n';
+      linkedEmails.forEach(att => {
+        const subject = att.email?.subject || '(No subject)';
+        const url = shareLinksMap[att.id];
+        body += `<li>📧 ${formatFileLink(subject, url)}</li>\n`;
       });
       body += '</ul>\n';
     }
@@ -2428,18 +2491,29 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         .flatMap(q => q.attachments || [])
         .filter(att => att.document?.storage_url);
 
-      // Count files to process for progress
-      const toAttach = responseAttachments.filter(a => attachmentEmailOptions[a.id] === 'attach');
-      const toLink = responseAttachments.filter(a => {
+      // Separate documents and emails for processing
+      const documentsToAttach = responseAttachments.filter(a =>
+        attachmentEmailOptions[a.id] === 'attach' && a.document
+      );
+      const emailsToAttach = responseAttachments.filter(a =>
+        attachmentEmailOptions[a.id] === 'attach' && a.email
+      );
+      const documentsToLink = responseAttachments.filter(a => {
         const opt = attachmentEmailOptions[a.id];
         const hasExternalStorage = a.document?.storage_url;
-        return opt === 'link' && hasExternalStorage;
+        return opt === 'link' && hasExternalStorage && a.document;
       });
-      const totalToProcess = toAttach.length + toLink.length + questionAttachmentsToLink.length;
+      const emailsToLink = responseAttachments.filter(a => {
+        const opt = attachmentEmailOptions[a.id];
+        return opt === 'link' && a.email;
+      });
+
+      const totalToProcess = documentsToAttach.length + emailsToAttach.length +
+        documentsToLink.length + emailsToLink.length + questionAttachmentsToLink.length;
       let processed = 0;
 
-      // Process files to attach
-      for (const att of toAttach) {
+      // Process documents to attach
+      for (const att of documentsToAttach) {
         const fileName = att.document?.display_name || att.document?.file_name || 'file';
         setPrepareEmailStatus(`Downloading ${fileName}... (${processed + 1}/${totalToProcess})`);
         try {
@@ -2463,8 +2537,36 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         processed++;
       }
 
-      // Process files to create share links (response attachments)
-      for (const att of toLink) {
+      // Process emails to attach - download as .eml
+      for (const att of emailsToAttach) {
+        const subject = att.email?.subject || '(No subject)';
+        setPrepareEmailStatus(`Downloading email "${subject}"... (${processed + 1}/${totalToProcess})`);
+        try {
+          const response = await api.get<{ success: boolean; filename: string; content: string; content_type: string }>(
+            `/api/v1/email_warehouse/${att.email?.id}/download_eml`
+          );
+          if (response?.success) {
+            const byteCharacters = atob(response.content);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: response.content_type || 'message/rfc822' });
+            const file = new File([blob], response.filename || `${subject}.eml`, { type: 'message/rfc822' });
+            filesToAttach.push(file);
+          }
+        } catch (err) {
+          console.error(`Failed to download email ${att.email?.id}:`, err);
+          // Fallback: create a link instead if download fails
+          const emailUrl = `${window.location.origin}/emails?open=${att.email?.id}`;
+          shareLinks[att.id] = emailUrl;
+        }
+        processed++;
+      }
+
+      // Process documents to create share links
+      for (const att of documentsToLink) {
         const fileName = att.document?.display_name || att.document?.file_name || 'file';
         setPrepareEmailStatus(`Creating share link for ${fileName}... (${processed + 1}/${totalToProcess})`);
         try {
@@ -2477,6 +2579,16 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         } catch (err) {
           console.error(`Failed to create share link for attachment ${att.id}:`, err);
         }
+        processed++;
+      }
+
+      // Process emails to create app links (no API call needed)
+      for (const att of emailsToLink) {
+        const subject = att.email?.subject || '(No subject)';
+        setPrepareEmailStatus(`Creating link for email "${subject}"... (${processed + 1}/${totalToProcess})`);
+        // Create app URL to view the email
+        const emailUrl = `${window.location.origin}/emails?open=${att.email?.id}`;
+        shareLinks[att.id] = emailUrl;
         processed++;
       }
 
@@ -4105,8 +4217,40 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                               </Badge>
                             </CollapsibleTrigger>
                             <CollapsibleContent>
-                              <div className="divide-y">
-                                {filteredCategories.thread.map((att) => (
+                              <div>
+                                {emailsByMonthPerCategory.thread.sortedMonths.map((monthKey, monthIdx) => {
+                                  const monthEmails = emailsByMonthPerCategory.thread.byMonth[monthKey];
+                                  const monthLabel = monthKey === 'unknown' ? 'Unknown Date' : format(new Date(monthKey + '-01'), 'MMMM yyyy');
+                                  const isMonthCollapsed = collapsedEmailMonths.has(`thread-${monthKey}`);
+
+                                  return (
+                                    <div key={monthKey}>
+                                      {/* Month header - collapsible, first month expanded by default */}
+                                      <div
+                                        className="flex items-center gap-2 px-2 py-1 bg-muted/20 hover:bg-muted/40 cursor-pointer text-[10px] text-muted-foreground font-medium"
+                                        onClick={() => {
+                                          setCollapsedEmailMonths(prev => {
+                                            const next = new Set(prev);
+                                            const key = `thread-${monthKey}`;
+                                            if (next.has(key)) {
+                                              next.delete(key);
+                                            } else {
+                                              next.add(key);
+                                            }
+                                            return next;
+                                          });
+                                        }}
+                                      >
+                                        {isMonthCollapsed ? <ChevronRight className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
+                                        <CalendarIcon className="h-2.5 w-2.5" />
+                                        <span>{monthLabel}</span>
+                                        <span className="ml-auto">{monthEmails.length}</span>
+                                      </div>
+
+                                      {/* Emails for this month */}
+                                      {!isMonthCollapsed && (
+                                        <div className="divide-y">
+                                          {monthEmails.map((att) => (
                                         <ContextMenu key={att.id}>
                                           <ContextMenuTrigger asChild>
                                             <div
@@ -4266,7 +4410,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                             </ContextMenuItem>
                                           </ContextMenuContent>
                                         </ContextMenu>
-                                      ))}
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </CollapsibleContent>
                           </Collapsible>
@@ -4289,8 +4438,34 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                               </Badge>
                             </CollapsibleTrigger>
                             <CollapsibleContent>
-                              <div className="divide-y">
-                                {filteredCategories.matched.map((att) => (
+                              <div>
+                                {emailsByMonthPerCategory.matched.sortedMonths.map((monthKey) => {
+                                  const monthEmails = emailsByMonthPerCategory.matched.byMonth[monthKey];
+                                  const monthLabel = monthKey === 'unknown' ? 'Unknown Date' : format(new Date(monthKey + '-01'), 'MMMM yyyy');
+                                  const isMonthCollapsed = collapsedEmailMonths.has(`matched-${monthKey}`);
+
+                                  return (
+                                    <div key={monthKey}>
+                                      <div
+                                        className="flex items-center gap-2 px-2 py-1 bg-muted/20 hover:bg-muted/40 cursor-pointer text-[10px] text-muted-foreground font-medium"
+                                        onClick={() => {
+                                          setCollapsedEmailMonths(prev => {
+                                            const next = new Set(prev);
+                                            const key = `matched-${monthKey}`;
+                                            if (next.has(key)) next.delete(key);
+                                            else next.add(key);
+                                            return next;
+                                          });
+                                        }}
+                                      >
+                                        {isMonthCollapsed ? <ChevronRight className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
+                                        <CalendarIcon className="h-2.5 w-2.5" />
+                                        <span>{monthLabel}</span>
+                                        <span className="ml-auto">{monthEmails.length}</span>
+                                      </div>
+                                      {!isMonthCollapsed && (
+                                        <div className="divide-y">
+                                          {monthEmails.map((att) => (
                                   <ContextMenu key={att.id}>
                                     <ContextMenuTrigger asChild>
                                       <div
@@ -4363,7 +4538,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                       </ContextMenuItem>
                                     </ContextMenuContent>
                                   </ContextMenu>
-                                ))}
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </CollapsibleContent>
                           </Collapsible>
@@ -4386,8 +4566,34 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                               </Badge>
                             </CollapsibleTrigger>
                             <CollapsibleContent>
-                              <div className="divide-y">
-                                {filteredCategories.linked.map((att) => (
+                              <div>
+                                {emailsByMonthPerCategory.linked.sortedMonths.map((monthKey) => {
+                                  const monthEmails = emailsByMonthPerCategory.linked.byMonth[monthKey];
+                                  const monthLabel = monthKey === 'unknown' ? 'Unknown Date' : format(new Date(monthKey + '-01'), 'MMMM yyyy');
+                                  const isMonthCollapsed = collapsedEmailMonths.has(`linked-${monthKey}`);
+
+                                  return (
+                                    <div key={monthKey}>
+                                      <div
+                                        className="flex items-center gap-2 px-2 py-1 bg-muted/20 hover:bg-muted/40 cursor-pointer text-[10px] text-muted-foreground font-medium"
+                                        onClick={() => {
+                                          setCollapsedEmailMonths(prev => {
+                                            const next = new Set(prev);
+                                            const key = `linked-${monthKey}`;
+                                            if (next.has(key)) next.delete(key);
+                                            else next.add(key);
+                                            return next;
+                                          });
+                                        }}
+                                      >
+                                        {isMonthCollapsed ? <ChevronRight className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
+                                        <CalendarIcon className="h-2.5 w-2.5" />
+                                        <span>{monthLabel}</span>
+                                        <span className="ml-auto">{monthEmails.length}</span>
+                                      </div>
+                                      {!isMonthCollapsed && (
+                                        <div className="divide-y">
+                                          {monthEmails.map((att) => (
                                   <ContextMenu key={att.id}>
                                     <ContextMenuTrigger asChild>
                                       <div
@@ -4460,7 +4666,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                       </ContextMenuItem>
                                     </ContextMenuContent>
                                   </ContextMenu>
-                                ))}
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </CollapsibleContent>
                           </Collapsible>
@@ -4658,8 +4869,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             <X className="h-3 w-3" />
                           </Button>
                         </div>
-                        {/* Email inclusion options - only for documents, not email attachments */}
-                        {!isEmail && (
+                        {/* Email inclusion options - for documents (SharePoint link) and emails (app link) */}
                         <div className="flex items-center gap-3 mt-1.5 ml-5 text-[10px]">
                           <label className="flex items-center gap-1 cursor-pointer">
                             <input
@@ -4671,7 +4881,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             />
                             <span>Attach</span>
                           </label>
-                          {hasExternalStorage && (
+                          {(hasExternalStorage || isEmail) && (
                             <label className="flex items-center gap-1 cursor-pointer">
                               <input
                                 type="radio"
@@ -4694,7 +4904,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             <span>Skip</span>
                           </label>
                         </div>
-                        )}
                       </div>
                     );
                   })}

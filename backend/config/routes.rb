@@ -1284,6 +1284,7 @@ Rails.application.routes.draw do
           post :quick_create_contact
           get :suggest_contacts
           get "attachments/:attachment_id/download", action: :download_attachment
+          get :download_eml
         end
       end
 
