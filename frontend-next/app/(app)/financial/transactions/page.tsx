@@ -10,6 +10,7 @@ import { XeroStatementView } from "@/components/corporate/XeroStatementView";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { TablePage } from "@/components/ui/page-wrappers";
+import { Spinner } from "@/components/ui/spinner";
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 import type { TableRow } from "@/components/table/types";
@@ -270,7 +271,7 @@ export default function FinancialTransactionsPage() {
     return (
       <div className="p-6 flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <Spinner size={48} className="mx-auto" />
           <p className="mt-4 text-muted-foreground">Loading transactions...</p>
         </div>
       </div>
