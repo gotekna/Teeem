@@ -123,16 +123,12 @@ class StorageConfiguration < ApplicationRecord
     EntityTab.scope_base_folders[scope.to_s] || scope.to_s.titleize
   end
 
-  # Get all scope folders (for UI - SSoT: EntityTab)
-  # Returns merged data: EntityTab base folders + scope_folders for any scopes not in EntityTab
+  # Get all scope folders (SSoT: EntityTab)
+  # Returns all storage folder paths from EntityTab
   def effective_scope_folders
-    # SSoT: EntityTab.scope_base_folders is the primary source
-    # Merge with scope_folders for backward compatibility (scopes not yet migrated to EntityTab)
-    entity_tab_folders = EntityTab.scope_base_folders
-    legacy_folders = scope_folders || {}
-
-    # EntityTab takes precedence, but include legacy scopes not in EntityTab
-    legacy_folders.merge(entity_tab_folders)
+    # SSoT: EntityTab.scope_base_folders is THE ONE source of truth
+    # scope_folders column has been REMOVED - all data lives in EntityTab
+    EntityTab.scope_base_folders
   end
 
   # Get template for a scope

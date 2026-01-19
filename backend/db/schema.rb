@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_19_170002) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_19_201651) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9271,7 +9271,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_19_170002) do
     t.bigint "credential_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.jsonb "scope_folders", default: {}, null: false
     t.jsonb "file_name_templates", default: {}, null: false
     t.jsonb "config_links", default: {}, null: false
     t.jsonb "document_routing", default: {"sharepoint_scan"=>{"model"=>"CorporateCompanyDocument", "scope"=>"corporate_entity", "description"=>"SharePoint scanned documents"}, "xero_attachment"=>{"model"=>"CorporateCompanyDocument", "scope"=>"corporate_entity", "description"=>"Xero invoice/bill attachments"}, "email_attachment"=>{"model"=>"CorporateCompanyDocument", "scope"=>"corporate_entity", "description"=>"Email attachments"}, "xero_primary_invoice"=>{"model"=>"ContactDocument", "scope"=>"contact", "description"=>"Primary Xero invoice/bill PDF"}}, null: false
