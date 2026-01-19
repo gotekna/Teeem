@@ -158,16 +158,21 @@ module Api
         end
 
         def tenant_json(tenant, include_stats: false)
+          env = tenant.environment || "production"
+
           json = {
             id: tenant.id,
             name: tenant.name,
             slug: tenant.slug,
             tier: tenant.tier,
-            environment: tenant.environment,
+            environment: env,
             isMasterTenant: tenant.is_master_tenant?,
             loginUrl: tenant.login_url,
             logoUrl: tenant.settings&.logo_url,
-            primaryColor: tenant.settings&.primary_color
+            primaryColor: tenant.settings&.primary_color,
+            # SSoT: CorporateCompanySetting environment URL constants
+            frontendUrl: CorporateCompanySetting::FRONTEND_ENVIRONMENT_URLS[env],
+            apiUrl: CorporateCompanySetting::API_ENVIRONMENT_URLS[env]
           }
 
           if include_stats

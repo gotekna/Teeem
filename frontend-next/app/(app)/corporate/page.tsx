@@ -596,14 +596,14 @@ export default function CorporateDashboardPage() {
       const response = await api.post<SyncResponse>('/api/v1/xero/sync_all_companies', undefined, { timeout: API_TIMEOUT_HEAVY_SYNC });
       if (response?.success && response?.data) {
         const data = response.data;
-        alert(`Xero Sync Complete!\n\nTotal: ${data.total_companies} companies\nSuccessful: ${data.successful}\nFailed: ${data.failed}`);
+        toast({ title: "Xero Sync Complete", description: `Total: ${data.total_companies} companies, Successful: ${data.successful}, Failed: ${data.failed}` });
       } else {
-        alert(`Xero Sync Failed: ${response?.error || 'Unknown error'}`);
+        toast({ title: "Error", description: `Xero Sync Failed: ${response?.error || 'Unknown error'}`, variant: "destructive" });
       }
     } catch (error: unknown) {
       console.error('Xero sync error:', error);
       const message = error instanceof Error ? error.message : 'Unknown error';
-      alert(`Xero Sync Error: ${message}`);
+      toast({ title: "Error", description: `Xero Sync Error: ${message}`, variant: "destructive" });
     } finally {
       setSyncingXero(false);
     }
@@ -959,7 +959,7 @@ export default function CorporateDashboardPage() {
 
   const handleCreateGroup = async () => {
     if (!newGroupForm.name.trim()) {
-      alert("Group name is required");
+      toast({ title: "Validation Error", description: "Group name is required", variant: "destructive" });
       return;
     }
 
@@ -974,10 +974,11 @@ export default function CorporateDashboardPage() {
         setGroupsMap(prev => ({ ...prev, [response.data!.id]: response.data!.name }));
         setShowCreateGroupDialog(false);
         resetGroupForm();
+        toast({ title: "Success", description: "Group created successfully" });
       }
     } catch (err) {
       console.error("Failed to create group:", err);
-      alert("Failed to create group. Please try again.");
+      toast({ title: "Error", description: "Failed to create group. Please try again.", variant: "destructive" });
     } finally {
       setSavingGroup(false);
     }
@@ -985,7 +986,7 @@ export default function CorporateDashboardPage() {
 
   const handleUpdateGroup = async () => {
     if (!editingGroup || !newGroupForm.name.trim()) {
-      alert("Group name is required");
+      toast({ title: "Validation Error", description: "Group name is required", variant: "destructive" });
       return;
     }
 
@@ -1001,10 +1002,11 @@ export default function CorporateDashboardPage() {
         setGroupsMap(prev => ({ ...prev, [response.data.id]: response.data.name }));
         setShowCreateGroupDialog(false);
         resetGroupForm();
+        toast({ title: "Success", description: "Group updated successfully" });
       }
     } catch (err) {
       console.error("Failed to update group:", err);
-      alert("Failed to update group. Please try again.");
+      toast({ title: "Error", description: "Failed to update group. Please try again.", variant: "destructive" });
     } finally {
       setSavingGroup(false);
     }
@@ -1012,11 +1014,18 @@ export default function CorporateDashboardPage() {
 
   const handleDeleteGroup = async (group: CompanyGroup) => {
     if (group.companies_count && group.companies_count > 0) {
-      alert(`Cannot delete group with ${group.companies_count} companies. Reassign companies first.`);
+      toast({ title: "Cannot Delete", description: `Cannot delete group with ${group.companies_count} companies. Reassign companies first.`, variant: "destructive" });
       return;
     }
 
-    if (!(await confirm(`Delete group "${group.name}"? This cannot be undone.`))) return;
+    const confirmed = await confirm({
+      title: "Delete Group",
+      description: `Delete group "${group.name}"? This cannot be undone.`,
+      confirmText: "Delete",
+      cancelText: "Cancel",
+      variant: "destructive",
+    });
+    if (!confirmed) return;
 
     try {
       await api.delete(`/api/v1/company_groups/${group.id}`);
@@ -1027,9 +1036,10 @@ export default function CorporateDashboardPage() {
       if (selectedGroupId === group.id) {
         setSelectedGroupId(null);
       }
+      toast({ title: "Success", description: "Group deleted successfully" });
     } catch (err) {
       console.error("Failed to delete group:", err);
-      alert("Failed to delete group. Please try again.");
+      toast({ title: "Error", description: "Failed to delete group. Please try again.", variant: "destructive" });
     }
   };
 

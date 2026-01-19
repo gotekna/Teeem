@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Upload, HardHat, Building2, LayoutGrid, PenTool, X, Check, History, FileText, ExternalLink } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
 
 // Signature usage type
 interface SignatureUsage {
@@ -68,6 +69,7 @@ const personaIcons: Record<Persona, typeof HardHat> = {
 
 export default function ProfileSettingsPage() {
   const { user, refreshUser } = useAuth();
+  const { toast } = useToast();
   const [saving, setSaving] = React.useState(false);
   const [persona, setPersona] = React.useState<Persona>("manager");
 
@@ -155,12 +157,12 @@ export default function ProfileSettingsPage() {
     if (file) {
       // Validate file type
       if (!file.type.startsWith("image/")) {
-        alert("Please select an image file (PNG, JPG, etc.)");
+        toast({ title: "Invalid File", description: "Please select an image file (PNG, JPG, etc.)", variant: "destructive" });
         return;
       }
       // Validate file size (max 10MB)
       if (file.size > 10 * 1024 * 1024) {
-        alert("Photo must be less than 10MB");
+        toast({ title: "File Too Large", description: "Photo must be less than 10MB", variant: "destructive" });
         return;
       }
       setPhotoFile(file);
@@ -176,12 +178,12 @@ export default function ProfileSettingsPage() {
     if (file) {
       // Validate file type
       if (!file.type.startsWith("image/")) {
-        alert("Please select an image file (PNG, JPG, etc.)");
+        toast({ title: "Invalid File", description: "Please select an image file (PNG, JPG, etc.)", variant: "destructive" });
         return;
       }
       // Validate file size (max 2MB)
       if (file.size > 2 * 1024 * 1024) {
-        alert("Signature image must be less than 2MB");
+        toast({ title: "File Too Large", description: "Signature image must be less than 2MB", variant: "destructive" });
         return;
       }
       setSignatureFile(file);
@@ -238,9 +240,9 @@ export default function ProfileSettingsPage() {
           if (refreshUser) {
             await refreshUser();
           }
-          alert("Profile saved successfully!");
+          toast({ title: "Success", description: "Profile saved successfully" });
         } else {
-          alert(`Failed to save: ${data?.errors?.join("; ") || "Unknown error"}`);
+          toast({ title: "Error", description: `Failed to save: ${data?.errors?.join("; ") || "Unknown error"}`, variant: "destructive" });
         }
       } else {
         // Regular JSON request without file
@@ -261,18 +263,18 @@ export default function ProfileSettingsPage() {
           if (refreshUser) {
             await refreshUser();
           }
-          alert("Profile saved successfully!");
+          toast({ title: "Success", description: "Profile saved successfully" });
         } else {
           const errors = response?.errors || [];
           const errorMsg = Array.isArray(errors)
             ? errors.map((e: any) => (typeof e === "string" ? e : e.error || JSON.stringify(e))).join("; ")
             : "Unknown error";
-          alert(`Failed to save: ${errorMsg}`);
+          toast({ title: "Error", description: `Failed to save: ${errorMsg}`, variant: "destructive" });
         }
       }
     } catch (error) {
       console.error("Failed to save profile:", error);
-      alert("Failed to save profile. Please try again.");
+      toast({ title: "Error", description: "Failed to save profile. Please try again.", variant: "destructive" });
     } finally {
       setSaving(false);
     }

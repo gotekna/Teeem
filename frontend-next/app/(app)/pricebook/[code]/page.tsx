@@ -76,6 +76,7 @@ import {
 } from "lucide-react";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/components/ui/use-toast";
 
 // Types
 interface PriceHistorySupplier {
@@ -163,6 +164,7 @@ const QLD_COUNCILS = [
 export default function PriceBookItemDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { toast } = useToast();
   const code = params.code as string;
 
   const [item, setItem] = useState<PriceBookItem | null>(null);
@@ -431,7 +433,7 @@ export default function PriceBookItemDetailPage() {
       setHistoryToDelete(null);
     } catch (err) {
       console.error("Failed to delete price history:", err);
-      alert("Failed to delete price history. Please try again.");
+      toast({ title: "Error", description: "Failed to delete price history. Please try again.", variant: "destructive" });
     }
   };
 
@@ -456,7 +458,7 @@ export default function PriceBookItemDetailPage() {
       await loadItem();
     } catch (err) {
       console.error("Failed to update price history:", err);
-      alert("Failed to update price history. Please try again.");
+      toast({ title: "Error", description: "Failed to update price history. Please try again.", variant: "destructive" });
     }
   };
 
@@ -515,7 +517,7 @@ export default function PriceBookItemDetailPage() {
       }, 100);
     } catch (err) {
       console.error("Failed to add price:", err);
-      alert("Failed to add price. Please try again.");
+      toast({ title: "Error", description: "Failed to add price. Please try again.", variant: "destructive" });
     }
   };
 
@@ -525,7 +527,7 @@ export default function PriceBookItemDetailPage() {
 
     if (!supplierId) {
       console.error('[handleSetDefaultSupplier] No supplier ID provided');
-      alert('Cannot set default supplier: Supplier ID is missing');
+      toast({ title: "Error", description: "Cannot set default supplier: Supplier ID is missing", variant: "destructive" });
       return;
     }
 
@@ -573,7 +575,7 @@ export default function PriceBookItemDetailPage() {
       console.error("[handleSetDefaultSupplier] Error details:", err);
       console.error("[handleSetDefaultSupplier] Error response:", err?.response?.data);
       const errorMessage = err?.response?.data?.error || err?.response?.data?.message || err.message || 'Unknown error';
-      alert(`Failed to set default supplier: ${errorMessage}`);
+      toast({ title: "Error", description: `Failed to set default supplier: ${errorMessage}`, variant: "destructive" });
     }
   };
 
