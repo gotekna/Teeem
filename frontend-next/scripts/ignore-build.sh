@@ -33,3 +33,4 @@ else
   echo "🔨 Frontend changes detected - proceeding with build"
   exit 1
 fi
+
