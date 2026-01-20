@@ -1412,8 +1412,10 @@ class Api::V1::SyncedEmailsController < ApplicationController
   def find_suggested_emails_for_job(job)
     suggestions = []
 
-    # Get job contacts' emails
-    contact_emails = job.contacts.pluck(:email).compact
+    # Get job contacts' emails (SSoT: contact_emails table, not contacts.email column)
+    contact_emails = ContactEmail.joins(contact: :job_contacts)
+                                  .where(job_contacts: { job_id: job.id })
+                                  .pluck(:email).compact
 
     # Find unassigned emails involving these contacts (excluding dismissed)
     contact_emails.each do |email_addr|

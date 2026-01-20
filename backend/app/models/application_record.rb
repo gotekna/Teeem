@@ -5,4 +5,15 @@ class ApplicationRecord < ActiveRecord::Base
   # Validation rules are defined once in ColumnTypeValidator
   # and applied based on column_type from the columns table
   include AutoColumnValidation
+
+  # Handle renamed polymorphic class names (legacy data compatibility)
+  # EmailWarehouse was renamed to SyncedEmail in Jan 2026
+  def self.polymorphic_class_for(name)
+    case name
+    when "EmailWarehouse"
+      SyncedEmail
+    else
+      super
+    end
+  end
 end

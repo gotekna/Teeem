@@ -1223,12 +1223,6 @@ export function StorageConfigTab() {
     const scopeFolders = config?.scope_folders || {};
     const tree = buildFolderTree(scopeFolders);
 
-    // DEBUG: Log tree structure for key nodes
-    const contactsNode = tree.find(n => n.name === 'Contacts');
-    const jobsNode = tree.find(n => n.name === 'Jobs');
-    console.log('[folderTree] Contacts node:', contactsNode?.name, 'children:', contactsNode?.children?.map(c => c.name));
-    console.log('[folderTree] Jobs node:', jobsNode?.name, 'children:', jobsNode?.children?.map(c => c.name));
-
     // Attach tabs to scope nodes
     const attachTabs = (nodes: FolderTreeNode[]) => {
       nodes.forEach(node => {
