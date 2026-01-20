@@ -688,14 +688,26 @@ export default function AllDocumentsPage() {
     // Get the first segment of the path (e.g., "Emails" from "Emails/robert@tekna.com.au/...")
     const firstSegment = path.split('/')[0];
 
-    // Find which scope folder starts with this segment
+    // Collect ALL matching scope keys, then prefer the simplest one
+    // Multiple keys can map to the same folder (e.g., "email", "email-attachments", "emails" all map to "Emails")
+    // We want the base scope key (shortest, no hyphens/underscores) for virtualScopes lookup
+    const matchingKeys: string[] = [];
     for (const [scopeKey, scopePath] of Object.entries(scopeFolders)) {
       if (scopePath && (scopePath === firstSegment || scopePath.startsWith(firstSegment + '/'))) {
-        return scopeKey;
+        matchingKeys.push(scopeKey);
       }
     }
 
-    return null;
+    if (matchingKeys.length === 0) return null;
+
+    // Prefer the simplest key (shortest, without hyphens/underscores)
+    // This ensures "email" is preferred over "email-attachments" or "email_attachments"
+    return matchingKeys.sort((a, b) => {
+      const aSimple = !a.includes('-') && !a.includes('_');
+      const bSimple = !b.includes('-') && !b.includes('_');
+      if (aSimple !== bSimple) return aSimple ? -1 : 1;
+      return a.length - b.length;
+    })[0];
   }, [scopeFolders]);
 
   // SSoT: Fetch folders - routes to virtual_tree for virtual scopes, s3_folders for physical

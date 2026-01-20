@@ -48,6 +48,15 @@ class SeedEmailEntityTabs < ActiveRecord::Migration[7.1]
     end
 
     Rails.logger.info "[Migration] Seeded #{EntityTab.where(scope: 'email').count} email EntityTabs"
+
+    # Fix SSoT conflict: warehouse/email-attachments should NOT map to "Emails"
+    # The email scope owns the "Emails" folder via its overview tab
+    # This prevents scope lookup ambiguity when frontend calls getScopeFromPath("Emails")
+    conflicting_tab = EntityTab.find_by(scope: 'warehouse', tab_key: 'email-attachments')
+    if conflicting_tab&.storage_folder_path == 'Emails'
+      conflicting_tab.update!(has_storage_folder: false, storage_folder_path: nil)
+      Rails.logger.info "[Migration] Fixed SSoT conflict: disabled warehouse/email-attachments storage folder"
+    end
   end
 
   def down
