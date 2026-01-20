@@ -713,8 +713,8 @@ export default function AllDocumentsPage() {
       const isVirtual = scope && virtualScopes[scope];
 
       if (isVirtual && scope) {
-        // Virtual scope: Use database-driven virtual_tree endpoint
-        // Convert path to relative path within scope (e.g., "Emails/robert@tekna.com.au" -> "robert@tekna.com.au")
+        // Phase 5: Use live_folder_tree - computes folder structure from DB relationships
+        // Benefits: Instant template changes, always accurate, single GROUP BY query per level
         const scopeFolder = scopeFolders[scope] || '';
         const relativePath = path.startsWith(scopeFolder + '/')
           ? path.slice(scopeFolder.length + 1)
@@ -724,22 +724,24 @@ export default function AllDocumentsPage() {
           success: boolean;
           path: string;
           scope: string;
-          folders: Array<{ name: string; path: string; count: number }>;
+          template?: string;
+          folders: Array<{ name: string; path: string; count: number; [key: string]: unknown }>;
           files: Array<{
             id: number;
-            displayName: string;
-            originalFilename: string;
-            folder: string;
-            sourceType: string;
-            size: number;
-            contentType: string;
+            name: string;
+            type: string;
+            mimeType: string;
+            fileSize?: number;
+            createdAt?: string;
+            receivedAt?: string;
             url?: string;
+            [key: string]: unknown;
           }>;
           count: { folders: number; files: number; total: number };
-        }>(`/api/v1/documents/virtual_tree?scope=${encodeURIComponent(scope)}&path=${encodeURIComponent(relativePath)}`);
+        }>(`/api/v1/documents/live_folder_tree?scope=${encodeURIComponent(scope)}&path=${encodeURIComponent(relativePath)}`);
 
         if (response?.success) {
-          // Map virtual_tree response to s3_folders format for UI compatibility
+          // Map live_folder_tree response to s3_folders format for UI compatibility
           setS3Folders(prev => ({
             ...prev,
             [path]: {
@@ -747,13 +749,16 @@ export default function AllDocumentsPage() {
                 name: f.name,
                 // Prepend scope folder to make full path
                 path: scopeFolder ? `${scopeFolder}/${f.path}` : f.path,
+                count: f.count,
               })),
               files: (response.files || []).map(f => ({
-                name: f.displayName || f.originalFilename,
-                path: f.folder ? `${scopeFolder}/${f.folder}/${f.displayName}` : `${scopeFolder}/${f.displayName}`,
-                size: f.size || 0,
-                content_type: f.contentType || 'application/octet-stream',
+                name: f.name,
+                path: relativePath ? `${scopeFolder}/${relativePath}/${f.name}` : `${scopeFolder}/${f.name}`,
+                size: f.fileSize || 0,
+                content_type: f.mimeType || 'application/octet-stream',
                 url: f.url,
+                id: f.id,
+                type: f.type,
               })),
             },
           }));
