@@ -459,6 +459,24 @@ export const STORAGE_PLACEHOLDERS: PlaceholderToken[] = [
     description: "Task identifier for storage paths",
   },
   {
+    code: "{{TaskNumber}}",
+    example: "001",
+    color: "orange",
+    description: "Task number (sequential)",
+  },
+  {
+    code: "{{TaskName}}",
+    example: "Framing Inspection",
+    color: "orange",
+    description: "Task name/title",
+  },
+  {
+    code: "{{TaskStatus}}",
+    example: "In Progress",
+    color: "orange",
+    description: "Task status",
+  },
+  {
     code: "{{Category}}",
     example: "Plans",
     color: "orange",
