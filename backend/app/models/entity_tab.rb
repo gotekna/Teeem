@@ -5,7 +5,7 @@
 # - Jobs
 # - Document Folders
 #
-# Xero tabs are children of the Xero tab in corporate_entity scope (SSoT)
+# Xero tabs are children of the Xero tab in corporate_entity warehouse_type (SSoT)
 #
 # Replaces: CorporateEntityTab, DocumentFolder, JobTab, JobDocumentationTab,
 #           XeroFeatureTab, UserJobTabConfig
@@ -16,9 +16,12 @@ class EntityTab < ApplicationRecord
   # All EntityTabs have company_group_id=NULL by design.
   # The uniqueness validation still includes company_group_id for future per-tenant customization.
   #
-  # Valid scopes (xero tabs are children of corporate_entity/xero tab)
-  # System scopes (email, warehouse, task, task_attachments, task_responses) are read-only in UI - is_system_tab: true
-  SCOPES = %w[corporate_entity people job document contact email warehouse task task_attachments task_responses xero].freeze
+  # Valid warehouse types (xero tabs are children of corporate_entity/xero tab)
+  # System warehouse types (email, warehouse, task, task_attachments, task_responses) are read-only in UI - is_system_tab: true
+  WAREHOUSE_TYPES = %w[corporate_entity people job document contact email warehouse task task_attachments task_responses xero].freeze
+
+  # Legacy alias for backward compatibility
+  SCOPES = WAREHOUSE_TYPES
 
   # Valid tab groups
   # - overview: Main features and data display
@@ -41,6 +44,16 @@ class EntityTab < ApplicationRecord
   # - tenant_id: Specific Xero tenant (future use)
   XERO_SCOPES = %w[primary].freeze
 
+  # Legacy column aliases for backward compatibility
+  # These allow queries like find_by(scope: "email") to work after migration
+  alias_attribute :scope, :warehouse_type
+  alias_attribute :has_storage_folder, :warehouse_enabled
+  alias_attribute :has_sharepoint_folder, :warehouse_enabled  # Extra legacy alias
+  alias_attribute :storage_folder_path, :warehouse_folder
+  alias_attribute :sharepoint_folder_path, :warehouse_folder  # Extra legacy alias
+  alias_attribute :storage_path_type, :warehouse_type_override
+  alias_attribute :sharepoint_path_type, :warehouse_type_override  # Extra legacy alias
+
   # Associations
   belongs_to :parent, class_name: 'EntityTab', optional: true
   belongs_to :job, optional: true  # For per-job tabs
@@ -51,8 +64,8 @@ class EntityTab < ApplicationRecord
   has_many :entity_tab_document_types, dependent: :destroy
   has_many :document_types, through: :entity_tab_document_types
 
-  # SSoT: Auto-inherit storage folder flag from parent when document types assigned
-  before_save :inherit_storage_from_parent
+  # SSoT: Auto-inherit warehouse folder flag from parent when document types assigned
+  before_save :inherit_warehouse_from_parent
 
   # SSoT: Auto-sync tab_key from display_name (display_name is the source of truth)
   before_validation :sync_tab_key_from_display_name
@@ -87,30 +100,33 @@ class EntityTab < ApplicationRecord
   end
 
   # Validations
-  validates :scope, presence: true, inclusion: { in: SCOPES }
+  validates :warehouse_type, presence: true, inclusion: { in: WAREHOUSE_TYPES }
   validates :tab_key, presence: true
   validates :display_name, presence: true
   validates :tab_group, inclusion: { in: TAB_GROUPS }, allow_blank: true
   validates :display_mode, inclusion: { in: DISPLAY_MODES }, allow_blank: true
   validates :xero_scope, inclusion: { in: XERO_SCOPES }, allow_blank: true
 
-  # Uniqueness within scope + job + parent + tenant (allows same tab_key under different parents)
+  # Uniqueness within warehouse_type + job + parent + tenant (allows same tab_key under different parents)
   # SSoT: Child tabs under different parents can have the same display_name (e.g., "Site" under Documents vs "Site" under Photos)
-  validates :tab_key, uniqueness: { scope: [:tenant_id, :scope, :job_id, :parent_id] }
+  validates :tab_key, uniqueness: { scope: [:tenant_id, :warehouse_type, :job_id, :parent_id] }
 
-  # SSoT: Icon uniqueness - root tabs must have unique icons within scope
+  # SSoT: Icon uniqueness - root tabs must have unique icons within warehouse_type
   validate :icon_uniqueness_for_root_tabs
 
   # SSoT: Child tabs must show text to differentiate from siblings
   validate :child_tabs_must_show_text
 
   # Scopes
-  scope :for_scope, ->(s) { where(scope: s) }
-  scope :for_corporate, -> { for_scope('corporate_entity') }
-  scope :for_people, -> { for_scope('people') }
-  scope :for_jobs, -> { for_scope('job') }
-  scope :for_documents, -> { for_scope('document') }
-  # Note: Xero tabs are children of corporate_entity/xero tab, not a separate scope
+  scope :for_warehouse_type, ->(t) { where(warehouse_type: t) }
+  scope :for_corporate, -> { for_warehouse_type('corporate_entity') }
+  scope :for_people, -> { for_warehouse_type('people') }
+  scope :for_jobs, -> { for_warehouse_type('job') }
+  scope :for_documents, -> { for_warehouse_type('document') }
+  # Note: Xero tabs are children of corporate_entity/xero tab, not a separate warehouse_type
+
+  # Legacy aliases
+  scope :for_scope, ->(s) { for_warehouse_type(s) }
 
   scope :enabled, -> { where(enabled: true) }
   scope :disabled, -> { where(enabled: false) }
@@ -122,7 +138,7 @@ class EntityTab < ApplicationRecord
   scope :for_job, ->(job_id) { where(job_id: job_id) }
   scope :with_xero_scope, -> { where.not(xero_scope: nil) }
 
-  # Filter by entity type (for corporate_entity scope)
+  # Filter by entity type (for corporate_entity warehouse_type)
   scope :for_entity_type, ->(entity_type) {
     where("entity_filters @> ARRAY[?]::varchar[] OR entity_filters = '{}'", entity_type)
   }
@@ -132,15 +148,20 @@ class EntityTab < ApplicationRecord
 
   # Instance Methods
 
-  # Get all enabled tabs for a scope, ordered
-  def self.tabs_for_scope(scope_name, entity_type: nil)
-    tabs = for_scope(scope_name).enabled.global.ordered
+  # Get all enabled tabs for a warehouse type, ordered
+  def self.tabs_for_warehouse_type(warehouse_type_name, entity_type: nil)
+    tabs = for_warehouse_type(warehouse_type_name).enabled.global.ordered
 
     if entity_type.present?
       tabs = tabs.for_entity_type(entity_type)
     end
 
     tabs
+  end
+
+  # Legacy alias
+  def self.tabs_for_scope(scope_name, entity_type: nil)
+    tabs_for_warehouse_type(scope_name, entity_type: entity_type)
   end
 
   # SSoT: Get the name of the PRIMARY Xero account
@@ -166,7 +187,7 @@ class EntityTab < ApplicationRecord
   # SSoT: Get folder name for a tab by key
   # Use this instead of hardcoding folder names like "04 Plans" or "Documents"
   #
-  # @param scope [String] The scope (job, corporate_entity, etc.)
+  # @param warehouse_type [String] The warehouse type (job, corporate_entity, etc.)
   # @param tab_key [String] The tab key (plans, documents, photos, etc.)
   # @param fallback [String] Fallback if tab not found (optional)
   # @return [String] The display_name to use as folder name
@@ -176,8 +197,8 @@ class EntityTab < ApplicationRecord
   #   EntityTab.folder_name_for("job", "documents") # => "Documents"
   #   EntityTab.folder_name_for("job", "missing", "Fallback") # => "Fallback"
   #
-  def self.folder_name_for(scope, tab_key, fallback = nil)
-    tab = find_by(scope: scope, tab_key: tab_key)
+  def self.folder_name_for(warehouse_type, tab_key, fallback = nil)
+    tab = find_by(warehouse_type: warehouse_type, tab_key: tab_key)
     tab&.display_name || fallback
   end
 
@@ -199,34 +220,35 @@ class EntityTab < ApplicationRecord
   end
 
   # Get the full storage path for this tab
-  # SSoT: Uses storage_base_path (which respects storage_path_type) + storage_folder_path
-  def full_storage_path
-    return nil unless has_storage_folder && storage_folder_path.present?
+  # SSoT: Uses warehouse_base_path (which respects warehouse_type_override) + warehouse_folder
+  def full_warehouse_path
+    return nil unless warehouse_enabled && warehouse_folder.present?
 
-    base = storage_base_path || ''
-    "#{base}/#{storage_folder_path}".gsub(%r{//+}, '/')
+    base = warehouse_base_path || ''
+    "#{base}/#{warehouse_folder}".gsub(%r{//+}, '/')
   end
 
-  # Alias for backwards compatibility
-  alias_method :full_sharepoint_path, :full_storage_path
+  # Legacy aliases for backwards compatibility
+  alias_method :full_storage_path, :full_warehouse_path
+  alias_method :full_sharepoint_path, :full_warehouse_path
 
   # SSoT: Template Inheritance for SharePoint Paths
   # ================================================
 
-  # Valid path types for sharepoint_path_type field
+  # Valid path types for warehouse_type_override field
   PATH_TYPES = %w[corporate contacts].freeze
 
-  # SSoT: Map EntityTab to StorageConfiguration template scope
-  # Priority: storage_path_type (explicit override) > scope (default)
-  def scope_for_template
-    # SSoT: storage_path_type is THE ONE way to override which path config to use
-    # This allows "document" scope tabs to use "corporate" templates
-    if storage_path_type.present?
-      return storage_path_type.to_sym
+  # SSoT: Map EntityTab to StorageConfiguration template warehouse type
+  # Priority: warehouse_type_override (explicit override) > warehouse_type (default)
+  def effective_warehouse_type
+    # SSoT: warehouse_type_override is THE ONE way to override which path config to use
+    # This allows "document" warehouse_type tabs to use "corporate" templates
+    if warehouse_type_override.present?
+      return warehouse_type_override.to_sym
     end
 
-    # Fall back to scope-based mapping
-    case scope
+    # Fall back to warehouse_type-based mapping
+    case warehouse_type
     when 'job' then :job
     when 'corporate_entity' then :corporate
     when 'people', 'contact' then :people
@@ -240,18 +262,21 @@ class EntityTab < ApplicationRecord
     end
   end
 
-  # Get the inherited template (default template based on scope)
-  # SSoT: Uses StorageConfiguration.template_for() - NOT hardcoded templates
+  # Legacy alias
+  alias_method :scope_for_template, :effective_warehouse_type
+
+  # Get the inherited template (default template based on warehouse_type)
+  # SSoT: Uses StorageConfiguration.folder_template_for() - NOT hardcoded templates
   def inherited_template
-    return nil unless has_storage_folder
+    return nil unless warehouse_enabled
 
     begin
       # SSoT: Get template from StorageConfiguration (database)
       config = StorageConfiguration.instance
-      template_scope = scope_for_template.to_s
+      template_warehouse_type = effective_warehouse_type.to_s
 
       # Get template from SSoT
-      template = config.template_for(template_scope)
+      template = config.folder_template_for(template_warehouse_type)
 
       # Replace {{TabName}} with this tab's display_name
       template&.gsub("{{TabName}}", display_name)
@@ -261,36 +286,37 @@ class EntityTab < ApplicationRecord
     end
   end
 
-  # Get the storage base path for this tab (used in UI preview)
-  def storage_base_path
-    return nil unless has_storage_folder
+  # Get the warehouse base path for this tab (used in UI preview)
+  def warehouse_base_path
+    return nil unless warehouse_enabled
     config = StorageConfiguration.instance
     return nil unless config
-    File.join(config.root_path, config.path_for(scope_for_template))
+    File.join(config.root_path, config.root_folder_for(effective_warehouse_type))
   rescue => e
     Rails.logger.warn "[EntityTab] Failed to get base path: #{e.message}"
     nil
   end
 
-  # Alias for backwards compatibility
-  alias_method :sharepoint_base_path, :storage_base_path
+  # Legacy aliases for backwards compatibility
+  alias_method :storage_base_path, :warehouse_base_path
+  alias_method :sharepoint_base_path, :warehouse_base_path
 
-  # Get the EFFECTIVE storage path for this tab (for UI display)
+  # Get the EFFECTIVE warehouse path for this tab (for UI display)
   # SSoT: EntityTab owns folder paths. Child tabs INHERIT from parent.
   #
   # Inheritance chain:
-  #   inherited_template → "{{JobCode}}/{{TabName}}"  (default per scope)
+  #   inherited_template → "{{JobCode}}/{{TabName}}"  (default per warehouse_type)
   #   Photo (root tab) → "{{JobCode}}/Photo"
   #   Site Photo (child) → "{{JobCode}}/Photo/Site Photo"  ← inherits parent + adds own name
-  def effective_storage_path
-    return nil unless has_storage_folder
+  def effective_warehouse_path
+    return nil unless warehouse_enabled
 
-    if uses_custom_path && storage_folder_path.present?
+    if uses_custom_path && warehouse_folder.present?
       # Custom path - use exactly what's set
-      storage_folder_path
-    elsif parent&.has_storage_folder
+      warehouse_folder
+    elsif parent&.warehouse_enabled
       # SSoT: INHERIT FROM PARENT - child path = parent path + "/" + display_name
-      parent_path = parent.effective_storage_path
+      parent_path = parent.effective_warehouse_path
       return nil unless parent_path.present?
       "#{parent_path}/#{display_name}"
     else
@@ -306,36 +332,37 @@ class EntityTab < ApplicationRecord
     end
   end
 
-  # Alias for backwards compatibility
-  alias_method :effective_sharepoint_path, :effective_storage_path
+  # Legacy aliases for backwards compatibility
+  alias_method :effective_storage_path, :effective_warehouse_path
+  alias_method :effective_sharepoint_path, :effective_warehouse_path
 
-  # Get the folder path for actual uploads (strips {{JobCode}} for job-scope tabs)
+  # Get the folder path for actual uploads (strips {{JobCode}} for job-warehouse_type tabs)
   # Use this when uploading files - the upload logic navigates to job folder separately
   def upload_folder_path
-    path = effective_storage_path
+    path = effective_warehouse_path
     return nil unless path.present?
 
-    # SSoT: For job-scope tabs, strip {{JobCode}} prefix since job folder is handled separately
-    if scope == 'job'
+    # SSoT: For job-warehouse_type tabs, strip {{JobCode}} prefix since job folder is handled separately
+    if warehouse_type == 'job'
       path = path.gsub(/\{\{JobCode\}\}\s*\/?/, "").gsub(/^\/+/, "")
     end
 
     path.presence
   end
 
-  # Build hierarchy path - SSoT: Use storage_folder_path when set
+  # Build hierarchy path - SSoT: Use warehouse_folder when set
   def hierarchy_path
-    # For document tabs with storage paths, use the actual path (SSoT)
-    return storage_folder_path if storage_folder_path.present?
+    # For document tabs with warehouse paths, use the actual path (SSoT)
+    return warehouse_folder if warehouse_folder.present?
 
     # Fallback for tabs without SharePoint paths (overview tabs, etc.)
-    scope_prefix = case scope
+    warehouse_type_prefix = case warehouse_type
     when 'corporate_entity' then 'Corporate'
     when 'people' then 'People'
     when 'job' then 'Jobs'
     when 'document' then 'Documents'
     when 'xero' then 'Corporate'
-    else scope.titleize
+    else warehouse_type.titleize
     end
 
     # Build tab hierarchy (root to leaf)
@@ -346,14 +373,14 @@ class EntityTab < ApplicationRecord
       current = current.parent
     end
 
-    ([scope_prefix] + tab_parts).join('/')
+    ([warehouse_type_prefix] + tab_parts).join('/')
   end
 
   # Convert to nested JSON for API
   def as_nested_json
     {
       id: id,
-      scope: scope,
+      warehouse_type: warehouse_type,
       tab_key: tab_key,
       name: display_name,  # SSoT: Frontend expects 'name' for category matching
       display_name: display_name,
@@ -376,15 +403,15 @@ class EntityTab < ApplicationRecord
       # SSoT: Xero integration fields
       xero_scope: xero_scope,
       xero_account_name: xero_account_name,  # Resolved name (e.g., "Tekna Homes")
-      has_storage_folder: has_storage_folder,
-      storage_folder_path: storage_folder_path,
-      full_storage_path: full_storage_path,
+      warehouse_enabled: warehouse_enabled,
+      warehouse_folder: warehouse_folder,
+      full_warehouse_path: full_warehouse_path,
       # SSoT: Template inheritance fields
       uses_custom_path: uses_custom_path,
-      storage_path_type: storage_path_type || 'corporate',
-      storage_base_path: storage_base_path,
-      effective_storage_path: effective_storage_path,  # For UI display (keeps {{JobCode}})
-      folder_path: upload_folder_path,  # For uploads (strips {{JobCode}} for job-scope tabs)
+      warehouse_type_override: warehouse_type_override || 'corporate',
+      warehouse_base_path: warehouse_base_path,
+      effective_warehouse_path: effective_warehouse_path,  # For UI display (keeps {{JobCode}})
+      folder_path: upload_folder_path,  # For uploads (strips {{JobCode}} for job-warehouse_type tabs)
       inherited_template: inherited_template,
       hierarchy_path: hierarchy_path,
       document_count: document_count,
@@ -403,59 +430,71 @@ class EntityTab < ApplicationRecord
         }
       },
       # Backwards compatibility aliases
-      has_sharepoint_folder: has_storage_folder,
-      sharepoint_folder_path: storage_folder_path,
-      full_sharepoint_path: full_storage_path,
-      sharepoint_path_type: storage_path_type || 'corporate',
-      sharepoint_base_path: storage_base_path,
-      effective_sharepoint_path: effective_storage_path
+      scope: warehouse_type,
+      has_storage_folder: warehouse_enabled,
+      storage_folder_path: warehouse_folder,
+      full_storage_path: full_warehouse_path,
+      storage_path_type: warehouse_type_override || 'corporate',
+      storage_base_path: warehouse_base_path,
+      effective_storage_path: effective_warehouse_path,
+      has_sharepoint_folder: warehouse_enabled,
+      sharepoint_folder_path: warehouse_folder,
+      full_sharepoint_path: full_warehouse_path,
+      sharepoint_path_type: warehouse_type_override || 'corporate',
+      sharepoint_base_path: warehouse_base_path,
+      effective_sharepoint_path: effective_warehouse_path
     }
   end
 
-  # Get all tabs as nested structure for a scope
-  def self.nested_tabs_for_scope(scope_name, entity_type: nil)
-    tabs = tabs_for_scope(scope_name, entity_type: entity_type)
+  # Get all tabs as nested structure for a warehouse_type
+  def self.nested_tabs_for_warehouse_type(warehouse_type_name, entity_type: nil)
+    tabs = tabs_for_warehouse_type(warehouse_type_name, entity_type: entity_type)
                 .root_tabs
                 .includes(children: { children: :children }, document_types: [])
 
     tabs.map(&:as_nested_json)
   end
 
-  # SSoT: Get storage folder paths from EntityTab
+  # Legacy alias
+  def self.nested_tabs_for_scope(scope_name, entity_type: nil)
+    nested_tabs_for_warehouse_type(scope_name, entity_type: entity_type)
+  end
+
+  # SSoT: Get warehouse folder paths from EntityTab
   # Replaces scope_folders in StorageConfiguration
   #
   # Returns a hash that supports two lookup patterns:
-  # 1. By scope: { "email" => "Emails", "job" => "Jobs", ... } (from overview/root tabs)
-  # 2. By tab_key: { "users" => "Users", "user_photos" => "Users/Photos", ... } (from all storage tabs)
+  # 1. By warehouse_type: { "email" => "Emails", "job" => "Jobs", ... } (from overview/root tabs)
+  # 2. By tab_key: { "users" => "Users", "user_photos" => "Users/Photos", ... } (from all warehouse tabs)
   #
-  # This allows StorageConfiguration.path_for to work with both:
-  # - path_for("email") => "Emails" (scope lookup)
-  # - path_for("users") => "Users" (tab_key lookup for legacy storage keys)
+  # This allows StorageConfiguration.root_folder_for to work with both:
+  # - root_folder_for("email") => "Emails" (warehouse_type lookup)
+  # - root_folder_for("users") => "Users" (tab_key lookup for legacy storage keys)
   #
   # Note: Legacy scope_folders used underscores (user_photos), but EntityTab tab_key uses hyphens (user-photos).
   # This method adds both underscore and hyphen versions for backward compatibility.
   #
-  def self.scope_base_folders
+  def self.warehouse_base_folders
     result = {}
 
-    # Get all tabs with storage_folder_path set (exclude nil AND empty strings)
-    storage_tabs = where(has_storage_folder: true)
-                     .where.not(storage_folder_path: [nil, ''])
+    # Get all tabs with warehouse_folder set (exclude nil AND empty strings)
+    warehouse_tabs = where(warehouse_enabled: true)
+                     .where.not(warehouse_folder: [nil, ''])
 
-    storage_tabs.each do |tab|
-      # Add tab_key => path for all storage tabs
+    warehouse_tabs.each do |tab|
+      # Add tab_key => path for all warehouse tabs
       # This enables lookup by storage key (e.g., "user-photos")
-      result[tab.tab_key] = tab.storage_folder_path
+      result[tab.tab_key] = tab.warehouse_folder
 
       # Also add underscore version for backward compatibility with legacy scope_folders
       # Legacy used user_photos, EntityTab uses user-photos
       underscore_key = tab.tab_key.gsub('-', '_')
-      result[underscore_key] = tab.storage_folder_path if underscore_key != tab.tab_key
+      result[underscore_key] = tab.warehouse_folder if underscore_key != tab.tab_key
 
-      # For overview/root tabs, also add scope => path
-      # This enables lookup by scope (e.g., "email", "warehouse")
+      # For overview/root tabs, also add warehouse_type => path
+      # This enables lookup by warehouse_type (e.g., "email", "warehouse")
       if tab.tab_key.in?(%w[overview root])
-        result[tab.scope] = tab.storage_folder_path
+        result[tab.warehouse_type] = tab.warehouse_folder
       end
     end
 
@@ -463,8 +502,8 @@ class EntityTab < ApplicationRecord
     # These map old scope_folders keys to their actual paths
     # SSoT: The aliases exist only for backward compatibility with existing code
     legacy_aliases = {
-      'corporate' => 'corporate_entity',       # corporate was the old key, corporate_entity is the scope
-      'emails' => 'email',                     # emails (plural) was the old key, email is the scope
+      'corporate' => 'corporate_entity',       # corporate was the old key, corporate_entity is the warehouse_type
+      'emails' => 'email',                     # emails (plural) was the old key, email is the warehouse_type
       'custom' => 'custom_documents',          # custom was the old key, custom_documents is the tab_key
       'my_docs' => 'my_documents'              # my_docs was the old key, my_documents is the tab_key (underscore form)
     }
@@ -477,12 +516,17 @@ class EntityTab < ApplicationRecord
     result
   end
 
+  # Legacy alias
+  def self.scope_base_folders
+    warehouse_base_folders
+  end
+
   # Seed task tabs only (callable individually)
   def self.seed_task_tabs_only!
     send(:seed_task_tabs!)
   end
 
-  # Seed system tabs for all scopes
+  # Seed system tabs for all warehouse_types
   def self.seed_system_tabs!
     # Corporate Entity tabs
     seed_corporate_entity_tabs!
@@ -518,15 +562,15 @@ class EntityTab < ApplicationRecord
   # SSoT: Defines the folder structure for corporate entity documents
   # Base folder: "Corporate" (stored on root tab)
   private_class_method def self.seed_corporate_entity_tabs!
-    # Root tab - defines the base folder for this scope
-    find_or_create_by!(scope: 'corporate_entity', tab_key: 'root') do |tab|
+    # Root tab - defines the base folder for this warehouse_type
+    find_or_create_by!(warehouse_type: 'corporate_entity', tab_key: 'root') do |tab|
       tab.display_name = 'Root'
       tab.tab_group = 'system'
       tab.order_position = -1
       tab.enabled = true
       tab.is_system_tab = true
-      tab.has_storage_folder = true
-      tab.storage_folder_path = 'Corporate'  # SSoT: Base folder for corporate_entity scope
+      tab.warehouse_enabled = true
+      tab.warehouse_folder = 'Corporate'  # SSoT: Base folder for corporate_entity warehouse_type
     end
 
     # Overview sub-tabs
@@ -543,7 +587,7 @@ class EntityTab < ApplicationRecord
     ]
 
     overview_tabs.each_with_index do |attrs, idx|
-      find_or_create_by!(scope: 'corporate_entity', tab_key: attrs[:tab_key]) do |tab|
+      find_or_create_by!(warehouse_type: 'corporate_entity', tab_key: attrs[:tab_key]) do |tab|
         tab.display_name = attrs[:display_name]
         tab.tab_group = 'overview'
         tab.entity_filters = attrs[:entity_filters]
@@ -558,15 +602,15 @@ class EntityTab < ApplicationRecord
 
     document_tabs.each_with_index do |name, idx|
       tab_key = name.downcase.gsub(/\s+/, '-')
-      find_or_create_by!(scope: 'corporate_entity', tab_key: tab_key) do |tab|
+      find_or_create_by!(warehouse_type: 'corporate_entity', tab_key: tab_key) do |tab|
         tab.display_name = name
         tab.tab_group = 'documents'
         tab.entity_filters = %w[Company Trust Superfund Charity]
         tab.order_position = idx + 100
         tab.enabled = true
         tab.is_system_tab = true
-        tab.has_storage_folder = true
-        tab.storage_folder_path = name.upcase
+        tab.warehouse_enabled = true
+        tab.warehouse_folder = name.upcase
       end
     end
 
@@ -578,7 +622,7 @@ class EntityTab < ApplicationRecord
     ]
 
     feature_tabs.each_with_index do |attrs, idx|
-      find_or_create_by!(scope: 'corporate_entity', tab_key: attrs[:tab_key]) do |tab|
+      find_or_create_by!(warehouse_type: 'corporate_entity', tab_key: attrs[:tab_key]) do |tab|
         tab.display_name = attrs[:display_name]
         tab.tab_group = 'overview'
         tab.entity_filters = %w[Company Trust Superfund Charity]
@@ -594,15 +638,15 @@ class EntityTab < ApplicationRecord
   # SSoT: Defines the folder structure for people documents
   # Base folder: "Corporate/People" (stored on overview tab)
   private_class_method def self.seed_people_tabs!
-    # Overview/root tab - defines the base folder for this scope
-    find_or_create_by!(scope: 'people', tab_key: 'overview') do |tab|
+    # Overview/root tab - defines the base folder for this warehouse_type
+    find_or_create_by!(warehouse_type: 'people', tab_key: 'overview') do |tab|
       tab.display_name = 'Overview'
       tab.tab_group = 'overview'
       tab.order_position = 0
       tab.enabled = true
       tab.is_system_tab = true
-      tab.has_storage_folder = true
-      tab.storage_folder_path = 'Corporate/People'  # SSoT: Base folder for people scope
+      tab.warehouse_enabled = true
+      tab.warehouse_folder = 'Corporate/People'  # SSoT: Base folder for people warehouse_type
     end
 
     # Other people tabs (non-storage)
@@ -617,7 +661,7 @@ class EntityTab < ApplicationRecord
     ]
 
     people_tabs.each do |attrs|
-      find_or_create_by!(scope: 'people', tab_key: attrs[:tab_key]) do |tab|
+      find_or_create_by!(warehouse_type: 'people', tab_key: attrs[:tab_key]) do |tab|
         tab.display_name = attrs[:display_name]
         tab.tab_group = attrs[:tab_group]
         tab.order_position = attrs[:order]
@@ -631,15 +675,15 @@ class EntityTab < ApplicationRecord
   # SSoT: Defines the folder structure for job documents
   # Base folder: "Jobs" (stored on overview tab)
   private_class_method def self.seed_job_tabs!
-    # Overview/root tab - defines the base folder for this scope
-    find_or_create_by!(scope: 'job', tab_key: 'overview') do |tab|
+    # Overview/root tab - defines the base folder for this warehouse_type
+    find_or_create_by!(warehouse_type: 'job', tab_key: 'overview') do |tab|
       tab.display_name = 'Overview'
       tab.tab_group = 'overview'
       tab.order_position = 0
       tab.enabled = true
       tab.is_system_tab = true
-      tab.has_storage_folder = true
-      tab.storage_folder_path = 'Jobs'  # SSoT: Base folder for job scope
+      tab.warehouse_enabled = true
+      tab.warehouse_folder = 'Jobs'  # SSoT: Base folder for job warehouse_type
     end
 
     # Other job tabs (non-storage)
@@ -653,7 +697,7 @@ class EntityTab < ApplicationRecord
     ]
 
     job_tabs.each do |attrs|
-      find_or_create_by!(scope: 'job', tab_key: attrs[:tab_key]) do |tab|
+      find_or_create_by!(warehouse_type: 'job', tab_key: attrs[:tab_key]) do |tab|
         tab.display_name = attrs[:display_name]
         tab.tab_group = attrs[:tab_group]
         tab.order_position = attrs[:order]
@@ -665,19 +709,19 @@ class EntityTab < ApplicationRecord
 
   private_class_method def self.seed_document_tabs!
     # Document folders - these are the top-level folders for document organization
-    # They mirror the corporate entity document tabs but are scope: 'document'
+    # They mirror the corporate entity document tabs but are warehouse_type: 'document'
     folder_tabs = %w[Xero Advice ASIC Assets ATO Bank Company Dividends Financials General Insurance Loans Minutes Registry Trust]
 
     folder_tabs.each_with_index do |name, idx|
       tab_key = name.downcase.gsub(/\s+/, '-')
-      find_or_create_by!(scope: 'document', tab_key: tab_key) do |tab|
+      find_or_create_by!(warehouse_type: 'document', tab_key: tab_key) do |tab|
         tab.display_name = name
         tab.tab_group = 'documents'
         tab.order_position = idx
         tab.enabled = true
         tab.is_system_tab = true
-        tab.has_storage_folder = true
-        tab.storage_folder_path = name.upcase
+        tab.warehouse_enabled = true
+        tab.warehouse_folder = name.upcase
       end
     end
   end
@@ -687,17 +731,17 @@ class EntityTab < ApplicationRecord
   # Base folder: "Tasks" (stored on overview tab)
   # Template: "Tasks/Task-{{TaskId}}/{{Category}}"
   private_class_method def self.seed_task_tabs!
-    # Overview/root tab - defines the base folder for this scope
-    # SSoT: storage_folder_path on overview tab = scope base folder
-    find_or_create_by!(scope: 'task', tab_key: 'overview') do |tab|
+    # Overview/root tab - defines the base folder for this warehouse_type
+    # SSoT: warehouse_folder on overview tab = warehouse_type base folder
+    find_or_create_by!(warehouse_type: 'task', tab_key: 'overview') do |tab|
       tab.display_name = 'Overview'
       tab.tab_group = 'overview'
       tab.order_position = 0
       tab.enabled = true
       tab.is_system_tab = true
       tab.icon_name = 'ClipboardList'
-      tab.has_storage_folder = true
-      tab.storage_folder_path = 'Tasks'  # SSoT: Base folder for task scope
+      tab.warehouse_enabled = true
+      tab.warehouse_folder = 'Tasks'  # SSoT: Base folder for task warehouse_type
     end
 
     # Document folder tabs for task attachments
@@ -713,21 +757,21 @@ class EntityTab < ApplicationRecord
     ]
 
     task_document_tabs.each_with_index do |attrs, idx|
-      find_or_create_by!(scope: 'task', tab_key: attrs[:tab_key]) do |tab|
+      find_or_create_by!(warehouse_type: 'task', tab_key: attrs[:tab_key]) do |tab|
         tab.display_name = attrs[:display_name]
         tab.tab_group = 'documents'
         tab.order_position = idx + 10
         tab.enabled = true
         tab.is_system_tab = true
         tab.icon_name = attrs[:icon]
-        tab.has_storage_folder = true
-        tab.storage_folder_path = attrs[:folder]
+        tab.warehouse_enabled = true
+        tab.warehouse_folder = attrs[:folder]
         tab.is_photo_category = attrs[:is_photo] || false
         tab.is_cad_category = attrs[:is_cad] || false
       end
     end
 
-    Rails.logger.info "[EntityTab] Seeded #{where(scope: 'task').count} task tabs"
+    Rails.logger.info "[EntityTab] Seeded #{where(warehouse_type: 'task').count} task tabs"
   end
 
   # Task Attachments tabs (for task attachments - under Tasks)
@@ -735,17 +779,17 @@ class EntityTab < ApplicationRecord
   # Base folder: "Tasks" (stored on overview tab)
   # Template: "Tasks/{{TaskId}}/Attachments"
   private_class_method def self.seed_task_attachments_tabs!
-    # Overview/root tab - defines the base folder for this scope
-    # SSoT: storage_folder_path on overview tab = scope base folder
-    find_or_create_by!(scope: 'task_attachments', tab_key: 'overview') do |tab|
+    # Overview/root tab - defines the base folder for this warehouse_type
+    # SSoT: warehouse_folder on overview tab = warehouse_type base folder
+    find_or_create_by!(warehouse_type: 'task_attachments', tab_key: 'overview') do |tab|
       tab.display_name = 'Overview'
       tab.tab_group = 'overview'
       tab.order_position = 0
       tab.enabled = true
       tab.is_system_tab = true
       tab.icon_name = 'FolderOpen'  # Using FolderOpen for Overview (Paperclip reserved for Attachments)
-      tab.has_storage_folder = true
-      tab.storage_folder_path = 'Tasks'  # SSoT: Base folder for task_attachments scope
+      tab.warehouse_enabled = true
+      tab.warehouse_folder = 'Tasks'  # SSoT: Base folder for task_attachments warehouse_type
     end
 
     # Document folder tabs for task attachments
@@ -756,20 +800,20 @@ class EntityTab < ApplicationRecord
     ]
 
     task_attachment_tabs.each_with_index do |attrs, idx|
-      find_or_create_by!(scope: 'task_attachments', tab_key: attrs[:tab_key]) do |tab|
+      find_or_create_by!(warehouse_type: 'task_attachments', tab_key: attrs[:tab_key]) do |tab|
         tab.display_name = attrs[:display_name]
         tab.tab_group = 'documents'
         tab.order_position = idx + 10
         tab.enabled = true
         tab.is_system_tab = true
         tab.icon_name = attrs[:icon]
-        tab.has_storage_folder = true
-        tab.storage_folder_path = attrs[:folder]
+        tab.warehouse_enabled = true
+        tab.warehouse_folder = attrs[:folder]
         tab.is_photo_category = attrs[:is_photo] || false
       end
     end
 
-    Rails.logger.info "[EntityTab] Seeded #{where(scope: 'task_attachments').count} task_attachments tabs"
+    Rails.logger.info "[EntityTab] Seeded #{where(warehouse_type: 'task_attachments').count} task_attachments tabs"
   end
 
   # Callable individually for task attachments seeding
@@ -782,17 +826,17 @@ class EntityTab < ApplicationRecord
   # Base folder: "Tasks" (stored on overview tab)
   # Template: "Tasks/{{TaskId}}/Responses"
   private_class_method def self.seed_task_responses_tabs!
-    # Overview/root tab - defines the base folder for this scope
-    # SSoT: storage_folder_path on overview tab = scope base folder
-    find_or_create_by!(scope: 'task_responses', tab_key: 'overview') do |tab|
+    # Overview/root tab - defines the base folder for this warehouse_type
+    # SSoT: warehouse_folder on overview tab = warehouse_type base folder
+    find_or_create_by!(warehouse_type: 'task_responses', tab_key: 'overview') do |tab|
       tab.display_name = 'Overview'
       tab.tab_group = 'overview'
       tab.order_position = 0
       tab.enabled = true
       tab.is_system_tab = true
       tab.icon_name = 'FolderOpen'  # Using FolderOpen for Overview (FileOutput reserved for Responses)
-      tab.has_storage_folder = true
-      tab.storage_folder_path = 'Tasks'  # SSoT: Base folder for task_responses scope
+      tab.warehouse_enabled = true
+      tab.warehouse_folder = 'Tasks'  # SSoT: Base folder for task_responses warehouse_type
     end
 
     # Document folder tabs for task responses
@@ -802,19 +846,19 @@ class EntityTab < ApplicationRecord
     ]
 
     task_response_tabs.each_with_index do |attrs, idx|
-      find_or_create_by!(scope: 'task_responses', tab_key: attrs[:tab_key]) do |tab|
+      find_or_create_by!(warehouse_type: 'task_responses', tab_key: attrs[:tab_key]) do |tab|
         tab.display_name = attrs[:display_name]
         tab.tab_group = 'documents'
         tab.order_position = idx + 10
         tab.enabled = true
         tab.is_system_tab = true
         tab.icon_name = attrs[:icon]
-        tab.has_storage_folder = true
-        tab.storage_folder_path = attrs[:folder]
+        tab.warehouse_enabled = true
+        tab.warehouse_folder = attrs[:folder]
       end
     end
 
-    Rails.logger.info "[EntityTab] Seeded #{where(scope: 'task_responses').count} task_responses tabs"
+    Rails.logger.info "[EntityTab] Seeded #{where(warehouse_type: 'task_responses').count} task_responses tabs"
   end
 
   # Callable individually for task responses seeding
@@ -827,17 +871,17 @@ class EntityTab < ApplicationRecord
   # Base folder: "Emails" (stored on overview tab)
   # Template: "Emails/{{Mailbox}}/{{Year}}/{{Month}}"
   private_class_method def self.seed_email_tabs!
-    # Overview/root tab - defines the base folder for this scope
-    # SSoT: storage_folder_path on overview tab = scope base folder
-    find_or_create_by!(scope: 'email', tab_key: 'overview') do |tab|
+    # Overview/root tab - defines the base folder for this warehouse_type
+    # SSoT: warehouse_folder on overview tab = warehouse_type base folder
+    find_or_create_by!(warehouse_type: 'email', tab_key: 'overview') do |tab|
       tab.display_name = 'Overview'
       tab.tab_group = 'overview'
       tab.order_position = 0
       tab.enabled = true
       tab.is_system_tab = true
       tab.icon_name = 'Mail'
-      tab.has_storage_folder = true
-      tab.storage_folder_path = 'Emails'  # SSoT: Base folder for email scope
+      tab.warehouse_enabled = true
+      tab.warehouse_folder = 'Emails'  # SSoT: Base folder for email warehouse_type
     end
 
     # Document folder tabs for email storage
@@ -848,19 +892,19 @@ class EntityTab < ApplicationRecord
     ]
 
     email_document_tabs.each_with_index do |attrs, idx|
-      find_or_create_by!(scope: 'email', tab_key: attrs[:tab_key]) do |tab|
+      find_or_create_by!(warehouse_type: 'email', tab_key: attrs[:tab_key]) do |tab|
         tab.display_name = attrs[:display_name]
         tab.tab_group = 'documents'
         tab.order_position = idx + 10
         tab.enabled = true
         tab.is_system_tab = true
         tab.icon_name = attrs[:icon]
-        tab.has_storage_folder = true
-        tab.storage_folder_path = attrs[:folder]
+        tab.warehouse_enabled = true
+        tab.warehouse_folder = attrs[:folder]
       end
     end
 
-    Rails.logger.info "[EntityTab] Seeded #{where(scope: 'email').count} email tabs"
+    Rails.logger.info "[EntityTab] Seeded #{where(warehouse_type: 'email').count} email tabs"
   end
 
   # Callable individually for email tabs seeding
@@ -870,7 +914,7 @@ class EntityTab < ApplicationRecord
 
   # Legacy storage paths migration
   # SSoT: Migrates all legacy scope_folders to EntityTab entries
-  # These tabs use tab_key as the storage lookup key (not scope)
+  # These tabs use tab_key as the storage lookup key (not warehouse_type)
   #
   # Legacy scope_folders keys mapped to EntityTab:
   # - Users group: users, user_photos, user_contracts, my_docs
@@ -879,21 +923,21 @@ class EntityTab < ApplicationRecord
   # - Other: active_storage, custom, email_attachments
   #
   private_class_method def self.seed_legacy_storage_tabs!
-    # Warehouse root tab - defines the base folder for warehouse scope
+    # Warehouse root tab - defines the base folder for warehouse warehouse_type
     # Note: Using 'Root' as display_name to avoid tab_key sync changing 'root' to 'warehouse'
-    find_or_create_by!(scope: 'warehouse', tab_key: 'root') do |tab|
+    find_or_create_by!(warehouse_type: 'warehouse', tab_key: 'root') do |tab|
       tab.display_name = 'Root'
       tab.tab_group = 'system'
       tab.order_position = -1
       tab.enabled = true
       tab.is_system_tab = true
       tab.icon_name = nil  # No icon to avoid conflicts
-      tab.has_storage_folder = true
-      tab.storage_folder_path = 'Warehousing'  # SSoT: Base folder for warehouse scope
+      tab.warehouse_enabled = true
+      tab.warehouse_folder = 'Warehousing'  # SSoT: Base folder for warehouse warehouse_type
     end
 
     # Users storage paths (separate root folder "Users")
-    # Note: These are under warehouse scope but with their own base folder
+    # Note: These are under warehouse warehouse_type but with their own base folder
     # Using unique icons to avoid icon_uniqueness_for_root_tabs validation conflict
     users_storage_tabs = [
       { tab_key: 'users', folder: 'Users', display_name: 'Users', icon: 'UserCircle' },
@@ -903,15 +947,15 @@ class EntityTab < ApplicationRecord
     ]
 
     users_storage_tabs.each_with_index do |attrs, idx|
-      find_or_create_by!(scope: 'warehouse', tab_key: attrs[:tab_key]) do |tab|
+      find_or_create_by!(warehouse_type: 'warehouse', tab_key: attrs[:tab_key]) do |tab|
         tab.display_name = attrs[:display_name]
         tab.tab_group = 'system'
         tab.order_position = idx + 100
         tab.enabled = true
         tab.is_system_tab = true
         tab.icon_name = attrs[:icon]
-        tab.has_storage_folder = true
-        tab.storage_folder_path = attrs[:folder]
+        tab.warehouse_enabled = true
+        tab.warehouse_folder = attrs[:folder]
       end
     end
 
@@ -928,15 +972,15 @@ class EntityTab < ApplicationRecord
     ]
 
     warehousing_storage_tabs.each_with_index do |attrs, idx|
-      find_or_create_by!(scope: 'warehouse', tab_key: attrs[:tab_key]) do |tab|
+      find_or_create_by!(warehouse_type: 'warehouse', tab_key: attrs[:tab_key]) do |tab|
         tab.display_name = attrs[:display_name]
         tab.tab_group = 'system'
         tab.order_position = idx + 200
         tab.enabled = true
         tab.is_system_tab = true
         tab.icon_name = attrs[:icon]
-        tab.has_storage_folder = true
-        tab.storage_folder_path = attrs[:folder]
+        tab.warehouse_enabled = true
+        tab.warehouse_folder = attrs[:folder]
       end
     end
 
@@ -950,15 +994,15 @@ class EntityTab < ApplicationRecord
     ]
 
     document_type_tabs.each_with_index do |attrs, idx|
-      find_or_create_by!(scope: 'warehouse', tab_key: attrs[:tab_key]) do |tab|
+      find_or_create_by!(warehouse_type: 'warehouse', tab_key: attrs[:tab_key]) do |tab|
         tab.display_name = attrs[:display_name]
         tab.tab_group = 'system'
         tab.order_position = idx + 300
         tab.enabled = true
         tab.is_system_tab = true
         tab.icon_name = attrs[:icon]
-        tab.has_storage_folder = true
-        tab.storage_folder_path = attrs[:folder]
+        tab.warehouse_enabled = true
+        tab.warehouse_folder = attrs[:folder]
       end
     end
 
@@ -971,19 +1015,19 @@ class EntityTab < ApplicationRecord
     ]
 
     other_storage_tabs.each_with_index do |attrs, idx|
-      find_or_create_by!(scope: 'warehouse', tab_key: attrs[:tab_key]) do |tab|
+      find_or_create_by!(warehouse_type: 'warehouse', tab_key: attrs[:tab_key]) do |tab|
         tab.display_name = attrs[:display_name]
         tab.tab_group = 'system'
         tab.order_position = idx + 400
         tab.enabled = true
         tab.is_system_tab = true
         tab.icon_name = attrs[:icon]
-        tab.has_storage_folder = true
-        tab.storage_folder_path = attrs[:folder]
+        tab.warehouse_enabled = true
+        tab.warehouse_folder = attrs[:folder]
       end
     end
 
-    Rails.logger.info "[EntityTab] Seeded #{where(scope: 'warehouse', tab_group: 'system').count} legacy storage tabs"
+    Rails.logger.info "[EntityTab] Seeded #{where(warehouse_type: 'warehouse', tab_group: 'system').count} legacy storage tabs"
   end
 
   # Callable individually for legacy storage tabs seeding
@@ -998,18 +1042,21 @@ class EntityTab < ApplicationRecord
 
   private
 
-  # SSoT: Auto-inherit storage folder settings from parent
-  # When a tab has document types AND has a parent with has_storage_folder: true,
-  # automatically enable has_storage_folder for this tab
-  def inherit_storage_from_parent
-    return if has_storage_folder  # Already enabled, skip
+  # SSoT: Auto-inherit warehouse folder settings from parent
+  # When a tab has document types AND has a parent with warehouse_enabled: true,
+  # automatically enable warehouse_enabled for this tab
+  def inherit_warehouse_from_parent
+    return if warehouse_enabled  # Already enabled, skip
 
-    # Check if parent has storage folder enabled
-    if parent&.has_storage_folder
-      self.has_storage_folder = true
-      Rails.logger.info "[EntityTab] Auto-inherited has_storage_folder from parent '#{parent.display_name}' for tab '#{display_name}'"
+    # Check if parent has warehouse enabled
+    if parent&.warehouse_enabled
+      self.warehouse_enabled = true
+      Rails.logger.info "[EntityTab] Auto-inherited warehouse_enabled from parent '#{parent.display_name}' for tab '#{display_name}'"
     end
   end
+
+  # Legacy alias
+  alias_method :inherit_storage_from_parent, :inherit_warehouse_from_parent
 
   # SSoT: display_name is the source of truth, tab_key is derived from it
   # When display_name changes, auto-update tab_key to match
@@ -1027,9 +1074,9 @@ class EntityTab < ApplicationRecord
 
   # SSoT: When display_name changes, enqueue job to sync storage folders and job_documents
   # This ensures physical folders and database records match the tab configuration
-  # Works for ALL scopes: job, corporate_entity, people, contact (unified folder rename system)
+  # Works for ALL warehouse_types: job, corporate_entity, people, contact (unified folder rename system)
   def enqueue_folder_rename_if_needed
-    return unless has_storage_folder
+    return unless warehouse_enabled
     return unless saved_change_to_display_name?
 
     old_name, new_name = saved_change_to_display_name
@@ -1042,17 +1089,17 @@ class EntityTab < ApplicationRecord
     )
   end
 
-  # SSoT: Root tabs must have unique icons within the same scope
+  # SSoT: Root tabs must have unique icons within the same warehouse_type
   # Child tabs can inherit parent's icon OR have their own unique icon
   def icon_uniqueness_for_root_tabs
     return if parent_id.present?  # Child tabs can share/inherit icons
     return if icon_name.blank?    # No icon set, skip validation
 
-    existing = EntityTab.where(scope: scope, parent_id: nil, icon_name: icon_name)
+    existing = EntityTab.where(warehouse_type: warehouse_type, parent_id: nil, icon_name: icon_name)
                         .where.not(id: id)
 
     if existing.exists?
-      errors.add(:icon_name, "is already used by another root tab in this scope")
+      errors.add(:icon_name, "is already used by another root tab in this warehouse type")
     end
   end
 

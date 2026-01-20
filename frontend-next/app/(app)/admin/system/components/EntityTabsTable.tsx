@@ -75,6 +75,11 @@ interface EntityTab {
   order_position: number;
   icon_name?: string;
   description?: string;
+  // New naming (SSoT)
+  warehouse_enabled?: boolean;
+  warehouse_folder?: string;
+  warehouse_type?: string;
+  // Legacy backwards compat aliases (API returns both)
   has_sharepoint_folder?: boolean;
   sharepoint_folder_path?: string;
   sub_tabs?: SubTab[];
@@ -153,7 +158,7 @@ export function EntityTabsTable() {
   // Load tabs from API
   const loadTabs = React.useCallback(async () => {
     try {
-      const response = await api.get<{ success: boolean; data: { tabs: EntityTab[] } }>("/api/v1/entity_tabs?scope=corporate_entity");
+      const response = await api.get<{ success: boolean; data: { tabs: EntityTab[] } }>("/api/v1/entity_tabs?warehouse_type=corporate_entity");
       if (response.success && response.data?.tabs) {
         setTabs(response.data.tabs);
       }
@@ -244,20 +249,20 @@ export function EntityTabsTable() {
     });
   };
 
-  // Save SharePoint path
+  // Save warehouse folder path
   const handleSavePath = async (tab: EntityTab) => {
     if (!editingPath) return;
     setSaving(true);
     try {
       await api.patch(`/api/v1/corporate/entity_tabs/${tab.id}`, {
         tab: {
-          has_sharepoint_folder: !!editingPath.value,
-          sharepoint_folder_path: editingPath.value || null,
+          warehouse_enabled: !!editingPath.value,
+          warehouse_folder: editingPath.value || null,
         }
       });
       await loadTabs();
       setEditingPath(null);
-      toast({ title: "Path updated", description: "Storage folder path saved" });
+      toast({ title: "Path updated", description: "Warehouse folder path saved" });
     } catch (error) {
       console.error("Failed to update path:", error);
       toast({ title: "Error", description: "Failed to update path", variant: "destructive" });
@@ -349,8 +354,8 @@ export function EntityTabsTable() {
 
       await api.patch(`/api/v1/corporate/entity_tabs/${folderBrowserTab.id}`, {
         tab: {
-          has_sharepoint_folder: true,
-          sharepoint_folder_path: folderName,
+          warehouse_enabled: true,
+          warehouse_folder: folderName,
         }
       });
       await loadTabs();
@@ -446,7 +451,10 @@ export function EntityTabsTable() {
                     {groupTabs.map((tab) => {
                       const isTabExpanded = expandedTabs.has(tab.id);
                       const hasSubTabs = tab.sub_tabs && tab.sub_tabs.length > 0;
-                      const hasFolder = tab.has_sharepoint_folder && tab.sharepoint_folder_path;
+                      // Use new naming with fallback to legacy
+                      const warehouseEnabled = tab.warehouse_enabled ?? tab.has_sharepoint_folder;
+                      const warehouseFolder = tab.warehouse_folder ?? tab.sharepoint_folder_path;
+                      const hasFolder = warehouseEnabled && warehouseFolder;
 
                       return (
                         <div key={tab.id}>
@@ -555,7 +563,7 @@ export function EntityTabsTable() {
                                 className="flex items-center gap-1 text-xs font-mono text-blue-600 dark:text-blue-400 hover:underline"
                               >
                                 <FolderTree className="h-3 w-3" />
-                                /{tab.sharepoint_folder_path}
+                                /{warehouseFolder}
                               </button>
                             ) : groupKey === "documents" ? (
                               <button
@@ -783,10 +791,10 @@ export function EntityTabsTable() {
 
           <div className="mt-6 space-y-4">
             {/* Current path info */}
-            {folderBrowserTab?.sharepoint_folder_path && (
+            {(folderBrowserTab?.warehouse_folder || folderBrowserTab?.sharepoint_folder_path) && (
               <div className="text-sm">
                 <span className="text-muted-foreground">Current folder: </span>
-                <span className="font-mono text-blue-600 dark:text-blue-400">/{folderBrowserTab.sharepoint_folder_path}</span>
+                <span className="font-mono text-blue-600 dark:text-blue-400">/{folderBrowserTab?.warehouse_folder || folderBrowserTab?.sharepoint_folder_path}</span>
               </div>
             )}
 

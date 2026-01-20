@@ -18,7 +18,7 @@
 # - Root path for the storage location
 #
 # FOLDER STRUCTURE is handled by EntityTab (SSoT for paths per tab)
-# Each EntityTab defines its own storage_folder_path template.
+# Each EntityTab defines its own warehouse_folder template.
 #
 # Usage:
 #   config = StorageConfiguration.for_organization(org)
@@ -40,6 +40,17 @@ class StorageConfiguration < ApplicationRecord
 
   # Connection statuses
   STATUSES = %w[disconnected connected error].freeze
+
+  # Warehouse types (SSoT - renamed from SCOPES)
+  # Valid warehouse types that can have storage enabled
+  WAREHOUSE_TYPES = %w[corporate_entity people job document contact email warehouse task task_attachments task_responses xero].freeze
+
+  # Legacy column aliases for backward compatibility
+  # These allow code referencing old column names to continue working
+  alias_attribute :templates, :warehouse_folder_templates
+  alias_attribute :scope_root_folders, :warehouse_root_folders
+  alias_attribute :virtual_scopes, :virtual_warehouses
+  # Note: scope_options was deleted and replaced with exclude_sm_tasks boolean
 
   # Validations
   # Note: provider_type is now DERIVED from active credentials (SSoT)
@@ -103,12 +114,12 @@ class StorageConfiguration < ApplicationRecord
   end
 
   # ========================================
-  # Scope Root Folders (SSoT: scope_root_folders column ONLY)
+  # Warehouse Root Folders (SSoT: warehouse_root_folders column ONLY)
   # ========================================
 
-  # Default scope root folders - used ONLY for initialization
-  # After init, scope_root_folders column is THE ONE SSoT (no merging)
-  SCOPE_ROOT_DEFAULTS = {
+  # Default warehouse root folders - used ONLY for initialization
+  # After init, warehouse_root_folders column is THE ONE SSoT (no merging)
+  WAREHOUSE_ROOT_DEFAULTS = {
     'job' => 'Jobs/{{JobCode}}',
     'contact' => 'Contacts/{{ContactName}}',
     'corporate_entity' => 'Corporate/{{CompanyGroup}}',
@@ -118,77 +129,99 @@ class StorageConfiguration < ApplicationRecord
     'warehouse' => 'Warehousing'
   }.freeze
 
-  # SSoT: Initialize scope_root_folders with defaults if empty
-  after_initialize :ensure_scope_root_folders
+  # Legacy alias for backward compatibility
+  SCOPE_ROOT_DEFAULTS = WAREHOUSE_ROOT_DEFAULTS
 
-  def ensure_scope_root_folders
-    return if scope_root_folders.present?
-    self.scope_root_folders = SCOPE_ROOT_DEFAULTS.dup
+  # SSoT: Initialize warehouse_root_folders with defaults if empty
+  after_initialize :ensure_warehouse_root_folders
+
+  def ensure_warehouse_root_folders
+    return if warehouse_root_folders.present?
+    self.warehouse_root_folders = WAREHOUSE_ROOT_DEFAULTS.dup
   end
 
-  # Get root folder for a scope
-  # Check if a scope is enabled (not "DISABLED")
-  # @param scope [String, Symbol] The scope name
-  # @return [Boolean] true if scope has storage enabled
-  def scope_enabled?(scope)
-    path = path_for(scope)
+  # Legacy alias
+  alias_method :ensure_scope_root_folders, :ensure_warehouse_root_folders
+
+  # Get root folder for a warehouse type
+  # Check if a warehouse type is enabled (not "DISABLED")
+  # @param warehouse_type [String, Symbol] The warehouse type name
+  # @return [Boolean] true if warehouse type has storage enabled
+  def warehouse_enabled?(warehouse_type)
+    path = root_folder_for(warehouse_type)
     path.present? && path != "DISABLED"
   end
+
+  # Legacy alias
+  alias_method :scope_enabled?, :warehouse_enabled?
 
   # Check if SM-linked tasks should be excluded from task storage
   # When true, tasks with sm_schedule_master_id use PO storage instead
   # @return [Boolean]
   def exclude_sm_linked_tasks?
-    scope_options&.dig("task", "exclude_sm_linked") == true
+    # Now reads from dedicated boolean column instead of JSONB
+    exclude_sm_tasks == true
   end
 
-  # SSoT: scope_root_folders column is THE ONE source for scope roots
+  # SSoT: warehouse_root_folders column is THE ONE source for warehouse roots
   #
-  # @param scope [String, Symbol] The scope name (job, contact, task, etc.)
-  # @return [String, nil] The root folder name for that scope, or nil if disabled
+  # @param warehouse_type [String, Symbol] The warehouse type name (job, contact, task, etc.)
+  # @return [String, nil] The root folder name for that warehouse type, or nil if disabled
   #
   # Examples:
-  #   path_for(:job)     # => "Jobs/{{JobCode}}"
-  #   path_for(:contact) # => "Contacts/{{ContactName}}"
-  #   path_for(:task)    # => nil (if disabled)
+  #   root_folder_for(:job)     # => "Jobs/{{JobCode}}"
+  #   root_folder_for(:contact) # => "Contacts/{{ContactName}}"
+  #   root_folder_for(:task)    # => nil (if disabled)
   #
-  def path_for(scope)
-    scope_key = scope.to_s
-    # SSoT: Only use scope_root_folders column (initialized with defaults via after_initialize)
-    path = scope_root_folders&.dig(scope_key)
+  def root_folder_for(warehouse_type)
+    type_key = warehouse_type.to_s
+    # SSoT: Only use warehouse_root_folders column (initialized with defaults via after_initialize)
+    path = warehouse_root_folders&.dig(type_key)
     return nil if path.blank? || path == "DISABLED"
     path
   end
 
-  # Get all scope root folders
-  # SSoT: scope_root_folders column is THE ONE source (no merging)
-  def effective_scope_root_folders
-    scope_root_folders || {}
+  # Legacy alias for backward compatibility
+  alias_method :path_for, :root_folder_for
+
+  # Get all warehouse root folders
+  # SSoT: warehouse_root_folders column is THE ONE source (no merging)
+  def effective_warehouse_root_folders
+    warehouse_root_folders || {}
   end
 
-  # Get all scope folders (includes scope roots + tab paths for backward compatibility)
-  # Returns scope roots plus all EntityTab storage paths
-  def effective_scope_folders
-    # Start with scope root folders
-    result = effective_scope_root_folders.dup
+  # Legacy alias
+  alias_method :effective_scope_root_folders, :effective_warehouse_root_folders
+
+  # Get all warehouse folders (includes roots + tab paths for backward compatibility)
+  # Returns warehouse roots plus all EntityTab warehouse paths
+  def effective_warehouse_folders
+    # Start with warehouse root folders
+    result = effective_warehouse_root_folders.dup
 
     # Add EntityTab paths for backward compatibility with existing UI
-    EntityTab.scope_base_folders.each do |key, path|
+    EntityTab.warehouse_base_folders.each do |key, path|
       result[key] ||= path
     end
 
     result
   end
 
-  # Get template for a scope
-  # SSoT: Database `templates` column is THE ONE source of truth
+  # Legacy alias
+  alias_method :effective_scope_folders, :effective_warehouse_folders
+
+  # Get folder template for a warehouse type
+  # SSoT: Database `warehouse_folder_templates` column is THE ONE source of truth
   # Populated by migration, configurable via admin UI
   #
-  # @param scope [String, Symbol] The scope name
+  # @param warehouse_type [String, Symbol] The warehouse type name
   # @return [String] The template string for path generation (empty string = no template)
-  def template_for(scope)
-    templates&.dig(scope.to_s) || ""
+  def folder_template_for(warehouse_type)
+    warehouse_folder_templates&.dig(warehouse_type.to_s) || ""
   end
+
+  # Legacy alias for backward compatibility
+  alias_method :template_for, :folder_template_for
 
   # ========================================
   # Path Building Helpers
@@ -200,14 +233,14 @@ class StorageConfiguration < ApplicationRecord
   # @return [String] Full path like "/Jobs/JOB-001/Responses"
   def job_path(job_code, subfolder = nil)
     # Use template from config (e.g., "{{JobCode}}/{{TabName}}" or "{{JobCode}}/{{Category}}")
-    template = template_for(:job)
+    template = folder_template_for(:job)
     resolved = template.gsub("{{JobCode}}", job_code.to_s)
     # Support both {{TabName}} and {{Category}} placeholders
     resolved = resolved.gsub("{{TabName}}", subfolder.to_s) if subfolder.present?
     resolved = resolved.gsub("{{Category}}", subfolder.to_s) if subfolder.present?
     # Remove any remaining template tokens if subfolder not provided
     resolved = resolved.gsub(/\/?\{\{[^\}]+\}\}/, "")
-    base = File.join(root_path, path_for(:job), resolved)
+    base = File.join(root_path, root_folder_for(:job), resolved)
     base
   end
 
@@ -217,30 +250,30 @@ class StorageConfiguration < ApplicationRecord
   # @return [String] Full path like "/Tasks/123/Task Attachments"
   def task_path(task_id, subfolder = nil)
     # Use template from config (e.g., "{{TaskId}}" → "123")
-    template = template_for(:task)
+    template = folder_template_for(:task)
     resolved = template.gsub("{{TaskId}}", task_id.to_s)
-    base = File.join(root_path, path_for(:task), resolved)
+    base = File.join(root_path, root_folder_for(:task), resolved)
     subfolder.present? ? File.join(base, subfolder) : base
   end
 
-  # Build full path for any scope with template substitution
-  # @param scope [String, Symbol] The scope name (job, task, contact, etc.)
+  # Build full path for any warehouse type with template substitution
+  # @param warehouse_type [String, Symbol] The warehouse type name (job, task, contact, etc.)
   # @param substitutions [Hash] Values to substitute in template (e.g., { JobCode: "JOB-001" })
   # @return [String] Full resolved path
   #
-  # Supports placeholders in BOTH scope root folders AND templates:
-  #   scope_root_folders: { "task" => "Tasks/{{TaskID}}", "email" => "Emails/{{Mailbox}}" }
-  #   templates: { "task" => "{{Category}}", "email" => "{{Year}}/{{Month}}" }
+  # Supports placeholders in BOTH warehouse root folders AND templates:
+  #   warehouse_root_folders: { "task" => "Tasks/{{TaskID}}", "email" => "Emails/{{Mailbox}}" }
+  #   warehouse_folder_templates: { "task" => "{{Category}}", "email" => "{{Year}}/{{Month}}" }
   #
   # Example:
   #   resolve_path(:task, { TaskID: "123", Category: "Attachments" })
   #   # => "/Tasks/123/Attachments"
   #
-  def resolve_path(scope, substitutions = {})
-    base_folder = path_for(scope)
-    template = template_for(scope)
+  def resolve_path(warehouse_type, substitutions = {})
+    base_folder = root_folder_for(warehouse_type)
+    template = folder_template_for(warehouse_type)
 
-    # Substitute template variables in base folder (scope root)
+    # Substitute template variables in base folder (warehouse root)
     resolved_base = base_folder.dup
     substitutions.each do |key, value|
       resolved_base.gsub!("{{#{key}}}", value.to_s)
@@ -510,16 +543,16 @@ class StorageConfiguration < ApplicationRecord
   # - TeeemSpreadsheet, TeeemDocument, TeeemPresentation, TeeemPdf, NotebookPageAttachment
   #
   # @param entity [ActiveRecord] The document entity (must respond to :job, :user, :created_at)
-  # @param scope [Symbol] The warehouse scope (:excel_documents, :word_documents, :powerpoint_documents, :notes, :pdf_documents)
-  # @param tab_name [String] Optional tab name for job-attached documents (default: derived from scope)
+  # @param warehouse_type [Symbol] The warehouse type (:excel_documents, :word_documents, :powerpoint_documents, :notes, :pdf_documents)
+  # @param tab_name [String] Optional tab name for job-attached documents (default: derived from warehouse_type)
   # @return [String] The resolved folder path
   #
   # Examples:
-  #   resolve_warehouse_path(spreadsheet, :excel_documents)
+  #   resolve_warehouse_path(spreadsheet, warehouse_type: :excel_documents)
   #   # Job attached: "Jobs/JOB-001/Excel"
   #   # No job:       "Warehousing/Excel/Robert Harder/2026"
   #
-  def resolve_warehouse_path(entity, scope:, tab_name: nil)
+  def resolve_warehouse_path(entity, warehouse_type:, tab_name: nil)
     job = entity.respond_to?(:job) ? entity.job : nil
     user = entity.respond_to?(:user) ? entity.user : nil
     uploaded_by = entity.respond_to?(:uploaded_by) ? entity.uploaded_by : nil
@@ -529,12 +562,12 @@ class StorageConfiguration < ApplicationRecord
     if job.present?
       # Job-attached: Use job folder structure
       # SSoT: EntityTab defines the folder name, but we use tab_name for document type
-      effective_tab_name = tab_name || default_tab_name_for(scope)
+      effective_tab_name = tab_name || default_tab_name_for(warehouse_type)
       job_path(job.job_code, effective_tab_name)
     else
       # Standalone: Use warehousing folder structure
-      # SSoT: StorageConfiguration.path_for + template_for
-      resolve_path(scope, {
+      # SSoT: StorageConfiguration.root_folder_for + folder_template_for
+      resolve_path(warehouse_type, {
         UserName: effective_user&.name || "Unknown",
         Year: created_at&.year&.to_s || Time.current.year.to_s,
         Month: created_at&.strftime("%m") || Time.current.strftime("%m")
@@ -542,15 +575,15 @@ class StorageConfiguration < ApplicationRecord
     end
   end
 
-  # Default tab name for each document scope (used when job-attached)
-  def default_tab_name_for(scope)
-    case scope.to_sym
+  # Default tab name for each document warehouse type (used when job-attached)
+  def default_tab_name_for(warehouse_type)
+    case warehouse_type.to_sym
     when :excel_documents then "Excel"
     when :word_documents then "Word"
     when :powerpoint_documents then "PowerPoint"
     when :pdf_documents then "PDF"
     when :notes then "Notes"
-    else scope.to_s.titleize
+    else warehouse_type.to_s.titleize
     end
   end
 
@@ -560,15 +593,15 @@ class StorageConfiguration < ApplicationRecord
 
   # Default routing configuration (fallback when database doesn't have it)
   DEFAULT_DOCUMENT_ROUTING = {
-    "xero_primary_invoice" => { "model" => "ContactDocument", "scope" => "contact", "description" => "Primary Xero invoice/bill PDF" },
-    "xero_attachment" => { "model" => "CorporateCompanyDocument", "scope" => "corporate_entity", "description" => "Xero invoice/bill attachments" },
-    "sharepoint_scan" => { "model" => "CorporateCompanyDocument", "scope" => "corporate_entity", "description" => "SharePoint scanned documents" },
-    "email_attachment" => { "model" => "CorporateCompanyDocument", "scope" => "corporate_entity", "description" => "Email attachments" }
+    "xero_primary_invoice" => { "model" => "ContactDocument", "warehouse_type" => "contact", "description" => "Primary Xero invoice/bill PDF" },
+    "xero_attachment" => { "model" => "CorporateCompanyDocument", "warehouse_type" => "corporate_entity", "description" => "Xero invoice/bill attachments" },
+    "sharepoint_scan" => { "model" => "CorporateCompanyDocument", "warehouse_type" => "corporate_entity", "description" => "SharePoint scanned documents" },
+    "email_attachment" => { "model" => "CorporateCompanyDocument", "warehouse_type" => "corporate_entity", "description" => "Email attachments" }
   }.freeze
 
   # SSoT: Get routing configuration for a document source
   # @param source [String, Symbol] The document source (xero_primary_invoice, xero_attachment, etc.)
-  # @return [Hash] { "model" => "...", "scope" => "...", "description" => "..." }
+  # @return [Hash] { "model" => "...", "warehouse_type" => "...", "description" => "..." }
   def routing_for(source)
     effective_document_routing[source.to_s] || DEFAULT_DOCUMENT_ROUTING[source.to_s]
   end
@@ -587,13 +620,16 @@ class StorageConfiguration < ApplicationRecord
     CorporateCompanyDocument
   end
 
-  # SSoT: Get the EntityTab scope for a source
+  # SSoT: Get the EntityTab warehouse type for a source
   # @param source [String, Symbol] The document source
-  # @return [String] The scope name (contact, corporate_entity, etc.)
-  def document_scope_for(source)
+  # @return [String] The warehouse type name (contact, corporate_entity, etc.)
+  def document_warehouse_type_for(source)
     routing = routing_for(source)
-    routing&.dig("scope") || "corporate_entity"
+    routing&.dig("warehouse_type") || routing&.dig("scope") || "corporate_entity"
   end
+
+  # Legacy alias
+  alias_method :document_scope_for, :document_warehouse_type_for
 
   # Get effective document routing (database + defaults)
   def effective_document_routing
@@ -601,11 +637,11 @@ class StorageConfiguration < ApplicationRecord
   end
 
   # Update routing for a specific source
-  def update_routing(source, model:, scope:, description: nil)
+  def update_routing(source, model:, warehouse_type:, description: nil)
     new_routing = (document_routing || {}).merge(
       source.to_s => {
         "model" => model,
-        "scope" => scope,
+        "warehouse_type" => warehouse_type,
         "description" => description || "Custom routing"
       }
     )
@@ -616,33 +652,39 @@ class StorageConfiguration < ApplicationRecord
   # Virtual File Warehouse (Phase 4)
   # ========================================
 
-  # SSoT: Check if scope renders from database (virtual) vs S3 (physical)
-  # Virtual scopes:
+  # SSoT: Check if warehouse type renders from database (virtual) vs S3 (physical)
+  # Virtual warehouses:
   # - Folder tree renders from WarehouseDocument.folder (database)
   # - Reorganization is instant (bulk DB update)
   # - Physical storage stays at Blobs/{hash}.ext (never moves)
   #
   # Configured via admin UI at /settings/company/entity-config/storage_config
-  # Stored in virtual_scopes JSONB column: { "email" => true, "email_attachments" => true }
+  # Stored in virtual_warehouses JSONB column: { "email" => true, "email_attachments" => true }
   #
-  # @param scope [String, Symbol] The scope name (email, task, job, etc.)
-  # @return [Boolean] true if scope is virtual (database-driven), false if physical (S3-driven)
-  def virtual_scope?(scope)
-    (virtual_scopes || {})[scope.to_s] == true
+  # @param warehouse_type [String, Symbol] The warehouse type name (email, task, job, etc.)
+  # @return [Boolean] true if warehouse is virtual (database-driven), false if physical (S3-driven)
+  def virtual_warehouse?(warehouse_type)
+    (virtual_warehouses || {})[warehouse_type.to_s] == true
   end
 
-  # Get all virtual scopes (for UI display)
-  def effective_virtual_scopes
-    virtual_scopes || {}
+  # Legacy alias
+  alias_method :virtual_scope?, :virtual_warehouse?
+
+  # Get all virtual warehouses (for UI display)
+  def effective_virtual_warehouses
+    virtual_warehouses || {}
   end
 
-  # Get template for a virtual scope folder path
-  # SSoT: Database `templates` column is THE ONE source of truth
+  # Legacy alias
+  alias_method :effective_virtual_scopes, :effective_virtual_warehouses
+
+  # Get template for a virtual warehouse folder path
+  # SSoT: Database `warehouse_folder_templates` column is THE ONE source of truth
   #
-  # @param scope [String, Symbol] The scope name
+  # @param warehouse_type [String, Symbol] The warehouse type name
   # @return [String] The template string for virtual folder generation
-  def virtual_template_for(scope)
-    templates&.dig(scope.to_s) || ""
+  def virtual_template_for(warehouse_type)
+    warehouse_folder_templates&.dig(warehouse_type.to_s) || ""
   end
 
   # ========================================
@@ -664,24 +706,31 @@ class StorageConfiguration < ApplicationRecord
       endpoint: endpoint,
       bucket: bucket,
       region: region,
-      # Root path and scope folders
+      # Root path and warehouse folders
       root_path: root_path,
-      # SSoT: scope_root_folders is THE ONE place for scope roots
-      scope_root_folders: effective_scope_root_folders,
-      # All scope folders (includes roots + tab paths for backward compatibility)
-      scope_folders: effective_scope_folders,
+      # SSoT: warehouse_root_folders is THE ONE place for warehouse roots
+      warehouse_root_folders: effective_warehouse_root_folders,
+      # All warehouse folders (includes roots + tab paths for backward compatibility)
+      warehouse_folders: effective_warehouse_folders,
       # Templates for Entity Config auto-save
-      scope_templates: templates || {},
+      warehouse_folder_templates: warehouse_folder_templates || {},
       file_name_templates: file_name_templates || {},
-      # Config links for scope folders (URL to external config page)
+      # Config links for warehouse folders (URL to external config page)
       config_links: config_links || {},
       # Document routing configuration (SSoT for model selection)
       document_routing: effective_document_routing,
-      # Virtual scopes (Phase 4: Virtual File Warehouse)
-      # Scopes marked as virtual render from database, not S3
-      virtual_scopes: effective_virtual_scopes,
-      # Per-scope options (e.g., task.exclude_sm_linked)
-      scope_options: scope_options || {}
+      # Virtual warehouses (Phase 4: Virtual File Warehouse)
+      # Warehouses marked as virtual render from database, not S3
+      virtual_warehouses: effective_virtual_warehouses,
+      # SM task exclusion setting
+      exclude_sm_tasks: exclude_sm_tasks,
+
+      # Legacy aliases for backward compatibility
+      scope_root_folders: effective_warehouse_root_folders,
+      scope_folders: effective_warehouse_folders,
+      scope_templates: warehouse_folder_templates || {},
+      virtual_scopes: effective_virtual_warehouses,
+      scope_options: { "task" => { "exclude_sm_linked" => exclude_sm_tasks } }
     }
   end
 end

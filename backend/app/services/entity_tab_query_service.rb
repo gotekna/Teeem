@@ -13,8 +13,9 @@
 # 4. Build tree in Ruby memory (no recursive queries)
 #
 class EntityTabQueryService
-  def initialize(scope:, entity_type: nil, include_disabled: false, tab_group: nil)
-    @scope = scope
+  def initialize(warehouse_type: nil, scope: nil, entity_type: nil, include_disabled: false, tab_group: nil)
+    # Accept both warehouse_type and scope (scope for backwards compat)
+    @warehouse_type = warehouse_type || scope
     @entity_type = entity_type
     @include_disabled = include_disabled
     @tab_group = tab_group
@@ -22,7 +23,7 @@ class EntityTabQueryService
 
   # Returns nested tabs JSON matching EntityTab#as_nested_json format
   def nested_tabs
-    # Step 1: Load all tabs for scope (single query with includes)
+    # Step 1: Load all tabs for warehouse_type (single query with includes)
     all_tabs = preload_tabs
 
     # Step 2: Group by parent for tree building
@@ -33,8 +34,8 @@ class EntityTabQueryService
     all_doc_type_ids = all_tabs.flat_map { |t| t.document_types.map(&:id) }.compact.uniq
     @document_counts_by_type = preload_document_counts(all_doc_type_ids)
 
-    # Step 4: Memoize SharePoint config (single query)
-    @sharepoint_config = load_sharepoint_config
+    # Step 4: Memoize storage config (single query)
+    @storage_config = load_storage_config
 
     # Step 5: Pre-build document_types JSON for each tab
     @document_types_json_by_tab = build_document_types_json(all_tabs)
@@ -54,7 +55,7 @@ class EntityTabQueryService
 
   # Single query to load all tabs with associations
   def preload_tabs
-    tabs = EntityTab.for_scope(@scope)
+    tabs = EntityTab.for_warehouse_type(@warehouse_type)
                     .global
                     .includes(:document_types, :parent)
 
@@ -77,23 +78,23 @@ class EntityTabQueryService
 
   # Load storage config once (eliminates 192 queries)
   # SSoT: Uses StorageConfiguration (not CorporateCompanySetting)
-  def load_sharepoint_config
+  def load_storage_config
     config = StorageConfiguration.instance
     {
       root_path: config.root_path.presence || "",
       paths: {
-        job: config.path_for(:jobs),
-        task: config.path_for(:tasks),
-        people: config.path_for(:people),
-        company: config.path_for(:corporate),
-        contacts: config.path_for(:contacts)
+        job: config.root_folder_for(:jobs),
+        task: config.root_folder_for(:tasks),
+        people: config.root_folder_for(:people),
+        company: config.root_folder_for(:corporate),
+        contacts: config.root_folder_for(:contacts)
       },
       templates: {
-        job: config.template_for(:job),
-        task: config.template_for(:task),
-        people: config.template_for(:people),
-        company: config.template_for(:corporate),
-        contacts: config.template_for(:contacts)
+        job: config.folder_template_for(:job),
+        task: config.folder_template_for(:task),
+        people: config.folder_template_for(:people),
+        company: config.folder_template_for(:corporate),
+        contacts: config.folder_template_for(:contacts)
       }
     }
   end
@@ -121,13 +122,14 @@ class EntityTabQueryService
     # Compute document count from pre-loaded data
     doc_count = compute_document_count(tab)
 
-    # Compute SharePoint paths without additional queries
-    sharepoint_data = compute_sharepoint_data(tab)
+    # Compute warehouse paths without additional queries
+    warehouse_data = compute_warehouse_data(tab)
 
     # Build the JSON structure matching EntityTab#as_nested_json exactly
     {
       id: tab.id,
-      scope: tab.scope,
+      warehouse_type: tab.warehouse_type,
+      scope: tab.warehouse_type,  # Legacy backwards compat
       tab_key: tab.tab_key,
       name: tab.display_name,  # SSoT: Frontend expects 'name'
       display_name: tab.display_name,
@@ -147,22 +149,29 @@ class EntityTabQueryService
       is_system_tab: tab.is_system_tab,
       # SSoT: Visibility rules - when this tab is shown/hidden
       visibility_rule: tab.visibility_rule,
-      has_storage_folder: tab.has_storage_folder,
-      storage_folder_path: tab.storage_folder_path,
-      full_storage_path: sharepoint_data[:full_path],
+      # New warehouse naming
+      warehouse_enabled: tab.warehouse_enabled,
+      warehouse_folder: tab.warehouse_folder,
+      full_warehouse_path: warehouse_data[:full_path],
       uses_custom_path: tab.uses_custom_path,
-      storage_path_type: tab.storage_path_type || 'corporate',
-      storage_base_path: sharepoint_data[:base_path],
-      effective_storage_path: sharepoint_data[:effective_path],
-      folder_path: sharepoint_data[:upload_path],
-      inherited_template: sharepoint_data[:inherited_template],
-      # Backwards compatibility aliases
-      has_sharepoint_folder: tab.has_storage_folder,
-      sharepoint_folder_path: tab.storage_folder_path,
-      full_sharepoint_path: sharepoint_data[:full_path],
-      sharepoint_path_type: tab.storage_path_type || 'corporate',
-      sharepoint_base_path: sharepoint_data[:base_path],
-      effective_sharepoint_path: sharepoint_data[:effective_path],
+      warehouse_type_override: tab.warehouse_type_override || 'corporate',
+      warehouse_base_path: warehouse_data[:base_path],
+      effective_warehouse_path: warehouse_data[:effective_path],
+      folder_path: warehouse_data[:upload_path],
+      inherited_template: warehouse_data[:inherited_template],
+      # Legacy backwards compatibility aliases
+      has_storage_folder: tab.warehouse_enabled,
+      storage_folder_path: tab.warehouse_folder,
+      full_storage_path: warehouse_data[:full_path],
+      storage_path_type: tab.warehouse_type_override || 'corporate',
+      storage_base_path: warehouse_data[:base_path],
+      effective_storage_path: warehouse_data[:effective_path],
+      has_sharepoint_folder: tab.warehouse_enabled,
+      sharepoint_folder_path: tab.warehouse_folder,
+      full_sharepoint_path: warehouse_data[:full_path],
+      sharepoint_path_type: tab.warehouse_type_override || 'corporate',
+      sharepoint_base_path: warehouse_data[:base_path],
+      effective_sharepoint_path: warehouse_data[:effective_path],
       hierarchy_path: compute_hierarchy_path(tab),
       document_count: doc_count,
       is_photo_category: tab.is_photo_category,
@@ -207,13 +216,13 @@ class EntityTabQueryService
     'Folder'  # Default
   end
 
-  # Compute all storage-related paths
-  def compute_sharepoint_data(tab)
-    return {} unless tab.has_storage_folder
+  # Compute all warehouse-related paths
+  def compute_warehouse_data(tab)
+    return {} unless tab.warehouse_enabled
 
-    scope_key = scope_for_template(tab)
-    base_path = compute_base_path(scope_key)
-    inherited_template = @sharepoint_config.dig(:templates, scope_key)
+    warehouse_type_key = warehouse_type_for_template(tab)
+    base_path = compute_base_path(warehouse_type_key)
+    inherited_template = @storage_config.dig(:templates, warehouse_type_key)
     effective_path = compute_effective_path(tab, inherited_template)
     upload_path = compute_upload_path(tab, effective_path)
 
@@ -222,41 +231,41 @@ class EntityTabQueryService
       inherited_template: inherited_template,
       effective_path: effective_path,
       upload_path: upload_path,
-      full_path: tab.storage_folder_path.present? ? "#{@sharepoint_config[:root_path]}/#{tab.storage_folder_path}" : nil
+      full_path: tab.warehouse_folder.present? ? "#{@storage_config[:root_path]}/#{tab.warehouse_folder}" : nil
     }
   end
 
-  # Map EntityTab scope to config key
-  def scope_for_template(tab)
-    case tab.scope
+  # Map EntityTab warehouse_type to config key
+  def warehouse_type_for_template(tab)
+    case tab.warehouse_type
     when 'job' then :job
     when 'corporate_entity' then :company
     when 'people', 'contact'
-      tab.storage_path_type == 'contacts' ? :contacts : :people
+      tab.warehouse_type_override == 'contacts' ? :contacts : :people
     else :job
     end
   end
 
-  # Compute SharePoint base path
-  def compute_base_path(scope_key)
-    sub_path = @sharepoint_config.dig(:paths, scope_key)
+  # Compute warehouse base path
+  def compute_base_path(warehouse_type_key)
+    sub_path = @storage_config.dig(:paths, warehouse_type_key)
     return nil unless sub_path
 
-    "#{@sharepoint_config[:root_path].chomp('/')}/#{sub_path.sub(/^\//, '')}"
+    "#{@storage_config[:root_path].chomp('/')}/#{sub_path.sub(/^\//, '')}"
   end
 
-  # Compute effective storage path (handles parent inheritance)
+  # Compute effective warehouse path (handles parent inheritance)
   def compute_effective_path(tab, template)
-    return nil unless tab.has_storage_folder
+    return nil unless tab.warehouse_enabled
 
-    if tab.uses_custom_path && tab.storage_folder_path.present?
+    if tab.uses_custom_path && tab.warehouse_folder.present?
       # Custom path - use exactly what's set
-      tab.storage_folder_path
+      tab.warehouse_folder
     elsif tab.parent_id.present?
       # SSoT: Child tabs inherit from parent path
       parent = @tabs_by_id[tab.parent_id]
-      if parent&.has_storage_folder
-        parent_template = @sharepoint_config.dig(:templates, scope_for_template(parent))
+      if parent&.warehouse_enabled
+        parent_template = @storage_config.dig(:templates, warehouse_type_for_template(parent))
         parent_path = compute_effective_path(parent, parent_template)
         return nil unless parent_path.present?
         "#{parent_path}/#{tab.display_name}"
@@ -273,11 +282,11 @@ class EntityTabQueryService
     end
   end
 
-  # Compute folder path for uploads (strips {{JobCode}} for job-scope)
+  # Compute folder path for uploads (strips {{JobCode}} for job warehouse_type)
   def compute_upload_path(tab, effective_path)
     return nil unless effective_path.present?
 
-    if tab.scope == 'job'
+    if tab.warehouse_type == 'job'
       effective_path.gsub(/\{\{JobCode\}\}\s*\/?/, "").gsub(/^\/+/, "").presence
     else
       effective_path
@@ -293,16 +302,16 @@ class EntityTabQueryService
 
   # Compute hierarchy path
   def compute_hierarchy_path(tab)
-    return tab.storage_folder_path if tab.storage_folder_path.present?
+    return tab.warehouse_folder if tab.warehouse_folder.present?
 
-    scope_prefix = case tab.scope
-                   when 'corporate_entity' then 'Corporate'
-                   when 'people' then 'People'
-                   when 'job' then 'Jobs'
-                   when 'document' then 'Documents'
-                   when 'xero' then 'Corporate'
-                   else tab.scope.titleize
-                   end
+    warehouse_type_prefix = case tab.warehouse_type
+                            when 'corporate_entity' then 'Corporate'
+                            when 'people' then 'People'
+                            when 'job' then 'Jobs'
+                            when 'document' then 'Documents'
+                            when 'xero' then 'Corporate'
+                            else tab.warehouse_type.titleize
+                            end
 
     # Build tab hierarchy (root to leaf) using pre-loaded data
     tab_parts = []
@@ -312,7 +321,7 @@ class EntityTabQueryService
       current = @tabs_by_id[current.parent_id]
     end
 
-    ([scope_prefix] + tab_parts).join('/')
+    ([warehouse_type_prefix] + tab_parts).join('/')
   end
 
   # Compute can_delete

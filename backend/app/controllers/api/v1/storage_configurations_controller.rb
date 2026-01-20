@@ -78,22 +78,30 @@ module Api
         }
         update_attrs[:root_path] = sp[:root_path] if sp.key?(:root_path)
         # NOTE: scope_folders column was removed - EntityTab is now SSoT for tab paths
-        # Only scope_root_folders is stored on StorageConfiguration
+        # Only warehouse_root_folders is stored on StorageConfiguration
 
-        # SSoT: scope_root_folders column is THE ONE source (no merging, just replace)
-        if sp.key?(:scope_root_folders)
-          update_attrs[:scope_root_folders] = sp[:scope_root_folders].to_h
+        # SSoT: warehouse_root_folders column is THE ONE source (no merging, just replace)
+        # Accept both old and new param names for backwards compatibility
+        if sp.key?(:warehouse_root_folders)
+          update_attrs[:warehouse_root_folders] = sp[:warehouse_root_folders].to_h
+        elsif sp.key?(:scope_root_folders)
+          update_attrs[:warehouse_root_folders] = sp[:scope_root_folders].to_h
         end
 
         # Track old templates for file reorganization
-        old_templates = storage_config.templates&.deep_dup || {}
+        old_templates = storage_config.warehouse_folder_templates&.deep_dup || {}
 
         # Merge templates (don't replace entire hash)
+        # Accept both old and new param names for backwards compatibility
         new_templates = nil
-        if sp.key?(:scope_templates)
-          existing_templates = storage_config.templates || {}
+        if sp.key?(:warehouse_folder_templates)
+          existing_templates = storage_config.warehouse_folder_templates || {}
+          new_templates = existing_templates.merge(sp[:warehouse_folder_templates].to_h)
+          update_attrs[:warehouse_folder_templates] = new_templates
+        elsif sp.key?(:scope_templates)
+          existing_templates = storage_config.warehouse_folder_templates || {}
           new_templates = existing_templates.merge(sp[:scope_templates].to_h)
-          update_attrs[:templates] = new_templates
+          update_attrs[:warehouse_folder_templates] = new_templates
         end
         if sp.key?(:file_name_templates)
           existing_file_templates = storage_config.file_name_templates || {}
@@ -112,23 +120,26 @@ module Api
           update_attrs[:document_routing] = existing_routing.merge(sp[:document_routing].to_h)
         end
 
-        # Phase 4: Virtual scopes (which scopes render from DB instead of S3)
-        if sp.key?(:virtual_scopes)
-          existing_virtual = storage_config.virtual_scopes || {}
+        # Phase 4: Virtual warehouses (which warehouse types render from DB instead of S3)
+        # Accept both old and new param names for backwards compatibility
+        if sp.key?(:virtual_warehouses)
+          existing_virtual = storage_config.virtual_warehouses || {}
+          # Merge and convert values to booleans
+          merged_virtual = existing_virtual.merge(sp[:virtual_warehouses].to_h.transform_values { |v| v.to_s == "true" })
+          update_attrs[:virtual_warehouses] = merged_virtual
+        elsif sp.key?(:virtual_scopes)
+          existing_virtual = storage_config.virtual_warehouses || {}
           # Merge and convert values to booleans
           merged_virtual = existing_virtual.merge(sp[:virtual_scopes].to_h.transform_values { |v| v.to_s == "true" })
-          update_attrs[:virtual_scopes] = merged_virtual
+          update_attrs[:virtual_warehouses] = merged_virtual
         end
 
-        # Per-scope options (e.g., task.exclude_sm_linked)
-        if sp.key?(:scope_options)
-          existing_options = storage_config.scope_options || {}
-          # Deep merge scope options
-          sp[:scope_options].to_h.each do |scope, options|
-            existing_options[scope.to_s] ||= {}
-            existing_options[scope.to_s].merge!(options.to_h.transform_values { |v| v.to_s == "true" })
-          end
-          update_attrs[:scope_options] = existing_options
+        # SM task exclusion setting (replaces scope_options.task.exclude_sm_linked)
+        # Accept both new boolean and legacy nested format
+        if sp.key?(:exclude_sm_tasks)
+          update_attrs[:exclude_sm_tasks] = sp[:exclude_sm_tasks].to_s == "true"
+        elsif sp.key?(:scope_options) && sp[:scope_options].dig(:task, :exclude_sm_linked).present?
+          update_attrs[:exclude_sm_tasks] = sp[:scope_options][:task][:exclude_sm_linked].to_s == "true"
         end
 
         if storage_config.update(update_attrs)
@@ -176,8 +187,8 @@ module Api
       private
 
       def storage_params
-        # Get permitted scope folder keys - safely handle nil instance
-        scope_folder_keys = StorageConfiguration.instance&.effective_scope_folders&.keys&.map(&:to_sym) || []
+        # Get permitted warehouse folder keys - safely handle nil instance
+        warehouse_folder_keys = StorageConfiguration.instance&.effective_warehouse_folders&.keys&.map(&:to_sym) || []
 
         params.require(:storage).permit(
           :provider_type,
@@ -186,15 +197,18 @@ module Api
           :endpoint, :bucket, :region, :access_key_id, :secret_access_key,  # S3/Wasabi
           :base_path,  # Local
           :root_path,
-          # SSoT: scope_root_folders is THE ONE place for scope roots
-          scope_root_folders: {},
-          scope_folders: scope_folder_keys,
-          scope_templates: {},
+          :exclude_sm_tasks,  # SM task exclusion setting (replaces scope_options)
+          # SSoT: warehouse_root_folders is THE ONE place for warehouse type roots
+          warehouse_root_folders: {},
+          scope_root_folders: {},  # Legacy backwards compat
+          warehouse_folder_templates: {},
+          scope_templates: {},  # Legacy backwards compat
           file_name_templates: {},
           config_links: {},
           document_routing: {},  # SSoT: Which model to use for each document source
-          virtual_scopes: {},    # Phase 4: Virtual File Warehouse - which scopes render from DB
-          scope_options: {}      # Per-scope options (e.g., task.exclude_sm_linked)
+          virtual_warehouses: {},  # Phase 4: Virtual File Warehouse - which warehouse types render from DB
+          virtual_scopes: {},      # Legacy backwards compat
+          scope_options: {}        # Legacy backwards compat
         )
       end
 

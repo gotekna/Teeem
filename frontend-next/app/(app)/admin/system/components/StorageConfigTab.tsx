@@ -118,10 +118,9 @@ interface EntityTab {
   display_name: string;
   scope: string;
   parent_id: number | null;
-  has_sharepoint_folder: boolean;
-  sharepoint_folder_path: string | null;
-  sharepoint_folder_template: string | null;
-  sharepoint_filename_template: string | null;
+  has_storage_folder: boolean | null;
+  storage_folder_path: string | null;
+  send_name_template: string | null;
   enabled: boolean;
   order_position: number;
   icon_name: string | null;
@@ -150,21 +149,26 @@ interface StorageConfig {
   endpoint: string | null;
   bucket: string | null;
   region: string | null;
-  // Root path and scope folders
+  // Root path and warehouse folders
   root_path: string;
-  // SSoT: scope_root_folders is THE ONE place for scope roots
-  scope_root_folders: ScopeFolders;
-  // All scope folders (scope roots + tab paths for backward compat)
-  scope_folders: ScopeFolders;
-  // SSoT: Templates for folder paths and filenames per scope
-  scope_templates: Record<string, string>;
+  // SSoT: warehouse_root_folders is THE ONE place for warehouse type roots (renamed from scope_root_folders)
+  warehouse_root_folders?: ScopeFolders;
+  scope_root_folders: ScopeFolders;  // Legacy backwards compat alias
+  // All warehouse folders (warehouse roots + tab paths for backward compat)
+  warehouse_folders?: ScopeFolders;
+  scope_folders: ScopeFolders;  // Legacy backwards compat alias
+  // SSoT: Templates for folder paths and filenames per warehouse type
+  warehouse_folder_templates?: Record<string, string>;
+  scope_templates: Record<string, string>;  // Legacy backwards compat alias
   file_name_templates: Record<string, string>;
-  // SSoT: Config links for scope folders (URL to external config page)
+  // SSoT: Config links for warehouse folders (URL to external config page)
   config_links: Record<string, string>;
-  // Phase 4: Virtual scopes (render from DB instead of S3)
-  virtual_scopes: Record<string, boolean>;
-  // Per-scope options (e.g., task.exclude_sm_linked)
-  scope_options: Record<string, Record<string, boolean>>;
+  // Phase 4: Virtual warehouses (render from DB instead of S3)
+  virtual_warehouses?: Record<string, boolean>;
+  virtual_scopes: Record<string, boolean>;  // Legacy backwards compat alias
+  // SM task exclusion setting (replaces scope_options.task.exclude_sm_linked)
+  exclude_sm_tasks?: boolean;
+  scope_options: Record<string, Record<string, boolean>>;  // Legacy backwards compat alias
 }
 
 // Tree node structure for folder hierarchy
@@ -211,16 +215,41 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
     return true;
   });
 
+  // Main scope keys that should have scopeKey on their first folder, not the leaf
+  const mainScopeKeys = ['email', 'warehouse', 'job', 'contact', 'people', 'task', 'corporate_entity', 'corporate'];
+
   filteredEntries.forEach(([key, path]) => {
     if (!path) return;
 
-    const parts = path.split('/').filter(Boolean);
+    // Split path but stop at first placeholder for folder building
+    // e.g., "Tasks/{{TaskStatus}}/{{JobName}}" → only create "Tasks" folder
+    const allParts = path.split('/').filter(Boolean);
+    const isMainScope = mainScopeKeys.includes(key);
+
+    // For main scopes, only take parts before first placeholder
+    // This prevents creating {{TaskStatus}}, {{JobName}} etc. as folders
+    let parts = allParts;
+    if (isMainScope) {
+      const firstPlaceholderIndex = allParts.findIndex(p => p.startsWith('{{'));
+      if (firstPlaceholderIndex > 0) {
+        parts = allParts.slice(0, firstPlaceholderIndex);
+      } else if (firstPlaceholderIndex === 0) {
+        // Path starts with placeholder - skip entirely
+        return;
+      }
+    }
+
     let current = root;
     let currentPath = '';
 
     parts.forEach((part, index) => {
+      // Skip placeholder parts entirely for tree building
+      if (part.startsWith('{{')) return;
+
       currentPath = currentPath ? `${currentPath}/${part}` : part;
       const isLeaf = index === parts.length - 1;
+      // For main scopes, set scopeKey on first folder, not leaf
+      const shouldSetScopeKey = isMainScope ? (index === 0) : isLeaf;
 
       // Look for existing node at this level
       let node = current.find(n => n.name === part);
@@ -229,12 +258,12 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
         node = {
           name: part,
           path: currentPath,
-          scopeKey: isLeaf ? key : null,
-          scopeKeys: isLeaf ? [key] : [],
+          scopeKey: shouldSetScopeKey ? key : null,
+          scopeKeys: shouldSetScopeKey ? [key] : [],
           children: [],
         };
         current.push(node);
-      } else if (isLeaf) {
+      } else if (shouldSetScopeKey) {
         // Multiple scopes share this path - add to scopeKeys array
         if (!node.scopeKeys.includes(key)) {
           node.scopeKeys.push(key);
@@ -289,7 +318,7 @@ interface TreeNodeProps {
   // Tab editing props
   editingTabId: number | null;
   onStartTabEdit: (tabId: number) => void;
-  onSaveTabEdit: (tabId: number, path: string, template: string | null, filenameTemplate: string | null) => void;
+  onSaveTabEdit: (tabId: number, path: string, displayName: string, sendNameTemplate: string) => void;
   onCancelTabEdit: () => void;
   // Parent scope info for simple scope detection
   parentScopeKey?: string | null;
@@ -917,6 +946,7 @@ function TreeNode({
                   tab={tab}
                   level={level + 1}
                   basePath={fullPath}
+                  rootPath={rootPath}
                   scope={node.scopeKey!}
                   editingTabId={editingTabId}
                   onStartEdit={onStartTabEdit}
@@ -965,10 +995,11 @@ interface TabNodeProps {
   tab: EntityTab;
   level: number;
   basePath: string;
+  rootPath: string;
   scope: string;
   editingTabId: number | null;
   onStartEdit: (tabId: number) => void;
-  onSaveEdit: (tabId: number, path: string, template: string | null, filenameTemplate: string | null) => void;
+  onSaveEdit: (tabId: number, path: string, displayName: string, sendNameTemplate: string) => void;
   onCancelEdit: () => void;
 }
 
@@ -976,6 +1007,7 @@ function TabNode({
   tab,
   level,
   basePath,
+  rootPath,
   scope,
   editingTabId,
   onStartEdit,
@@ -984,20 +1016,26 @@ function TabNode({
 }: TabNodeProps) {
   const isEditing = editingTabId === tab.id;
   const isSimpleScope = SIMPLE_SCOPES.includes(scope);
-  const [editPath, setEditPath] = React.useState(tab.sharepoint_folder_path || '');
-  const [editTemplate, setEditTemplate] = React.useState(tab.sharepoint_folder_template || '');
-  const [editFilename, setEditFilename] = React.useState(tab.sharepoint_filename_template || '');
+  const [editPath, setEditPath] = React.useState(tab.storage_folder_path || '');
+  const [editDisplayName, setEditDisplayName] = React.useState(tab.display_name || '');
+  const [editSendName, setEditSendName] = React.useState(tab.send_name_template || '');
 
   React.useEffect(() => {
     if (isEditing) {
-      setEditPath(tab.sharepoint_folder_path || '');
-      setEditTemplate(tab.sharepoint_folder_template || '');
-      setEditFilename(tab.sharepoint_filename_template || '');
+      setEditPath(tab.storage_folder_path || '');
+      setEditDisplayName(tab.display_name || '');
+      setEditSendName(tab.send_name_template || '');
     }
-  }, [isEditing, tab.sharepoint_folder_path, tab.sharepoint_folder_template, tab.sharepoint_filename_template]);
+  }, [isEditing, tab.storage_folder_path, tab.display_name, tab.send_name_template]);
 
-  const tabFullPath = tab.sharepoint_folder_path
-    ? `${basePath}/${tab.sharepoint_folder_path}`.replace(/\/+/g, '/')
+  // Build full path preview
+  const fullPathPreview = [rootPath, basePath, editPath]
+    .filter(Boolean)
+    .join('/')
+    .replace(/\/+/g, '/');
+
+  const tabFullPath = tab.storage_folder_path
+    ? `${basePath}/${tab.storage_folder_path}`.replace(/\/+/g, '/')
     : basePath;
 
   // For simple scopes - inline editing with TokenBuilder
@@ -1024,40 +1062,55 @@ function TabNode({
 
         {isEditing ? (
           <div className="space-y-3 ml-4 border-l-2 border-blue-200 dark:border-blue-800 pl-3">
-            {/* Folder path */}
-            <div className="space-y-1">
-              <label className="text-[11px] font-medium text-muted-foreground">Folder Path</label>
-              <Input
-                value={editPath}
-                onChange={(e) => setEditPath(e.target.value)}
-                className="h-7 text-xs font-mono"
-                placeholder="Subfolder path..."
-              />
-            </div>
-
-            {/* Folder template with TokenBuilder */}
+            {/* Display name with TokenBuilder for placeholders */}
             <div className="space-y-1">
               <TokenBuilder
-                label={<span className="text-[11px] font-medium text-muted-foreground">Folder Template</span>}
-                value={editTemplate}
-                onChange={setEditTemplate}
+                label={<span className="text-[11px] font-medium text-muted-foreground">Display Name</span>}
+                value={editDisplayName}
+                onChange={setEditDisplayName}
                 scope="storage"
                 showPreview={true}
-                separator="/"
-                placeholder="Click tokens to build folder path..."
+                separator=" "
+                placeholder="Tab display name..."
                 defaultExpanded={false}
               />
             </div>
 
-            {/* Filename template with TokenBuilder */}
+            {/* Base path context at top */}
+            <div className="text-[10px] text-muted-foreground bg-muted/30 px-2 py-1 rounded">
+              <span className="font-medium">Base: </span>
+              <span className="font-mono">{[rootPath, basePath].filter(Boolean).join('/').replace(/\/+/g, '/') || '/'}</span>
+            </div>
+
+            {/* Folder path with TokenBuilder for placeholders */}
             <div className="space-y-1">
               <TokenBuilder
-                label={<span className="text-[11px] font-medium text-muted-foreground">Filename Template</span>}
-                value={editFilename}
-                onChange={setEditFilename}
-                scope="document"
+                label={<span className="text-[11px] font-medium text-muted-foreground">Folder Path</span>}
+                value={editPath}
+                onChange={setEditPath}
+                scope="storage"
+                showPreview={false}
+                separator="/"
+                placeholder="Click tokens or type path..."
+                defaultExpanded={true}
+              />
+              {/* Full path preview */}
+              <div className="text-[10px] text-muted-foreground">
+                <span className="font-medium">Preview: </span>
+                <span className="font-mono text-green-600 dark:text-green-400">{fullPathPreview || '/'}</span>
+              </div>
+            </div>
+
+            {/* Send name template */}
+            <div className="space-y-1">
+              <TokenBuilder
+                label={<span className="text-[11px] font-medium text-muted-foreground">Send Name (download filename)</span>}
+                value={editSendName}
+                onChange={setEditSendName}
+                scope="storage"
                 showPreview={true}
-                placeholder="Click tokens to build filename..."
+                separator=" "
+                placeholder="e.g. {{TaskName}} - {{Date}}"
                 defaultExpanded={false}
               />
             </div>
@@ -1066,7 +1119,7 @@ function TabNode({
             <div className="flex gap-2 pt-1">
               <Button
                 size="sm"
-                onClick={() => onSaveEdit(tab.id, editPath, editTemplate || null, editFilename || null)}
+                onClick={() => onSaveEdit(tab.id, editPath, editDisplayName, editSendName)}
                 className="h-7 text-xs"
               >
                 Save
@@ -1082,23 +1135,16 @@ function TabNode({
             </div>
           </div>
         ) : (
-          <div className="ml-4 space-y-1 text-[11px] text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <span className="font-medium w-20">Path:</span>
-              <span className="font-mono">{tab.sharepoint_folder_path || '(none)'}</span>
+          // Show Display Name and Download Name when not editing
+          <div className="ml-4 text-[11px] text-muted-foreground space-y-0.5">
+            <div>
+              <span className="font-medium">Display Name: </span>
+              <span>{tab.display_name}</span>
             </div>
-            {tab.sharepoint_folder_template && (
-              <div className="flex items-center gap-2">
-                <span className="font-medium w-20">Template:</span>
-                <span className="font-mono text-blue-600 dark:text-blue-400">{tab.sharepoint_folder_template}</span>
-              </div>
-            )}
-            {tab.sharepoint_filename_template && (
-              <div className="flex items-center gap-2">
-                <span className="font-medium w-20">Filename:</span>
-                <span className="font-mono text-green-600 dark:text-green-400">{tab.sharepoint_filename_template}</span>
-              </div>
-            )}
+            <div>
+              <span className="font-medium">Send Name: </span>
+              <span className="font-mono">{tab.send_name_template || '(not set)'}</span>
+            </div>
           </div>
         )}
       </div>
@@ -1114,7 +1160,7 @@ function TabNode({
       <FileText className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
       <span className="text-sm">{tab.display_name}</span>
       <span className="ml-auto text-[10px] text-muted-foreground font-mono opacity-60">
-        {tab.sharepoint_folder_path || '(no subfolder)'}
+        {tab.storage_folder_path || '(no subfolder)'}
       </span>
     </div>
   );
@@ -1140,15 +1186,17 @@ export function StorageConfigTab() {
     s3_region: "",
     // Root path
     root_path: "",  // SSoT: Matches backend field name
-    // SSoT: Scope folders loaded from StorageConfiguration.SCOPE_FOLDERS via API
-    scope_folders: {} as ScopeFolders,
-    // SSoT: Templates for folder paths and filenames per scope
-    scope_templates: {} as Record<string, string>,
+    // SSoT: Warehouse folders loaded from StorageConfiguration via API
+    warehouse_folders: {} as ScopeFolders,
+    // SSoT: Templates for folder paths and filenames per warehouse type
+    warehouse_folder_templates: {} as Record<string, string>,
     file_name_templates: {} as Record<string, string>,
-    // SSoT: Config links for scope folders
+    // SSoT: Config links for warehouse folders
     config_links: {} as Record<string, string>,
-    // Phase 4: Virtual scopes (render from DB instead of S3)
-    virtual_scopes: {} as Record<string, boolean>,
+    // Phase 4: Virtual warehouses (render from DB instead of S3)
+    virtual_warehouses: {} as Record<string, boolean>,
+    // SM task exclusion setting
+    exclude_sm_tasks: false,
   });
   // Tree view state
   const [expandedPaths, setExpandedPaths] = React.useState<Set<string>>(new Set());
@@ -1225,17 +1273,18 @@ export function StorageConfigTab() {
     }
   };
 
-  // Build folder tree from scope_folders, attaching tabs to scope nodes
-  // SSoT: Use config.scope_folders directly from API (not formData which may have stale initial state)
+  // Build folder tree from warehouse_folders, attaching tabs to scope nodes
+  // SSoT: Use config from API (not formData which may have stale initial state)
   const folderTree = React.useMemo(() => {
-    const scopeFolders = config?.scope_folders || {};
+    const scopeFolders = config?.warehouse_folders || config?.scope_folders || {};
     const tree = buildFolderTree(scopeFolders);
 
     // Attach tabs to scope nodes
+    // SSoT: Only show tabs where has_storage_folder is true (filter out overview/non-storage tabs)
     const attachTabs = (nodes: FolderTreeNode[]) => {
       nodes.forEach(node => {
         if (node.scopeKey && entityTabs[node.scopeKey]) {
-          node.tabs = entityTabs[node.scopeKey];
+          node.tabs = entityTabs[node.scopeKey].filter(tab => tab.has_storage_folder === true);
         }
         if (node.children.length > 0) {
           attachTabs(node.children);
@@ -1245,7 +1294,7 @@ export function StorageConfigTab() {
 
     attachTabs(tree);
     return tree;
-  }, [config?.scope_folders, entityTabs]);
+  }, [config?.warehouse_folders, config?.scope_folders, entityTabs]);
 
   // Toggle tree node expansion
   const toggleExpanded = (path: string) => {
@@ -1263,7 +1312,7 @@ export function StorageConfigTab() {
 
     // When collapsing, also close any edit panels for scopes at or under this path
     if (isCollapsing && editingKey) {
-      const scopesAtPath = Object.entries(formData.scope_folders)
+      const scopesAtPath = Object.entries(formData.warehouse_folders)
         .filter(([, folderPath]) => folderPath === path || folderPath.startsWith(path + '/'))
         .map(([scopeKey]) => scopeKey);
       if (scopesAtPath.includes(editingKey)) {
@@ -1272,21 +1321,21 @@ export function StorageConfigTab() {
     }
   };
 
-  // Save tab folder path, template, and filename template via API
+  // Save tab folder path via API
   const saveTabFolderPath = async (
     tabId: number,
     folderPath: string,
-    folderTemplate: string | null,
-    filenameTemplate: string | null
+    displayName: string,
+    sendNameTemplate: string
   ) => {
     try {
       const response = await api.patch<{ success: boolean }>(
         `/api/v1/entity_tabs/${tabId}`,
         {
           entity_tab: {
-            sharepoint_folder_path: folderPath,
-            sharepoint_folder_template: folderTemplate,
-            sharepoint_filename_template: filenameTemplate,
+            storage_folder_path: folderPath,
+            display_name: displayName,
+            send_name_template: sendNameTemplate,
           }
         }
       );
@@ -1297,12 +1346,7 @@ export function StorageConfigTab() {
           Object.keys(newTabs).forEach(scope => {
             newTabs[scope] = newTabs[scope].map(tab =>
               tab.id === tabId
-                ? {
-                    ...tab,
-                    sharepoint_folder_path: folderPath,
-                    sharepoint_folder_template: folderTemplate,
-                    sharepoint_filename_template: filenameTemplate,
-                  }
+                ? { ...tab, storage_folder_path: folderPath, display_name: displayName, send_name_template: sendNameTemplate }
                 : tab
             );
           });
@@ -1320,8 +1364,9 @@ export function StorageConfigTab() {
         description: "Failed to save tab settings",
         variant: "destructive",
       });
+    } finally {
+      setEditingTabId(null);
     }
-    setEditingTabId(null);
   };
 
   // SSoT: Save scope templates via API (called by auto-save in TreeNode)
@@ -1337,8 +1382,7 @@ export function StorageConfigTab() {
         "/api/v1/storage_configuration",
         {
           storage: {
-            scope_folders: { [scopeKey]: baseFolder },
-            scope_templates: { [scopeKey]: folderTemplate },
+            warehouse_folder_templates: { [scopeKey]: folderTemplate },
             file_name_templates: { [scopeKey]: filenameTemplate },
             config_links: { [scopeKey]: configLink }, // null removes the link
           }
@@ -1355,8 +1399,8 @@ export function StorageConfigTab() {
           }
           return {
             ...prev,
-            scope_folders: { ...prev.scope_folders, [scopeKey]: baseFolder },
-            scope_templates: { ...prev.scope_templates, [scopeKey]: folderTemplate },
+            warehouse_folders: { ...prev.warehouse_folders, [scopeKey]: baseFolder },
+            warehouse_folder_templates: { ...prev.warehouse_folder_templates, [scopeKey]: folderTemplate },
             file_name_templates: { ...prev.file_name_templates, [scopeKey]: filenameTemplate },
             config_links: newConfigLinks,
           };
@@ -1375,14 +1419,14 @@ export function StorageConfigTab() {
     }
   }, [toast]);
 
-  // Phase 4: Toggle virtual scope via API
+  // Phase 4: Toggle virtual warehouse via API
   const toggleVirtualScope = React.useCallback(async (scopeKey: string, isVirtual: boolean) => {
     try {
       const response = await api.patch<{ success: boolean; data: StorageConfig }>(
         "/api/v1/storage_configuration",
         {
           storage: {
-            virtual_scopes: { [scopeKey]: isVirtual },
+            virtual_warehouses: { [scopeKey]: isVirtual },
           }
         }
       );
@@ -1390,20 +1434,20 @@ export function StorageConfigTab() {
         // Update local state
         setFormData(prev => ({
           ...prev,
-          virtual_scopes: { ...prev.virtual_scopes, [scopeKey]: isVirtual },
+          virtual_warehouses: { ...prev.virtual_warehouses, [scopeKey]: isVirtual },
         }));
         toast({
           title: "Saved",
           description: `${scopeKey} is now ${isVirtual ? 'virtual (database-driven)' : 'physical (S3-driven)'}`,
         });
       } else {
-        throw new Error('Failed to save virtual scope setting');
+        throw new Error('Failed to save virtual warehouse setting');
       }
     } catch (error) {
-      console.error("Failed to toggle virtual scope:", error);
+      console.error("Failed to toggle virtual warehouse:", error);
       toast({
         title: "Error",
-        description: "Failed to save virtual scope setting",
+        description: "Failed to save virtual warehouse setting",
         variant: "destructive",
       });
     }
@@ -1462,15 +1506,17 @@ export function StorageConfigTab() {
           s3_region: response.data.region || "",
           // Root path
           root_path: response.data.root_path || "",
-          // SSoT: Scope folders from StorageConfiguration.SCOPE_FOLDERS
-          scope_folders: response.data.scope_folders || {},
+          // SSoT: Warehouse folders from StorageConfiguration (new naming with legacy fallback)
+          warehouse_folders: response.data.warehouse_folders || response.data.scope_folders || {},
           // SSoT: Templates from StorageConfiguration
-          scope_templates: response.data.scope_templates || {},
+          warehouse_folder_templates: response.data.warehouse_folder_templates || response.data.scope_templates || {},
           file_name_templates: response.data.file_name_templates || {},
           // SSoT: Config links from StorageConfiguration
           config_links: response.data.config_links || {},
-          // Phase 4: Virtual scopes from StorageConfiguration
-          virtual_scopes: response.data.virtual_scopes || {},
+          // Phase 4: Virtual warehouses from StorageConfiguration
+          virtual_warehouses: response.data.virtual_warehouses || response.data.virtual_scopes || {},
+          // SM task exclusion setting
+          exclude_sm_tasks: response.data.exclude_sm_tasks ?? response.data.scope_options?.task?.exclude_sm_linked ?? false,
         });
       }
     } catch (error) {
@@ -1495,14 +1541,13 @@ export function StorageConfigTab() {
           storage: {
             provider_type: formData.provider_type,
             root_path: formData.root_path,
-            // SSoT: scope_root_folders is THE ONE place for scope roots
-            scope_root_folders: config?.scope_root_folders,
-            scope_folders: formData.scope_folders,
-            scope_templates: formData.scope_templates,
+            // SSoT: warehouse_root_folders is THE ONE place for warehouse type roots
+            warehouse_root_folders: config?.warehouse_root_folders || config?.scope_root_folders,
+            warehouse_folder_templates: formData.warehouse_folder_templates,
             file_name_templates: formData.file_name_templates,
             config_links: formData.config_links,
-            virtual_scopes: formData.virtual_scopes,  // Phase 4: Virtual File Warehouse
-            scope_options: config?.scope_options,     // Per-scope options (e.g., task.exclude_sm_linked)
+            virtual_warehouses: formData.virtual_warehouses,  // Phase 4: Virtual File Warehouse
+            exclude_sm_tasks: formData.exclude_sm_tasks,      // SM task exclusion setting
             // Map SharePoint fields (frontend uses sharepoint_* prefix, backend expects bare names)
             site_url: formData.sharepoint_site_url,
             site_id: formData.sharepoint_site_id,
@@ -1918,7 +1963,7 @@ export function StorageConfigTab() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {Object.entries(config?.scope_root_folders || {}).map(([scope, folder]) => {
+            {Object.entries(config?.warehouse_root_folders || config?.scope_root_folders || {}).map(([scope, folder]) => {
               // Available placeholders per scope
               const scopePlaceholders: Record<string, string[]> = {
                 job: ['JobCode', 'JobName'],
@@ -1935,8 +1980,8 @@ export function StorageConfigTab() {
               const insertPlaceholder = (placeholder: string) => {
                 const token = `{{${placeholder}}}`;
                 const newValue = folder.includes(token) ? folder : `${folder}${folder && !folder.endsWith('/') ? '/' : ''}${token}`;
-                const newRoots = { ...(config?.scope_root_folders || {}), [scope]: newValue };
-                setConfig(prev => prev ? { ...prev, scope_root_folders: newRoots } : prev);
+                const newRoots = { ...(config?.warehouse_root_folders || config?.scope_root_folders || {}), [scope]: newValue };
+                setConfig(prev => prev ? { ...prev, warehouse_root_folders: newRoots, scope_root_folders: newRoots } : prev);
               };
 
               return (
@@ -1955,8 +2000,8 @@ export function StorageConfigTab() {
                     <Input
                       value={folder}
                       onChange={(e) => {
-                        const newRoots = { ...(config?.scope_root_folders || {}), [scope]: e.target.value };
-                        setConfig(prev => prev ? { ...prev, scope_root_folders: newRoots } : prev);
+                        const newRoots = { ...(config?.warehouse_root_folders || config?.scope_root_folders || {}), [scope]: e.target.value };
+                        setConfig(prev => prev ? { ...prev, warehouse_root_folders: newRoots, scope_root_folders: newRoots } : prev);
                       }}
                       className="font-mono h-8"
                       placeholder={getScopeLabel(scope)}
@@ -1980,16 +2025,10 @@ export function StorageConfigTab() {
                       <div className="flex items-center gap-2 pt-1">
                         <Checkbox
                           id="exclude-sm-linked"
-                          checked={config?.scope_options?.task?.exclude_sm_linked ?? false}
+                          checked={config?.exclude_sm_tasks ?? config?.scope_options?.task?.exclude_sm_linked ?? false}
                           onCheckedChange={(checked) => {
-                            const newOptions = {
-                              ...(config?.scope_options || {}),
-                              task: {
-                                ...(config?.scope_options?.task || {}),
-                                exclude_sm_linked: !!checked
-                              }
-                            };
-                            setConfig(prev => prev ? { ...prev, scope_options: newOptions } : prev);
+                            setConfig(prev => prev ? { ...prev, exclude_sm_tasks: !!checked } : prev);
+                            setFormData(prev => ({ ...prev, exclude_sm_tasks: !!checked }));
                           }}
                         />
                         <Label htmlFor="exclude-sm-linked" className="text-xs text-muted-foreground cursor-pointer">
@@ -2069,22 +2108,22 @@ export function StorageConfigTab() {
                     onSaveEdit={(key, value) => {
                       setFormData(prev => ({
                         ...prev,
-                        scope_folders: { ...prev.scope_folders, [key]: value }
+                        warehouse_folders: { ...prev.warehouse_folders, [key]: value }
                       }));
                       setEditingKey(null);
                     }}
                     onCancelEdit={() => setEditingKey(null)}
-                    currentPath={formData.scope_folders}
+                    currentPath={formData.warehouse_folders}
                     rootPath={formData.root_path}
                     editingTabId={editingTabId}
                     onStartTabEdit={setEditingTabId}
                     onSaveTabEdit={saveTabFolderPath}
                     onCancelTabEdit={() => setEditingTabId(null)}
-                    scopeTemplates={formData.scope_templates}
+                    scopeTemplates={formData.warehouse_folder_templates}
                     fileNameTemplates={formData.file_name_templates}
                     configLinks={formData.config_links}
                     onSaveTemplates={saveScopeTemplates}
-                    virtualScopes={formData.virtual_scopes}
+                    virtualScopes={formData.virtual_warehouses}
                     onToggleVirtual={toggleVirtualScope}
                   />
                 ))}
@@ -2237,11 +2276,11 @@ export function StorageConfigTab() {
                         <span className="text-muted-foreground text-xs">(root)</span>
                       </div>
                       {/* Render configured scopes with their computed paths */}
-                      {Object.entries(formData.scope_folders)
+                      {Object.entries(formData.warehouse_folders)
                         .filter(([, path]) => path)
                         .sort(([, a], [, b]) => a.localeCompare(b))
                         .map(([scopeKey, basePath]) => {
-                          const template = formData.scope_templates[scopeKey] || DEFAULT_FOLDER_TEMPLATES[scopeKey] || '';
+                          const template = formData.warehouse_folder_templates[scopeKey] || DEFAULT_FOLDER_TEMPLATES[scopeKey] || '';
                           const count = warehouseStats.warehouse_by_source[scopeKey] || 0;
                           const icons: Record<string, React.ReactNode> = {
                             email: <Mail className="h-3.5 w-3.5 text-blue-500" />,

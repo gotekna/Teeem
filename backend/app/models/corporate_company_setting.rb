@@ -91,35 +91,21 @@ class CorporateCompanySetting < ApplicationRecord
     working_day?(date) && !public_holiday?(date)
   end
 
-  # Get base path for document storage by scope
-  # SSoT: Uses sharepoint_* columns (not legacy *_documents_base_path columns)
-  # The sharepoint_* columns are THE SSoT - configured at /admin/system/entity-config/sharepoint_config
-  def self.base_path_for_scope(scope)
-    setting = instance
-    storage_config = StorageConfiguration.instance
-    case scope.to_s
-    when "company", "both"
-      setting.sharepoint_company_path.presence || storage_config.path_for(:corporate)
-    when "people"
-      setting.sharepoint_people_path.presence || storage_config.path_for(:people)
-    when "job"
-      setting.sharepoint_jobs_path.presence || storage_config.path_for(:job)
-    else
-      raise ArgumentError, "Unknown scope: #{scope}"
-    end
-  end
+  # ========================================
+  # Document Base Path Convenience Methods
+  # SSoT: StorageConfiguration is THE ONE source for storage paths
+  # ========================================
 
-  # Convenience methods for accessing document base paths
   def self.company_documents_base_path
-    base_path_for_scope("company")
+    StorageConfiguration.instance&.path_for(:corporate) || "Corporate"
   end
 
   def self.people_documents_base_path
-    base_path_for_scope("people")
+    StorageConfiguration.instance&.path_for(:people) || "People"
   end
 
   def self.job_documents_base_path
-    base_path_for_scope("job")
+    StorageConfiguration.instance&.path_for(:job) || "Jobs"
   end
 
   # ========================================

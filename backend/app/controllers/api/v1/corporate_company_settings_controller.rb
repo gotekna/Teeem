@@ -40,46 +40,56 @@ module Api
       end
 
       # GET /api/v1/corporate_company_settings/document_paths
-      # SSoT: Reads from sharepoint_* columns (the SSoT) but returns legacy key names for compatibility
-      # Deprecated: Use /api/v1/corporate_company_settings/sharepoint instead
+      # SSoT: StorageConfiguration is THE ONE source for storage paths
+      # Deprecated: Use /api/v1/storage_configuration instead
       def document_paths
-        settings = CorporateCompanySetting.instance
+        storage_config = StorageConfiguration.instance
         render json: {
           success: true,
           data: {
-            # SSoT: Use sharepoint_* columns, return with legacy key names for backward compatibility
-            company_documents_base_path: settings.sharepoint_company_path.presence || StorageConfiguration.instance.path_for(:corporate),
-            people_documents_base_path: settings.sharepoint_people_path.presence || StorageConfiguration.instance.path_for(:people),
-            job_documents_base_path: settings.sharepoint_jobs_path.presence || StorageConfiguration.instance.path_for(:job)
+            # SSoT: StorageConfiguration is THE ONE source for storage paths
+            company_documents_base_path: storage_config&.path_for(:corporate) || "Corporate",
+            people_documents_base_path: storage_config&.path_for(:people) || "People",
+            job_documents_base_path: storage_config&.path_for(:job) || "Jobs"
           }
         }
       end
 
       # PATCH /api/v1/corporate_company_settings/document_paths
-      # SSoT: Writes to sharepoint_* columns (the SSoT)
-      # Deprecated: Use /api/v1/corporate_company_settings/sharepoint instead
+      # SSoT: StorageConfiguration is THE ONE source for storage paths
+      # Deprecated: Use /api/v1/storage_configuration instead
       def update_document_paths
-        settings = CorporateCompanySetting.instance
+        storage_config = StorageConfiguration.instance
 
-        # SSoT: Map legacy param names to SSoT column names
-        ssot_params = {}
-        ssot_params[:sharepoint_company_path] = params.dig(:settings, :company_documents_base_path) if params.dig(:settings, :company_documents_base_path)
-        ssot_params[:sharepoint_people_path] = params.dig(:settings, :people_documents_base_path) if params.dig(:settings, :people_documents_base_path)
-        ssot_params[:sharepoint_jobs_path] = params.dig(:settings, :job_documents_base_path) if params.dig(:settings, :job_documents_base_path)
+        # SSoT: Update scope_root_folders in StorageConfiguration
+        update_attrs = {}
+        new_scope_root_folders = storage_config.scope_root_folders&.dup || {}
 
-        if settings.update(ssot_params)
+        if params.dig(:settings, :company_documents_base_path)
+          new_scope_root_folders['corporate_entity'] = params.dig(:settings, :company_documents_base_path)
+        end
+        if params.dig(:settings, :people_documents_base_path)
+          new_scope_root_folders['people'] = params.dig(:settings, :people_documents_base_path)
+        end
+        if params.dig(:settings, :job_documents_base_path)
+          new_scope_root_folders['job'] = params.dig(:settings, :job_documents_base_path)
+        end
+
+        update_attrs[:scope_root_folders] = new_scope_root_folders if new_scope_root_folders.present?
+
+        if update_attrs.empty? || storage_config.update(update_attrs)
           render json: {
             success: true,
             data: {
-              company_documents_base_path: settings.sharepoint_company_path.presence || StorageConfiguration.instance.path_for(:corporate),
-              people_documents_base_path: settings.sharepoint_people_path.presence || StorageConfiguration.instance.path_for(:people),
-              job_documents_base_path: settings.sharepoint_jobs_path.presence || StorageConfiguration.instance.path_for(:job)
+              company_documents_base_path: storage_config.path_for(:corporate) || "Corporate",
+              people_documents_base_path: storage_config.path_for(:people) || "People",
+              job_documents_base_path: storage_config.path_for(:job) || "Jobs"
             }
           }
         else
           render json: {
             success: false,
-            errors: settings.errors.full_messages
+            errors: storage_config.errors.full_messages
           }, status: :unprocessable_entity
         end
       end

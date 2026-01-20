@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_20_084937) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_20_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -3120,6 +3120,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_20_084937) do
     t.string "xero_scope"
     t.string "visibility_rule"
     t.bigint "tenant_id"
+    t.string "send_name_template"
     t.index ["enabled"], name: "index_entity_tabs_on_enabled"
     t.index ["entity_filters"], name: "index_entity_tabs_on_entity_filters", using: :gin
     t.index ["job_id"], name: "index_entity_tabs_on_job_id"
@@ -9176,7 +9177,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_20_084937) do
     t.string "status", default: "disconnected", null: false
     t.jsonb "connection_config", default: {}, null: false
     t.string "root_path", default: "/Shared Documents", null: false
-    t.jsonb "paths", default: {"jobs"=>"Jobs", "tasks"=>"Tasks", "emails"=>"Emails", "people"=>"People", "accounts"=>"Accounts", "contacts"=>"Contacts", "corporate"=>"Corporate"}, null: false
     t.jsonb "templates", default: {"job"=>"{{JobCode}}/{{Category}}", "task"=>"Task-{{TaskId}}/{{Category}}", "people"=>"{{ContactName}}/{{Category}}", "account"=>"{{Source}}/{{ContactName}}/{{Category}}", "contacts"=>"{{ContactName}}/{{Category}}", "corporate"=>"{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}"}, null: false
     t.string "credential_type"
     t.bigint "credential_id"
