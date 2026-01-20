@@ -10,7 +10,9 @@ class EmailUserState < ApplicationRecord
 
   # Alias for legacy column name (EmailWarehouse was renamed to SyncedEmail)
   alias_attribute :synced_email_id, :email_warehouse_id
-  alias_attribute :synced_email, :email_warehouse
+  # Use alias_method for associations (alias_attribute only works for columns in Rails 8)
+  alias_method :synced_email, :email_warehouse
+  alias_method :synced_email=, :email_warehouse=
 
   # Validations
   validates :star_color, inclusion: { in: %w[red orange yellow green blue purple] }, allow_blank: true
