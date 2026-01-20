@@ -83,6 +83,12 @@ class PayNowRequest < ApplicationRecord
     for_week(today.beginning_of_week(:monday))
   }
 
+  # SSoT: Storage reference for provider-agnostic access
+  # Returns storage_item_id (new) or sharepoint_file_id (legacy)
+  def storage_reference
+    storage_item_id.presence || sharepoint_file_id
+  end
+
   # State machine methods
   def approve!(user:, notes: nil)
     transaction do

@@ -16,7 +16,7 @@ class BillInboxStorageUploadJob < ApplicationJob
   def perform(bill_inbox_id)
     bill = BillInbox.find_by(id: bill_inbox_id)
     return unless bill
-    return if bill.sharepoint_file_id.present? # Already uploaded
+    return if bill.storage_reference.present? # Already uploaded
     return unless bill.invoice_file.attached?
 
     Rails.logger.info("[BillInboxUpload] Uploading file for BillInbox #{bill_inbox_id}")

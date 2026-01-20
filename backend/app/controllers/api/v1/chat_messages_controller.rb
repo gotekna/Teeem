@@ -124,9 +124,11 @@ class Api::V1::ChatMessagesController < ApplicationController
 
     messages_with_files = @messages.map do |msg|
       json = msg.as_json(include: { user: {} }, methods: [ :formatted_timestamp, :file_url ])
-      if msg.file.attached? || msg.sharepoint_file_id.present?
+      if msg.file.attached? || msg.storage_reference.present?
         json[:has_file] = true
-        json[:sharepoint_file_id] = msg.sharepoint_file_id
+        # SSoT: Use storage_reference, keep key for backwards compat
+        json[:sharepoint_file_id] = msg.storage_reference
+        json[:storage_reference] = msg.storage_reference
         json[:file_name] = msg.file_name
       end
       json
@@ -153,7 +155,7 @@ class Api::V1::ChatMessagesController < ApplicationController
         # File is being uploaded to SharePoint async
         response_data[:has_file] = true
         response_data[:file_name] = @message.file_name
-        response_data[:upload_pending] = @message.sharepoint_file_id.blank?
+        response_data[:upload_pending] = @message.storage_reference.blank?
       end
       render json: response_data, status: :created
     else

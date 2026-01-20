@@ -15,8 +15,8 @@ class DocumentRelocateService
   # - Moving to different company folder (company_id change)
   # - Moving to different subfolder (folder change)
   def relocate!(new_company_id: nil, new_folder: nil, new_file_name: nil)
-    # Check for storage identifier
-    file_identifier = @document.storage_path || @document.sharepoint_file_id
+    # Check for storage identifier - SSoT: use storage_reference
+    file_identifier = @document.storage_reference
     return { success: true, skipped: true, reason: "No storage file" } unless file_identifier.present?
 
     # Setup provider

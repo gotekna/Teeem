@@ -74,13 +74,13 @@ class PlanReextractionJob < ApplicationJob
     )
 
     revision = plan.current_revision
-    return unless revision&.sharepoint_file_id.present?
+    return unless revision&.storage_reference.present?
 
     old_display_name = plan.display_name
     old_filename = revision.file_name
 
     # Download the file from storage
-    content = download_from_provider(revision.sharepoint_file_id)
+    content = download_from_provider(revision.storage_reference)
     return unless content
 
     # Use PlanIdentificationService (SSoT for plan identification)
@@ -177,7 +177,7 @@ class PlanReextractionJob < ApplicationJob
     Rails.logger.info "[PlanReextractionJob] Renaming storage file: #{revision.file_name} -> #{new_filename}"
 
     # Use the provider's rename capability
-    document_provider.rename_file(revision.sharepoint_file_id, new_filename)
+    document_provider.rename_file(revision.storage_reference, new_filename)
     revision.update!(file_name: new_filename)
 
     Rails.logger.info "[PlanReextractionJob] Storage file renamed successfully"

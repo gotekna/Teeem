@@ -15,7 +15,7 @@ class FinancialTransactionStorageUploadJob < ApplicationJob
   def perform(transaction_id)
     transaction = FinancialTransaction.find_by(id: transaction_id)
     return unless transaction
-    return if transaction.sharepoint_file_id.present?
+    return if transaction.storage_reference.present?
     return unless transaction.receipt.attached?
 
     Rails.logger.info("[FinancialTransactionUpload] Uploading receipt for Transaction #{transaction_id}")

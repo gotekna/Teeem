@@ -466,15 +466,14 @@ class FolderTemplateReorganizationService
   end
 
   def get_storage_reference(doc)
+    # SSoT: Use storage_reference method from StorableDocument concern if available
+    # Falls back to legacy column names for models that don't include the concern
+    return doc.storage_reference if doc.respond_to?(:storage_reference)
+
     case @scope
-    when "job", "jobs"
-      doc.sharepoint_item_id || doc.storage_item_id
-    when "corporate", "corporate_entity", "company"
-      doc.sharepoint_file_id || doc.storage_item_id
-    when "people", "contact", "contacts"
-      doc.respond_to?(:sharepoint_file_id) ? doc.sharepoint_file_id : nil
     when "email", "emails"
-      doc.sharepoint_email_file_id
+      # SyncedEmail has email_storage_file_id method (SSoT)
+      doc.respond_to?(:email_storage_file_id) ? doc.email_storage_file_id : nil
     else
       nil
     end

@@ -194,7 +194,7 @@ module PlanIdentification
     # Re-identify an existing job plan (download PDF and run full pipeline)
     def reidentify_plan(job_plan)
       revision = job_plan.current_revision
-      file_ref = revision&.storage_path || revision&.sharepoint_file_id
+      file_ref = revision&.storage_reference
       return nil unless file_ref.present?
 
       # Download the file from storage

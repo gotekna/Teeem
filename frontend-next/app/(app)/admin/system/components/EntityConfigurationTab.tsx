@@ -2,14 +2,12 @@
 
 import * as React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
 import { EntityTabsConfig } from "@/components/admin/EntityTabsConfig";
 import { DocumentTypesTab } from "./DocumentTypesTab";
 import { StorageConfigTab } from "./StorageConfigTab";
 import { EmailConfigTab } from "./EmailConfigTab";
 import { ConfigSyncTab } from "./ConfigSyncTab";
-import { Building2, Briefcase, X, FileText, Settings, Contact2, Mail, ChevronRight, Home, RefreshCw } from "lucide-react";
-import { getParentRoute } from "@/components/ui/back-button";
+import { Building2, Briefcase, FileText, Settings, Contact2, Mail, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
@@ -35,6 +33,25 @@ interface EntityConfigurationTabProps {
 }
 
 const scopes = [
+  {
+    id: "storage_config",  // SSoT: Provider-agnostic URL - FIRST for quick access
+    label: "Storage Config",  // SSoT: Provider-agnostic label
+    icon: Settings,
+    showEntityFilters: false,
+    showSharePointPaths: false,
+    showDocumentTypes: false,
+    isEntityTab: false,
+    isStorageConfig: true,  // SSoT: Provider-agnostic (was isSharePointConfig)
+  },
+  {
+    id: "document_types",
+    label: "Document Types",
+    icon: FileText,
+    showEntityFilters: false,
+    showSharePointPaths: false,
+    showDocumentTypes: false,
+    isEntityTab: false,
+  },
   {
     id: "corporate_entity",
     label: "Corporate",
@@ -66,25 +83,6 @@ const scopes = [
     showTabGroups: false,
   },
   // SSoT: Email, Warehouse, Task scopes are configured in Storage Config, not here
-  {
-    id: "document_types",
-    label: "Document Types",
-    icon: FileText,
-    showEntityFilters: false,
-    showSharePointPaths: false,
-    showDocumentTypes: false,
-    isEntityTab: false,
-  },
-  {
-    id: "storage_config",  // SSoT: Provider-agnostic URL
-    label: "Storage Config",  // SSoT: Provider-agnostic label
-    icon: Settings,
-    showEntityFilters: false,
-    showSharePointPaths: false,
-    showDocumentTypes: false,
-    isEntityTab: false,
-    isStorageConfig: true,  // SSoT: Provider-agnostic (was isSharePointConfig)
-  },
   {
     id: "email_config",
     label: "Email Config",
@@ -144,7 +142,7 @@ function buildBreadcrumbs(basePath: string, activeScope: string): Array<{ label:
 export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFAULT_ENTITY_CONFIG_BASE_PATH }: EntityConfigurationTabProps) {
   const router = useRouter();
   // Support both scope and subTab props (subTab for consistency with other tabs)
-  const activeScope = scope || subTab || "corporate_entity";
+  const activeScope = scope || subTab || "storage_config";
 
   // Build breadcrumbs from basePath and active scope
   const breadcrumbs = React.useMemo(() => buildBreadcrumbs(basePath, activeScope), [basePath, activeScope]);
@@ -171,70 +169,10 @@ export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFA
     fetchCounts();
   }, []);
 
-  // Handle escape key to exit
-  React.useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && onClose) {
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", handleEscape);
-    return () => window.removeEventListener("keydown", handleEscape);
-  }, [onClose]);
-
-  // Lock body scroll (always fullscreen)
-  React.useEffect(() => {
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, []);
-
-  // Handle close - navigate back to previous page
-  // SSoT: Use BackButton's getParentRoute helper for consistent navigation
-  const handleClose = React.useCallback(() => {
-    if (onClose) {
-      onClose();
-    } else {
-      const hasHistory = typeof window !== "undefined" && window.history.length > 2;
-      if (hasHistory) {
-        router.back();
-      } else {
-        router.push(getParentRoute(window.location.pathname));
-      }
-    }
-  }, [onClose, router]);
-
-  // Always render fullscreen - z-[120] to be above breadcrumb (z-110)
+  // Render full page below header AND breadcrumbs
+  // top-24 = 96px to sit below header + breadcrumbs, z-50 to cover sidebar
   return (
-    <div className="fixed inset-0 z-[120] bg-background flex flex-col">
-      {/* Breadcrumb bar */}
-      <div className="bg-muted/50 border-b px-4 py-1.5 shrink-0">
-        <nav className="flex items-center gap-1 text-sm">
-          <button
-            onClick={() => router.push("/")}
-            className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded hover:bg-muted"
-          >
-            <Home className="h-4 w-4" />
-          </button>
-          {breadcrumbs.map((crumb, index) => (
-            <React.Fragment key={crumb.path}>
-              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              {index === breadcrumbs.length - 1 ? (
-                <span className="font-medium text-foreground">{crumb.label}</span>
-              ) : (
-                <button
-                  onClick={() => router.push(crumb.path)}
-                  className="text-muted-foreground hover:text-foreground transition-colors px-1 py-0.5 rounded hover:bg-muted"
-                >
-                  {crumb.label}
-                </button>
-              )}
-            </React.Fragment>
-          ))}
-        </nav>
-      </div>
-
+    <div className="fixed top-24 left-0 right-0 bottom-0 bg-background flex flex-col z-50">
       <Tabs value={activeScope} onValueChange={setActiveScope} className="flex flex-col h-full flex-1 min-h-0">
         {/* Compact header with scope tabs inline */}
         <div className="flex items-center justify-between border-b px-4 py-2 shrink-0 bg-muted/30">
@@ -262,15 +200,6 @@ export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFA
               })}
             </TabsList>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleClose}
-            className="h-7 px-2 text-xs text-muted-foreground"
-          >
-            <X className="h-3.5 w-3.5 mr-1" />
-            Close
-          </Button>
         </div>
 
         {/* Scope Content */}

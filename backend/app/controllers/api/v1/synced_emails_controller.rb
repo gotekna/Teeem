@@ -898,15 +898,15 @@ class Api::V1::SyncedEmailsController < ApplicationController
     end
 
     # Fallback 1: Try SharePoint if attachment is synced there
-    if email_attachment&.attachment&.sharepoint_file_id.present?
+    if email_attachment&.attachment&.storage_reference.present?
       sp_config = MicrosoftCredential.teeem_sharepoint_config
       if sp_config
         begin
-          Rails.logger.info "[SyncedEmail] Downloading attachment from SharePoint: #{email_attachment.attachment.sharepoint_file_id}"
+          Rails.logger.info "[SyncedEmail] Downloading attachment from SharePoint: #{email_attachment.attachment.storage_reference}"
           teeem_client = MicrosoftAppGraphClient.new(sp_config[:credential])
           content = teeem_client.get_drive_item_content(
             drive_id: sp_config[:drive_id],
-            item_id: email_attachment.attachment.sharepoint_file_id
+            item_id: email_attachment.attachment.storage_reference
           )
           # Force binary encoding immediately after download to prevent UTF-8 errors in .present? check
           content = content&.b

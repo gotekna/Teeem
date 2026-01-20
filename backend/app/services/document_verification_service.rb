@@ -318,11 +318,11 @@ class DocumentVerificationService
 
     # Rename file in storage if name changed
     if analysis[:suggested_name] != @document.file_name
-      # Try provider-agnostic rename using path or file_id
-      if @document.storage_path.present? || @document.sharepoint_file_id.present?
+      # Try provider-agnostic rename - SSoT: use storage_reference
+      if @document.storage_reference.present?
         begin
           setup_default_provider!
-          file_identifier = @document.storage_path || @document.sharepoint_file_id
+          file_identifier = @document.storage_reference
           rename_file_in_provider(file_identifier, analysis[:suggested_name])
           Rails.logger.info("Auto-renamed storage file to: #{analysis[:suggested_name]}")
         rescue DocumentProviders::NotConnectedError => e
@@ -374,8 +374,8 @@ class DocumentVerificationService
   end
 
   def validate_file_available!
-    # Check for storage_path (S3/Wasabi) or sharepoint_file_id (SharePoint)
-    unless @document.storage_path.present? || @document.sharepoint_file_id.present?
+    # Check for storage reference - SSoT: use storage_reference
+    unless @document.storage_reference.present?
       raise FileNotFoundError, "No storage path or file ID available for this document"
     end
   end

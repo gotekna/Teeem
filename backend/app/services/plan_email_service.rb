@@ -60,7 +60,7 @@ class PlanEmailService
       next unless revision&.has_file?
 
       begin
-        result = download_from_storage(revision.storage_path || revision.sharepoint_file_id)
+        result = download_from_storage(revision.storage_reference)
         next unless result[:success]
         content = result[:content]
 

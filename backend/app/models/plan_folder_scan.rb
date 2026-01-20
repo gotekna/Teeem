@@ -47,6 +47,12 @@ class PlanFolderScan < ApplicationRecord
     )
   end
 
+  # SSoT: Storage reference for provider-agnostic access
+  # Alias for sharepoint_file_id to match other document models
+  def storage_reference
+    sharepoint_file_id
+  end
+
   # Mark as skipped (e.g., not a plan file)
   def mark_skipped!(reason = nil)
     update!(

@@ -239,7 +239,7 @@ module Api
       # Triggers AI analysis of document naming
       def ai_verify
         # Check if OneDrive file exists
-        unless @document.sharepoint_file_id.present?
+        unless @document.storage_reference.present?
           return render json: {
             success: false,
             error: "No OneDrive file available for this document"

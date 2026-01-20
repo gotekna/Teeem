@@ -297,8 +297,10 @@ module Api
           } : nil,
           paid_at: request.paid_at,
           attachments: {
-            has_invoice: request.sharepoint_file_id.present?,
-            sharepoint_file_id: request.sharepoint_file_id,
+            has_invoice: request.storage_reference.present?,
+            # SSoT: Use storage_reference, keep key for backwards compat
+            sharepoint_file_id: request.storage_reference,
+            storage_reference: request.storage_reference,
             proof_photos_sharepoint_ids: request.proof_photos_sharepoint_ids || [],
             proof_photos_count: request.proof_photos_sharepoint_ids&.count || 0
           },

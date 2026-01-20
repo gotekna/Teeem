@@ -150,6 +150,9 @@ interface StorageConfig {
   region: string | null;
   // Root path and scope folders
   root_path: string;
+  // SSoT: scope_root_folders is THE ONE place for scope roots
+  scope_root_folders: ScopeFolders;
+  // All scope folders (scope roots + tab paths for backward compat)
   scope_folders: ScopeFolders;
   // SSoT: Templates for folder paths and filenames per scope
   scope_templates: Record<string, string>;
@@ -173,12 +176,6 @@ interface FolderTreeNode {
 // Build tree structure from flat scope folders
 function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
   const root: FolderTreeNode[] = [];
-
-  // DEBUG: Log what we receive
-  console.log('[buildFolderTree] Input scope_folders:', Object.keys(scopeFolders).length, 'entries');
-  console.log('[buildFolderTree] task:', scopeFolders['task']);
-  console.log('[buildFolderTree] job:', scopeFolders['job']);
-  console.log('[buildFolderTree] contact:', scopeFolders['contact']);
 
   // Sort entries by path for consistent tree building
   const entries = Object.entries(scopeFolders).sort(([, a], [, b]) => a.localeCompare(b));
@@ -1434,12 +1431,7 @@ export function StorageConfigTab() {
         "/api/v1/storage_configuration"
       );
       if (response?.success && response.data) {
-        // DEBUG: Log raw API response
-        console.log('[loadConfig] API response scope_folders count:', Object.keys(response.data.scope_folders || {}).length);
-        console.log('[loadConfig] task in API response:', response.data.scope_folders?.task);
-        console.log('[loadConfig] job in API response:', response.data.scope_folders?.job);
-        console.log('[loadConfig] All keys:', Object.keys(response.data.scope_folders || {}).sort().join(', '));
-
+        console.log('[StorageConfig] API response scope_root_folders:', response.data.scope_root_folders);
         setConfig(response.data);
         setFormData({
           // Provider type - normalize legacy values (wasabi/s3 → s3_compatible)
@@ -1488,6 +1480,8 @@ export function StorageConfigTab() {
           storage: {
             provider_type: formData.provider_type,
             root_path: formData.root_path,
+            // SSoT: scope_root_folders is THE ONE place for scope roots
+            scope_root_folders: config?.scope_root_folders,
             scope_folders: formData.scope_folders,
             scope_templates: formData.scope_templates,
             file_name_templates: formData.file_name_templates,
@@ -1876,6 +1870,46 @@ export function StorageConfigTab() {
             <p className="text-xs text-muted-foreground">
               Base path for all storage. S3/Wasabi: use &quot;/&quot; (bucket root). SharePoint: use &quot;/Shared Documents&quot;.
             </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Scope Root Folders - SSoT for scope base paths */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <FolderTree className="h-4 w-4" />
+            Scope Root Folders
+          </CardTitle>
+          <CardDescription>
+            Root folder for each scope. All tab paths are relative to these roots.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Object.entries(config?.scope_root_folders || {}).map(([scope, folder]) => (
+              <div key={scope} className="flex items-center gap-2">
+                <div className="flex items-center gap-2 min-w-[120px]">
+                  {scope === 'job' && <Briefcase className="h-4 w-4 text-blue-500" />}
+                  {scope === 'contact' && <Users className="h-4 w-4 text-green-500" />}
+                  {scope === 'corporate_entity' && <Building2 className="h-4 w-4 text-purple-500" />}
+                  {scope === 'people' && <Users className="h-4 w-4 text-teal-500" />}
+                  {scope === 'task' && <ClipboardList className="h-4 w-4 text-orange-500" />}
+                  {scope === 'email' && <Mail className="h-4 w-4 text-red-500" />}
+                  {scope === 'warehouse' && <FileBox className="h-4 w-4 text-amber-500" />}
+                  <Label className="text-sm font-medium">{getScopeLabel(scope)}</Label>
+                </div>
+                <Input
+                  value={folder}
+                  onChange={(e) => {
+                    const newRoots = { ...(config?.scope_root_folders || {}), [scope]: e.target.value };
+                    setConfig(prev => prev ? { ...prev, scope_root_folders: newRoots } : prev);
+                  }}
+                  className="font-mono h-8 flex-1"
+                  placeholder={getScopeLabel(scope)}
+                />
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>

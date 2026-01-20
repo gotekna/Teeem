@@ -176,17 +176,49 @@ module StorableDocument
     end
   end
 
-  private
+  # ========================================
+  # SSoT: Storage Reference (THE ONE method)
+  # ========================================
 
-  # Handle different column names across models
-  def sharepoint_item_id
-    return super if respond_to?(:super)
-    read_attribute(:sharepoint_item_id)
+  # Returns the provider-agnostic storage reference ID
+  # Handles legacy column names: sharepoint_item_id, sharepoint_file_id
+  # All controllers/services should use this - NEVER access legacy columns directly
+  def storage_reference
+    return storage_item_id if respond_to?(:storage_item_id) && storage_item_id.present?
+    legacy_sharepoint_id
   end
 
+  # Check if document has a storage reference
+  def has_storage_reference?
+    storage_reference.present?
+  end
+
+  private
+
+  # SSoT: Unified legacy storage ID accessor
+  # Different models use different column names:
+  #   - sharepoint_item_id (JobDocument)
+  #   - sharepoint_file_id (CorporateCompanyDocument, BillInbox, etc.)
+  #   - external_id (PeopleDocument)
+  # This method handles all - ONLY use internally, external code should use storage_reference
+  def legacy_sharepoint_id
+    if has_attribute?(:sharepoint_item_id) && read_attribute(:sharepoint_item_id).present?
+      read_attribute(:sharepoint_item_id)
+    elsif has_attribute?(:sharepoint_file_id) && read_attribute(:sharepoint_file_id).present?
+      read_attribute(:sharepoint_file_id)
+    elsif has_attribute?(:external_id) && read_attribute(:external_id).present?
+      read_attribute(:external_id)
+    end
+  end
+
+  # Deprecated: Use storage_reference instead
+  def sharepoint_item_id
+    legacy_sharepoint_id
+  end
+
+  # Deprecated: Use storage_reference instead
   def sharepoint_file_id
-    return super if respond_to?(:super)
-    read_attribute(:sharepoint_file_id)
+    legacy_sharepoint_id
   end
 
   # Override in model to provide default tokens

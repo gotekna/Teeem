@@ -88,7 +88,7 @@ class CorporateBillPdfSyncJob < ApplicationJob
     external_doc_id = "xero:#{bill.external_id}:pdf"
     existing = CorporateCompanyDocument.find_by(source: "xero", external_id: external_doc_id)
 
-    if existing.present? && existing.sharepoint_file_id.present? && !force
+    if existing.present? && existing.storage_reference.present? && !force
       Rails.logger.debug("[CorporateBillPdfSyncJob] PDF already exists for bill #{bill.invoice_number}")
       result[:pdfs_skipped] += 1
       return

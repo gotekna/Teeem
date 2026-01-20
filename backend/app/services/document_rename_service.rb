@@ -25,8 +25,8 @@ class DocumentRenameService
   # @param approved_by [User] Optional user who approved the rename
   # @return [Hash] Result with success status and details
   def rename!(new_name, approved_by: nil)
-    # Check for storage identifier (path for S3/Wasabi, item_id for SharePoint)
-    file_identifier = @document.storage_path || @document.sharepoint_item_id
+    # Check for storage identifier - SSoT: use storage_reference
+    file_identifier = @document.storage_reference
     raise RenameError, "Document has no storage path or item ID" if file_identifier.blank?
     raise RenameError, "New name cannot be blank" if new_name.blank?
 

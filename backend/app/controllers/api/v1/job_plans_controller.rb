@@ -134,7 +134,7 @@ module Api
         revision = @job_plan.add_revision!(revision_params)
 
         # Queue thumbnail generation for instant preview (background job)
-        if revision.sharepoint_file_id.present?
+        if revision.storage_reference.present?
           GeneratePlanThumbnailJob.perform_later(revision.id)
         end
 
@@ -329,7 +329,7 @@ module Api
         queued_plans = []
 
         @job.job_plans.includes(:current_revision).find_each do |plan|
-          next unless plan.current_revision&.sharepoint_file_id.present?
+          next unless plan.current_revision&.storage_reference.present?
 
           # Queue AI analysis job
           PlanAiAnalysisJob.perform_later(plan.id)
@@ -349,7 +349,7 @@ module Api
       # POST /api/v1/jobs/:job_id/job_plans/:id/reprocess
       # Reprocess a single plan with the AI Processing Pipeline (OCR + AI)
       def reprocess
-        unless @job_plan.current_revision&.sharepoint_file_id.present?
+        unless @job_plan.current_revision&.storage_reference.present?
           return render json: {
             success: false,
             error: "Plan has no file attached to reprocess"
@@ -485,7 +485,9 @@ module Api
           revision_label: revision.revision_label,
           is_on_issue: revision.is_on_issue,
           has_file: revision.has_file?,
-          sharepoint_file_id: revision.sharepoint_file_id,
+          # SSoT: Use storage_reference (provider-agnostic), keep key for backwards compat
+          sharepoint_file_id: revision.storage_reference,
+          storage_reference: revision.storage_reference,
           micro_thumbnail_base64: revision.micro_thumbnail_base64,
           thumbnail_file_id: revision.thumbnail_file_id
         }
@@ -529,7 +531,9 @@ module Api
           issued_date: revision.issued_date,
           is_on_issue: revision.is_on_issue,
           has_file: revision.has_file?,
-          sharepoint_file_id: revision.sharepoint_file_id,
+          # SSoT: Use storage_reference (provider-agnostic), keep key for backwards compat
+          sharepoint_file_id: revision.storage_reference,
+          storage_reference: revision.storage_reference,
           sharepoint_web_url: revision.sharepoint_web_url,
           file_name: revision.file_name,
           file_size: revision.file_size,

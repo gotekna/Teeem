@@ -16,7 +16,7 @@ class InvoiceParsingService
   end
 
   def extract!
-    return {} unless @bill.sharepoint_file_id.present?
+    return {} unless @bill.storage_reference.present?
 
     Rails.logger.info "[InvoiceParsing] Starting extraction for BillInbox ##{@bill.id}"
 

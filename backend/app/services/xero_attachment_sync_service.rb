@@ -52,8 +52,8 @@ class XeroAttachmentSyncService
     # Check if PDF already exists - skip API call if we have it
     existing_pdf = document_model.find_by(source: "xero", external_id: external_doc_id)
 
-    if existing_pdf.present? && existing_pdf.respond_to?(:sharepoint_file_id) && existing_pdf.sharepoint_file_id.present?
-      Rails.logger.info("[XeroAttachmentSync] PDF already synced to SharePoint, skipping: #{existing_pdf.file_name}")
+    if existing_pdf.present? && existing_pdf.respond_to?(:storage_reference) && existing_pdf.storage_reference.present?
+      Rails.logger.info("[XeroAttachmentSync] PDF already synced to storage, skipping: #{existing_pdf.file_name}")
       results[:pdf] = existing_pdf
       results[:skipped] = true
       return

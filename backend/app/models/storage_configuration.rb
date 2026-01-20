@@ -103,32 +103,54 @@ class StorageConfiguration < ApplicationRecord
   end
 
   # ========================================
-  # Scope Folder Lookup (SSoT: EntityTab)
+  # Scope Root Folders (SSoT: scope_root_folders column)
   # ========================================
 
-  # Get base folder name for a scope
-  # SSoT: EntityTab.scope_base_folders is THE ONE source of truth
-  # Base folders are stored on overview/root tabs for each scope
+  # Default scope root folders (used when scope_root_folders is empty)
+  SCOPE_ROOT_DEFAULTS = {
+    'job' => 'Jobs',
+    'contact' => 'Contacts',
+    'corporate_entity' => 'Corporate',
+    'people' => 'People',
+    'task' => 'Tasks',
+    'email' => 'Emails',
+    'warehouse' => 'Warehousing'
+  }.freeze
+
+  # Get root folder for a scope
+  # SSoT: scope_root_folders column is THE ONE source for scope roots
   #
-  # @param scope [String, Symbol] The scope name (job, corporate, contact, etc.)
-  # @return [String] The folder name for that scope
+  # @param scope [String, Symbol] The scope name (job, contact, task, etc.)
+  # @return [String] The root folder name for that scope
   #
   # Examples:
-  #   path_for(:job)        # => "Jobs"
-  #   path_for(:corporate)  # => "Corporate"
-  #   path_for(:contact)    # => "Contacts"
+  #   path_for(:job)     # => "Jobs"
+  #   path_for(:contact) # => "Contacts"
+  #   path_for(:task)    # => "Tasks"
   #
   def path_for(scope)
-    # SSoT: EntityTab.scope_base_folders is the primary source
-    EntityTab.scope_base_folders[scope.to_s] || scope.to_s.titleize
+    scope_key = scope.to_s
+    scope_root_folders&.dig(scope_key) || SCOPE_ROOT_DEFAULTS[scope_key] || scope_key.titleize
   end
 
-  # Get all scope folders (SSoT: EntityTab)
-  # Returns all storage folder paths from EntityTab
+  # Get all scope root folders
+  # SSoT: scope_root_folders column merged with defaults
+  def effective_scope_root_folders
+    SCOPE_ROOT_DEFAULTS.merge(scope_root_folders || {})
+  end
+
+  # Get all scope folders (includes scope roots + tab paths for backward compatibility)
+  # Returns scope roots plus all EntityTab storage paths
   def effective_scope_folders
-    # SSoT: EntityTab.scope_base_folders is THE ONE source of truth
-    # scope_folders column has been REMOVED - all data lives in EntityTab
-    EntityTab.scope_base_folders
+    # Start with scope root folders
+    result = effective_scope_root_folders.dup
+
+    # Add EntityTab paths for backward compatibility with existing UI
+    EntityTab.scope_base_folders.each do |key, path|
+      result[key] ||= path
+    end
+
+    result
   end
 
   # Get template for a scope
@@ -602,6 +624,9 @@ class StorageConfiguration < ApplicationRecord
       region: region,
       # Root path and scope folders
       root_path: root_path,
+      # SSoT: scope_root_folders is THE ONE place for scope roots
+      scope_root_folders: effective_scope_root_folders,
+      # All scope folders (includes roots + tab paths for backward compatibility)
       scope_folders: effective_scope_folders,
       # Templates for Entity Config auto-save
       scope_templates: templates || {},

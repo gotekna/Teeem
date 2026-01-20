@@ -83,7 +83,7 @@ class BatchPlanReextractionJob < ApplicationJob
     )
 
     revision = plan.current_revision
-    return unless revision&.sharepoint_file_id.present?
+    return unless revision&.storage_reference.present?
 
     old_display_name = plan.display_name
     old_filename = revision.file_name
@@ -116,13 +116,13 @@ class BatchPlanReextractionJob < ApplicationJob
     )
 
     revision = plan.current_revision
-    return unless revision&.sharepoint_file_id.present?
+    return unless revision&.storage_reference.present?
 
     old_display_name = plan.display_name
     old_filename = revision.file_name
 
-    # Download the file from storage
-    content = download_from_provider(revision.sharepoint_file_id)
+    # Download the file from storage - SSoT: use storage_reference
+    content = download_from_provider(revision.storage_reference)
     return unless content
 
     # Use PlanIdentificationService (SSoT for plan identification)
@@ -219,7 +219,7 @@ class BatchPlanReextractionJob < ApplicationJob
   def rename_storage_file!(revision, new_filename)
     Rails.logger.info "[BatchPlanReextractionJob] Renaming storage file: #{revision.file_name} -> #{new_filename}"
 
-    document_provider.rename_file(revision.sharepoint_file_id, new_filename)
+    document_provider.rename_file(revision.storage_reference, new_filename)
     revision.update!(file_name: new_filename)
 
     Rails.logger.info "[BatchPlanReextractionJob] Storage file renamed successfully"

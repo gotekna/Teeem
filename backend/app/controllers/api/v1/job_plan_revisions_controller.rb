@@ -115,7 +115,9 @@ module Api
           issued_date: revision.issued_date,
           is_on_issue: revision.is_on_issue,
           has_file: revision.has_file?,
-          sharepoint_file_id: revision.sharepoint_file_id,
+          # SSoT: Use storage_reference, keep key for backwards compat
+          sharepoint_file_id: revision.storage_reference,
+          storage_reference: revision.storage_reference,
           sharepoint_web_url: revision.sharepoint_web_url,
           file_name: revision.file_name,
           file_size: revision.file_size,

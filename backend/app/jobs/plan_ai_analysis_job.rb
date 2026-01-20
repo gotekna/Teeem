@@ -20,7 +20,7 @@ class PlanAiAnalysisJob < ApplicationJob
     return unless plan
 
     revision = plan.current_revision
-    return unless revision&.sharepoint_file_id.present?
+    return unless revision&.storage_reference.present?
 
     Rails.logger.info "[PlanAiAnalysisJob] Analyzing plan #{job_plan_id}: #{plan.display_name}"
 
@@ -34,7 +34,7 @@ class PlanAiAnalysisJob < ApplicationJob
 
     # Download the file from storage using file ID
     begin
-      content = download_from_provider(revision.sharepoint_file_id)
+      content = download_from_provider(revision.storage_reference)
     rescue DocumentProviders::Error => e
       Rails.logger.error "[PlanAiAnalysisJob] Failed to download file: #{e.message}"
       return

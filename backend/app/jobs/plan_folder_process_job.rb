@@ -26,8 +26,8 @@ class PlanFolderProcessJob < ApplicationJob
       # SSoT: Setup document provider using StorageConfiguration
       setup_default_provider!
 
-      # Download the file
-      content = download_from_provider(scan.sharepoint_file_id)
+      # Download the file - SSoT: use storage_reference
+      content = download_from_provider(scan.storage_reference)
       raise "Failed to download file" unless content
 
       # Run AI identification
@@ -62,11 +62,11 @@ class PlanFolderProcessJob < ApplicationJob
       end
 
       # Get file metadata for revision (try to get URL)
-      file_path = scan.sharepoint_file_id  # Could be path or ID depending on provider
+      file_path = scan.storage_reference  # Could be path or ID depending on provider
 
       # Create the revision with the storage file link
       job_plan.add_revision!(
-        sharepoint_file_id: scan.sharepoint_file_id,
+        sharepoint_file_id: scan.storage_reference,
         sharepoint_web_url: file_path,
         file_name: scan.file_name,
         file_size: scan.file_size,

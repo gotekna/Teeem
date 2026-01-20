@@ -261,11 +261,7 @@ class CorporateCompanyDocument < ApplicationRecord
     !migration_in_progress? && storage_reference.present?
   end
 
-  # Returns the provider-agnostic storage reference
-  # Falls back to sharepoint_file_id for backwards compatibility
-  def storage_reference
-    storage_item_id.presence || sharepoint_file_id
-  end
+  # SSoT: storage_reference is now defined in StorableDocument concern
 
   # Sets both provider-agnostic and SharePoint-specific fields
   # for backwards compatibility during migration

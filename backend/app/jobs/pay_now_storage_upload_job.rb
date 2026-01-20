@@ -27,7 +27,7 @@ class PayNowStorageUploadJob < ApplicationJob
     end
 
     # Upload invoice file
-    if request.invoice_file.attached? && request.sharepoint_file_id.blank?
+    if request.invoice_file.attached? && request.storage_reference.blank?
       upload_invoice_file(request)
     end
 

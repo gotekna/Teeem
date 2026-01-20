@@ -616,7 +616,7 @@ module Api
                 name: doc.file_name,
                 size: doc.file_size,
                 modified_at: doc.updated_at,
-                item_id: doc.sharepoint_item_id || doc.storage_item_id,
+                item_id: doc.storage_reference,
                 content_hash: doc.content_hash
               }
             }
@@ -637,7 +637,7 @@ module Api
                 name: doc.file_name,
                 size: doc.file_size,
                 modified_at: doc.updated_at,
-                item_id: doc.sharepoint_file_id || doc.storage_item_id,
+                item_id: doc.storage_reference,
                 content_hash: doc.content_hash
               }
             }

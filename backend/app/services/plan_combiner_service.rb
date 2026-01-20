@@ -56,7 +56,7 @@ class PlanCombinerService
         .regular_plans # exclude existing combined PDF
         .includes(:current_revision, :plan_type)
         .joins(:current_revision)
-        .where("job_plan_revisions.sharepoint_file_id IS NOT NULL OR job_plan_revisions.storage_path IS NOT NULL")
+        .where("job_plan_revisions.storage_path IS NOT NULL OR job_plan_revisions.sharepoint_file_id IS NOT NULL")
         .sort_by { |p| p.plan_type&.code || "999" }
   end
 
@@ -65,7 +65,7 @@ class PlanCombinerService
 
     plans.each_with_index do |plan, index|
       revision = plan.current_revision
-      file_ref = revision&.storage_path || revision&.sharepoint_file_id
+      file_ref = revision&.storage_reference
       next unless file_ref
 
       result = download_from_storage(file_ref)

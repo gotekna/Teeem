@@ -58,8 +58,8 @@ class PdfThumbnailService
   private
 
   def validate!
-    # Check for storage identifier (path or file_id)
-    unless @revision.storage_path.present? || @revision.sharepoint_file_id.present?
+    # Check for storage identifier - SSoT: use storage_reference
+    unless @revision.storage_reference.present?
       raise ThumbnailError, "Revision has no storage file"
     end
     raise ThumbnailError, "File is not a PDF" unless pdf_file?
@@ -76,10 +76,9 @@ class PdfThumbnailService
   def download_pdf
     Rails.logger.info "[PdfThumbnail] Downloading PDF from storage..."
 
-    # Create a document-like object for the storage service
+    # Create a document-like object for the storage service - SSoT: use storage_reference
     doc = OpenStruct.new(
-      storage_path: @revision.storage_path,
-      sharepoint_file_id: @revision.sharepoint_file_id
+      storage_reference: @revision.storage_reference
     )
 
     service = DocumentStorageService.new

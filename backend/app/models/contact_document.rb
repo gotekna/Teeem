@@ -56,10 +56,7 @@ class ContactDocument < ApplicationRecord
     (file_size.to_f / 1024 / 1024).round(2)
   end
 
-  # Provider-agnostic storage helpers
-  def storage_reference
-    storage_item_id.presence || sharepoint_item_id
-  end
+  # SSoT: storage_reference is now defined in StorableDocument concern
 
   # SSoT: Get the EntityTab from DocumentType (primary_entity_tab method)
   # This provides the folder name and storage_folder_path template

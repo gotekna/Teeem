@@ -56,13 +56,13 @@ module Api
               revision: revision&.revision,
               revision_date: revision&.revision_date,
               is_on_issue: revision&.is_on_issue,
-              sharepoint_file_id: revision&.sharepoint_file_id,
+              sharepoint_file_id: revision&.storage_reference,  # Keep JSON key for backwards compat
               sharepoint_web_url: revision&.sharepoint_web_url,
               file_name: revision&.file_name,
               file_size: revision&.file_size,
               thumbnail_base64: revision&.micro_thumbnail_base64,
-              download_url: revision&.sharepoint_file_id ? "/api/v1/external/unreal_takeoff/plans/#{plan.id}/download" : nil,
-              image_url: revision&.sharepoint_file_id ? "/api/v1/external/unreal_takeoff/plans/#{plan.id}/image" : nil
+              download_url: revision&.storage_reference ? "/api/v1/external/unreal_takeoff/plans/#{plan.id}/download" : nil,
+              image_url: revision&.storage_reference ? "/api/v1/external/unreal_takeoff/plans/#{plan.id}/image" : nil
             }
           end
 
@@ -88,15 +88,15 @@ module Api
           end
 
           revision = plan.current_revision
-          unless revision&.sharepoint_file_id
+          unless revision&.storage_reference
             return render json: {
               success: false,
               error: "Plan has no file attached"
             }, status: :not_found
           end
 
-          # Redirect to the SharePoint download endpoint
-          redirect_to api_v1_documents_download_path(file_id: revision.sharepoint_file_id)
+          # Redirect to the download endpoint - SSoT: use storage_reference
+          redirect_to api_v1_documents_download_path(file_id: revision.storage_reference)
         end
 
         # GET /api/v1/external/unreal_takeoff/plans/:id/image
@@ -112,7 +112,7 @@ module Api
           end
 
           revision = plan.current_revision
-          unless revision&.sharepoint_file_id
+          unless revision&.storage_reference
             return render json: {
               success: false,
               error: "Plan has no file attached"

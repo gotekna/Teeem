@@ -13,9 +13,14 @@ module Api
       # GET /api/v1/storage_configuration
       # Returns storage configuration for the current provider
       def show
+        config_hash = StorageConfiguration.instance&.to_config_hash || {}
+
+        # DEBUG: Log what we're returning
+        Rails.logger.info "[StorageConfig API] scope_root_folders: #{config_hash[:scope_root_folders].inspect}"
+
         render json: {
           success: true,
-          data: StorageConfiguration.instance&.to_config_hash || {}
+          data: config_hash
         }
       end
 
@@ -76,6 +81,12 @@ module Api
         }
         update_attrs[:root_path] = sp[:root_path] if sp.key?(:root_path)
         update_attrs[:scope_folders] = sp[:scope_folders] if sp.key?(:scope_folders)
+
+        # SSoT: scope_root_folders is THE ONE place for scope roots
+        if sp.key?(:scope_root_folders)
+          existing_roots = storage_config.scope_root_folders || {}
+          update_attrs[:scope_root_folders] = existing_roots.merge(sp[:scope_root_folders].to_h)
+        end
 
         # Track old templates for file reorganization
         old_templates = storage_config.templates&.deep_dup || {}
@@ -167,6 +178,8 @@ module Api
           :endpoint, :bucket, :region, :access_key_id, :secret_access_key,  # S3/Wasabi
           :base_path,  # Local
           :root_path,
+          # SSoT: scope_root_folders is THE ONE place for scope roots
+          scope_root_folders: {},
           scope_folders: scope_folder_keys,
           scope_templates: {},
           file_name_templates: {},

@@ -1102,8 +1102,8 @@ module Api
         # Handle both document and email attachments
         case attachable
         when CorporateCompanyDocument
-          unless attachable.sharepoint_file_id.present?
-            return render json: { success: false, error: "Document not on SharePoint" }, status: :unprocessable_entity
+          unless attachable.storage_reference.present?
+            return render json: { success: false, error: "Document not in storage" }, status: :unprocessable_entity
           end
 
           # Documents use org's SharePoint
@@ -1112,12 +1112,12 @@ module Api
             return render json: { success: false, error: "SharePoint not configured" }, status: :unprocessable_entity
           end
 
-          file_id = attachable.sharepoint_file_id
+          file_id = attachable.storage_reference
           drive_id = credential.drive_id
 
         when SyncedEmail
-          # Emails use file_id from sharepoint_email_file_id or storage_file_id
-          file_id = attachable.sharepoint_email_file_id || attachable.storage_file_id
+          # Emails use file_id from email_storage_file_id (SSoT method)
+          file_id = attachable.email_storage_file_id
           unless file_id.present?
             return render json: { success: false, error: "Email not stored in SharePoint" }, status: :unprocessable_entity
           end

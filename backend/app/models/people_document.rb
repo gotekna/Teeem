@@ -143,11 +143,7 @@ class PeopleDocument < ApplicationRecord
     !migration_in_progress? && storage_reference.present?
   end
 
-  # Returns the provider-agnostic storage reference
-  # Falls back to external_id for backwards compatibility
-  def storage_reference
-    storage_item_id.presence || external_id
-  end
+  # SSoT: storage_reference is now defined in StorableDocument concern
 
   # Sets both provider-agnostic fields
   def set_storage_reference(item_id, provider: 'sharepoint', path: nil)

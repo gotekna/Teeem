@@ -281,8 +281,8 @@ class SyncEmailsToSharePointJob < ApplicationJob
 
     emails_to_upload.each do |email|
       begin
-        # Skip if already uploaded
-        if email.sharepoint_email_file_id.present?
+        # Skip if already uploaded - SSoT: use email_storage_file_id
+        if email.email_storage_file_id.present?
           skipped += 1
           next
         end

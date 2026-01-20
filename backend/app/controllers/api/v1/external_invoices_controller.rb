@@ -55,7 +55,7 @@ module Api
 
         # Check if PDF is available in SharePoint (SSoT)
         pdf_doc = invoice.corporate_company_documents.find_by(document_type: document_type_for(invoice.invoice_type))
-        has_pdf = pdf_doc&.sharepoint_file_id.present?
+        has_pdf = pdf_doc&.storage_reference.present?
 
         render json: {
           success: true,
@@ -75,7 +75,7 @@ module Api
 
         # Check if PDF is available in SharePoint (SSoT)
         pdf_doc = invoice.corporate_company_documents.find_by(document_type: document_type_for(invoice.invoice_type))
-        has_pdf = pdf_doc&.sharepoint_file_id.present?
+        has_pdf = pdf_doc&.storage_reference.present?
 
         render json: {
           success: true,
@@ -461,8 +461,8 @@ module Api
         # Check warehouse for existing PDF linked to this invoice
         existing_pdf = invoice.corporate_company_documents.find_by(document_type: document_type_for(invoice.invoice_type))
 
-        if existing_pdf&.sharepoint_file_id.present?
-          content = fetch_from_sharepoint(existing_pdf.sharepoint_file_id)
+        if existing_pdf&.storage_reference.present?
+          content = fetch_from_sharepoint(existing_pdf.storage_reference)
           if content
             send_data content,
                       filename: existing_pdf.file_name || "invoice.pdf",
@@ -479,8 +479,8 @@ module Api
         service = XeroAttachmentSyncService.new(invoice)
         result = service.sync!
 
-        if result[:pdf]&.sharepoint_file_id.present?
-          content = fetch_from_sharepoint(result[:pdf].sharepoint_file_id)
+        if result[:pdf]&.storage_reference.present?
+          content = fetch_from_sharepoint(result[:pdf].storage_reference)
           if content
             send_data content,
                       filename: result[:pdf].file_name || "invoice.pdf",
@@ -568,8 +568,10 @@ module Api
             folder: doc.folder,
             file_size: doc.file_size,
             mime_type: doc.mime_type,
-            has_file: doc.sharepoint_file_id.present?,
-            sharepoint_file_id: doc.sharepoint_file_id,
+            has_file: doc.storage_reference.present?,
+            # SSoT: Use storage_reference, keep key for backwards compat
+            sharepoint_file_id: doc.storage_reference,
+            storage_reference: doc.storage_reference,
             created_at: doc.created_at.iso8601
           }
         end

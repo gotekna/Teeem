@@ -15,7 +15,7 @@ class ChatMessageStorageUploadJob < ApplicationJob
   def perform(chat_message_id)
     message = ChatMessage.find_by(id: chat_message_id)
     return unless message
-    return if message.sharepoint_file_id.present?
+    return if message.storage_reference.present?
     return unless message.file.attached?
 
     Rails.logger.info("[ChatMessageUpload] Uploading file for ChatMessage #{chat_message_id}")

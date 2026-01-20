@@ -174,7 +174,7 @@ module Api
             data: {
               has_invoice: @request.invoice_file.attached?,
               proof_photos_count: @request.proof_photos.count,
-              upload_pending: @request.sharepoint_file_id.blank?
+              upload_pending: @request.storage_reference.blank?
             }
           }
         end
@@ -271,8 +271,8 @@ module Api
               reference_number: request.payment.reference_number
             } : nil,
             paid_at: request.paid_at,
-            has_invoice: request.sharepoint_file_id.present?,
-            sharepoint_file_id: request.sharepoint_file_id,
+            has_invoice: request.storage_reference.present?,
+            sharepoint_file_id: request.storage_reference,  # Keep JSON key for backwards compat
             proof_photos_sharepoint_ids: request.proof_photos_sharepoint_ids || []
           }
         end

@@ -94,7 +94,7 @@ module Api
       # GET /api/v1/bill_inbox/:id/download
       # Downloads from SharePoint (SSoT) - no Active Storage fallback
       def download
-        unless @bill.sharepoint_file_id.present?
+        unless @bill.storage_reference.present?
           return render json: { error: "No SharePoint file ID - file not uploaded yet" }, status: :not_found
         end
 
@@ -145,7 +145,7 @@ module Api
 
       # POST /api/v1/bill_inbox/:id/extract
       def extract
-        unless @bill.sharepoint_file_id.present?
+        unless @bill.storage_reference.present?
           return render json: { error: "No SharePoint file - upload not complete" }, status: :unprocessable_entity
         end
 

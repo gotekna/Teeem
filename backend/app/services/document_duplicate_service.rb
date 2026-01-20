@@ -50,7 +50,7 @@ class DocumentDuplicateService
         created_at: doc.created_at,
         file_size: doc.file_size,
         ai_status: doc.ai_verification_status,
-        sharepoint_file_id: doc.sharepoint_file_id,
+        storage_reference: doc.storage_reference,
         content_preview: extract_content_preview(doc)
       }
     end
@@ -220,14 +220,14 @@ class DocumentDuplicateService
       created_at: doc.created_at,
       file_size: doc.file_size,
       ai_verification_status: doc.ai_verification_status,
-      sharepoint_file_id: doc.sharepoint_file_id
+      storage_reference: doc.storage_reference
     }
   end
 
   # Extract content preview using provider-agnostic storage
   # SSoT: Uses DocumentStorageService for downloads
   def self.extract_content_preview(doc)
-    return nil unless doc.storage_path.present? || doc.sharepoint_file_id.present?
+    return nil unless doc.storage_reference.present?
 
     begin
       service = DocumentStorageService.new
@@ -296,7 +296,7 @@ class DocumentDuplicateService
         Created: #{d[:created_at]}
         File Size: #{d[:file_size]} bytes
         AI Status: #{d[:ai_status]}
-        OneDrive ID: #{d[:sharepoint_file_id]}
+        Storage ID: #{d[:storage_reference]}
         Content Preview: #{d[:content_preview] || "(could not extract)"}
       DOC
     end.join("\n---\n")
@@ -574,12 +574,12 @@ class DocumentDuplicateService
         # Bypass skip_rename check for deletion marking
         old_name = doc.file_name
 
-        # Direct rename in storage if identifier exists
-        if doc.storage_path.present? || doc.sharepoint_file_id.present?
+        # Direct rename in storage if identifier exists - SSoT: use storage_reference
+        if doc.storage_reference.present?
           instance = new(nil)
           begin
             instance.send(:setup_default_provider!)
-            file_identifier = doc.storage_path || doc.sharepoint_file_id
+            file_identifier = doc.storage_reference
             instance.send(:rename_file_in_provider, file_identifier, new_name)
           rescue DocumentProviders::NotConnectedError
             # Continue with database update even if storage rename fails
@@ -608,8 +608,8 @@ class DocumentDuplicateService
     storage_service = DocumentStorageService.new
 
     CorporateCompanyDocument.where(id: document_ids).find_each do |doc|
-      # Delete from storage (provider-agnostic)
-      if doc.storage_path.present? || doc.sharepoint_file_id.present?
+      # Delete from storage (provider-agnostic) - SSoT: use storage_reference
+      if doc.storage_reference.present?
         begin
           storage_service.delete(doc)
           Rails.logger.info("Permanently deleted storage file for doc #{doc.id}")
@@ -651,12 +651,12 @@ class DocumentDuplicateService
 
     new_name = doc.file_name.sub(DELETE_PREFIX, "")
 
-    # Rename in storage (provider-agnostic)
-    if doc.storage_path.present? || doc.sharepoint_file_id.present?
+    # Rename in storage (provider-agnostic) - SSoT: use storage_reference
+    if doc.storage_reference.present?
       begin
         instance = new(nil)
         instance.send(:setup_default_provider!)
-        file_identifier = doc.storage_path || doc.sharepoint_file_id
+        file_identifier = doc.storage_reference
         instance.send(:rename_file_in_provider, file_identifier, new_name)
       rescue DocumentProviders::NotConnectedError
         # Continue with database update even if storage rename fails

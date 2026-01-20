@@ -213,14 +213,14 @@ class PlanSetUploadJob < ApplicationJob
       PlanAiAnalysisJob.set(wait: (index * 3).seconds).perform_later(plan.id)
 
       # Queue thumbnail generation for instant preview
-      if plan.current_revision&.sharepoint_file_id.present?
+      if plan.current_revision&.storage_reference.present?
         GeneratePlanThumbnailJob.set(wait: (index * 2).seconds).perform_later(plan.current_revision.id)
       end
     end
 
     # Also generate thumbnail for "All Plans"
     all_plans = @job.job_plans.find_by(display_name: "All Plans")
-    if all_plans&.current_revision&.sharepoint_file_id.present?
+    if all_plans&.current_revision&.storage_reference.present?
       GeneratePlanThumbnailJob.perform_later(all_plans.current_revision.id)
     end
 

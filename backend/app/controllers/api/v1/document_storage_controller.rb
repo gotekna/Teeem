@@ -1592,7 +1592,8 @@ module Api
           # Data Warehouse approach: instant results from database
           files_with_suggestions = cached_docs.map do |doc|
             {
-              id: doc.sharepoint_item_id,
+              # SSoT: Use storage_reference (provider-agnostic) not legacy sharepoint_item_id
+              id: doc.storage_reference,
               document_id: doc.id,
               name: doc.file_name,
               original_name: doc.original_file_name,
@@ -1624,7 +1625,7 @@ module Api
               ai_confidence: doc.ai_confidence&.to_f,
               ai_reasoning: doc.ai_reasoning,
               rename_status: doc.rename_status,
-              thumbnail_url: fresh_thumbnails[doc.sharepoint_item_id] || doc.thumbnail_url,
+              thumbnail_url: fresh_thumbnails[doc.storage_reference] || doc.thumbnail_url,
               from_cache: true,
               # Version chain fields (Draft/Signed versioning)
               version_status: doc.version_status,
@@ -2171,9 +2172,9 @@ module Api
         begin
           client = MicrosoftGraphClient.new(credential)
 
-          # Rename the file in SharePoint
+          # Rename the file in SharePoint (SSoT: use storage_reference)
           result = client.patch(
-            "/drives/#{credential.drive_id}/items/#{document.sharepoint_item_id}",
+            "/drives/#{credential.drive_id}/items/#{document.storage_reference}",
             { name: new_name }
           )
 
@@ -2235,9 +2236,9 @@ module Api
 
         documents.each do |doc|
           begin
-            # Rename in SharePoint
+            # Rename in SharePoint (SSoT: use storage_reference)
             result = client.patch(
-              "/drives/#{credential.drive_id}/items/#{doc.sharepoint_item_id}",
+              "/drives/#{credential.drive_id}/items/#{doc.storage_reference}",
               { name: doc.ai_proposed_name }
             )
 
@@ -2868,17 +2869,20 @@ module Api
           # Batch process - get thumbnails for each doc
           # Microsoft Graph supports batch requests but for simplicity we'll make individual calls
           # Limited to first 50 docs to avoid timeout
+          # SSoT: Only SharePoint docs have Graph API thumbnails
           docs.limit(50).each do |doc|
-            next unless doc.sharepoint_item_id.present? && doc.sharepoint_drive_id.present?
+            # Filter to SharePoint docs only (S3/Wasabi don't have Graph API thumbnails)
+            next unless doc.storage_provider == 'sharepoint' || doc.storage_provider.nil?
+            next unless doc.storage_reference.present? && doc.sharepoint_drive_id.present?
 
             begin
               # Get fresh thumbnail from Graph API
-              item_data = client.get_drive_item(doc.sharepoint_drive_id, doc.sharepoint_item_id, expand: "thumbnails")
+              item_data = client.get_drive_item(doc.sharepoint_drive_id, doc.storage_reference, expand: "thumbnails")
               if item_data
                 thumbnails = item_data.dig("thumbnails", 0) || {}
                 thumb_url = thumbnails.dig("medium", "url") || thumbnails.dig("small", "url")
                 if thumb_url
-                  fresh_thumbnails[doc.sharepoint_item_id] = thumb_url
+                  fresh_thumbnails[doc.storage_reference] = thumb_url
                   # Also update the cached value
                   doc.update_column(:thumbnail_url, thumb_url)
                 end
@@ -3038,7 +3042,9 @@ module Api
           id: doc.id,
           job_id: doc.job_id,
           job_title: doc.job&.title,
-          sharepoint_item_id: doc.sharepoint_item_id,
+          # SSoT: Use storage_reference (provider-agnostic)
+          sharepoint_item_id: doc.storage_reference,
+          storage_reference: doc.storage_reference,
           current_name: doc.file_name,
           original_name: doc.original_file_name,
           proposed_name: doc.ai_proposed_name,
