@@ -201,6 +201,63 @@ module Api
         }
       end
 
+      # GET /api/v1/documents/live_folder_tree
+      # Phase 5: Universal Live Folder Tree - computed from DB relationships
+      # Returns folder tree computed LIVE from source tables (SSoT)
+      #
+      # Key insight: The folder structure IS the document metadata relationships.
+      # We don't store folder paths - we compute them from existing DB relationships.
+      #
+      # Benefits:
+      # - Instant template changes (no migration needed)
+      # - Always accurate (reads from SSoT)
+      # - Single GROUP BY query per folder level (fast)
+      #
+      # Params:
+      #   scope: The scope to query (email, corporate, job, contact, people, task)
+      #   path: Optional path to drill down (e.g., "inbox@tekna.com.au/2025/01")
+      #
+      # Returns:
+      #   folders: Array of { name, path, count } for subfolders
+      #   files: Array of file objects at this level (only at leaf level)
+      #   template: The template used for this scope
+      def live_folder_tree
+        scope = params[:scope].to_s.downcase
+        path = params[:path].to_s.strip.gsub(%r{^/+|/+$}, "")
+        path_segments = path.present? ? path.split("/") : []
+
+        # Get template from StorageConfiguration
+        config = StorageConfiguration.instance
+        template = config.template_for(scope) rescue nil
+
+        # Build live folder tree based on scope
+        result = build_live_folder_tree(scope, path_segments)
+
+        render json: {
+          success: true,
+          scope: scope,
+          path: path,
+          template: template,
+          folders: result[:folders],
+          files: result[:files] || [],
+          count: {
+            folders: result[:folders].size,
+            files: (result[:files] || []).size,
+            total: result[:folders].size + (result[:files] || []).size
+          }
+        }
+      rescue StandardError => e
+        Rails.logger.error "[Documents] live_folder_tree failed for scope=#{scope}, path=#{path}: #{e.message}\n#{e.backtrace.first(5).join("\n")}"
+        render json: {
+          success: false,
+          error: e.message,
+          scope: scope,
+          path: path,
+          folders: [],
+          files: []
+        }, status: :ok
+      end
+
       # GET /api/v1/documents/virtual_tree
       # Phase 4: Virtual File Warehouse - Database-driven folder tree
       # Returns folder tree from WarehouseDocument.folder instead of S3
@@ -855,6 +912,480 @@ module Api
       end
 
       private
+
+      # Phase 5: Build live folder tree from DB relationships (SSoT)
+      # Computes folder structure from source tables instead of stored paths
+      #
+      # @param scope [String] The document scope (email, corporate, job, contact, people, task)
+      # @param path_segments [Array<String>] Path segments to drill down
+      # @return [Hash] { folders: [{ name, path, count }...], files: [...] }
+      def build_live_folder_tree(scope, path_segments)
+        case scope
+        when "email", "emails"
+          build_email_live_tree(path_segments)
+        when "corporate", "corporate_entity", "corp"
+          build_corporate_live_tree(path_segments)
+        when "job", "jobs"
+          build_job_live_tree(path_segments)
+        when "contact", "contacts"
+          build_contact_live_tree(path_segments)
+        when "people"
+          build_people_live_tree(path_segments)
+        when "task", "tasks"
+          build_task_live_tree(path_segments)
+        else
+          { folders: [], files: [] }
+        end
+      end
+
+      # Email scope: {{Mailbox}}/Email Body/{{Year}}/{{Month}}
+      # Level 0: Mailboxes (group by mailbox_owner_email)
+      # Level 1: "Email Body" static folder
+      # Level 2: Years (group by YEAR(received_at))
+      # Level 3: Months (group by MONTH(received_at))
+      # Level 4: Files
+      def build_email_live_tree(path_segments)
+        depth = path_segments.size
+
+        case depth
+        when 0
+          # Root: Show unique mailboxes
+          mailboxes = SyncedEmail.where.not(mailbox_owner_email: [nil, ""])
+                                 .group(:mailbox_owner_email)
+                                 .count
+
+          folders = mailboxes.map do |email, count|
+            { name: email, path: email, count: count }
+          end.sort_by { |f| f[:name].to_s.downcase }
+
+          { folders: folders, files: [] }
+
+        when 1
+          # Level 1: Mailbox selected, show "Email Body" static folder
+          mailbox = path_segments[0]
+          count = SyncedEmail.where(mailbox_owner_email: mailbox).count
+
+          folders = [{ name: "Email Body", path: "#{mailbox}/Email Body", count: count }]
+          { folders: folders, files: [] }
+
+        when 2
+          # Level 2: Show years
+          mailbox = path_segments[0]
+          # path_segments[1] is "Email Body" - skip it
+
+          years = SyncedEmail.where(mailbox_owner_email: mailbox)
+                             .where.not(received_at: nil)
+                             .group("EXTRACT(YEAR FROM received_at)::INTEGER")
+                             .count
+
+          folders = years.map do |year, count|
+            year_str = year.to_i.to_s
+            { name: year_str, path: "#{mailbox}/Email Body/#{year_str}", count: count }
+          end.sort_by { |f| -f[:name].to_i }  # Newest first
+
+          { folders: folders, files: [] }
+
+        when 3
+          # Level 3: Show months for selected year
+          mailbox = path_segments[0]
+          year = path_segments[2].to_i
+
+          months = SyncedEmail.where(mailbox_owner_email: mailbox)
+                              .where("EXTRACT(YEAR FROM received_at) = ?", year)
+                              .group("EXTRACT(MONTH FROM received_at)::INTEGER")
+                              .count
+
+          month_names = %w[Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec]
+          folders = months.map do |month, count|
+            month_name = month_names[month.to_i - 1] || month.to_s.rjust(2, "0")
+            month_str = month.to_s.rjust(2, "0")
+            { name: "#{month_str} - #{month_name}", path: "#{mailbox}/Email Body/#{year}/#{month_str}", count: count }
+          end.sort_by { |f| -f[:name].to_i }  # Newest first
+
+          { folders: folders, files: [] }
+
+        else
+          # Level 4+: Show actual emails as files
+          mailbox = path_segments[0]
+          year = path_segments[2].to_i
+          month = path_segments[3].to_i
+
+          emails = SyncedEmail.where(mailbox_owner_email: mailbox)
+                              .where("EXTRACT(YEAR FROM received_at) = ?", year)
+                              .where("EXTRACT(MONTH FROM received_at) = ?", month)
+                              .order(received_at: :desc)
+                              .limit(500)
+
+          files = emails.map do |email|
+            {
+              id: email.id,
+              name: email.subject || "(No Subject)",
+              type: "email",
+              mimeType: "message/rfc822",
+              receivedAt: email.received_at&.iso8601,
+              from: email.from_email,
+              fromName: email.from_name,
+              hasAttachments: email.has_attachments,
+              attachmentCount: email.attachment_count
+            }
+          end
+
+          { folders: [], files: files }
+        end
+      end
+
+      # Corporate scope: {{CompanyGroup}}/{{CompanyCode}}/{{Tab}}
+      # Level 0: Company Groups (group by corporate_groups.name)
+      # Level 1: Companies in group (group by company_code)
+      # Level 2: Document types/tabs (group by document_type)
+      # Level 3: Files
+      def build_corporate_live_tree(path_segments)
+        depth = path_segments.size
+
+        case depth
+        when 0
+          # Root: Show company groups
+          groups = CorporateGroup.order(:name).map do |group|
+            count = CorporateCompanyDocument
+              .joins("INNER JOIN corporate_companies cc ON cc.id = corporate_company_documents.company_id")
+              .where("cc.company_group_id = ?", group.id)
+              .count
+
+            { name: group.name, path: group.name, count: count, groupId: group.id }
+          end
+
+          { folders: groups.select { |g| g[:count] > 0 }, files: [] }
+
+        when 1
+          # Level 1: Show companies in selected group
+          group_name = path_segments[0]
+          group = CorporateGroup.find_by(name: group_name)
+          return { folders: [], files: [] } unless group
+
+          companies = CorporateCompany.where(company_group_id: group.id).order(:name).map do |company|
+            count = CorporateCompanyDocument.where(company_id: company.id).count
+            display_name = company.company_code.present? ? "#{company.company_code} - #{company.name}" : company.name
+            { name: display_name, path: "#{group_name}/#{company.company_code || company.id}", count: count, companyId: company.id }
+          end
+
+          { folders: companies.select { |c| c[:count] > 0 }, files: [] }
+
+        when 2
+          # Level 2: Show document types for selected company
+          group_name = path_segments[0]
+          company_code = path_segments[1]
+
+          company = CorporateCompany.find_by(company_code: company_code) ||
+                    CorporateCompany.find_by(id: company_code)
+          return { folders: [], files: [] } unless company
+
+          # Group by document_type (using document_type_id for proper grouping)
+          doc_types = CorporateCompanyDocument.where(company_id: company.id)
+                                              .joins("LEFT JOIN document_types ON document_types.id = corporate_company_documents.document_type_id")
+                                              .group("COALESCE(document_types.name, corporate_company_documents.document_type, 'Uncategorized')")
+                                              .count
+
+          folders = doc_types.map do |type_name, count|
+            safe_name = type_name || "Uncategorized"
+            { name: safe_name, path: "#{group_name}/#{company_code}/#{safe_name}", count: count }
+          end.sort_by { |f| f[:name].to_s.downcase }
+
+          { folders: folders, files: [] }
+
+        else
+          # Level 3+: Show files for selected document type
+          group_name = path_segments[0]
+          company_code = path_segments[1]
+          doc_type_name = path_segments[2]
+
+          company = CorporateCompany.find_by(company_code: company_code) ||
+                    CorporateCompany.find_by(id: company_code)
+          return { folders: [], files: [] } unless company
+
+          documents = CorporateCompanyDocument
+            .where(company_id: company.id)
+            .joins("LEFT JOIN document_types ON document_types.id = corporate_company_documents.document_type_id")
+            .where("COALESCE(document_types.name, corporate_company_documents.document_type, 'Uncategorized') = ?", doc_type_name)
+            .includes(:document_type_record)
+            .order(created_at: :desc)
+            .limit(500)
+
+          files = documents.map do |doc|
+            {
+              id: doc.id,
+              name: doc.display_name || doc.file_name || "Untitled",
+              type: "corporate",
+              mimeType: doc.mime_type || "application/octet-stream",
+              fileSize: doc.file_size || 0,
+              createdAt: doc.created_at&.iso8601,
+              url: doc.storage_url || doc.file_url
+            }
+          end
+
+          { folders: [], files: files }
+        end
+      end
+
+      # Job scope: {{JobCode}}/{{Tab}}
+      # Level 0: Jobs (group by job_code)
+      # Level 1: Document types/tabs (group by document_type)
+      # Level 2: Files
+      def build_job_live_tree(path_segments)
+        depth = path_segments.size
+
+        case depth
+        when 0
+          # Root: Show jobs with documents
+          jobs = JobDocument.joins(:job)
+                            .group("jobs.job_code", "jobs.id", "jobs.name")
+                            .count
+
+          folders = jobs.map do |(job_code, job_id, job_name), count|
+            display = job_code.present? ? job_code : "Job-#{job_id}"
+            { name: display, path: display, count: count, jobId: job_id, jobName: job_name }
+          end.sort_by { |f| f[:name].to_s.downcase }
+
+          { folders: folders, files: [] }
+
+        when 1
+          # Level 1: Show document types for selected job
+          job_code = path_segments[0]
+          job = Job.find_by(job_code: job_code) || Job.find_by(id: job_code.sub(/^Job-/, ""))
+          return { folders: [], files: [] } unless job
+
+          doc_types = JobDocument.where(job_id: job.id)
+                                 .joins("LEFT JOIN document_types ON document_types.id = job_documents.document_type_id")
+                                 .group("COALESCE(document_types.name, 'Uncategorized')")
+                                 .count
+
+          folders = doc_types.map do |type_name, count|
+            safe_name = type_name || "Uncategorized"
+            { name: safe_name, path: "#{job_code}/#{safe_name}", count: count }
+          end.sort_by { |f| f[:name].to_s.downcase }
+
+          { folders: folders, files: [] }
+
+        else
+          # Level 2+: Show files
+          job_code = path_segments[0]
+          doc_type_name = path_segments[1]
+
+          job = Job.find_by(job_code: job_code) || Job.find_by(id: job_code.sub(/^Job-/, ""))
+          return { folders: [], files: [] } unless job
+
+          documents = JobDocument.where(job_id: job.id)
+                                 .joins("LEFT JOIN document_types ON document_types.id = job_documents.document_type_id")
+                                 .where("COALESCE(document_types.name, 'Uncategorized') = ?", doc_type_name)
+                                 .order(created_at: :desc)
+                                 .limit(500)
+
+          files = documents.map do |doc|
+            {
+              id: doc.id,
+              name: doc.display_title || doc.file_name || "Untitled",
+              type: "job",
+              mimeType: doc.mime_type || "application/octet-stream",
+              fileSize: doc.file_size || 0,
+              createdAt: doc.created_at&.iso8601,
+              url: doc.storage_url || doc.web_url
+            }
+          end
+
+          { folders: [], files: files }
+        end
+      end
+
+      # Contact scope: {{ContactName}}/{{Tab}}
+      # Uses ContactDocument (Xero invoices/bills)
+      def build_contact_live_tree(path_segments)
+        depth = path_segments.size
+
+        case depth
+        when 0
+          # Root: Show contacts with documents
+          contacts = ContactDocument.joins(:contact)
+                                    .group("contacts.name", "contacts.id")
+                                    .count
+
+          folders = contacts.map do |(contact_name, contact_id), count|
+            display = contact_name.presence || "Unknown Contact"
+            { name: display, path: display, count: count, contactId: contact_id }
+          end.sort_by { |f| f[:name].to_s.downcase }
+
+          { folders: folders, files: [] }
+
+        when 1
+          # Level 1: Show document types for selected contact
+          contact_name = path_segments[0]
+          contact = Contact.find_by(name: contact_name) || Contact.find_by(display_name: contact_name)
+          return { folders: [], files: [] } unless contact
+
+          doc_types = ContactDocument.where(contact_id: contact.id)
+                                     .joins("LEFT JOIN document_types ON document_types.id = contact_documents.document_type_id")
+                                     .group("COALESCE(document_types.name, 'Uncategorized')")
+                                     .count
+
+          folders = doc_types.map do |type_name, count|
+            safe_name = type_name || "Uncategorized"
+            { name: safe_name, path: "#{contact_name}/#{safe_name}", count: count }
+          end.sort_by { |f| f[:name].to_s.downcase }
+
+          { folders: folders, files: [] }
+
+        else
+          # Level 2+: Show files
+          contact_name = path_segments[0]
+          doc_type_name = path_segments[1]
+
+          contact = Contact.find_by(name: contact_name) || Contact.find_by(display_name: contact_name)
+          return { folders: [], files: [] } unless contact
+
+          documents = ContactDocument.where(contact_id: contact.id)
+                                     .joins("LEFT JOIN document_types ON document_types.id = contact_documents.document_type_id")
+                                     .where("COALESCE(document_types.name, 'Uncategorized') = ?", doc_type_name)
+                                     .order(created_at: :desc)
+                                     .limit(500)
+
+          files = documents.map do |doc|
+            {
+              id: doc.id,
+              name: doc.display_name || doc.file_name || "Untitled",
+              type: "contact",
+              mimeType: doc.mime_type || "application/octet-stream",
+              fileSize: doc.file_size || 0,
+              createdAt: doc.created_at&.iso8601,
+              url: doc.respond_to?(:storage_url) ? doc.storage_url : nil
+            }
+          end
+
+          { folders: [], files: files }
+        end
+      end
+
+      # People scope: {{ContactName}}/{{Tab}}
+      # Uses PeopleDocument (employee documents)
+      def build_people_live_tree(path_segments)
+        depth = path_segments.size
+
+        case depth
+        when 0
+          # Root: Show contacts with people documents
+          contacts = PeopleDocument.joins(:contact)
+                                   .group("contacts.name", "contacts.id")
+                                   .count
+
+          folders = contacts.map do |(contact_name, contact_id), count|
+            display = contact_name.presence || "Unknown Person"
+            { name: display, path: display, count: count, contactId: contact_id }
+          end.sort_by { |f| f[:name].to_s.downcase }
+
+          { folders: folders, files: [] }
+
+        when 1
+          # Level 1: Show document types for selected person
+          contact_name = path_segments[0]
+          contact = Contact.find_by(name: contact_name) || Contact.find_by(display_name: contact_name)
+          return { folders: [], files: [] } unless contact
+
+          doc_types = PeopleDocument.where(contact_id: contact.id)
+                                    .joins("LEFT JOIN document_types ON document_types.id = people_documents.document_type_id")
+                                    .group("COALESCE(document_types.name, people_documents.document_type, 'Uncategorized')")
+                                    .count
+
+          folders = doc_types.map do |type_name, count|
+            safe_name = type_name || "Uncategorized"
+            { name: safe_name, path: "#{contact_name}/#{safe_name}", count: count }
+          end.sort_by { |f| f[:name].to_s.downcase }
+
+          { folders: folders, files: [] }
+
+        else
+          # Level 2+: Show files
+          contact_name = path_segments[0]
+          doc_type_name = path_segments[1]
+
+          contact = Contact.find_by(name: contact_name) || Contact.find_by(display_name: contact_name)
+          return { folders: [], files: [] } unless contact
+
+          documents = PeopleDocument.where(contact_id: contact.id)
+                                    .joins("LEFT JOIN document_types ON document_types.id = people_documents.document_type_id")
+                                    .where("COALESCE(document_types.name, people_documents.document_type, 'Uncategorized') = ?", doc_type_name)
+                                    .order(created_at: :desc)
+                                    .limit(500)
+
+          files = documents.map do |doc|
+            {
+              id: doc.id,
+              name: doc.title || doc.file_name || "Untitled",
+              type: "people",
+              mimeType: doc.mime_type || "application/octet-stream",
+              fileSize: doc.file_size || 0,
+              createdAt: doc.created_at&.iso8601,
+              expiryDate: doc.expiry_date&.iso8601,
+              isExpired: doc.respond_to?(:expired?) ? doc.expired? : false,
+              url: doc.respond_to?(:storage_url) ? doc.storage_url : nil
+            }
+          end
+
+          { folders: [], files: files }
+        end
+      end
+
+      # Task scope: Tasks/{{TaskNumber}}
+      # Uses SmTaskAttachment linked to CorporateCompanyDocument
+      def build_task_live_tree(path_segments)
+        depth = path_segments.size
+
+        case depth
+        when 0
+          # Root: Show "Tasks" folder as entry point
+          count = SmTaskAttachment.where(attachable_type: "CorporateCompanyDocument").distinct.count(:sm_task_id)
+          { folders: [{ name: "Tasks", path: "Tasks", count: count }], files: [] }
+
+        when 1
+          # Level 1: Show tasks with attachments
+          tasks = SmTaskAttachment.where(attachable_type: "CorporateCompanyDocument")
+                                  .joins(:sm_task)
+                                  .group("sm_tasks.task_number", "sm_tasks.id", "sm_tasks.name")
+                                  .count
+
+          folders = tasks.map do |(task_number, task_id, task_name), count|
+            display = task_number.present? ? "#{task_number} - #{task_name}" : task_name
+            { name: display || "Task #{task_id}", path: "Tasks/#{task_number || task_id}", count: count, taskId: task_id }
+          end.sort_by { |f| f[:name].to_s.downcase }
+
+          { folders: folders, files: [] }
+
+        else
+          # Level 2+: Show files for selected task
+          task_identifier = path_segments[1]
+
+          task = SmTask.find_by(task_number: task_identifier) || SmTask.find_by(id: task_identifier)
+          return { folders: [], files: [] } unless task
+
+          attachments = SmTaskAttachment.where(sm_task_id: task.id, attachable_type: "CorporateCompanyDocument")
+                                        .includes(:attachable)
+
+          files = attachments.map do |attachment|
+            doc = attachment.attachable
+            next unless doc
+
+            {
+              id: doc.id,
+              name: doc.display_name || doc.file_name || "Untitled",
+              type: "task",
+              mimeType: doc.mime_type || "application/octet-stream",
+              fileSize: doc.file_size || 0,
+              createdAt: doc.created_at&.iso8601,
+              taskId: task.id,
+              taskNumber: task.task_number,
+              url: doc.storage_url || doc.file_url
+            }
+          end.compact
+
+          { folders: [], files: files }
+        end
+      end
 
       # Phase 4: Build virtual folder tree from WarehouseDocument.folder paths
       # Groups documents by folder path segments to create nested folder structure

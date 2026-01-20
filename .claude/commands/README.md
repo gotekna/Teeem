@@ -28,6 +28,7 @@ Type `/` followed by the command name in Claude Code. For example:
 | `/commit` | Create git commit with conventional format | Ready to commit your changes |
 | `/status` | Get comprehensive project status report | Want overview of git, servers, deployments |
 | `/export-lexicon` | Export Lexicon database to markdown | Updated Lexicon entries and want to export to file |
+| `/pr` | Test EVERY page in the app using Chrome DevTools | Comprehensive UI testing before deployment |
 
 ## Agent Shortcuts
 

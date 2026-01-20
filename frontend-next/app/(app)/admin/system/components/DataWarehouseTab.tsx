@@ -2018,8 +2018,8 @@ export function DataWarehouseTab() {
               <p className="text-sm text-muted-foreground">No documents yet</p>
             ) : (
               <div className="space-y-2 max-h-60 overflow-y-auto">
-                {stats.document_types.slice(0, 10).map((dt) => (
-                  <div key={dt.type || "unknown"} className="flex items-center justify-between">
+                {stats.document_types.slice(0, 10).map((dt, index) => (
+                  <div key={`${dt.type || "unknown"}-${index}`} className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       {dt.abbreviation && (
                         <Badge variant="outline" className="font-mono text-xs">

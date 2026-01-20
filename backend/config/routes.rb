@@ -432,6 +432,11 @@ Rails.application.routes.draw do
       # Returns folder tree from WarehouseDocument.folder instead of S3
       # Params: scope (email, task, etc.), path (optional filter)
       get "documents/virtual_tree", to: "documents#virtual_tree"
+      # Phase 5: Universal Live Folder Tree - computed from DB relationships
+      # Folder structure computed LIVE from source tables (SSoT)
+      # Benefits: Instant template changes, always accurate, single GROUP BY query
+      # Params: scope (email, corporate, job, contact, people, task), path (drill down)
+      get "documents/live_folder_tree", to: "documents#live_folder_tree"
 
       # Documents (simple alias for company documents)
       resources :documents, only: [ :index, :create, :show, :update, :destroy ] do
