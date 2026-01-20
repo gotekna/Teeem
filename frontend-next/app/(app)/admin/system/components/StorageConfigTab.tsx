@@ -1431,7 +1431,6 @@ export function StorageConfigTab() {
         "/api/v1/storage_configuration"
       );
       if (response?.success && response.data) {
-        console.log('[StorageConfig] API response scope_root_folders:', response.data.scope_root_folders);
         setConfig(response.data);
         setFormData({
           // Provider type - normalize legacy values (wasabi/s3 → s3_compatible)
@@ -1877,13 +1876,26 @@ export function StorageConfigTab() {
       {/* Scope Root Folders - SSoT for scope base paths */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <FolderTree className="h-4 w-4" />
-            Scope Root Folders
-          </CardTitle>
-          <CardDescription>
-            Root folder for each scope. All tab paths are relative to these roots.
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <FolderTree className="h-4 w-4" />
+                Scope Root Folders
+              </CardTitle>
+              <CardDescription>
+                Root folder for each scope. All tab paths are relative to these roots.
+              </CardDescription>
+            </div>
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={saving}
+              className="h-8"
+            >
+              {saving ? <Spinner className="h-4 w-4 mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+              Save
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

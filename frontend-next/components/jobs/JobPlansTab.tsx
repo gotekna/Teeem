@@ -927,6 +927,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
           actionLabels={{ approve: "Set On Issue", openExternal: "Open in Storage" }}
           loading={loading}
           emptyMessage="Drop a PDF here or click Add Plan to get started"
+          autoSelectFirst
           // MASTERPIECE: Infinite scroll props
           onLoadMore={loadMorePlans}
           hasMore={hasMore}

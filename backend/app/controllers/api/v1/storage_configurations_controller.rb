@@ -15,9 +15,6 @@ module Api
       def show
         config_hash = StorageConfiguration.instance&.to_config_hash || {}
 
-        # DEBUG: Log what we're returning
-        Rails.logger.info "[StorageConfig API] scope_root_folders: #{config_hash[:scope_root_folders].inspect}"
-
         render json: {
           success: true,
           data: config_hash
