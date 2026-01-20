@@ -28,6 +28,7 @@ import { notFound } from "next/navigation";
 const STATIC_ROUTE_PREFIXES = [
   "settings",
   "admin",
+  "corporate", // Has dedicated pages in /corporate/*
   // Note: Don't add foundation slugs here (jobs, contacts, etc.)
   // Those are intentionally handled by this [slug] route
 ];

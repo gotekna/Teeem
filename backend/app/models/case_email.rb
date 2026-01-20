@@ -4,6 +4,10 @@ class CaseEmail < ApplicationRecord
   belongs_to :email_warehouse
   belongs_to :added_by, class_name: "User", optional: true
 
+  # Alias for legacy column name (EmailWarehouse was renamed to SyncedEmail)
+  alias_attribute :synced_email_id, :email_warehouse_id
+  alias_attribute :synced_email, :email_warehouse
+
   has_many :case_email_qas, dependent: :destroy
 
   validates :case_id, uniqueness: { scope: :email_warehouse_id }

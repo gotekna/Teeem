@@ -8,6 +8,10 @@ class EmailUserState < ApplicationRecord
   belongs_to :email_warehouse
   belongs_to :user
 
+  # Alias for legacy column name (EmailWarehouse was renamed to SyncedEmail)
+  alias_attribute :synced_email_id, :email_warehouse_id
+  alias_attribute :synced_email, :email_warehouse
+
   # Validations
   validates :star_color, inclusion: { in: %w[red orange yellow green blue purple] }, allow_blank: true
   validates :priority, inclusion: { in: %w[high normal low] }, allow_blank: true

@@ -8,6 +8,10 @@ class EmailSnooze < ApplicationRecord
   belongs_to :email_warehouse
   belongs_to :user
 
+  # Alias for legacy column name (EmailWarehouse was renamed to SyncedEmail)
+  alias_attribute :synced_email_id, :email_warehouse_id
+  alias_attribute :synced_email, :email_warehouse
+
   # Validations
   validates :snooze_until, presence: true
   validate :snooze_until_must_be_future, on: :create

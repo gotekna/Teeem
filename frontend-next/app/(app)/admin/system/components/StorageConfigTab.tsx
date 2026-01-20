@@ -53,7 +53,9 @@ import { TokenBuilder } from "@/components/ui/tokens";
 import Link from "next/link";
 
 // SSoT: Simple scopes have inline editing (no document types)
-const SIMPLE_SCOPES = ['email', 'warehouse', 'task'];
+// Note: 'overview' is needed because the Tasks folder can have scopeKey='overview'
+// (from EntityTab.scope_base_folders when tab_key='overview' shares path with 'task')
+const SIMPLE_SCOPES = ['email', 'warehouse', 'task', 'overview'];
 // SSoT: Complex scopes need separate tab (have document types, entity filters)
 const COMPLEX_SCOPES = ['corporate_entity', 'job', 'contact'];
 
@@ -1003,15 +1005,21 @@ function TabNode({
     return (
       <div
         className={cn(
-          "py-2 px-1 rounded-sm",
-          isEditing && "bg-blue-50 dark:bg-blue-900/20"
+          "py-2 px-1 rounded-sm group",
+          isEditing && "bg-blue-50 dark:bg-blue-900/20",
+          !isEditing && "cursor-pointer hover:bg-muted/50"
         )}
         style={{ paddingLeft: `${level * 16 + 24}px` }}
+        onClick={!isEditing ? (e) => { e.stopPropagation(); onStartEdit(tab.id); } : undefined}
+        title={!isEditing ? "Click to edit" : undefined}
       >
         {/* Tab header row */}
         <div className="flex items-center gap-1 mb-2">
           <FileText className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
           <span className="text-sm font-medium">{tab.display_name}</span>
+          {!isEditing && (
+            <span className="text-[10px] text-muted-foreground ml-2 opacity-0 group-hover:opacity-100">(click to edit)</span>
+          )}
         </div>
 
         {isEditing ? (
@@ -1074,11 +1082,7 @@ function TabNode({
             </div>
           </div>
         ) : (
-          <div
-            className="ml-4 space-y-1 text-[11px] text-muted-foreground cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -ml-2"
-            onClick={() => onStartEdit(tab.id)}
-            title="Click to edit"
-          >
+          <div className="ml-4 space-y-1 text-[11px] text-muted-foreground">
             <div className="flex items-center gap-2">
               <span className="font-medium w-20">Path:</span>
               <span className="font-mono">{tab.sharepoint_folder_path || '(none)'}</span>
