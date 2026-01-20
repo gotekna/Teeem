@@ -88,21 +88,7 @@ module Api
           update_attrs[:warehouse_root_folders] = sp[:scope_root_folders].to_h
         end
 
-        # Track old templates for file reorganization
-        old_templates = storage_config.warehouse_folder_templates&.deep_dup || {}
-
-        # Merge templates (don't replace entire hash)
-        # Accept both old and new param names for backwards compatibility
-        new_templates = nil
-        if sp.key?(:warehouse_folder_templates)
-          existing_templates = storage_config.warehouse_folder_templates || {}
-          new_templates = existing_templates.merge(sp[:warehouse_folder_templates].to_h)
-          update_attrs[:warehouse_folder_templates] = new_templates
-        elsif sp.key?(:scope_templates)
-          existing_templates = storage_config.warehouse_folder_templates || {}
-          new_templates = existing_templates.merge(sp[:scope_templates].to_h)
-          update_attrs[:warehouse_folder_templates] = new_templates
-        end
+        # File name templates (for document downloads)
         if sp.key?(:file_name_templates)
           existing_file_templates = storage_config.file_name_templates || {}
           update_attrs[:file_name_templates] = existing_file_templates.merge(sp[:file_name_templates].to_h)
@@ -198,11 +184,9 @@ module Api
           :base_path,  # Local
           :root_path,
           :exclude_sm_tasks,  # SM task exclusion setting (replaces scope_options)
-          # SSoT: warehouse_root_folders is THE ONE place for warehouse type roots
+          # SSoT: warehouse_root_folders is THE ONE place for warehouse type roots (includes identifier patterns)
           warehouse_root_folders: {},
           scope_root_folders: {},  # Legacy backwards compat
-          warehouse_folder_templates: {},
-          scope_templates: {},  # Legacy backwards compat
           file_name_templates: {},
           config_links: {},
           document_routing: {},  # SSoT: Which model to use for each document source

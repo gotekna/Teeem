@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-# FolderTemplateReorganizationService - SSoT for reorganizing files when folder templates change
+# FolderTemplateReorganizationService - SSoT for reorganizing files when folder paths change
 #
-# When folder path templates change in Entity Config (StorageConfiguration.scope_templates),
+# When warehouse_root_folders paths change in Entity Config,
 # this service automatically moves files to match the new folder structure.
 #
 # Usage:

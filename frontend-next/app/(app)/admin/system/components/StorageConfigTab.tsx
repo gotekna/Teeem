@@ -66,23 +66,6 @@ const SCOPE_LABELS: Record<string, string> = {
   contact: 'Contacts',
 };
 
-// SSoT: Default folder templates per scope (matches backend SCOPE_TEMPLATES)
-const DEFAULT_FOLDER_TEMPLATES: Record<string, string> = {
-  job: '{{JobCode}}/{{TabName}}',
-  task: '{{TaskId}}',
-  task_attachments: '{{TaskId}}/Attachments',
-  task_responses: '{{TaskId}}/Responses',
-  corporate_entity: '{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}',
-  corporate: '{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}',
-  contact: '{{ContactName}}/{{TabName}}',
-  people: '{{ContactName}}/{{TabName}}',
-  email: '{{Year}}/{{Month}}',
-  notes: '{{UserName}}/{{Year}}',
-  excel_documents: '{{UserName}}/{{Year}}',
-  word_documents: '{{UserName}}/{{Year}}',
-  powerpoint_documents: '{{UserName}}/{{Year}}',
-};
-
 // SSoT: Provider types match StorageConfiguration.PROVIDER_TYPES
 // Backend consolidates wasabi/s3 into s3_compatible
 type ProviderType = "sharepoint" | "s3_compatible" | "local";
@@ -367,7 +350,7 @@ function TreeNode({
   const activeScopeKey = currentEditingScopeKey || node.scopeKey;
   const [folderTemplate, setFolderTemplate] = React.useState(
     activeScopeKey
-      ? scopeTemplates[activeScopeKey] || DEFAULT_FOLDER_TEMPLATES[activeScopeKey] || '{{TabName}}'
+      ? scopeTemplates[activeScopeKey] || '' || '{{TabName}}'
       : '{{TabName}}'
   );
   const [filenameTemplate, setFilenameTemplate] = React.useState(
@@ -381,7 +364,7 @@ function TreeNode({
   // SSoT: Simple scopes without config link can expand to show folder template preview
   // Check if ANY scope has a template (for multi-scope paths like Tasks)
   const hasTemplatePreview = node.scopeKeys?.length > 0 && node.scopeKeys.some(sk => {
-    const template = scopeTemplates[sk] || DEFAULT_FOLDER_TEMPLATES[sk];
+    const template = scopeTemplates[sk] || '';
     return template && !configLinks[sk];
   });
   const hasExpandableContent = hasChildren || hasTabs || hasTemplatePreview;
@@ -494,7 +477,7 @@ function TreeNode({
       if (scopeActuallyChanged) {
         setEditValue(currentPath[currentEditingScopeKey] || node.path);
         setFolderTemplate(
-          scopeTemplates[currentEditingScopeKey] || DEFAULT_FOLDER_TEMPLATES[currentEditingScopeKey] || '{{TabName}}'
+          scopeTemplates[currentEditingScopeKey] || '' || '{{TabName}}'
         );
         setFilenameTemplate(
           fileNameTemplates[currentEditingScopeKey] || '{{OriginalFileName}}'
@@ -865,10 +848,11 @@ function TreeNode({
                 // Collect all templates from all scopes sharing this path
                 const allTemplates: Array<{ scopeKey: string; template: string; filename: string }> = [];
                 for (const sk of node.scopeKeys) {
-                  const template = scopeTemplates[sk] || DEFAULT_FOLDER_TEMPLATES[sk] || '';
+                  const template = scopeTemplates[sk] || '' || '';
                   const filename = fileNameTemplates[sk] || '{{OriginalFileName}}';
+                  // Skip COMPLEX_SCOPES - they show via tabs section exclusively (job, contact, corporate_entity)
                   // Skip scopes with config links (they show tabs instead)
-                  if (!configLinks[sk] && template) {
+                  if (!COMPLEX_SCOPES.includes(sk) && !configLinks[sk] && template) {
                     allTemplates.push({ scopeKey: sk, template, filename });
                   }
                 }
@@ -938,6 +922,7 @@ function TreeNode({
             </div>
           )}
           {/* For scopes with tabs: show tabs */}
+          {/* SSoT: Entity identifier (e.g., {{JobCode}}) comes from warehouse_root_folders, not extracted from template */}
           {hasTabs && node.scopeKey ? (
             <div className="ml-1">
               {node.tabs!.map((tab) => (
@@ -1964,26 +1949,8 @@ export function StorageConfigTab() {
         <CardContent>
           <div className="space-y-3">
             {Object.entries(config?.warehouse_root_folders || config?.scope_root_folders || {}).map(([scope, folder]) => {
-              // Available placeholders per scope
-              const scopePlaceholders: Record<string, string[]> = {
-                job: ['JobCode', 'JobName'],
-                contact: ['ContactName', 'ContactID'],
-                corporate_entity: ['CompanyGroup', 'CompanyCode', 'CompanyName'],
-                people: ['ContactName', 'ContactID'],
-                task: ['JobCode', 'JobName', 'TaskNumber', 'TaskName', 'TaskStatus'],
-                email: ['Mailbox', 'Year', 'Month'],
-                warehouse: ['UserName', 'Year', 'Month'],
-              };
-              const placeholders = scopePlaceholders[scope] || [];
-
-              // Insert placeholder at cursor or end
-              const insertPlaceholder = (placeholder: string) => {
-                const token = `{{${placeholder}}}`;
-                const newValue = folder.includes(token) ? folder : `${folder}${folder && !folder.endsWith('/') ? '/' : ''}${token}`;
-                const newRoots = { ...(config?.warehouse_root_folders || config?.scope_root_folders || {}), [scope]: newValue };
-                setConfig(prev => prev ? { ...prev, warehouse_root_folders: newRoots, scope_root_folders: newRoots } : prev);
-              };
-
+              // Root folders are STATIC (e.g., "Jobs", "Contacts") - no dynamic tokens
+              // Dynamic parts belong in TEMPLATES (e.g., "{{JobCode}}/{{TabName}}")
               return (
                 <div key={scope} className="flex items-start gap-3 pb-3 border-b last:border-0 last:pb-0">
                   <div className="flex items-center gap-2 min-w-[130px] pt-1">
@@ -2006,21 +1973,6 @@ export function StorageConfigTab() {
                       className="font-mono h-8"
                       placeholder={getScopeLabel(scope)}
                     />
-                    {placeholders.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {placeholders.map((p) => (
-                          <button
-                            key={p}
-                            type="button"
-                            onClick={() => insertPlaceholder(p)}
-                            className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
-                            title={`Click to insert {{${p}}}`}
-                          >
-                            {`{{${p}}}`}
-                          </button>
-                        ))}
-                      </div>
-                    )}
                     {scope === 'task' && (
                       <div className="flex items-center gap-2 pt-1">
                         <Checkbox
@@ -2044,13 +1996,13 @@ export function StorageConfigTab() {
         </CardContent>
       </Card>
 
-      {/* Scope Folders - Tree View */}
+      {/* Warehouse Folders - Tree View */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
               <FolderTree className="h-4 w-4" />
-              Scope Folders
+              Warehouse Folders
             </CardTitle>
             <div className="flex items-center gap-1">
               <Button
@@ -2280,7 +2232,7 @@ export function StorageConfigTab() {
                         .filter(([, path]) => path)
                         .sort(([, a], [, b]) => a.localeCompare(b))
                         .map(([scopeKey, basePath]) => {
-                          const template = formData.warehouse_folder_templates[scopeKey] || DEFAULT_FOLDER_TEMPLATES[scopeKey] || '';
+                          const template = formData.warehouse_folder_templates[scopeKey] || '' || '';
                           const count = warehouseStats.warehouse_by_source[scopeKey] || 0;
                           const icons: Record<string, React.ReactNode> = {
                             email: <Mail className="h-3.5 w-3.5 text-blue-500" />,

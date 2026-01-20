@@ -47,7 +47,6 @@ class StorageConfiguration < ApplicationRecord
 
   # Legacy column aliases for backward compatibility
   # These allow code referencing old column names to continue working
-  alias_attribute :templates, :warehouse_folder_templates
   alias_attribute :scope_root_folders, :warehouse_root_folders
   alias_attribute :virtual_scopes, :virtual_warehouses
   # Note: scope_options was deleted and replaced with exclude_sm_tasks boolean
@@ -210,82 +209,56 @@ class StorageConfiguration < ApplicationRecord
   # Legacy alias
   alias_method :effective_scope_folders, :effective_warehouse_folders
 
-  # Get folder template for a warehouse type
-  # SSoT: Database `warehouse_folder_templates` column is THE ONE source of truth
-  # Populated by migration, configurable via admin UI
-  #
-  # @param warehouse_type [String, Symbol] The warehouse type name
-  # @return [String] The template string for path generation (empty string = no template)
-  def folder_template_for(warehouse_type)
-    warehouse_folder_templates&.dig(warehouse_type.to_s) || ""
-  end
-
-  # Legacy alias for backward compatibility
-  alias_method :template_for, :folder_template_for
-
   # ========================================
   # Path Building Helpers
   # ========================================
 
   # Build full path for a job folder
+  # SSoT: warehouse_root_folders has full pattern like "Jobs/{{JobCode}}"
   # @param job_code [String] The job code (e.g., "JOB-001")
-  # @param subfolder [String] Optional subfolder within job (e.g., "Responses", "Task Attachments")
-  # @return [String] Full path like "/Jobs/JOB-001/Responses"
+  # @param subfolder [String] Optional subfolder within job (e.g., "Plans", "Site")
+  # @return [String] Full path like "/Jobs/JOB-001/Plans"
   def job_path(job_code, subfolder = nil)
-    # Use template from config (e.g., "{{JobCode}}/{{TabName}}" or "{{JobCode}}/{{Category}}")
-    template = folder_template_for(:job)
-    resolved = template.gsub("{{JobCode}}", job_code.to_s)
-    # Support both {{TabName}} and {{Category}} placeholders
-    resolved = resolved.gsub("{{TabName}}", subfolder.to_s) if subfolder.present?
-    resolved = resolved.gsub("{{Category}}", subfolder.to_s) if subfolder.present?
-    # Remove any remaining template tokens if subfolder not provided
-    resolved = resolved.gsub(/\/?\{\{[^\}]+\}\}/, "")
-    base = File.join(root_path, root_folder_for(:job), resolved)
-    base
+    resolve_path(:job, { JobCode: job_code }, subfolder)
   end
 
   # Build full path for a standalone task folder
   # @param task_id [Integer, String] The task ID
-  # @param subfolder [String] Optional subfolder within task (e.g., "Task Attachments")
-  # @return [String] Full path like "/Tasks/123/Task Attachments"
+  # @param subfolder [String] Optional subfolder within task
+  # @return [String] Full path like "/Tasks/123/Attachments"
   def task_path(task_id, subfolder = nil)
-    # Use template from config (e.g., "{{TaskId}}" → "123")
-    template = folder_template_for(:task)
-    resolved = template.gsub("{{TaskId}}", task_id.to_s)
-    base = File.join(root_path, root_folder_for(:task), resolved)
-    subfolder.present? ? File.join(base, subfolder) : base
+    resolve_path(:task, { TaskId: task_id }, subfolder)
   end
 
   # Build full path for any warehouse type with template substitution
+  # SSoT: warehouse_root_folders contains the full path pattern
+  #
   # @param warehouse_type [String, Symbol] The warehouse type name (job, task, contact, etc.)
-  # @param substitutions [Hash] Values to substitute in template (e.g., { JobCode: "JOB-001" })
+  # @param substitutions [Hash] Values to substitute in path (e.g., { JobCode: "JOB-001" })
+  # @param subfolder [String] Optional subfolder to append (e.g., EntityTab.folder_path)
   # @return [String] Full resolved path
   #
-  # Supports placeholders in BOTH warehouse root folders AND templates:
-  #   warehouse_root_folders: { "task" => "Tasks/{{TaskID}}", "email" => "Emails/{{Mailbox}}" }
-  #   warehouse_folder_templates: { "task" => "{{Category}}", "email" => "{{Year}}/{{Month}}" }
-  #
   # Example:
-  #   resolve_path(:task, { TaskID: "123", Category: "Attachments" })
-  #   # => "/Tasks/123/Attachments"
+  #   resolve_path(:job, { JobCode: "JOB-001" }, "Plans")
+  #   # => "/Jobs/JOB-001/Plans"
   #
-  def resolve_path(warehouse_type, substitutions = {})
+  #   resolve_path(:email, { Mailbox: "inbox", Year: "2026", Month: "01" })
+  #   # => "/Emails/inbox/2026/01"
+  #
+  def resolve_path(warehouse_type, substitutions = {}, subfolder = nil)
     base_folder = root_folder_for(warehouse_type)
-    template = folder_template_for(warehouse_type)
 
-    # Substitute template variables in base folder (warehouse root)
-    resolved_base = base_folder.dup
+    # Substitute template variables in base folder
+    resolved = base_folder.dup
     substitutions.each do |key, value|
-      resolved_base.gsub!("{{#{key}}}", value.to_s)
+      resolved.gsub!("{{#{key}}}", value.to_s)
     end
 
-    # Substitute template variables in template
-    resolved_template = template.dup
-    substitutions.each do |key, value|
-      resolved_template.gsub!("{{#{key}}}", value.to_s)
-    end
+    # Remove any remaining unsubstituted tokens
+    resolved.gsub!(/\/?\{\{[^\}]+\}\}/, "")
 
-    File.join(root_path, resolved_base, resolved_template)
+    path = File.join(root_path, resolved)
+    subfolder.present? ? File.join(path, subfolder) : path
   end
 
   # ========================================
@@ -566,7 +539,7 @@ class StorageConfiguration < ApplicationRecord
       job_path(job.job_code, effective_tab_name)
     else
       # Standalone: Use warehousing folder structure
-      # SSoT: StorageConfiguration.root_folder_for + folder_template_for
+      # SSoT: StorageConfiguration.resolve_path with warehouse_root_folders
       resolve_path(warehouse_type, {
         UserName: effective_user&.name || "Unknown",
         Year: created_at&.year&.to_s || Time.current.year.to_s,
@@ -678,15 +651,6 @@ class StorageConfiguration < ApplicationRecord
   # Legacy alias
   alias_method :effective_virtual_scopes, :effective_virtual_warehouses
 
-  # Get template for a virtual warehouse folder path
-  # SSoT: Database `warehouse_folder_templates` column is THE ONE source of truth
-  #
-  # @param warehouse_type [String, Symbol] The warehouse type name
-  # @return [String] The template string for virtual folder generation
-  def virtual_template_for(warehouse_type)
-    warehouse_folder_templates&.dig(warehouse_type.to_s) || ""
-  end
-
   # ========================================
   # Configuration Export (for API/UI)
   # ========================================
@@ -708,12 +672,11 @@ class StorageConfiguration < ApplicationRecord
       region: region,
       # Root path and warehouse folders
       root_path: root_path,
-      # SSoT: warehouse_root_folders is THE ONE place for warehouse roots
+      # SSoT: warehouse_root_folders is THE ONE place for warehouse roots (includes identifier patterns)
       warehouse_root_folders: effective_warehouse_root_folders,
       # All warehouse folders (includes roots + tab paths for backward compatibility)
       warehouse_folders: effective_warehouse_folders,
-      # Templates for Entity Config auto-save
-      warehouse_folder_templates: warehouse_folder_templates || {},
+      # File name templates for document downloads
       file_name_templates: file_name_templates || {},
       # Config links for warehouse folders (URL to external config page)
       config_links: config_links || {},
@@ -728,7 +691,6 @@ class StorageConfiguration < ApplicationRecord
       # Legacy aliases for backward compatibility
       scope_root_folders: effective_warehouse_root_folders,
       scope_folders: effective_warehouse_folders,
-      scope_templates: warehouse_folder_templates || {},
       virtual_scopes: effective_virtual_warehouses,
       scope_options: { "task" => { "exclude_sm_linked" => exclude_sm_tasks } }
     }

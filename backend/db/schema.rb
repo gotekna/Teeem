@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_20_140000) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_20_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -3092,7 +3092,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_20_140000) do
   end
 
   create_table "entity_tabs", force: :cascade do |t|
-    t.string "scope", null: false
+    t.string "warehouse_type", null: false
     t.string "tab_key", null: false
     t.string "display_name", null: false
     t.text "description"
@@ -3105,13 +3105,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_20_140000) do
     t.string "icon_name"
     t.string "component_name"
     t.boolean "is_system_tab", default: false
-    t.boolean "has_storage_folder", default: false
-    t.string "storage_folder_path"
+    t.boolean "warehouse_enabled", default: false
+    t.string "warehouse_folder"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "display_code", limit: 3
     t.boolean "uses_custom_path", default: false, null: false
-    t.string "storage_path_type", default: "corporate"
+    t.string "warehouse_type_override", default: "corporate"
     t.boolean "is_photo_category", default: false, null: false
     t.string "display_mode", default: "both", null: false
     t.boolean "hidden_by_default", default: false, null: false
@@ -3125,12 +3125,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_20_140000) do
     t.index ["entity_filters"], name: "index_entity_tabs_on_entity_filters", using: :gin
     t.index ["job_id"], name: "index_entity_tabs_on_job_id"
     t.index ["parent_id"], name: "index_entity_tabs_on_parent_id"
-    t.index ["scope", "enabled"], name: "index_entity_tabs_on_scope_and_enabled"
-    t.index ["scope", "tab_group"], name: "index_entity_tabs_on_scope_and_tab_group"
-    t.index ["scope", "tab_key", "job_id", "parent_id"], name: "idx_entity_tabs_unique_key", unique: true
-    t.index ["scope"], name: "index_entity_tabs_on_scope"
     t.index ["storage_folder_id"], name: "index_entity_tabs_on_storage_folder_id"
     t.index ["tenant_id"], name: "index_entity_tabs_on_tenant_id"
+    t.index ["warehouse_type", "enabled"], name: "index_entity_tabs_on_warehouse_type_and_enabled"
+    t.index ["warehouse_type", "tab_group"], name: "index_entity_tabs_on_warehouse_type_and_tab_group"
+    t.index ["warehouse_type", "tab_key", "job_id", "parent_id"], name: "idx_entity_tabs_unique_key", unique: true
+    t.index ["warehouse_type"], name: "index_entity_tabs_on_warehouse_type"
   end
 
   create_table "estimate_line_items", force: :cascade do |t|
@@ -9177,7 +9177,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_20_140000) do
     t.string "status", default: "disconnected", null: false
     t.jsonb "connection_config", default: {}, null: false
     t.string "root_path", default: "/Shared Documents", null: false
-    t.jsonb "templates", default: {"job"=>"{{JobCode}}/{{Category}}", "task"=>"Task-{{TaskId}}/{{Category}}", "people"=>"{{ContactName}}/{{Category}}", "account"=>"{{Source}}/{{ContactName}}/{{Category}}", "contacts"=>"{{ContactName}}/{{Category}}", "corporate"=>"{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}"}, null: false
+    t.jsonb "warehouse_folder_templates", default: {"job"=>"{{JobCode}}/{{Category}}", "task"=>"Task-{{TaskId}}/{{Category}}", "people"=>"{{ContactName}}/{{Category}}", "account"=>"{{Source}}/{{ContactName}}/{{Category}}", "contacts"=>"{{ContactName}}/{{Category}}", "corporate"=>"{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}"}, null: false
     t.string "credential_type"
     t.bigint "credential_id"
     t.datetime "created_at", null: false
@@ -9185,9 +9185,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_20_140000) do
     t.jsonb "file_name_templates", default: {}, null: false
     t.jsonb "config_links", default: {}, null: false
     t.jsonb "document_routing", default: {"sharepoint_scan"=>{"model"=>"CorporateCompanyDocument", "scope"=>"corporate_entity", "description"=>"SharePoint scanned documents"}, "xero_attachment"=>{"model"=>"CorporateCompanyDocument", "scope"=>"corporate_entity", "description"=>"Xero invoice/bill attachments"}, "email_attachment"=>{"model"=>"CorporateCompanyDocument", "scope"=>"corporate_entity", "description"=>"Email attachments"}, "xero_primary_invoice"=>{"model"=>"ContactDocument", "scope"=>"contact", "description"=>"Primary Xero invoice/bill PDF"}}, null: false
-    t.jsonb "virtual_scopes", default: {}, null: false
-    t.jsonb "scope_root_folders", default: {}, null: false
-    t.jsonb "scope_options", default: {}, null: false
+    t.jsonb "virtual_warehouses", default: {}, null: false
+    t.jsonb "warehouse_root_folders", default: {}, null: false
+    t.boolean "exclude_sm_tasks", default: false, null: false
     t.index ["credential_type", "credential_id"], name: "index_storage_configurations_on_credential"
     t.index ["organization_id"], name: "index_storage_configurations_on_organization_id", unique: true
   end

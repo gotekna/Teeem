@@ -265,25 +265,12 @@ class EntityTab < ApplicationRecord
   # Legacy alias
   alias_method :scope_for_template, :effective_warehouse_type
 
-  # Get the inherited template (default template based on warehouse_type)
-  # SSoT: Uses StorageConfiguration.folder_template_for() - NOT hardcoded templates
+  # Get the folder name for this tab
+  # SSoT: warehouse_root_folders has full path pattern, tab just provides folder name
   def inherited_template
     return nil unless warehouse_enabled
-
-    begin
-      # SSoT: Get template from StorageConfiguration (database)
-      config = StorageConfiguration.instance
-      template_warehouse_type = effective_warehouse_type.to_s
-
-      # Get template from SSoT
-      template = config.folder_template_for(template_warehouse_type)
-
-      # Replace {{TabName}} with this tab's display_name
-      template&.gsub("{{TabName}}", display_name)
-    rescue => e
-      Rails.logger.warn "[EntityTab] Failed to get inherited template: #{e.message}"
-      nil
-    end
+    # Simply return the display_name - this is appended to warehouse_root_folders path
+    display_name
   end
 
   # Get the warehouse base path for this tab (used in UI preview)
@@ -303,11 +290,11 @@ class EntityTab < ApplicationRecord
 
   # Get the EFFECTIVE warehouse path for this tab (for UI display)
   # SSoT: EntityTab owns folder paths. Child tabs INHERIT from parent.
+  # Note: This returns ONLY the tab's folder - identifier pattern is in warehouse_root_folders
   #
   # Inheritance chain:
-  #   inherited_template → "{{JobCode}}/{{TabName}}"  (default per warehouse_type)
-  #   Photo (root tab) → "{{JobCode}}/Photo"
-  #   Site Photo (child) → "{{JobCode}}/Photo/Site Photo"  ← inherits parent + adds own name
+  #   Photo (root tab) → "Photo"
+  #   Site Photo (child) → "Photo/Site Photo"  ← inherits parent + adds own name
   def effective_warehouse_path
     return nil unless warehouse_enabled
 
@@ -320,15 +307,8 @@ class EntityTab < ApplicationRecord
       return nil unless parent_path.present?
       "#{parent_path}/#{display_name}"
     else
-      # Root tab - use global template from CorporateCompanySetting (SSoT)
-      template = inherited_template
-      return nil unless template.present?
-
-      # Replace ALL folder placeholders with this tab's display_name
-      CorporateCompanySetting.resolve_template(template, {
-        "Category" => display_name,
-        "TabName" => display_name
-      })
+      # Root tab - just the display_name (identifier pattern is in warehouse_root_folders)
+      display_name
     end
   end
 
@@ -336,18 +316,11 @@ class EntityTab < ApplicationRecord
   alias_method :effective_storage_path, :effective_warehouse_path
   alias_method :effective_sharepoint_path, :effective_warehouse_path
 
-  # Get the folder path for actual uploads (strips {{JobCode}} for job-warehouse_type tabs)
-  # Use this when uploading files - the upload logic navigates to job folder separately
+  # Get the folder path for actual uploads
+  # SSoT: effective_warehouse_path now returns just the tab's folder (e.g., "Plans")
+  # The identifier pattern ({{JobCode}}) is in warehouse_root_folders, handled by resolve_path
   def upload_folder_path
-    path = effective_warehouse_path
-    return nil unless path.present?
-
-    # SSoT: For job-warehouse_type tabs, strip {{JobCode}} prefix since job folder is handled separately
-    if warehouse_type == 'job'
-      path = path.gsub(/\{\{JobCode\}\}\s*\/?/, "").gsub(/^\/+/, "")
-    end
-
-    path.presence
+    effective_warehouse_path
   end
 
   # Build hierarchy path - SSoT: Use warehouse_folder when set

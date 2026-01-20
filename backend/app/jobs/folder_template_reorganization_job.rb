@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-# Background job for reorganizing files when folder path templates change
+# Background job for reorganizing files when folder paths change
 #
-# SSoT: When StorageConfiguration.scope_templates change (via Entity Config UI),
+# SSoT: When StorageConfiguration.warehouse_root_folders paths change (via Entity Config UI),
 # this job automatically moves files to match the new folder structure.
 #
 # Usage:

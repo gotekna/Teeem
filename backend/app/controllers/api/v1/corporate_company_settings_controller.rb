@@ -160,16 +160,7 @@ module Api
         update_attrs[:scope_folders] = sp[:scope_folders] if sp.key?(:scope_folders)
 
         # SSoT: Track old templates BEFORE update for automatic file reorganization
-        old_templates = storage_config.templates&.deep_dup || {}
-
-        # SSoT: Folder path templates (auto-saved from Entity Config)
-        # MERGE with existing templates to avoid losing other scopes' templates
-        new_templates = nil
-        if sp.key?(:scope_templates)
-          existing_templates = storage_config.templates || {}
-          new_templates = existing_templates.merge(sp[:scope_templates].to_h)
-          update_attrs[:templates] = new_templates
-        end
+        # File name templates (for document downloads)
         if sp.key?(:file_name_templates)
           existing_file_templates = storage_config.file_name_templates || {}
           update_attrs[:file_name_templates] = existing_file_templates.merge(sp[:file_name_templates].to_h)
@@ -472,8 +463,6 @@ module Api
           :sharepoint_root_path,
           # SSoT: Scope folders from StorageConfiguration.effective_scope_folders
           scope_folders: StorageConfiguration.instance.effective_scope_folders.keys.map(&:to_sym),
-          # SSoT: Folder path templates (auto-saved from Entity Config)
-          scope_templates: {},
           # SSoT: File name templates (auto-saved from Entity Config)
           file_name_templates: {},
           # SSoT: Config links for scope folders (URL to external config page)

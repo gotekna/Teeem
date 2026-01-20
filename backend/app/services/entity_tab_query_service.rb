@@ -82,19 +82,13 @@ class EntityTabQueryService
     config = StorageConfiguration.instance
     {
       root_path: config.root_path.presence || "",
+      # SSoT: warehouse_root_folders contains full path patterns including identifier
       paths: {
-        job: config.root_folder_for(:jobs),
-        task: config.root_folder_for(:tasks),
+        job: config.root_folder_for(:job),
+        task: config.root_folder_for(:task),
         people: config.root_folder_for(:people),
         company: config.root_folder_for(:corporate),
         contacts: config.root_folder_for(:contacts)
-      },
-      templates: {
-        job: config.folder_template_for(:job),
-        task: config.folder_template_for(:task),
-        people: config.folder_template_for(:people),
-        company: config.folder_template_for(:corporate),
-        contacts: config.folder_template_for(:contacts)
       }
     }
   end
