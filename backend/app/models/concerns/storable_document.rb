@@ -176,9 +176,8 @@ module StorableDocument
     end
   end
 
-  private
-
   # Handle different column names across models
+  # These MUST be public - used by controllers to access SharePoint IDs
   def sharepoint_item_id
     return super if respond_to?(:super)
     read_attribute(:sharepoint_item_id)
@@ -188,6 +187,8 @@ module StorableDocument
     return super if respond_to?(:super)
     read_attribute(:sharepoint_file_id)
   end
+
+  private
 
   # Override in model to provide default tokens
   def default_storage_tokens
