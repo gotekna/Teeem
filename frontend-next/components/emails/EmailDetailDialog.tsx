@@ -112,7 +112,7 @@ export function EmailDetailDialog({
       setError(null);
       try {
         const response = await api.get<EmailDetailData>(
-          `/api/v1/synced_email/${emailId}`,
+          `/api/v1/synced_emails/${emailId}`,
           { params: { include_body: true, include_thread: true } }
         );
         setEmail(response);
@@ -152,7 +152,7 @@ export function EmailDetailDialog({
     if (!emailId) return;
     setAssigningJob(true);
     try {
-      await api.post(`/api/v1/synced_email/${emailId}/assign_to_job`, {
+      await api.post(`/api/v1/synced_emails/${emailId}/assign_to_job`, {
         job_id: jobId,
       });
       // Update local state

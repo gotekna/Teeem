@@ -265,7 +265,7 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
     try {
       setLoading(true);
       const response = await api.get<{ emails: Email[]; suggested: SuggestedEmail[] }>(
-        `/api/v1/synced_email/for_job/${jobId}`,
+        `/api/v1/synced_emails/for_job/${jobId}`,
         {
           params: {
             include_suggestions: true,
@@ -287,7 +287,7 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
   const handleAssignSuggested = async (suggestion: SuggestedEmail, targetJobId?: number) => {
     try {
       const assignToJobId = targetJobId || jobId;
-      await api.post(`/api/v1/synced_email/${suggestion.email.id}/assign_to_job`, {
+      await api.post(`/api/v1/synced_emails/${suggestion.email.id}/assign_to_job`, {
         job_id: assignToJobId,
         assign_thread: true,
       });
@@ -300,7 +300,7 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
 
   const handleDismissSuggestion = async (suggestion: SuggestedEmail) => {
     try {
-      await api.post(`/api/v1/synced_email/${suggestion.email.id}/dismiss_suggestion`, {
+      await api.post(`/api/v1/synced_emails/${suggestion.email.id}/dismiss_suggestion`, {
         job_id: jobId,
       });
       await loadEmails();

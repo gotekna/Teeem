@@ -161,6 +161,8 @@ interface StorageConfig {
   config_links: Record<string, string>;
   // Phase 4: Virtual scopes (render from DB instead of S3)
   virtual_scopes: Record<string, boolean>;
+  // Per-scope options (e.g., task.exclude_sm_linked)
+  scope_options: Record<string, Record<string, boolean>>;
 }
 
 // Tree node structure for folder hierarchy
@@ -173,6 +175,12 @@ interface FolderTreeNode {
   tabs?: EntityTab[];  // Tabs under this scope folder
 }
 
+// SSoT: Known scope root folder names (first segment of paths that should appear at root)
+// These match SCOPE_ROOT_DEFAULTS in StorageConfiguration
+const KNOWN_ROOT_FOLDERS = [
+  'Jobs', 'Contacts', 'Corporate', 'People', 'Tasks', 'Emails', 'Warehousing', 'Users'
+];
+
 // Build tree structure from flat scope folders
 function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
   const root: FolderTreeNode[] = [];
@@ -180,7 +188,28 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
   // Sort entries by path for consistent tree building
   const entries = Object.entries(scopeFolders).sort(([, a], [, b]) => a.localeCompare(b));
 
-  entries.forEach(([key, path]) => {
+  // Filter out paths that shouldn't be at root level:
+  // 1. Paths that start with {{ (placeholder at root level)
+  // 2. Paths that don't start with a known scope root folder (e.g., "ActiveStorage", "Attachments")
+  //    These are tab paths that should be relative to their scope but were stored incorrectly
+  const filteredEntries = entries.filter(([key, path]) => {
+    if (!path) return false;
+    // Skip paths that start with {{ (placeholder at root level)
+    if (path.startsWith('{{')) return false;
+    // Skip paths whose first segment isn't a known scope root folder
+    // This filters out "ActiveStorage", "Attachments", "Documents", "Revit", "Email Body" etc.
+    // that should be nested under their scope roots but aren't
+    const firstSegment = path.split('/')[0];
+    if (!KNOWN_ROOT_FOLDERS.includes(firstSegment)) {
+      // Exception: Keep scope root entries themselves (overview tabs for each scope)
+      // These have keys like 'email', 'warehouse', 'job', etc.
+      const isOverviewTab = ['email', 'warehouse', 'job', 'contact', 'people', 'task', 'corporate_entity', 'corporate'].includes(key);
+      if (!isOverviewTab) return false;
+    }
+    return true;
+  });
+
+  filteredEntries.forEach(([key, path]) => {
     if (!path) return;
 
     const parts = path.split('/').filter(Boolean);
@@ -494,18 +523,6 @@ function TreeNode({
           <div className="flex items-center gap-1 ml-2">
             {node.scopeKeys.map((sk) => (
               <div key={sk} className="flex items-center gap-1">
-                {/* Edit button for this scope */}
-                {editingKey !== sk && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => onStartEdit(sk)}
-                    className="h-5 px-1.5 text-[10px] text-muted-foreground"
-                  >
-                    <Pencil className="h-3 w-3 mr-1" />
-                    Edit
-                  </Button>
-                )}
                 <Badge
                   variant="outline"
                   className={cn(
@@ -995,17 +1012,6 @@ function TabNode({
         <div className="flex items-center gap-1 mb-2">
           <FileText className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
           <span className="text-sm font-medium">{tab.display_name}</span>
-          {!isEditing && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => onStartEdit(tab.id)}
-              className="h-5 px-1.5 ml-2 text-[10px] text-muted-foreground"
-            >
-              <Pencil className="h-3 w-3 mr-1" />
-              Edit
-            </Button>
-          )}
         </div>
 
         {isEditing ? (
@@ -1212,8 +1218,16 @@ export function StorageConfigTab() {
   };
 
   // Build folder tree from scope_folders, attaching tabs to scope nodes
+  // SSoT: Use config.scope_folders directly from API (not formData which may have stale initial state)
   const folderTree = React.useMemo(() => {
-    const tree = buildFolderTree(formData.scope_folders);
+    const scopeFolders = config?.scope_folders || {};
+    const tree = buildFolderTree(scopeFolders);
+
+    // DEBUG: Log tree structure for key nodes
+    const contactsNode = tree.find(n => n.name === 'Contacts');
+    const jobsNode = tree.find(n => n.name === 'Jobs');
+    console.log('[folderTree] Contacts node:', contactsNode?.name, 'children:', contactsNode?.children?.map(c => c.name));
+    console.log('[folderTree] Jobs node:', jobsNode?.name, 'children:', jobsNode?.children?.map(c => c.name));
 
     // Attach tabs to scope nodes
     const attachTabs = (nodes: FolderTreeNode[]) => {
@@ -1229,7 +1243,7 @@ export function StorageConfigTab() {
 
     attachTabs(tree);
     return tree;
-  }, [formData.scope_folders, entityTabs]);
+  }, [config?.scope_folders, entityTabs]);
 
   // Toggle tree node expansion
   const toggleExpanded = (path: string) => {
@@ -1486,6 +1500,7 @@ export function StorageConfigTab() {
             file_name_templates: formData.file_name_templates,
             config_links: formData.config_links,
             virtual_scopes: formData.virtual_scopes,  // Phase 4: Virtual File Warehouse
+            scope_options: config?.scope_options,     // Per-scope options (e.g., task.exclude_sm_linked)
             // Map SharePoint fields (frontend uses sharepoint_* prefix, backend expects bare names)
             site_url: formData.sharepoint_site_url,
             site_id: formData.sharepoint_site_id,
@@ -1908,7 +1923,7 @@ export function StorageConfigTab() {
                 contact: ['ContactName', 'ContactID'],
                 corporate_entity: ['CompanyGroup', 'CompanyCode', 'CompanyName'],
                 people: ['ContactName', 'ContactID'],
-                task: ['TaskID', 'TaskNumber'],
+                task: ['JobCode', 'JobName', 'TaskNumber', 'TaskName', 'TaskStatus'],
                 email: ['Mailbox', 'Year', 'Month'],
                 warehouse: ['UserName', 'Year', 'Month'],
               };
@@ -1957,6 +1972,27 @@ export function StorageConfigTab() {
                             {`{{${p}}}`}
                           </button>
                         ))}
+                      </div>
+                    )}
+                    {scope === 'task' && (
+                      <div className="flex items-center gap-2 pt-1">
+                        <Checkbox
+                          id="exclude-sm-linked"
+                          checked={config?.scope_options?.task?.exclude_sm_linked ?? false}
+                          onCheckedChange={(checked) => {
+                            const newOptions = {
+                              ...(config?.scope_options || {}),
+                              task: {
+                                ...(config?.scope_options?.task || {}),
+                                exclude_sm_linked: !!checked
+                              }
+                            };
+                            setConfig(prev => prev ? { ...prev, scope_options: newOptions } : prev);
+                          }}
+                        />
+                        <Label htmlFor="exclude-sm-linked" className="text-xs text-muted-foreground cursor-pointer">
+                          Exclude tasks linked to Schedule Master (use PO storage)
+                        </Label>
                       </div>
                     )}
                   </div>

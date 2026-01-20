@@ -522,7 +522,7 @@ export function Sidebar() {
 
       // Load unread email counts
       const emailResponse = await safeFetch<{ total: number; by_account: Array<{ email: string; count: number }> }>(
-        "/api/v1/synced_email/unread_counts"
+        "/api/v1/synced_emails/unread_counts"
       );
       if (emailResponse) {
         setBadges(prev => ({ ...prev, unreadEmails: emailResponse.total || 0 }));

@@ -26,6 +26,18 @@ class TaskResponseUploader
   # @param file [ActionDispatch::Http::UploadedFile] The file to upload
   # @return [Hash] { success: true, sharepoint_url: "...", file_id: "...", filename: "..." }
   def upload(file)
+    config = StorageConfiguration.for_organization(organization)
+
+    # Check if task storage scope is enabled
+    unless config.scope_enabled?(:task)
+      raise UploadError, "Task storage is disabled."
+    end
+
+    # Check if SM-linked tasks should be excluded (configurable via UI)
+    if config.exclude_sm_linked_tasks? && task.sm_schedule_master_id.present?
+      raise UploadError, "Template tasks (linked to Schedule Master) store documents via Purchase Orders."
+    end
+
     provider = document_provider
     folder_path = target_folder_path
 
@@ -129,7 +141,22 @@ class TaskResponseUploader
   # No hardcoded folder names - reads from SCOPE_TEMPLATES
   def target_folder_path
     config = StorageConfiguration.for_organization(organization)
-    config.resolve_path(storage_scope, { TaskId: task.id })
+    # Pass all task + job substitutions for flexible path templates
+    # Tasks belong to jobs, so include job context for paths like:
+    # "Jobs/{{JobCode}}/Tasks/{{TaskNumber}} - {{TaskName}}"
+    substitutions = {
+      TaskId: task.id,
+      TaskID: task.id,           # Alternative casing
+      TaskNumber: task.task_number,
+      TaskName: task.name,
+      TaskStatus: task.status&.titleize || "Unknown"  # e.g., "Not Started", "Started", "Completed"
+    }
+    # Add job context if task has a job
+    if task.job.present?
+      substitutions[:JobCode] = task.job.job_number
+      substitutions[:JobName] = task.job.name
+    end
+    config.resolve_path(storage_scope, substitutions)
   end
 
   def ensure_folder_exists(provider, folder_path)

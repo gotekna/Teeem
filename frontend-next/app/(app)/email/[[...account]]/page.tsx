@@ -1315,7 +1315,7 @@ export default function EmailPage() {
       const loadEmailById = async () => {
         try {
           setLoading(true);
-          const response = await api.get<Email>(`/api/v1/synced_email/${emailIdParam}`);
+          const response = await api.get<Email>(`/api/v1/synced_emails/${emailIdParam}`);
           if (response) {
             setSelectedEmail(response);
             // Clear loading - we have the email to show
@@ -1341,7 +1341,7 @@ export default function EmailPage() {
 
       // Sync Office 365/Outlook accounts
       if (accounts.some(a => a.type === "outlook" || a.type === "ms365")) {
-        syncPromises.push(api.post("/api/v1/synced_email/sync").catch(() => {}));
+        syncPromises.push(api.post("/api/v1/synced_emails/sync").catch(() => {}));
       }
 
       await Promise.all(syncPromises);
@@ -1366,7 +1366,7 @@ export default function EmailPage() {
 
       // Sync Office 365/Outlook accounts
       if (accounts.some(a => a.type === "outlook" || a.type === "ms365")) {
-        syncPromises.push(api.post("/api/v1/synced_email/sync").catch(() => {}));
+        syncPromises.push(api.post("/api/v1/synced_emails/sync").catch(() => {}));
       }
 
       await Promise.all(syncPromises);
@@ -1452,7 +1452,7 @@ export default function EmailPage() {
     // Fetch full email content if not loaded
     if (!email.body_html && !email.body_text) {
       try {
-        const response = await api.get<Email | { email: Email }>(`/api/v1/synced_email/${email.id}`);
+        const response = await api.get<Email | { email: Email }>(`/api/v1/synced_emails/${email.id}`);
         // Handle both wrapped and unwrapped response formats
         const fullEmail = (response as { email?: Email }).email || response as Email;
         if (fullEmail && fullEmail.id) {
@@ -1633,7 +1633,7 @@ To: ${email.to_emails?.join(", ") || ""}
         company?: { id: number; name: string };
         message: string;
         already_existed?: boolean;
-      }>(`/api/v1/synced_email/${email.id}/quick_create_contact`);
+      }>(`/api/v1/synced_emails/${email.id}/quick_create_contact`);
 
       if (response?.success) {
         toast({

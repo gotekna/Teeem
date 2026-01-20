@@ -696,9 +696,43 @@ module Api
       end
 
       # GET /api/v1/documents/:id/download
-      # Human-readable download endpoint - redirects to S3 presigned URL
+      # Human-readable download endpoint
+      #
+      # Modes:
+      # - Default: 302 redirect to S3 presigned URL (fastest for large files)
+      # - preview=true: Stream content directly with proper headers (required for <img> tags)
+      #
+      # Why streaming for preview?
+      # Browser security (ORB - Opaque Response Blocking) blocks cross-origin redirects
+      # when loading images via <img src="...">. Streaming the content directly from
+      # our domain with proper Content-Type headers avoids this issue.
+      #
       # URL: /api/v1/documents/123/download → 302 redirect to S3
+      # URL: /api/v1/documents/123/download?preview=true → 200 with binary content
       def download
+        # For preview mode (images in <img> tags), stream content directly to avoid ORB
+        if params[:preview].present?
+          service = DocumentStorageService.new
+          result = service.download(@document)
+
+          unless result[:success]
+            return render json: { success: false, error: result[:error] || "File not available" }, status: result[:status] || :not_found
+          end
+
+          # Determine content type from file extension or stored mime type
+          content_type = @document.respond_to?(:content_type) && @document.content_type.present? ?
+            @document.content_type :
+            Mime::Type.lookup_by_extension(File.extname(@document.file_name.to_s).delete(".")).to_s.presence || "application/octet-stream"
+
+          # Stream with proper headers for browser image rendering
+          send_data result[:content],
+            type: content_type,
+            disposition: "inline",
+            filename: @document.file_name
+          return
+        end
+
+        # Default: redirect to presigned URL (faster for large files/downloads)
         url = generate_download_url(@document)
 
         unless url.present?

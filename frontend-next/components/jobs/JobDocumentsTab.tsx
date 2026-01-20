@@ -2738,7 +2738,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
             style={{ paddingLeft: `${paddingLeft + 12}px` }}
           >
             {isImage && file.thumbnail_url ? (
-              <img src={file.thumbnail_url} alt="" className="h-5 w-5 rounded object-cover" />
+              <img src={file.thumbnail_url} alt="" crossOrigin="anonymous" className="h-5 w-5 rounded object-cover" />
             ) : (
               <File className="h-4 w-4 text-muted-foreground" />
             )}
@@ -2882,6 +2882,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                               <img
                                 src={img.thumbnail_url}
                                 alt={img.name}
+                                crossOrigin="anonymous"
                                 className="w-full h-full object-cover"
                               />
                             ) : (
@@ -3328,6 +3329,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                 <img
                   src={previewDocument.url}
                   alt={previewDocument.name}
+                  crossOrigin="anonymous"
                   className="max-h-full max-w-full object-contain"
                 />
               </div>

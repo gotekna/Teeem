@@ -80,10 +80,9 @@ module Api
         # NOTE: scope_folders column was removed - EntityTab is now SSoT for tab paths
         # Only scope_root_folders is stored on StorageConfiguration
 
-        # SSoT: scope_root_folders is THE ONE place for scope roots
+        # SSoT: scope_root_folders column is THE ONE source (no merging, just replace)
         if sp.key?(:scope_root_folders)
-          existing_roots = storage_config.scope_root_folders || {}
-          update_attrs[:scope_root_folders] = existing_roots.merge(sp[:scope_root_folders].to_h)
+          update_attrs[:scope_root_folders] = sp[:scope_root_folders].to_h
         end
 
         # Track old templates for file reorganization
@@ -119,6 +118,17 @@ module Api
           # Merge and convert values to booleans
           merged_virtual = existing_virtual.merge(sp[:virtual_scopes].to_h.transform_values { |v| v.to_s == "true" })
           update_attrs[:virtual_scopes] = merged_virtual
+        end
+
+        # Per-scope options (e.g., task.exclude_sm_linked)
+        if sp.key?(:scope_options)
+          existing_options = storage_config.scope_options || {}
+          # Deep merge scope options
+          sp[:scope_options].to_h.each do |scope, options|
+            existing_options[scope.to_s] ||= {}
+            existing_options[scope.to_s].merge!(options.to_h.transform_values { |v| v.to_s == "true" })
+          end
+          update_attrs[:scope_options] = existing_options
         end
 
         if storage_config.update(update_attrs)
@@ -183,7 +193,8 @@ module Api
           file_name_templates: {},
           config_links: {},
           document_routing: {},  # SSoT: Which model to use for each document source
-          virtual_scopes: {}     # Phase 4: Virtual File Warehouse - which scopes render from DB
+          virtual_scopes: {},    # Phase 4: Virtual File Warehouse - which scopes render from DB
+          scope_options: {}      # Per-scope options (e.g., task.exclude_sm_linked)
         )
       end
 

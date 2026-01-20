@@ -132,7 +132,7 @@ export function EmailContextMenu({
   const handleDelete = async () => {
     setLoading("delete");
     try {
-      await api.delete(`/api/v1/synced_email/${emailId}/delete_from_outlook`);
+      await api.delete(`/api/v1/synced_emails/${emailId}/delete_from_outlook`);
       onDelete?.();
       onAction?.();
     } catch (error) {
@@ -184,7 +184,7 @@ export function EmailContextMenu({
   const handleSpam = async () => {
     setLoading("spam");
     try {
-      await api.post(`/api/v1/synced_email/${emailId}/mark_as_spam`, { delete_from_outlook: true });
+      await api.post(`/api/v1/synced_emails/${emailId}/mark_as_spam`, { delete_from_outlook: true });
       onSpam?.();
       onAction?.();
     } catch (error) {

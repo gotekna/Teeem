@@ -123,7 +123,7 @@ export function MoveToFolderMenu({
         });
       } else {
         // For Outlook/MS365, use email warehouse endpoint
-        await api.post(`/api/v1/synced_email/${emailId}/move_to_folder`, {
+        await api.post(`/api/v1/synced_emails/${emailId}/move_to_folder`, {
           folder_id: folder.id,
           folder_name: folder.name,
         });

@@ -206,11 +206,15 @@ function PhotoThumbnail({
       )}
 
       {/* Image */}
+      {/* crossOrigin="anonymous" is required for cross-origin image loading to work
+          Without it, browsers make "no-cors" requests which return opaque responses
+          that get blocked by ORB (Opaque Response Blocking) for security */}
       {!error && (
         <img
           src={thumbnailSrc}
           alt={photo.name}
           loading="lazy"
+          crossOrigin="anonymous"
           onLoad={() => setLoaded(true)}
           onError={handleError}
           className={cn(

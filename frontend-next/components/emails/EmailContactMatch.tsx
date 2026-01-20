@@ -75,7 +75,7 @@ export function EmailContactMatch({
           email_addresses: string[];
           already_linked: number[];
         };
-      }>(`/api/v1/synced_email/${emailId}/suggest_contacts`);
+      }>(`/api/v1/synced_emails/${emailId}/suggest_contacts`);
 
       if (response.success && response.data) {
         setSuggestions(response.data.suggestions);
@@ -124,7 +124,7 @@ export function EmailContactMatch({
 
   const linkContact = async (contactId: number, setPrimary = false) => {
     try {
-      await api.post(`/api/v1/synced_email/${emailId}/link_contact`, {
+      await api.post(`/api/v1/synced_emails/${emailId}/link_contact`, {
         contact_id: contactId,
         set_primary: setPrimary,
       });
@@ -138,7 +138,7 @@ export function EmailContactMatch({
 
   const unlinkContact = async (contactId: number) => {
     try {
-      await api.post(`/api/v1/synced_email/${emailId}/unlink_contact`, {
+      await api.post(`/api/v1/synced_emails/${emailId}/unlink_contact`, {
         contact_id: contactId,
       });
 

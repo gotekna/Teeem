@@ -97,7 +97,7 @@ export function EmailSummary({ emailId, existingSummary, className }: EmailSumma
 
     try {
       const response = await api.post<{ success: boolean; data: SummaryData; error?: string }>(
-        `/api/v1/synced_email/${emailId}/summarize`,
+        `/api/v1/synced_emails/${emailId}/summarize`,
         { refresh }
       );
 

@@ -103,41 +103,67 @@ class StorageConfiguration < ApplicationRecord
   end
 
   # ========================================
-  # Scope Root Folders (SSoT: scope_root_folders column)
+  # Scope Root Folders (SSoT: scope_root_folders column ONLY)
   # ========================================
 
-  # Default scope root folders (used when scope_root_folders is empty)
-  # Supports {{placeholders}} that get substituted at runtime via resolve_path()
+  # Default scope root folders - used ONLY for initialization
+  # After init, scope_root_folders column is THE ONE SSoT (no merging)
   SCOPE_ROOT_DEFAULTS = {
-    'job' => 'Jobs',
-    'contact' => 'Contacts',
-    'corporate_entity' => 'Corporate',
-    'people' => 'Corporate/People',
-    'task' => 'Tasks/{{TaskID}}',
+    'job' => 'Jobs/{{JobCode}}',
+    'contact' => 'Contacts/{{ContactName}}',
+    'corporate_entity' => 'Corporate/{{CompanyGroup}}',
+    'people' => 'People/{{ContactName}}',
+    'task' => 'Jobs/{{JobCode}}/Tasks',
     'email' => 'Emails/{{Mailbox}}',
     'warehouse' => 'Warehousing'
   }.freeze
 
+  # SSoT: Initialize scope_root_folders with defaults if empty
+  after_initialize :ensure_scope_root_folders
+
+  def ensure_scope_root_folders
+    return if scope_root_folders.present?
+    self.scope_root_folders = SCOPE_ROOT_DEFAULTS.dup
+  end
+
   # Get root folder for a scope
+  # Check if a scope is enabled (not "DISABLED")
+  # @param scope [String, Symbol] The scope name
+  # @return [Boolean] true if scope has storage enabled
+  def scope_enabled?(scope)
+    path = path_for(scope)
+    path.present? && path != "DISABLED"
+  end
+
+  # Check if SM-linked tasks should be excluded from task storage
+  # When true, tasks with sm_schedule_master_id use PO storage instead
+  # @return [Boolean]
+  def exclude_sm_linked_tasks?
+    scope_options&.dig("task", "exclude_sm_linked") == true
+  end
+
   # SSoT: scope_root_folders column is THE ONE source for scope roots
   #
   # @param scope [String, Symbol] The scope name (job, contact, task, etc.)
-  # @return [String] The root folder name for that scope
+  # @return [String, nil] The root folder name for that scope, or nil if disabled
   #
   # Examples:
-  #   path_for(:job)     # => "Jobs"
-  #   path_for(:contact) # => "Contacts"
-  #   path_for(:task)    # => "Tasks"
+  #   path_for(:job)     # => "Jobs/{{JobCode}}"
+  #   path_for(:contact) # => "Contacts/{{ContactName}}"
+  #   path_for(:task)    # => nil (if disabled)
   #
   def path_for(scope)
     scope_key = scope.to_s
-    scope_root_folders&.dig(scope_key) || SCOPE_ROOT_DEFAULTS[scope_key] || scope_key.titleize
+    # SSoT: Only use scope_root_folders column (initialized with defaults via after_initialize)
+    path = scope_root_folders&.dig(scope_key)
+    return nil if path.blank? || path == "DISABLED"
+    path
   end
 
   # Get all scope root folders
-  # SSoT: scope_root_folders column merged with defaults
+  # SSoT: scope_root_folders column is THE ONE source (no merging)
   def effective_scope_root_folders
-    SCOPE_ROOT_DEFAULTS.merge(scope_root_folders || {})
+    scope_root_folders || {}
   end
 
   # Get all scope folders (includes scope roots + tab paths for backward compatibility)
@@ -653,7 +679,9 @@ class StorageConfiguration < ApplicationRecord
       document_routing: effective_document_routing,
       # Virtual scopes (Phase 4: Virtual File Warehouse)
       # Scopes marked as virtual render from database, not S3
-      virtual_scopes: effective_virtual_scopes
+      virtual_scopes: effective_virtual_scopes,
+      # Per-scope options (e.g., task.exclude_sm_linked)
+      scope_options: scope_options || {}
     }
   end
 end

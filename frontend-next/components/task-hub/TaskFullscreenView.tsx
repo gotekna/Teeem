@@ -2651,7 +2651,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         setPrepareEmailStatus(`Downloading email "${subject}"... (${processed + 1}/${totalToProcess})`);
         try {
           const response = await api.get<{ success: boolean; filename: string; content: string; content_type: string }>(
-            `/api/v1/synced_email/${att.email?.id}/download_eml`
+            `/api/v1/synced_emails/${att.email?.id}/download_eml`
           );
           if (response?.success) {
             const byteCharacters = atob(response.content);
