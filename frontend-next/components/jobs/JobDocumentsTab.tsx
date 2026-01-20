@@ -400,19 +400,22 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
 
   // Convert LegacyItem to PhotoItem for gallery display
   const convertToPhotoItem = (item: LegacyItem): PhotoItem => {
-    // Build API URL for fetching image through backend proxy (with auth)
-    // IMPORTANT: Always use proxy URL for main image because SharePoint direct URLs
-    // fail due to CORS when used in <img> tags. The lightbox fetches via api.getBlob()
-    // with proper auth to bypass this.
+    // SSoT: Use download_url from backend (provider-agnostic) or build using document_id
+    // The backend provides download_url pointing to /api/v1/documents/job_document_download
+    // which works for both SharePoint and S3/Wasabi
     const apiBase = getApiBaseUrl();
-    const proxyUrl = `${apiBase}/api/v1/documents/download?file_id=${item.id}&preview=true`;
-    // Use Graph API thumbnail URL if available (publicly accessible, no auth required)
+    const proxyUrl = item.download_url
+      ? `${item.download_url}&preview=true`
+      : item.document_id
+        ? `${apiBase}/api/v1/documents/job_document_download?document_id=${item.document_id}&preview=true`
+        : `${apiBase}/api/v1/documents/download?file_id=${encodeURIComponent(item.id)}&preview=true`;
+    // Use Graph API thumbnail URL if available (may expire after 24-48h)
     const thumbnailUrl = item.thumbnail_url || proxyUrl;
 
     return {
       id: item.id,
       name: item.name,
-      url: proxyUrl, // Always use proxy - lightbox fetches with auth via api.getBlob()
+      url: proxyUrl, // Backend proxy (always works via job_document_download)
       thumbnailUrl: thumbnailUrl,
       webUrl: item.web_url,
       createdAt: item.modified, // Use modified as fallback for created
