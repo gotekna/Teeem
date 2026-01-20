@@ -490,8 +490,7 @@ module Api
             contact_persons: {},
             contact_addresses: {},
             contact_groups: {},
-            portal_user: {},
-            corporate_group: {}
+            portal_user: {}
           },
           methods: [ :is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :is_director?, :director_companies, :display_name ]
         )
