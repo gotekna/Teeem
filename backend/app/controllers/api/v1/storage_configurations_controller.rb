@@ -77,7 +77,8 @@ module Api
           status: new_status
         }
         update_attrs[:root_path] = sp[:root_path] if sp.key?(:root_path)
-        update_attrs[:scope_folders] = sp[:scope_folders] if sp.key?(:scope_folders)
+        # NOTE: scope_folders column was removed - EntityTab is now SSoT for tab paths
+        # Only scope_root_folders is stored on StorageConfiguration
 
         # SSoT: scope_root_folders is THE ONE place for scope roots
         if sp.key?(:scope_root_folders)

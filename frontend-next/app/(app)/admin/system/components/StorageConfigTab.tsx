@@ -1507,10 +1507,12 @@ export function StorageConfigTab() {
         });
       }
     } catch (error: unknown) {
-      const err = error as { message?: string };
+      console.error('[StorageConfig] Save error:', error);
+      const err = error as { message?: string; data?: { errors?: string[] } };
+      const errorMessage = err?.data?.errors?.join(', ') || err?.message || "Failed to save storage configuration";
       toast({
         title: "Error",
-        description: err?.message || "Failed to save storage configuration",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -1898,30 +1900,69 @@ export function StorageConfigTab() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Object.entries(config?.scope_root_folders || {}).map(([scope, folder]) => (
-              <div key={scope} className="flex items-center gap-2">
-                <div className="flex items-center gap-2 min-w-[120px]">
-                  {scope === 'job' && <Briefcase className="h-4 w-4 text-blue-500" />}
-                  {scope === 'contact' && <Users className="h-4 w-4 text-green-500" />}
-                  {scope === 'corporate_entity' && <Building2 className="h-4 w-4 text-purple-500" />}
-                  {scope === 'people' && <Users className="h-4 w-4 text-teal-500" />}
-                  {scope === 'task' && <ClipboardList className="h-4 w-4 text-orange-500" />}
-                  {scope === 'email' && <Mail className="h-4 w-4 text-red-500" />}
-                  {scope === 'warehouse' && <FileBox className="h-4 w-4 text-amber-500" />}
-                  <Label className="text-sm font-medium">{getScopeLabel(scope)}</Label>
+          <div className="space-y-3">
+            {Object.entries(config?.scope_root_folders || {}).map(([scope, folder]) => {
+              // Available placeholders per scope
+              const scopePlaceholders: Record<string, string[]> = {
+                job: ['JobCode', 'JobName'],
+                contact: ['ContactName', 'ContactID'],
+                corporate_entity: ['CompanyGroup', 'CompanyCode', 'CompanyName'],
+                people: ['ContactName', 'ContactID'],
+                task: ['TaskID', 'TaskNumber'],
+                email: ['Mailbox', 'Year', 'Month'],
+                warehouse: ['UserName', 'Year', 'Month'],
+              };
+              const placeholders = scopePlaceholders[scope] || [];
+
+              // Insert placeholder at cursor or end
+              const insertPlaceholder = (placeholder: string) => {
+                const token = `{{${placeholder}}}`;
+                const newValue = folder.includes(token) ? folder : `${folder}${folder && !folder.endsWith('/') ? '/' : ''}${token}`;
+                const newRoots = { ...(config?.scope_root_folders || {}), [scope]: newValue };
+                setConfig(prev => prev ? { ...prev, scope_root_folders: newRoots } : prev);
+              };
+
+              return (
+                <div key={scope} className="flex items-start gap-3 pb-3 border-b last:border-0 last:pb-0">
+                  <div className="flex items-center gap-2 min-w-[130px] pt-1">
+                    {scope === 'job' && <Briefcase className="h-4 w-4 text-blue-500" />}
+                    {scope === 'contact' && <Users className="h-4 w-4 text-green-500" />}
+                    {scope === 'corporate_entity' && <Building2 className="h-4 w-4 text-purple-500" />}
+                    {scope === 'people' && <Users className="h-4 w-4 text-teal-500" />}
+                    {scope === 'task' && <ClipboardList className="h-4 w-4 text-orange-500" />}
+                    {scope === 'email' && <Mail className="h-4 w-4 text-red-500" />}
+                    {scope === 'warehouse' && <FileBox className="h-4 w-4 text-amber-500" />}
+                    <Label className="text-sm font-medium">{getScopeLabel(scope)}</Label>
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    <Input
+                      value={folder}
+                      onChange={(e) => {
+                        const newRoots = { ...(config?.scope_root_folders || {}), [scope]: e.target.value };
+                        setConfig(prev => prev ? { ...prev, scope_root_folders: newRoots } : prev);
+                      }}
+                      className="font-mono h-8"
+                      placeholder={getScopeLabel(scope)}
+                    />
+                    {placeholders.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {placeholders.map((p) => (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => insertPlaceholder(p)}
+                            className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                            title={`Click to insert {{${p}}}`}
+                          >
+                            {`{{${p}}}`}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <Input
-                  value={folder}
-                  onChange={(e) => {
-                    const newRoots = { ...(config?.scope_root_folders || {}), [scope]: e.target.value };
-                    setConfig(prev => prev ? { ...prev, scope_root_folders: newRoots } : prev);
-                  }}
-                  className="font-mono h-8 flex-1"
-                  placeholder={getScopeLabel(scope)}
-                />
-              </div>
-            ))}
+              );
+            })}
           </div>
         </CardContent>
       </Card>

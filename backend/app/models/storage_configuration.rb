@@ -107,13 +107,14 @@ class StorageConfiguration < ApplicationRecord
   # ========================================
 
   # Default scope root folders (used when scope_root_folders is empty)
+  # Supports {{placeholders}} that get substituted at runtime via resolve_path()
   SCOPE_ROOT_DEFAULTS = {
     'job' => 'Jobs',
     'contact' => 'Contacts',
     'corporate_entity' => 'Corporate',
-    'people' => 'People',
-    'task' => 'Tasks',
-    'email' => 'Emails',
+    'people' => 'Corporate/People',
+    'task' => 'Tasks/{{TaskID}}',
+    'email' => 'Emails/{{Mailbox}}',
     'warehouse' => 'Warehousing'
   }.freeze
 
@@ -200,17 +201,32 @@ class StorageConfiguration < ApplicationRecord
   # @param scope [String, Symbol] The scope name (job, task, contact, etc.)
   # @param substitutions [Hash] Values to substitute in template (e.g., { JobCode: "JOB-001" })
   # @return [String] Full resolved path
+  #
+  # Supports placeholders in BOTH scope root folders AND templates:
+  #   scope_root_folders: { "task" => "Tasks/{{TaskID}}", "email" => "Emails/{{Mailbox}}" }
+  #   templates: { "task" => "{{Category}}", "email" => "{{Year}}/{{Month}}" }
+  #
+  # Example:
+  #   resolve_path(:task, { TaskID: "123", Category: "Attachments" })
+  #   # => "/Tasks/123/Attachments"
+  #
   def resolve_path(scope, substitutions = {})
     base_folder = path_for(scope)
     template = template_for(scope)
 
-    # Substitute template variables
-    resolved = template.dup
+    # Substitute template variables in base folder (scope root)
+    resolved_base = base_folder.dup
     substitutions.each do |key, value|
-      resolved.gsub!("{{#{key}}}", value.to_s)
+      resolved_base.gsub!("{{#{key}}}", value.to_s)
     end
 
-    File.join(root_path, base_folder, resolved)
+    # Substitute template variables in template
+    resolved_template = template.dup
+    substitutions.each do |key, value|
+      resolved_template.gsub!("{{#{key}}}", value.to_s)
+    end
+
+    File.join(root_path, resolved_base, resolved_template)
   end
 
   # ========================================
